@@ -96,6 +96,8 @@ pub struct TerminalExecution<'artifact> {
     pub(crate) structural_primitive_storage: BTreeMap<StructuralRuntimePlace, TerminalScalarValue>,
     pub(crate) structural_primitive_entry_places: BTreeMap<u32, StructuralRuntimePlace>,
     pub(crate) local_structural_identities: LocalStructuralIdentities,
+    /// Amortized scalar-only storage reclamation, never an ownership frontier.
+    pub(crate) next_scalar_collection_identity: u64,
     /// Scalar leaves written below aggregate structural values. Keys use the
     /// invocation-independent opaque identity and resolved parent path, so a
     /// projected call observes the same field without native layout claims.
@@ -389,6 +391,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             structural_primitive_storage: BTreeMap::new(),
             structural_primitive_entry_places: BTreeMap::new(),
             local_structural_identities,
+            next_scalar_collection_identity: 1024,
             structural_scalar_fields: BTreeMap::new(),
             structural_byte_sequence_fields: BTreeMap::new(),
             structural_byte_storage: BTreeMap::new(),
@@ -625,6 +628,9 @@ impl<'artifact> TerminalExecution<'artifact> {
 
         let program = std::sync::Arc::clone(&self.program);
         loop {
+            // A settled block boundary has no transaction-local constructor
+            // payload. Suspended nominal cleanups are excluded by reclamation.
+            self.reclaim_orphan_scalar_records();
             while let Some(operation) = program
                 .verified_machine(self.current_machine)?
                 .block(&self.current)

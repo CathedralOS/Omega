@@ -295,32 +295,15 @@ impl TerminalExecution<'_> {
         Ok(())
     }
 
-    /// `carrier` survives pruning `from` when it is neither that place nor a
-    /// descendant of it.
-    fn survives_subtree_prune(
-        carrier: &StructuralRuntimePlace,
-        from: &StructuralRuntimePlace,
-    ) -> bool {
-        carrier.opaque_identity != from.opaque_identity || !carrier.path.starts_with(&from.path)
-    }
-
-    /// Remove every runtime cell under `from`; paired with subtree copies so
-    /// consumed children vacate their source region atomically.
+    /// Retire precisely the consumed subtree after its cells have been staged.
     pub(crate) fn prune_subtree(&mut self, from: &StructuralRuntimePlace) {
-        self.structural_scalar_fields
-            .retain(|cell, _| Self::survives_subtree_prune(&cell.parent, from));
-        self.structural_byte_sequence_fields
-            .retain(|cell, _| Self::survives_subtree_prune(&cell.parent, from));
-        self.structural_byte_storage
-            .retain(|carrier, _| Self::survives_subtree_prune(carrier, from));
-        self.structural_cases
-            .retain(|carrier, _| Self::survives_subtree_prune(carrier, from));
-        self.reference_referents
-            .retain(|carrier, _| Self::survives_subtree_prune(carrier, from));
-        self.structural_element_view_fields
-            .retain(|carrier, _| Self::survives_subtree_prune(carrier, from));
-        self.structural_primitive_storage
-            .retain(|carrier, _| Self::survives_subtree_prune(carrier, from));
+        crate::structural_storage::prune(&mut self.structural_scalar_fields, from);
+        crate::structural_storage::prune(&mut self.structural_byte_sequence_fields, from);
+        crate::structural_storage::prune(&mut self.structural_byte_storage, from);
+        crate::structural_storage::prune(&mut self.structural_cases, from);
+        crate::structural_storage::prune(&mut self.reference_referents, from);
+        crate::structural_storage::prune(&mut self.structural_element_view_fields, from);
+        crate::structural_storage::prune(&mut self.structural_primitive_storage, from);
     }
 
     pub(crate) fn execute_establish_byte_sequence_literal(
@@ -1226,8 +1209,6 @@ impl TerminalExecution<'_> {
         Ok(hole)
     }
 
-    /// Move every runtime cell under `from` to the same subtree suffix under
-    /// `to`. Cells are staged before removal so the source region is never
     /// Stage every runtime cell under `from` at the same subtree suffix under
     /// `to`, then insert the staged cells. `vacate` retires the source
     /// subtree's cells for a move; a copy leaves `from` fully intact.
@@ -1249,64 +1230,44 @@ impl TerminalExecution<'_> {
                         .collect(),
                 })
         };
-        let staged_scalars: Vec<_> = self
-            .structural_scalar_fields
-            .iter()
-            .filter_map(|(cell, scalar)| {
-                retarget(&cell.parent).map(|parent| (cell.relocated(parent), *scalar))
-            })
-            .collect();
-        let staged_byte_fields: Vec<_> = self
-            .structural_byte_sequence_fields
-            .iter()
-            .filter_map(|(cell, view)| {
-                retarget(&cell.parent).map(|parent| (cell.relocated(parent), view.clone()))
-            })
-            .collect();
-        let staged_arrays: Vec<_> = self
-            .structural_byte_storage
-            .iter()
-            .filter_map(|(carrier, view)| retarget(carrier).map(|place| (place, view.clone())))
-            .collect();
-        let staged_cases: Vec<_> = self
-            .structural_cases
-            .iter()
+        let staged_scalars: Vec<_> =
+            crate::structural_storage::cells(&self.structural_scalar_fields, from)
+                .filter_map(|(cell, scalar)| {
+                    retarget(&cell.parent).map(|parent| (cell.relocated(parent), *scalar))
+                })
+                .collect();
+        let staged_byte_fields: Vec<_> =
+            crate::structural_storage::cells(&self.structural_byte_sequence_fields, from)
+                .filter_map(|(cell, view)| {
+                    retarget(&cell.parent).map(|parent| (cell.relocated(parent), view.clone()))
+                })
+                .collect();
+        let staged_arrays: Vec<_> =
+            crate::structural_storage::cells(&self.structural_byte_storage, from)
+                .filter_map(|(carrier, view)| retarget(carrier).map(|place| (place, view.clone())))
+                .collect();
+        let staged_cases: Vec<_> = crate::structural_storage::cells(&self.structural_cases, from)
             .filter_map(|(carrier, contents)| retarget(carrier).map(|place| (place, *contents)))
             .collect();
-        let staged_element_views: Vec<_> = self
-            .structural_element_view_fields
-            .iter()
-            .filter_map(|(carrier, descriptor)| {
-                retarget(carrier).map(|place| (place, descriptor.clone()))
-            })
-            .collect();
-        let staged_referents: Vec<_> = self
-            .reference_referents
-            .iter()
-            .filter_map(|(carrier, referent)| {
-                retarget(carrier).map(|place| (place, referent.clone()))
-            })
-            .collect();
-        let staged_primitives: Vec<_> = self
-            .structural_primitive_storage
-            .iter()
-            .filter_map(|(carrier, scalar)| retarget(carrier).map(|place| (place, *scalar)))
-            .collect();
-        for retired in std::iter::once(to).chain(vacate.then_some(from)) {
-            self.structural_scalar_fields
-                .retain(|cell, _| Self::survives_subtree_prune(&cell.parent, retired));
-            self.structural_byte_sequence_fields
-                .retain(|cell, _| Self::survives_subtree_prune(&cell.parent, retired));
-            self.structural_byte_storage
-                .retain(|carrier, _| Self::survives_subtree_prune(carrier, retired));
-            self.structural_cases
-                .retain(|carrier, _| Self::survives_subtree_prune(carrier, retired));
-            self.reference_referents
-                .retain(|carrier, _| Self::survives_subtree_prune(carrier, retired));
-            self.structural_element_view_fields
-                .retain(|carrier, _| Self::survives_subtree_prune(carrier, retired));
-            self.structural_primitive_storage
-                .retain(|carrier, _| Self::survives_subtree_prune(carrier, retired));
+        let staged_element_views: Vec<_> =
+            crate::structural_storage::cells(&self.structural_element_view_fields, from)
+                .filter_map(|(carrier, descriptor)| {
+                    retarget(carrier).map(|place| (place, descriptor.clone()))
+                })
+                .collect();
+        let staged_referents: Vec<_> =
+            crate::structural_storage::cells(&self.reference_referents, from)
+                .filter_map(|(carrier, referent)| {
+                    retarget(carrier).map(|place| (place, referent.clone()))
+                })
+                .collect();
+        let staged_primitives: Vec<_> =
+            crate::structural_storage::cells(&self.structural_primitive_storage, from)
+                .filter_map(|(carrier, scalar)| retarget(carrier).map(|place| (place, *scalar)))
+                .collect();
+        self.prune_subtree(to);
+        if vacate {
+            self.prune_subtree(from);
         }
         self.structural_scalar_fields.extend(staged_scalars);
         self.structural_byte_sequence_fields

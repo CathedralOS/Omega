@@ -224,6 +224,9 @@ impl BigInt {
         if other.is_zero() {
             return None;
         }
+        if let Some(bits) = other.power_of_two_exponent() {
+            return Some(self.div_rem_power_of_two(other, bits));
+        }
         let (quotient_magnitude, remainder_magnitude) =
             div_rem_magnitudes(&self.magnitude, &other.magnitude);
         let quotient = Self {
@@ -239,10 +242,82 @@ impl BigInt {
         Some((quotient, remainder))
     }
 
+    /// A single set bit identifies a dyadic divisor without division. IEEE
+    /// operands and rounded results use exactly these denominators.
+    fn power_of_two_exponent(&self) -> Option<usize> {
+        let last = *self.magnitude.last()?;
+        (last.is_power_of_two()
+            && self.magnitude[..self.magnitude.len() - 1]
+                .iter()
+                .all(|limb| *limb == 0))
+        .then(|| (self.magnitude.len() - 1) * 64 + last.trailing_zeros() as usize)
+    }
+
+    fn trailing_zero_bits(&self) -> usize {
+        self.magnitude
+            .iter()
+            .enumerate()
+            .find_map(|(index, limb)| {
+                (*limb != 0).then(|| index * 64 + limb.trailing_zeros() as usize)
+            })
+            .unwrap_or(0)
+    }
+
+    /// Truncating signed division still gives the remainder the dividend's
+    /// sign. Only magnitude work changes: shift the quotient and mask the low
+    /// bits instead of allocating a long-division step for every bit.
+    fn div_rem_power_of_two(&self, other: &Self, bits: usize) -> (Self, Self) {
+        let words = bits / 64;
+        let shift = bits % 64;
+        let mut quotient = Vec::new();
+        for index in words..self.magnitude.len() {
+            let low = self.magnitude[index] >> shift;
+            let high = if shift == 0 {
+                0
+            } else {
+                self.magnitude.get(index + 1).copied().unwrap_or(0) << (64 - shift)
+            };
+            quotient.push(low | high);
+        }
+        let mut remainder = self.magnitude[..words.min(self.magnitude.len())].to_vec();
+        if shift != 0
+            && let Some(limb) = self.magnitude.get(words)
+        {
+            remainder.push(limb & ((1u64 << shift) - 1));
+        }
+        (
+            Self {
+                negative: self.negative != other.negative,
+                magnitude: quotient,
+            }
+            .normalized(),
+            Self {
+                negative: self.negative,
+                magnitude: remainder,
+            }
+            .normalized(),
+        )
+    }
+
     /// Greatest common divisor, always non-negative. `gcd(0, 0) == 0`.
     pub fn gcd(&self, other: &Self) -> Self {
         let mut a = self.abs();
         let mut b = other.abs();
+        if a.is_zero() {
+            return b;
+        }
+        if b.is_zero() {
+            return a;
+        }
+        // gcd(n,2^k)=2^min(v2(n),k), including negative operands after abs.
+        // Keep Euclid for non-dyadic pairs; exact float semantics never inherit
+        // an ambient hardware rounding mode through this optimization.
+        if let Some(bits) = b.power_of_two_exponent() {
+            return Self::from_u64(1).shl_bits(bits.min(a.trailing_zero_bits()));
+        }
+        if let Some(bits) = a.power_of_two_exponent() {
+            return Self::from_u64(1).shl_bits(bits.min(b.trailing_zero_bits()));
+        }
         while !b.is_zero() {
             let (_, remainder) = a.div_rem(&b).expect("b is nonzero");
             a = b;

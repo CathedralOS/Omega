@@ -82,6 +82,69 @@ pub(crate) fn compute_terminal_liveness_reusing(
     ))
 }
 
+/// Machine-unit demand only. Spill admission consumes this domain and must not
+/// rebuild virtual fixed-point and operand-position evidence for each insertion.
+/// Transport and constraint validation remain mandatory. The unit fixed point
+/// and reverse transfer are shared with full liveness.
+pub(crate) struct UnitInstructionLiveness {
+    pub(crate) instruction: selected_instructions::SelectedInstructionId,
+    pub(crate) unit_live_in: Vec<register_model::RegisterUnitId>,
+    pub(crate) unit_live_out: Vec<register_model::RegisterUnitId>,
+}
+pub(crate) struct UnitBlockLiveness {
+    pub(crate) unit_live_in: Vec<register_model::RegisterUnitId>,
+    pub(crate) instructions: Vec<UnitInstructionLiveness>,
+}
+pub(crate) struct UnitFunctionLiveness {
+    pub(crate) blocks: Vec<UnitBlockLiveness>,
+}
+pub(crate) fn compute_function_units(
+    function_index: usize,
+    function: &SelectedFunction,
+) -> Result<UnitFunctionLiveness, LivenessError> {
+    reject_unsupported_constraints(function_index, function)?;
+    super::edge_values::validate_transports(function_index, function)?;
+    let flow = flow::FunctionFlow::compute_units(function_index, function)?;
+    let blocks = function
+        .blocks
+        .iter()
+        .enumerate()
+        .map(|(index, block)| {
+            let state = &flow.blocks[index];
+            let mut live = state.unit_exit.clone();
+            let mut instructions = Vec::with_capacity(block.instructions.len() + 1);
+            for instruction in block_instructions(block).rev() {
+                let unit_live_out = sorted(&live);
+                transfer_units(&mut live, instruction);
+                instructions.push(UnitInstructionLiveness {
+                    instruction: instruction.id,
+                    unit_live_in: sorted(&live),
+                    unit_live_out,
+                });
+            }
+            instructions.reverse();
+            UnitBlockLiveness {
+                unit_live_in: sorted(&state.unit_entry),
+                instructions,
+            }
+        })
+        .collect();
+    Ok(UnitFunctionLiveness { blocks })
+}
+fn transfer_units(
+    live: &mut BTreeSet<register_model::RegisterUnitId>,
+    instruction: &SelectedInstruction,
+) {
+    for killed in instruction
+        .implicit_defs
+        .iter()
+        .chain(&instruction.clobbers)
+    {
+        live.remove(killed);
+    }
+    live.extend(instruction.implicit_uses.iter().copied());
+}
+
 pub(crate) fn compute_function(
     function_index: usize,
     function: &SelectedFunction,
@@ -384,14 +447,7 @@ fn materialize_block(
             virtual_live.remove(definition);
         }
         virtual_live.extend(uses.iter().copied());
-        for killed in instruction
-            .implicit_defs
-            .iter()
-            .chain(&instruction.clobbers)
-        {
-            unit_live.remove(killed);
-        }
-        unit_live.extend(instruction.implicit_uses.iter().copied());
+        transfer_units(&mut unit_live, instruction);
         instructions.push(InstructionLiveness {
             position: positions[&instruction.id],
             instruction: instruction.id,

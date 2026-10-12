@@ -408,3 +408,14 @@ Residual disposal validates and charges the owning edge before mutation. On a
 jump, scalar arguments materialize before disposal and successor binding. An
 exhausted budget leaves residual ownership live. The exact producer/result root
 and claim map survive suspension; no partially moved ancestor becomes whole again.
+
+Structural storage copies and constructor staging use identity-bounded
+[`structural_storage`](src/structural_storage.rs) ranges. Keys order by carrier
+identity before path and field; subtree selection still checks the complete path.
+Each transaction stages all seven storage families before pruning either region,
+so overlapping copies/moves preserve the original snapshot behavior. This avoids
+scanning unrelated historical carriers; it grants no access to borrowed cells.
+At settled block boundaries scalar-only roots without executable handles may be
+reclaimed. Current and suspended frames, captured reference backings and every
+non-scalar storage family protect their roots. Loans, views, byte bindings and
+nominal cleanup transactions conservatively defer collection.

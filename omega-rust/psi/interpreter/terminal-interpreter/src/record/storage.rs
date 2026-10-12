@@ -385,12 +385,16 @@ impl ConstructorStorage {
                 path,
             })
         };
-        for (home, descriptor) in &execution.structural_element_view_fields {
+        for (home, descriptor) in
+            crate::structural_storage::cells(&execution.structural_element_view_fields, source)
+        {
             if let Some(target) = relocate(home) {
                 self.views.insert(target, descriptor.clone());
             }
         }
-        for (home, referent) in &execution.reference_referents {
+        for (home, referent) in
+            crate::structural_storage::cells(&execution.reference_referents, source)
+        {
             if let Some(target) = relocate(home) {
                 if !transfers_custody {
                     let carrier_type = execution.actual_storage_type_from_owner(home)?;
@@ -414,27 +418,35 @@ impl ConstructorStorage {
                 self.references.insert(target, referent.clone());
             }
         }
-        for (field, scalar) in &execution.structural_scalar_fields {
+        for (field, scalar) in
+            crate::structural_storage::cells(&execution.structural_scalar_fields, source)
+        {
             if let Some(parent) = relocate(&field.parent) {
                 self.scalars.insert(field.relocated(parent), *scalar);
             }
         }
-        for (field, bytes) in &execution.structural_byte_sequence_fields {
+        for (field, bytes) in
+            crate::structural_storage::cells(&execution.structural_byte_sequence_fields, source)
+        {
             if let Some(parent) = relocate(&field.parent) {
                 self.bytes.insert(field.relocated(parent), bytes.clone());
             }
         }
-        for (home, value) in &execution.structural_primitive_storage {
+        for (home, value) in
+            crate::structural_storage::cells(&execution.structural_primitive_storage, source)
+        {
             if let Some(target) = relocate(home) {
                 self.primitives.insert(target, *value);
             }
         }
-        for (home, bytes) in &execution.structural_byte_storage {
+        for (home, bytes) in
+            crate::structural_storage::cells(&execution.structural_byte_storage, source)
+        {
             if let Some(target) = relocate(home) {
                 self.byte_arrays.insert(target, bytes.clone());
             }
         }
-        for (home, case) in &execution.structural_cases {
+        for (home, case) in crate::structural_storage::cells(&execution.structural_cases, source) {
             if let Some(target) = relocate(home) {
                 self.cases.insert(target, *case);
             }

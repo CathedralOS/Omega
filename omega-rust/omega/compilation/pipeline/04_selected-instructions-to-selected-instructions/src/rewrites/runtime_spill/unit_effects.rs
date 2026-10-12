@@ -46,8 +46,9 @@ pub(super) fn preserve_live_units(
     }) {
         return Ok(());
     }
-    let liveness = crate::analyses::liveness::compute::compute_function(function_index, function)
-        .map_err(|_| RuntimeSpillError::SourceMismatch)?;
+    let liveness =
+        crate::analyses::liveness::compute::compute_function_units(function_index, function)
+            .map_err(|_| RuntimeSpillError::SourceMismatch)?;
     for definition in definitions {
         let block = liveness
             .blocks

@@ -318,3 +318,50 @@ fn rational_decimal_rounding_matches_rust_parsers_on_a_grid() {
         );
     }
 }
+
+#[test]
+fn dyadic_division_and_gcd_match_generic_long_division_across_limb_edges() {
+    use super::magnitude_arithmetic::div_rem_magnitudes;
+    for bits in [0, 1, 31, 63, 64, 65, 127, 128, 1024, 1074] {
+        let divisor = BigInt::from_u64(1).shl_bits(bits);
+        for numerator in [
+            BigInt::zero(),
+            BigInt::from_u64(19),
+            divisor.sub(&BigInt::from_u64(1)),
+            divisor.add(&BigInt::from_u64(1)),
+            BigInt::from_u64(53).shl_bits(1100),
+        ] {
+            for left in [numerator.clone(), numerator.negate()] {
+                for right in [divisor.clone(), divisor.negate()] {
+                    let (q, r) = div_rem_magnitudes(&left.magnitude, &right.magnitude);
+                    let expected = (
+                        BigInt {
+                            negative: left.negative != right.negative,
+                            magnitude: q,
+                        }
+                        .normalized(),
+                        BigInt {
+                            negative: left.negative,
+                            magnitude: r,
+                        }
+                        .normalized(),
+                    );
+                    assert_eq!(left.div_rem(&right), Some(expected));
+                    let mut a = left.abs();
+                    let mut b = right.abs();
+                    while !b.is_zero() {
+                        let (_, r) = div_rem_magnitudes(&a.magnitude, &b.magnitude);
+                        a = b;
+                        b = BigInt {
+                            negative: false,
+                            magnitude: r,
+                        }
+                        .normalized();
+                    }
+                    assert_eq!(left.gcd(&right), a);
+                    assert_eq!(right.gcd(&left), a);
+                }
+            }
+        }
+    }
+}

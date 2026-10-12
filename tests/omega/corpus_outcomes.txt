@@ -5982,6 +5982,7 @@ pass/structural/runtime_enum_equality_exit checked 11583ms check-target:macos_ar
 pass/structural/runtime_mutable_record_copy_exit checked 11191ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/structural/runtime_nested_constructor_payload_exit checked 10419ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/structural/runtime_provider_payload_array_exit checked 11768ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/structural/runtime_scalar_record_reclamation_exit checked 14010ms check-target:macos_arm64 @d3f34d02fc55
 pass/structural/runtime_selected_case_record_member_exit checked 11193ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/structural/runtime_state_local_whole_store_exit checked 11853ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/structural/runtime_structural_operand_snapshot_exit checked 11365ms check-target:macos_arm64 @a9ae30e1c334+wt

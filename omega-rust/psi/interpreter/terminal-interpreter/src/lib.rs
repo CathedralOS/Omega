@@ -57,6 +57,7 @@ mod semantic_value_comparison;
 mod structural_identities;
 mod structural_inputs;
 mod structural_operations;
+mod structural_storage;
 mod terminal_interpreter;
 mod terminators;
 mod values;

@@ -121,6 +121,7 @@ pass/slices/runtime_range_qualified_scalar_copy_exit built 10136ms exit:0 interp
 pass/slices/runtime_range_qualified_scalar_copy_local_exit built 10408ms exit:0 interpreter-exit:0 interpreter:agrees @72f9cbd4156c+wt
 pass/slices/runtime_range_qualified_scalar_dynamic_store_exit built 11013ms exit:0 interpreter-exit:0 interpreter:agrees @72f9cbd4156c+wt
 pass/slices/runtime_range_qualified_scalar_store_phi_exit built 9496ms exit:0 interpreter-exit:0 interpreter:agrees @72f9cbd4156c+wt
+pass/structural/runtime_scalar_record_reclamation_exit built 22259ms exit:0 interpreter-exit:0 interpreter:agrees @d3f34d02fc55
 pass/text/zii_default_string_equality_exit built 2875ms exit:70 interpreter-exit:70 interpreter:agrees @51cfa86f7f14+wt
 run/borrows/local_mut_borrow built 4701ms exit:9 interpreter-exit:9 interpreter:agrees @944fb1232f17
 pass/generics/runtime_qualified_closed_equation_exit built 4980ms exit:0 interpreter-exit:0 interpreter:agrees @8d6cc0f5fef7+wt

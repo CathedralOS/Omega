@@ -47,6 +47,21 @@ impl FunctionFlow {
         function_index: usize,
         function: &SelectedFunction,
     ) -> Result<Self, LivenessError> {
+        Self::compute_domains(function_index, function, true)
+    }
+
+    pub(super) fn compute_units(
+        function_index: usize,
+        function: &SelectedFunction,
+    ) -> Result<Self, LivenessError> {
+        Self::compute_domains(function_index, function, false)
+    }
+
+    fn compute_domains(
+        function_index: usize,
+        function: &SelectedFunction,
+        include_virtual: bool,
+    ) -> Result<Self, LivenessError> {
         let mismatch = || LivenessError::FunctionMismatch {
             function: function_index,
         };
@@ -68,6 +83,7 @@ impl FunctionFlow {
                 let mut substitutions = successor
                     .bindings
                     .iter()
+                    .filter(|_| include_virtual)
                     .filter_map(|binding| match binding.transport {
                         SelectedValueTransport::Registers {
                             argument,
@@ -76,7 +92,9 @@ impl FunctionFlow {
                         SelectedValueTransport::Unused => None,
                     })
                     .collect::<Vec<_>>();
-                if let Some(case) = &successor.structural_case {
+                if let Some(case) = &successor.structural_case
+                    && include_virtual
+                {
                     substitutions.extend(case.payloads.iter().filter_map(|payload| {
                         match payload.transport {
                             selected_instructions::SelectedCasePayloadTransport::Registers { argument, parameter } => Some((parameter, argument)),
@@ -95,7 +113,7 @@ impl FunctionFlow {
             let mut transfer = BlockTransfer::default();
             for instruction in block_instructions(block) {
                 // Uses precede simultaneous definitions, as in reverse transfer.
-                for operand in &instruction.operands {
+                for operand in instruction.operands.iter().filter(|_| include_virtual) {
                     if operand.access == RegisterOperandAccess::Use
                         && !transfer.virtual_kills.contains(&operand.virtual_register)
                     {
@@ -106,7 +124,9 @@ impl FunctionFlow {
                     instruction
                         .operands
                         .iter()
-                        .filter(|operand| operand.access == RegisterOperandAccess::Def)
+                        .filter(|operand| {
+                            include_virtual && operand.access == RegisterOperandAccess::Def
+                        })
                         .map(|operand| operand.virtual_register),
                 );
                 transfer.unit_uses.extend(
@@ -127,7 +147,7 @@ impl FunctionFlow {
             transfers.push(transfer);
         }
         // Leaf functions never query an incoming register, so they need no roster.
-        let mut registers = if edges.iter().all(Vec::is_empty) {
+        let mut registers = if !include_virtual || edges.iter().all(Vec::is_empty) {
             Vec::new()
         } else {
             function
