@@ -105,10 +105,10 @@ pub(crate) fn lower_static_machine_argument(
     argument: &resolved::expression::StaticMachineArgument,
 ) -> Result<typed::expression::StaticMachineArgument, Diagnostic> {
     let type_reference = if argument.type_reference.is_valid() {
-        crate::type_reference::lower_type_reference_into_trees_with_exposure(
+        crate::type_reference::lower_child_type_reference_with_exposure(
             program,
             target,
-            program.child_type_reference(argument.type_reference),
+            argument.type_reference,
             exposure,
         )?
     } else {

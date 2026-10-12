@@ -37,6 +37,8 @@ pub struct GenericApplicationOrigin {
 pub struct NormalizedConstArgument {
     pub argument: Handle<TypeReference>,
     pub canonical_result_encoding: String,
+    pub canonical_result_atom: String,
+    pub integer_meaning: language_core::expression_origin::ConstMatchIntegerMeaning,
 }
 
 #[derive(Debug, Clone, Default)]

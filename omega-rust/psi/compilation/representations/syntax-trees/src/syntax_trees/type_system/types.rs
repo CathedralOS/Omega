@@ -119,6 +119,9 @@ pub struct ConstArgumentNormalization {
     pub authored_expression: crate::expression::ExpressionHandle,
     pub reference: source::SourceSpan,
     pub canonical_result_encoding: String,
+    /// The completed result is separate from the original checked operand.
+    pub canonical_result_atom: String,
+    pub integer_meaning: language_core::expression_origin::ConstMatchIntegerMeaning,
     pub selections: HandleSpan<ConstArgumentOrigin>,
     pub builtin_operators: HandleSpan<source::SourceSpan>,
     /// Exact evaluated operations; empty for span-only observations.
@@ -507,12 +510,35 @@ impl TypeReferenceTable {
                     authored_expression: crate::expression::ExpressionHandle::invalid(),
                     reference,
                     canonical_result_encoding,
+                    canonical_result_atom: String::new(),
+                    integer_meaning: Default::default(),
                     selections,
                     builtin_operators,
                     operator_expressions: HandleSpan::empty(),
                     selected_matches: HandleSpan::empty(),
                 },
             });
+    }
+
+    /// Issued only by successful evaluation, before the display atom replaces
+    /// its source operand. The receiver never supplies width or policy.
+    pub fn retain_const_argument_result(
+        &mut self,
+        argument: TypeReferenceHandle,
+        atom: String,
+        meaning: language_core::expression_origin::ConstMatchIntegerMeaning,
+    ) {
+        let handle = self
+            .const_argument_normalizations
+            .iter()
+            .find_map(|(handle, row)| (row.argument == argument).then_some(handle))
+            .expect("completed result belongs to its normalization occurrence");
+        let normalization = &mut self
+            .const_argument_normalizations
+            .get_mut(handle)
+            .normalization;
+        normalization.canonical_result_atom = atom;
+        normalization.integer_meaning = meaning;
     }
 
     /// The successful normalizer supplies operation handles and their diagnostic
@@ -970,6 +996,11 @@ impl TypeReferenceTable {
                 normalization.canonical_result_encoding,
                 origins,
                 operators,
+            );
+            self.retain_const_argument_result(
+                destination,
+                normalization.canonical_result_atom,
+                normalization.integer_meaning,
             );
             let operator_expressions = self
                 .const_argument_operator_expressions(normalization.operator_expressions)

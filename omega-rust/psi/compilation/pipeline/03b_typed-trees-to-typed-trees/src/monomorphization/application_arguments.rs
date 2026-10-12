@@ -440,6 +440,15 @@ pub(super) fn materialize_const_type_argument(
     program: &mut TypedTrees,
     argument: TypeReferenceHandle,
 ) {
+    // A completed source observation does not replace its original call graph.
+    // Private binding materialization reads it through the shared result query.
+    if program
+        .type_reference_table
+        .completed_const_result(argument)
+        .is_some()
+    {
+        return;
+    }
     if let Some((value, meaning)) = normalized_const_type_argument_with_meaning(program, argument) {
         program
             .type_reference_table
@@ -464,7 +473,7 @@ pub(super) fn normalized_const_type_argument_with_meaning(
                 symbol: SymbolHandle::invalid(),
                 name: typed_trees::name::Identifier::generated(value.atom()),
             },
-            typed_trees::types::ConstIntegerMeaning::Unavailable,
+            program.type_reference_table.const_integer_meaning(argument),
         ));
     }
     let value = program.closed_const_integer_argument(argument)?;
@@ -527,16 +536,22 @@ pub(super) fn static_application_is_closed(
             && !super::for_each_type_reference(
                 program,
                 &[reference],
-                |_, node| match node {
+                |reference, node| match node {
                     TypeReferenceNode::Named { symbol, .. } => open_symbol(program, *symbol),
                     TypeReferenceNode::Generic { base_symbol, .. }
                     | TypeReferenceNode::DynamicTrait {
                         symbol: base_symbol,
                         ..
                     } => open_symbol(program, *base_symbol),
-                    TypeReferenceNode::ConstExpression(expression) => program
-                        .closed_integer_expression_value(*expression)
-                        .is_none(),
+                    TypeReferenceNode::ConstExpression(expression) => {
+                        program
+                            .type_reference_table
+                            .completed_const_result(reference)
+                            .is_none()
+                            && program
+                                .closed_integer_expression_value(*expression)
+                                .is_none()
+                    }
                     TypeReferenceNode::FixedArray { length, .. } => {
                         !matches!(length, typed_trees::types::FixedArrayLength::Literal(_))
                     }

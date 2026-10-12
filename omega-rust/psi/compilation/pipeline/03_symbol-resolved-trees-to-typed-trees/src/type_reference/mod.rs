@@ -75,6 +75,78 @@ pub(crate) use generic_origins::validate_range_arguments;
 use direct::lower_type_reference_handle_with_context;
 use table::lower_type_reference_handle_from_table_with_context;
 
+/// Lower an actual resolved child occurrence before transferring its completed
+/// value. Equal expressions or equal result encodings cannot supply this join.
+pub(crate) fn lower_child_type_reference_into_table(
+    lowerer: &mut Lowerer,
+    argument: arena::Handle<resolved::types::TypeReference>,
+) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
+    lower_child_type_reference_with_exposure(
+        lowerer.source_trees,
+        &mut lowerer.typed_trees,
+        argument,
+        lowerer.type_reference_exposure,
+    )
+}
+
+pub(crate) fn lower_child_type_reference_with_exposure(
+    source_trees: &resolved::SymbolResolvedTrees,
+    typed_trees: &mut typed::TypedTrees,
+    argument: arena::Handle<resolved::types::TypeReference>,
+    exposure: Option<
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    >,
+) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
+    let reference = lower_type_reference_handle_with_context(
+        source_trees,
+        typed_trees,
+        source_trees.child_type_reference(argument),
+        exposure,
+    )?;
+    let mut observations = source_trees
+        .tables
+        .types
+        .normalized_const_arguments
+        .iter()
+        .filter_map(|(_, row)| (row.argument == argument).then_some(row));
+    if let Some(observation) = observations.next() {
+        if observations.any(|other| {
+            other.canonical_result_encoding != observation.canonical_result_encoding
+                || other.integer_meaning != observation.integer_meaning
+                || language_semantics::const_value::CanonicalConstValue::from_atom(
+                    &other.canonical_result_atom,
+                )
+                .map(|value| value.identity())
+                    != language_semantics::const_value::CanonicalConstValue::from_atom(
+                        &observation.canonical_result_atom,
+                    )
+                    .map(|value| value.identity())
+        }) {
+            return Err(Diagnostic::error(
+                "const operand has conflicting completed source observations",
+            ));
+        }
+        if !observation.canonical_result_atom.is_empty() {
+            let value = language_semantics::const_value::CanonicalConstValue::from_atom(
+                &observation.canonical_result_atom,
+            )
+            .ok_or_else(|| Diagnostic::error("completed const operand lost its result payload"))?;
+            typed_trees
+                .type_reference_table
+                .retain_completed_const_result(reference, Some(value));
+            typed_trees
+                .type_reference_table
+                .retain_const_integer_meaning(
+                    reference,
+                    typed::types::ConstIntegerMeaning::from_source_meaning(
+                        observation.integer_meaning,
+                    ),
+                );
+        }
+    }
+    Ok(reference)
+}
+
 pub(crate) fn lower_type_reference_into_table(
     lowerer: &mut Lowerer,
     type_reference: &resolved::types::TypeReference,
