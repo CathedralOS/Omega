@@ -124,9 +124,9 @@ pub(crate) fn evaluate_independent_lengths(
     typed: &mut TypedTrees,
     authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     domain: &EvaluationDomain,
+    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
 ) -> Result<bool, Vec<Diagnostic>> {
-    LengthJobs::new(authority, domain, LengthProviderSelection::Pending)
-        .evaluate(typed, &mut Vec::new())
+    LengthJobs::new(authority, domain, LengthProviderSelection::Pending).evaluate(typed, inputs)
 }
 
 pub(crate) fn evaluate_selected_array_lengths(

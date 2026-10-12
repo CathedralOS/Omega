@@ -449,11 +449,13 @@ impl PreCheckEvaluation {
     pub fn evaluate_or_defer(
         self,
         typed: &mut typed_trees::TypedTrees,
+        inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
     ) -> Result<Option<Self>, Vec<diagnostics::Diagnostic>> {
         if const_lengths::evaluate_independent_lengths(
             typed,
             self.selection_authority.clone(),
             &self.domain,
+            inputs,
         )? || range_endpoints::pending_endpoint_calls_need_operator_selection(
             typed,
             self.selection_authority.clone(),
@@ -473,7 +475,7 @@ impl PreCheckEvaluation {
             validation::resolve_selected_dynamic_call_targets(typed, self.domain.work())?;
             return Ok(Some(self));
         }
-        self.evaluate(typed)?;
+        self.evaluate_admitted(typed, BuildTimeCheckingAdmission::default(), inputs)?;
         Ok(None)
     }
 
@@ -484,11 +486,12 @@ impl PreCheckEvaluation {
         pre_checks: Vec<Self>,
         mut wire_schema_frontier: usize,
         typed: &mut typed_trees::TypedTrees,
+        inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
     ) -> Result<Vec<Self>, Vec<diagnostics::Diagnostic>> {
         let mut pending = Vec::new();
         for mut pre_check in pre_checks {
             pre_check.wire_schema_frontier = wire_schema_frontier;
-            if let Some(pre_check) = pre_check.evaluate_or_defer(typed)? {
+            if let Some(pre_check) = pre_check.evaluate_or_defer(typed, inputs)? {
                 pending.push(pre_check);
             }
             wire_schema_frontier = typed.wire_schemas().len();
