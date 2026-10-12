@@ -112,7 +112,8 @@ pub(crate) fn checked_generic_operator_target(
             | checked_trees::CheckedValueOrigin::StateStatement { machine_symbol, .. } => {
                 machine_symbol
             }
-            checked_trees::CheckedValueOrigin::NestedExpression { .. } => continue,
+            checked_trees::CheckedValueOrigin::TypeConstantArgument { .. }
+            | checked_trees::CheckedValueOrigin::NestedExpression { .. } => continue,
         };
         let Some(machine) = program.machine_by_symbol(machine_symbol) else {
             continue;

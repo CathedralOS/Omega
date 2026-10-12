@@ -11,7 +11,7 @@ use typed_trees::expression::ExpressionNode;
 pub fn derive_pre_flow_operator_selections(
     program: &dyn crate::CheckingInput,
 ) -> CheckedOperatorFacts {
-    let values = crate::collect_executable_value_origins(
+    let values = crate::collect_source_value_origins(
         program,
         &typed_trees::references::DeclarationSelection::all(),
     );
