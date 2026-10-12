@@ -469,6 +469,29 @@ fn complete_arguments(
         }
         arguments.push(reference);
     }
+    // Equation matching uses scalar scratch, but reconstruction forwards the
+    // authored operand graph. A decimal rendering cannot issue integer policy.
+    let mut original_arguments = Vec::with_capacity(supplied.len());
+    for (argument, reference) in supplied.iter().zip(&arguments) {
+        let original = if let Some(literal) = &argument.const_literal {
+            let expression = syntax
+                .expressions
+                .insert(ExpressionNode::Integer(literal.clone()));
+            syntax
+                .type_references
+                .insert(TypeReferenceNode::ConstExpression(expression))
+        } else if !argument.path.is_empty() && !argument.type_reference.is_valid() {
+            syntax.type_references.insert(TypeReferenceNode::Named(
+                syntax_trees::identifier::Identifier::new(
+                    argument.path.joined_path(),
+                    argument.path[0].source_span(),
+                ),
+            ))
+        } else {
+            *reference
+        };
+        original_arguments.push(original);
+    }
     let const_values = module_constants::lexical_integer_const_values(syntax);
     let mut warnings = Vec::new();
     let tuple = type_equations::complete_equation_arguments(
@@ -483,6 +506,7 @@ fn complete_arguments(
         },
         target,
         &arguments,
+        &original_arguments,
         &const_values,
         Some(selection),
         &mut warnings,

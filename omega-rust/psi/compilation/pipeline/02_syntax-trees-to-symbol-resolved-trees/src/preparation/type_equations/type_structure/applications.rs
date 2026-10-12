@@ -8,7 +8,9 @@
 //! for a maximum.
 //! Forwarded const binders retain their declared carrier until the selected
 //! constructor telescope has checked it. Scalar bindings alone cannot carry
-//! this authority: matching and reconstruction normalize them to values.
+//! this authority: matching normalizes them to values while reconstruction
+//! forwards an available original supplied operand. Mathematical assignments
+//! recovered without an original operand retain unavailable integer meaning.
 //! Closed named constructor indices instead select in the equation's authored
 //! source scope. Their declarations pass the ordinary const-index canonicalizer
 //! against the constructor's carrier before name erasure. Matching, construction
@@ -422,7 +424,20 @@ impl Solver<'_, '_> {
                         .type_reference(argument)
                         .as_named()
                         .is_some_and(|name| self.parameter_position(name.as_str()).is_some());
-                    if derived {
+                    let supplied_original = self
+                        .syntax
+                        .type_references
+                        .type_reference(argument)
+                        .as_named()
+                        .and_then(|name| self.parameter_position(name.as_str()))
+                        .and_then(|(position, _)| self.original_supplied.get(position))
+                        .copied();
+                    if let Some(original) = supplied_original {
+                        // Forward the caller's exact literal/declaration graph,
+                        // including any prior landing; the receiving slot still
+                        // performs its ordinary carrier and policy admission.
+                        original
+                    } else if derived {
                         // Preserve the existing derived-assignment frontier:
                         // these mathematical bindings do not carry an original
                         // integer policy receipt and cannot be called Anonymous.
