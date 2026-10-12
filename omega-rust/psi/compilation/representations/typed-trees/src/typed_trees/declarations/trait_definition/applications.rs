@@ -657,9 +657,7 @@ impl<'program> AppliedTraitScope<'program> {
         Some(scope)
     }
 
-    pub(crate) fn argument_identity_owner(
-        &self,
-    ) -> crate::type_identity::AppliedTypeIdentityOwner<'_> {
+    pub fn argument_identity_owner(&self) -> crate::type_identity::AppliedTypeIdentityOwner<'_> {
         match &self.captured_argument_owner {
             Some(capture) => crate::type_identity::AppliedTypeIdentityOwner::Captured(capture),
             None => {
