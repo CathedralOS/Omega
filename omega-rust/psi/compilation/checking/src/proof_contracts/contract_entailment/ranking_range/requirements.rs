@@ -26,7 +26,7 @@ pub fn arithmetic_entry_requirement_is_covered(
                 .any(
                     |fact| matches!(fact, ProofFact::Expression(expression) if *expression == goal),
                 )
-    }) || meanings::builtin(program, machine, root, goal, 0).is_none()
+    }) || meanings::admitted_carrier(program, machine, root, goal, 0).is_none()
     {
         return false;
     }
@@ -57,7 +57,7 @@ fn prepare_requirement<'program>(
     target: &'program State,
     goal: ExpressionHandle,
 ) -> Option<ArithmeticRequirement<'program>> {
-    meanings::builtin(program, callee, target, goal, 0)?;
+    meanings::admitted_carrier(program, callee, target, goal, 0)?;
     let bindings = integer_bindings(program, target)?;
     let mut engine = Engine::strict(program, callee, &bindings);
     let mut fields = FieldCoordinates::empty();
@@ -264,7 +264,7 @@ fn prove(
     {
         return None;
     }
-    meanings::builtin(program, callee, target, goal, 0)?;
+    meanings::admitted_carrier(program, callee, target, goal, 0)?;
     for argument in arguments {
         // No call, borrow, or unknown operand can change an earlier snapshot.
         // An actual whose produced length is exact metadata -- a state-local
@@ -272,7 +272,7 @@ fn prove(
         // way: evaluating it at the boundary cannot rewrite an installed
         // caller fact. Nor can a name an immutable `let` bound to a saved
         // value: the local is an entry observation, not an effect.
-        if meanings::builtin(program, caller, caller_state, *argument, 0).is_none()
+        if meanings::admitted_carrier(program, caller, caller_state, *argument, 0).is_none()
             && lengths::produced_length(program, caller, caller_state, *argument, 0).is_none()
             && saved_arguments::actual(program, caller_state, *argument).is_none()
         {
@@ -283,7 +283,7 @@ fn prove(
         .iter()
         .copied()
         .filter(|(expression, _)| {
-            meanings::builtin(program, caller, caller_state, *expression, 0).is_some()
+            meanings::admitted_carrier(program, caller, caller_state, *expression, 0).is_some()
         })
         .collect::<Vec<_>>();
     let expressions = arguments

@@ -126,9 +126,8 @@ pub(crate) fn proves_call(
             frames.map(|frames| frames.statement_value_write_frame(machine, statement)),
         );
     }
-    let Some((callee, callee_state)) =
-        validation::find_machine_by_entry_state(program, call.target_symbol)
-            .or_else(|| validation::find_machine_head(program, call.target_symbol))
+    let Some((callee, callee_state)) = validation::find_state(program, call.target_symbol)
+        .or_else(|| validation::find_machine_head(program, call.target_symbol))
     else {
         return false;
     };

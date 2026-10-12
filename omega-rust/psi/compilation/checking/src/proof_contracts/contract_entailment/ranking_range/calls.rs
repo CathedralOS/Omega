@@ -85,7 +85,7 @@ pub(crate) fn prove_ranking_range_call(
         return None;
     }
     let admit_source =
-        |expression| meanings::builtin(program, caller.machine, source, expression, 0);
+        |expression| meanings::admitted_carrier(program, caller.machine, source, expression, 0);
     // Both selected scalar views already produce natural ranks. An absent
     // optional range adds no endpoint obligations or synthetic bound. Authored
     // subjects, endpoints, and limits name entry parameters, so their builtin
@@ -708,18 +708,18 @@ fn admit_member(
     state: &State,
     measure: RankingRangeMeasure,
 ) -> Option<()> {
-    meanings::builtin(program, member.machine, state, member.subject, 0)?;
+    meanings::admitted_carrier(program, member.machine, state, member.subject, 0)?;
     if member.paired_subject.is_valid() {
-        meanings::builtin(program, member.machine, state, member.paired_subject, 0)?;
+        meanings::admitted_carrier(program, member.machine, state, member.paired_subject, 0)?;
     }
     if member.range.is_valid() {
         let range = program.expression_table.range_node(member.range)?;
         for expression in [range.start, range.end] {
-            meanings::builtin(program, member.machine, state, expression, 0)?;
+            meanings::admitted_carrier(program, member.machine, state, expression, 0)?;
         }
     }
     if let RankingRangeMeasure::IncreasingTo { limit, .. } = measure {
-        meanings::builtin(program, member.machine, state, limit, 0)?;
+        meanings::admitted_carrier(program, member.machine, state, limit, 0)?;
     }
     Some(())
 }

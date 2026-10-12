@@ -478,6 +478,30 @@ pub(super) fn owner_parameter_scope<'program>(
     Some(std::borrow::Cow::Owned(parameters))
 }
 
+/// Locate an authored contract binder in the selected invocation's operand
+/// roster. Dynamic slots retain fresh invocation symbols and a dispatch prefix;
+/// their requirement's declaration correspondence, never parameter spelling,
+/// determines the data operand position.
+pub fn call_contract_parameter_position(
+    program: &dyn crate::CheckingInput,
+    target: SymbolHandle,
+    parameter: SymbolHandle,
+) -> Option<usize> {
+    // An invocation binder already has its exact position, including static
+    // machine parameters and the generated slot telescope. Authored dynamic
+    // requirements instead need their retained declaration correspondence.
+    if let Some(parameters) = crate::call_target_parameters(program, target)
+        && let Some(position) =
+            typed_trees::signature::state_parameter_position(parameters, parameter)
+    {
+        return Some(position);
+    }
+    let owner = selected_contract_by_symbol(program, target)?;
+    let parameters = owner_parameter_scope(program, &owner)?;
+    typed_trees::signature::state_parameter_position(&parameters, parameter)
+        .map(|position| position + owner_leading_operands(&owner))
+}
+
 pub(super) fn owner_leading_operands(owner: &SelectedCallContract<'_>) -> usize {
     match owner {
         // The selected slot owns this dispatch prefix; its data_parameters

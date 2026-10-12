@@ -63,6 +63,7 @@ pub(super) fn semantic_context_proves_instantiated_boolean_expression(
     statement_index: usize,
     call_site: &validation::CallSite<'_>,
     target_state: &(impl ContractTargetParameters + ?Sized),
+    target_state_symbol: SymbolHandle,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
     let semantic = &facts.semantic;
@@ -76,6 +77,7 @@ pub(super) fn semantic_context_proves_instantiated_boolean_expression(
         statement_index,
         call_site,
         target_state,
+        target_state_symbol,
         expression,
     ) {
         return true;
@@ -93,6 +95,7 @@ pub(super) fn semantic_context_proves_instantiated_boolean_expression(
                 statement_index,
                 call_site,
                 target_state,
+                target_state_symbol,
                 inner.target,
             )
         }
@@ -109,6 +112,7 @@ pub(super) fn semantic_context_proves_instantiated_boolean_expression(
                         statement_index,
                         call_site,
                         target_state,
+                        target_state_symbol,
                         *operand,
                     )
                 })
@@ -125,6 +129,7 @@ pub(super) fn semantic_context_proves_instantiated_boolean_expression(
                         statement_index,
                         call_site,
                         target_state,
+                        target_state_symbol,
                         *operand,
                     )
                 })

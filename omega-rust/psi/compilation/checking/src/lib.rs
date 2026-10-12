@@ -157,6 +157,7 @@ pub use proof_contracts::bound_expression_meaning::{
     has_exact_case_membership_meaning, has_exact_data_case_membership_meaning,
     has_exact_domain_case_membership_meaning, has_exact_integer_domain_subject,
     has_exact_parameter_case_membership_meaning, sealed_float_comparison,
+    sealed_float_comparison_declaration,
 };
 pub use value_custody::intrinsic_boundaries::boundary_requirement_completion;
 pub use value_custody::intrinsic_boundaries::checked_shape_data_declaration;
@@ -345,7 +346,6 @@ pub use proof_contracts::arithmetic_domains::{
     standing_integer_bounds, stored_integer_bounds, stored_integer_source_may_require_fit,
     stored_integer_source_projection, stored_integer_source_projections,
 };
-pub use proof_contracts::contract_entailment::instantiated_value_call_requires_proven;
 pub use proof_contracts::contract_entailment::integer_embedding_sources_equal;
 pub use proof_contracts::contract_entailment::is_arm_pattern_marker;
 pub use proof_contracts::contract_entailment::selected_value_call_requirement_entailed;
@@ -387,6 +387,9 @@ pub use proof_contracts::contract_entailment::{
 };
 pub use proof_contracts::contract_entailment::{
     anonymous_integer_math_literal, proof_integer_expression,
+};
+pub use proof_contracts::contract_entailment::{
+    call_contract_parameter_position, instantiated_value_call_requires_proven,
 };
 pub use proof_contracts::default_domains::{
     case_where_field_intervals, data_where_field_intervals,

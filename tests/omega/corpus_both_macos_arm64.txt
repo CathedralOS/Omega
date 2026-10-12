@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "2", "load1_end": 2.11, "load1_start": 2.13, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 4.94, "load1_start": 5.24, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/closed_call_transition_return_proves_exact_sum_exit built 2645ms exit:112 interpreter-exit:112 interpreter:agrees @1152c1496b39
 pass/arithmetic/full_width_integer_literals_compose_exit built 3129ms exit:0 interpreter-exit:0 interpreter:agrees @d0e40a213f35
 pass/arithmetic/qualified_cast_in_entry_body_exit built 1326ms exit:0 interpreter-exit:0 interpreter:agrees @2e29bd5fedcf
@@ -439,7 +439,7 @@ pass/float/runtime_named_policy_conversion_composition_exit built 9050ms exit:70
 pass/float/runtime_named_policy_result_exit built 8979ms exit:70 interpreter-exit:70 interpreter:agrees @cba4ef8c9ab1
 pass/float/runtime_qualified_carrier_conversion_exit built 4391ms exit:0 interpreter-exit:0 interpreter:agrees @f66070cc72a5+wt
 pass/float/runtime_refined_conversion_target_exit built 8596ms exit:0 interpreter-exit:0 interpreter:agrees @9be27a3951a7
-pass/float/runtime_result_predicate_custody_exit built 9141ms exit:0 interpreter-exit:0 interpreter:agrees @e2eb2e0b9606
+pass/float/runtime_result_predicate_custody_exit built 6936ms exit:0 interpreter-exit:0 interpreter:agrees @cf645a79ddb2+wt
 pass/float/runtime_total_order_satisfiers_exit built 19626ms exit:70 interpreter-exit:70 interpreter:agrees @7e0a52664189
 pass/float/saturating_named_operations_retain_ordered_inputs built 8797ms exit:0 interpreter-exit:0 interpreter:agrees @cba4ef8c9ab1
 pass/float/symbolic_integer_conversion_finite_requires_exit built 21063ms exit:0 interpreter-exit:0 interpreter:agrees @95f5c1baea71
@@ -649,13 +649,13 @@ pass/targets/runtime_target_inherited_named_provider_defaults_exit built 3277ms 
 pass/targets/runtime_target_inherited_provider_roster_exit built 2684ms exit:0 interpreter-exit:0 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @0cfa2d49940a
 pass/targets/target_body_call_contracts_exit built 11431ms exit:0 interpreter-exit:0 interpreter:agrees @5833e7d00af3
 pass/targets/target_family_entry_exit built 11761ms exit:0 interpreter-exit:0 interpreter:agrees @ac80e12ccdc5
-pass/termination/joint_rank_acyclic_finish_exit built 3333ms exit:0 interpreter-exit:0 interpreter:agrees @a45c3d0bf1f5
+pass/termination/joint_rank_acyclic_finish_exit built 3358ms exit:0 interpreter-exit:0 interpreter:agrees @cf645a79ddb2+wt
 pass/termination/runtime_computed_projected_measure_arrivals_exit built 3519ms exit:0 interpreter-exit:0 interpreter:agrees @83a90e1b3f89+wt
 pass/termination/runtime_distance_crossed_header_exit built 3431ms exit:0 interpreter-exit:0 interpreter:agrees @83a90e1b3f89+wt
 pass/termination/runtime_projected_element_rank_arrivals_exit built 3401ms exit:0 interpreter-exit:0 interpreter:agrees @7c9a1dd8dd3b
 pass/termination/runtime_ranked_sequence_arrival_coordinates_exit built 3361ms exit:0 interpreter-exit:0 interpreter:agrees @83a90e1b3f89+wt
-pass/termination/runtime_record_measure_constructed_arrivals_exit built 3479ms exit:0 interpreter-exit:0 interpreter:agrees @83a90e1b3f89+wt
-pass/termination/runtime_saved_rank_cycle_exit built 1885ms exit:0 interpreter-exit:0 interpreter:agrees @68fba6a896c8+wt
+pass/termination/runtime_record_measure_constructed_arrivals_exit built 3502ms exit:0 interpreter-exit:0 interpreter:agrees @cf645a79ddb2+wt
+pass/termination/runtime_saved_rank_cycle_exit built 3250ms exit:0 interpreter-exit:0 interpreter:agrees @cf645a79ddb2+wt
 pass/termination/runtime_selected_requirement_rank_composed_prefix_exit built 3472ms exit:0 interpreter-exit:0 interpreter:agrees @cac1400fd2e4
 pass/termination/runtime_selected_requirement_rank_prefix_exit built 3571ms exit:0 interpreter-exit:0 interpreter:agrees @05ef1dca14f6
 pass/text/declared_record_view_field_fill_exit built 2399ms exit:70 interpreter-exit:70 interpreter:agrees @f76d8aa42d2a
@@ -731,7 +731,7 @@ pass/termination/runtime_joint_rank_computed_copy_exit built 3411ms exit:0 inter
 pass/termination/runtime_nested_borrowed_rank_carrier_exit built 3503ms exit:0 interpreter-exit:0 interpreter:agrees @83ed80e91feb
 pass/termination/runtime_rank_state_constraint_disjoint_write_exit built 3505ms exit:0 interpreter-exit:0 interpreter:agrees @83ed80e91feb
 pass/termination/runtime_selected_boundary_requirement_identity_exit built 3576ms exit:0 interpreter-exit:0 interpreter:agrees @83ed80e91feb
-pass/termination/runtime_selected_requirement_reference_identity_exit built 3417ms exit:0 interpreter-exit:0 interpreter:agrees @83ed80e91feb
+pass/termination/runtime_selected_requirement_reference_identity_exit built 3253ms exit:0 interpreter-exit:0 interpreter:agrees @cf645a79ddb2+wt
 pass/termination/runtime_stored_exclusive_endpoint_exit built 3608ms exit:0 interpreter-exit:0 interpreter:agrees @dac11cec2727
 pass/concurrency/runtime_returned_carrier_suspension_exit built 3545ms exit:0 interpreter-exit:0 interpreter:agrees @32f04773833e
 pass/termination/runtime_rankless_boundary_suffix_exit built 2515ms exit:0 interpreter-exit:0 interpreter:agrees @cd9cf1f708cc
@@ -960,3 +960,5 @@ pass/optimizer/rollback_composed_partial_selected built 3284ms rollback:requeste
 pass/optimizer/rollback_dead_pure_scalar_elimination_control built 3268ms rollback:requested=[DeadPureScalarElimination];applied=[];effective=[] exit:0 interpreter-exit:0 interpreter:agrees @dfc9dc858b3e+wt
 pass/optimizer/rollback_dead_pure_scalar_elimination_selected built 3263ms rollback:requested=[DeadPureScalarElimination];applied=[DeadPureScalarElimination];effective=[] exit:0 interpreter-exit:0 interpreter:agrees @dfc9dc858b3e+wt
 pass/optimizer/selected_comparison_demand_exit built 6652ms exit:70 interpreter-exit:70 interpreter:agrees @dfc9dc858b3e+wt
+pass/float/guarded_scalar_state_contract_exit built 7107ms exit:0 interpreter-exit:0 interpreter:agrees @cf645a79ddb2+wt
+pass/termination/runtime_float_requirement_integer_rank_exit built 7023ms exit:0 interpreter-exit:0 interpreter:agrees @cf645a79ddb2+wt

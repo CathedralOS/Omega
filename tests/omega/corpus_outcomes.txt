@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "2", "load1_end": 2.04, "load1_start": 2.13, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 5.24, "load1_start": 5.34, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 835ms expected @a9ae30e1c334+wt
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -6414,3 +6414,22 @@ pass/contracts/runtime_float_indexed_crash_guard_exit checked 6679ms check-targe
 pass/contracts/runtime_float_nested_crash_guard_exit checked 6671ms check-target:macos_arm64 @c294657097ec+wt
 pass/contracts/runtime_float_unordered_crash_guard_exit checked 6668ms check-target:macos_arm64 @c294657097ec+wt
 pass/optimizer/reference_storage_scalar_demand_exit checked 3991ms check-target:macos_arm64 @dfc9dc858b3e+wt
+fail/contracts/mixed_requirement_prior_float_capture rejected 1065ms expected @cf645a79ddb2+wt
+	cannot prove requires contract for call compare from main: value == value && replace(mut value) <= 4 (needs fact `before == after && count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/mixed_result_requirement_integer_bound rejected 1074ms expected @cf645a79ddb2+wt
+	cannot prove requires contract for call accept from main: value >= 0.0 && 5 <= 4 (needs fact `value >= 0.0 && count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/saved_float_guard_after_write rejected 1065ms expected @cf645a79ddb2+wt
+	cannot prove requires contract for call accept from main: reading.value >= 0.0 && 0 <= 4 (needs fact `reading.value >= 0.0 && count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/termination/float_requirement_disjunction_not_integer_bound rejected 1077ms expected @cf645a79ddb2+wt
+	cannot prove requires contract for call countdown from countdown: value >= 0.0 || count - 1 <= 4 (needs fact `value >= 0.0 || count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+	terminating machine countdown: cannot prove rank range `0..=4` for the rank produced by the selected view
+fail/termination/float_requirement_nan_argument rejected 1061ms expected @cf645a79ddb2+wt
+	cannot prove requires contract for call countdown from main: invalid >= 0.0 && 0 <= 4 (needs fact `value >= 0.0 && count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/termination/float_requirement_non_decreasing_rank rejected 1069ms expected @cf645a79ddb2+wt
+	terminating machine repeat: cannot prove strict rank decrease on a recurrent arrival: the transition from `repeat` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+fail/termination/float_requirement_recursive_argument_changed rejected 1075ms expected @cf645a79ddb2+wt
+	cannot prove requires contract for call countdown from countdown: -1.0 >= 0.0 && count - 1 <= 4 (needs fact `value >= 0.0 && count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/termination/float_requirement_stale_field_arrival rejected 1060ms expected @cf645a79ddb2+wt
+	cannot prove requires contract for call countdown from countdown: reading.value >= 0.0 && count - 1 <= 4 (needs fact `reading.value >= 0.0 && count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+	terminating machine countdown: cannot prove rank range `0..=4` for the rank produced by the selected view
+pass/termination/runtime_float_requirement_integer_rank_exit checked 6962ms check-target:macos_arm64 @cf645a79ddb2+wt

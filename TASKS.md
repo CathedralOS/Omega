@@ -1509,10 +1509,14 @@ defines the complete product bar.
   `external_result_ranked_arrival_compile` with missing-guarantee, unguarded
   and stale-prefix controls.
 
-  Remaining: float `requires` still reaches integer-only rank hypothesis
-  admission; admit its exact evaluation without treating IEEE facts as integer
-  bounds. Sealed float guards on rankless finishing paths already execute.
-  External execution needs **ASSUMED-BINDING-CONTRACTS**' Build/root
+  Keep `pass/termination/runtime_float_requirement_integer_rank_exit` for
+  mixed IEEE requirements and independent bounded integer ranks through calls,
+  named states, saved guards and public results; stale captures, NaN and false
+  integer conjuncts reject. IEEE predicates supply no integer bounds.
+
+  External result controls still refuse corpus production with
+  `provider candidate requires beyond its boundary's declared obligations`.
+  Execution also needs **ASSUMED-BINDING-CONTRACTS**' Build/root
   trust-to-installation join; source acceptance and provider selection supply
   no admission receipt. Re-run the external-result and std-loop execution
   controls through the completed provider route before closing this item.

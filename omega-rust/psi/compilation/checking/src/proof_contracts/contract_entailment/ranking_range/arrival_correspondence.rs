@@ -580,7 +580,7 @@ fn completed_coordinates(
         ExpressionNode::Binary(binary) => {
             // Only the selected builtin operation has this operand equation.
             // This admission supplies no totality or arithmetic safety proof.
-            super::meanings::builtin(program, machine, state, expression, depth)?;
+            super::meanings::admitted_carrier(program, machine, state, expression, depth)?;
             let mut completed = CompletedCoordinateInventory::complete(Vec::new());
             for operand in [binary.left, binary.right] {
                 let child = completed_coordinates(

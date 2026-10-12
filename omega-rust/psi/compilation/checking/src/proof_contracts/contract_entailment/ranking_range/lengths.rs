@@ -277,7 +277,7 @@ fn evaluate_length(
         // merely because its operands happen to normalize to constants.
         for endpoint in [range.start, range.end] {
             if endpoint.is_valid() {
-                super::meanings::builtin(program, machine, state, endpoint, depth + 1)?;
+                super::meanings::admitted_carrier(program, machine, state, endpoint, depth + 1)?;
             }
         }
         let source = evaluate_length(

@@ -494,7 +494,7 @@ fn equality_edges<'program>(
         .all(Vec::is_empty);
     if empty_prefix {
         for &(guard, holds) in &arrival.guards {
-            meanings::builtin(program, source.machine, source.state, guard, 0)?;
+            meanings::admitted_carrier(program, source.machine, source.state, guard, 0)?;
             super::super::collect_guard(&mut engine, guard, holds, &mut comparisons, 0)?;
         }
         if source.state.symbol == program.machine_states(source.machine).first()?.symbol {
@@ -548,7 +548,7 @@ fn equality_edges<'program>(
             .iter()
             .position(|formal| formal.symbol == value.location.parameter)?;
         let actual = *arrival.arguments.get(ordinal)?;
-        meanings::builtin(program, source.machine, source.state, actual, 0)?;
+        meanings::admitted_carrier(program, source.machine, source.state, actual, 0)?;
         let carried = actual_value(
             program,
             source,

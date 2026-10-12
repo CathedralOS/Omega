@@ -63,6 +63,7 @@ pub(super) fn direct_context_proves_instantiated_boolean_expression(
     statement_index: usize,
     call_site: &validation::CallSite<'_>,
     target_state: &(impl ContractTargetParameters + ?Sized),
+    target_state_symbol: SymbolHandle,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
     let semantic = &facts.semantic;
@@ -130,17 +131,25 @@ pub(super) fn direct_context_proves_instantiated_boolean_expression(
         program,
         facts,
         caller_state_symbol,
+        target_state_symbol,
         statement_index,
         call_frames,
-        parameters,
         arguments,
     };
     semantic.context_view(context).facts().any(|fact| {
-        if let facts::FactPayload::BooleanValue {
-            expression: guard,
-            value,
-        } = fact.payload
-        {
+        let supplied = match fact.payload {
+            facts::FactPayload::BooleanValue { expression, value } => Some((expression, value)),
+            facts::FactPayload::BooleanExpression(expression) => Some((expression, true)),
+            facts::FactPayload::ContractBooleanExpression {
+                expression,
+                instantiated,
+                ..
+            } if !instantiated.is_valid() => Some((expression, true)),
+            // Instantiated guarantees retain the producer's declaration
+            // namespace and cannot be read as current caller expressions.
+            _ => None,
+        };
+        if let Some((guard, value)) = supplied {
             return guard_values::proves_with(
                 program,
                 guard,

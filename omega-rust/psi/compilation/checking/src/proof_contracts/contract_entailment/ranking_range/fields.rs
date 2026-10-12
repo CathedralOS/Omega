@@ -66,7 +66,8 @@ pub(super) fn endpoint_lands_under(
     endpoint: ExpressionHandle,
     polynomial: &Polynomial,
 ) -> bool {
-    if let Some(Some(reference)) = super::meanings::builtin(program, machine, state, endpoint, 0)
+    if let Some(Some(reference)) =
+        super::meanings::admitted_carrier(program, machine, state, endpoint, 0)
         && exact_integer_parameter(program, reference).is_none()
     {
         return false;
@@ -89,7 +90,7 @@ fn integer_expression_lands_under(
     if !operations_land_under(engine, program, machine, state, endpoint, None) {
         return false;
     }
-    let carrier = match super::meanings::builtin(program, machine, state, endpoint, 0) {
+    let carrier = match super::meanings::admitted_carrier(program, machine, state, endpoint, 0) {
         // An anonymous endpoint is a closed value and already landed. A
         // typed-literal operation such as `255u8 + 1u8` reaches here too;
         // `operations_land_under` has already judged its own carrier.
@@ -290,7 +291,7 @@ fn operand_primitive(
     if let Some(value) = program.closed_integer_value_in(node, machine.symbol) {
         return value.primitive;
     }
-    match super::meanings::builtin(program, machine, state, node, 0) {
+    match super::meanings::admitted_carrier(program, machine, state, node, 0) {
         Some(Some(reference)) => exact_integer_parameter(program, reference),
         _ => None,
     }
@@ -572,7 +573,7 @@ fn completed_source_value(
             super::meanings::install_nonpolynomial_terms(
                 program, machine, state, engine, *source, 0,
             )?;
-            super::meanings::builtin(program, machine, state, *source, 0)?;
+            super::meanings::admitted_carrier(program, machine, state, *source, 0)?;
             let value = engine.normalize(*source)?;
             integer_expression_lands_under(engine, program, machine, state, *source, &value)
                 .then_some(value)

@@ -104,7 +104,7 @@ pub fn captured_integer_value(
     expression: ExpressionHandle,
     mut observe: impl FnMut(&crate::CanonicalPlace) -> Option<BigInt>,
 ) -> Option<BigInt> {
-    meanings::builtin(program, machine, state, expression, 0)?;
+    meanings::admitted_carrier(program, machine, state, expression, 0)?;
     let mut engine = captured_integer_engine(program, machine, state, expression, &mut observe)?;
     engine.normalize(expression)?.constant_value()
 }
@@ -1011,7 +1011,8 @@ fn prove_edge(
             deferred_endpoints.push(endpoint);
         }
     }
-    let admit_template = |expression| meanings::builtin(program, machine, root, expression, 0);
+    let admit_template =
+        |expression| meanings::admitted_carrier(program, machine, root, expression, 0);
     for endpoint in range.into_iter().flat_map(|range| [range.start, range.end]) {
         admit_template(endpoint)?;
     }
@@ -1031,7 +1032,7 @@ fn prove_edge(
             admit_template(upper)?;
         }
     }
-    let admit = |expression| meanings::builtin(program, machine, state, expression, 0);
+    let admit = |expression| meanings::admitted_carrier(program, machine, state, expression, 0);
     for argument in arguments.unwrap_or_default() {
         admit(*argument)?;
     }
@@ -1638,7 +1639,7 @@ fn contract_comparisons(
     root: &State,
     engine: &mut Engine<'_>,
 ) -> Option<Vec<Comparison>> {
-    let admit = |expression| meanings::builtin(program, machine, root, expression, 0);
+    let admit = |expression| meanings::admitted_carrier(program, machine, root, expression, 0);
     let mut comparisons = Vec::new();
     for contract in program.machine_contracts(machine) {
         if contract.kind != SignatureContractKind::Requires {
@@ -1665,7 +1666,7 @@ fn parameter_comparisons(
     engine: &mut Engine<'_>,
     bindings: &[StrictArithmeticSymbolBinding],
 ) -> Option<Vec<Comparison>> {
-    let admit = |expression| meanings::builtin(program, machine, root, expression, 0);
+    let admit = |expression| meanings::admitted_carrier(program, machine, root, expression, 0);
     let mut comparisons = Vec::new();
     for parameter in program.state_parameters(root).iter() {
         if integer_parameter(program, parameter.type_reference).is_none() {

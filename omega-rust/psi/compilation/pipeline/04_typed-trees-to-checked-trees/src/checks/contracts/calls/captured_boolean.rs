@@ -202,8 +202,36 @@ fn captured_contract_proven(
         )
         .then_some(true)
     };
-    if prove_scalar(expression) == Some(true) {
+    if prove_scalar(expression) == Some(true)
+        || captured_float_requirement(program, facts, state, call, expression) == Some(true)
+    {
         return true;
+    }
+    // Captured facts compose before the source-substitution fence. Each child
+    // retains this same contract and operand roster; an IEEE result predicate
+    // and an integer bound need not be understood by one arithmetic theory.
+    // These logical connectives have no overloadable spelling.
+    if let Some(binary) = program.expression_table.binary_node(expression) {
+        use typed_trees::expression::BinaryOperator;
+        let child = |expression| {
+            captured_contract_proven(
+                program,
+                facts,
+                state,
+                call,
+                contexts,
+                contract,
+                target,
+                expression,
+                expression_intervals,
+                frames,
+            )
+        };
+        match binary.operator {
+            BinaryOperator::And => return child(binary.left) && child(binary.right),
+            BinaryOperator::Or => return child(binary.left) || child(binary.right),
+            _ => {}
+        }
     }
     if !super::super::prover::has_builtin_operators(program, &facts.operators, expression) {
         return false;

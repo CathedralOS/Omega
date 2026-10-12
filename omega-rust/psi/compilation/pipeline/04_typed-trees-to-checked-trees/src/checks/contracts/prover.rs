@@ -160,6 +160,7 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
                 call_flow.statement_index,
                 &call_site,
                 target_parameters,
+                call_flow.target_symbol,
                 expression,
             )
         }))

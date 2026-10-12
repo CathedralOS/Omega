@@ -9,7 +9,6 @@ use checked_trees::{
 use symbols::SymbolHandle;
 use typed_trees::{
     expression::{ExpressionHandle, ExpressionNode},
-    signature::StateParameter,
     statement::StatementNode,
     types::PrimitiveType,
 };
@@ -18,9 +17,9 @@ pub(in super::super) struct Denotations<'a> {
     pub program: &'a dyn ::validation::CheckingInput,
     pub facts: &'a CheckFacts,
     pub caller_state_symbol: SymbolHandle,
+    pub target_state_symbol: SymbolHandle,
     pub statement_index: usize,
     pub call_frames: Option<&'a validation::CallFrameResolver<'a>>,
-    pub parameters: &'a [StateParameter],
     pub arguments: &'a [ExpressionHandle],
 }
 
@@ -48,8 +47,11 @@ impl Denotations<'_> {
             && let ExpressionNode::Name(path) = table.expression(right)
             && path.symbol == path.head_symbol
             && table.name_path_members(path.members).len() == 1
-            && let Some(position) =
-                typed_trees::signature::state_parameter_position(self.parameters, path.symbol)
+            && let Some(position) = validation::call_contract_parameter_position(
+                self.program,
+                self.target_state_symbol,
+                path.symbol,
+            )
         {
             return self
                 .arguments
@@ -62,11 +64,25 @@ impl Denotations<'_> {
         if !formal && let Some(source) = self.captured(right, remaining) {
             return self.compare(left, source, false, remaining, depth + 1);
         }
+        // A borrow actual supplies its referent's observation to the formal.
+        // Remove only borrowing syntax: canonical place equality would also
+        // erase recasts, whose scalar interpretation must remain distinct.
+        if !formal {
+            if let ExpressionNode::Borrow(borrow) = table.expression(left) {
+                return self.compare(borrow.target, right, false, remaining, depth + 1);
+            }
+            if let ExpressionNode::Borrow(borrow) = table.expression(right) {
+                return self.compare(left, borrow.target, false, remaining, depth + 1);
+            }
+        }
         if formal
             && let Some(mut required) = crate::flow::projected_leaf_place(self.program, right)
             && let Some(root) = required.root.as_symbol()
-            && let Some(position) =
-                typed_trees::signature::state_parameter_position(self.parameters, root)
+            && let Some(position) = validation::call_contract_parameter_position(
+                self.program,
+                self.target_state_symbol,
+                root,
+            )
             && let Some(actual) = self.arguments.get(position)
             && let Some(mut actual) = crate::flow::projected_leaf_place(self.program, *actual)
             && let Some(observed) = crate::flow::projected_leaf_place(self.program, left)
@@ -86,8 +102,7 @@ impl Denotations<'_> {
             }
             (ExpressionNode::Binary(a), ExpressionNode::Binary(b)) => {
                 a.operator == b.operator
-                    && self.builtin(left)
-                    && self.builtin(right)
+                    && self.same_binary_meaning(left, right, formal)
                     && equal(a.left, b.left, remaining)
                     && equal(a.right, b.right, remaining)
             }
@@ -122,11 +137,49 @@ impl Denotations<'_> {
             (ExpressionNode::Name(_), ExpressionNode::Name(_))
             | (ExpressionNode::Boolean(_), ExpressionNode::Boolean(_))
             | (ExpressionNode::Integer(_), ExpressionNode::Integer(_))
+            | (ExpressionNode::Float(_), ExpressionNode::Float(_))
             | (ExpressionNode::String(_), ExpressionNode::String(_)) => {
                 table.expressions_structurally_equal(left, right)
             }
             _ => false,
         }
+    }
+
+    fn same_binary_meaning(
+        &self,
+        left: ExpressionHandle,
+        right: ExpressionHandle,
+        formal: bool,
+    ) -> bool {
+        if self.builtin(left) && self.builtin(right) {
+            return true;
+        }
+        let selected = |expression, state| {
+            let (machine, state) = validation::find_state(self.program, state).or_else(|| {
+                let machine = self.program.machine_by_symbol(state)?;
+                Some((machine, self.program.machine_states(machine).first()?))
+            })?;
+            let binary = self.program.expression_table.binary_node(expression)?;
+            validation::sealed_float_comparison_declaration(
+                self.program,
+                machine,
+                Some(state),
+                expression,
+                binary,
+            )
+        };
+        // Both occurrences keep their authored scope, format and sealed
+        // selection. Formal substitution changes operands, never the operator.
+        selected(left, self.caller_state_symbol)
+            .zip(selected(
+                right,
+                if formal {
+                    self.target_state_symbol
+                } else {
+                    self.caller_state_symbol
+                },
+            ))
+            .is_some_and(|(left, right)| left == right)
     }
 
     fn builtin(&self, expression: ExpressionHandle) -> bool {
@@ -291,6 +344,53 @@ impl Denotations<'_> {
                 typed_trees::byte_predicates::byte_predicate_call(self.program, *source_expression)
                     .is_some_and(|(selected, _)| selected == *predicate)
             }
+            Computation::StructuralField {
+                source_expression,
+                receiver_value,
+                ..
+            } => {
+                // Existing storage is a read, not a replayed aggregate call.
+                // The outer dependency walk retains its complete write fence.
+                !receiver_value.is_valid()
+                    && *source_expression == plans.nodes.get(handle).authored_root
+                    && crate::flow::projected_leaf_place(self.program, *source_expression).is_some()
+            }
+            Computation::SelectedComparison {
+                operator_use,
+                left,
+                right,
+            } => {
+                let Some(_) = self
+                    .facts
+                    .operators
+                    .selected_float_comparison(self.program, *operator_use)
+                else {
+                    return false;
+                };
+                let selected = self.facts.operators.uses.get(*operator_use);
+                let Some((machine, state)) =
+                    validation::find_state(self.program, self.caller_state_symbol)
+                else {
+                    return false;
+                };
+                let Some(binary) = self
+                    .program
+                    .expression_table
+                    .binary_node(selected.expression)
+                else {
+                    return false;
+                };
+                selected.expression == plans.nodes.get(handle).authored_root
+                    && validation::sealed_float_comparison_declaration(
+                        self.program,
+                        machine,
+                        Some(state),
+                        selected.expression,
+                        binary,
+                    ) == Some(selected.selected_operator_symbol)
+                    && self.selected_pure(*left, remaining, depth + 1)
+                    && self.selected_pure(*right, remaining, depth + 1)
+            }
             Computation::Apply { operands, .. } => {
                 plans.operands.span(*operands).is_some_and(|operands| {
                     operands
@@ -355,7 +455,9 @@ impl Denotations<'_> {
             ExpressionNode::Unary(unary) if self.builtin(expression) => {
                 self.read_roots(unary.operand, roots, remaining, depth + 1)?
             }
-            ExpressionNode::Binary(binary) if self.builtin(expression) => {
+            ExpressionNode::Binary(binary)
+                if self.same_binary_meaning(expression, expression, false) =>
+            {
                 self.read_roots(binary.left, roots, remaining, depth + 1)?;
                 self.read_roots(binary.right, roots, remaining, depth + 1)?;
             }
@@ -364,8 +466,10 @@ impl Denotations<'_> {
                     typed_trees::byte_predicates::byte_predicate_call(self.program, expression)?;
                 self.read_roots(operand, roots, remaining, depth + 1)?;
             }
-            ExpressionNode::Boolean(_) | ExpressionNode::Integer(_) | ExpressionNode::String(_) => {
-            }
+            ExpressionNode::Boolean(_)
+            | ExpressionNode::Integer(_)
+            | ExpressionNode::Float(_)
+            | ExpressionNode::String(_) => {}
             _ => return None,
         }
         Some(())

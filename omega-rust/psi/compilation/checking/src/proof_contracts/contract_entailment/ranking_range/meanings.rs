@@ -1,9 +1,12 @@
-//! The existing declaration/custody owner, not token spelling, admits arithmetic.
+//! Exact declaration/custody meaning precedes arithmetic projection.
+//! Admitting an evaluation supplies its carrier, not an integer coordinate:
+//! sealed IEEE comparisons may guard an integer rank, while the strict
+//! arithmetic engine independently declines their floating-point operands.
 use super::{BinaryOperator, ExpressionHandle, ExpressionNode, Machine, PrimitiveType, State};
 use typed_trees::expression::UnaryOperator;
 use typed_trees::types::TypeReferenceHandle;
 
-pub(super) fn builtin(
+pub(super) fn admitted_carrier(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
@@ -24,7 +27,7 @@ pub(super) fn builtin(
                 .closed_integer_value_in(expression, machine.symbol)?
                 .type_reference,
         ),
-        ExpressionNode::Boolean(_) => Some(None),
+        ExpressionNode::Boolean(_) | ExpressionNode::Float(_) => Some(None),
         ExpressionNode::Name(path) if path.symbol.is_valid() && path.head_symbol == path.symbol => {
             if let Some(parameter) = program.state_parameter_by_symbol(state, path.symbol) {
                 // Meaning is independent of binding stability. State and call
@@ -43,7 +46,9 @@ pub(super) fn builtin(
             )
             .map(Some)
         }
-        ExpressionNode::Atomic(atomic) => builtin(program, machine, state, atomic.value, depth + 1),
+        ExpressionNode::Atomic(atomic) => {
+            admitted_carrier(program, machine, state, atomic.value, depth + 1)
+        }
         ExpressionNode::Member(_) => {
             // The same exact declaration owner handles formal and local
             // projections. This gives a carrier, not permission to reread a
@@ -92,7 +97,8 @@ pub(super) fn builtin(
             )?))
         }
         ExpressionNode::Indexed(indexed) => {
-            let collection_type = builtin(program, machine, state, indexed.collection, depth + 1)?;
+            let collection_type =
+                admitted_carrier(program, machine, state, indexed.collection, depth + 1)?;
             if !program.expression_table.indexed_on_range(indexed) {
                 // An element read can be another arrival's payload without
                 // becoming a ranking coordinate. The shared place owner
@@ -108,7 +114,7 @@ pub(super) fn builtin(
                 ) {
                     return None;
                 }
-                builtin(program, machine, state, indexed.index, depth + 1)?;
+                admitted_carrier(program, machine, state, indexed.index, depth + 1)?;
                 return crate::value_custody::places::declared_indexed_projection_type_raw(
                     program,
                     machine,
@@ -132,7 +138,7 @@ pub(super) fn builtin(
             let range = program.expression_table.range_node(indexed.index)?;
             for endpoint in [range.start, range.end] {
                 if endpoint.is_valid() {
-                    builtin(program, machine, state, endpoint, depth + 1)?;
+                    admitted_carrier(program, machine, state, endpoint, depth + 1)?;
                 }
             }
             Some(collection_type)
@@ -140,7 +146,7 @@ pub(super) fn builtin(
         ExpressionNode::Borrow(borrow) => {
             // A borrow performs no operation of its own; the referent's
             // meaning is what the edge substitutes into a borrowed formal.
-            builtin(program, machine, state, borrow.target, depth + 1)?;
+            admitted_carrier(program, machine, state, borrow.target, depth + 1)?;
             Some(None)
         }
         ExpressionNode::Call(call) => {
@@ -162,7 +168,7 @@ pub(super) fn builtin(
             // carrier is the authored target, not the source. Recasts,
             // non-integer targets and non-integer sources keep no builtin
             // meaning: their formation obligations stay with the cast owner.
-            builtin(program, machine, state, cast.value, depth + 1)?;
+            admitted_carrier(program, machine, state, cast.value, depth + 1)?;
             let integer_target = program
                 .primitive_type_reference(cast.target_type)
                 .is_some_and(|target| target.is_fixed_integer());
@@ -172,12 +178,24 @@ pub(super) fn builtin(
             (integer_target && integer_source).then(|| Some(cast.target_type))
         }
         ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
-            builtin(program, machine, state, unary.operand, depth + 1)?;
+            admitted_carrier(program, machine, state, unary.operand, depth + 1)?;
             Some(None)
         }
         ExpressionNode::Binary(binary) => {
-            let left = builtin(program, machine, state, binary.left, depth + 1)?;
-            let right = builtin(program, machine, state, binary.right, depth + 1)?;
+            let left = admitted_carrier(program, machine, state, binary.left, depth + 1)?;
+            let right = admitted_carrier(program, machine, state, binary.right, depth + 1)?;
+            // A sealed IEEE comparison is a total Boolean evaluation with
+            // exact selected meaning. Its operands still pass the same
+            // declaration walk above; no float polynomial or bound is minted.
+            if crate::proof_contracts::bound_expression_meaning::sealed_float_comparison(
+                program,
+                machine,
+                Some(state),
+                expression,
+                binary,
+            ) {
+                return Some(None);
+            }
             // `<<`/`>>` name no overloadable spelling: a typed occurrence is
             // the builtin operator. Its carrier is the shifted operand's own
             // type; the count is an independent integer operand whose
@@ -327,7 +345,7 @@ pub(super) fn install_nonpolynomial_terms(
                     | BinaryOperator::ShiftRight
                     | BinaryOperator::BitwiseAnd
             ) {
-                if let Some(carrier) = builtin(program, machine, state, expression, 0)? {
+                if let Some(carrier) = admitted_carrier(program, machine, state, expression, 0)? {
                     let primitive = super::exact_integer_parameter(program, carrier)?;
                     match binary.operator {
                         BinaryOperator::Divide | BinaryOperator::Modulo => {

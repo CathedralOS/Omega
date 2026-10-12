@@ -163,6 +163,7 @@ pub use scoped_arithmetic::{
     scoped_arithmetic_comparisons_unsatisfiable, scoped_arithmetic_implication,
     scoped_arithmetic_values_relation,
 };
+pub use specification_calls::call_contract_parameter_position;
 pub(crate) use specification_calls::{
     SelectedCallContract, selected_call_contract, validate_specification_call_requirements,
 };

@@ -101,7 +101,7 @@ pub(super) fn install(
 /// A name admitted under exactly the bar `install` binds by: the symbol's
 /// one `let` in `state` is never written, never the root of an exclusive
 /// borrow, and reads only carriers that stay stable for the whole state.
-/// `meanings::builtin` asks this before it lets a local name carry builtin
+/// `meanings::admitted_carrier` asks this before it lets a local name carry builtin
 /// meaning -- the name then denotes the initializer's binding-time value,
 /// which `install` proves reachable by binding it. An initializer outside
 /// the strict arithmetic language still admits the name here and leaves it

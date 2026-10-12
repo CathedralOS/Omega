@@ -278,11 +278,24 @@ pub fn sealed_float_comparison(
     expression: ExpressionHandle,
     comparison: &typed_trees::expression::TableBinaryExpression,
 ) -> bool {
+    sealed_float_comparison_declaration(program, machine, state, expression, comparison).is_some()
+}
+
+/// The exact sealed comparison declaration, for relating observations in two
+/// independently selected callable namespaces. Equal tokens or float widths
+/// do not replace this selection and source-custody judgment.
+pub fn sealed_float_comparison_declaration(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+    comparison: &typed_trees::expression::TableBinaryExpression,
+) -> Option<symbols::SymbolHandle> {
     let operand_types = [
         operand_type(program, machine, state, comparison.left),
         operand_type(program, machine, state, comparison.right),
     ];
-    sealed_float_comparison_for_operands(
+    sealed_float_comparison_declaration_for_operands(
         program,
         machine.symbol,
         expression,
@@ -338,9 +351,24 @@ fn sealed_float_comparison_for_operands(
     comparison: BinaryOperator,
     operand_types: &[Option<TypeReferenceHandle>],
 ) -> bool {
-    let Some(spelling) = typed_trees::operator::comparison_operator_spelling(comparison) else {
-        return false;
-    };
+    sealed_float_comparison_declaration_for_operands(
+        program,
+        owner,
+        expression,
+        comparison,
+        operand_types,
+    )
+    .is_some()
+}
+
+fn sealed_float_comparison_declaration_for_operands(
+    program: &dyn crate::CheckingInput,
+    owner: symbols::SymbolHandle,
+    expression: ExpressionHandle,
+    comparison: BinaryOperator,
+    operand_types: &[Option<TypeReferenceHandle>],
+) -> Option<symbols::SymbolHandle> {
+    let spelling = typed_trees::operator::comparison_operator_spelling(comparison)?;
     if !typed_trees::operator::selected_trait_operator_meanings(
         program,
         owner,
@@ -349,7 +377,7 @@ fn sealed_float_comparison_for_operands(
     )
     .is_empty()
     {
-        return false;
+        return None;
     }
     let candidates = typed_trees::operator::resolve_spelling_for_operands(
         program,
@@ -358,13 +386,13 @@ fn sealed_float_comparison_for_operands(
         program.expression_table.source_span(expression),
     );
     let [candidate] = candidates.as_slice() else {
-        return false;
+        return None;
     };
     let operator = candidate.operator;
     if let Some(call) = program.expression_table.call_node(expression)
         && !call_targets_declaration_entry(program, call.target_symbol, operator.symbol)
     {
-        return false;
+        return None;
     }
     if !operator.is_boundary
         || !matches!(
@@ -372,9 +400,9 @@ fn sealed_float_comparison_for_operands(
             Some((operation, _)) if operation == comparison
         )
     {
-        return false;
+        return None;
     }
-    crate::proof_contracts::float_projection_bindings::semantic_operations::
+    (crate::proof_contracts::float_projection_bindings::semantic_operations::
         is_sealed_toolchain_float_operator(program, operator)
         && program
             .expression_table
@@ -394,7 +422,8 @@ fn sealed_float_comparison_for_operands(
                     }
                     _ => false,
                 }
-            })
+            }))
+    .then_some(operator.symbol)
 }
 
 /// Read the same selected comparison inside a declaration telescope. The

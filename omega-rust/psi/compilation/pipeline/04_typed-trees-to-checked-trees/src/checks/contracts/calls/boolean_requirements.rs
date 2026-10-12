@@ -210,18 +210,26 @@ pub(super) fn proves(
             expression,
             call_frames,
         )
-        || standing_domain_fact_proves_requirement(program, state_flow, call_flow, expression);
+        || standing_domain_fact_proves_requirement(program, state_flow, call_flow, expression)
+        || super::super::current_values::proves_call(
+            program,
+            state_flow,
+            call_flow,
+            expression,
+            call_frames,
+        );
     if proven {
         return true;
     }
     let Some(binary) = program.expression_table.binary_node(expression) else {
         return false;
     };
-    // Preserve selected operator meanings. Splitting a builtin conjunction
-    // combines verdicts, never assumptions, and cannot turn a disjunction into
-    // independently available premises.
+    // `&&` has no overloadable spelling. Decompose this connective, not its
+    // children: a selected comparison in one conjunct keeps its own proof
+    // owner while another conjunct may use arithmetic. Every child sees the
+    // same captured operands and live context; no sibling supplies a premise.
+    // The call owner has already fenced source substitution against captures.
     binary.operator == BinaryOperator::And
-        && super::super::prover::has_builtin_operators(program, &facts.operators, expression)
         && [binary.left, binary.right].into_iter().all(|conjunct| {
             proves(
                 program,
