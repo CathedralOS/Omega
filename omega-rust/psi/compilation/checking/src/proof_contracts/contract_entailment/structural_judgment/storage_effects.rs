@@ -54,20 +54,9 @@ impl StructuralJudge<'_> {
                 storage.push(symbol);
             }
         }
-        // These rows are source predicates, unlike the captured term equations.
-        // A later branch must not reinterpret an old entry fact over new storage.
-        self.premise_facts.retain(|fact| {
-            let mut expressions = Vec::new();
-            crate::expression_traversal::collect_expression_tree(program, *fact, &mut expressions);
-            !expressions.iter().any(|expression| {
-                crate::value_custody::places::expression_root_symbol(
-                    *expression,
-                    &program.expression_table,
-                    self.machine_symbol,
-                )
-                .is_some_and(|symbol| storage.contains(&symbol))
-            })
-        });
+        // Entry predicates already live as produced path contributions.
+        // The calling retirement step filters those same contributions; no
+        // source predicate roster is retained or reread after this write.
     }
 
     pub(super) fn storage_observation_invalidated(&self, expression: ExpressionHandle) -> bool {
