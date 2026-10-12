@@ -16,6 +16,7 @@ build-time-evaluation = { path = "../compile-time" }
 typed-trees-to-typed-trees = { path = "../pipeline/03b_typed-trees-to-typed-trees" }
 typed-trees-to-checked-trees = { path = "../pipeline/04_typed-trees-to-checked-trees" }
 validation = { path = "../checking" }
+representation-selections = { path = "../checking/representation-planning/selections" }
 language-semantics = { path = "../../foundation/language-semantics" }
 source = { path = "../../foundation/source" }
 symbols = { path = "../../foundation/symbols" }

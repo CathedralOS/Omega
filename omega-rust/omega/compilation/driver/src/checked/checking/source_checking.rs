@@ -68,6 +68,7 @@ pub(crate) fn check_product_source(
             None => validation::source_completion::SourceCompletionAdmission::None,
         },
         opaque_properties: &opaque_properties,
+        opaque_representations: &representations,
         asm_authority: Some(
             validation::AsmAuthorityAdmission::from_freestanding(build.settings.freestanding)
                 .with_grants(

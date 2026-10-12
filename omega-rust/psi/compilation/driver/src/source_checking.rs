@@ -7,6 +7,7 @@
 //! invalid authored body. Host effects and provider dispatch are not inputs.
 
 use diagnostics::Diagnostic;
+use representation_selections::OpaqueRepresentationSelection;
 use std::sync::Arc;
 
 pub use typed_trees_to_checked_trees::{CheckedTreeProductSelection, RetainedCheck};
@@ -17,6 +18,7 @@ pub use typed_trees_to_checked_trees::{CheckedTreeProductSelection, RetainedChec
 pub struct SourceAdmission<'request> {
     pub completion: validation::source_completion::SourceCompletionAdmission<'request>,
     pub opaque_properties: &'request [validation::OpaqueDataPropertyReceipt],
+    pub opaque_representations: &'request [OpaqueRepresentationSelection],
     pub asm_authority: Option<validation::AsmAuthorityAdmission>,
     pub wire_demands: &'request [language_semantics::wire::WireCompatibilityDemand],
     pub declarations: Option<&'request dyn validation::DeclarationSelectionAuthority>,
@@ -57,6 +59,7 @@ impl CheckRequest<'_> {
         )?;
         let mut preparation = typed_trees_to_typed_trees::PreparationRequest::settled()
             .with_opaque_property_receipts(self.admission.opaque_properties)
+            .with_opaque_representation_selections(self.admission.opaque_representations)
             .with_wire_compatibility_demands(self.admission.wire_demands);
         if let Some(authority) = self.admission.asm_authority {
             preparation = preparation.with_asm_authority(authority);

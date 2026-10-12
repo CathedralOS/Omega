@@ -29,6 +29,7 @@ use crate::checking::program_validation::prepare_typed_program;
 use crate::checks;
 use crate::facts::build_check_facts;
 use checked_trees::CheckedTrees;
+use representation_selections::OpaqueRepresentationSelection;
 use typed_trees_to_typed_trees::TypedPreparation;
 
 /// Invocation-owned package declaration authority. The preparation producer
@@ -153,8 +154,12 @@ pub fn lower_typed_trees_reusing(
     prior: Option<&RetainedCheck>,
     retain: bool,
 ) -> Result<CheckingOutcome, Vec<diagnostics::Diagnostic>> {
-    let (admits_pending_inputs, mathematics, opaque_property_receipts) =
-        preparation.into_checking_judgments();
+    let (
+        admits_pending_inputs,
+        mathematics,
+        opaque_property_receipts,
+        opaque_representation_selections,
+    ) = preparation.into_checking_judgments();
     let equal_prior = prior.filter(|prior| {
         prior.admits_pending_inputs == admits_pending_inputs
             && prior.opaque_property_receipts == opaque_property_receipts
@@ -177,6 +182,7 @@ pub fn lower_typed_trees_reusing(
                 admits_pending_inputs,
                 mathematics,
                 opaque_property_receipts,
+                opaque_representation_selections,
             )?);
             let retained = input.map(
                 |(preparation_input, preparation_admission, program, opaque_property_receipts)| {
@@ -225,12 +231,14 @@ fn check_program(
     admits_pending_inputs: bool,
     mathematics: proof::mathematical_declarations::CheckedMathematics,
     opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
+    opaque_representation_selections: Vec<OpaqueRepresentationSelection>,
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
     // Borrow the prepared program with invocation-owned query state. Read-only inputs
     // carry this context through the checking flow; no consumer discovers it
     // by thread or address. Metadata publication waits until checking ends.
     let typed_program = program;
     let program = validation::CheckingContext::new(&typed_program)
+        .with_opaque_representation_selections(&opaque_representation_selections)
         .with_prepared_mathematics(mathematics.prepared_view());
     validation::validate_selected_attached_method_bounds(&program)?;
     let mut validated =
@@ -340,7 +348,8 @@ fn check_program(
     let finalized = validation::CheckingContext::new(&program)
         .with_authored_declaration_selections(&facts.finalized_selections)
         .with_prepared_mathematics(mathematics.prepared_view())
-        .with_prepared_effect_plans(&prepared_effects);
+        .with_prepared_effect_plans(&prepared_effects)
+        .with_opaque_representation_selections(&opaque_representation_selections);
     validation::validate_reserved_cleanup_selections(&finalized)?;
     validation::validate_declaration_visibility(&finalized)?;
 

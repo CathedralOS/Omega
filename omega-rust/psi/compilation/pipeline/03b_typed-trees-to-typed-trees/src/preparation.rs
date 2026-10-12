@@ -10,6 +10,7 @@ mod deferred_constants;
 mod opaque_property_receipts;
 mod selections;
 
+use representation_selections::OpaqueRepresentationSelection;
 use typed_trees::TypedTrees;
 
 /// Invocation-owned admission inputs for typed elaboration. Package declaration
@@ -19,6 +20,7 @@ pub struct PreparationRequest<'request> {
     admits_pending_inputs: bool,
     asm_authority: Option<validation::AsmAuthorityAdmission>,
     opaque_property_receipts: &'request [validation::OpaqueDataPropertyReceipt],
+    opaque_representation_selections: &'request [OpaqueRepresentationSelection],
     wire_compatibility_demands: &'request [language_semantics::wire::WireCompatibilityDemand],
 }
 
@@ -29,6 +31,7 @@ impl<'request> PreparationRequest<'request> {
             admits_pending_inputs: false,
             asm_authority: None,
             opaque_property_receipts: &[],
+            opaque_representation_selections: &[],
             wire_compatibility_demands: &[],
         }
     }
@@ -59,6 +62,16 @@ impl<'request> PreparationRequest<'request> {
         self
     }
 
+    /// Rejoin the authoritative build's exact opaque applications before
+    /// shape admission needs a carrier for a boundary-opaque value.
+    pub const fn with_opaque_representation_selections(
+        mut self,
+        selections: &'request [OpaqueRepresentationSelection],
+    ) -> Self {
+        self.opaque_representation_selections = selections;
+        self
+    }
+
     /// Check authored wire demands independently on every invocation.
     pub const fn with_wire_compatibility_demands(
         mut self,
@@ -78,6 +91,7 @@ pub struct PreparationAdmission {
     admits_pending_inputs: bool,
     asm_authority: Option<validation::AsmAuthorityAdmission>,
     opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
+    opaque_representation_selections: Vec<OpaqueRepresentationSelection>,
     wire_compatibility_demands: Vec<language_semantics::wire::WireCompatibilityDemand>,
 }
 
@@ -90,6 +104,7 @@ impl PreparationRequest<'_> {
             admits_pending_inputs: self.admits_pending_inputs,
             asm_authority: self.asm_authority,
             opaque_property_receipts: self.opaque_property_receipts.to_vec(),
+            opaque_representation_selections: self.opaque_representation_selections.to_vec(),
             wire_compatibility_demands: self.wire_compatibility_demands.to_vec(),
         }
     }
@@ -101,6 +116,7 @@ pub struct TypedPreparation {
     admits_pending_inputs: bool,
     mathematics: proof::mathematical_declarations::CheckedMathematics,
     opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
+    opaque_representation_selections: Vec<OpaqueRepresentationSelection>,
 }
 
 impl TypedPreparation {
@@ -114,11 +130,13 @@ impl TypedPreparation {
         bool,
         proof::mathematical_declarations::CheckedMathematics,
         Vec<validation::OpaqueDataPropertyReceipt>,
+        Vec<OpaqueRepresentationSelection>,
     ) {
         (
             self.admits_pending_inputs,
             self.mathematics,
             self.opaque_property_receipts,
+            self.opaque_representation_selections,
         )
     }
 }
@@ -154,6 +172,7 @@ pub fn prepare_typed_trees(
     // generated declarations with the same source provenance.
     let opaque_property_receipts =
         opaque_property_receipts::for_source_instances(&program, request.opaque_property_receipts);
+    let opaque_representation_selections = request.opaque_representation_selections.to_vec();
     // Mathematical `let`/`boundary let` declarations elaborate into checked
     // records and a kernel signature the kernel re-decides. Check them first,
     // so a declaration that fails either elaboration fails with its own
@@ -255,6 +274,7 @@ pub fn prepare_typed_trees(
             admits_pending_inputs: request.admits_pending_inputs,
             mathematics,
             opaque_property_receipts,
+            opaque_representation_selections,
         },
     ))
 }

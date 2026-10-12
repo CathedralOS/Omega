@@ -786,6 +786,26 @@ impl<'program> ShapeCollector<'program> {
         if !self.in_progress.insert(identity) {
             return None;
         }
+        // A boundary-opaque datum authors no storage of its own. The
+        // authoritative build's exact `OpaqueRepresentation` application picks
+        // the concrete carrier, and that carrier alone supplies the physical
+        // shape collected under the opaque's own identity; an opaque value
+        // without a selected application still cannot claim storage.
+        let mut data = data;
+        if data.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque {
+            let Some(selection) = representation_selections::selection_for_opaque(
+                self.program.opaque_representation_selections(),
+                data.symbol,
+            ) else {
+                self.in_progress.remove(&identity);
+                return None;
+            };
+            let Some(carrier) = self.program.data_definition_by_symbol(selection.carrier()) else {
+                self.in_progress.remove(&identity);
+                return None;
+            };
+            data = carrier.clone();
+        }
         let no_code_affine_cleanup = validation::data_has_contents(
             self.program,
             &data,

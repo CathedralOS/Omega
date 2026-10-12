@@ -45,6 +45,11 @@ impl CheckingInput for LayoutCheckingContext<'_> {
     ) -> Option<crate::mathematical_applications::PreparedMathematicalView<'_>> {
         self.input.prepared_mathematics()
     }
+    fn opaque_representation_selections(
+        &self,
+    ) -> &[representation_selections::OpaqueRepresentationSelection] {
+        self.input.opaque_representation_selections()
+    }
 }
 
 pub(crate) fn layout_family_is_complete(

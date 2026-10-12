@@ -15,6 +15,7 @@ use crate::proof_contracts::contract_entailment::structural_judgment::{
 };
 use crate::value_custody::content_conservation::ContentConservationSourcePlan;
 use language_semantics::declaration_selection::AuthoredDeclarationSelections;
+use representation_selections::OpaqueRepresentationSelection;
 use std::fmt;
 use std::ops::Deref;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -44,6 +45,13 @@ pub trait CheckingInput: sealed::Sealed + fmt::Debug + Send + Sync {
     /// Bare inputs cannot supply concrete geometry for a target family.
     fn layout_target(&self) -> Option<&str> {
         None
+    }
+
+    /// The authoritative build's exact opaque-representation applications for
+    /// this invocation. A bare input selects no carrier, so a boundary-opaque
+    /// value still cannot claim storage against it.
+    fn opaque_representation_selections(&self) -> &[OpaqueRepresentationSelection] {
+        &[]
     }
 
     /// Source preparation reads resolution data. A checked input or a context
@@ -149,6 +157,7 @@ pub struct CheckingContext<'program> {
     prepared_effects: Option<&'program PreparedEffectPlans>,
     prepared_mathematics:
         Option<crate::mathematical_applications::PreparedMathematicalView<'program>>,
+    opaque_selections: Option<&'program [OpaqueRepresentationSelection]>,
     memos: CheckingMemos,
     call_frame_tables:
         OnceLock<Option<Arc<crate::machine_calls::calls::CallFrameTables<'program>>>>,
@@ -161,6 +170,7 @@ impl<'program> CheckingContext<'program> {
             finalized_selections: None,
             prepared_effects: None,
             prepared_mathematics: None,
+            opaque_selections: None,
             memos: CheckingMemos::default(),
             call_frame_tables: OnceLock::new(),
         }
@@ -197,6 +207,19 @@ impl<'program> CheckingContext<'program> {
         mathematics: Option<crate::mathematical_applications::PreparedMathematicalView<'program>>,
     ) -> Self {
         self.prepared_mathematics = mathematics;
+        self.memos = CheckingMemos::default();
+        self.call_frame_tables = OnceLock::new();
+        self
+    }
+
+    /// Attach the build's validated opaque applications: admission evidence a
+    /// boundary-opaque value's storage judgment reads, not typed-program data.
+    /// Meaning changes with the admitted roster, so no memo survives it.
+    pub fn with_opaque_representation_selections(
+        mut self,
+        selections: &'program [OpaqueRepresentationSelection],
+    ) -> Self {
+        self.opaque_selections = Some(selections);
         self.memos = CheckingMemos::default();
         self.call_frame_tables = OnceLock::new();
         self
@@ -263,6 +286,10 @@ impl CheckingInput for CheckingContext<'_> {
         &self,
     ) -> Option<crate::mathematical_applications::PreparedMathematicalView<'_>> {
         self.prepared_mathematics
+    }
+
+    fn opaque_representation_selections(&self) -> &[OpaqueRepresentationSelection] {
+        self.opaque_selections.unwrap_or(&[])
     }
 }
 
@@ -355,6 +382,10 @@ impl CheckingInput for CheckingProjection<'_> {
             Some(_) => None,
             None => self.original.prepared_mathematics(),
         }
+    }
+
+    fn opaque_representation_selections(&self) -> &[OpaqueRepresentationSelection] {
+        self.original.opaque_representation_selections()
     }
 }
 
