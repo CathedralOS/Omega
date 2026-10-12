@@ -41,6 +41,9 @@ pub struct DynamicConformanceRowFact {
     /// binder declaration order. Empty on an exact nongeneric row: it matches
     /// every call to its requirement without consulting family actuals.
     pub family_tuple: Box<[String]>,
+    /// Actual scalar values from the same checked roster, in tuple order.
+    /// Runtime selection never decodes the identity's presentation format.
+    pub family_values: Box<[typed_trees::finite_family::FamilyScalarValue]>,
     pub source: DynamicConformanceRowSource,
 }
 
