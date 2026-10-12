@@ -2260,6 +2260,7 @@ fn reference_custody(
 ) -> ReferenceCustodyRow {
     let stored = stored_loan_parts(program, reference);
     ReferenceCustodyRow {
+        type_reference: reference,
         primitive_loan_referent: parts(program, reference)
             .map(|(referent, _)| referent)
             .unwrap_or_else(TypeReferenceHandle::invalid),
