@@ -53,6 +53,55 @@ pub(crate) fn state_storage_writes(
     )
 }
 
+/// The actual selected cleanup receiver places its ordinary complete state
+/// summary into the caller's storage namespace. Local reference origins and
+/// alias closure are shared with authored-call invalidation; no synthetic call
+/// or same-root spelling establishes a disjoint footprint.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn cleanup_storage_writes(
+    program: &dyn ::validation::CheckingInput,
+    borrow: &BorrowFacts,
+    cache: &StateMutationSummaryCache,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    statement: usize,
+    hook: SymbolHandle,
+    source: &CanonicalPlace,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<Vec<CanonicalPlace>> {
+    let cleanup = program.machine_by_symbol(hook)?;
+    let entry = program.machine_states(cleanup).first()?;
+    let receiver = program.state_parameters(entry).first()?;
+    let relative = state_storage_writes(program, borrow, cache, entry, call_frames)?;
+    // A produced-expression coordinate is not itself a caller storage origin.
+    // The ordinary local-origin query below requires declared roots; an
+    // unresolved expression-backed receiver therefore retains an opaque frame.
+    if !relative.is_empty() && !source.root.as_symbol().is_some_and(SymbolHandle::is_valid) {
+        return None;
+    }
+    let mut writes = Vec::new();
+    for write in relative {
+        if write.root != facts::PlaceRoot::Symbol(receiver.symbol) {
+            return None;
+        }
+        let mut actual = source.clone();
+        actual.segments.extend(write.segments);
+        for place in rebase_local_write_places(program, state, statement, actual, call_frames)? {
+            if !writes.contains(&place) {
+                writes.push(place);
+            }
+        }
+    }
+    super::close_storage_places_over_aliases(
+        program,
+        machine,
+        state,
+        statement,
+        writes,
+        call_frames,
+    )
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct StateMutationSummary {
     state_symbol: SymbolHandle,

@@ -29,6 +29,18 @@ use crate::flow::{CleanupLeaf, selected_cleanup_leaves};
 use super::super::boolean_predicates::{self, BoundPredicate, conjunction, entry_path_condition};
 use super::sequence::{CurrentCleanupFacts, bound_clause, ordered_hooks};
 
+struct SelectedCleanupSequence {
+    requirements: Vec<SelectedRequirement>,
+    effects: Vec<SelectedHookEffect>,
+}
+
+struct SelectedHookEffect {
+    disposition: arena::Handle<checked_trees::ContextualCleanupDisposition>,
+    hook: SymbolHandle,
+    receiver: CanonicalPlace,
+    writes: Option<Vec<CanonicalPlace>>,
+}
+
 struct Pending {
     machine: SymbolHandle,
     consequence: CheckedBooleanExpression,
@@ -44,7 +56,37 @@ pub(crate) fn infer_entry_requirements(
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<bool, Vec<Diagnostic>> {
     let mut pending = Vec::new();
-    for obligation in selected_requirements(program, facts)? {
+    let selected = selected_requirements(program, facts)?;
+    let mut effects = arena::Arena::default();
+    let mut places = arena::Arena::default();
+    let mut segments = arena::Arena::default();
+    for effect in selected.effects {
+        let receiver = facts::Place {
+            root: effect.receiver.root,
+            segments: segments.insert_many(effect.receiver.segments),
+        };
+        let complete = effect.writes.is_some();
+        let writes = effect
+            .writes
+            .unwrap_or_default()
+            .into_iter()
+            .map(|write| facts::Place {
+                root: write.root,
+                segments: segments.insert_many(write.segments),
+            })
+            .collect::<Vec<_>>();
+        effects.insert(checked_trees::ContextualCleanupHookEffect {
+            disposition: effect.disposition,
+            hook_machine: effect.hook,
+            receiver,
+            complete,
+            writes: places.insert_many(writes),
+        });
+    }
+    facts.contextual_cleanup.hook_effects = effects;
+    facts.contextual_cleanup.hook_write_places = places;
+    facts.contextual_cleanup.hook_write_segments = segments;
+    for obligation in selected.requirements {
         let place = &obligation.place;
         let instance = facts
             .contextual_cleanup
@@ -241,7 +283,7 @@ impl SelectedRequirement {
 fn selected_requirements(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-) -> Result<Vec<SelectedRequirement>, Vec<Diagnostic>> {
+) -> Result<SelectedCleanupSequence, Vec<Diagnostic>> {
     struct Hook {
         disposition: arena::Handle<checked_trees::ContextualCleanupDisposition>,
         selected: bool,
@@ -266,6 +308,7 @@ fn selected_requirements(
         current: CurrentCleanupFacts,
     }
     let mut result = Vec::new();
+    let mut effects = Vec::new();
     let proof_only = validation::proof_only_classification(program);
     let summaries = crate::flow::StateMutationSummaryCache::default();
     let call_frames = validation::CallFrameResolver::new(program);
@@ -481,9 +524,18 @@ fn selected_requirements(
                         predicate,
                     });
                 }
-                current.advance(program, facts, &summaries, call_frames.as_ref(), hook, &place).ok_or_else(|| vec![Diagnostic::error(
+                let frame = current.advance(
+                    program, facts, &summaries, call_frames.as_ref(),
+                    state.machine_symbol, state.state_symbol, statement, hook, &place,
+                ).ok_or_else(|| vec![Diagnostic::error(
                     "cannot prove automatic cleanup requires: selected hook completion is unresolved",
                 )])?;
+                effects.push(SelectedHookEffect {
+                    disposition: handle,
+                    hook,
+                    receiver: place,
+                    writes: frame.writes,
+                });
             }
             if let Some(skipped) = skipped {
                 current.join_skipped(&skipped);
@@ -491,7 +543,10 @@ fn selected_requirements(
             offset = end;
         }
     }
-    Ok(result)
+    Ok(SelectedCleanupSequence {
+        requirements: result,
+        effects,
+    })
 }
 
 pub(crate) fn check_cleanup_requirements(
@@ -499,7 +554,7 @@ pub(crate) fn check_cleanup_requirements(
     facts: &CheckFacts,
 ) -> Vec<Diagnostic> {
     let selected = match selected_requirements(program, facts) {
-        Ok(selected) => selected,
+        Ok(selected) => selected.requirements,
         Err(diagnostics) => return diagnostics,
     };
     selected.into_iter().filter_map(|obligation| {

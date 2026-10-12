@@ -332,8 +332,43 @@ pub fn canonical_static_projection<'a>(
     Vec<CanonicalStructuralPathSegment>,
     &'a StructuralTypeDeclaration,
 )> {
+    let (canonical, tip) = canonical_projection(declarations, root, path)?;
+    let ProjectionTip::Declared(tip) = tip else {
+        return None;
+    };
+    Some((canonical, tip))
+}
+
+/// The exact owned observation prefix of a completed capture, including a
+/// primitive structural leaf. This is declaration geometry only: it grants
+/// no read, index bound, case membership, range predicate or loan permission.
+/// Runtime selectors and reference crossings have no canonical owned prefix.
+pub fn canonical_observation_projection<'a>(
+    declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<(
+    Vec<CanonicalStructuralPathSegment>,
+    &'a StructuralTypeDeclaration,
+)> {
+    let (canonical, tip) = canonical_projection(declarations.clone(), root, path)?;
+    let selected = match tip {
+        ProjectionTip::Declared(tip) => tip,
+        ProjectionTip::ScalarField(field, _) => field
+            .canonical_leaf_type()?
+            .leaf_declaration(declarations)?,
+        ProjectionTip::ByteElement => return None,
+    };
+    Some((canonical, selected))
+}
+
+fn canonical_projection<'a>(
+    declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<(Vec<CanonicalStructuralPathSegment>, ProjectionTip<'a>)> {
     let mut canonical = Some(Vec::with_capacity(path.len()));
-    let ProjectionTip::Declared(tip) =
+    let tip =
         walk_primitive_projection(declarations, root, path, plain_scalar_field, |step| match (
             step,
             &mut canonical,
@@ -341,10 +376,7 @@ pub fn canonical_static_projection<'a>(
             (Some(segment), Some(canonical)) => canonical.push(segment),
             (None, canonical) => *canonical = None,
             (Some(_), None) => {}
-        })?
-    else {
-        return None;
-    };
+        })?;
     Some((canonical?, tip))
 }
 

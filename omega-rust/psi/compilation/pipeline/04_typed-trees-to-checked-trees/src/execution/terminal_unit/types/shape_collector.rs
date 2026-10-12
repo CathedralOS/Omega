@@ -30,6 +30,8 @@ pub(crate) struct ShapeCollector<'program> {
     pub(in crate::execution::terminal_unit) domains: Vec<CheckedUnitStructuralDomainPlan>,
     pub(in crate::execution::terminal_unit) cleanup_control:
         checked_trees::CheckedCleanupControlPlans,
+    pub(in crate::execution::terminal_unit) selector_bounds:
+        arena::Arena<checked_trees::CheckedStructuralIndexOccurrence>,
     in_progress: BTreeSet<typed_trees::type_identity::TypeIdentityId>,
     /// The element rows registered beside borrowed byte views. A byte
     /// carrier's plan keeps no element field, so `retain_transitive` follows
@@ -44,6 +46,7 @@ impl<'program> ShapeCollector<'program> {
             types: BTreeMap::new(),
             domains: Vec::new(),
             cleanup_control: Default::default(),
+            selector_bounds: Default::default(),
             in_progress: BTreeSet::new(),
             byte_view_elements: BTreeSet::new(),
         }

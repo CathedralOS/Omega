@@ -47,11 +47,12 @@ impl StateGraphEmission<'_, '_> {
             position,
             state_parameters,
             bindings,
-            current_rank,
+            mut current_rank,
             inherited_lengths,
         } = *frame;
+        let source_rank = current_rank;
         let state = &plan.states[position];
-        let arrival_decided = checked.facts.call_requires_decided(
+        let mut arrival_decided = checked.facts.call_requires_decided(
             state.state,
             edge.statement_ordinal,
             edge.target_state,
@@ -98,6 +99,7 @@ impl StateGraphEmission<'_, '_> {
         let mut structural_arguments = Vec::new();
         let mut capture_parameters = Vec::new();
         let mut captured_loans = Vec::new();
+        let mut ingress_renewals = Vec::new();
         let target_state = &plan.states[target];
         // Signature rows carry authored parameter positions, which go sparse
         // the moment a slot contributes no runtime operand: a borrowed `self`
@@ -194,6 +196,7 @@ impl StateGraphEmission<'_, '_> {
                     continue;
                 }
                 let mut argument_path = Vec::new();
+                let mut argument_bound_origins = Vec::new();
                 let mut completed_binding = None;
                 let mut captured_backing = None;
                 let place = match transfer.source {
@@ -272,6 +275,7 @@ impl StateGraphEmission<'_, '_> {
                         checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
                             ref subject,
                             formation_expression,
+                            index_occurrences,
                             carrier_type_identity,
                         } => {
                             let (root, root_type) = edge_evaluation.cleanup_storage(
@@ -339,6 +343,25 @@ impl StateGraphEmission<'_, '_> {
                                     Some(&mut calls),
                                 )?;
                             self.catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+                            // These are this producer's exact source-to-path
+                            // associations, not equal selectors or old aliases.
+                            // The path IDs are allocated by this actual operand
+                            // frame and later move into its formation operation.
+                            let mut decided_bounds = Vec::new();
+                            for occurrence in checked.facts.flow.terminal_unit_effects.selector_bounds
+                                .span(index_occurrences).ok_or(LoweringError::Unsupported(
+                                    "state loan selector lost its source occurrence owner",
+                                ))? {
+                                let position = usize::try_from(occurrence.path_position)
+                                    .map_err(|_| LoweringError::Unsupported("state loan selector position exceeds usize"))?;
+                                let Some(terminal_psi::StructuralPathSegment::RuntimeIndex { obligation, .. }) = path.get(position) else {
+                                    return unsupported("state loan selector lost its exact emitted carrying segment");
+                                };
+                                argument_bound_origins.push((*obligation, occurrence.occurrence));
+                                if checked.facts.scalar_index_is_proven(occurrence.occurrence) {
+                                    decided_bounds.push(*obligation);
+                                }
+                            }
                             if carrier_type_identity.is_valid()
                                 && let Some(group) = self.captured_loans.group(target, target_index as u32)
                             {
@@ -373,6 +396,10 @@ impl StateGraphEmission<'_, '_> {
                                     carrier_type, source, None, &self.catalogs.structural_types,
                                     place_id(allocate_dense(&mut self.catalogs.next_place)?), operations,
                                 )?;
+                                // This formation owns the bounds at its
+                                // evaluated source before cleanup. A later
+                                // reference crossing grants no new index fact.
+                                operations.source_checked_obligations.extend(decided_bounds);
                                 captured_loans.push((group, carrier.id));
                                 self.structural_places.push(carrier);
                                 argument_path = if terminal_psi::find_structural_type(
@@ -645,7 +672,120 @@ impl StateGraphEmission<'_, '_> {
                         ) || result.multiplicity()
                             == StructuralMultiplicity::Affine
                             || backing.is_some();
-                        if needs_home && (position != 0 || self.entry_reentered) {
+                        let released_ingress = match &transfer.source {
+                            checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan { subject, .. } => {
+                                super::loan_arrivals::released_ingress(
+                                    checked, owner, state, edge.statement_ordinal,
+                                    binding_ordinal, &subject.path, target_parameter.access,
+                                )
+                            }
+                            _ => None,
+                        };
+                        if let Some(ingress) = released_ingress {
+                            let parameter = state_parameters.get(ingress.parameter).ok_or(
+                                LoweringError::Unsupported(
+                                    "released loan lost its captured ingress formal",
+                                ),
+                            )?;
+                            let mut selectors = std::iter::empty();
+                            let mut source_path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
+                                identities, &ingress.path, parameter.structural_type,
+                                &self.catalogs.structural_types, Some(&edge_values), &mut selectors, None,
+                            )?;
+                            let referent = argument_path
+                                .iter()
+                                .position(|segment| {
+                                    matches!(segment, terminal_psi::StructuralPathSegment::Referent)
+                                })
+                                .ok_or(LoweringError::Unsupported(
+                                    "released loan lost its evaluated referent projection",
+                                ))?;
+                            // Reuse completed selector values and bounds obligations;
+                            // reconstructing their source expressions would reevaluate.
+                            source_path.extend_from_slice(&argument_path[referent + 1..]);
+                            let retirement = if ingress.descriptor_path.is_empty() {
+                                edge_evaluation.descriptor_retirement(result.place(), operations)?
+                            } else {
+                                let mut selectors = std::iter::empty();
+                                let descriptor_path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
+                                    identities, &ingress.descriptor_path, result.structural_type(),
+                                    &self.catalogs.structural_types, Some(&edge_values), &mut selectors, None,
+                                )?;
+                                let descriptor = terminal_semantics::runtime_structural_path_tip(
+                                    self.catalogs.structural_types.iter(),
+                                    result.structural_type(),
+                                    &descriptor_path,
+                                )
+                                .ok_or(
+                                    LoweringError::Unsupported(
+                                        "released loan lost its exact descriptor leaf",
+                                    ),
+                                )?;
+                                terminal_psi::TerminalAffineCleanupAction::DiscardResidual(
+                                    terminal_psi::StructuralAffineDiscard {
+                                        place: result.place(),
+                                        path: descriptor_path,
+                                        structural_type: descriptor.id,
+                                    },
+                                )
+                            };
+                            let mut preserved_bounds = Vec::new();
+                            let source_state = checked.typed.state_by_symbol(state.state).ok_or(
+                                LoweringError::Unsupported(
+                                    "loan arrival lost its original exit owner",
+                                ),
+                            )?;
+                            let source_statement = checked
+                                .statement_table
+                                .statements(source_state.statement_nodes)
+                                .get(edge.statement_ordinal as usize)
+                                .ok_or(LoweringError::Unsupported(
+                                    "loan arrival lost its original exit occurrence",
+                                ))?;
+                            let kind = match source_statement {
+                                typed_trees::statement::StatementNode::Expression(_) => {
+                                    checked_trees::FlowClaimJoinExitKind::FinalExpression
+                                }
+                                typed_trees::statement::StatementNode::Transition(_)
+                                    if edge.is_continuation =>
+                                {
+                                    checked_trees::FlowClaimJoinExitKind::TransitionContinuation
+                                }
+                                typed_trees::statement::StatementNode::Transition(_) => {
+                                    checked_trees::FlowClaimJoinExitKind::TransitionTarget
+                                }
+                                _ => {
+                                    return unsupported("loan arrival has no original normal exit");
+                                }
+                            };
+                            let source_exit = checked_trees::FlowClaimJoinExit {
+                                state_symbol: state.state,
+                                statement_index: edge.statement_ordinal as usize,
+                                kind,
+                            };
+                            for (obligation, occurrence) in &argument_bound_origins {
+                                // Prefix insertion does not change this allocated carrying ID.
+                                // Only the actual suffix transferred to the renewed path qualifies.
+                                if source_path.iter().any(|segment| matches!(segment,
+                                    terminal_psi::StructuralPathSegment::RuntimeIndex { obligation: actual, .. }
+                                        if actual == obligation))
+                                    && checked.facts.scalar_index_exit_preservations.iter().any(|(_, fact)|
+                                        fact.machine == owner && fact.exit == source_exit
+                                            && fact.occurrence == *occurrence)
+                                {
+                                    preserved_bounds.push(*obligation);
+                                }
+                            }
+                            ingress_renewals.push(super::loan_arrivals::IngressRenewal {
+                                argument: structural_arguments.len(),
+                                source: StructuralArgument {
+                                    place: edge_evaluation.current_structural_place(parameter.place),
+                                    path: source_path,
+                                    access: crate::expression_preparation::bindings::structural_paths::terminal_access(target_parameter.access),
+                                },
+                                retirement, preserved_bounds, source_exit,
+                            });
+                        } else if needs_home && (position != 0 || self.entry_reentered) {
                             if std::env::var_os("OMEGA_TRACE_UNIT_LOAN_HOME").is_some() {
                                 let result_shape = terminal_psi::find_structural_type(
                                     &self.catalogs.structural_types,
@@ -719,20 +859,23 @@ impl StateGraphEmission<'_, '_> {
                                 "Unit graph local loan requires an activation entry home",
                             );
                         }
-                        let homes = (result.multiplicity() == StructuralMultiplicity::Affine)
-                            .then_some((
-                                binding_ordinal,
-                                captured_backing
-                                    .as_ref()
-                                    .map_or(place, |(backing, _)| *backing),
-                            ))
-                            .into_iter()
-                            .chain(backing.map(|(backing, home)| {
-                                (
-                                    backing,
-                                    edge_evaluation.current_structural_place(home.place()),
-                                )
-                            }));
+                        let homes = (result.multiplicity() == StructuralMultiplicity::Affine
+                            && !ingress_renewals
+                                .iter()
+                                .any(|renewal| renewal.argument == structural_arguments.len()))
+                        .then_some((
+                            binding_ordinal,
+                            captured_backing
+                                .as_ref()
+                                .map_or(place, |(backing, _)| *backing),
+                        ))
+                        .into_iter()
+                        .chain(backing.map(|(backing, home)| {
+                            (
+                                backing,
+                                edge_evaluation.current_structural_place(home.place()),
+                            )
+                        }));
                         // Each edge lends the local at its edge-current place;
                         // a value selection on one edge can move it to a join
                         // place. The entry route retains one home per local,
@@ -900,10 +1043,43 @@ impl StateGraphEmission<'_, '_> {
             operations,
         )?;
         super::super::cleanup::selection(&edge_evaluation, operations, &mut cleanup_regions)?;
+        // The issued source preservation must cover the cleanup actually emitted,
+        // including selected nominal deaths added by the shared selection owner.
+        // Missing associations keep the ordinary final-path obligation undecided.
+        for renewal in &mut ingress_renewals {
+            let covered = cleanup_regions.iter().all(|region| {
+                if !matches!(
+                    region.action,
+                    terminal_psi::TerminalAffineCleanupAction::InvokeNominal(_)
+                ) {
+                    return true;
+                }
+                if !region.storage_effect.is_valid() {
+                    return false;
+                }
+                let effect = checked
+                    .facts
+                    .contextual_cleanup
+                    .hook_effects
+                    .get(region.storage_effect);
+                let disposition = checked
+                    .facts
+                    .contextual_cleanup
+                    .dispositions
+                    .get(effect.disposition);
+                disposition.machine == owner
+                    && disposition.state == state.state
+                    && disposition.exit == renewal.source_exit
+            });
+            if !covered {
+                renewal.preserved_bounds.clear();
+            }
+        }
+
         // Proof-only actuals never evaluate: each checked erased row
         // lowers to a term over the emitting state's scalar values and
         // erased formals, in the target's erased-roster order.
-        let erased_arguments = edge
+        let mut erased_arguments = edge
             .erased_arguments
             .iter()
             .map(|argument| {
@@ -926,7 +1102,7 @@ impl StateGraphEmission<'_, '_> {
         // Proof actuals keep the same rule: each checked term resolves
         // against the emitting state's roster and must land in the
         // target state's roster order.
-        let erased_proof_arguments = edge
+        let mut erased_proof_arguments = edge
             .erased_proof_arguments
             .iter()
             .map(|term| {
@@ -948,7 +1124,7 @@ impl StateGraphEmission<'_, '_> {
             .collect::<Result<Vec<_>, LoweringError>>()?;
         // The arriving rank strictly decreases unless the rank judgment
         // proves this edge only preserves it.
-        let arriving_comparison = if plan.preserving_rank_edges.iter().any(|weak| {
+        let mut arriving_comparison = if plan.preserving_rank_edges.iter().any(|weak| {
             weak.source_state == state.state
                 && weak.statement_ordinal == edge.statement_ordinal
                 && weak.target_state == edge.target_state
@@ -957,7 +1133,7 @@ impl StateGraphEmission<'_, '_> {
         } else {
             terminal_psi::TerminalNaturalRankComparison::Strict
         };
-        let arriving_rank = if current_rank.is_some()
+        let mut arriving_rank = if current_rank.is_some()
             && let Some(root) = ranking::observation(checked, plan, target_state)?
         {
             // Scalar and structural operands are already complete. Rejoin the
@@ -1059,15 +1235,44 @@ impl StateGraphEmission<'_, '_> {
             capture_parameters.push(declaration);
         }
         structural_arguments.extend(owner_arguments);
-        let target = self.state_ids[target];
+        let mut target = self.state_ids[target];
+        for renewal in &ingress_renewals {
+            if !cleanup_regions.iter().any(|region| {
+                region.action == renewal.retirement
+                    && region.conditions.is_empty()
+                    && region.selected_region.is_none()
+            }) {
+                return unsupported(
+                    "released ingress arrival has no unconditional checked descriptor retirement",
+                );
+            }
+        }
+        // A renewed ingress resolves after its descriptor ends. Keep that
+        // operand out of pre-cleanup captures; all other actuals still take
+        // the same ordinary ownership snapshot and selected cleanup route.
+        let retained_renewals = ingress_renewals
+            .iter()
+            .map(|renewal| {
+                (
+                    renewal.argument,
+                    structural_arguments[renewal.argument].clone(),
+                    capture_parameters[renewal.argument].clone(),
+                )
+            })
+            .collect::<Vec<_>>();
+        for (index, _, _) in retained_renewals.iter().rev() {
+            structural_arguments.remove(*index);
+            capture_parameters.remove(*index);
+        }
+        for (index, declaration) in capture_parameters.iter_mut().enumerate() {
+            declaration.position = u32::try_from(index)
+                .map_err(|_| LoweringError::Unsupported("state capture roster exceeds u32"))?;
+        }
         // All operands and rank observations are already captured. Transfer
         // projected structural custody before selected cleanup can retire the
         // old home; the authored successor receives only whole captures.
-        if cleanup_regions
-            .iter()
-            .any(|region| !region.conditions.is_empty() || region.selected_region.is_some())
-        {
-            edge_evaluation.capture_cleanup_arguments(
+        if !cleanup_regions.is_empty() {
+            let capture = edge_evaluation.capture_cleanup_arguments(
                 identities,
                 self.checked,
                 &mut structural_arguments,
@@ -1080,7 +1285,21 @@ impl StateGraphEmission<'_, '_> {
                 next_edge,
                 operations,
             )?;
+            super::loan_arrivals::transport_captured_arguments(
+                &self.catalogs.structural_types,
+                &capture,
+                &mut arguments,
+                &mut erased_arguments,
+                &mut erased_proof_arguments,
+                &mut ingress_renewals,
+                &mut current_rank,
+                &mut arriving_rank,
+            )?;
         }
+        // Cleanup continuations preserve this actual value roster in order.
+        // Retain the producer's old/new declarations across all selected arms;
+        // no value equality or receiving signature reconstructs the mapping.
+        let cleanup_values = edge_values.clone();
         let cleanup_actions = edge_evaluation.emit_cleanup_regions(
             identities,
             self.checked,
@@ -1091,6 +1310,61 @@ impl StateGraphEmission<'_, '_> {
             next_edge,
             operations,
         )?;
+        if cleanup_values.len() != edge_values.len() {
+            return unsupported("cleanup continuation lost its captured scalar roster");
+        }
+        let cleanup_capture = crate::unit::attached_unit::argument_evaluation::cleanup_control::CapturedArgumentFrame {
+            values: cleanup_values.into_iter().zip(edge_values.iter().cloned()).collect(),
+            structural: Vec::new(),
+        };
+        super::loan_arrivals::transport_captured_arguments(
+            &self.catalogs.structural_types,
+            &cleanup_capture,
+            &mut arguments,
+            &mut erased_arguments,
+            &mut erased_proof_arguments,
+            &mut ingress_renewals,
+            &mut current_rank,
+            &mut arriving_rank,
+        )?;
+        for (index, argument, declaration) in retained_renewals {
+            structural_arguments.insert(index, argument);
+            capture_parameters.insert(index, declaration);
+        }
+        if !ingress_renewals.is_empty() {
+            target = self.stage_released_ingresses(
+                identities,
+                position,
+                target,
+                &mut arguments,
+                &mut structural_arguments,
+                &capture_parameters,
+                &edge_values,
+                &ingress_renewals,
+                &mut erased_arguments,
+                &mut erased_proof_arguments,
+                current_rank,
+                arriving_rank,
+                arriving_comparison,
+                arrival_decided,
+                edge_blocks,
+                next_value,
+                next_block,
+                next_edge,
+            )?;
+            // Publish only after the final path and staging edge actually exist.
+            // These IDs belong to the retained path; no selector is reevaluated.
+            for renewal in &ingress_renewals {
+                operations
+                    .source_checked_obligations
+                    .extend(renewal.preserved_bounds.iter().copied());
+            }
+            // The private edge preserves its source rank. Only the final
+            // post-cleanup edge names the checked receiver and its arrival.
+            arriving_rank = current_rank;
+            arriving_comparison = terminal_psi::TerminalNaturalRankComparison::Preserving;
+            arrival_decided = false;
+        }
         // Payloads begin after selection. Actual edge work owns its block,
         // including any operand's private entry, joins and remapped parameters.
         // Pure forwarding alone may remain in the source block.
@@ -1106,21 +1380,28 @@ impl StateGraphEmission<'_, '_> {
                 self.decided_arrival_edges.insert(backedge);
             }
             if let Some(rank) = current_rank {
-                self.block_ranks.insert(staged, rank);
+                let source_rank = source_rank.ok_or(LoweringError::Unsupported(
+                    "cleanup rank transport lost its actual source observation",
+                ))?;
+                self.block_ranks.insert(staged, source_rank);
                 self.block_ranks.insert(edge_evaluation.current, rank);
-                self.block_ranks
-                    .extend(edge_evaluation.blocks.iter().map(|block| (block.id, rank)));
+                self.block_ranks.extend(
+                    edge_evaluation
+                        .blocks
+                        .iter()
+                        .map(|block| (block.id, source_rank)),
+                );
                 self.preserve_edges(
                     edge_evaluation
                         .blocks
                         .iter()
                         .flat_map(|block| block.terminator.edges()),
-                    rank,
+                    source_rank,
                 );
                 self.rank_edges.insert(
                     selection_edge,
                     (
-                        rank,
+                        source_rank,
                         terminal_psi::TerminalNaturalRankComparison::Preserving,
                     ),
                 );

@@ -1347,3 +1347,103 @@ pub(crate) fn byte_sequence_literal_argument(
         access,
     })
 }
+
+/// Retain the original whole indexed occurrences while this producer still
+/// owns both the authored projection and its declaration-resolved path.
+/// Implicit alias prefixes cannot borrow a later occurrence's decision: only
+/// the same canonical selector expression and exact ordered path segment join.
+pub(crate) fn source_index_occurrences(
+    program: &dyn ::validation::CheckingInput,
+    state: SymbolHandle,
+    statement: usize,
+    expression: ExpressionHandle,
+    place: &validation::CanonicalPlace,
+    path: &[CheckedUnitStructuralPathSegment],
+) -> Vec<checked_trees::CheckedStructuralIndexOccurrence> {
+    use typed_trees::expression::ExpressionNode;
+    if validation::canonical_place_from_expression_in_state(program, state, statement, expression)
+        .as_ref()
+        != Some(place)
+    {
+        return Vec::new();
+    }
+    let mut current = expression;
+    let mut originals = Vec::new();
+    let mut visited = Vec::new();
+    while current.is_valid() && !visited.contains(&current) {
+        visited.push(current);
+        current = match program.expression_table.expression(current) {
+            ExpressionNode::Borrow(borrow) => borrow.target,
+            ExpressionNode::Cast(cast)
+                if program.primitive_type_reference(cast.target_type).is_none() =>
+            {
+                cast.value
+            }
+            ExpressionNode::Member(member) => member.receiver,
+            ExpressionNode::Indexed(indexed) => {
+                originals.push((current, indexed.index));
+                indexed.collection
+            }
+            _ => break,
+        };
+    }
+    originals.reverse();
+    let canonical = place
+        .segments
+        .iter()
+        .filter(|segment| {
+            matches!(
+                segment,
+                facts::PlaceSegment::Index { .. }
+                    | facts::PlaceSegment::FixedIndex { .. }
+                    | facts::PlaceSegment::FixedRange { .. }
+            )
+        })
+        .collect::<Vec<_>>();
+    let emitted = path
+        .iter()
+        .enumerate()
+        .filter(|(_, segment)| {
+            matches!(
+                segment,
+                CheckedUnitStructuralPathSegment::RuntimeIndex(_)
+                    | CheckedUnitStructuralPathSegment::ComputedIndex(_)
+                    | CheckedUnitStructuralPathSegment::FixedIndex(_)
+                    | CheckedUnitStructuralPathSegment::FixedByteRange { .. }
+            )
+        })
+        .collect::<Vec<_>>();
+    if originals.len() != canonical.len() || originals.len() != emitted.len() {
+        return Vec::new();
+    }
+    let mut retained = Vec::new();
+    for (((occurrence, selector), canonical), (position, emitted)) in
+        originals.into_iter().zip(canonical).zip(emitted)
+    {
+        match (canonical, emitted) {
+            (
+                facts::PlaceSegment::Index { expression },
+                CheckedUnitStructuralPathSegment::RuntimeIndex(_)
+                | CheckedUnitStructuralPathSegment::ComputedIndex(_),
+            ) if *expression == selector => {
+                let Ok(path_position) = u32::try_from(position) else {
+                    return Vec::new();
+                };
+                retained.push(checked_trees::CheckedStructuralIndexOccurrence {
+                    path_position,
+                    occurrence,
+                });
+            }
+            (
+                facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. },
+                CheckedUnitStructuralPathSegment::FixedIndex(_),
+            ) => {}
+            (
+                facts::PlaceSegment::FixedRange { .. },
+                CheckedUnitStructuralPathSegment::FixedByteRange { .. },
+            ) => {}
+            _ => return Vec::new(),
+        }
+    }
+    retained
+}

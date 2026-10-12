@@ -961,6 +961,9 @@ pub(in crate::execution::terminal_unit) fn successor_target_bindings(
                             }
                             return Some(CheckedStructuralControlTransferPlan {
                                 source: checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
+                                    index_occurrences: shapes.selector_bounds.insert_many(calls::source_index_occurrences(
+                                        program, source.symbol, ordinal as usize, expression, &place, &subject.path,
+                                    )),
                                     subject,
                                     formation_expression: expression,
                                     carrier_type_identity: Default::default(),
@@ -1399,6 +1402,16 @@ fn projected_loan_transfer(
     Some(CheckedStructuralControlTransferPlan {
         source: checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
             formation_expression,
+            index_occurrences: shapes
+                .selector_bounds
+                .insert_many(calls::source_index_occurrences(
+                    program,
+                    source,
+                    ordinal as usize,
+                    formation_expression,
+                    place,
+                    &path,
+                )),
             carrier_type_identity,
             subject: CheckedUnitStructuralArgumentPlan {
                 source: subject_source,

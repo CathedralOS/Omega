@@ -354,6 +354,12 @@ pub(super) fn disposition_actions(
                 selected_path,
                 selected_type,
             )?;
+            cleanup.storage_effect = facts.contextual_cleanup.hook_effect(
+                disposition_handle,
+                hook,
+                place.root,
+                &segments,
+            );
             cleanup.consumed_claims =
                 consumed_claims(program, facts, disposition, selected_disposition, &segments)?;
             hooks.push(cleanup);
@@ -603,6 +609,7 @@ fn selected_nominal(
         cleanup_machine: hook,
         cleanup_state: state.symbol,
         cleanup_contract_report_fingerprint: target.contract_report_fingerprint,
+        storage_effect: Default::default(),
         case_conditions: Default::default(),
     })
 }

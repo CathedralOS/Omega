@@ -234,6 +234,7 @@ fn deferred_carrier_releases(
             .any(|region: &CleanupRegion| region.action == action)
         {
             carriers.push(CleanupRegion {
+                storage_effect: Default::default(),
                 selected_region: select_evaluated_storage.then(|| {
                     terminal_psi::StructuralArgument {
                         place,

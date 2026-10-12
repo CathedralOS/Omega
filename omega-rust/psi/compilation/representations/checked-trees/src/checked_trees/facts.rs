@@ -82,7 +82,10 @@ pub use carry::{
     canonical_suspension_crossing_id,
 };
 pub use checked_crash_operator_site::{CheckedCrashOperatorSite, OperatorSiteLocation};
-pub use collection::{CheckFacts, DecidedCallRequires, ProvenAssignmentIndex};
+pub use collection::{
+    CheckFacts, DecidedCallRequires, ProvenAssignmentIndex, ScalarIndexAdmission,
+    ScalarIndexExitPreservation,
+};
 pub use content::{
     ContentIdentityReshuffleFact, ContentPartitionCompositionFact,
     ContentPartitionInputClaimBinding, ContentPartitionPlaceSubstitution,
@@ -91,7 +94,8 @@ pub use content::{
 pub use content_classes::{ContentClassFacts, ContentClassRow};
 pub use contextual_cleanup::{
     ContextualCleanupApplication, ContextualCleanupDisposition, ContextualCleanupEntryRequirement,
-    ContextualCleanupEntryRequirements, ContextualCleanupFacts, StorageWindowInvocation,
+    ContextualCleanupEntryRequirements, ContextualCleanupFacts, ContextualCleanupHookEffect,
+    StorageWindowInvocation,
 };
 pub use contract_plans::{
     CheckedCrashCallSite, CheckedCrashSite, CheckedEntryResourceEnvelope,

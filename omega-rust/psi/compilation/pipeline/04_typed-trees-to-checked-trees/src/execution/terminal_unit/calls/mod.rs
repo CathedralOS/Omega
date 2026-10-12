@@ -13,7 +13,9 @@
 
 mod affine_locals;
 mod argument_paths;
-pub(crate) use argument_paths::{projected_evaluated_path, value_index_segment};
+pub(crate) use argument_paths::{
+    projected_evaluated_path, source_index_occurrences, value_index_segment,
+};
 pub(super) mod argument_presentation;
 mod boundary_admission;
 mod call_operations;
@@ -103,6 +105,4 @@ pub(crate) use signatures::{
     free_structural_scalar_signature, free_structural_scalar_signature_traced,
     parameter_signatures, structural_scalar_signature_traced, structural_signature,
 };
-pub(crate) use structural_arguments::{
-    call_claim_transfers, computed_call_claim_transfers,
-};
+pub(crate) use structural_arguments::{call_claim_transfers, computed_call_claim_transfers};
