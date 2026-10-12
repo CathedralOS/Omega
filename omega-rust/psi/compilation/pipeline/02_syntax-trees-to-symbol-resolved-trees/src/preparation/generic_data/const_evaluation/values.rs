@@ -203,6 +203,51 @@ pub(crate) fn canonicalize_selected_index_expression(
     expression: ExpressionHandle,
     selection: Option<&ConstantSelection>,
 ) -> Result<CanonicalConstValue, String> {
+    canonicalize_selected_index_expression_with_landings(
+        syntax,
+        value_type,
+        parameter_type,
+        expression,
+        selection,
+        &mut Vec::new(),
+    )
+}
+
+/// Publish warnings only after the complete recursive value is admitted.
+/// Identity queries share evaluation but do not publish these observations.
+pub(super) fn canonicalize_selected_index_expression_with_warnings(
+    syntax: &SyntaxTrees,
+    value_type: TypeReferenceHandle,
+    parameter_type: TypeReferenceHandle,
+    expression: ExpressionHandle,
+    selection: Option<&ConstantSelection>,
+    warnings: &mut Vec<diagnostics::Diagnostic>,
+) -> Result<CanonicalConstValue, String> {
+    let mut landings = Vec::new();
+    let value = canonicalize_selected_index_expression_with_landings(
+        syntax,
+        value_type,
+        parameter_type,
+        expression,
+        selection,
+        &mut landings,
+    )?;
+    warnings.extend(
+        landings
+            .iter()
+            .filter_map(|landing| landing.warning(syntax)),
+    );
+    Ok(value)
+}
+
+fn canonicalize_selected_index_expression_with_landings(
+    syntax: &SyntaxTrees,
+    value_type: TypeReferenceHandle,
+    parameter_type: TypeReferenceHandle,
+    expression: ExpressionHandle,
+    selection: Option<&ConstantSelection>,
+    landings: &mut Vec<super::anonymous::AnonymousIntegerLanding>,
+) -> Result<CanonicalConstValue, String> {
     validate_selected_const_index_type(
         syntax,
         parameter_type,
@@ -210,12 +255,13 @@ pub(crate) fn canonicalize_selected_index_expression(
         selection,
         &GenericApplicationSubstitution::new(),
     )?;
-    let node = canonicalize_const_expression(
+    let node = canonicalize_const_expression_with_landings(
         syntax,
         value_type,
         expression,
         selection,
         &GenericApplicationSubstitution::new(),
+        landings,
     )?;
     canonical_const_result(
         syntax,
@@ -1012,6 +1058,56 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression(
     selection: Option<&ConstantSelection>,
     substitution: &GenericApplicationSubstitution,
 ) -> Result<CanonicalConstNode, String> {
+    canonicalize_const_expression_with_landings(
+        syntax,
+        expected_type,
+        expression,
+        selection,
+        substitution,
+        &mut Vec::new(),
+    )
+}
+
+pub(in crate::preparation::generic_data) fn canonicalize_data_const_expression(
+    syntax: &SyntaxTrees,
+    type_name: &Identifier,
+    expression: ExpressionHandle,
+    selection: Option<&ConstantSelection>,
+) -> Result<CanonicalConstNode, String> {
+    canonicalize_data_const_expression_with_landings(
+        syntax,
+        type_name,
+        expression,
+        selection,
+        &mut Vec::new(),
+    )
+}
+
+pub(in crate::preparation::generic_data) fn canonicalize_named_fields(
+    syntax: &SyntaxTrees,
+    declared_fields: &[&syntax_trees::item::DataField],
+    literal_fields: HandleSpan<syntax_trees::expression::TableStructLiteralField>,
+    selection: Option<&ConstantSelection>,
+    substitution: &GenericApplicationSubstitution,
+) -> Result<Vec<(String, CanonicalConstNode)>, String> {
+    canonicalize_named_fields_with_landings(
+        syntax,
+        declared_fields,
+        literal_fields,
+        selection,
+        substitution,
+        &mut Vec::new(),
+    )
+}
+
+fn canonicalize_const_expression_with_landings(
+    syntax: &SyntaxTrees,
+    expected_type: TypeReferenceHandle,
+    expression: ExpressionHandle,
+    selection: Option<&ConstantSelection>,
+    substitution: &GenericApplicationSubstitution,
+    landings: &mut Vec<super::anonymous::AnonymousIntegerLanding>,
+) -> Result<CanonicalConstNode, String> {
     // A carrier spelled as a bare parameter reselects the enclosing
     // application's already-closed argument handle.
     if let Some(name) = syntax
@@ -1021,12 +1117,13 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression(
         .as_named()
         && let Some(argument) = substitution.get(name.as_str())
     {
-        return canonicalize_const_expression(
+        return canonicalize_const_expression_with_landings(
             syntax,
             *argument,
             expression,
             selection,
             substitution,
+            landings,
         );
     }
     // A rewritten `Named` instance spelling canonicalizes through its
@@ -1035,19 +1132,27 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression(
         .type_references
         .generic_application_origin(expected_type);
     if origin.is_valid() && origin != expected_type {
-        return canonicalize_const_expression(syntax, origin, expression, selection, substitution);
+        return canonicalize_const_expression_with_landings(
+            syntax,
+            origin,
+            expression,
+            selection,
+            substitution,
+            landings,
+        );
     }
     match syntax.tables.type_references.type_reference(expected_type) {
         TypeReferenceNode::Constrained {
             base_type,
             constraints,
         } => {
-            let node = canonicalize_const_expression(
+            let node = canonicalize_const_expression_with_landings(
                 syntax,
                 *base_type,
                 expression,
                 selection,
                 substitution,
+                landings,
             )?;
             // A leaf landing under `in <domain>` owes the declaration-site
             // domain discharge the declaration's own constrained carrier gets:
@@ -1064,19 +1169,34 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression(
         TypeReferenceNode::Named(type_name)
             if LandedIntegerType::from_name(type_name.as_str()).is_some() =>
         {
-            let ExpressionNode::Integer(literal) = syntax.expressions.expression(expression) else {
-                return Err(format!("expected an integer literal for `{type_name}`"));
+            let value = if let Some(value) =
+                super::anonymous::evaluate_anonymous_numeric_expression(syntax, expression)?
+            {
+                // Transport the already produced fractional observation with
+                // its exact landing. Query consumers discard it; successful
+                // normalization delivers it to the original warnings owner.
+                let landing = value.into_integer_landing()?;
+                let integer = landing.integer;
+                if landing.has_fractional_intermediate() {
+                    landings.push(landing);
+                }
+                integer
+            } else {
+                let ExpressionNode::Integer(literal) = syntax.expressions.expression(expression)
+                else {
+                    return Err(format!("expected an integer literal for `{type_name}`"));
+                };
+                if literal.landing().is_some_and(|landing| {
+                    landing.landed_type.name() != type_name.as_str()
+                        || landing.domain != numerics::arithmetic::ArithmeticDomain::Exact
+                }) {
+                    return Err(format!(
+                        "integer literal landing conflicts with declared const component `{type_name}`"
+                    ));
+                }
+                integer_literal_value(literal)
+                    .ok_or_else(|| "integer literal exceeds the const-value envelope".to_owned())?
             };
-            if literal.landing().is_some_and(|landing| {
-                landing.landed_type.name() != type_name.as_str()
-                    || landing.domain != numerics::arithmetic::ArithmeticDomain::Exact
-            }) {
-                return Err(format!(
-                    "integer literal landing conflicts with declared const component `{type_name}`"
-                ));
-            }
-            let value = integer_literal_value(literal)
-                .ok_or_else(|| "integer literal exceeds the const-value envelope".to_owned())?;
             validate_syntax_integer_range(type_name.as_str(), value)?;
             Ok(CanonicalConstNode::Integer {
                 type_name: type_name.as_str().to_owned(),
@@ -1127,9 +1247,9 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression(
             };
             Ok(CanonicalConstNode::Float { format, bits })
         }
-        TypeReferenceNode::Named(type_name) => {
-            canonicalize_data_const_expression(syntax, type_name, expression, selection)
-        }
+        TypeReferenceNode::Named(type_name) => canonicalize_data_const_expression_with_landings(
+            syntax, type_name, expression, selection, landings,
+        ),
         TypeReferenceNode::Generic {
             base_name,
             lifetime_arguments,
@@ -1144,13 +1264,14 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression(
                 // A synthesized instance's lookup spelling already selects the
                 // fully substituted declaration.
                 let definition = selected_synthesized_instance(syntax, base_name)?;
-                return canonicalize_selected_data_const_expression(
+                return canonicalize_selected_data_const_expression_with_landings(
                     syntax,
                     definition,
                     definition.name.as_str(),
                     expression,
                     selection,
                     &GenericApplicationSubstitution::new(),
+                    landings,
                 );
             }
             let definition = selected_data(syntax, base_name, selection)?;
@@ -1184,22 +1305,24 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression(
             if let Some(instance) =
                 synthesized_instance(syntax, selection, definition, &resolved_arguments)
             {
-                return canonicalize_selected_data_const_expression(
+                return canonicalize_selected_data_const_expression_with_landings(
                     syntax,
                     instance,
                     &label,
                     expression,
                     selection,
                     &GenericApplicationSubstitution::new(),
+                    landings,
                 );
             }
-            canonicalize_selected_data_const_expression(
+            canonicalize_selected_data_const_expression_with_landings(
                 syntax,
                 definition,
                 &label,
                 expression,
                 selection,
                 &next_substitution,
+                landings,
             )
         }
         TypeReferenceNode::FixedArray {
@@ -1223,12 +1346,13 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression(
             let values = values
                 .iter()
                 .map(|value| {
-                    canonicalize_const_expression(
+                    canonicalize_const_expression_with_landings(
                         syntax,
                         *element_type,
                         *value,
                         selection,
                         substitution,
+                        landings,
                     )
                 })
                 .collect::<Result<Vec<_>, _>>()?;
@@ -1306,32 +1430,35 @@ fn substituted_type_label(
     }
 }
 
-pub(in crate::preparation::generic_data) fn canonicalize_data_const_expression(
+fn canonicalize_data_const_expression_with_landings(
     syntax: &SyntaxTrees,
     type_name: &Identifier,
     expression: ExpressionHandle,
     selection: Option<&ConstantSelection>,
+    landings: &mut Vec<super::anonymous::AnonymousIntegerLanding>,
 ) -> Result<CanonicalConstNode, String> {
     let definition = selected_data(syntax, type_name, selection)?;
     // A directly named declaration's members never see an enclosing
     // application's parameters.
-    canonicalize_selected_data_const_expression(
+    canonicalize_selected_data_const_expression_with_landings(
         syntax,
         definition,
         definition.name.as_str(),
         expression,
         selection,
         &GenericApplicationSubstitution::new(),
+        landings,
     )
 }
 
-fn canonicalize_selected_data_const_expression(
+fn canonicalize_selected_data_const_expression_with_landings(
     syntax: &SyntaxTrees,
     definition: &DataDefinition,
     type_name: &str,
     expression: ExpressionHandle,
     selection: Option<&ConstantSelection>,
     substitution: &GenericApplicationSubstitution,
+    landings: &mut Vec<super::anonymous::AnonymousIntegerLanding>,
 ) -> Result<CanonicalConstNode, String> {
     let value = match syntax.expressions.expression(expression) {
         ExpressionNode::StructLiteral(literal) => {
@@ -1379,12 +1506,13 @@ fn canonicalize_selected_data_const_expression(
                     .data_payload_fields(variant.payload)
                     .iter()
                     .collect::<Vec<_>>();
-                let fields = canonicalize_named_fields(
+                let fields = canonicalize_named_fields_with_landings(
                     syntax,
                     &declared_fields,
                     literal.fields,
                     selection,
                     substitution,
+                    landings,
                 )?;
                 Ok(CanonicalConstNode::Variant {
                     type_name: type_name.to_owned(),
@@ -1413,12 +1541,13 @@ fn canonicalize_selected_data_const_expression(
                         _ => None,
                     })
                     .collect::<Vec<_>>();
-                let fields = canonicalize_named_fields(
+                let fields = canonicalize_named_fields_with_landings(
                     syntax,
                     &declared_fields,
                     literal.fields,
                     selection,
                     substitution,
+                    landings,
                 )?;
                 Ok(CanonicalConstNode::Record {
                     type_name: type_name.to_owned(),
@@ -1484,12 +1613,13 @@ fn canonicalize_selected_data_const_expression(
     Ok(value)
 }
 
-pub(in crate::preparation::generic_data) fn canonicalize_named_fields(
+fn canonicalize_named_fields_with_landings(
     syntax: &SyntaxTrees,
     declared_fields: &[&syntax_trees::item::DataField],
     literal_fields: HandleSpan<syntax_trees::expression::TableStructLiteralField>,
     selection: Option<&ConstantSelection>,
     substitution: &GenericApplicationSubstitution,
+    landings: &mut Vec<super::anonymous::AnonymousIntegerLanding>,
 ) -> Result<Vec<(String, CanonicalConstNode)>, String> {
     let authored = syntax.expressions.struct_fields(literal_fields);
     let mut canonical = Vec::with_capacity(declared_fields.len());
@@ -1507,12 +1637,13 @@ pub(in crate::preparation::generic_data) fn canonicalize_named_fields(
         };
         canonical.push((
             declared.name.as_str().to_owned(),
-            canonicalize_const_expression(
+            canonicalize_const_expression_with_landings(
                 syntax,
                 declared.type_reference,
                 field.value,
                 selection,
                 substitution,
+                landings,
             )?,
         ));
     }

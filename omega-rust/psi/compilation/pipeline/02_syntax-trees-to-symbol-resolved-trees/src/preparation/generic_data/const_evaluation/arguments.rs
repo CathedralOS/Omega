@@ -14,7 +14,6 @@ use crate::preparation::generic_data::discovery::ClosedApplication;
 use crate::preparation::generic_data::canonicalize_const_definition;
 use crate::preparation::generic_data::canonicalize_monomorphizable_argument_handles;
 use crate::preparation::generic_data::canonicalize_selected_const_definition;
-use crate::preparation::generic_data::canonicalize_selected_index_expression;
 use crate::preparation::generic_data::closed_argument_identity;
 use crate::preparation::generic_data::const_evaluation::validate_anonymous_remainder;
 use crate::preparation::generic_data::const_integer_in_envelope;
@@ -292,17 +291,19 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
                     syntax_trees::expression::ExpressionNode::StructLiteral(_)
                         | syntax_trees::expression::ExpressionNode::ArrayLiteral(_)
                 ) {
-                    let value = canonicalize_selected_index_expression(
-                        syntax,
-                        parameter_type,
-                        parameter_type,
-                        expression,
-                        selection,
-                    )
-                    .map_err(|reason| {
-                        Diagnostic::error(reason)
-                            .with_source_span(syntax.expressions.source_span(expression))
-                    })?;
+                    let value =
+                        super::values::canonicalize_selected_index_expression_with_warnings(
+                            syntax,
+                            parameter_type,
+                            parameter_type,
+                            expression,
+                            selection,
+                            warnings,
+                        )
+                        .map_err(|reason| {
+                            Diagnostic::error(reason)
+                                .with_source_span(syntax.expressions.source_span(expression))
+                        })?;
                     let reference = syntax.expressions.source_span(expression);
                     syntax.type_references.retain_const_argument_normalization(
                         *argument,
