@@ -1,0 +1,13 @@
+NEW064 research record linkage; registry=8; commands=64
+ALLOW register slot=00 key=00
+ALLOW register slot=01 key=11
+ALLOW register slot=02 key=22
+ALLOW register slot=03 key=33
+ALLOW register slot=04 key=44
+ALLOW register slot=05 key=55
+ALLOW register slot=06 key=66
+ALLOW register slot=07 key=77
+DENY capacity key=88 registered=08
+DENY capacity key=99 registered=08
+AUDIT tag=00 registered=08 observations=00 unique=00 ambiguous=00 unlinked=00 rejected=00 capacity=02 registry=05 decisions=00
+END

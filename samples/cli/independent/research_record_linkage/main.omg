@@ -1,0 +1,125 @@
+// Offline stdin record-linkage interpreter. At most 64 commands; each line is
+// exactly an uppercase opcode and two decimal digits. Overlong lines are
+// drained and rejected atomically. EOF commits a final unterminated line.
+// No registry outside this process exists; the data is synthetic.
+use omega_language_std::console;
+use omega::language::core::binding;
+use linkage::model;
+use linkage::report;
+
+data Main {
+    console: Binding<Console>;
+    linker: linkage::model::Linker;
+    opcode: i32;
+    tens: i32;
+    units: i32;
+    length: i32 in Saturating;
+    commands: i32 in Saturating;
+    decision: i32;
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("NEW064 research record linkage; registry=8; commands=64");
+    transition { _ -> read(main) }
+    state read(main: &mut Main) {
+        let observed: ByteRead = block main.console.read_byte();
+        transition observed {
+            ByteRead::Byte { value } -> character(main, value)
+            ByteRead::Eof -> end(main)
+        }
+    }
+    state character(main: &mut Main, character: i32) {
+        transition character == 10 {
+            true -> commit(main, false)
+            false -> collect(main, character)
+        }
+    }
+    state collect(main: &mut Main, character: i32) {
+        transition main.length {
+            0 -> opcode(main, character)
+            1 -> tens(main, character)
+            2 -> units(main, character)
+            _ -> overflow(main)
+        }
+    }
+    state opcode(main: &mut Main, character: i32) {
+        main.opcode = character;
+        main.length = 1;
+        transition { _ -> read(main) }
+    }
+    state tens(main: &mut Main, character: i32) {
+        main.tens = character;
+        main.length = 2;
+        transition { _ -> read(main) }
+    }
+    state units(main: &mut Main, character: i32) {
+        main.units = character;
+        main.length = 3;
+        transition { _ -> read(main) }
+    }
+    state overflow(main: &mut Main) {
+        main.length = 4;
+        transition { _ -> read(main) }
+    }
+    state end(main: &mut Main) {
+        transition main.length > 0 {
+            true -> commit(main, true)
+            false -> done(main)
+        }
+    }
+    state commit(main: &mut Main, final: bool) {
+        transition main.commands < 64 {
+            true -> grammar(main, final)
+            false -> exhausted(main)
+        }
+    }
+    state grammar(main: &mut Main, final: bool) {
+        main.commands = main.commands + 1;
+        main.decision = 6;
+        transition main.length == 3 && main.tens >= 48 && main.tens <= 57 && main.units >= 48 && main.units <= 57 {
+            true -> interpret(main, final)
+            false -> rejected(main, final)
+        }
+    }
+    state interpret(main: &mut Main, final: bool) {
+        let key: i32 in Saturating = ((main.tens - 48) * 10 + (main.units - 48)) as i32 in Saturating;
+        transition main.opcode {
+            82 -> apply(main, final, key)
+            79 -> apply(main, final, key)
+            65 -> audited(main, final, key)
+            _ -> rejected(main, final)
+        }
+    }
+    state apply(main: &mut Main, final: bool, key: i32 in Saturating) {
+        main.decision = linkage::model::Linker::apply(&mut main.linker, main.opcode, key);
+        transition { _ -> report(main, final) }
+    }
+    state audited(main: &mut Main, final: bool, tag: i32 in Saturating) {
+        linkage::report::Report::audit(&mut main.console, &main.linker, tag);
+        main.length = 0;
+        transition final {
+            true -> done(main)
+            false -> read(main)
+        }
+    }
+    state rejected(main: &mut Main, final: bool) {
+        main.linker.rejected = main.linker.rejected + 1;
+        transition { _ -> report(main, final) }
+    }
+    state report(main: &mut Main, final: bool) {
+        linkage::report::Report::row(&mut main.console, &main.linker, main.decision);
+        main.length = 0;
+        transition final {
+            true -> done(main)
+            false -> read(main)
+        }
+    }
+    state exhausted(main: &mut Main) {
+        main.console.write_line("BUDGET_EXHAUSTED");
+        main.console.exit_process(65);
+    }
+    state done(main: &mut Main) {
+        main.console.write_line("END");
+        main.console.exit_process(0);
+    }
+}

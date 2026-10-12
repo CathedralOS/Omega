@@ -1,0 +1,111 @@
+module linkage::model;
+
+// A bounded synthetic registry of at most eight two-digit record keys.
+// Duplicate registrations are permitted on purpose: an observation key that
+// matches exactly one slot is a unique link, more than one is ambiguous, and
+// zero is unlinked. Checksums fold weight*key (registry) and index*code
+// (observation decisions) modulo 97 so audits stay two decimal digits.
+pub data Linker [copy] {
+    keys: [i32; 8];
+    registered: i32 in Saturating;
+    observations: i32 in Saturating;
+    unique: i32 in Saturating;
+    ambiguous: i32 in Saturating;
+    unlinked: i32 in Saturating;
+    rejected: i32 in Saturating;
+    capacity_denied: i32 in Saturating;
+    registry_checksum: i32 in Saturating;
+    decisions_checksum: i32 in Saturating;
+    last_slot: i32;
+    last_key: i32;
+    last_matches: i32;
+}
+
+// Decisions: 0 registered, 1 unique link, 2 ambiguous link, 3 unlinked,
+// 4 audit, 5 capacity denied, 6 invalid input.
+pub machine Linker::apply(linker: &mut Linker, operation: i32, key: i32 in Saturating) -> i32 {
+    transition operation {
+        82 -> register(linker, key)
+        79 -> observe(linker, key)
+        _ -> invalid()
+    }
+    state register(linker: &mut Linker, key: i32 in Saturating) -> i32 {
+        linker.last_key = key as i32;
+        transition linker.registered >= 0 && linker.registered < 8 {
+            true -> store(linker, key)
+            false -> denied(linker)
+        }
+    }
+    state store(linker: &mut Linker, key: i32 in Saturating) -> i32
+    requires linker.registered >= 0
+    requires linker.registered < 8
+    {
+        linker.keys[linker.registered] = key as i32;
+        linker.registry_checksum = (linker.registry_checksum + (linker.registered + 1) * key) % 97;
+        linker.last_slot = linker.registered as i32;
+        linker.last_key = key as i32;
+        linker.registered = linker.registered + 1;
+        transition { _ -> 0 }
+    }
+    state denied(linker: &mut Linker) -> i32 {
+        linker.capacity_denied = linker.capacity_denied + 1;
+        transition { _ -> 5 }
+    }
+    state observe(linker: &mut Linker, key: i32 in Saturating) -> i32 {
+        linker.observations = linker.observations + 1;
+        linker.last_key = key as i32;
+        transition { _ -> scan(linker, key, 0, 0, 0) }
+    }
+    state scan(linker: &mut Linker, key: i32 in Saturating, index: i32 in Wrapping,
+               found: i32 in Wrapping, first: i32 in Wrapping) -> i32 {
+        transition index >= 0 && index < linker.registered && index < 8 {
+            true -> compare(linker, key, index, found, first)
+            false -> classify(linker, found, first)
+        }
+    }
+    state compare(linker: &mut Linker, key: i32 in Saturating, index: i32 in Wrapping,
+                  found: i32 in Wrapping, first: i32 in Wrapping) -> i32
+    requires index >= 0
+    requires index < 8
+    {
+        transition linker.keys[index] == key {
+            true -> matched(linker, key, index, found, first)
+            false -> scan(linker, key, index + 1, found, first)
+        }
+    }
+    state matched(linker: &mut Linker, key: i32 in Saturating, index: i32 in Wrapping,
+                  found: i32 in Wrapping, first: i32 in Wrapping) -> i32
+    requires index >= 0
+    requires index < 8
+    {
+        transition found == 0 {
+            true -> scan(linker, key, index + 1, 1, index)
+            false -> scan(linker, key, index + 1, found + 1, first)
+        }
+    }
+    state classify(linker: &mut Linker, found: i32 in Wrapping, first: i32 in Wrapping) -> i32 {
+        linker.last_matches = found as i32;
+        linker.last_slot = first as i32;
+        transition found {
+            0 -> unlinked(linker)
+            1 -> unique(linker)
+            _ -> ambiguous(linker)
+        }
+    }
+    state unique(linker: &mut Linker) -> i32 {
+        linker.unique = linker.unique + 1;
+        linker.decisions_checksum = (linker.decisions_checksum + linker.observations * 1) % 97;
+        transition { _ -> 1 }
+    }
+    state ambiguous(linker: &mut Linker) -> i32 {
+        linker.ambiguous = linker.ambiguous + 1;
+        linker.decisions_checksum = (linker.decisions_checksum + linker.observations * 2) % 97;
+        transition { _ -> 2 }
+    }
+    state unlinked(linker: &mut Linker) -> i32 {
+        linker.unlinked = linker.unlinked + 1;
+        linker.decisions_checksum = (linker.decisions_checksum + linker.observations * 3) % 97;
+        transition { _ -> 3 }
+    }
+    state invalid() -> i32 { 6 }
+}

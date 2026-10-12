@@ -1,0 +1,8 @@
+NEW064 research record linkage; registry=8; commands=64
+DENY input
+DENY input
+DENY input
+DENY input
+ALLOW register slot=00 key=42
+LINK unique slot=00 key=42
+END

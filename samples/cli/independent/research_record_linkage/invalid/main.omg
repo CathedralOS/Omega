@@ -1,0 +1,15 @@
+// Complete intended-invalid application: a runtime caller cannot write a
+// registry slot without proving the declared in-range precondition. This
+// rejection is independent of invalid stdin, which the valid linker handles
+// without compilation errors.
+data Main { }
+data Registry { keys: [i32; 8]; }
+machine clear(registry: &mut Registry, slot: i32)
+requires slot >= 0 && slot < 8
+{
+    registry.keys[slot] = 0;
+}
+machine Main::main(main: &mut Main) {
+    let mut registry: Registry = Registry { keys: [0, 0, 0, 0, 0, 0, 0, 0] };
+    clear(&mut registry, 8);
+}

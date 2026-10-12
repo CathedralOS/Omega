@@ -1,0 +1,116 @@
+module linkage::report;
+
+use omega_language_std::console;
+use omega::language::core::binding;
+use linkage::model;
+
+pub data Report { }
+
+pub machine Report::row(console: &mut Binding<Console>, linker: &linkage::model::Linker, decision: i32) reaches Console
+invokes console;
+{
+    Report::decision(console, decision);
+    transition decision {
+        0 -> registered(console, linker)
+        1 -> unique(console, linker)
+        2 -> ambiguous(console, linker)
+        3 -> unlinked(console, linker)
+        5 -> capacity(console, linker)
+        _ -> tail(console)
+    }
+    state registered(console: &mut Binding<Console>, linker: &linkage::model::Linker) {
+        console.write(" slot=");
+        Report::number(console, linker.last_slot as i32 in Saturating);
+        console.write(" key=");
+        Report::number(console, linker.last_key as i32 in Saturating);
+        console.write_line("");
+    }
+    state unique(console: &mut Binding<Console>, linker: &linkage::model::Linker) {
+        console.write(" slot=");
+        Report::number(console, linker.last_slot as i32 in Saturating);
+        console.write(" key=");
+        Report::number(console, linker.last_key as i32 in Saturating);
+        console.write_line("");
+    }
+    state ambiguous(console: &mut Binding<Console>, linker: &linkage::model::Linker) {
+        console.write(" key=");
+        Report::number(console, linker.last_key as i32 in Saturating);
+        console.write(" matches=");
+        Report::number(console, linker.last_matches as i32 in Saturating);
+        console.write_line("");
+    }
+    state unlinked(console: &mut Binding<Console>, linker: &linkage::model::Linker) {
+        console.write(" key=");
+        Report::number(console, linker.last_key as i32 in Saturating);
+        console.write_line("");
+    }
+    state capacity(console: &mut Binding<Console>, linker: &linkage::model::Linker) {
+        console.write(" key=");
+        Report::number(console, linker.last_key as i32 in Saturating);
+        console.write(" registered=");
+        Report::number(console, linker.registered);
+        console.write_line("");
+    }
+    state tail(console: &mut Binding<Console>) {
+        console.write_line("");
+    }
+}
+
+pub machine Report::audit(console: &mut Binding<Console>, linker: &linkage::model::Linker, tag: i32 in Saturating) reaches Console
+invokes console;
+{
+    console.write("AUDIT tag=");
+    Report::number(console, tag);
+    console.write(" registered=");
+    Report::number(console, linker.registered);
+    console.write(" observations=");
+    Report::number(console, linker.observations);
+    console.write(" unique=");
+    Report::number(console, linker.unique);
+    console.write(" ambiguous=");
+    Report::number(console, linker.ambiguous);
+    console.write(" unlinked=");
+    Report::number(console, linker.unlinked);
+    console.write(" rejected=");
+    Report::number(console, linker.rejected);
+    console.write(" capacity=");
+    Report::number(console, linker.capacity_denied);
+    console.write(" registry=");
+    Report::number(console, linker.registry_checksum);
+    console.write(" decisions=");
+    Report::number(console, linker.decisions_checksum);
+    console.write_line("");
+}
+
+machine Report::number(console: &mut Binding<Console>, value: i32 in Saturating) reaches Console {
+    transition value >= 0 && value <= 99 {
+        true -> digits(console, value)
+        false -> invalid(console)
+    }
+    state digits(console: &mut Binding<Console>, value: i32 in Saturating) {
+        let tens: i32 in Saturating = value / 10 + 48;
+        let units: i32 in Saturating = value % 10 + 48;
+        console.write_byte(tens as i32);
+        console.write_byte(units as i32);
+    }
+    state invalid(console: &mut Binding<Console>) {
+        console.write("??");
+    }
+}
+
+machine Report::decision(console: &mut Binding<Console>, decision: i32) reaches Console {
+    transition decision {
+        0 -> registered(console)
+        1 -> unique(console)
+        2 -> ambiguous(console)
+        3 -> unlinked(console)
+        5 -> capacity(console)
+        _ -> invalid(console)
+    }
+    state registered(console: &mut Binding<Console>) { console.write("ALLOW register"); }
+    state unique(console: &mut Binding<Console>) { console.write("LINK unique"); }
+    state ambiguous(console: &mut Binding<Console>) { console.write("LINK ambiguous"); }
+    state unlinked(console: &mut Binding<Console>) { console.write("UNLINKED"); }
+    state capacity(console: &mut Binding<Console>) { console.write("DENY capacity"); }
+    state invalid(console: &mut Binding<Console>) { console.write("DENY input"); }
+}

@@ -1,0 +1,6 @@
+NEW064 research record linkage; registry=8; commands=64
+UNLINKED key=42
+UNLINKED key=00
+ALLOW register slot=00 key=42
+UNLINKED key=99
+END
