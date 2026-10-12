@@ -16,6 +16,7 @@ pub(crate) mod checking;
 mod compilation_session;
 pub use compilation_session::CompilationSession;
 mod package_compilation;
+mod package_preparation;
 mod product_batch;
 pub use package_compilation::{PackageCompilationRequest, PackageCompileFailure};
 

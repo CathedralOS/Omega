@@ -4,6 +4,8 @@
 //! package_batch`. An optional argument selects another package entry. This
 //! measures producer work and shared storage, not foreign-host execution.
 //! `--check <root>` measures source-only packages, including generated dependencies.
+//! After the root, optional source-completion and Terminal-production counts
+//! specify the expected work for a package closure containing independent components.
 
 use artifacts::compile_timings::counters;
 use package_manager::operations::{
@@ -33,6 +35,21 @@ fn measure() -> Result<(), Box<dyn std::error::Error>> {
             "tests/omega/pass/targets/shared_program_distinct_roots_exit/main.omg".to_owned()
         }),
     );
+    let expected_sources: u64 = arguments
+        .next()
+        .map(|value| value.parse())
+        .transpose()?
+        .unwrap_or(1);
+    let expected_terminals: u64 = arguments
+        .next()
+        .map(|value| value.parse())
+        .transpose()?
+        .unwrap_or(u64::from(!check_only));
+    if arguments.next().is_some() {
+        return Err(
+            "expected at most root, source-completion count and Terminal-production count".into(),
+        );
+    }
     let targets = ["windows_x86_64", "linux_x86_64"]
         .into_iter()
         .map(|name| {
@@ -61,7 +78,10 @@ fn measure() -> Result<(), Box<dyn std::error::Error>> {
             "checked_products={} source_completions={sources} builds={builds} terminal_productions={terminals}",
             reports.len()
         );
-        assert_eq!((reports.len(), sources, terminals), (2, 1, 0));
+        assert_eq!(
+            (reports.len(), sources, terminals),
+            (2, expected_sources, expected_terminals)
+        );
         return Ok(());
     }
     let reports = compile_prepared_local_project_for_native_targets(
@@ -79,10 +99,10 @@ fn measure() -> Result<(), Box<dyn std::error::Error>> {
     );
     assert_eq!(reports.len(), 2);
     assert_eq!(
-        sources, 1,
-        "one Product source completion, not one per target"
+        sources, expected_sources,
+        "source completion count must match the authored package closure"
     );
-    assert_eq!(terminals, 1);
+    assert_eq!(terminals, expected_terminals);
     let first = reports[0]
         .retained_native_artifact()
         .ok_or("missing native artifact")?

@@ -71,6 +71,17 @@ fn package_target_batches_submit_source_work_together() {
 }
 
 #[test]
+fn package_frontiers_batch_components_without_nested_source_workers() {
+    let preparation = include_str!("checked/package_preparation.rs");
+    assert!(preparation.contains(".select_build_batch(builds)"));
+    assert!(preparation.contains("publish_checked_components(checked)"));
+    assert!(!preparation.contains("self.check_build("));
+    assert!(!preparation.contains("run_on_compile_thread"));
+    let batch = include_str!("checked/product_batch.rs");
+    assert!(!batch.contains("run_on_compile_thread"));
+}
+
+#[test]
 fn native_product_consumes_terminal_without_producing_it() {
     let source = include_str!("native.rs");
     assert!(source.contains("terminal: compilation_products::RetainedTerminalArtifact"));

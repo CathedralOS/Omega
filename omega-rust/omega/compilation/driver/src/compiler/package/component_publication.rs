@@ -27,23 +27,15 @@ use package_compilation::IndependentComponentDescription;
 /// profile, and a root whose `Independent` selection reaches no published
 /// description still rejects at the component-closure fence rather than
 /// compiling as a fused edge.
-pub fn publish_checked_component(
-    checked: CheckedCompilation,
+pub(super) fn describe_component(
+    checked: &CheckedCompilation,
+    retained: &compilation_products::RetainedTerminalArtifact,
 ) -> Result<IndependentComponentDescription, Vec<Diagnostic>> {
     let package = checked.sources().package_identity().ok_or_else(|| {
         vec![Diagnostic::error(
             "component publication requires package-aware checked custody for the dependency compiled as its own component",
         )]
     })?;
-    // Read the component facts before the Terminal product consumes the
-    // checked frontend; the description publishes exactly the selection this
-    // compilation settled, not one recomputed beside it.
-    let selected_provider_plans = checked.execution().selected_provider_plan_facts.clone();
-    let component_progress = checked.execution().component_progress.as_ref().cloned();
-    let (retained, _timings) = super::retained_terminal_artifact_from_checked_package(
-        checked,
-        optimization_core::OptimizationRollback::default(),
-    )?;
     let artifact = retained.artifact();
     // A Psi component capsule has no native realization yet, so it publishes
     // no emitter-derived stack demand and no bound realization identity. The
@@ -51,8 +43,8 @@ pub fn publish_checked_component(
     // invented here to stand in for them.
     let (expected_subject, description) = publish_component_description(ComponentDescriptionFacts {
         artifact,
-        selected_provider_plans: &selected_provider_plans,
-        component_progress: component_progress.as_ref(),
+        selected_provider_plans: &checked.execution().selected_provider_plan_facts,
+        component_progress: checked.execution().component_progress.as_ref(),
         stack_demand: None,
         realization_identity: None,
     })

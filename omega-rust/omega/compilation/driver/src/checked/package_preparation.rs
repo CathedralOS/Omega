@@ -1,0 +1,328 @@
+//! Advance package occurrences dependency-first across all requested products.
+//!
+//! Each occurrence admits its own Build and keeps its generated-byte custody.
+//! Independent components demanded at the same frontier enter source completion
+//! together. A target roster no longer completes its whole chain before sibling
+//! targets can contribute the same dependency source.
+
+use super::{CompilationSession, PackageCompileFailure};
+use build_declarations::DependencyPurpose;
+use compilation_products::{CheckedCompileRequest, CompileFailure, PreparedPackageBuild};
+use diagnostics::Diagnostic;
+use package_compilation::{IndependentComponentDescription, PackageGeneratedSourceBundle};
+use semantic_vocabulary::PackageKeyIdentity;
+
+struct OccurrenceProduct {
+    package: PackageKeyIdentity,
+    purpose: DependencyPurpose,
+    generated: PackageGeneratedSourceBundle,
+    prepared: Option<PreparedPackageBuild>,
+    description: Option<IndependentComponentDescription>,
+}
+
+struct PackageFrontier {
+    position: usize,
+    remaining: std::vec::IntoIter<CheckedCompileRequest>,
+    products: Vec<OccurrenceProduct>,
+}
+
+struct PendingOccurrence {
+    frontier: PackageFrontier,
+    build: PreparedPackageBuild,
+    components: Vec<usize>,
+    failure: Option<CompileFailure>,
+}
+
+impl CompilationSession {
+    pub(super) fn prepare_packages(
+        &mut self,
+        requests: Vec<Vec<CheckedCompileRequest>>,
+    ) -> Vec<Result<PreparedPackageBuild, PackageCompileFailure>> {
+        let mut outcomes: Vec<_> = (0..requests.len()).map(|_| None).collect();
+        let mut frontiers = Vec::new();
+        for (position, request) in requests.into_iter().enumerate() {
+            match validate_order(&request) {
+                Ok(()) => frontiers.push(PackageFrontier {
+                    position,
+                    products: Vec::with_capacity(request.len().saturating_sub(1)),
+                    remaining: request.into_iter(),
+                }),
+                Err(error) => outcomes[position] = Some(Err(error)),
+            }
+        }
+
+        while !frontiers.is_empty() {
+            let mut pending = Vec::with_capacity(frontiers.len());
+            for mut frontier in frontiers {
+                let prepared = (|| {
+                    let occurrence = frontier.remaining.next().ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "package frontier lost its next occurrence",
+                        )]
+                    })?;
+                    let occurrence = join_generated_sources(occurrence, &frontier.products)?;
+                    let build = self.prepare_build(occurrence)?;
+                    let components = required_components(&build, &frontier.products)?;
+                    Ok::<_, CompileFailure>((build, components))
+                })();
+                match prepared {
+                    Ok((build, components)) => pending.push(PendingOccurrence {
+                        frontier,
+                        build,
+                        components,
+                        failure: None,
+                    }),
+                    Err(failure) => {
+                        outcomes[frontier.position] = Some(Err(PackageCompileFailure {
+                            occurrence: frontier.products.len(),
+                            failure,
+                        }))
+                    }
+                }
+            }
+
+            self.complete_components(&mut pending);
+
+            frontiers = Vec::with_capacity(pending.len());
+            for pending in pending {
+                let PendingOccurrence {
+                    mut frontier,
+                    build,
+                    components,
+                    failure,
+                } = pending;
+                let completed = if let Some(failure) = failure {
+                    Err(failure)
+                } else {
+                    let descriptions = components
+                        .into_iter()
+                        .map(|position| {
+                            frontier.products[position]
+                                .description
+                                .clone()
+                                .ok_or_else(|| {
+                                    vec![Diagnostic::error(
+                                        "component completion lost its description",
+                                    )]
+                                })
+                        })
+                        .collect::<Result<Vec<_>, _>>();
+                    descriptions
+                        .map_err(CompileFailure::from)
+                        .and_then(|descriptions| {
+                            build
+                                .with_independent_component_descriptions(descriptions)
+                                .map_err(|errors| CompileFailure::from(input_diagnostics(errors)))
+                        })
+                };
+                match completed {
+                    Err(failure) => {
+                        outcomes[frontier.position] = Some(Err(PackageCompileFailure {
+                            occurrence: frontier.products.len(),
+                            failure,
+                        }))
+                    }
+                    Ok(build) if frontier.remaining.len() == 0 => {
+                        outcomes[frontier.position] = Some(Ok(build));
+                    }
+                    Ok(build) => {
+                        frontier.products.push(OccurrenceProduct {
+                            package: build.package_inputs().root(),
+                            purpose: build.package_inputs().compilation_purpose(),
+                            generated: build.generated_source_bundle().clone(),
+                            prepared: Some(build),
+                            description: None,
+                        });
+                        frontiers.push(frontier);
+                    }
+                }
+            }
+        }
+
+        outcomes
+            .into_iter()
+            .map(|outcome| {
+                outcome.unwrap_or_else(|| {
+                    Err(PackageCompileFailure {
+                        occurrence: 0,
+                        failure: vec![Diagnostic::error(
+                            "package preparation lost its requested root",
+                        )]
+                        .into(),
+                    })
+                })
+            })
+            .collect()
+    }
+
+    /// Complete actual component demands as one source cohort batch, then retain
+    /// each target's own installed description. Descriptions are not shared
+    /// authority, even when their source arenas are common.
+    fn complete_components(&mut self, pending: &mut [PendingOccurrence]) {
+        let mut destinations = Vec::new();
+        let mut builds = Vec::new();
+        for (request_position, occurrence) in pending.iter_mut().enumerate() {
+            for &component_position in &occurrence.components {
+                let product = &mut occurrence.frontier.products[component_position];
+                if product.description.is_some() {
+                    continue;
+                }
+                let Some(build) = product.prepared.take() else {
+                    occurrence.failure = Some(
+                        vec![Diagnostic::error(
+                            "independent component continuation was already consumed",
+                        )]
+                        .into(),
+                    );
+                    break;
+                };
+                destinations.push((request_position, component_position));
+                builds.push(build);
+            }
+        }
+        let checked = self
+            .select_build_batch(builds)
+            .into_iter()
+            .map(|selected| {
+                selected
+                    .install()
+                    .result
+                    .map_err(CompileFailure::into_diagnostics)
+            })
+            .collect();
+        for (description, (request_position, component_position)) in
+            crate::compiler::package::publish_checked_components(checked)
+                .into_iter()
+                .zip(destinations)
+        {
+            let occurrence = &mut pending[request_position];
+            match description {
+                Ok(description) => {
+                    occurrence.frontier.products[component_position].description =
+                        Some(description);
+                }
+                Err(failure) => {
+                    if occurrence.failure.is_none() {
+                        occurrence.failure = Some(failure.into());
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn join_generated_sources(
+    mut occurrence: CheckedCompileRequest,
+    products: &[OccurrenceProduct],
+) -> Result<CheckedCompileRequest, CompileFailure> {
+    let inputs = occurrence.package_inputs.take().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "package compilation requires source custody",
+        )]
+    })?;
+    let required = inputs.required_dependency_source_instances();
+    let mut generated = Vec::with_capacity(required.len());
+    for (dependency, dependency_purpose) in required {
+        let product = products
+            .iter()
+            .find(|product| product.package == dependency && product.purpose == dependency_purpose)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "dependency Build output is missing for its required purpose",
+                )]
+            })?;
+        generated.push(product.generated.clone());
+    }
+    occurrence.package_inputs = Some(
+        inputs
+            .with_complete_dependency_generated_sources(generated)
+            .map_err(input_diagnostics)?,
+    );
+    Ok(occurrence)
+}
+
+fn required_components(
+    prepared: &PreparedPackageBuild,
+    products: &[OccurrenceProduct],
+) -> Result<Vec<usize>, CompileFailure> {
+    let inputs = prepared.package_inputs();
+    let mut components = Vec::new();
+    for selection in prepared.build().independent_components().selections {
+        let Some(component) = selection.component else {
+            continue;
+        };
+        if component == inputs.root() {
+            continue;
+        }
+        let position = products
+            .iter()
+            .position(|product| {
+                product.package == component && product.purpose == inputs.compilation_purpose()
+            })
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "independent component has no prepared Build for this purpose",
+                )]
+            })?;
+        if !components.contains(&position) {
+            components.push(position);
+        }
+    }
+    Ok(components)
+}
+
+/// Refuse malformed plans before any Build effect. Order is supplied by the
+/// package resolver; checking it is request admission, not graph reconstruction.
+fn validate_order(request: &[CheckedCompileRequest]) -> Result<(), PackageCompileFailure> {
+    if request.is_empty() {
+        return Err(PackageCompileFailure {
+            occurrence: 0,
+            failure: vec![Diagnostic::error("package compilation has no Product root")].into(),
+        });
+    }
+    for (position, occurrence) in request.iter().enumerate() {
+        let refuse = |message| PackageCompileFailure {
+            occurrence: position,
+            failure: vec![Diagnostic::error(message)].into(),
+        };
+        let inputs = occurrence
+            .package_inputs
+            .as_ref()
+            .ok_or_else(|| refuse("package compilation requires source custody"))?;
+        let previous = &request[..position];
+        if previous
+            .iter()
+            .filter_map(|request| request.package_inputs.as_ref())
+            .any(|prior| {
+                prior.root() == inputs.root()
+                    && prior.compilation_purpose() == inputs.compilation_purpose()
+            })
+        {
+            return Err(refuse("package compilation repeats a package occurrence"));
+        }
+        for (package, purpose) in inputs.required_dependency_source_instances() {
+            if !previous
+                .iter()
+                .filter_map(|request| request.package_inputs.as_ref())
+                .any(|prior| prior.root() == package && prior.compilation_purpose() == purpose)
+            {
+                return Err(refuse(
+                    "package compilation requires dependency-first occurrence order",
+                ));
+            }
+        }
+        if position + 1 == request.len() && !inputs.compilation_purpose().is_product() {
+            return Err(refuse("package compilation must end at its Product root"));
+        }
+    }
+    Ok(())
+}
+
+fn input_diagnostics(
+    errors: Vec<package_compilation::PackageCompilationInputError>,
+) -> Vec<Diagnostic> {
+    errors
+        .into_iter()
+        .map(|error| Diagnostic::error(error.to_string()))
+        .collect()
+}

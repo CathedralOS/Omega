@@ -49,13 +49,15 @@ Accepted package compilation supplies dependency-ordered
 `PackageCompilationRequest`s together to the session's
 [`compile_packages`](src/checked/package_compilation.rs) entrance, with the
 requested product and root permission consent supplied up front. That operation
-joins generated dependency outputs, executes Builds and retains their pending
-Product continuations. It completes selected independent components before
-checking the root. Package code supplies custody, consent and staging, not
+advances dependency-first [package frontiers](src/checked/package_preparation.rs)
+across the requested products. Each round joins generated dependency outputs,
+executes the next admitted Builds and retains their pending Product continuations.
+Selected independent components enter source completion together before their
+consumers advance. Package code supplies custody, consent and staging, not
 per-Build compiler calls or continuation tables. Independent-component publication
 belongs to [package.rs](src/compiler/package.rs), including when review requests
 a description. [Product batching](src/checked/product_batch.rs) partitions the
-admitted root continuations by complete source input and checks each partition
+admitted root and component continuations by complete source input and checks each partition
 once. Matching members borrow its checked program and sealed source custody;
 each retains its own Build receipts, charges, timings and target settlement.
 This is work partitioning within the submitted batch, not a historical cache.
@@ -63,9 +65,11 @@ Opaque pending evaluation authorities must be the same retained authority;
 matching paths or settings alone never establish interchangeable continuations.
 `cargo run -p package-manager --example package_batch` measures two native
 products, one source completion and one shared Terminal allocation through the
-package route. Dependency Builds and demanded independent components still
-prepare per target; this does not claim a single source/Build prefix throughout
-the package closure.
+package route. Each occurrence still admits its own Build effects and charges;
+only exact matching Pure Builds reuse computation. Components demanded in
+different dependency rounds do not share completion through this batch.
+The package operation owns one compiler-stack worker; preparing Builds and
+checking source cohorts do not spawn additional workers.
 
 Package operations receive reports or Terminal inspections, never a checked
 checkpoint to return for production. The compiler compares fresh supplied

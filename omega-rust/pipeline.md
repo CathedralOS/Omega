@@ -144,8 +144,11 @@ not checked activations to resume. Standalone and session products share
 selection, Terminal production, then installation; source checking no longer
 installs the package product ahead of that sequence. Review descriptions supply
 the same borrowed production facts without a second producer mode.
-Dependency Build preparation still repeats
-per target; the complete package closure does not yet have one source prefix:
+Package preparation advances dependency-first rounds across target rosters;
+demanded component continuations enter the same source batch as their siblings,
+rather than completing one target's entire dependency chain first.
+Build admission and charges remain occurrence-local. Separate dependency rounds
+and standalone/session preparation still prevent one complete source prefix:
 
 | Input → output | Owner |
 | --- | --- |

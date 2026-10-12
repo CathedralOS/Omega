@@ -3104,9 +3104,10 @@ crash and native exit behavior.
     the compiler invocation; package-owned frontend/Pure Build/proof caches
     and `compile_checked_reusing_builds` are removed. Accepted target plans now
     enter together; matching post-Build root continuations complete source once,
-    with separate target admission and receipts. Still consolidate dependency
-    Build preparation and demanded independent products across the closure:
-    root batching is not a single source/Build prefix. Preserve fresh occurrence
+    with separate target admission and receipts. Dependency-first rounds submit
+    demanded independent products together for source completion. Still converge
+    source preparation across the complete closure and standalone/session routes;
+    rounds are not a single source/Build prefix. Preserve fresh occurrence
     admission and charges without copying mutable typing state per realization.
   - Package review uses the compiler session's checked stop, with no
     `compile_to_checked` wrapper. Unify this session and `CompileRequest`

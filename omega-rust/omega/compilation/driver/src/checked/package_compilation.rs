@@ -6,11 +6,8 @@
 //! before checking the root. Package callers do not assemble compiler stages.
 
 use super::CompilationSession;
-use build_declarations::DependencyPurpose;
-use compilation_products::{CheckedCompileRequest, CompileFailure, PreparedPackageBuild};
+use compilation_products::{CheckedCompileRequest, CompileFailure};
 use diagnostics::Diagnostic;
-use package_compilation::{IndependentComponentDescription, PackageGeneratedSourceBundle};
-use semantic_vocabulary::PackageKeyIdentity;
 
 /// One dependency-ordered source closure. The last request is its Product root;
 /// earlier requests are dependency occurrences, including separate Build roles.
@@ -30,14 +27,6 @@ pub struct PackageCompileFailure {
     pub failure: CompileFailure,
 }
 
-struct OccurrenceProduct {
-    package: PackageKeyIdentity,
-    purpose: DependencyPurpose,
-    generated: PackageGeneratedSourceBundle,
-    prepared: Option<PreparedPackageBuild>,
-    description: Option<IndependentComponentDescription>,
-}
-
 impl CompilationSession {
     /// Compile the complete admitted roster through its requested products.
     /// Source checking, consent comparison and production belong to this call;
@@ -50,7 +39,7 @@ impl CompilationSession {
         super::run_on_compile_thread(|| {
             let mut outcomes: Vec<_> = (0..requests.len()).map(|_| None).collect();
             let mut selections = Vec::new();
-            let mut builds = Vec::new();
+            let mut plans = Vec::new();
             for (position, mut request) in requests.into_iter().enumerate() {
                 let root = request.occurrences.len().saturating_sub(1);
                 let path = request
@@ -61,18 +50,25 @@ impl CompilationSession {
                 for occurrence in &mut request.occurrences {
                     occurrence.optimization_rollback = request.product.optimization_rollback();
                 }
-                match self.prepare_package(request.occurrences) {
+                selections.push((
+                    position,
+                    root,
+                    path,
+                    request.product,
+                    request.terminal_permissions,
+                ));
+                plans.push(request.occurrences);
+            }
+
+            let mut builds = Vec::new();
+            let mut admitted = Vec::new();
+            for (prepared, selection) in self.prepare_packages(plans).into_iter().zip(selections) {
+                match prepared {
                     Ok(build) => {
-                        selections.push((
-                            position,
-                            root,
-                            path,
-                            request.product,
-                            request.terminal_permissions,
-                        ));
                         builds.push(build);
+                        admitted.push(selection);
                     }
-                    Err(error) => outcomes[position] = Some(Err(error)),
+                    Err(error) => outcomes[selection.0] = Some(Err(error)),
                 }
             }
 
@@ -82,7 +78,7 @@ impl CompilationSession {
             let mut positions = Vec::new();
             let mut products = Vec::new();
             for (selected, (position, root, path, product, permissions)) in
-                self.select_build_batch(builds).into_iter().zip(selections)
+                self.select_build_batch(builds).into_iter().zip(admitted)
             {
                 match selected.result {
                     Ok(selected) => {
@@ -134,168 +130,4 @@ impl CompilationSession {
                 .collect()
         })
     }
-
-    fn prepare_package(
-        &mut self,
-        mut request: Vec<CheckedCompileRequest>,
-    ) -> Result<PreparedPackageBuild, PackageCompileFailure> {
-        validate_order(&request)?;
-        let root = request.pop().ok_or_else(|| PackageCompileFailure {
-            occurrence: 0,
-            failure: vec![Diagnostic::error("package compilation has no Product root")].into(),
-        })?;
-        let root_position = request.len();
-        let mut products = Vec::with_capacity(root_position);
-        for (position, occurrence) in request.into_iter().enumerate() {
-            let prepared =
-                self.prepare_occurrence(occurrence, &mut products)
-                    .map_err(|failure| PackageCompileFailure {
-                        occurrence: position,
-                        failure,
-                    })?;
-            products.push(OccurrenceProduct {
-                package: prepared.package_inputs().root(),
-                purpose: prepared.package_inputs().compilation_purpose(),
-                generated: prepared.generated_source_bundle().clone(),
-                prepared: Some(prepared),
-                description: None,
-            });
-        }
-        self.prepare_occurrence(root, &mut products)
-            .map_err(|failure| PackageCompileFailure {
-                occurrence: root_position,
-                failure,
-            })
-    }
-
-    /// Join earlier outputs to this occurrence, execute its Build, then satisfy
-    /// its independent-component selections from retained dependency products.
-    fn prepare_occurrence(
-        &mut self,
-        mut occurrence: CheckedCompileRequest,
-        products: &mut [OccurrenceProduct],
-    ) -> Result<PreparedPackageBuild, CompileFailure> {
-        let inputs = occurrence.package_inputs.take().ok_or_else(|| {
-            vec![Diagnostic::error(
-                "package compilation requires source custody",
-            )]
-        })?;
-        let package = inputs.root();
-        let purpose = inputs.compilation_purpose();
-        let required = inputs.required_dependency_source_instances();
-        let mut generated = Vec::with_capacity(required.len());
-        for (dependency, dependency_purpose) in required {
-            let product = products
-                .iter()
-                .find(|product| {
-                    product.package == dependency && product.purpose == dependency_purpose
-                })
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "dependency Build output is missing for its required purpose",
-                    )]
-                })?;
-            generated.push(product.generated.clone());
-        }
-        occurrence.package_inputs = Some(
-            inputs
-                .with_complete_dependency_generated_sources(generated)
-                .map_err(input_diagnostics)?,
-        );
-        let prepared = self.prepare_build(occurrence)?;
-        let mut descriptions = Vec::new();
-        for selection in prepared.build().independent_components().selections {
-            let Some(component) = selection.component else {
-                continue;
-            };
-            if component == package
-                || descriptions
-                    .iter()
-                    .any(|description: &IndependentComponentDescription| {
-                        description.package() == component
-                    })
-            {
-                continue;
-            }
-            let product = products
-                .iter_mut()
-                .find(|product| product.package == component && product.purpose == purpose)
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "independent component has no prepared Build for this purpose",
-                    )]
-                })?;
-            if product.description.is_none() {
-                let continuation = product.prepared.take().ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "independent component continuation was already consumed",
-                    )]
-                })?;
-                let checked = self.check_build(continuation).result?;
-                product.description = Some(crate::compiler::package::publish_checked_component(
-                    checked,
-                )?);
-            }
-            descriptions.extend(product.description.iter().cloned());
-        }
-        prepared
-            .with_independent_component_descriptions(descriptions)
-            .map_err(|errors| CompileFailure::from(input_diagnostics(errors)))
-    }
-}
-
-/// Refuse malformed plans before any Build effect. Order is supplied by the
-/// package resolver; checking it is request admission, not graph reconstruction.
-fn validate_order(request: &[CheckedCompileRequest]) -> Result<(), PackageCompileFailure> {
-    if request.is_empty() {
-        return Err(PackageCompileFailure {
-            occurrence: 0,
-            failure: vec![Diagnostic::error("package compilation has no Product root")].into(),
-        });
-    }
-    for (position, occurrence) in request.iter().enumerate() {
-        let refuse = |message| PackageCompileFailure {
-            occurrence: position,
-            failure: vec![Diagnostic::error(message)].into(),
-        };
-        let inputs = occurrence
-            .package_inputs
-            .as_ref()
-            .ok_or_else(|| refuse("package compilation requires source custody"))?;
-        let previous = &request[..position];
-        if previous
-            .iter()
-            .filter_map(|request| request.package_inputs.as_ref())
-            .any(|prior| {
-                prior.root() == inputs.root()
-                    && prior.compilation_purpose() == inputs.compilation_purpose()
-            })
-        {
-            return Err(refuse("package compilation repeats a package occurrence"));
-        }
-        for (package, purpose) in inputs.required_dependency_source_instances() {
-            if !previous
-                .iter()
-                .filter_map(|request| request.package_inputs.as_ref())
-                .any(|prior| prior.root() == package && prior.compilation_purpose() == purpose)
-            {
-                return Err(refuse(
-                    "package compilation requires dependency-first occurrence order",
-                ));
-            }
-        }
-        if position + 1 == request.len() && !inputs.compilation_purpose().is_product() {
-            return Err(refuse("package compilation must end at its Product root"));
-        }
-    }
-    Ok(())
-}
-
-fn input_diagnostics(
-    errors: Vec<package_compilation::PackageCompilationInputError>,
-) -> Vec<Diagnostic> {
-    errors
-        .into_iter()
-        .map(|error| Diagnostic::error(error.to_string()))
-        .collect()
 }

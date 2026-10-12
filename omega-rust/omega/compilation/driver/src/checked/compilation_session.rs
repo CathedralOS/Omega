@@ -98,33 +98,13 @@ impl CompilationSession {
         &mut self,
         request: CheckedCompileRequest,
     ) -> Result<PreparedPackageBuild, CompileFailure> {
-        run_on_compile_thread(|| {
-            let source = self.prepare_source(&request)?;
-            let prepared =
-                prepare_package_build_worker(request, source, self.reuse(), &self.pure_builds)?;
-            if let Some(check) = prepared.retained_build_check() {
-                retain_judgment(&mut self.checks.sibling_build_checks, check);
-            }
-            Ok(prepared)
-        })
-    }
-
-    /// Resume the completed Build, never recreate its grants or execute it twice.
-    pub(super) fn check_build(&mut self, build: PreparedPackageBuild) -> CheckedCompileOutcome {
-        let selected = self
-            .select_build_batch(vec![build])
-            .into_iter()
-            .next()
-            .unwrap_or_else(|| {
-                refusal(
-                    vec![diagnostics::Diagnostic::error(
-                        "source batch lost its requested product",
-                    )]
-                    .into(),
-                )
-            });
-        run_on_compile_thread(|| Ok::<_, CompileFailure>(selected.install()))
-            .unwrap_or_else(|failure| refusal(failure).install())
+        let source = self.prepare_source(&request)?;
+        let prepared =
+            prepare_package_build_worker(request, source, self.reuse(), &self.pure_builds)?;
+        if let Some(check) = prepared.retained_build_check() {
+            retain_judgment(&mut self.checks.sibling_build_checks, check);
+        }
+        Ok(prepared)
     }
 
     fn prepare_source(
