@@ -136,3 +136,36 @@ bounds from unjustified narrowing, and nonnegative signed results from their
 wider signed carriers. Existing `core/numeric_widening_published_ranges` and
 `core/numeric_widening_preserves_values` also constrain Exact arithmetic and
 sign/zero extension.
+
+## Audited console and entry-helper bounds
+
+The two console suffixes at `c1303f89d4` retain their original `i32` carriers:
+`ByteRead::Byte.value [0..=255]` is the active case's
+`where value >= 0 && value <= 255`; the bounded reader's `store` state has
+the same relationship in `requires`. No interval-only domain is introduced.
+The active payload supplies the exact conversion premise for storing a `u8`.
+LF, full-buffer, partial-EOF and reused-middle-window runtime witnesses under
+`host/runtime_console_bounded_line_*_exit` retain their authored bytes, counts,
+stop reasons and next unread byte. The negative and above-byte constructor
+controls both reject. `LineReadResult.count` has no scalar suffix in that
+revision: do not invent a declaration-wide capacity bound from those programs.
+`host/runtime_console_byte_payload_bounds_exit` also admits both 0 and 255,
+transports extracted payload facts into a requires-based state, and distinguishes
+Byte(0) from the zero-initialized Eof case.
+
+The five hosted-entry `extent_shape.field_range.first_field` parameters at
+`c1303f89d4` had `u64 [0..=254]`. Their current carrier remains `u64`; zero
+is inherent and the upper bound is an ordinary arrival requirement.
+
+| Original owner | Current requirement owner |
+|---|---|
+| `MacosArm64`, `LinuxX86_64`, `LinuxArm64`, `WindowsX86_64` target-entry helpers | shared `HostedEntryShapes::extent_shape.field_range`, `requires first_field <= 254` |
+| `MacosX64` target-entry helper | retained local `MacosX64::extent_shape.field_range`, `requires first_field <= 254` |
+
+Each helper reaches that state only after `first_field < 255`. Its
+`first_field + 1` therefore fits and addresses at most slot 255; the separate
+`second_field < signature.field_count` guard supplies the actual roster bound.
+The shared extraction does not alter target ABI choices or turn a flow bound
+into shape identity. The console witnesses exercise the selected macOS ARM64
+entry policy as well; this is not a claim of matching-host execution for the
+other entry products.

@@ -6173,6 +6173,11 @@ fail/time/instant_constant_unnormalized rejected 33ms expected @2ed2725134e87737
 	constant `INVALID` is invalid: data constant `Instant` violates its default-domain predicate
 fail/time/instant_mutation_leaves_invalid_return rejected 1111ms expected @2ed2725134e877372235f00d3ce5c1602f59468c
 	machine `corrupt` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+pass/host/runtime_console_byte_payload_bounds_exit checked 5573ms check-target:macos_arm64 @afccbf17d92b+wt
+fail/host/console_byte_payload_above_byte rejected 735ms expected @afccbf17d92b+wt
+	data `ByteRead` case `Byte` literal violates the case constraint: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/host/console_byte_payload_negative rejected 674ms expected @afccbf17d92b+wt
+	data `ByteRead` case `Byte` literal violates the case constraint: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/time/system_time_constant_unnormalized rejected 35ms expected @2ed2725134e877372235f00d3ce5c1602f59468c
 	constant `INVALID` is invalid: data constant `SystemTime` violates its default-domain predicate
 fail/layouts/resource_profile_exceeds_region_capacity rejected 401ms expected @ec089e4c2b1b

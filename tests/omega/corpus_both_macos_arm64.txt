@@ -872,3 +872,4 @@ pass/borrow/runtime_write_only_utf8_field_exit built 4449ms exit:0 interpreter-e
 pass/calling/calling_count_boundaries_exit built 7768ms exit:70 interpreter-exit:70 interpreter:agrees @a14ec34a59ab+wt
 pass/control_flow/runtime_owned_state_parallel_swap_exit built 6282ms exit:70 interpreter-exit:70 interpreter:agrees @a14ec34a59ab+wt
 pass/arithmetic/runtime_widened_result_predicates_exit built 6400ms exit:70 interpreter-exit:70 interpreter:agrees @44e66b7d2fb4+wt
+pass/host/runtime_console_byte_payload_bounds_exit built 5280ms exit:70 interpreter-exit:70 interpreter:agrees @afccbf17d92b+wt
