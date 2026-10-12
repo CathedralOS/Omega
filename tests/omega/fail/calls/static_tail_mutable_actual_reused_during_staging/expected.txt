@@ -1,0 +1,1 @@
+receives `counter` as mutable more than once
