@@ -3454,10 +3454,9 @@ of a check the same flow already performed, not the check itself.
   controls on `dca1c7cd7e6` are `callback_synchronous_registration_cycle`,
   `cyclic_synchronous_invocation`,
   `bag_view_false_twin`, `kernel_integer_subtract_order_false_twin`,
-  `checked_boundary_operator_const_application_unselected`,
-  `runtime_non_tail_joint_machine_cycle` and
-  `returned_preserving_remainder_input_write`. Earlier reach, structural-proof,
-  rank-range, constant-recipe, arithmetic and returned-lifetime failures still
+  `checked_boundary_operator_const_application_unselected` and
+  `runtime_non_tail_joint_machine_cycle`. Earlier reach, structural-proof,
+  rank-range, constant-recipe and arithmetic failures still
   mask their intended obligations; resolve them without repinning to those
   failures. The accepted `shared_subslice_state_cannot_lend_mutable` depends on
   `bare-range-reference-access` in `OWNER_QUESTIONS.md`; only that language rule

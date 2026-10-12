@@ -345,11 +345,24 @@ pub(in crate::legalization) fn call_descriptor_origins(
     if !matches!(
         result.multiplicity,
         terminal_psi::nonlinear_multiplicity_pair_pattern!()
-    ) || !terminal_semantics::descriptor_results::is_shared_descriptor(
-        unit.structural_types.iter(),
-        result.structural_type,
     ) {
         return Ok(Vec::new());
+    }
+    let inventory = terminal_semantics::descriptor_results::descriptor_slot_inventory(
+        &unit.structural_types,
+        result.place,
+        result.structural_type,
+    )
+    .ok_or(LegalizationError::custody())?;
+    // Stored references have their own target-producer origin rows. No known
+    // byte/element descriptors means there is nothing to add to that roster;
+    // it does not assert that opaque referents are view-free. When descriptors
+    // are present, their complete result summary must remain available.
+    if inventory.slots.is_empty() {
+        return Ok(Vec::new());
+    }
+    if !inventory.opaque_referents.is_empty() {
+        return Err(LegalizationError::custody());
     }
     // Source and installed calls share one origin replay over current bodies.
     // Authenticate selection with the existing call-origin join before exposing

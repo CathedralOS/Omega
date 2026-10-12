@@ -3576,8 +3576,8 @@ fail/wire/layout_domain_on_stored_bytes rejected 2890ms expected @a9ae30e1c334+w
 	data `Main` field `buffer` declares `in OmegaLayout<CounterMessage>` on owned stored bytes; a layout domain is a fact about bytes ESTABLISHED by validate/encode, never declared on storage (a zeroed buffer holds no valid encoding). Hold the value (`CounterMessage`) and encode at the edge, or carry the fact on a borrowed view (`&[u8] in OmegaLayout<CounterMessage>`)
 fail/wire/proof_only_wire_field_rejected rejected 2725ms expected @a9ae30e1c334+wt
 	wire data `Msg` field `n` mentions proof-only `Nat`, which has no wire encoding
-fail/wire/returned_preserving_remainder_input_write rejected 4843ms unexpected @a9ae30e1c334+wt
-	machine `preserving_decode` state `entry` does not satisfy trait `PreservingDecode` machine `decode_preserving`: conformance borrow contract: callable returned view has a different input-source relation
+fail/wire/returned_preserving_remainder_input_write rejected 1795ms expected @992d27dd3135+wt
+	statement 5 mutates `main.buffer[1]` while local borrow `decoded` is still active (borrowed at statement 3; its last use is at statement 6 and it is released at state exit)
 fail/wire/unnumbered_field_in_numbered_data rejected 1ms expected @a9ae30e1c334+wt
 	tests/omega/fail/wire/unnumbered_field_in_numbered_data/main.omg:8:1: stable identities are all-or-nothing for record fields: number every member with `#N` or number none of them
 fail/wire/wire_codec_schema_identity_buffer_bound rejected 861ms expected @a9ae30e1c334+wt
@@ -6207,8 +6207,7 @@ pass/wire/runtime_wire_signed_extremes_roundtrip_exit checked 13867ms check-targ
 pass/wire/runtime_wire_utf8_edge_verdicts_exit checked 21762ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/wire/wire_compatibility_migration_across_shapes checked 7515ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/wire/wire_data_reserved_field checked 10466ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/wire/wire_preserving_decode_relay_exit rejected 4463ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	machine `preserving_decode` state `entry` does not satisfy trait `PreservingDecode` machine `decode_preserving`: conformance borrow contract: callable returned view has a different input-source relation
+pass/wire/wire_preserving_decode_relay_exit checked 4293ms check-target:macos_arm64 @992d27dd3135+wt
 pass/write_only/state_forwarded_scalar_store_exit checked 11575ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/arithmetic/fixed_input_reused_across_calls checked 11597ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/arithmetic/fixed_integer_operand_after_call checked 11751ms check-target:linux_x86_64 @a9ae30e1c334+wt
@@ -6461,3 +6460,6 @@ fail/borrow/write_only_stored_reference_constraint_loss rejected 115ms expected 
 	machine `capture` state `entry` captures `slot.value` of type `i32[0..=9]` as `&write i32`; a write-only formation must preserve the declared constraint atoms exactly, so a weaker, stronger, or different referee remains rejected
 	argument `value` for state `entry` expects `&write i32`, got `member access`
 pass/borrow/runtime_write_only_reference_aggregate_capture_exit checked 2785ms check-target:macos_arm64 @992d27dd3135+wt
+fail/traits/prepared_callable_wrong_member_source rejected 239ms expected @992d27dd3135+wt
+	machine `flip` state `entry` does not satisfy trait `Flipping` machine `flip`: conformance borrow contract: callable returned view has a different input-source relation
+pass/traits/prepared_callable_nested_borrow_paths_exit checked 3390ms check-target:macos_arm64 @992d27dd3135+wt

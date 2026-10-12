@@ -477,8 +477,8 @@ pub(super) fn indexed_read_footprint_retained(
         .collect::<Vec<_>>();
     let mut cursor = effects.as_slice();
     // A descriptor may already retain its backing pointer in a register.
-    // Mandatory selection replay decides whether a reload is needed; either
-    // realization still publishes the same strict field access rows below.
+    // Account for a reload when present; either realization publishes the
+    // same field access rows below.
     let mut consumed_backing = false;
     if loads_backing_pointer(function, target, *source, path)
         && let Some((backing, rest)) = cursor.split_first()
@@ -519,6 +519,31 @@ pub(super) fn indexed_read_footprint_retained(
         }
         cursor = &cursor[hops..];
     }
+    // The indexed-read target row above retains the exact selector, extent
+    // and accepted obligation. A returned descriptor's memory effect instead
+    // names completed call origins: the carrier's home is not its backing
+    // allocation, so it cannot supply an inline one-byte footprint. These
+    // opaque effects interfere with every store; their producer labels grant
+    // neither memory authority nor disjointness. Physical address validation
+    // remains with the retained selected operation, not these effect labels.
+    if !cursor.is_empty()
+        && cursor.iter().all(|read| {
+            let Role::ReadReturnedView { producer } = read.role else {
+                return false;
+            };
+            read.byte_offset == 0
+                && read.byte_count == 0
+                && target.graph.operations().any(|operation| {
+                    matches!(operation, TargetUnitOperation::Call {
+                        psi_operation,
+                        result: target_operations::TargetCallResult::Structural { result, .. },
+                        ..
+                    } if *psi_operation == producer && result.place == read.place)
+                })
+        })
+    {
+        return true;
+    }
     let [read] = cursor else {
         return false;
     };
@@ -529,8 +554,8 @@ pub(super) fn indexed_read_footprint_retained(
 }
 
 /// Each dynamic path element publishes its own accepted bound on the same
-/// load/store instruction. Layout, stride and physical address replay stays
-/// in mandatory selection validation; publication retains their occurrence.
+/// load/store instruction. Physical encoding validation owns the address and
+/// width; this publication check retains the bound's operation occurrence.
 fn projected_field_rows(
     rows: &[&selected_instructions::SelectedMemoryAccess],
     path: &[terminal_psi::StructuralPathSegment],

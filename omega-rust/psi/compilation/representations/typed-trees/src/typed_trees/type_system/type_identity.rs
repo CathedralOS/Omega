@@ -408,19 +408,28 @@ impl TypedTrees {
         // to the nominal declaration; field types still come from this exact
         // occurrence's prepared view. Reopening the region-erased origin as a
         // closed application would demand lifetime operands it does not own.
-        let nominal = self.unique_data_definition_by_symbol(instance.symbol)?;
-        let origin = nominal.generic_instance?;
-        if !self.type_reference_table.contains_type_reference(origin) {
-            return None;
-        }
-        let crate::types::TypeReferenceNode::Generic { base_symbol, .. } =
-            self.type_reference_table.type_reference(origin)
-        else {
-            return None;
+        // Either side can retain the template: a scoped prepared field view
+        // keeps it while an authored constructor may already select a closed
+        // nominal instance. Join both through their retained application, not
+        // only the template-to-instance direction. A sibling application must
+        // still match this exact receiving type before its members correspond.
+        let identity = self.normalized_type_identity(reference);
+        let declaration = |symbol| {
+            let nominal = self.unique_data_definition_by_symbol(symbol)?;
+            let Some(origin) = nominal.generic_instance else {
+                return Some(symbol);
+            };
+            if !self.type_reference_table.contains_type_reference(origin) {
+                return None;
+            }
+            let crate::types::TypeReferenceNode::Generic { base_symbol, .. } =
+                self.type_reference_table.type_reference(origin)
+            else {
+                return None;
+            };
+            (self.normalized_type_identity(origin) == identity).then_some(*base_symbol)
         };
-        (*base_symbol == authored
-            && self.normalized_type_identity(origin) == self.normalized_type_identity(reference))
-        .then_some(instance)
+        (declaration(instance.symbol)? == declaration(authored)?).then_some(instance)
     }
 
     /// Select a constructor child through the exact closed declaration's

@@ -270,16 +270,19 @@ impl<'a> DescriptorAnalysis<'a> {
         let states = self.replay.snapshots.get(&identity)?.as_ref()?;
         let summary = self.replay.summaries.get(&call.callee)?.as_ref()?;
         let mut origins = BTreeSet::new();
-        let slot = summary
-            .result
-            .as_ref()?
-            .iter()
-            .find(|slot| slot.path.is_empty())?;
-        for origin in &slot.origins {
-            origins.extend(
-                self.replay
-                    .substitute(machine, states.get(position)?, call, origin)?,
-            );
+        // A call can return a descriptor inside a record, case, or array.
+        // Its complete result summary already distinguishes every slot and
+        // inactive case. Memory reach is their backing union, not the owned
+        // carrier home; a root-only lookup discards all aggregate descriptors.
+        for slot in summary.result.as_ref()? {
+            for origin in &slot.origins {
+                origins.extend(self.replay.substitute(
+                    machine,
+                    states.get(position)?,
+                    call,
+                    origin,
+                )?);
+            }
         }
         self.replay.resolved(machine, origins)
     }

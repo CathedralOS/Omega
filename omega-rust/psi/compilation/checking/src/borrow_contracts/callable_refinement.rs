@@ -5,6 +5,7 @@
 
 use super::carried_lifetimes::{CarriedLifetime, RegionIdentity, scoped_carried_lifetimes};
 use super::{ViewReturnSource, structural_frontier_return_source};
+use checked_trees::BorrowLoanOwnerSegment;
 use symbols::SymbolHandle;
 use typed_trees::name::Identifier;
 use typed_trees::signature::StateParameter;
@@ -178,10 +179,9 @@ pub fn validate_callable_borrow_refinement(
         required_frontier.inputs.iter().zip(&actual_frontier.inputs)
     {
         for required_leaf in required_leaves {
-            let Some(actual_leaf) = actual_leaves
-                .iter()
-                .find(|leaf| leaf.owner_path == required_leaf.owner_path)
-            else {
+            let Some(actual_leaf) = actual_leaves.iter().find(|leaf| {
+                contract_paths_correspond(program, &required_leaf.owner_path, &leaf.owner_path)
+            }) else {
                 return Err("callable input has a different carried region frontier");
             };
             if let Some(required_region) = &required_leaf.lifetime
@@ -201,7 +201,11 @@ pub fn validate_callable_borrow_refinement(
     // or a matching spelling cannot manufacture that authority. Retain the
     // enumerated output Type handles: a reference's referee and phantom Type
     // operands do not acquire the physical leaf's elision.
-    sources_refine(&required_frontier.sources, &actual_frontier.sources)?;
+    sources_refine(
+        program,
+        &required_frontier.sources,
+        &actual_frontier.sources,
+    )?;
     let mut input_leaves = actual_frontier.inputs.iter().flatten();
     let input_region = input_leaves.next().and_then(|input| {
         input_leaves
@@ -372,7 +376,77 @@ pub(super) fn captured_lifetimes(
         .collect()
 }
 
+/// Callable refinement compares positions in corresponding parameter/result
+/// types, not storage in one executable. A prepared nominal carrier has fresh
+/// field/case symbols while the scoped requirement still traverses its template.
+/// The caller has established type refinement; this operation retains nominal
+/// declaration identity and member positions while comparing their loan relation.
+/// Region correspondence is still checked independently below. Erased origins
+/// supply only member identity here, never field types or lifetime authority.
+/// Keep the original symbols on the frontiers: flow and invocation results need
+/// exact storage paths, not these relative contract coordinates.
+fn contract_paths_correspond(
+    program: &dyn crate::CheckingInput,
+    required: &[BorrowLoanOwnerSegment],
+    actual: &[BorrowLoanOwnerSegment],
+) -> bool {
+    let declaration_owner = |data_position: u32| {
+        let mut declaration = program.data_definitions().get(data_position as usize)?;
+        let mut visited = Vec::new();
+        while let Some(origin) = declaration.generic_instance {
+            if visited.contains(&declaration.symbol) {
+                return None;
+            }
+            visited.push(declaration.symbol);
+            let typed_trees::types::TypeReferenceNode::Generic { base_symbol, .. } =
+                program.type_reference_table.type_reference(origin)
+            else {
+                return None;
+            };
+            declaration = program.unique_data_definition_by_symbol(*base_symbol)?;
+        }
+        Some(declaration.symbol)
+    };
+    let field_position = |symbol| {
+        let positions = program.data_field_positions_for_symbol(symbol);
+        let (owner, member, payload) = *positions.first()?;
+        let owner = declaration_owner(owner)?;
+        positions
+            .iter()
+            .all(|(other_owner, other_member, other_payload)| {
+                declaration_owner(*other_owner) == Some(owner)
+                    && (*other_member, *other_payload) == (member, payload)
+            })
+            .then_some((owner, member, payload))
+    };
+    let case_position = |symbol| {
+        let (owner, member) = program.data_variant_position_for_symbol(symbol)?;
+        Some((declaration_owner(owner)?, member))
+    };
+    required.len() == actual.len()
+        && required.iter().zip(actual).all(|(required, actual)| {
+            if required == actual {
+                return true;
+            }
+            match (required, actual) {
+                (
+                    BorrowLoanOwnerSegment::Field(required),
+                    BorrowLoanOwnerSegment::Field(actual),
+                ) => field_position(*required)
+                    .zip(field_position(*actual))
+                    .is_some_and(|(required, actual)| required == actual),
+                (BorrowLoanOwnerSegment::Case(required), BorrowLoanOwnerSegment::Case(actual)) => {
+                    case_position(*required)
+                        .zip(case_position(*actual))
+                        .is_some_and(|(required, actual)| required == actual)
+                }
+                _ => false,
+            }
+        })
+}
+
 fn sources_refine(
+    program: &dyn crate::CheckingInput,
     required: &ViewReturnSource,
     actual: &ViewReturnSource,
 ) -> Result<(), &'static str> {
@@ -391,8 +465,12 @@ fn sources_refine(
             ViewReturnSource::Fields { fields: actual },
         ) if actual.iter().all(|actual| {
             required.iter().any(|required| {
-                actual.owner_path == required.owner_path
-                    && actual.source_path == required.source_path
+                contract_paths_correspond(program, &required.owner_path, &actual.owner_path)
+                    && contract_paths_correspond(
+                        program,
+                        &required.source_path,
+                        &actual.source_path,
+                    )
                     && actual.parameter_index == required.parameter_index
                     && actual.kind == required.kind
             })

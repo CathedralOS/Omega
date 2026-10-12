@@ -902,3 +902,4 @@ pass/borrow/runtime_write_only_reference_aggregate_call_result_exit built 2923ms
 pass/borrow/runtime_write_only_reference_aggregate_copy_exit built 2919ms exit:0 interpreter-exit:0 interpreter:agrees @992d27dd3135+wt
 pass/borrow/runtime_write_only_reference_aggregate_detached_exit built 2867ms exit:0 interpreter-exit:0 interpreter:agrees @992d27dd3135+wt
 pass/borrow/runtime_write_only_reference_aggregate_capture_exit built 2929ms exit:0 interpreter-exit:0 interpreter:agrees @992d27dd3135+wt
+pass/traits/prepared_callable_nested_borrow_paths_exit built 3286ms exit:0 interpreter-exit:0 interpreter:agrees @992d27dd3135+wt
