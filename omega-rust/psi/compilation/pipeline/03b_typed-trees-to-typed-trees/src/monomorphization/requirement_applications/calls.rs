@@ -566,11 +566,16 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<usize, Vec<Diagnostic
                     &mut expressions,
                 );
                 for expression in expressions {
-                    let Some(call) = program.expression_table.call_node(expression) else {
+                    let Some(executable) = program.expression_table.call_node(expression) else {
+                        continue;
+                    };
+                    let execution_target = executable.target_symbol;
+                    let Some(call) = program.expression_table.source_call_node(expression) else {
                         continue;
                     };
                     expression_sources.push((
                         expression,
+                        execution_target,
                         SourceCall {
                             target: call.target_symbol,
                             receiver: source_type_application(
@@ -597,28 +602,58 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<usize, Vec<Diagnostic
     let mut expression_updates = Vec::new();
     let mut statement_updates = Vec::new();
     let mut diagnostics = Vec::new();
-    for (handle, source) in expression_sources {
+    for (handle, execution_target, source) in expression_sources {
         let Some((template, application)) = source_application(program, &source) else {
             continue;
         };
-        let selected = instance(program, template, application);
-        if !selected.is_valid() {
-            continue;
-        }
-        if let Some((_, prior, prior_application, prior_owner)) = expression_updates
-            .iter()
-            .find(|(expression, _, _, _)| *expression == handle)
+        // Original occurrence completion is independent of a physical finite
+        // target. A previously selected private provider remains executable;
+        // only an exact public requirement tuple can be retargeted here.
+        let selected = program
+            .selected_public_trait_requirement_signature(execution_target, application)
+            .filter(|selected| selected.declaration.symbol == template)
+            .map_or(SymbolHandle::invalid(), |_| {
+                instance(program, template, application)
+            });
+        let original_row = program
+            .expression_table
+            .call_node(handle)
+            .map(|call| call.source_call)
+            .unwrap_or_default();
+        if let Some((prior_expression, prior, prior_application, prior_owner)) =
+            expression_updates.iter().find(|(expression, _, _, _)| {
+                *expression == handle
+                    || (original_row.is_valid()
+                        && program
+                            .expression_table
+                            .call_node(*expression)
+                            .is_some_and(|call| call.source_call == original_row))
+            })
         {
             let agrees = matches!((
                 static_application_identity(program, *prior_application),
                 static_application_identity(program, application),
             ), (Ok(prior), Ok(actual)) if prior == actual);
-            if *prior != selected || *prior_owner != source.lexical_owner || !agrees {
+            let same_lifetimes = program
+                .expression_table
+                .static_machine_application_lifetimes(*prior_application)
+                == program
+                    .expression_table
+                    .static_machine_application_lifetimes(application);
+            if (*prior_expression == handle && *prior != selected)
+                || *prior_owner != source.lexical_owner
+                || !agrees
+                || !same_lifetimes
+            {
                 diagnostics.push(Diagnostic::error(
                     "one requirement expression occurs under disagreeing exact source applications",
                 ));
             }
-        } else {
+        }
+        if !expression_updates
+            .iter()
+            .any(|(expression, _, _, _)| *expression == handle)
+        {
             expression_updates.push((handle, selected, application, source.lexical_owner));
         }
     }
@@ -627,32 +662,41 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<usize, Vec<Diagnostic
             continue;
         };
         let selected = instance(program, template, application);
-        if selected.is_valid() {
-            statement_updates.push((handle, selected, application));
-        }
+        statement_updates.push((handle, selected, application));
     }
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
     let mut changed = 0usize;
     for (handle, selected, application, _) in expression_updates {
-        if let typed_trees::expression::ExpressionNode::Call(call) =
-            program.expression_table.expression_mut(handle)
+        // Semantic readers project this exact retained original row. Publishing
+        // only the executable call would leave its authored obligation partial.
+        if let Some(call) = program.expression_table.source_call_node_mut(handle)
+            && call.authored_machine_application != application
         {
-            if call.target_symbol != selected || call.authored_machine_application != application {
-                call.target_symbol = selected;
-                call.authored_machine_application = application;
-                changed += 1;
-            }
+            call.authored_machine_application = application;
+            changed += 1;
+        }
+        if selected.is_valid()
+            && let typed_trees::expression::ExpressionNode::Call(call) =
+                program.expression_table.expression_mut(handle)
+            && (call.target_symbol != selected || call.authored_machine_application != application)
+        {
+            call.target_symbol = selected;
+            call.authored_machine_application = application;
+            changed += 1;
         }
     }
     for (handle, selected, application) in statement_updates {
         if let typed_trees::statement::StatementNode::Call(call) =
             program.statement_table.statement_mut(handle)
         {
-            if call.target_symbol != selected || call.authored_machine_application != application {
-                call.target_symbol = selected;
+            if call.authored_machine_application != application {
                 call.authored_machine_application = application;
+                changed += 1;
+            }
+            if selected.is_valid() && call.target_symbol != selected {
+                call.target_symbol = selected;
                 changed += 1;
             }
         }
