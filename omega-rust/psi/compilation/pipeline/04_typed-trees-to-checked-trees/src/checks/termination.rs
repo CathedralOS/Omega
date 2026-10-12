@@ -38,6 +38,7 @@ use diagnostics::Diagnostic;
 pub(crate) fn admit_machine_rankings(
     program: &dyn ::validation::CheckingInput,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    self_call_descents: &[validation::ValidatedSelfCallDescent],
 ) -> checked_trees::CheckedRankArrivalPlan {
     let mut admitted = checked_trees::CheckedRankArrivalPlan::default();
     let topology = validation::prepare_runtime_rank_components(program);
@@ -52,8 +53,13 @@ pub(crate) fn admit_machine_rankings(
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
+    let proof_only = validation::proof_only_classification(program);
     for (position, machine) in program.machines().iter().enumerate() {
-        let cycle = graph::machine_has_cycle(program, machine);
+        let cycle = if proof_only.is_proof_machine(program, machine) {
+            graph::machine_has_cycle_after_proof_calls(program, machine, self_call_descents)
+        } else {
+            graph::machine_has_cycle(program, machine)
+        };
         let witness = machine.termination_plan.implementation_witness.as_ref();
         let claimed = witness.is_some()
             || matches!(
