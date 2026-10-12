@@ -927,14 +927,50 @@ fn recognize_structural_state_leaves_from<'a>(
                         arguments,
                         ..
                     } => {
-                        let [state_name] =
-                            program.statement_table.name_path_members(target.members)
-                        else {
-                            return None;
-                        };
+                        let entry = states.first()?;
+                        if classification.is_proof_machine(program, machine)
+                            && (target.symbol == machine.symbol || target.symbol == entry.symbol)
+                        {
+                            if requirement.is_some() {
+                                continue;
+                            }
+                            // A proof entry transfer denotes the recursive result, rather
+                            // than a sibling-state path to unroll. Ordinary recursion
+                            // checking owns strict descent; finalization still admits
+                            // the induction hypothesis only after its requires hold.
+                            let argument_handles =
+                                program.statement_table.expression_handles(*arguments);
+                            for outcome in judge.normal_argument_entries(
+                                argument_handles,
+                                program.state_parameters(entry),
+                                &branch_environment,
+                                (machine, state, entry.return_type),
+                            )? {
+                                leaves.push(finalize_structural_case_arm(
+                                    program,
+                                    machine,
+                                    &outcome.judge,
+                                    classification,
+                                    diagnostics,
+                                    parameter_names,
+                                    branch_hypotheses.clone(),
+                                    branch_equations.clone(),
+                                    pending_citations.clone(),
+                                    StructuralTerm::Application {
+                                        result_type: entry.return_type,
+                                        target: entry.symbol,
+                                        selections: Vec::new(),
+                                        machine: machine.name.as_str().to_owned(),
+                                        arguments: outcome.arguments,
+                                    },
+                                    context_epoch,
+                                ));
+                            }
+                            continue;
+                        }
                         let target_state = states[1..]
                             .iter()
-                            .find(|candidate| candidate.name.as_str() == state_name.as_str())?;
+                            .find(|candidate| candidate.symbol == target.symbol)?;
                         let target_parameters = program.state_parameters(target_state);
                         let argument_handles =
                             program.statement_table.expression_handles(*arguments);
