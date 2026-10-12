@@ -212,13 +212,10 @@ pub fn canonical_place_source_type_application(
                 let (parent, frames) =
                     program.project_enclosing_data_type_reference(parent, &applications)?;
                 applications.truncate(frames);
-                let owner = program
-                    .type_reference_table
-                    .type_reference(parent)
-                    .type_symbol(&program.type_reference_table);
-                let declaration = program.unique_data_definition_by_symbol(owner)?;
                 applications.push(parent);
-                reference = data_field_type_reference(program, declaration, *symbol)?;
+                reference = program
+                    .original_data_projected_field(parent, *symbol)?
+                    .type_reference;
             }
             facts::PlaceSegment::Case { .. } => {}
             facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. } => {

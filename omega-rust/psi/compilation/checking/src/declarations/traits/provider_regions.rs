@@ -9,15 +9,11 @@
 //! retain it with the checked application through the receiving installation.
 
 use crate::type_regions::{
-    TypeRegionRelationship, TypeRegionScope, type_reference_region_applications,
+    ApplicationRegions, TypeRegionRelationship, type_reference_region_applications,
 };
 use symbols::SymbolHandle;
 use typed_trees::trait_definition::{AppliedTraitScope, Conformance};
-use typed_trees::type_identity::{
-    AppliedTypeIdentityScope, LifetimeParameterIdentity, NormalizedTypeIdentity,
-    TypeIdentityRequest, applied_lifetime_parameter_identity,
-};
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::type_identity::LifetimeParameterIdentity;
 
 /// Receiving coordinates in the selecting declaration's public binder order.
 /// This invocation-local result grants neither a loan nor selection authority.
@@ -160,135 +156,6 @@ fn constrain_slot(
         None => {
             *slot = Some(required);
             true
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-struct ApplicationRegions<'scope> {
-    application: &'scope AppliedTraitScope<'scope>,
-    identities: &'scope [AppliedTypeIdentityScope<'scope>],
-    owner: SymbolHandle,
-    visible: usize,
-}
-
-impl<'scope> ApplicationRegions<'scope> {
-    fn new(
-        application: &'scope AppliedTraitScope<'scope>,
-        identities: &'scope [AppliedTypeIdentityScope<'scope>],
-    ) -> Self {
-        Self {
-            application,
-            identities,
-            owner: application.argument_owner,
-            visible: application.substitutions.len(),
-        }
-    }
-
-    fn prefix(mut self, count: usize) -> Self {
-        self.visible = self
-            .application
-            .substitution_scope_starts
-            .get(count)
-            .copied()
-            .unwrap_or(self.application.substitutions.len());
-        self.identities = &self.identities[..count];
-        self
-    }
-
-    fn region(
-        self,
-        program: &dyn crate::CheckingInput,
-        name: &str,
-    ) -> Option<LifetimeParameterIdentity> {
-        applied_lifetime_parameter_identity(
-            program.typed_program(),
-            self.owner,
-            name,
-            self.identities,
-        )
-    }
-}
-
-impl TypeRegionScope for ApplicationRegions<'_> {
-    fn erased_identity(
-        self,
-        program: &dyn crate::CheckingInput,
-        reference: TypeReferenceHandle,
-    ) -> NormalizedTypeIdentity {
-        program.scoped_type_identity(
-            TypeIdentityRequest {
-                substitutions: &self.application.substitutions[..self.visible],
-                ..TypeIdentityRequest::ordinary(reference)
-            },
-            &self.application.substitution_scope_starts[..self.identities.len()],
-        )
-    }
-
-    fn resolve(
-        mut self,
-        program: &dyn crate::CheckingInput,
-        mut reference: TypeReferenceHandle,
-    ) -> Option<(TypeReferenceHandle, Self)> {
-        let mut visited = Vec::new();
-        loop {
-            if !reference.is_valid() {
-                return Some((reference, self));
-            }
-            if visited.contains(&reference)
-                || !program
-                    .type_reference_table
-                    .contains_type_reference(reference)
-            {
-                return None;
-            }
-            visited.push(reference);
-            let owner = program
-                .type_reference_table
-                .operand_lifetime_owner(reference);
-            if owner.is_valid() {
-                let count = self
-                    .identities
-                    .iter()
-                    .rposition(|scope| {
-                        program.lifetime_declaration_owner(scope.declaration)
-                            == program.lifetime_declaration_owner(owner)
-                    })
-                    .map_or(0, |ordinal| ordinal + 1);
-                self = self.prefix(count);
-                self.owner = owner;
-            }
-            let TypeReferenceNode::Named { symbol, .. } =
-                program.type_reference_table.type_reference(reference)
-            else {
-                return Some((reference, self));
-            };
-            if let Some((ordinal, (_, argument))) = self.application.substitutions[..self.visible]
-                .iter()
-                .enumerate()
-                .rev()
-                .find(|(_, (parameter, _))| parameter == symbol)
-            {
-                if *argument == reference {
-                    return Some((reference, self));
-                }
-                reference = *argument;
-                let count = self
-                    .application
-                    .substitution_scope_starts
-                    .partition_point(|start| *start <= ordinal)
-                    .checked_sub(1)?;
-                self = self.prefix(count);
-                continue;
-            }
-            if let Some(origin) = program
-                .data_definition_by_symbol(*symbol)
-                .and_then(|definition| definition.generic_instance)
-            {
-                reference = origin;
-                continue;
-            }
-            return Some((reference, self));
         }
     }
 }

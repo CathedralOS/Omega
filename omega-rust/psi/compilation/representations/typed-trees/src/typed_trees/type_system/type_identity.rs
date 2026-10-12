@@ -42,6 +42,7 @@ pub use language_semantics::type_identity::{
 pub use lifetime_parameters::{
     LifetimeParameterIdentity, applied_lifetime_parameter_identity, lifetime_parameter_identity,
     lifetime_parameter_name, portable_lifetime_parameter_identity,
+    scoped_lifetime_parameter_identity,
 };
 pub use normalized_identities::{
     NormalizedDomainExpression, NormalizedDomainTerm, NormalizedResultDispatchSet,
@@ -732,8 +733,21 @@ impl TypedTrees {
         authored: SymbolHandle,
         retained: SymbolHandle,
     ) -> Option<&crate::data::DataField> {
-        use crate::data::DataMember;
         let instance = self.closed_data_constructor_definition(reference, authored)?;
+        self.corresponding_data_constructor_field(reference, instance, retained)
+    }
+
+    /// Both semantic source payloads and prepared storage consume the same
+    /// original constructor child coordinates. The destination declaration
+    /// must itself belong to this complete retained constructor application.
+    fn corresponding_data_constructor_field<'source>(
+        &'source self,
+        reference: TypeReferenceHandle,
+        instance: &'source crate::data::DataDefinition,
+        retained: SymbolHandle,
+    ) -> Option<&'source crate::data::DataField> {
+        use crate::data::DataMember;
+        self.closed_data_constructor_definition(reference, instance.symbol)?;
         if !retained.is_valid() || self.symbols.get(retained).kind != symbols::SymbolKind::Field {
             return None;
         }
@@ -790,6 +804,35 @@ impl TypedTrees {
             }
         }
         None
+    }
+
+    /// Recover an original semantic field from an already selected constructor
+    /// child. The prepared selector first owes the ordinary exact constructor
+    /// correspondence; its declaration position then selects the original
+    /// source payload, never its substituted storage type. These original
+    /// operands may be interpreted under the retained supplying applications.
+    pub fn original_data_projected_field(
+        &self,
+        reference: TypeReferenceHandle,
+        retained: SymbolHandle,
+    ) -> Option<&crate::data::DataField> {
+        use crate::data::DataMember;
+        let (original, _) = self.project_enclosing_data_type_reference(reference, &[])?;
+        let owner = self
+            .type_reference_table
+            .type_reference(original)
+            .type_symbol(&self.type_reference_table);
+        let declaration = self.unique_data_definition_by_symbol(owner)?;
+        for member in self.data_members(declaration) {
+            let fields = match member {
+                DataMember::Field(field) => std::slice::from_ref(field),
+                DataMember::Variant(variant) => self.data_payload_fields(variant),
+            };
+            if let Some(field) = fields.iter().find(|field| field.symbol == retained) {
+                return Some(field);
+            }
+        }
+        self.corresponding_data_constructor_field(reference, declaration, retained)
     }
 
     /// Rejoin a record member to the closed receiver's substituted field.
