@@ -1,5 +1,6 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "specialized_boundary_operator_physical_custody");
+    Build::select_provider<Math::identity, GenericMathProvider>(builder);
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
     Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
