@@ -685,6 +685,35 @@ impl StateGraphEmission<'_, '_> {
                                     "TRACE_UNIT_LOAN_HOME_SOURCE_OPERATIONS {:?}",
                                     state.operations
                                 );
+                                for (_, borrowing) in checked.facts.borrow.states.iter() {
+                                    if borrowing.machine_symbol != owner
+                                        || borrowing.state_symbol != state.state
+                                    {
+                                        continue;
+                                    }
+                                    if let Some(loans) =
+                                        checked.facts.borrow.loan_group(borrowing.loans)
+                                    {
+                                        for (handle, loan) in loans {
+                                            let incoming =
+                                                loan.incoming_reference.is_valid().then(|| {
+                                                    checked
+                                                        .facts
+                                                        .borrow
+                                                        .incoming_references
+                                                        .get(loan.incoming_reference)
+                                                });
+                                            eprintln!(
+                                                "TRACE_UNIT_LOAN_HOME_CHECKED_LOAN handle={:?} loan={:?} owner_path={:?} source_path={:?} incoming={:?}",
+                                                handle,
+                                                loan,
+                                                checked.facts.borrow.loan_owner_path(loan),
+                                                checked.facts.borrow.loan_segments(loan),
+                                                incoming,
+                                            );
+                                        }
+                                    }
+                                }
                             }
                             return unsupported(
                                 "Unit graph local loan requires an activation entry home",
