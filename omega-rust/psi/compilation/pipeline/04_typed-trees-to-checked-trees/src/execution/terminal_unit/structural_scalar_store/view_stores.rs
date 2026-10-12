@@ -17,7 +17,7 @@
 use super::super::{
     CheckFacts, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment, PrimitiveType,
 };
-use super::destination::{Carrier, Destination};
+use super::destination::Destination;
 use super::value::{self, AssignmentSource};
 use crate::execution::terminal_unit::calls::borrowed_index_segment;
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
@@ -51,7 +51,7 @@ pub(super) fn plan(
     let (path, element) = match leaf {
         facts::PlaceSegment::Field { symbol } => {
             let carrier = destination.leaf_carrier(program, carriers)?;
-            let field = super::destination::exact_relevant_field(program, carrier.owner, *symbol)?;
+            let field = carrier.field(program, *symbol)?;
             let element = program.primitive_type_reference(field.type_reference)?;
             if store_width(element)? != view_bytes {
                 return None;
@@ -131,8 +131,9 @@ fn byte_field(
     let (facts::PlaceSegment::Field { symbol }, prefix) = carriers.split_last()? else {
         return None;
     };
-    let Carrier { owner, mut path } = destination.leaf_carrier(program, prefix)?;
-    let field = super::destination::exact_relevant_field(program, owner, *symbol)?;
+    let carrier = destination.leaf_carrier(program, prefix)?;
+    let field = carrier.field(program, *symbol)?;
+    let mut path = carrier.path;
     // A bounded-owned byte sequence carries its declared capacity; a plain
     // `[u8; N]` field is the same bounded carrier spelled without a domain
     // restriction, its literal length the footprint bound. Borrowed

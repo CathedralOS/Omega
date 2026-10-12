@@ -2801,9 +2801,7 @@ fail/proofs/ring_law_unproven_rejected rejected 4397ms expected @a9ae30e1c334+wt
 	machine `Main::main` publishes service reach `<none>` but its checked body reaches undeclared service `Console`
 fail/proofs/ring_rearrange_unlicensed_rejected rejected 2728ms expected @a9ae30e1c334+wt
 	machine `needs_rearrange` ensures contract proof fact `plus(b, plus(a, c)) == plus(a, plus(b, c))` speaks about proof-only `Peano`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
-fail/proofs/runtime_case_atomic_observations_are_distinct rejected 1544ms expected @a9ae30e1c334+wt
-	cannot prove requires contract for call increment from main: choice == constructor:6:Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-	cannot prove requires contract for call increment from main: choice == constructor:6:Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/proofs/runtime_case_atomic_observations_are_distinct rejected 382ms expected @6c0183cab07b
 	cannot prove requires contract for call require_three from main: second == 3 (needs fact `observation == 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/proofs/runtime_case_guarantee_replaced_subject rejected 1516ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call observe from main: choice == constructor:6:Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
@@ -3746,15 +3744,9 @@ pass/atomics/runtime_atomic_after_quoted_write_exit checked 10962ms check-target
 pass/atomics/runtime_atomic_bitwise_widths_exit checked 11190ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/atomics/runtime_atomic_compare_exchange_exit checked 10896ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/atomics/runtime_atomic_fetch_add_exit checked 10884ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/atomics/runtime_case_payload_atomic_events_exit rejected 4910ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	cannot prove requires contract for call increment from main: choice == constructor:80:package:0101010101010101010101010101010101010101010101010101010101010101::Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-	cannot prove requires contract for call increment from main: choice == constructor:80:package:0101010101010101010101010101010101010101010101010101010101010101::Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-	cannot prove requires contract for call observe from main: choice == constructor:80:package:0101010101010101010101010101010101010101010101010101010101010101::Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-	cannot prove requires contract for call selected_value from main: choice == constructor:80:package:0101010101010101010101010101010101010101010101010101010101010101::Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+pass/atomics/runtime_case_payload_atomic_events_exit checked 4669ms check-target:macos_arm64 @6c0183cab07b
 pass/atomics/runtime_mixed_common_atomic_cell_exit checked 10589ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/atomics/runtime_nested_case_payload_atomic_event_exit rejected 4837ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	cannot prove requires contract for call increment from main: choice == constructor:80:package:0101010101010101010101010101010101010101010101010101010101010101::Choice9:name:Live (needs fact `choice == Choice::Live` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-	cannot prove requires contract for call observe from main: choice == constructor:80:package:0101010101010101010101010101010101010101010101010101010101010101::Choice9:name:Live (needs fact `choice == Choice::Live` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+pass/atomics/runtime_nested_case_payload_atomic_event_exit checked 4666ms check-target:macos_arm64 @6c0183cab07b
 pass/atomics/runtime_shared_case_waived_atomic_exit checked 11071ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/atomics/runtime_stored_reference_atomic_events_exit checked 10420ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/atomics/shared_receiver_atomic_store checked 11103ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6450,3 +6442,12 @@ pass/atomics/runtime_atomic_fences_exit checked 4314ms check-target:macos_arm64 
 pass/atomics/runtime_authored_fence_name_exit checked 4288ms check-target:macos_arm64 @b2d763407d51+wt
 fail/atomics/fence_does_not_identify_observations rejected 413ms expected @289501b5c2fe+wt
 	cannot prove requires contract for call same from observe: before == after (needs fact `before == after` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+pass/atomics/runtime_atomic_case_field_state_exit checked 4692ms check-target:macos_arm64 @6c0183cab07b
+pass/contracts/entry_case_replaced_before_call checked 1805ms @6c0183cab07b
+pass/contracts/runtime_case_payload_write_preserves_tag_exit checked 3963ms check-target:macos_arm64 @6c0183cab07b
+fail/contracts/case_payload_write_retires_content_guarantee rejected 384ms expected @6c0183cab07b
+	cannot prove requires contract for call require_three from main: choice.value == 3 (needs fact `choice.value == 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/case_requirement_replaced_through_parameter rejected 382ms expected @6c0183cab07b
+	cannot prove requires contract for call observe from exercise: choice == constructor:6:Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/case_requirement_selector_changed rejected 384ms expected @6c0183cab07b
+	cannot prove requires contract for call observe from exercise: choices[position.index] == constructor:6:Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard)

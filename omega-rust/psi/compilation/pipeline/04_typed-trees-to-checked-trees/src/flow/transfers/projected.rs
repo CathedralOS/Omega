@@ -80,7 +80,7 @@ pub(super) fn append_copied_field_predicates(
     if !source_segments
         .iter()
         .chain(&destination_segments)
-        .all(stable_segment)
+        .all(crate::flow::place_segment_has_static_identity)
     {
         return;
     }
@@ -142,7 +142,9 @@ pub(super) fn append_copied_field_predicates(
         if place.root != source_place.root
             || segments.len() <= source_segments.len()
             || !segments.starts_with(&source_segments)
-            || !segments.iter().all(stable_segment)
+            || !segments
+                .iter()
+                .all(crate::flow::place_segment_has_static_identity)
         {
             continue;
         }
@@ -162,25 +164,6 @@ pub(super) fn append_copied_field_predicates(
             payload,
         });
         semantic.append_ref(references, copied_fact);
-    }
-}
-
-fn stable_segment(segment: &facts::PlaceSegment) -> bool {
-    match segment {
-        facts::PlaceSegment::Field { symbol } => symbol.is_valid(),
-        facts::PlaceSegment::Case { variant } => variant.is_valid(),
-        facts::PlaceSegment::FixedIndex { .. } => true,
-        // A fixed extent is a stable coordinate: `recv[0..usize::MAX].f` is the
-        // same elementwise evidence as `view[0..usize::MAX].f` after an
-        // `as_slice`/`as_mut_slice` re-anchor (the view lends the receiver's
-        // elements 1:1), and `let copy = rows` preserves every element's
-        // facts. Overlap semantics still retire the row on any element write
-        // (`canonical_place_segment_pair_may_overlap` overlaps a containing
-        // `FixedRange` with `Index`/`FixedIndex`), so transport cannot extend
-        // the evidence past a mutation. Only an unresolved `Index` stays
-        // unstable -- a runtime selector is never a fact coordinate.
-        facts::PlaceSegment::FixedRange { .. } => true,
-        _ => false,
     }
 }
 

@@ -33,7 +33,10 @@ pub(crate) fn reject_refuted_value_call_requires(
         return;
     };
 
-    let judge = caller_requires_judge(program, caller_machine, caller_state);
+    // This judgment has no executed-prefix custody. Entry preconditions may
+    // already have been invalidated by a store or an earlier call. Only the
+    // prefix-aware route may use them; this route decides closed operands.
+    let judge = StructuralJudge::from_runtime_requires(program, caller_machine, &[]);
     if judge.hypotheses_contradictory {
         return;
     }
@@ -115,7 +118,10 @@ pub fn instantiated_value_call_requires_proven(
     ) else {
         return false;
     };
-    let judge = caller_requires_judge(program, caller_machine, caller_state);
+    // This judgment has no executed-prefix custody. Entry preconditions may
+    // already have been invalidated by a store or an earlier call. Only the
+    // prefix-aware route may use them; this route decides closed operands.
+    let judge = StructuralJudge::from_runtime_requires(program, caller_machine, &[]);
     if judge.hypotheses_contradictory {
         return false;
     }
@@ -173,18 +179,6 @@ fn argument_term_map(
         map.push((parameter.name.as_str().to_owned(), term));
     }
     Some(map)
-}
-
-/// The hypothesis judge built from the caller's own machine- and state-level
-/// `requires` facts — the same premise environment both sides of the
-/// instantiated judgment read.
-fn caller_requires_judge<'program>(
-    program: &'program dyn crate::CheckingInput,
-    caller_machine: &'program Machine,
-    caller_state: &'program typed_trees::state::State,
-) -> StructuralJudge<'program> {
-    let caller_requires = requires_expressions(program, caller_machine, caller_state);
-    StructuralJudge::from_requires(program, caller_machine, &caller_requires, true)
 }
 
 /// The callee's `requires` expression facts in declaration order: machine

@@ -1,3 +1,14 @@
+/// A copied observation may retain only selectors fixed at its capture.
+/// Runtime selectors need separate dependency/capture evidence.
+pub(crate) fn place_segment_has_static_identity(segment: &facts::PlaceSegment) -> bool {
+    match segment {
+        facts::PlaceSegment::Field { symbol } => symbol.is_valid(),
+        facts::PlaceSegment::Case { variant } => variant.is_valid(),
+        facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::FixedRange { .. } => true,
+        facts::PlaceSegment::Index { .. } => false,
+    }
+}
+
 /// A missing field or case identity gives no information about its descendants.
 /// Runtime indexes retain their separate conservative selector semantics.
 pub(crate) fn place_segment_has_unresolved_identity(segment: facts::PlaceSegment) -> bool {

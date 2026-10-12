@@ -735,10 +735,18 @@ impl TerminalExecution<'_> {
             StructuralAccess::Owned => StructuralAccess::WriteOnlyBorrow,
             access => access,
         };
+        // A final case step selects a payload namespace, not another value.
+        let (carrier_path, namespace) = match path.split_last() {
+            Some((StructuralPathSegment::Case(case), prefix)) => (
+                prefix,
+                vec![semantic_vocabulary::CanonicalStructuralPathSegment::Case(
+                    *case,
+                )],
+            ),
+            _ => (path.as_slice(), Vec::new()),
+        };
         let (parent, view) =
-            self.resolve_live_view_projection(destination, path, projection_access)?;
-        // A store through an aggregate re-view names the view's field; the
-        // backing field at the same position holds the cell.
+            self.resolve_live_view_projection(destination, carrier_path, projection_access)?;
         let declared_parent = match view {
             None => parent.structural_type,
             Some(crate::reference::AggregateViewTip::Aggregate { view, backing })
@@ -749,67 +757,62 @@ impl TerminalExecution<'_> {
             Some(_) => return Err(malformed()),
         };
         let types = self.program.structural_types();
-        let declaration = types.get(&declared_parent).ok_or_else(malformed)?;
-        let (terminal_psi::record_or_mixed_shape_pattern!(fields)) = &declaration.shape else {
-            return Err(malformed());
-        };
-        let mut matching = fields.iter().filter(|candidate| candidate.id == field);
-        let (Some(member), None) = (matching.next(), matching.next()) else {
-            return Err(malformed());
-        };
+        let member = terminal_semantics::observed_field_declaration(
+            types.values(),
+            declared_parent,
+            &namespace,
+            field,
+        )
+        .ok_or_else(malformed)?;
         if member.relevance.is_erased()
             || member.field_type.scalar_type() != Some(source.scalar_type())
             || !terminal_scalar_belongs_to_type(source)
         {
             return Err(malformed());
         }
-        let (member, source) = if declared_parent == parent.structural_type {
-            (member, source)
+        // Aggregate re-views select the corresponding backing field and codec.
+        let (namespace, field) = if declared_parent == parent.structural_type {
+            (namespace, field)
         } else {
-            let (translated, tip) = crate::reference::translate_aggregate_view_path(
+            crate::reference::translate_aggregate_view_field(
                 &types,
                 declared_parent,
                 parent.structural_type,
-                &[StructuralPathSegment::Field(member.identity.clone())],
+                &namespace,
+                field,
             )
-            .ok_or_else(malformed)?;
-            let (
-                [StructuralPathSegment::Field(identity)],
-                crate::reference::AggregateViewTip::Scalar { backing, .. },
-            ) = (translated.as_slice(), tip)
-            else {
-                return Err(malformed());
-            };
-            let backing_member = types
-                .get(&parent.structural_type)
-                .and_then(|declaration| declaration.shape.direct_fields())
-                .and_then(|fields| {
-                    fields.iter().find(|candidate| {
-                        candidate.identity == *identity && !candidate.relevance.is_erased()
-                    })
-                })
-                .ok_or_else(malformed)?;
-            let source = if backing == source.scalar_type() {
-                source
-            } else {
-                crate::primitive_storage::scalar_reference_observation(source, backing)?
-            };
-            (backing_member, source)
+            .ok_or_else(malformed)?
         };
-        let field = member.id;
+        let member = terminal_semantics::observed_field_declaration(
+            types.values(),
+            parent.structural_type,
+            &namespace,
+            field,
+        )
+        .ok_or_else(malformed)?;
+        let backing = member.field_type.scalar_type().ok_or_else(malformed)?;
+        let source = if backing == source.scalar_type() {
+            source
+        } else {
+            crate::primitive_storage::scalar_reference_observation(source, backing)?
+        };
+        let cell = self.observed_field_cell_in(&parent, None, &namespace, field)?;
         let mut leaf = parent.clone();
+        for segment in &namespace {
+            match segment {
+                semantic_vocabulary::CanonicalStructuralPathSegment::Case(case) => {
+                    leaf.path.push(StructuralPathSegment::Case(*case))
+                }
+                _ => return Err(malformed()),
+            }
+        }
         leaf.path
             .push(StructuralPathSegment::Field(member.identity.clone()));
         if let Some((storage, scalar_type)) = self.reference_byte_region_access(&parent, &leaf)? {
             self.store_primitive_storage(destination, storage, scalar_type, source)?;
             return Ok(OperationFlow::Advance);
         }
-        // The store's path names no `Case` step: it writes a record field or a
-        // mixed shape's common field, never a payload cell.
-        self.structural_scalar_fields.insert(
-            StructuralScalarRuntimeField::member(StructuralRuntimePlace::from(&parent), field),
-            source,
-        );
+        self.structural_scalar_fields.insert(cell, source);
         Ok(OperationFlow::Advance)
     }
 

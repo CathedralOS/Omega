@@ -161,11 +161,7 @@ fn lower_store(
             return Err(invalid());
         };
         if multiplicity != StructuralMultiplicity::Affine
-            || !matches!(
-                find_structural_type(structural_types, *referent)
-                    .map(|declaration| &declaration.shape),
-                Some(StructuralTypeShape::Record { .. })
-            )
+            || find_structural_type(structural_types, *referent).is_none()
         {
             return Err(invalid());
         }
@@ -197,27 +193,16 @@ fn lower_store(
     {
         return Err(invalid());
     }
-    let parent_type = resolve_structural_path(structural_types, storage_type, storage_path)
-        .ok_or_else(invalid)?;
-    let declaration =
-        terminal_psi::find_structural_type(structural_types, parent_type).ok_or_else(invalid)?;
-    // A mixed shape's common field is a direct field at one offset in every
-    // case, stored without case knowledge exactly as a record field.
-    let Some(fields) = declaration.shape.direct_fields() else {
-        return Err(invalid());
-    };
-    let declaration = fields
-        .iter()
-        .find(|candidate| candidate.id == field)
-        .ok_or_else(invalid)?;
+    let declaration = terminal_semantics::projected_field_declaration(
+        structural_types.iter(),
+        storage_type,
+        storage_path,
+        field,
+    )
+    .ok_or_else(invalid)?;
     if terminal_semantics::scalar_field_requires_evidence(&declaration.field_type)
         != range_obligation.is_some()
-        || direct_relevant_scalar_field(
-            structural_types,
-            parent_type,
-            field,
-            range_obligation.is_some(),
-        ) != Some(scalar_type)
+        || declaration.field_type.scalar_type() != Some(scalar_type)
     {
         return Err(invalid());
     }
@@ -535,28 +520,13 @@ fn observed_scalar_field(
         exact_structural_type(structural_types, carrier.sum)?;
         return unique_relevant_scalar_field(carrier.fields, field, true);
     }
-    // A read also reaches a mixed shape's common field, which sits on the
-    // carrier beside the tag whatever case is active; a store reaches the same
-    // common fields through `direct_relevant_scalar_field`.
+    // Common fields sit beside the tag regardless of the active case.
     let carrier = terminal_semantics::record_field_carrier(structural_types.iter(), root, path)?;
     let declaration = exact_structural_type(structural_types, carrier.structural_type)?;
     let Some(fields) = declaration.shape.direct_fields() else {
         return None;
     };
     unique_relevant_scalar_field(fields, field, true)
-}
-
-fn direct_relevant_scalar_field(
-    structural_types: &[StructuralTypeDeclaration],
-    structural_type: StructuralTypeId,
-    field: StructuralFieldId,
-    allow_refined_scalar: bool,
-) -> Option<ScalarType> {
-    let declaration = exact_structural_type(structural_types, structural_type)?;
-    let Some(fields) = declaration.shape.direct_fields() else {
-        return None;
-    };
-    unique_relevant_scalar_field(fields, field, allow_refined_scalar)
 }
 
 fn unique_relevant_scalar_field(

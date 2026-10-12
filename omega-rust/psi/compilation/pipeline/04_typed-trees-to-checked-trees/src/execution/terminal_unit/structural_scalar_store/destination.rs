@@ -88,6 +88,7 @@ pub(super) struct Destination<'a> {
 pub(super) struct Carrier<'a> {
     pub(super) path: Vec<CheckedUnitStructuralPathSegment>,
     pub(super) owner: &'a typed_trees::data::DataDefinition,
+    selected_case: Option<&'a typed_trees::data::DataVariant>,
 }
 
 pub(super) struct StorageProjection<'a> {
@@ -97,6 +98,7 @@ pub(super) struct StorageProjection<'a> {
     /// array element or dereferenced primitive instead names primitive storage.
     pub(super) ends_at_field: bool,
     owner: Option<&'a typed_trees::data::DataDefinition>,
+    selected_case: Option<&'a typed_trees::data::DataVariant>,
 }
 
 /// Resolve the authored target, its root and the root's write authority.
@@ -463,12 +465,9 @@ impl<'a> Destination<'a> {
         (plan.access == expected_access).then_some(())
     }
 
-    /// The carrier of one scalar leaf store: [`Self::carrier`], except that
-    /// the walk may also end at a mixed shape whose common field the leaf
-    /// writes. A common field sits at the same offset in every case, so the
-    /// write needs no case knowledge and leaves the tag and payload intact.
-    /// Common fields are scalar primitives (checking's `validate_data_shape`),
-    /// so a mixed shape is only ever the last owner, never an intermediate hop.
+    /// Resolve the leaf's exact declaration namespace. A trailing case keeps
+    /// its payload roster; otherwise the owner supplies its common fields.
+    /// The same path and scalar-field obligations govern either namespace.
     pub(super) fn leaf_carrier(
         &self,
         program: &'a dyn ::validation::CheckingInput,
@@ -479,11 +478,10 @@ impl<'a> Destination<'a> {
         // The shared walk already establishes each reference crossing's
         // mutable access. Keep that geometry for field stores just as for
         // primitive stores; the carrier need not be inline in the root.
-        (plain_record(owner, program, self.operators)
-            || plain_mixed(owner, program, self.operators))
-        .then_some(Carrier {
+        plain_checked_shape(owner, program, self.operators).then_some(Carrier {
             path: projection.path,
             owner,
+            selected_case: projection.selected_case,
         })
     }
 
@@ -518,7 +516,7 @@ impl<'a> Destination<'a> {
         let operators = self.operators;
         if let Some(owner) = self.root_owner
             && !segments.is_empty()
-            && !plain_record(owner, program, operators)
+            && !plain_checked_shape(owner, program, operators)
         {
             return None;
         }
@@ -526,14 +524,20 @@ impl<'a> Destination<'a> {
         let mut carrier_type = self.root_type;
         let mut owner = self.root_owner;
         let mut ends_at_field = false;
+        let mut selected_case = None;
         for segment in segments {
             match segment {
                 facts::PlaceSegment::Field { symbol } => {
                     let field_owner = owner?;
-                    if !plain_record(field_owner, program, operators) {
+                    if !plain_checked_shape(field_owner, program, operators) {
                         return None;
                     }
-                    let carrier = exact_relevant_field(program, field_owner, *symbol)?;
+                    let carrier = relevant_field_in_namespace(
+                        program,
+                        field_owner,
+                        selected_case.take(),
+                        *symbol,
+                    )?;
                     if !validation::field_domains::domain_constraint_symbols(
                         program,
                         carrier.type_reference,
@@ -548,7 +552,44 @@ impl<'a> Destination<'a> {
                     carrier_type = carrier.type_reference;
                     ends_at_field = true;
                 }
+                facts::PlaceSegment::Case { variant } => {
+                    let case_owner = owner?;
+                    if selected_case.is_some()
+                        || !plain_checked_shape(case_owner, program, operators)
+                    {
+                        return None;
+                    }
+                    let mut cases = program
+                        .data_members(case_owner)
+                        .iter()
+                        .filter_map(|member| match member {
+                            DataMember::Variant(case)
+                                if variant.is_valid() && case.symbol == *variant =>
+                            {
+                                Some(case)
+                            }
+                            _ => None,
+                        });
+                    let case = cases.next()?;
+                    if cases.next().is_some() {
+                        return None;
+                    }
+                    path.push(CheckedUnitStructuralPathSegment::Case(
+                        checked_trees::CheckedMemberIdentity::of_member(
+                            case.identity,
+                            case.name.clone(),
+                        ),
+                    ));
+                    selected_case = Some(case);
+                    ends_at_field = false;
+                    // A case selects a field namespace; it is not another
+                    // value or a pointer crossing at the carrier's type.
+                    continue;
+                }
                 facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. } => {
+                    if selected_case.is_some() {
+                        return None;
+                    }
                     // An arithmetic-policy shell (`[Entity; 3] in Wrapping`)
                     // qualifies element operations, not the array's layout.
                     let array = validation::unwrapped_type_reference(program, carrier_type)?;
@@ -613,6 +654,7 @@ impl<'a> Destination<'a> {
             type_reference: carrier_type,
             ends_at_field,
             owner,
+            selected_case,
         })
     }
 }
@@ -638,18 +680,6 @@ pub(super) fn plain_record(
     plain_checked_shape(data, program, operators)
         && typed_trees::data::DataDefinition::shape_kind_from_members(program.data_members(data))
             == DataShapeKind::Record
-}
-
-/// A mixed shape whose common fields a leaf store may write, under the same
-/// supply, generic and fact conditions as [`plain_record`].
-fn plain_mixed(
-    data: &typed_trees::data::DataDefinition,
-    program: &dyn ::validation::CheckingInput,
-    operators: &checked_trees::CheckedOperatorFacts,
-) -> bool {
-    plain_checked_shape(data, program, operators)
-        && typed_trees::data::DataDefinition::shape_kind_from_members(program.data_members(data))
-            == DataShapeKind::Mixed
 }
 
 fn plain_checked_shape(
@@ -719,6 +749,32 @@ pub(super) fn exact_relevant_field<'a>(
             }
             _ => None,
         });
+    let field = fields.next()?;
+    fields.next().is_none().then_some(field)
+}
+
+impl<'a> Carrier<'a> {
+    pub(super) fn field(
+        &self,
+        program: &'a dyn validation::CheckingInput,
+        symbol: SymbolHandle,
+    ) -> Option<&'a typed_trees::data::DataField> {
+        relevant_field_in_namespace(program, self.owner, self.selected_case, symbol)
+    }
+}
+
+fn relevant_field_in_namespace<'a>(
+    program: &'a dyn validation::CheckingInput,
+    owner: &'a typed_trees::data::DataDefinition,
+    selected_case: Option<&'a typed_trees::data::DataVariant>,
+    symbol: SymbolHandle,
+) -> Option<&'a typed_trees::data::DataField> {
+    let Some(case) = selected_case else {
+        return exact_relevant_field(program, owner, symbol);
+    };
+    let mut fields = program.data_payload_fields(case).iter().filter(|field| {
+        symbol.is_valid() && field.symbol == symbol && !field.relevance.is_erased()
+    });
     let field = fields.next()?;
     fields.next().is_none().then_some(field)
 }

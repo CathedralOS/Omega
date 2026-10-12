@@ -71,7 +71,7 @@ fn reference_store_carrier<'path>(
     module
         .structural_types
         .iter()
-        .any(|declaration| declaration.id == referent && declaration.is_record_shape())
+        .any(|declaration| declaration.id == referent)
         .then_some((referent, suffix))
 }
 
@@ -228,12 +228,18 @@ pub(super) fn validate_release_reference(
 /// Canonical storage shape shared by scalar and descriptor field replacement.
 /// Exact result/place linkage is checked by foundation validation; current
 /// authority and selector bounds are independently replayed by the verifier.
-fn field_store_parent(
+fn field_store_carrier<'path>(
     module: &TerminalModule,
     machine: &TerminalMachine,
     destination: semantic_vocabulary::PlaceId,
-    path: &[terminal_psi::StructuralPathSegment],
-) -> Result<semantic_vocabulary::StructuralTypeId, CodecError> {
+    path: &'path [terminal_psi::StructuralPathSegment],
+) -> Result<
+    (
+        semantic_vocabulary::StructuralTypeId,
+        &'path [terminal_psi::StructuralPathSegment],
+    ),
+    CodecError,
+> {
     let reference = reference_store_carrier(module, machine, destination, path);
     let destination_type = if let Some((referent, _)) = reference {
         referent
@@ -275,7 +281,9 @@ fn field_store_parent(
     {
         return malformed("structural field store has invalid destination custody");
     }
-    validate_structural_path(module, destination_type, carrier_path)
+    // The leaf resolver validates this complete path. A final Case is the
+    // sum's field namespace, not an independently materialized carrier type.
+    Ok((destination_type, carrier_path))
 }
 
 /// The structural type one place carries, read through the machine's declared

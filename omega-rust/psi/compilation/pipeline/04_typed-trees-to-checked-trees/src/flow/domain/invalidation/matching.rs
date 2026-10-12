@@ -28,6 +28,20 @@ pub(super) fn matching_mutation_for_fact_place<'a, 'b>(
         if fact_root != mutation.root {
             continue;
         }
+        // The selected case observes the discriminator, not its payload.
+        // Replacing this value (or an ancestor) retires the observation;
+        // writing a resolved descendant cannot change the enclosing tag.
+        // Unresolved paths retain the ordinary conservative overlap law.
+        if matches!(fact.payload, facts::FactPayload::AssignedCase { .. })
+            && mutation.segments.len() > fact_canonical_place.segments.len()
+            && mutation
+                .segments
+                .iter()
+                .chain(&fact_canonical_place.segments)
+                .all(|segment| !crate::flow::place_segment_has_unresolved_identity(*segment))
+        {
+            continue;
+        }
         if let Some(dependency_segments) = matching_dependency_segments(
             program,
             domain_dependencies,

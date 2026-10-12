@@ -50,7 +50,15 @@ boundary, and termination dimensions. A checked tree is published only after
 diagnostics clear; these views are not persisted rejection certificates.
 
 Semantic fact construction owns declaration facts, proof obligations and initial
-domain assumptions. Shared call-coordinate queries come directly from
+domain assumptions. Case observations retain the discriminator independently
+from payload facts and whole-value snapshots. Construction completion, entry
+requirements and selected result guarantees publish that same observation;
+copying a completed value transports it. Resolved descendant writes preserve
+the enclosing tag, while replacement of the subject or an ancestor retires it.
+Dynamic selector dependencies remain coupled to their observation. Structural
+call proof may use entry requirements only after the executed prefix preserves
+them; concrete-operand judgments never regrant entry premises. Shared
+call-coordinate queries come directly from
 the independent validation owner's `machine_calls/calls`, not through the
 semantic fact builder.
 

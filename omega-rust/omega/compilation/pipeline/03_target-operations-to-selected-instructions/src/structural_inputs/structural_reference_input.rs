@@ -9,7 +9,7 @@ use calling_conventions::{IndirectPointerLocation, ValueLocation, ValuePlacement
 use semantic_vocabulary::{ScalarType, StructuralFieldId, StructuralTypeId};
 use terminal_psi::{
     StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
-    find_structural_type, live_field_by_id, structural_case_position,
+    find_structural_type, structural_case_position,
 };
 
 pub(crate) fn scalar_storage_type(
@@ -1550,12 +1550,7 @@ fn scalar_field_declaration<'declarations>(
     declarations: &'declarations [StructuralTypeDeclaration],
 ) -> Option<&'declarations terminal_psi::StructuralFieldDeclaration> {
     let (root, path) = referent_projection(root, path, declarations)?;
-    let (record, _, _) = runtime_projection(root, path, declarations)?;
-    let fields = match &find_structural_type(declarations, record)?.shape {
-        terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
-        _ => return None,
-    };
-    live_field_by_id(fields, field)
+    terminal_semantics::projected_field_declaration(declarations.iter(), root, path, field)
 }
 
 pub(crate) fn field_shape(
@@ -2179,8 +2174,9 @@ fn inline_field_store(
     // A final Case supplies the payload namespace of the separate leaf field.
     // This is address reconstruction only; callers establish live authority.
     if let Some((StructuralPathSegment::Case(case), prefix)) = path.split_last() {
-        let (offset, bytes) = case_field_read(root, prefix, *case, field, scalar, declarations)?;
-        return Some((offset, bytes, Vec::new()));
+        let (carrier, carrier_offset, elements) = runtime_projection(root, prefix, declarations)?;
+        let (offset, bytes) = case_field_read(carrier, &[], *case, field, scalar, declarations)?;
+        return Some((carrier_offset.checked_add(offset)?, bytes, elements));
     }
     // The carrier resolver checks each declaration-owned segment, including
     // Case/Field pairs below a selected payload. A second record-only path

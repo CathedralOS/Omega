@@ -155,7 +155,7 @@ pub fn is_static_structural_path(path: &[StructuralPathSegment]) -> bool {
 }
 
 /// Whether a `StructuralScalarFieldStore` carrier path is within the store
-/// grammar: record fields and fixed-array elements, literal or
+/// grammar: common or selected-case fields and fixed-array elements, literal or
 /// runtime-selected, in any order (`ents[i].pos` for `ents[i].pos.x`,
 /// `values[0][1]` for `values[0][1].first`). `Referent` crossings and byte
 /// windows are outside the store contract: borrowing through another
@@ -165,10 +165,9 @@ pub fn is_static_structural_path(path: &[StructuralPathSegment]) -> bool {
 pub fn is_structural_scalar_store_path(path: &[StructuralPathSegment]) -> bool {
     path.iter().all(|segment| match segment {
         StructuralPathSegment::Field(identity) => !identity.is_absent(),
+        StructuralPathSegment::Case(_) => true,
         StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. } => true,
-        StructuralPathSegment::Case(_)
-        | StructuralPathSegment::FixedByteRange { .. }
-        | StructuralPathSegment::Referent => false,
+        StructuralPathSegment::FixedByteRange { .. } | StructuralPathSegment::Referent => false,
     })
 }
 

@@ -8,7 +8,7 @@
 //! operation, with no dependency on the right-hand side's source arrangement.
 //! Byte views retain their independent predicate-preservation contract.
 
-use super::destination::{Destination, Root, exact_relevant_field};
+use super::destination::{Destination, Root};
 use super::value::{self, AssignmentSource};
 use super::{
     CheckFacts, CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
@@ -38,7 +38,7 @@ pub(super) fn store(
             return None;
         };
         let carrier = destination.leaf_carrier(program, carriers)?;
-        let field = exact_relevant_field(program, carrier.owner, *symbol)?;
+        let field = carrier.field(program, *symbol)?;
         if super::scalar_leaf(program, field)? != primitive_type {
             return None;
         }

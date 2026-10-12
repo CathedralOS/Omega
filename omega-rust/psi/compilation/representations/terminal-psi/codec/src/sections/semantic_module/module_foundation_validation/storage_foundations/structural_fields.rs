@@ -186,42 +186,31 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     if operation.result != OperationResult::Unit {
         return malformed("structural scalar field store declares a non-Unit result");
     }
-    let parent_type = field_store_parent(module, machine, *destination, path)?;
-    let Some(expected) =
-        module
-            .structural_type(parent_type)
-            .and_then(|declaration| match &declaration.shape {
-                // A mixed shape's common fields are direct fields at one offset
-                // in every case; payload fields stay out of reach of this store.
-                terminal_psi::record_or_mixed_shape_pattern!(fields) => {
-                    fields.iter().find_map(|candidate| {
-                        (candidate.id == *field && !candidate.relevance.is_erased())
-                            .then_some(&candidate.field_type)
-                            .and_then(|field_type| match field_type {
-                                StructuralFieldType::Scalar(scalar_type)
-                                    if range_obligation.is_none() =>
-                                {
-                                    Some(*scalar_type)
-                                }
-                                field_type
-                                    if terminal_semantics::scalar_field_requires_evidence(
-                                        field_type,
-                                    ) && range_obligation.is_some() =>
-                                {
-                                    field_type.scalar_type()
-                                }
-                                StructuralFieldType::IeeeFloat(format)
-                                    if range_obligation.is_none() =>
-                                {
-                                    Some(semantic_vocabulary::ScalarType::IeeeFloat(*format))
-                                }
-                                _ => None,
-                            })
-                    })
-                }
-                _ => None,
-            })
-    else {
+    let (root_type, carrier_path) = field_store_carrier(module, machine, *destination, path)?;
+    let Some(declaration) = terminal_semantics::projected_field_declaration(
+        module.structural_types.iter(),
+        root_type,
+        carrier_path,
+        *field,
+    ) else {
+        return malformed("structural scalar field store does not select a relevant scalar field");
+    };
+    let expected = match &declaration.field_type {
+        StructuralFieldType::Scalar(scalar_type) if range_obligation.is_none() => {
+            Some(*scalar_type)
+        }
+        field_type
+            if terminal_semantics::scalar_field_requires_evidence(field_type)
+                && range_obligation.is_some() =>
+        {
+            field_type.scalar_type()
+        }
+        StructuralFieldType::IeeeFloat(format) if range_obligation.is_none() => {
+            Some(semantic_vocabulary::ScalarType::IeeeFloat(*format))
+        }
+        _ => None,
+    };
+    let Some(expected) = expected else {
         return malformed("structural scalar field store does not select a relevant scalar field");
     };
     let actual = declared_scalar_type(machine, *value);

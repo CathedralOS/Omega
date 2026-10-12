@@ -966,3 +966,5 @@ pass/atomics/runtime_atomic_fence_captured_ordering_exit built 7215ms exit:0 int
 pass/atomics/runtime_atomic_fences_exit built 6937ms exit:0 interpreter-exit:0 interpreter:agrees @b2d763407d51+wt
 pass/atomics/runtime_authored_fence_name_exit built 7027ms exit:0 interpreter-exit:0 interpreter:agrees @b2d763407d51+wt
 pass/contracts/saved_call_case_guarantee_requires_exit built 4676ms exit:0 interpreter-exit:0 interpreter:agrees @b2d763407d51+wt
+pass/atomics/runtime_atomic_case_field_state_exit built 7044ms exit:0 interpreter-exit:0 interpreter:agrees @38b196bc35a5+wt
+pass/contracts/runtime_case_payload_write_preserves_tag_exit built 5667ms exit:0 interpreter-exit:0 interpreter:agrees @38b196bc35a5+wt

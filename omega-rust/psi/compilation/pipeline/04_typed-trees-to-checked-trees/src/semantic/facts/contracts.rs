@@ -10,10 +10,10 @@ use facts::{
     QualificationEvidence,
 };
 use typed_trees::proposition::PropositionLabels;
+mod case_observations;
 mod parameters;
 mod payload;
 mod places;
-mod result_cases;
 pub(crate) use parameters::{contract_parameter_position, projected_argument_place};
 pub(crate) use places::contract_fact_place;
 
@@ -41,6 +41,7 @@ pub(super) fn append_contract_semantic_facts(
             payload,
         };
         seed_current_requirement(program, operators, facts, &declaration_fact);
+        case_observations::append_requirement(program, facts, contract, &declaration_fact);
         let fact = match contract.kind {
             ContractProofFactKind::Requires => {
                 let dependency_places =
@@ -768,7 +769,7 @@ fn append_call_semantic_contract_refs(
         });
         facts.append_ref(refs, fact);
         if origin == FactOrigin::CallEnsures {
-            result_cases::append(program, facts, call, contract, point, evidence, refs);
+            case_observations::append_result(program, facts, call, contract, point, evidence);
         }
         // A Boolean postcondition's outer expression is not its storage
         // dependency. Retain each exact instantiated operand in the same

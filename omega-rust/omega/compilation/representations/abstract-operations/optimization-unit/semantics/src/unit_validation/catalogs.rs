@@ -853,27 +853,13 @@ fn validate_structural_field_range_authority(
                 } else {
                     (destination.structural_type(), path.as_slice())
                 };
-                let parent = super::structural_catalog::resolve_structural_path(
-                    types,
+                let declaration = terminal_semantics::projected_field_declaration(
+                    types.values().copied(),
                     storage_type,
                     storage_path,
+                    *field,
                 )
                 .ok_or(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)?;
-                // A mixed shape's common fields are stored directly, like
-                // record fields.
-                let Some(terminal_psi::StructuralTypeDeclaration {
-                    shape: terminal_psi::record_or_mixed_shape_pattern!(fields),
-                    ..
-                }) = types.get(&parent).copied()
-                else {
-                    return Err(
-                        OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch,
-                    );
-                };
-                let declaration = fields
-                    .iter()
-                    .find(|candidate| candidate.id == *field)
-                    .ok_or(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)?;
                 if terminal_semantics::scalar_field_requires_evidence(&declaration.field_type)
                     != range_obligation.is_some()
                 {

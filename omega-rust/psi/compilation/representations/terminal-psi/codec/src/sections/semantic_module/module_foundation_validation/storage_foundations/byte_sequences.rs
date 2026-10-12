@@ -29,17 +29,17 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     };
     let view_slot = match field {
         Some(field) => {
-            let parent_type = field_store_parent(module, machine, *destination, path)?;
-            module
-                .structural_type(parent_type)
-                .is_some_and(|declaration| match &declaration.shape {
-                    StructuralTypeShape::Record { fields, .. } => fields.iter().any(|candidate| {
-                        candidate.id == *field
-                            && !candidate.relevance.is_erased()
-                            && candidate.field_type.byte_sequence_carrier() == Some(shared_view)
-                    }),
-                    _ => false,
-                })
+            let (root_type, carrier_path) =
+                field_store_carrier(module, machine, *destination, path)?;
+            terminal_semantics::projected_field_declaration(
+                module.structural_types.iter(),
+                root_type,
+                carrier_path,
+                *field,
+            )
+            .is_some_and(|candidate| {
+                candidate.field_type.byte_sequence_carrier() == Some(shared_view)
+            })
         }
         None => {
             path.is_empty()

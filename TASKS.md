@@ -2214,12 +2214,7 @@ then independent claimed restoration slices -> final closure.
   Preserve `calls/runtime_atomic_case_shared_argument_exit` and
   `atomics/runtime_mixed_common_atomic_cell_exit`: completed scalar initializers
   establish owned case cells, and shared helper events mutate their original
-  member backing at the exact post-tag offset. Preserve
-  `atomics/{runtime_case_payload_atomic_events_exit,runtime_nested_case_payload_atomic_event_exit}`
-  too: case guarantees retain the exact borrowed subject and declared result,
-  and explicit payload events address original backing through nested fields.
-  Tag preservation must not preserve scalar observations, authorize ordinary
-  shared writes, or turn atomic storage into a scalar dispatch snapshot.
+  member backing at the exact post-tag offset.
   Complete clock imports beyond admitted Darwin reads/signal-free waits and
   Linux clock_gettime, finite descriptorless poll and signal-free nanosleep: descriptor readiness
   needs actual custody, CPU clocks need accounting, Darwin invalid nanosleep

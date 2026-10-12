@@ -1122,6 +1122,18 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     );
                     self.append_operand_child(&path, child_type, evaluated.capture, children);
                 }
+                if let Some(variant) = value.case_symbol.filter(|variant| variant.is_valid())
+                    && self.program.symbols.get(variant).kind == symbols::SymbolKind::Variant
+                    && self.program.symbols.get(variant).parent == value.type_symbol
+                {
+                    self.append_constructed_observation(
+                        expression,
+                        &[],
+                        facts::FactPayload::AssignedCase { variant },
+                        contexts,
+                        constraints,
+                    );
+                }
             }
             ExpressionNode::Range(range) => {
                 self.expression(range.start, contexts, constraints);

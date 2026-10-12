@@ -130,7 +130,7 @@ fn push_unique_place(facts: &FactPlan, places: &mut Vec<PlaceHandle>, candidate:
     }
 }
 
-fn contract_expression_place(
+pub(super) fn contract_expression_place(
     program: &dyn ::validation::CheckingInput,
     facts: &mut FactPlan,
     contract: &ContractProofFact,

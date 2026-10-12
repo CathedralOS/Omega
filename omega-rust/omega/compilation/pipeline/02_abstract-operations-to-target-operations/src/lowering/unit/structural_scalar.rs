@@ -14,7 +14,9 @@ use terminal_psi::StructuralAccess;
 
 use super::super::scalar::scalar_shape;
 use super::super::scalar_abi::fixed_native_scalar_shape;
-use super::super::structural_layout::{direct_scalar_field_geometry, runtime_projection};
+use super::super::structural_layout::{
+    direct_scalar_field_geometry, runtime_projection, static_field_geometry,
+};
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::lowering) fn lower_field_store(
@@ -213,9 +215,15 @@ pub(in crate::lowering) fn lower_field_store(
     // order: static steps fold into the offset, and each runtime element is
     // an `(index, stride)` run over its selector's dominating source. The
     // element's bound stays the store's verified obligation.
+    let (carrier_path, namespace) = match projection_path.split_last() {
+        Some((terminal_psi::StructuralPathSegment::Case(_), prefix)) => {
+            (prefix, &projection_path[projection_path.len() - 1..])
+        }
+        _ => (projection_path, &[][..]),
+    };
     let (carrier_type, _, carrier_byte_offset, runs) = runtime_projection(
         projection_root,
-        projection_path,
+        carrier_path,
         structural_types,
         shape_cache,
         active,
@@ -225,8 +233,17 @@ pub(in crate::lowering) fn lower_field_store(
         function,
         scalar_sources,
     )?;
-    let (scalar_byte_offset, field_byte_size) =
-        direct_scalar_field_geometry(carrier_type, *field, value.scalar_type, structural_types)?;
+    let (scalar_byte_offset, field_byte_size) = if namespace.is_empty() {
+        direct_scalar_field_geometry(carrier_type, *field, value.scalar_type, structural_types)?
+    } else {
+        static_field_geometry(
+            carrier_type,
+            namespace,
+            *field,
+            value.scalar_type,
+            structural_types,
+        )?
+    };
     // The descriptor-size ceiling bounds a store inside its destination's
     // own storage. A view destination only stores through the loan: its
     // referent's extent is the runtime bound, and the descriptor's 16-byte

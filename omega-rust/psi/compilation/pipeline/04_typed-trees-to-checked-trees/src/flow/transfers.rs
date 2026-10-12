@@ -288,23 +288,6 @@ pub(super) fn propagate_statement_transfers(
     }
 
     if stable_value_target
-        && let ExpressionNode::StructLiteral(literal) =
-            program.expression_table.expression(source_expression)
-        && let Some(variant) = literal.case_symbol.filter(|variant| variant.is_valid())
-        && program.symbols.get(variant).kind == symbols::SymbolKind::Variant
-        && program.symbols.get(variant).parent == literal.type_symbol
-    {
-        let fact = semantic.append_statement_transfer(
-            FactPlace::Place(target_place),
-            machine_symbol,
-            state_symbol,
-            statement_index,
-            FactPayload::AssignedCase { variant },
-        );
-        semantic.append_ref(&mut refs, fact);
-    }
-
-    if stable_value_target
         && (crate::values::is_assignment_literal(program, source_expression)
             || (matches!(
                 program.expression_table.expression(source_expression),
@@ -382,8 +365,8 @@ pub(super) fn propagate_statement_transfers(
 }
 
 /// Publish one statement's transferred facts as new active contexts, one per
-/// exact place, so a later write retires only the facts over the places it
-/// overlaps.
+/// exact place and observation kind. A tag survives a payload write even
+/// when the full value at that same place no longer has its old contents.
 fn publish_statement_contexts(
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
@@ -398,36 +381,41 @@ fn publish_statement_contexts(
     // coordinates: a view binding re-anchors every element's declared fields
     // below the view. Invalidation drops a whole context once any of its
     // facts overlaps a write, so facts over distinct places take separate
-    // contexts, as entry seeding already does; facts over one exact place
-    // stay coupled.
+    // contexts, as entry seeding already does. Discriminator observations
+    // have an independent lifetime from contents at the same place.
     let point = ProgramPoint::Statement {
         machine_symbol,
         state_symbol,
         statement_index,
     };
-    let mut groups: Vec<(FactPlace, Vec<facts::FactRef>)> = Vec::new();
+    let mut groups: Vec<(FactPlace, bool, Vec<facts::FactRef>)> = Vec::new();
     for reference in semantic.refs.span_or_empty(refs) {
-        let place = semantic.facts.get(reference.fact).place;
-        if let Some((_, group)) =
+        let fact = semantic.facts.get(reference.fact);
+        let place = fact.place;
+        let observes_tag = matches!(fact.payload, FactPayload::AssignedCase { .. });
+        if let Some((_, _, group)) =
             groups
                 .iter_mut()
-                .find(|(candidate, _)| match (*candidate, place) {
-                    (FactPlace::Place(left), FactPlace::Place(right)) => {
-                        semantic.places_equal(left, right)
-                    }
-                    _ => *candidate == place,
+                .find(|(candidate, candidate_observes_tag, _)| {
+                    *candidate_observes_tag == observes_tag
+                        && match (*candidate, place) {
+                            (FactPlace::Place(left), FactPlace::Place(right)) => {
+                                semantic.places_equal(left, right)
+                            }
+                            _ => *candidate == place,
+                        }
                 })
         {
             group.push(*reference);
         } else {
-            groups.push((place, vec![*reference]));
+            groups.push((place, observes_tag, vec![*reference]));
         }
     }
     let mut next_contexts =
         retained_flow_contexts(&build.contexts.semantic_context_refs, *active_contexts);
     let mut next_constraints =
         retained_constraint_refs(&build.contexts.constraint_refs, *active_constraints);
-    for (_, group) in groups {
+    for (_, _, group) in groups {
         let mut group_refs = HandleSpan::empty();
         for reference in group {
             semantic.refs.append_to_span(&mut group_refs, reference);

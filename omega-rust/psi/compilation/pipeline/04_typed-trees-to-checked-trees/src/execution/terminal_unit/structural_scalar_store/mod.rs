@@ -43,7 +43,7 @@ use super::{
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::{byte_sequence_carrier, terminal_field_identity};
-use destination::{Destination, Root, StoreRoots, exact_relevant_field, plain_record};
+use destination::{Destination, Root, StoreRoots, plain_record};
 pub(in crate::execution::terminal_unit) use value::AssignmentSource;
 
 pub(in crate::execution::terminal_unit) use primitive::{
@@ -451,7 +451,7 @@ fn plan_assignment(
     };
     let carrier = destination.leaf_carrier(program, carriers)?;
     trace.phase("structural field store: field owner record");
-    let field = exact_relevant_field(program, carrier.owner, *symbol)?;
+    let field = carrier.field(program, *symbol)?;
     trace.phase("structural field store: byte sequence carrier");
     // An indexed store through a `&'r mut [u8]` field composes over the
     // caller's live extent exactly as over bounded-owned backing: the mutable

@@ -434,12 +434,13 @@ pub(crate) fn validate_structural_root_operations(
                     } else {
                         Some((destination.structural_type(), path.as_slice()))
                     };
-                    let parent = geometry.and_then(|(root, storage_path)| {
+                    let field_declaration = geometry.and_then(|(root, storage_path)| {
                         terminal_psi::is_structural_scalar_store_path(storage_path).then_some(())?;
-                        super::super::structural_catalog::resolve_structural_path(
-                            structural_types,
+                        terminal_semantics::projected_field_declaration(
+                            structural_types.values().copied(),
                             root,
                             storage_path,
+                            *field,
                         )
                     });
                     // The retained store destination must be the complete
@@ -453,13 +454,11 @@ pub(crate) fn validate_structural_root_operations(
                             .content_entry_claims
                             .iter()
                             .all(|claim| claim.input.root != destination.place())
-                        && parent.is_some_and(|parent| {
-                            direct_relevant_scalar_field(
-                                structural_types,
-                                parent,
-                                *field,
-                                range_obligation.is_some(),
-                            ) == Some(value.scalar_type)
+                        && field_declaration.is_some_and(|declaration| {
+                            declaration.field_type.scalar_type() == Some(value.scalar_type)
+                                && terminal_semantics::scalar_field_requires_evidence(
+                                    &declaration.field_type,
+                                ) == range_obligation.is_some()
                         });
                     if !valid {
                         return Err(
@@ -1037,19 +1036,6 @@ fn observed_scalar_field(
         return None;
     }
     relevant_scalar_field(std::slice::from_ref(declaration), field, true)
-}
-
-fn direct_relevant_scalar_field(
-    structural_types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
-    structural_type: StructuralTypeId,
-    field: semantic_vocabulary::StructuralFieldId,
-    allow_refined_scalar: bool,
-) -> Option<ScalarType> {
-    let declaration = structural_types.get(&structural_type)?;
-    let (terminal_psi::record_or_mixed_shape_pattern!(fields)) = &declaration.shape else {
-        return None;
-    };
-    relevant_scalar_field(fields, field, allow_refined_scalar)
 }
 
 fn relevant_scalar_field(
