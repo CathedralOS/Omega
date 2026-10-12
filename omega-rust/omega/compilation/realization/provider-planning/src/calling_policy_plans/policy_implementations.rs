@@ -8,14 +8,24 @@ use checked_trees::typed_trees::TypedTrees;
 use checked_trees::typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use layout::BoundaryTypeBinding;
 
+pub(crate) struct BoundaryPolicyInstance {
+    pub arguments: Vec<TypeReferenceHandle>,
+    pub argument_owner: symbols::SymbolHandle,
+    pub policy_argument: TypeReferenceHandle,
+}
+
 pub(crate) fn boundary_policy_instances(
     typed: &TypedTrees,
     boundary: &checked_trees::typed_trees::trait_definition::TraitDefinition,
     policy_argument: TypeReferenceHandle,
-) -> Result<Vec<(Vec<TypeReferenceHandle>, TypeReferenceHandle)>, String> {
+) -> Result<Vec<BoundaryPolicyInstance>, String> {
     let parameters = typed.trait_type_parameters(boundary);
     if parameters.is_empty() {
-        return Ok(vec![(Vec::new(), policy_argument)]);
+        return Ok(vec![BoundaryPolicyInstance {
+            arguments: Vec::new(),
+            argument_owner: boundary.symbol,
+            policy_argument,
+        }]);
     }
     let policy_parameter_index = named_parameter_index(typed, policy_argument, parameters);
 
@@ -43,7 +53,11 @@ pub(crate) fn boundary_policy_instances(
         let concrete_policy = policy_parameter_index.map_or(policy_argument, |parameter_index| {
             arguments[parameter_index]
         });
-        instances.push((arguments, concrete_policy));
+        instances.push(BoundaryPolicyInstance {
+            arguments,
+            argument_owner: conformance.symbol,
+            policy_argument: concrete_policy,
+        });
     }
 
     // A generic declaration is not itself a callable ABI. With no concrete

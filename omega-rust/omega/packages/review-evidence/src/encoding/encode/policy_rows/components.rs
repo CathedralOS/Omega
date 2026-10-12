@@ -140,6 +140,12 @@ pub(super) fn representation(
                     &calling.boundary_arguments,
                     super::super::declarations::encode_type_identity,
                 )?;
+                encoder.u32(calling.boundary_lifetime_parameter_count);
+                encoder.sequence(&calling.boundary_lifetime_arguments, |encoder, ordinal| {
+                    encoder.u32(*ordinal);
+                    Ok(())
+                })?;
+                encoder.u32(calling.application_lifetime_parameter_count);
                 encode_nominal(encoder, &calling.requirement)?;
                 encode_nominal(encoder, opaque)
             },

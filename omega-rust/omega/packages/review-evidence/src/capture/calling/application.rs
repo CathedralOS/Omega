@@ -27,6 +27,7 @@ pub(crate) fn project_checked_calling_policy<'a>(
         .filter(|candidate| {
             candidate.boundary_trait == realization.boundary_trait
                 && candidate.boundary_arguments == realization.boundary_arguments
+                && candidate.argument_owner() == realization.argument_owner()
                 && candidate.requirement_machine == realization.requirement_machine
         })
         .collect::<Vec<_>>();
@@ -88,6 +89,8 @@ pub(crate) fn project_checked_calling_policy<'a>(
         boundary_trait: semantic.boundary_trait,
         boundary_arguments: semantic.boundary_arguments,
         boundary_lifetime_parameter_count: semantic.boundary_lifetime_parameter_count,
+        boundary_lifetime_arguments: semantic.boundary_lifetime_arguments,
+        application_lifetime_parameter_count: semantic.application_lifetime_parameter_count,
         requirement: semantic.requirement,
         requirement_trait: semantic.requirement_trait,
         requirement_arguments: semantic.requirement_arguments,

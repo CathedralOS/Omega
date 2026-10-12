@@ -5,8 +5,7 @@ use crate::capture::semantics::services::rejected;
 use crate::capture::semantics::signatures::policy::project_type_parameters;
 use crate::capture::semantics::types::review_signature_type_identity_with_binders;
 use crate::record::{
-    PackagePolicyServiceSignature, PackageReviewNominalIdentity,
-    PackageReviewSignatureParameter,
+    PackagePolicyServiceSignature, PackageReviewNominalIdentity, PackageReviewSignatureParameter,
 };
 use diagnostics::Diagnostic;
 use provider_planning::ProviderSchemaDeclaration;
@@ -56,6 +55,8 @@ fn from_application(
     Ok(PackagePolicyServiceSignature {
         schema_arguments: projected.boundary_arguments,
         schema_lifetime_parameter_count: projected.boundary_lifetime_parameter_count,
+        schema_lifetime_arguments: projected.boundary_lifetime_arguments,
+        application_lifetime_parameter_count: projected.application_lifetime_parameter_count,
         requirement_arguments: projected.requirement_arguments,
         requirement_lifetime_arguments: projected.requirement_lifetime_arguments,
         requirement_lifetime_parameter_count: projected.requirement_lifetime_parameter_count,
@@ -79,6 +80,8 @@ pub(super) fn project(
         return Ok(PackagePolicyServiceSignature {
             schema_arguments: calling.boundary_arguments.clone(),
             schema_lifetime_parameter_count: calling.boundary_lifetime_parameter_count,
+            schema_lifetime_arguments: calling.boundary_lifetime_arguments.clone(),
+            application_lifetime_parameter_count: calling.application_lifetime_parameter_count,
             requirement_arguments: calling.requirement_arguments.clone(),
             requirement_lifetime_arguments: calling.requirement_lifetime_arguments.clone(),
             requirement_lifetime_parameter_count: calling.requirement_lifetime_parameter_count,
@@ -102,6 +105,7 @@ pub(super) fn project(
             compilation,
             symbol,
             arguments,
+            calling::argument_owner(compilation, symbol, provider_type)?,
             requirement,
         )?;
         return from_application(projected, identity);
@@ -224,6 +228,8 @@ pub(super) fn project(
     Ok(PackagePolicyServiceSignature {
         schema_arguments: Vec::new(),
         schema_lifetime_parameter_count: 0,
+        schema_lifetime_arguments: Vec::new(),
+        application_lifetime_parameter_count: 0,
         requirement_arguments: Vec::new(),
         requirement_lifetime_arguments: Vec::new(),
         requirement_lifetime_parameter_count: u32::try_from(lifetimes.len())

@@ -123,7 +123,7 @@ The authoritative build's empty lifetime telescope is distinct from a called
 requirement's telescope. Its name, spans, and compiler receipts do not enter
 policy identity.
 
-The `OMEGA-REPRESENTATION-POLICY` version-4 encoding embeds full calling and
+The `OMEGA-REPRESENTATION-POLICY` version-8 encoding embeds full calling and
 conformance meanings under one recovery budget. It checks exact ownership,
 producer/selection associations, and complete opaque-use coverage within each
 retained calling application. This is inert policy, not reconstructed native
@@ -149,7 +149,7 @@ short borrows and rewritten handle spans are rebuilt only where members
 change. Both paths preserve source association, lifetime validation, and
 complete signature projection.
 
-The `OMEGA-SELECTED-PROVIDER-POLICY` version-4 component places grants inside
+The `OMEGA-SELECTED-PROVIDER-POLICY` version-10 component places grants inside
 their complete normalized plan and links atomic family coordinates by canonical
 plan index. Recovery checks complete family coverage and typed structural
 associations under one shared resource budget. Generic declaration families
@@ -164,7 +164,7 @@ root static and lifetime telescopes, structured signatures, and checked calling
 context when present. Generic declarations retain symbolic parameter relations;
 they do not invent a closed provider or calling application. An explicit empty
 class set is distinct from no permission. The bounded
-`OMEGA-TERMINAL-PERMISSION-POLICY` version-4 component shares the service codec
+`OMEGA-TERMINAL-PERMISSION-POLICY` version-8 component shares the service codec
 and one recovery budget with nested contracts and calling applications.
 
 Existing accepted schema digests remain compiler matching
@@ -179,7 +179,7 @@ private admission-claim, and private external-callable surfaces for one exact
 checked root and target. Private external leaves retain their own outer
 contracts and operational promises even when unused; an equal supplied
 requirement and binding do not imply equal authored leaf policy.
-The `OMEGA-CALLABLE-POLICY` version-5 component retains full static and lifetime
+The `OMEGA-CALLABLE-POLICY` version-11 component retains full static and lifetime
 signatures, ordered contracts, exact overloaded callable identities, and actual
 conformance lifetime arguments as well as their equality partition. Published
 reach, direct-invocation, suspension, blocking, and termination promises remain
@@ -212,7 +212,7 @@ requires exact canonical re-encoding. Neither operation recovers proof or crash
 derivation tables, grants authority, or certifies an assumption.
 
 `project_checked_package_policy` composes `PackagePolicyBaseline` for one exact
-checked root package and target. Its version-12 `OMEGA-PACKAGE-POLICY` envelope
+checked root package and target. Its version-13 `OMEGA-PACKAGE-POLICY` envelope
 contains all seven public declaration families, the normalized components above,
 every package-owned external supply (including unused private leaves), dangerous
 authority and ceiling slack, semantic dependencies, and D29 application links.

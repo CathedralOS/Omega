@@ -15,6 +15,8 @@ pub struct PackagePolicyCallingPlan {
     pub(crate) boundary_trait: PackageReviewNominalIdentity,
     pub(crate) boundary_arguments: Vec<PackageReviewTypeIdentity>,
     pub(crate) boundary_lifetime_parameter_count: u32,
+    pub(crate) boundary_lifetime_arguments: Vec<u32>,
+    pub(crate) application_lifetime_parameter_count: u32,
     pub(crate) requirement: PackageReviewNominalIdentity,
     pub(crate) requirement_trait: PackageReviewNominalIdentity,
     pub(crate) requirement_arguments: Vec<PackageReviewTypeIdentity>,
@@ -67,6 +69,12 @@ impl PackagePolicyCallingPlan {
     }
     pub fn boundary_arguments(&self) -> &[PackageReviewTypeIdentity] {
         &self.boundary_arguments
+    }
+    pub fn boundary_lifetime_arguments(&self) -> &[u32] {
+        &self.boundary_lifetime_arguments
+    }
+    pub const fn application_lifetime_parameter_count(&self) -> u32 {
+        self.application_lifetime_parameter_count
     }
     pub const fn boundary_lifetime_parameter_count(&self) -> u32 {
         self.boundary_lifetime_parameter_count

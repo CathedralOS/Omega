@@ -1,6 +1,6 @@
 //! Offline association checks; no compiler replay or source access.
 
-use super::{PackagePolicyRepresentation, PackagePolicyRepresentationDemand};
+use super::PackagePolicyRepresentation;
 use crate::record::{PackageReviewNominalIdentity, PackageReviewNominalOwner};
 use std::cmp::Ordering;
 
@@ -118,7 +118,7 @@ impl PackagePolicyRepresentation {
         while let Some(first) = remaining.first() {
             let count = remaining
                 .iter()
-                .take_while(|demand| same_calling_application(first, demand))
+                .take_while(|demand| first.compare_calling_application(demand).is_eq())
                 .count();
             let group = &remaining[..count];
             let calling = &first.calling;
@@ -153,15 +153,6 @@ impl PackagePolicyRepresentation {
         }
         Ok(())
     }
-}
-
-fn same_calling_application(
-    left: &PackagePolicyRepresentationDemand,
-    right: &PackagePolicyRepresentationDemand,
-) -> bool {
-    left.calling.boundary_trait == right.calling.boundary_trait
-        && left.calling.boundary_arguments == right.calling.boundary_arguments
-        && left.calling.requirement == right.calling.requirement
 }
 
 fn nominal(identity: &PackageReviewNominalIdentity) -> Result<(), &'static str> {

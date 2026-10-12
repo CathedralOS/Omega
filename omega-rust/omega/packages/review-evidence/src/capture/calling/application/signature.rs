@@ -5,6 +5,7 @@ mod declaration;
 mod inheritance;
 mod instantiation;
 mod parameters;
+mod scope;
 mod scratch;
 pub(crate) use declaration::{declaration_parameters, project_declaration};
 pub(crate) use parameters::instantiate as instantiate_static_parameters;
@@ -15,8 +16,8 @@ use crate::capture::semantics::declarations::{nominal_identity, trait_requiremen
 use crate::capture::semantics::signatures::policy::project_type_parameters;
 use crate::capture::semantics::types::signature_type_identity;
 use crate::record::{
-    PackagePolicyTypeParameter, PackageReviewNominalIdentity,
-    PackageReviewSignatureParameter, PackageReviewTypeIdentity,
+    PackagePolicyTypeParameter, PackageReviewNominalIdentity, PackageReviewSignatureParameter,
+    PackageReviewTypeIdentity,
 };
 use diagnostics::Diagnostic;
 use provider_planning::calling_policy_plans::BoundaryCallingPlanRealization;
@@ -26,6 +27,8 @@ pub(crate) struct CallingSignatureProjection {
     pub boundary_trait: PackageReviewNominalIdentity,
     pub boundary_arguments: Vec<PackageReviewTypeIdentity>,
     pub boundary_lifetime_parameter_count: u32,
+    pub boundary_lifetime_arguments: Vec<u32>,
+    pub application_lifetime_parameter_count: u32,
     pub requirement: PackageReviewNominalIdentity,
     pub requirement_trait: PackageReviewNominalIdentity,
     pub requirement_arguments: Vec<PackageReviewTypeIdentity>,
@@ -45,6 +48,7 @@ pub(super) fn project(
         compilation,
         realization.boundary_trait,
         &realization.boundary_arguments,
+        realization.argument_owner(),
         realization.requirement_machine,
     )?;
     if projected.requirement.path
@@ -73,6 +77,7 @@ pub(crate) fn project_application(
     compilation: &PackageReviewInput<'_>,
     boundary_trait: symbols::SymbolHandle,
     boundary_arguments: &[typed_trees::types::TypeReferenceHandle],
+    argument_owner: symbols::SymbolHandle,
     requirement_machine: symbols::SymbolHandle,
 ) -> Result<CallingSignatureProjection, Vec<Diagnostic>> {
     project_with_binders(
@@ -80,6 +85,7 @@ pub(crate) fn project_application(
         scratch::trees(compilation),
         boundary_trait,
         boundary_arguments,
+        argument_owner,
         requirement_machine,
         &[],
     )
@@ -90,6 +96,7 @@ fn project_with_binders(
     mut projected: typed_trees::TypedTrees,
     boundary_trait: symbols::SymbolHandle,
     boundary_arguments: &[typed_trees::types::TypeReferenceHandle],
+    argument_owner: symbols::SymbolHandle,
     requirement_machine: symbols::SymbolHandle,
     root_binders: &[(symbols::SymbolHandle, String)],
 ) -> Result<CallingSignatureProjection, Vec<Diagnostic>> {
@@ -104,12 +111,6 @@ fn project_with_binders(
             "calling application has no unique exact boundary trait",
         ));
     };
-    let root_lifetimes = root
-        .lifetime_parameters
-        .iter()
-        .cloned()
-        .map(|name| (name.clone(), name))
-        .collect::<Vec<_>>();
     if root
         .lifetime_parameters
         .iter()
@@ -118,11 +119,11 @@ fn project_with_binders(
     {
         return Err(rejected("boundary trait repeats a lifetime binder"));
     }
+    let scope =
+        scope::ApplicationScope::new(compilation, root, boundary_arguments, argument_owner)?;
     let root_arguments = boundary_arguments
         .iter()
-        .map(|argument| {
-            instantiation::instantiate(&mut projected, *argument, &[], &root_lifetimes, 0)
-        })
+        .map(|argument| scope.instantiate_argument(compilation, &mut projected, *argument))
         .collect::<Result<Vec<_>, _>>()?;
     let mut inherited = Vec::new();
     inheritance::collect(
@@ -130,7 +131,7 @@ fn project_with_binders(
         inheritance::Application {
             owner: root.clone(),
             arguments: root_arguments.clone(),
-            lifetime_arguments: root.lifetime_parameters.clone(),
+            lifetime_arguments: scope.trait_arguments.clone(),
             inherited_substitutions: Vec::new(),
         },
         requirement_machine,
@@ -157,7 +158,7 @@ fn project_with_binders(
                     &application.owner,
                     &application.arguments,
                     &application.inherited_substitutions,
-                    &root.lifetime_parameters,
+                    &scope.binders,
                     root_binders,
                 )?,
             ))
@@ -183,15 +184,7 @@ fn project_with_binders(
     let requirement_lifetime_arguments = application
         .lifetime_arguments
         .iter()
-        .map(|name| {
-            root.lifetime_parameters
-                .iter()
-                .position(|binder| binder == name)
-                .and_then(|ordinal| u32::try_from(ordinal).ok())
-                .ok_or_else(|| {
-                    rejected("inherited requirement lifetime has no root telescope coordinate")
-                })
-        })
+        .map(|name| scope.coordinate(name))
         .collect::<Result<Vec<_>, _>>()?;
     let mut substitutions = application.inherited_substitutions.clone();
     substitutions.extend(
@@ -207,7 +200,7 @@ fn project_with_binders(
             .map(|(parameter, actual)| (parameter.symbol, *actual))
             .collect::<Vec<_>>(),
     );
-    let mut lifetime_binders = root.lifetime_parameters.clone();
+    let mut lifetime_binders = scope.binders.clone();
     let mut lifetimes = Vec::new();
     for (ordinal, name) in signature.lifetime_parameters.iter().enumerate() {
         if signature.lifetime_parameters[..ordinal].contains(name) {
@@ -323,10 +316,16 @@ fn project_with_binders(
             root,
             &root_arguments,
             &[],
-            &root.lifetime_parameters,
+            &scope.binders,
             root_binders,
         )?,
         boundary_lifetime_parameter_count: count(root.lifetime_parameters.len())?,
+        boundary_lifetime_arguments: scope
+            .trait_arguments
+            .iter()
+            .map(|name| scope.coordinate(name))
+            .collect::<Result<Vec<_>, _>>()?,
+        application_lifetime_parameter_count: count(scope.supplying_count)?,
         requirement,
         requirement_trait: nominal_identity(compilation, application.owner.symbol)?,
         requirement_arguments: identities[0].2.clone(),

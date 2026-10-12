@@ -1,0 +1,37 @@
+// Expected exit: 0. Both trait lifetime arguments and Value share the supplying
+// region. The method binder named 'provider stays separate from Reader's binder.
+use omega::language::core::binding;
+
+pub boundary trait Reading<'first, 'second, Value> {
+    machine read<'provider>(value: Value, other: &'provider i32) -> i32;
+}
+Reader<'provider> satisfies Reading<'provider, 'provider, &'provider i32> {
+    Reading::read = read;
+}
+machine read<'provider, 'call>(value: &'provider i32, other: &'call i32) -> i32 {
+    value as i32
+}
+data Providers {}
+macos_arm64 machine Providers::provider_defaults(defaults: &mut Providers) {
+    Providers::select_provider<Reading, Reader>(defaults);
+}
+data Main<'storage> {
+    reading: Binding<Reading<'storage, 'storage, &'storage i32>>;
+    value: i32;
+}
+machine observed<'stored, 'call>(
+    reading: &Binding<Reading<'stored, 'stored, &'stored i32>>,
+    value: &'stored i32,
+    other: &'call i32
+) -> i32 reaches Reading {
+    reading.read(value, other)
+}
+machine Main::main<'activation>(main: &'activation mut Main<'activation>)
+reaches Reading crashes Trap {
+    main.value = 37;
+    let other: i32 = 19;
+    let result: i32 = observed(&main.reading, &main.value, &other);
+    transition result == 37 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

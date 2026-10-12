@@ -259,6 +259,40 @@ fn validate_exact_requirement_lifetime_partition(
     realization: &checked_trees::typed_trees::machine::Machine,
 ) -> Result<(), diagnostics::Diagnostic> {
     let typed = context.typed;
+    // Named maps own their trait application independently of the selected
+    // machine. Requiring an attached satisfies edge loses the map's regions.
+    if crate::provider_identity::named_provider(context, plan).is_some() {
+        let application = crate::provider_identity::named_provider_row(context, plan, row)
+            .and_then(|entry| {
+                crate::provider_identity::provider_trait_application(
+                    context,
+                    plan,
+                    row,
+                    realization,
+                    entry.declaring_trait,
+                    entry.requirement,
+                )
+            })
+            .ok_or_else(|| {
+                diagnostics::Diagnostic::error(format!(
+                    "ProviderPlan `{}` row `{}` lost its exact named trait application",
+                    plan.name,
+                    plan.identities.text(row.requirement_identity),
+                ))
+            })?;
+        return if language_semantics::type_identity::normalize_requirement_lifetime_partition(
+            application.lifetime_arguments(),
+        ) == row.requirement_lifetime_partition
+        {
+            Ok(())
+        } else {
+            Err(diagnostics::Diagnostic::error(format!(
+                "ProviderPlan `{}` row `{}` requirement lifetime partition differs from its exact named application",
+                plan.name,
+                plan.identities.text(row.requirement_identity),
+            )))
+        };
+    }
     let mut matching = Vec::new();
     for conformance in typed.machine_trait_conformances(realization) {
         let Some(checked_trees::typed_trees::machine::SatisfiedDeclaration::Trait {

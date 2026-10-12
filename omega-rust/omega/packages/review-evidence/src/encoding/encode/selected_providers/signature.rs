@@ -14,6 +14,16 @@ pub(super) fn signature(
         encoder.u32(signature.schema_lifetime_parameter_count);
         Ok(())
     })?;
+    encoder.field("schema_lifetime_arguments", |encoder| {
+        encoder.sequence(&signature.schema_lifetime_arguments, |encoder, ordinal| {
+            encoder.u32(*ordinal);
+            Ok(())
+        })
+    })?;
+    encoder.field("application_lifetime_parameter_count", |encoder| {
+        encoder.u32(signature.application_lifetime_parameter_count);
+        Ok(())
+    })?;
     encoder.field("requirement_arguments", |encoder| {
         encoder.sequence(&signature.requirement_arguments, encode_type_identity)
     })?;

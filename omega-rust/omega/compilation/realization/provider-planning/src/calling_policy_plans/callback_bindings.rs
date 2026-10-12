@@ -41,6 +41,9 @@ pub struct SelectedCallbackPlacement {
 pub struct BoundaryCallingPlanRealization {
     pub boundary_trait: symbols::SymbolHandle,
     pub boundary_arguments: Vec<TypeReferenceHandle>,
+    /// Supplying declaration for lifetime-bearing type operands. An argument
+    /// handle alone does not place its regions in the boundary trait's scope.
+    pub(crate) argument_owner: symbols::SymbolHandle,
     pub requirement_machine: symbols::SymbolHandle,
     /// Compact compatibility/report coordinate for the complete target-closed
     /// application. Exact plan and materialized-signature custody below remain
@@ -66,6 +69,10 @@ pub struct BoundaryCallingPlanRealization {
 }
 
 impl BoundaryCallingPlanRealization {
+    pub const fn argument_owner(&self) -> symbols::SymbolHandle {
+        self.argument_owner
+    }
+
     /// The named layout catalog and ABI signature are published together.
     /// Callers may inspect them but cannot substitute an unhashed catalog.
     pub const fn materialized_signature(&self) -> &MaterializedBoundarySignature {

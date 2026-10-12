@@ -26,6 +26,7 @@ pub(super) fn project(
         };
     };
     let arguments = boundary_arguments(compilation, schema, provider_type)?;
+    let argument_owner = argument_owner(compilation, schema_symbol, provider_type)?;
     let candidates = compilation
         .custody
         .providers()
@@ -35,6 +36,7 @@ pub(super) fn project(
             candidate.boundary_trait == schema_symbol
                 && candidate.requirement_machine == requirement
                 && candidate.boundary_arguments == arguments
+                && candidate.argument_owner() == argument_owner
         })
         .collect::<Vec<_>>();
     if candidates.is_empty()
@@ -83,4 +85,24 @@ pub(super) fn boundary_arguments<'a>(
         return Err(rejected("provider has ambiguous exact boundary arguments"));
     }
     Ok(arguments)
+}
+
+/// The ABI producer retains generic operands under their supplying conformance.
+/// A nongeneric boundary has no supplied type operands and uses its declaration.
+pub(super) fn argument_owner(
+    compilation: &PackageReviewInput<'_>,
+    schema: SymbolHandle,
+    provider: Option<SymbolHandle>,
+) -> Result<SymbolHandle, Vec<Diagnostic>> {
+    let definition = compilation
+        .trait_definition_by_symbol(schema)
+        .ok_or_else(|| rejected("calling application has no exact boundary declaration"))?;
+    if compilation.trait_type_parameters(definition).is_empty() {
+        return Ok(schema);
+    }
+    let conformance = provider
+        .and_then(|symbol| compilation.conformance_by_symbol(symbol))
+        .filter(|conformance| conformance.trait_symbol == schema)
+        .ok_or_else(|| rejected("calling application has no exact supplying conformance"))?;
+    Ok(conformance.symbol)
 }

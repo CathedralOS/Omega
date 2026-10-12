@@ -5659,7 +5659,7 @@ pass/providers/component_owner_provider_override_compile checked 11504ms check-t
 pass/providers/direct_boundary_array_snapshot_exit checked 12346ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/external_boundary_requirement_via_exit checked 11623ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/external_leaf_dllimport_compile checked 11105ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/providers/finite_requirement_boolean_const_exit checked 11544ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/providers/finite_requirement_boolean_const_exit checked 5400ms check-target:macos_arm64 @c03720bf6cb3
 pass/providers/finite_requirement_correlated_tuple_exit checked 10899ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/finite_requirement_direct_provider_exit checked 10756ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/finite_requirement_forwarded_const_exit checked 11209ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6384,3 +6384,4 @@ fail/dependent/case_where_zero_payload_requires_establishment rejected 150ms exp
 fail/dependent/case_where_zero_wide_arithmetic_not_saturated rejected 148ms expected @2b888a3f0e32
 	construction of `Context` omits gated field `choice`: its zero-filled representation is not an established value -- initialize it explicitly
 pass/dependent/zero_case_predicate_entry_exit checked 5863ms check-target:macos_arm64 @2b888a3f0e32
+pass/providers/calling_application_region_scopes_exit checked 5401ms check-target:macos_arm64 @c03720bf6cb3

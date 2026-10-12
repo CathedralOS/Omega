@@ -1808,8 +1808,12 @@ defines the complete product bar.
   - Selected-use joins beyond IEEE/integer comparisons: structural telescopes
     and call carriers need exact operand mapping and provider commitment;
     other intrinsic spellings and structural signatures still hit the custody
-    gate's refusals; float ordering, generic and structural-formal routes need
-    portable predicates and execution, keeping the original guard.
+    gate's refusals; float ordering and remaining generic/structural-formal
+    routes need portable predicates and execution, keeping the original guard.
+    Preserve authored public ceilings independently of executable applications;
+    `pass/providers/finite_requirement_boolean_const_exit` and
+    `pass/providers/calling_application_region_scopes_exit` constrain package
+    review across constant arguments and separate supplying/method regions.
   - Executed outcomes: actual outcome, substituted guards, abandoned claims,
     staged writeback and no-result/no-cleanup behavior must execute correctly
     in both engines, not only be retained as crash rows.

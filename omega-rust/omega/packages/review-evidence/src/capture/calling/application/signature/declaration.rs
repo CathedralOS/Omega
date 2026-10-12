@@ -109,6 +109,7 @@ pub(crate) fn project_declaration(
         projected,
         symbol,
         &arguments,
+        symbol,
         requirement,
         &binders,
     )

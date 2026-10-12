@@ -7,11 +7,63 @@ use typed_trees::TypedTrees;
 use typed_trees::name::Identifier;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
+/// Instantiate declaration-local names after their telescope has been fixed.
 pub(super) fn instantiate(
     compilation: &mut TypedTrees,
     reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     lifetimes: &[(Identifier, Identifier)],
+    depth: usize,
+) -> Result<TypeReferenceHandle, Vec<Diagnostic>> {
+    project(
+        compilation,
+        reference,
+        substitutions,
+        LifetimeProjection::Names(lifetimes),
+        depth,
+    )
+}
+
+/// Normalize supplied operands by their original declaration and ordinal before
+/// they enter the receiving trait's telescope. Scratch cannot authenticate the
+/// owner: it deliberately lacks the original conformance and machine tables.
+pub(super) fn instantiate_application(
+    compilation: &mut TypedTrees,
+    source: &TypedTrees,
+    reference: TypeReferenceHandle,
+    owner: SymbolHandle,
+    binders: &[Identifier],
+) -> Result<TypeReferenceHandle, Vec<Diagnostic>> {
+    project(
+        compilation,
+        reference,
+        &[],
+        LifetimeProjection::Application {
+            source,
+            supplying_owner: owner,
+            lexical_owner: owner,
+            binders,
+        },
+        0,
+    )
+}
+
+#[derive(Clone, Copy)]
+enum LifetimeProjection<'a> {
+    Names(&'a [(Identifier, Identifier)]),
+    Application {
+        source: &'a TypedTrees,
+        supplying_owner: SymbolHandle,
+        lexical_owner: SymbolHandle,
+        binders: &'a [Identifier],
+    },
+}
+
+fn project(
+    compilation: &mut TypedTrees,
+    reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    mut lifetimes: LifetimeProjection<'_>,
     depth: usize,
 ) -> Result<TypeReferenceHandle, Vec<Diagnostic>> {
     if !reference.is_valid() {
@@ -22,12 +74,41 @@ pub(super) fn instantiate(
             "calling signature type exceeds the projection depth limit",
         ));
     }
+    if let LifetimeProjection::Application {
+        source,
+        lexical_owner,
+        ..
+    } = &mut lifetimes
+    {
+        let retained = source
+            .type_reference_table
+            .operand_lifetime_owner(reference);
+        if retained.is_valid() {
+            *lexical_owner = retained;
+        }
+    }
     let lifetime = |name: &Identifier| {
-        lifetimes
-            .iter()
-            .find(|(source, _)| source == name)
-            .map(|(_, target)| target.clone())
-            .ok_or_else(|| rejected("calling signature has an unbound lifetime"))
+        match lifetimes {
+            LifetimeProjection::Names(names) => names
+                .iter()
+                .find(|(source, _)| source == name)
+                .map(|(_, target)| target.clone()),
+            LifetimeProjection::Application {
+                source,
+                supplying_owner,
+                lexical_owner,
+                binders,
+            } => typed_trees::type_identity::lifetime_parameter_identity(
+                source,
+                lexical_owner,
+                name.as_str(),
+            )
+            .filter(|identity| identity.declaration == supplying_owner)
+            .and_then(|identity| binders.get(identity.ordinal).cloned()),
+        }
+        .ok_or_else(|| {
+            rejected("calling signature has an unbound lifetime in its supplying declaration")
+        })
     };
     let node = match compilation.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Named { symbol, name: _ } => {
@@ -54,7 +135,7 @@ pub(super) fn instantiate(
                     .ok_or_else(|| rejected("plan-laid signature type lost its exact schema"))?;
                 let schema_reference = match schema.2 {
                     Some(reference) => {
-                        instantiate(compilation, reference, substitutions, lifetimes, depth + 1)?
+                        project(compilation, reference, substitutions, lifetimes, depth + 1)?
                     }
                     None => compilation
                         .type_reference_table
@@ -84,7 +165,7 @@ pub(super) fn instantiate(
         } => {
             let (referee, access, region) = (*referee, *access, region.clone());
             TypeReferenceNode::Reference {
-                referee: instantiate(compilation, referee, substitutions, lifetimes, depth + 1)?,
+                referee: project(compilation, referee, substitutions, lifetimes, depth + 1)?,
                 access,
                 lifetime: region.as_ref().map(&lifetime).transpose()?,
             }
@@ -94,8 +175,7 @@ pub(super) fn instantiate(
             constraints,
         } => {
             let (base_type, constraints) = (*base_type, *constraints);
-            let base_type =
-                instantiate(compilation, base_type, substitutions, lifetimes, depth + 1)?;
+            let base_type = project(compilation, base_type, substitutions, lifetimes, depth + 1)?;
             let mut constraints = compilation
                 .type_reference_table
                 .constraints(constraints)
@@ -103,13 +183,8 @@ pub(super) fn instantiate(
             for constraint in &mut constraints {
                 if let TypeConstraintNode::Domain(domain) = constraint {
                     for argument in &mut domain.arguments {
-                        *argument = instantiate(
-                            compilation,
-                            *argument,
-                            substitutions,
-                            lifetimes,
-                            depth + 1,
-                        )?;
+                        *argument =
+                            project(compilation, *argument, substitutions, lifetimes, depth + 1)?;
                     }
                 }
             }
@@ -127,7 +202,7 @@ pub(super) fn instantiate(
         } => {
             let (element_type, length) = (*element_type, length.clone());
             TypeReferenceNode::FixedArray {
-                element_type: instantiate(
+                element_type: project(
                     compilation,
                     element_type,
                     substitutions,
@@ -140,7 +215,7 @@ pub(super) fn instantiate(
         TypeReferenceNode::Slice { element_type } => {
             let element_type = *element_type;
             TypeReferenceNode::Slice {
-                element_type: instantiate(
+                element_type: project(
                     compilation,
                     element_type,
                     substitutions,
@@ -165,8 +240,7 @@ pub(super) fn instantiate(
                 .type_reference_handles(arguments)
                 .to_vec();
             for argument in &mut arguments {
-                *argument =
-                    instantiate(compilation, *argument, substitutions, lifetimes, depth + 1)?;
+                *argument = project(compilation, *argument, substitutions, lifetimes, depth + 1)?;
             }
             let arguments = compilation
                 .type_reference_table

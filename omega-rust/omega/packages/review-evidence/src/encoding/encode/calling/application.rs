@@ -36,6 +36,19 @@ pub(crate) fn encode_application(
         encoder.u32(application.boundary_lifetime_parameter_count);
         Ok(())
     })?;
+    encoder.field("boundary_lifetime_arguments", |encoder| {
+        encoder.sequence(
+            &application.boundary_lifetime_arguments,
+            |encoder, ordinal| {
+                encoder.u32(*ordinal);
+                Ok(())
+            },
+        )
+    })?;
+    encoder.field("application_lifetime_parameter_count", |encoder| {
+        encoder.u32(application.application_lifetime_parameter_count);
+        Ok(())
+    })?;
     encoder.field("requirement", |encoder| {
         encode_nominal(encoder, &application.requirement)
     })?;

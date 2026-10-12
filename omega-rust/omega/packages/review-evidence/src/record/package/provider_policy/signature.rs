@@ -8,6 +8,8 @@ use crate::record::{
 pub struct PackagePolicyServiceSignature {
     pub(crate) schema_arguments: Vec<PackageReviewTypeIdentity>,
     pub(crate) schema_lifetime_parameter_count: u32,
+    pub(crate) schema_lifetime_arguments: Vec<u32>,
+    pub(crate) application_lifetime_parameter_count: u32,
     pub(crate) requirement_arguments: Vec<PackageReviewTypeIdentity>,
     pub(crate) requirement_lifetime_arguments: Vec<u32>,
     pub(crate) requirement_lifetime_parameter_count: u32,
@@ -31,16 +33,25 @@ impl PackagePolicyServiceSignature {
 impl super::PackagePolicyServiceMethod {
     pub(super) fn validate_signature(&self) -> Result<(), &'static str> {
         let signature = &self.signature;
+        let application_scope = signature
+            .schema_lifetime_parameter_count
+            .checked_add(signature.application_lifetime_parameter_count)
+            .ok_or("provider signature lifetime telescope overflows")?;
+        let lifetime_count = application_scope
+            .checked_add(signature.requirement_lifetime_parameter_count)
+            .ok_or("provider signature lifetime telescope overflows")?;
         if signature.parameters.len() != self.parameter_count
             || signature.result.is_some() != self.has_result
+            || signature.schema_lifetime_arguments.len()
+                != signature.schema_lifetime_parameter_count as usize
             || signature
-                .schema_lifetime_parameter_count
-                .checked_add(signature.requirement_lifetime_parameter_count)
-                .is_none()
+                .schema_lifetime_arguments
+                .iter()
+                .any(|ordinal| *ordinal >= application_scope)
             || signature
                 .requirement_lifetime_arguments
                 .iter()
-                .any(|ordinal| *ordinal >= signature.schema_lifetime_parameter_count)
+                .any(|ordinal| *ordinal >= application_scope)
             || signature.parameters.iter().any(|parameter| {
                 parameter.name.is_empty() || parameter.type_identity.canonical.is_empty()
             })
@@ -59,8 +70,7 @@ impl super::PackagePolicyServiceMethod {
             policy_statics: &signature.static_parameters,
             proposition_binders: &[],
             static_offset: 0,
-            lifetimes: signature.schema_lifetime_parameter_count as usize
-                + signature.requirement_lifetime_parameter_count as usize,
+            lifetimes: lifetime_count as usize,
             parameters: signature.parameters.len(),
             result: signature.result.is_some(),
             domain_subject: false,
@@ -70,6 +80,9 @@ impl super::PackagePolicyServiceMethod {
             && (signature.schema_arguments != calling.boundary_arguments
                 || signature.schema_lifetime_parameter_count
                     != calling.boundary_lifetime_parameter_count
+                || signature.schema_lifetime_arguments != calling.boundary_lifetime_arguments
+                || signature.application_lifetime_parameter_count
+                    != calling.application_lifetime_parameter_count
                 || signature.requirement_arguments != calling.requirement_arguments
                 || signature.requirement_lifetime_arguments
                     != calling.requirement_lifetime_arguments

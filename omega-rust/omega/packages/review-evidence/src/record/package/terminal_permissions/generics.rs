@@ -18,6 +18,13 @@ pub(super) fn validate(service: &PackagePolicyTerminalService) -> Result<(), &'s
     crate::record::public_policy::validation::signatures::parameters(&scope, 0)?;
     for method in &service.methods {
         if method.signature.schema_lifetime_parameter_count != service.lifetime_parameter_count
+            || method.signature.application_lifetime_parameter_count != 0
+            || method
+                .signature
+                .schema_lifetime_arguments
+                .iter()
+                .copied()
+                .ne(0..service.lifetime_parameter_count)
             || method.signature.schema_arguments.len() != service.static_parameters.len()
             || (!service.static_parameters.is_empty() && method.calling.is_some())
             || method

@@ -8,6 +8,8 @@ pub(in crate::encoding::recovery) fn signature(
     Ok(PackagePolicyServiceSignature {
         schema_arguments: reader.sequence(8, type_identity)?,
         schema_lifetime_parameter_count: reader.u32()?,
+        schema_lifetime_arguments: reader.sequence(4, |reader| reader.u32())?,
+        application_lifetime_parameter_count: reader.u32()?,
         requirement_arguments: reader.sequence(8, type_identity)?,
         requirement_lifetime_arguments: reader.sequence(4, Reader::u32)?,
         requirement_lifetime_parameter_count: reader.u32()?,

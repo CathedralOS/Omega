@@ -30,6 +30,8 @@ pub(in crate::encoding::recovery) fn application(
         boundary_trait: nominal(reader)?,
         boundary_arguments: reader.sequence(8, type_identity)?,
         boundary_lifetime_parameter_count: reader.u32()?,
+        boundary_lifetime_arguments: reader.sequence(4, |reader| reader.u32())?,
+        application_lifetime_parameter_count: reader.u32()?,
         requirement: nominal(reader)?,
         requirement_trait: nominal(reader)?,
         requirement_arguments: reader.sequence(8, type_identity)?,

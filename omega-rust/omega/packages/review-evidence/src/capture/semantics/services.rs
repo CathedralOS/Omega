@@ -95,7 +95,24 @@ fn project_inner(
         &method.name,
         "requirement owner",
     )?;
-    let calling = calling::project(compilation, schema, provider_type, requirement, method)?;
+    let generic_declaration = declaration_mode
+        && compilation
+            .trait_definition_by_symbol(schema.symbol())
+            .is_some_and(|owner| !compilation.trait_type_parameters(owner).is_empty());
+    let calling = if generic_declaration {
+        // A declaration publishes its open telescope. It has no supplying
+        // conformance and cannot borrow a concrete application's calling plan.
+        if method.calling_plan_report_fingerprint.is_some()
+            || method.calling_plan_commitment.is_some()
+        {
+            return Err(rejected(
+                "uninstantiated generic service carries a closed calling application",
+            ));
+        }
+        None
+    } else {
+        calling::project(compilation, schema, provider_type, requirement, method)?
+    };
     let signature = if declaration_mode {
         signature::project_declaration(
             compilation,

@@ -27,7 +27,12 @@ promises. The complete calling component joins that physical part to the exact
 boundary-trait application, declaring requirement application and lifetime
 telescopes, semantic parameter/result types, and ordered native parameter names
 and origins. An inherited requirement retains its declaring trait separately
-from the trait selecting its calling policy. Nested static contracts retain
+from the trait selecting its calling policy. Supplied type operands retain the
+regions of their exact supplying conformance, before the requirement's own
+binders. Explicit trait lifetime arguments use those same coordinates, so two
+root arguments can denote one supplied region without merging a method binder.
+Open declarations have no supplying telescope and retain their authored crash
+ceilings independently of executable applications. Nested static contracts retain
 lexical lifetime scopes even when an inner binder shadows an outer name;
 expression projection maps those scopes without rewriting checked proof or
 expression handles. Callback rows retain exact static

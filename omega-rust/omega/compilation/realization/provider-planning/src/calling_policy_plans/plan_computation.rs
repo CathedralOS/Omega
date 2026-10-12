@@ -14,7 +14,7 @@ use crate::calling_policy_plans::callback_bindings::{
     callback_materialization_context, validate_retained_callback_binders,
 };
 use crate::calling_policy_plans::policy_implementations::{
-    boundary_policy_instances, selected_policy_machine,
+    BoundaryPolicyInstance, boundary_policy_instances, selected_policy_machine,
 };
 use crate::calling_policy_plans::{
     BoundaryCallingPlanRealization, BoundaryNativeParameterOrigin, BoundaryNativeParameterShape,
@@ -211,7 +211,12 @@ pub fn compute_boundary_calling_plans(
                     .with_source_span(relationship_span),
                 ]
             })?;
-        for (boundary_arguments, policy_argument) in instances {
+        for BoundaryPolicyInstance {
+            arguments: boundary_arguments,
+            argument_owner,
+            policy_argument,
+        } in instances
+        {
             let policy_machine = selected_policy_machine(
                 typed,
                 boundary,
@@ -258,6 +263,7 @@ pub fn compute_boundary_calling_plans(
                 pending.push((
                     boundary.symbol,
                     boundary_arguments.clone(),
+                    argument_owner,
                     signature.symbol,
                     policy_machine.name.as_str().to_owned(),
                     policy_machine.symbol,
@@ -282,6 +288,7 @@ pub fn compute_boundary_calling_plans(
     for (
         boundary_trait,
         boundary_arguments,
+        argument_owner,
         requirement_machine,
         policy_machine,
         policy_symbol,
@@ -310,6 +317,7 @@ pub fn compute_boundary_calling_plans(
         evaluated.push(BoundaryCallingPlanRealization {
             boundary_trait,
             boundary_arguments,
+            argument_owner,
             requirement_machine,
             report_fingerprint: application_report_fingerprint,
             commitment: effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(

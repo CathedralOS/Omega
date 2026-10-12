@@ -9,14 +9,16 @@ use super::{PackagePolicyCallingPlan, PackagePolicyNativeParameterOrigin};
 impl PackagePolicyCallingPlan {
     pub(crate) fn validate_canonical_structure(&self) -> Result<(), &'static str> {
         target::validate(self.target)?;
+        let application_scope = self
+            .boundary_lifetime_parameter_count
+            .checked_add(self.application_lifetime_parameter_count)
+            .ok_or("calling lifetime telescope overflows")?;
+        let lifetime_count = application_scope
+            .checked_add(self.requirement_lifetime_parameter_count)
+            .ok_or("calling lifetime telescope overflows")?;
         let scope = crate::record::public_policy::validation::scope(
             &self.static_parameters,
-            usize::try_from(self.boundary_lifetime_parameter_count)
-                .ok()
-                .and_then(|root| {
-                    root.checked_add(self.requirement_lifetime_parameter_count as usize)
-                })
-                .ok_or("calling lifetime telescope overflows")?,
+            lifetime_count as usize,
         );
         crate::record::public_policy::validation::signatures::parameters(&scope, 0)?;
         validate_nominal(&self.boundary_trait)?;
@@ -25,15 +27,16 @@ impl PackagePolicyCallingPlan {
         if self.native_parameters.len() > 256 || self.semantic_parameters.len() > 256 {
             return Err("calling parameter catalog exceeds normalized capacity");
         }
-        if self.requirement.owner != self.requirement_trait.owner
+        if self.boundary_lifetime_arguments.len() != self.boundary_lifetime_parameter_count as usize
+            || self
+                .boundary_lifetime_arguments
+                .iter()
+                .any(|ordinal| *ordinal >= application_scope)
+            || self.requirement.owner != self.requirement_trait.owner
             || self
                 .requirement_lifetime_arguments
                 .iter()
-                .any(|ordinal| *ordinal >= self.boundary_lifetime_parameter_count)
-            || self
-                .boundary_lifetime_parameter_count
-                .checked_add(self.requirement_lifetime_parameter_count)
-                .is_none()
+                .any(|ordinal| *ordinal >= application_scope)
         {
             return Err("calling requirement owner or lifetime application is inconsistent");
         }
@@ -126,7 +129,8 @@ fn validate_application_lifetimes(
 ) -> Result<(), &'static str> {
     let count = policy
         .boundary_lifetime_parameter_count
-        .checked_add(policy.requirement_lifetime_parameter_count)
+        .checked_add(policy.application_lifetime_parameter_count)
+        .and_then(|count| count.checked_add(policy.requirement_lifetime_parameter_count))
         .ok_or("calling lifetime telescope overflows")?;
     if application
         .lifetime_arguments

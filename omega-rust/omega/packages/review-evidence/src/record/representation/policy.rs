@@ -101,17 +101,28 @@ impl PackagePolicyRepresentationSelection {
 
 impl PackagePolicyRepresentationDemand {
     pub(crate) fn compare_application(&self, other: &Self) -> std::cmp::Ordering {
+        self.compare_calling_application(other)
+            .then_with(|| self.opaque.cmp(&other.opaque))
+    }
+
+    // Supplying scopes distinguish applications even when their type operands
+    // coincide. Grouping and ordering must preserve the same semantic key.
+    fn compare_calling_application(&self, other: &Self) -> std::cmp::Ordering {
         (
             &self.calling.boundary_trait,
             &self.calling.boundary_arguments,
+            self.calling.boundary_lifetime_parameter_count,
+            &self.calling.boundary_lifetime_arguments,
+            self.calling.application_lifetime_parameter_count,
             &self.calling.requirement,
-            &self.opaque,
         )
             .cmp(&(
                 &other.calling.boundary_trait,
                 &other.calling.boundary_arguments,
+                other.calling.boundary_lifetime_parameter_count,
+                &other.calling.boundary_lifetime_arguments,
+                other.calling.application_lifetime_parameter_count,
                 &other.calling.requirement,
-                &other.opaque,
             ))
     }
 
