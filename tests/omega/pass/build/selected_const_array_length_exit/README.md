@@ -1,7 +1,9 @@
 # Selected constants in Build
 
 Build uses computed array lengths whose helpers invoke selected floating-point
-operators and an ordinary checked named requirement. Its own provider context
+operators and an ordinary checked named requirement. The one-member boundary
+trait uses an explicitly selected named implementation; the data namespace
+containing the body is not a provider. Its own provider context
 must settle those constants, then the evaluated Build program must be checked
 before execution. A computed generic argument also creates a concrete data
 instance whose identity must survive deferred Product-body completion.
