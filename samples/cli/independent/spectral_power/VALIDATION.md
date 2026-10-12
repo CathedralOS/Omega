@@ -43,6 +43,21 @@ Clippy hit an existing `useless_conversion` at
 `omega-rust/psi/foundation/optimization-selections/src/optimization_selections.rs:152`;
 that source is unchanged by this work.
 
+Before landing, integration on `cf249b8954d` was qualified with compiler and
+capture harness rebuilt from `251a03a39b4`. Native and Terminal again passed
+all 15 positive fixtures and 21 invalid controls against the unchanged frozen
+oracles. Both trigonometric corpus fixtures executed successfully (endpoint
+0 / 0; interior 70 / 70), and complete std checking compiled all 76 files.
+Actual stdout/status, producer identity, binary and source hashes are retained
+under `resumed` in `evidence.json`. All 73 landing-tool tests also passed.
+
+When main subsequently added float-contract/custody changes, integration on
+`66ad153cb23` was rebuilt from `d0e1c0faa2b` and requalified. All 15 positive
+fixtures and 21 invalid controls again passed each engine independently;
+complete std checking compiled 76 files and both trigonometric corpus fixtures
+retained their authored exits. These actual captures and input/binary hashes
+are under `final_integrated` in `evidence.json`.
+
 The package proposal was inspected before acceptance: root permissions were
 exactly Console input, output and process termination; no build-host requests
 or root filesystem permission were added. Source-risk acceptance was kept

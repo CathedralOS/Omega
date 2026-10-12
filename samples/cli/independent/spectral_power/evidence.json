@@ -1448,5 +1448,1181 @@
         }
       }
     ]
+  },
+  "resumed": {
+    "qualification_base": "cf249b8954d60f0badc9f75d7972c5f57dd58893",
+    "compiler_producer": "251a03a39b40b29023a60b5e7299cf2eb4ef7d1d",
+    "source_note": "Runtime and oracle sources equal the recorded producer; README stdin path was corrected during qualification. This evidence addition changes no executed source.",
+    "binary_sha256": {
+      "omega": "321282f62f739d965b7585c5420d2cec9de48aad2e36e51aa26bab446ccd47c4",
+      "capture_harness": "d2271fe1a3f5d4594ee5814e451fcabafc421a4babf0b3d127c4dbcd0cdaf548",
+      "native_image": "a4ed305bd635046df167811368949b109ddddc556256c714be4e2bd233644b87"
+    },
+    "source_sha256": {
+      "samples/cli/independent/spectral_power/main.omg": "c6a19cb39d58fb77473093081f3eaf33c935d54bbaa7366dd7cb092a7e9a3f8f",
+      "samples/cli/independent/spectral_power/build.omg": "566ba101229e9372d1f9796cc0ecc7c443e8eed9b48afcd3b676a267d39d5f77",
+      "samples/cli/independent/spectral_power/domain/input.omg": "688fc3a24c4af3bfded512180746ac5f32f034e3ac11fb609253e382ce617bec",
+      "samples/cli/independent/spectral_power/domain/report.omg": "288c1083ad47e412e5b10c17c2253bf50fdcf12c743370a9ef08772de6aa26ff",
+      "samples/cli/independent/spectral_power/fixtures.json": "18e0c9f34d5f6c4ba7468662e4371a2392a8f52cc04a22650b6c6e492017afb7",
+      "samples/cli/independent/spectral_power/validate.py": "1020c2f08596f56dbce8e91f1409135dee1fbbe1efe7e68f5ae66d61a64313f6",
+      "samples/cli/independent/spectral_power/validation/src/main.rs": "918ae8854f4cf729a5a1fd190107351845a5827bb65cbf85cc430f2774043fe3",
+      "source/library/std/math.omg": "e771ddd3aba409d67eeaa04e6b686a845f2385b97241516189c64480b37d7f11",
+      "Cargo.toml": "77c980f259839aacb294f0a48bc09ed7235f28f936dd7520a013c86524bfe2cb",
+      "Cargo.lock": "c63908de65373bec3b80d146e22b52c47ba71710d323f087d81c00ee08046c87"
+    },
+    "whole_std_check": "compiled 76 source file(s) from /workspace/sci05/source/library/std/main.omg; wrote_output=false\n",
+    "corpus_both": {
+      "schema": "omega-corpus-verdict-v1",
+      "revision": "251a03a39b40b29023a60b5e7299cf2eb4ef7d1d",
+      "dirty": true,
+      "leg": "both",
+      "target": "linux_x86_64",
+      "golden": "tests/omega/corpus_both_linux_x86_64.txt",
+      "subset": true,
+      "filter": "runtime_std_trigonometric_endpoints,runtime_std_math_sin_cos_exit",
+      "shard": null,
+      "verdict": "clean",
+      "exit_code": 0,
+      "counts": {
+        "fixtures": 2,
+        "by_status": {
+          "built": 2
+        },
+        "wrong_reason": 0,
+        "wrong_reason_fixtures": [],
+        "fail_not_rejected": 0,
+        "fail_not_rejected_fixtures": [],
+        "lost_successes": 0,
+        "lost_success_fixtures": [],
+        "pinned_off_target": 0,
+        "pinned_off_target_fixtures": [],
+        "by_verdict": {}
+      },
+      "oracle_failures": [],
+      "infrastructure_error": null,
+      "golden_provenance": {
+        "stamped": 2,
+        "legacy": 0,
+        "unknown_revisions": 0,
+        "oldest": {
+          "revision": "5c5bb7a1c2c2",
+          "commits_behind": 30
+        }
+      },
+      "perf_context": {
+        "golden": {
+          "cpus": 5,
+          "jobs": "2",
+          "load1_end": 0.8,
+          "load1_start": 0.4,
+          "machine": "x86_64",
+          "platform": "linux",
+          "schema": "omega-corpus-context-v1"
+        },
+        "current": {
+          "schema": "omega-corpus-context-v1",
+          "jobs": null,
+          "cpus": 5,
+          "platform": "linux",
+          "machine": "x86_64",
+          "load1_start": 3.38,
+          "load1_end": 4.03
+        },
+        "warnings": []
+      },
+      "observations": [
+        {
+          "fixture": "pass/calls/runtime_std_math_sin_cos_exit",
+          "tier": "pass",
+          "status": "built",
+          "millis": 36830,
+          "expected_satisfied": null,
+          "facts": {
+            "exit": "70",
+            "interpreter-exit": "70",
+            "interpreter": "agrees"
+          },
+          "diagnostics": [],
+          "regressed_from": null,
+          "recorded_at": null
+        },
+        {
+          "fixture": "pass/float/runtime_std_trigonometric_endpoints",
+          "tier": "pass",
+          "status": "built",
+          "millis": 32641,
+          "expected_satisfied": null,
+          "facts": {
+            "exit": "0",
+            "interpreter-exit": "0",
+            "interpreter": "agrees"
+          },
+          "diagnostics": [],
+          "regressed_from": null,
+          "recorded_at": null
+        }
+      ],
+      "fixtures": []
+    },
+    "valid": [
+      {
+        "name": "tone8",
+        "native": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=16000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=125000000\nfrequency_microhz=48000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "0"
+        },
+        "terminal": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=16000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=125000000\nfrequency_microhz=48000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(36), edge: EdgeId(386), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 0, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "tone16",
+        "native": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=8000000\ndensity_nano=0\nfrequency_microhz=16000000\ndensity_nano=249962248\nfrequency_microhz=24000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=0\nfrequency_microhz=40000000\ndensity_nano=0\nfrequency_microhz=48000000\ndensity_nano=1\nfrequency_microhz=56000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "0"
+        },
+        "terminal": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=8000000\ndensity_nano=0\nfrequency_microhz=16000000\ndensity_nano=249962248\nfrequency_microhz=24000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=0\nfrequency_microhz=40000000\ndensity_nano=0\nfrequency_microhz=48000000\ndensity_nano=1\nfrequency_microhz=56000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(36), edge: EdgeId(386), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 0, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "tone32",
+        "native": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=4000000\ndensity_nano=0\nfrequency_microhz=8000000\ndensity_nano=499982797\nfrequency_microhz=12000000\ndensity_nano=0\nfrequency_microhz=16000000\ndensity_nano=0\nfrequency_microhz=20000000\ndensity_nano=0\nfrequency_microhz=24000000\ndensity_nano=10\nfrequency_microhz=28000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=0\nfrequency_microhz=36000000\ndensity_nano=0\nfrequency_microhz=40000000\ndensity_nano=2\nfrequency_microhz=44000000\ndensity_nano=0\nfrequency_microhz=48000000\ndensity_nano=0\nfrequency_microhz=52000000\ndensity_nano=0\nfrequency_microhz=56000000\ndensity_nano=1\nfrequency_microhz=60000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "0"
+        },
+        "terminal": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=4000000\ndensity_nano=0\nfrequency_microhz=8000000\ndensity_nano=499982797\nfrequency_microhz=12000000\ndensity_nano=0\nfrequency_microhz=16000000\ndensity_nano=0\nfrequency_microhz=20000000\ndensity_nano=0\nfrequency_microhz=24000000\ndensity_nano=10\nfrequency_microhz=28000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=0\nfrequency_microhz=36000000\ndensity_nano=0\nfrequency_microhz=40000000\ndensity_nano=2\nfrequency_microhz=44000000\ndensity_nano=0\nfrequency_microhz=48000000\ndensity_nano=0\nfrequency_microhz=52000000\ndensity_nano=0\nfrequency_microhz=56000000\ndensity_nano=1\nfrequency_microhz=60000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(36), edge: EdgeId(386), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 0, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "tone64",
+        "native": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=2000000\ndensity_nano=0\nfrequency_microhz=4000000\ndensity_nano=1000072408\nfrequency_microhz=6000000\ndensity_nano=0\nfrequency_microhz=8000000\ndensity_nano=0\nfrequency_microhz=10000000\ndensity_nano=0\nfrequency_microhz=12000000\ndensity_nano=21\nfrequency_microhz=14000000\ndensity_nano=0\nfrequency_microhz=16000000\ndensity_nano=0\nfrequency_microhz=18000000\ndensity_nano=0\nfrequency_microhz=20000000\ndensity_nano=1\nfrequency_microhz=22000000\ndensity_nano=0\nfrequency_microhz=24000000\ndensity_nano=0\nfrequency_microhz=26000000\ndensity_nano=0\nfrequency_microhz=28000000\ndensity_nano=0\nfrequency_microhz=30000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=0\nfrequency_microhz=34000000\ndensity_nano=0\nfrequency_microhz=36000000\ndensity_nano=1\nfrequency_microhz=38000000\ndensity_nano=0\nfrequency_microhz=40000000\ndensity_nano=0\nfrequency_microhz=42000000\ndensity_nano=0\nfrequency_microhz=44000000\ndensity_nano=1\nfrequency_microhz=46000000\ndensity_nano=0\nfrequency_microhz=48000000\ndensity_nano=0\nfrequency_microhz=50000000\ndensity_nano=0\nfrequency_microhz=52000000\ndensity_nano=0\nfrequency_microhz=54000000\ndensity_nano=0\nfrequency_microhz=56000000\ndensity_nano=0\nfrequency_microhz=58000000\ndensity_nano=0\nfrequency_microhz=60000000\ndensity_nano=2\nfrequency_microhz=62000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "0"
+        },
+        "terminal": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=2000000\ndensity_nano=0\nfrequency_microhz=4000000\ndensity_nano=1000072408\nfrequency_microhz=6000000\ndensity_nano=0\nfrequency_microhz=8000000\ndensity_nano=0\nfrequency_microhz=10000000\ndensity_nano=0\nfrequency_microhz=12000000\ndensity_nano=21\nfrequency_microhz=14000000\ndensity_nano=0\nfrequency_microhz=16000000\ndensity_nano=0\nfrequency_microhz=18000000\ndensity_nano=0\nfrequency_microhz=20000000\ndensity_nano=1\nfrequency_microhz=22000000\ndensity_nano=0\nfrequency_microhz=24000000\ndensity_nano=0\nfrequency_microhz=26000000\ndensity_nano=0\nfrequency_microhz=28000000\ndensity_nano=0\nfrequency_microhz=30000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=0\nfrequency_microhz=34000000\ndensity_nano=0\nfrequency_microhz=36000000\ndensity_nano=1\nfrequency_microhz=38000000\ndensity_nano=0\nfrequency_microhz=40000000\ndensity_nano=0\nfrequency_microhz=42000000\ndensity_nano=0\nfrequency_microhz=44000000\ndensity_nano=1\nfrequency_microhz=46000000\ndensity_nano=0\nfrequency_microhz=48000000\ndensity_nano=0\nfrequency_microhz=50000000\ndensity_nano=0\nfrequency_microhz=52000000\ndensity_nano=0\nfrequency_microhz=54000000\ndensity_nano=0\nfrequency_microhz=56000000\ndensity_nano=0\nfrequency_microhz=58000000\ndensity_nano=0\nfrequency_microhz=60000000\ndensity_nano=2\nfrequency_microhz=62000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(36), edge: EdgeId(386), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 0, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "hann_overlap",
+        "native": {
+          "stdout": "segments=5\nfrequency_microhz=0\ndensity_nano=6696698\nfrequency_microhz=8000000\ndensity_nano=15680879\nfrequency_microhz=16000000\ndensity_nano=15782844\nfrequency_microhz=24000000\ndensity_nano=6991665\nfrequency_microhz=32000000\ndensity_nano=6276346\nfrequency_microhz=40000000\ndensity_nano=7944134\nfrequency_microhz=48000000\ndensity_nano=15782057\nfrequency_microhz=56000000\ndensity_nano=62833511\nfrequency_microhz=64000000\ndensity_nano=27708511\n",
+          "stderr": "",
+          "status": "0"
+        },
+        "terminal": {
+          "stdout": "segments=5\nfrequency_microhz=0\ndensity_nano=6696698\nfrequency_microhz=8000000\ndensity_nano=15680879\nfrequency_microhz=16000000\ndensity_nano=15782844\nfrequency_microhz=24000000\ndensity_nano=6991665\nfrequency_microhz=32000000\ndensity_nano=6276346\nfrequency_microhz=40000000\ndensity_nano=7944134\nfrequency_microhz=48000000\ndensity_nano=15782057\nfrequency_microhz=56000000\ndensity_nano=62833511\nfrequency_microhz=64000000\ndensity_nano=27708511\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(36), edge: EdgeId(386), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 0, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "sampling_scaled",
+        "native": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=62500000\nfrequency_microhz=96000000\ndensity_nano=0\nfrequency_microhz=128000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "0"
+        },
+        "terminal": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=62500000\nfrequency_microhz=96000000\ndensity_nano=0\nfrequency_microhz=128000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(36), edge: EdgeId(386), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 0, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "gain_scaled",
+        "native": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=16000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=500000000\nfrequency_microhz=48000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "0"
+        },
+        "terminal": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=16000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=500000000\nfrequency_microhz=48000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(36), edge: EdgeId(386), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 0, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "offset_cancel",
+        "native": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=16000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=0\nfrequency_microhz=48000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "0"
+        },
+        "terminal": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=16000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=0\nfrequency_microhz=48000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(36), edge: EdgeId(386), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 0, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "dc",
+        "native": {
+          "stdout": "segments=2\nfrequency_microhz=0\ndensity_nano=765625000\nfrequency_microhz=16000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=0\nfrequency_microhz=48000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "0"
+        },
+        "terminal": {
+          "stdout": "segments=2\nfrequency_microhz=0\ndensity_nano=765625000\nfrequency_microhz=16000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=0\nfrequency_microhz=48000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(36), edge: EdgeId(386), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 0, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "nyquist",
+        "native": {
+          "stdout": "segments=3\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=16000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=0\nfrequency_microhz=48000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=62500000\n",
+          "stderr": "",
+          "status": "0"
+        },
+        "terminal": {
+          "stdout": "segments=3\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=16000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=0\nfrequency_microhz=48000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=62500000\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(36), edge: EdgeId(386), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 0, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "maximum_overlap",
+        "native": {
+          "stdout": "segments=5\nfrequency_microhz=0\ndensity_nano=234375\nfrequency_microhz=16000000\ndensity_nano=308031\nfrequency_microhz=32000000\ndensity_nano=8936\nfrequency_microhz=48000000\ndensity_nano=2200904\nfrequency_microhz=64000000\ndensity_nano=4401041\n",
+          "stderr": "",
+          "status": "0"
+        },
+        "terminal": {
+          "stdout": "segments=5\nfrequency_microhz=0\ndensity_nano=234375\nfrequency_microhz=16000000\ndensity_nano=308031\nfrequency_microhz=32000000\ndensity_nano=8936\nfrequency_microhz=48000000\ndensity_nano=2200904\nfrequency_microhz=64000000\ndensity_nano=4401041\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(36), edge: EdgeId(386), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 0, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "large_frequency",
+        "native": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=64000\nfrequency_microhz=15625000000\ndensity_nano=0\nfrequency_microhz=31250000000\ndensity_nano=0\nfrequency_microhz=46875000000\ndensity_nano=0\nfrequency_microhz=62500000000\ndensity_nano=0\nfrequency_microhz=78125000000\ndensity_nano=0\nfrequency_microhz=93750000000\ndensity_nano=0\nfrequency_microhz=109375000000\ndensity_nano=0\nfrequency_microhz=125000000000\ndensity_nano=0\nfrequency_microhz=140625000000\ndensity_nano=0\nfrequency_microhz=156250000000\ndensity_nano=0\nfrequency_microhz=171875000000\ndensity_nano=0\nfrequency_microhz=187500000000\ndensity_nano=0\nfrequency_microhz=203125000000\ndensity_nano=0\nfrequency_microhz=218750000000\ndensity_nano=0\nfrequency_microhz=234375000000\ndensity_nano=0\nfrequency_microhz=250000000000\ndensity_nano=0\nfrequency_microhz=265625000000\ndensity_nano=0\nfrequency_microhz=281250000000\ndensity_nano=0\nfrequency_microhz=296875000000\ndensity_nano=0\nfrequency_microhz=312500000000\ndensity_nano=0\nfrequency_microhz=328125000000\ndensity_nano=0\nfrequency_microhz=343750000000\ndensity_nano=0\nfrequency_microhz=359375000000\ndensity_nano=0\nfrequency_microhz=375000000000\ndensity_nano=0\nfrequency_microhz=390625000000\ndensity_nano=0\nfrequency_microhz=406250000000\ndensity_nano=0\nfrequency_microhz=421875000000\ndensity_nano=0\nfrequency_microhz=437500000000\ndensity_nano=0\nfrequency_microhz=453125000000\ndensity_nano=0\nfrequency_microhz=468750000000\ndensity_nano=0\nfrequency_microhz=484375000000\ndensity_nano=0\nfrequency_microhz=500000000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "0"
+        },
+        "terminal": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=64000\nfrequency_microhz=15625000000\ndensity_nano=0\nfrequency_microhz=31250000000\ndensity_nano=0\nfrequency_microhz=46875000000\ndensity_nano=0\nfrequency_microhz=62500000000\ndensity_nano=0\nfrequency_microhz=78125000000\ndensity_nano=0\nfrequency_microhz=93750000000\ndensity_nano=0\nfrequency_microhz=109375000000\ndensity_nano=0\nfrequency_microhz=125000000000\ndensity_nano=0\nfrequency_microhz=140625000000\ndensity_nano=0\nfrequency_microhz=156250000000\ndensity_nano=0\nfrequency_microhz=171875000000\ndensity_nano=0\nfrequency_microhz=187500000000\ndensity_nano=0\nfrequency_microhz=203125000000\ndensity_nano=0\nfrequency_microhz=218750000000\ndensity_nano=0\nfrequency_microhz=234375000000\ndensity_nano=0\nfrequency_microhz=250000000000\ndensity_nano=0\nfrequency_microhz=265625000000\ndensity_nano=0\nfrequency_microhz=281250000000\ndensity_nano=0\nfrequency_microhz=296875000000\ndensity_nano=0\nfrequency_microhz=312500000000\ndensity_nano=0\nfrequency_microhz=328125000000\ndensity_nano=0\nfrequency_microhz=343750000000\ndensity_nano=0\nfrequency_microhz=359375000000\ndensity_nano=0\nfrequency_microhz=375000000000\ndensity_nano=0\nfrequency_microhz=390625000000\ndensity_nano=0\nfrequency_microhz=406250000000\ndensity_nano=0\nfrequency_microhz=421875000000\ndensity_nano=0\nfrequency_microhz=437500000000\ndensity_nano=0\nfrequency_microhz=453125000000\ndensity_nano=0\nfrequency_microhz=468750000000\ndensity_nano=0\nfrequency_microhz=484375000000\ndensity_nano=0\nfrequency_microhz=500000000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(36), edge: EdgeId(386), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 0, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "maximum_calibration",
+        "native": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=7744000000002028544\nfrequency_microhz=15625\ndensity_nano=0\nfrequency_microhz=31250\ndensity_nano=0\nfrequency_microhz=46875\ndensity_nano=0\nfrequency_microhz=62500\ndensity_nano=0\nfrequency_microhz=78125\ndensity_nano=0\nfrequency_microhz=93750\ndensity_nano=0\nfrequency_microhz=109375\ndensity_nano=0\nfrequency_microhz=125000\ndensity_nano=0\nfrequency_microhz=140625\ndensity_nano=0\nfrequency_microhz=156250\ndensity_nano=0\nfrequency_microhz=171875\ndensity_nano=0\nfrequency_microhz=187500\ndensity_nano=0\nfrequency_microhz=203125\ndensity_nano=0\nfrequency_microhz=218750\ndensity_nano=0\nfrequency_microhz=234375\ndensity_nano=0\nfrequency_microhz=250000\ndensity_nano=0\nfrequency_microhz=265625\ndensity_nano=0\nfrequency_microhz=281250\ndensity_nano=0\nfrequency_microhz=296875\ndensity_nano=0\nfrequency_microhz=312500\ndensity_nano=0\nfrequency_microhz=328125\ndensity_nano=0\nfrequency_microhz=343750\ndensity_nano=0\nfrequency_microhz=359375\ndensity_nano=0\nfrequency_microhz=375000\ndensity_nano=0\nfrequency_microhz=390625\ndensity_nano=0\nfrequency_microhz=406250\ndensity_nano=0\nfrequency_microhz=421875\ndensity_nano=0\nfrequency_microhz=437500\ndensity_nano=0\nfrequency_microhz=453125\ndensity_nano=0\nfrequency_microhz=468750\ndensity_nano=0\nfrequency_microhz=484375\ndensity_nano=0\nfrequency_microhz=500000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "0"
+        },
+        "terminal": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=7744000000002028544\nfrequency_microhz=15625\ndensity_nano=0\nfrequency_microhz=31250\ndensity_nano=0\nfrequency_microhz=46875\ndensity_nano=0\nfrequency_microhz=62500\ndensity_nano=0\nfrequency_microhz=78125\ndensity_nano=0\nfrequency_microhz=93750\ndensity_nano=0\nfrequency_microhz=109375\ndensity_nano=0\nfrequency_microhz=125000\ndensity_nano=0\nfrequency_microhz=140625\ndensity_nano=0\nfrequency_microhz=156250\ndensity_nano=0\nfrequency_microhz=171875\ndensity_nano=0\nfrequency_microhz=187500\ndensity_nano=0\nfrequency_microhz=203125\ndensity_nano=0\nfrequency_microhz=218750\ndensity_nano=0\nfrequency_microhz=234375\ndensity_nano=0\nfrequency_microhz=250000\ndensity_nano=0\nfrequency_microhz=265625\ndensity_nano=0\nfrequency_microhz=281250\ndensity_nano=0\nfrequency_microhz=296875\ndensity_nano=0\nfrequency_microhz=312500\ndensity_nano=0\nfrequency_microhz=328125\ndensity_nano=0\nfrequency_microhz=343750\ndensity_nano=0\nfrequency_microhz=359375\ndensity_nano=0\nfrequency_microhz=375000\ndensity_nano=0\nfrequency_microhz=390625\ndensity_nano=0\nfrequency_microhz=406250\ndensity_nano=0\nfrequency_microhz=421875\ndensity_nano=0\nfrequency_microhz=437500\ndensity_nano=0\nfrequency_microhz=453125\ndensity_nano=0\nfrequency_microhz=468750\ndensity_nano=0\nfrequency_microhz=484375\ndensity_nano=0\nfrequency_microhz=500000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(36), edge: EdgeId(386), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 0, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "zero",
+        "native": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=16000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=0\nfrequency_microhz=48000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "0"
+        },
+        "terminal": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=16000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=0\nfrequency_microhz=48000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(36), edge: EdgeId(386), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 0, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "trailing",
+        "native": {
+          "stdout": "segments=3\nfrequency_microhz=0\ndensity_nano=378729\nfrequency_microhz=6250000\ndensity_nano=3422354\nfrequency_microhz=12500000\ndensity_nano=8134480\nfrequency_microhz=18750000\ndensity_nano=3803909\nfrequency_microhz=25000000\ndensity_nano=3353923\nfrequency_microhz=31250000\ndensity_nano=4346510\nfrequency_microhz=37500000\ndensity_nano=8831927\nfrequency_microhz=43750000\ndensity_nano=29488081\nfrequency_microhz=50000000\ndensity_nano=8627344\n",
+          "stderr": "",
+          "status": "0"
+        },
+        "terminal": {
+          "stdout": "segments=3\nfrequency_microhz=0\ndensity_nano=378729\nfrequency_microhz=6250000\ndensity_nano=3422354\nfrequency_microhz=12500000\ndensity_nano=8134480\nfrequency_microhz=18750000\ndensity_nano=3803909\nfrequency_microhz=25000000\ndensity_nano=3353923\nfrequency_microhz=31250000\ndensity_nano=4346510\nfrequency_microhz=37500000\ndensity_nano=8831927\nfrequency_microhz=43750000\ndensity_nano=29488081\nfrequency_microhz=50000000\ndensity_nano=8627344\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(36), edge: EdgeId(386), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 0, frontier_lower_bound: [] })"
+        }
+      }
+    ],
+    "invalid": [
+      {
+        "name": "invalid0",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid1",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid2",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid3",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid4",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid5",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid6",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid7",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid8",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid9",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid10",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid11",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid12",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid13",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid14",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid15",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid16",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid17",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid18",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid19",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid20",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      }
+    ]
+  },
+  "final_integrated": {
+    "qualification_base": "66ad153cb238181a1d68cbe72eaf2857ee0e915a",
+    "compiler_producer": "d0e1c0faa2be982edc41c6170257aa2092e93e47",
+    "source_note": "Only this recorded evidence and validation prose are amended after execution; executed source, reference and tolerance inputs remain unchanged.",
+    "binary_sha256": {
+      "omega": "98b2ea43a7ca5c6c4988bbdcbd8e18488bafd91982cfc0b547a61d9090b2de62",
+      "capture_harness": "ae008a705fd0f080fd3cf11f25df18dda0353fc7443d7af0dc4d3cf08751b400",
+      "native_image": "a4ed305bd635046df167811368949b109ddddc556256c714be4e2bd233644b87"
+    },
+    "source_sha256": {
+      "samples/cli/independent/spectral_power/main.omg": "c6a19cb39d58fb77473093081f3eaf33c935d54bbaa7366dd7cb092a7e9a3f8f",
+      "samples/cli/independent/spectral_power/build.omg": "566ba101229e9372d1f9796cc0ecc7c443e8eed9b48afcd3b676a267d39d5f77",
+      "samples/cli/independent/spectral_power/domain/input.omg": "688fc3a24c4af3bfded512180746ac5f32f034e3ac11fb609253e382ce617bec",
+      "samples/cli/independent/spectral_power/domain/report.omg": "288c1083ad47e412e5b10c17c2253bf50fdcf12c743370a9ef08772de6aa26ff",
+      "samples/cli/independent/spectral_power/fixtures.json": "18e0c9f34d5f6c4ba7468662e4371a2392a8f52cc04a22650b6c6e492017afb7",
+      "samples/cli/independent/spectral_power/validate.py": "1020c2f08596f56dbce8e91f1409135dee1fbbe1efe7e68f5ae66d61a64313f6",
+      "samples/cli/independent/spectral_power/validation/src/main.rs": "918ae8854f4cf729a5a1fd190107351845a5827bb65cbf85cc430f2774043fe3",
+      "source/library/std/math.omg": "e771ddd3aba409d67eeaa04e6b686a845f2385b97241516189c64480b37d7f11",
+      "Cargo.toml": "77c980f259839aacb294f0a48bc09ed7235f28f936dd7520a013c86524bfe2cb",
+      "Cargo.lock": "c63908de65373bec3b80d146e22b52c47ba71710d323f087d81c00ee08046c87"
+    },
+    "whole_std_check": "compiled 76 source file(s) from /workspace/sci05/source/library/std/main.omg; wrote_output=false\n",
+    "corpus_both": {
+      "schema": "omega-corpus-verdict-v1",
+      "revision": "d0e1c0faa2be982edc41c6170257aa2092e93e47",
+      "dirty": false,
+      "leg": "both",
+      "target": "linux_x86_64",
+      "golden": "tests/omega/corpus_both_linux_x86_64.txt",
+      "subset": true,
+      "filter": "runtime_std_trigonometric_endpoints,runtime_std_math_sin_cos_exit",
+      "shard": null,
+      "verdict": "clean",
+      "exit_code": 0,
+      "counts": {
+        "fixtures": 2,
+        "by_status": {
+          "built": 2
+        },
+        "wrong_reason": 0,
+        "wrong_reason_fixtures": [],
+        "fail_not_rejected": 0,
+        "fail_not_rejected_fixtures": [],
+        "lost_successes": 0,
+        "lost_success_fixtures": [],
+        "pinned_off_target": 0,
+        "pinned_off_target_fixtures": [],
+        "by_verdict": {}
+      },
+      "oracle_failures": [],
+      "infrastructure_error": null,
+      "golden_provenance": {
+        "stamped": 2,
+        "legacy": 0,
+        "unknown_revisions": 0,
+        "oldest": {
+          "revision": "5c5bb7a1c2c2",
+          "commits_behind": 33
+        }
+      },
+      "perf_context": {
+        "golden": {
+          "cpus": 5,
+          "jobs": "2",
+          "load1_end": 0.8,
+          "load1_start": 0.4,
+          "machine": "x86_64",
+          "platform": "linux",
+          "schema": "omega-corpus-context-v1"
+        },
+        "current": {
+          "schema": "omega-corpus-context-v1",
+          "jobs": null,
+          "cpus": 5,
+          "platform": "linux",
+          "machine": "x86_64",
+          "load1_start": 2.73,
+          "load1_end": 2.92
+        },
+        "warnings": []
+      },
+      "observations": [
+        {
+          "fixture": "pass/calls/runtime_std_math_sin_cos_exit",
+          "tier": "pass",
+          "status": "built",
+          "millis": 25126,
+          "expected_satisfied": null,
+          "facts": {
+            "exit": "70",
+            "interpreter-exit": "70",
+            "interpreter": "agrees"
+          },
+          "diagnostics": [],
+          "regressed_from": null,
+          "recorded_at": null
+        },
+        {
+          "fixture": "pass/float/runtime_std_trigonometric_endpoints",
+          "tier": "pass",
+          "status": "built",
+          "millis": 24128,
+          "expected_satisfied": null,
+          "facts": {
+            "exit": "0",
+            "interpreter-exit": "0",
+            "interpreter": "agrees"
+          },
+          "diagnostics": [],
+          "regressed_from": null,
+          "recorded_at": null
+        }
+      ],
+      "fixtures": []
+    },
+    "valid": [
+      {
+        "name": "tone8",
+        "native": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=16000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=125000000\nfrequency_microhz=48000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "0"
+        },
+        "terminal": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=16000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=125000000\nfrequency_microhz=48000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(36), edge: EdgeId(386), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 0, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "tone16",
+        "native": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=8000000\ndensity_nano=0\nfrequency_microhz=16000000\ndensity_nano=249962248\nfrequency_microhz=24000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=0\nfrequency_microhz=40000000\ndensity_nano=0\nfrequency_microhz=48000000\ndensity_nano=1\nfrequency_microhz=56000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "0"
+        },
+        "terminal": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=8000000\ndensity_nano=0\nfrequency_microhz=16000000\ndensity_nano=249962248\nfrequency_microhz=24000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=0\nfrequency_microhz=40000000\ndensity_nano=0\nfrequency_microhz=48000000\ndensity_nano=1\nfrequency_microhz=56000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(36), edge: EdgeId(386), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 0, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "tone32",
+        "native": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=4000000\ndensity_nano=0\nfrequency_microhz=8000000\ndensity_nano=499982797\nfrequency_microhz=12000000\ndensity_nano=0\nfrequency_microhz=16000000\ndensity_nano=0\nfrequency_microhz=20000000\ndensity_nano=0\nfrequency_microhz=24000000\ndensity_nano=10\nfrequency_microhz=28000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=0\nfrequency_microhz=36000000\ndensity_nano=0\nfrequency_microhz=40000000\ndensity_nano=2\nfrequency_microhz=44000000\ndensity_nano=0\nfrequency_microhz=48000000\ndensity_nano=0\nfrequency_microhz=52000000\ndensity_nano=0\nfrequency_microhz=56000000\ndensity_nano=1\nfrequency_microhz=60000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "0"
+        },
+        "terminal": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=4000000\ndensity_nano=0\nfrequency_microhz=8000000\ndensity_nano=499982797\nfrequency_microhz=12000000\ndensity_nano=0\nfrequency_microhz=16000000\ndensity_nano=0\nfrequency_microhz=20000000\ndensity_nano=0\nfrequency_microhz=24000000\ndensity_nano=10\nfrequency_microhz=28000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=0\nfrequency_microhz=36000000\ndensity_nano=0\nfrequency_microhz=40000000\ndensity_nano=2\nfrequency_microhz=44000000\ndensity_nano=0\nfrequency_microhz=48000000\ndensity_nano=0\nfrequency_microhz=52000000\ndensity_nano=0\nfrequency_microhz=56000000\ndensity_nano=1\nfrequency_microhz=60000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(36), edge: EdgeId(386), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 0, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "tone64",
+        "native": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=2000000\ndensity_nano=0\nfrequency_microhz=4000000\ndensity_nano=1000072408\nfrequency_microhz=6000000\ndensity_nano=0\nfrequency_microhz=8000000\ndensity_nano=0\nfrequency_microhz=10000000\ndensity_nano=0\nfrequency_microhz=12000000\ndensity_nano=21\nfrequency_microhz=14000000\ndensity_nano=0\nfrequency_microhz=16000000\ndensity_nano=0\nfrequency_microhz=18000000\ndensity_nano=0\nfrequency_microhz=20000000\ndensity_nano=1\nfrequency_microhz=22000000\ndensity_nano=0\nfrequency_microhz=24000000\ndensity_nano=0\nfrequency_microhz=26000000\ndensity_nano=0\nfrequency_microhz=28000000\ndensity_nano=0\nfrequency_microhz=30000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=0\nfrequency_microhz=34000000\ndensity_nano=0\nfrequency_microhz=36000000\ndensity_nano=1\nfrequency_microhz=38000000\ndensity_nano=0\nfrequency_microhz=40000000\ndensity_nano=0\nfrequency_microhz=42000000\ndensity_nano=0\nfrequency_microhz=44000000\ndensity_nano=1\nfrequency_microhz=46000000\ndensity_nano=0\nfrequency_microhz=48000000\ndensity_nano=0\nfrequency_microhz=50000000\ndensity_nano=0\nfrequency_microhz=52000000\ndensity_nano=0\nfrequency_microhz=54000000\ndensity_nano=0\nfrequency_microhz=56000000\ndensity_nano=0\nfrequency_microhz=58000000\ndensity_nano=0\nfrequency_microhz=60000000\ndensity_nano=2\nfrequency_microhz=62000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "0"
+        },
+        "terminal": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=2000000\ndensity_nano=0\nfrequency_microhz=4000000\ndensity_nano=1000072408\nfrequency_microhz=6000000\ndensity_nano=0\nfrequency_microhz=8000000\ndensity_nano=0\nfrequency_microhz=10000000\ndensity_nano=0\nfrequency_microhz=12000000\ndensity_nano=21\nfrequency_microhz=14000000\ndensity_nano=0\nfrequency_microhz=16000000\ndensity_nano=0\nfrequency_microhz=18000000\ndensity_nano=0\nfrequency_microhz=20000000\ndensity_nano=1\nfrequency_microhz=22000000\ndensity_nano=0\nfrequency_microhz=24000000\ndensity_nano=0\nfrequency_microhz=26000000\ndensity_nano=0\nfrequency_microhz=28000000\ndensity_nano=0\nfrequency_microhz=30000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=0\nfrequency_microhz=34000000\ndensity_nano=0\nfrequency_microhz=36000000\ndensity_nano=1\nfrequency_microhz=38000000\ndensity_nano=0\nfrequency_microhz=40000000\ndensity_nano=0\nfrequency_microhz=42000000\ndensity_nano=0\nfrequency_microhz=44000000\ndensity_nano=1\nfrequency_microhz=46000000\ndensity_nano=0\nfrequency_microhz=48000000\ndensity_nano=0\nfrequency_microhz=50000000\ndensity_nano=0\nfrequency_microhz=52000000\ndensity_nano=0\nfrequency_microhz=54000000\ndensity_nano=0\nfrequency_microhz=56000000\ndensity_nano=0\nfrequency_microhz=58000000\ndensity_nano=0\nfrequency_microhz=60000000\ndensity_nano=2\nfrequency_microhz=62000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(36), edge: EdgeId(386), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 0, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "hann_overlap",
+        "native": {
+          "stdout": "segments=5\nfrequency_microhz=0\ndensity_nano=6696698\nfrequency_microhz=8000000\ndensity_nano=15680879\nfrequency_microhz=16000000\ndensity_nano=15782844\nfrequency_microhz=24000000\ndensity_nano=6991665\nfrequency_microhz=32000000\ndensity_nano=6276346\nfrequency_microhz=40000000\ndensity_nano=7944134\nfrequency_microhz=48000000\ndensity_nano=15782057\nfrequency_microhz=56000000\ndensity_nano=62833511\nfrequency_microhz=64000000\ndensity_nano=27708511\n",
+          "stderr": "",
+          "status": "0"
+        },
+        "terminal": {
+          "stdout": "segments=5\nfrequency_microhz=0\ndensity_nano=6696698\nfrequency_microhz=8000000\ndensity_nano=15680879\nfrequency_microhz=16000000\ndensity_nano=15782844\nfrequency_microhz=24000000\ndensity_nano=6991665\nfrequency_microhz=32000000\ndensity_nano=6276346\nfrequency_microhz=40000000\ndensity_nano=7944134\nfrequency_microhz=48000000\ndensity_nano=15782057\nfrequency_microhz=56000000\ndensity_nano=62833511\nfrequency_microhz=64000000\ndensity_nano=27708511\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(36), edge: EdgeId(386), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 0, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "sampling_scaled",
+        "native": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=62500000\nfrequency_microhz=96000000\ndensity_nano=0\nfrequency_microhz=128000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "0"
+        },
+        "terminal": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=62500000\nfrequency_microhz=96000000\ndensity_nano=0\nfrequency_microhz=128000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(36), edge: EdgeId(386), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 0, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "gain_scaled",
+        "native": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=16000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=500000000\nfrequency_microhz=48000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "0"
+        },
+        "terminal": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=16000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=500000000\nfrequency_microhz=48000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(36), edge: EdgeId(386), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 0, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "offset_cancel",
+        "native": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=16000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=0\nfrequency_microhz=48000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "0"
+        },
+        "terminal": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=16000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=0\nfrequency_microhz=48000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(36), edge: EdgeId(386), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 0, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "dc",
+        "native": {
+          "stdout": "segments=2\nfrequency_microhz=0\ndensity_nano=765625000\nfrequency_microhz=16000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=0\nfrequency_microhz=48000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "0"
+        },
+        "terminal": {
+          "stdout": "segments=2\nfrequency_microhz=0\ndensity_nano=765625000\nfrequency_microhz=16000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=0\nfrequency_microhz=48000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(36), edge: EdgeId(386), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 0, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "nyquist",
+        "native": {
+          "stdout": "segments=3\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=16000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=0\nfrequency_microhz=48000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=62500000\n",
+          "stderr": "",
+          "status": "0"
+        },
+        "terminal": {
+          "stdout": "segments=3\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=16000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=0\nfrequency_microhz=48000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=62500000\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(36), edge: EdgeId(386), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 0, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "maximum_overlap",
+        "native": {
+          "stdout": "segments=5\nfrequency_microhz=0\ndensity_nano=234375\nfrequency_microhz=16000000\ndensity_nano=308031\nfrequency_microhz=32000000\ndensity_nano=8936\nfrequency_microhz=48000000\ndensity_nano=2200904\nfrequency_microhz=64000000\ndensity_nano=4401041\n",
+          "stderr": "",
+          "status": "0"
+        },
+        "terminal": {
+          "stdout": "segments=5\nfrequency_microhz=0\ndensity_nano=234375\nfrequency_microhz=16000000\ndensity_nano=308031\nfrequency_microhz=32000000\ndensity_nano=8936\nfrequency_microhz=48000000\ndensity_nano=2200904\nfrequency_microhz=64000000\ndensity_nano=4401041\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(36), edge: EdgeId(386), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 0, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "large_frequency",
+        "native": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=64000\nfrequency_microhz=15625000000\ndensity_nano=0\nfrequency_microhz=31250000000\ndensity_nano=0\nfrequency_microhz=46875000000\ndensity_nano=0\nfrequency_microhz=62500000000\ndensity_nano=0\nfrequency_microhz=78125000000\ndensity_nano=0\nfrequency_microhz=93750000000\ndensity_nano=0\nfrequency_microhz=109375000000\ndensity_nano=0\nfrequency_microhz=125000000000\ndensity_nano=0\nfrequency_microhz=140625000000\ndensity_nano=0\nfrequency_microhz=156250000000\ndensity_nano=0\nfrequency_microhz=171875000000\ndensity_nano=0\nfrequency_microhz=187500000000\ndensity_nano=0\nfrequency_microhz=203125000000\ndensity_nano=0\nfrequency_microhz=218750000000\ndensity_nano=0\nfrequency_microhz=234375000000\ndensity_nano=0\nfrequency_microhz=250000000000\ndensity_nano=0\nfrequency_microhz=265625000000\ndensity_nano=0\nfrequency_microhz=281250000000\ndensity_nano=0\nfrequency_microhz=296875000000\ndensity_nano=0\nfrequency_microhz=312500000000\ndensity_nano=0\nfrequency_microhz=328125000000\ndensity_nano=0\nfrequency_microhz=343750000000\ndensity_nano=0\nfrequency_microhz=359375000000\ndensity_nano=0\nfrequency_microhz=375000000000\ndensity_nano=0\nfrequency_microhz=390625000000\ndensity_nano=0\nfrequency_microhz=406250000000\ndensity_nano=0\nfrequency_microhz=421875000000\ndensity_nano=0\nfrequency_microhz=437500000000\ndensity_nano=0\nfrequency_microhz=453125000000\ndensity_nano=0\nfrequency_microhz=468750000000\ndensity_nano=0\nfrequency_microhz=484375000000\ndensity_nano=0\nfrequency_microhz=500000000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "0"
+        },
+        "terminal": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=64000\nfrequency_microhz=15625000000\ndensity_nano=0\nfrequency_microhz=31250000000\ndensity_nano=0\nfrequency_microhz=46875000000\ndensity_nano=0\nfrequency_microhz=62500000000\ndensity_nano=0\nfrequency_microhz=78125000000\ndensity_nano=0\nfrequency_microhz=93750000000\ndensity_nano=0\nfrequency_microhz=109375000000\ndensity_nano=0\nfrequency_microhz=125000000000\ndensity_nano=0\nfrequency_microhz=140625000000\ndensity_nano=0\nfrequency_microhz=156250000000\ndensity_nano=0\nfrequency_microhz=171875000000\ndensity_nano=0\nfrequency_microhz=187500000000\ndensity_nano=0\nfrequency_microhz=203125000000\ndensity_nano=0\nfrequency_microhz=218750000000\ndensity_nano=0\nfrequency_microhz=234375000000\ndensity_nano=0\nfrequency_microhz=250000000000\ndensity_nano=0\nfrequency_microhz=265625000000\ndensity_nano=0\nfrequency_microhz=281250000000\ndensity_nano=0\nfrequency_microhz=296875000000\ndensity_nano=0\nfrequency_microhz=312500000000\ndensity_nano=0\nfrequency_microhz=328125000000\ndensity_nano=0\nfrequency_microhz=343750000000\ndensity_nano=0\nfrequency_microhz=359375000000\ndensity_nano=0\nfrequency_microhz=375000000000\ndensity_nano=0\nfrequency_microhz=390625000000\ndensity_nano=0\nfrequency_microhz=406250000000\ndensity_nano=0\nfrequency_microhz=421875000000\ndensity_nano=0\nfrequency_microhz=437500000000\ndensity_nano=0\nfrequency_microhz=453125000000\ndensity_nano=0\nfrequency_microhz=468750000000\ndensity_nano=0\nfrequency_microhz=484375000000\ndensity_nano=0\nfrequency_microhz=500000000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(36), edge: EdgeId(386), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 0, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "maximum_calibration",
+        "native": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=7744000000002028544\nfrequency_microhz=15625\ndensity_nano=0\nfrequency_microhz=31250\ndensity_nano=0\nfrequency_microhz=46875\ndensity_nano=0\nfrequency_microhz=62500\ndensity_nano=0\nfrequency_microhz=78125\ndensity_nano=0\nfrequency_microhz=93750\ndensity_nano=0\nfrequency_microhz=109375\ndensity_nano=0\nfrequency_microhz=125000\ndensity_nano=0\nfrequency_microhz=140625\ndensity_nano=0\nfrequency_microhz=156250\ndensity_nano=0\nfrequency_microhz=171875\ndensity_nano=0\nfrequency_microhz=187500\ndensity_nano=0\nfrequency_microhz=203125\ndensity_nano=0\nfrequency_microhz=218750\ndensity_nano=0\nfrequency_microhz=234375\ndensity_nano=0\nfrequency_microhz=250000\ndensity_nano=0\nfrequency_microhz=265625\ndensity_nano=0\nfrequency_microhz=281250\ndensity_nano=0\nfrequency_microhz=296875\ndensity_nano=0\nfrequency_microhz=312500\ndensity_nano=0\nfrequency_microhz=328125\ndensity_nano=0\nfrequency_microhz=343750\ndensity_nano=0\nfrequency_microhz=359375\ndensity_nano=0\nfrequency_microhz=375000\ndensity_nano=0\nfrequency_microhz=390625\ndensity_nano=0\nfrequency_microhz=406250\ndensity_nano=0\nfrequency_microhz=421875\ndensity_nano=0\nfrequency_microhz=437500\ndensity_nano=0\nfrequency_microhz=453125\ndensity_nano=0\nfrequency_microhz=468750\ndensity_nano=0\nfrequency_microhz=484375\ndensity_nano=0\nfrequency_microhz=500000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "0"
+        },
+        "terminal": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=7744000000002028544\nfrequency_microhz=15625\ndensity_nano=0\nfrequency_microhz=31250\ndensity_nano=0\nfrequency_microhz=46875\ndensity_nano=0\nfrequency_microhz=62500\ndensity_nano=0\nfrequency_microhz=78125\ndensity_nano=0\nfrequency_microhz=93750\ndensity_nano=0\nfrequency_microhz=109375\ndensity_nano=0\nfrequency_microhz=125000\ndensity_nano=0\nfrequency_microhz=140625\ndensity_nano=0\nfrequency_microhz=156250\ndensity_nano=0\nfrequency_microhz=171875\ndensity_nano=0\nfrequency_microhz=187500\ndensity_nano=0\nfrequency_microhz=203125\ndensity_nano=0\nfrequency_microhz=218750\ndensity_nano=0\nfrequency_microhz=234375\ndensity_nano=0\nfrequency_microhz=250000\ndensity_nano=0\nfrequency_microhz=265625\ndensity_nano=0\nfrequency_microhz=281250\ndensity_nano=0\nfrequency_microhz=296875\ndensity_nano=0\nfrequency_microhz=312500\ndensity_nano=0\nfrequency_microhz=328125\ndensity_nano=0\nfrequency_microhz=343750\ndensity_nano=0\nfrequency_microhz=359375\ndensity_nano=0\nfrequency_microhz=375000\ndensity_nano=0\nfrequency_microhz=390625\ndensity_nano=0\nfrequency_microhz=406250\ndensity_nano=0\nfrequency_microhz=421875\ndensity_nano=0\nfrequency_microhz=437500\ndensity_nano=0\nfrequency_microhz=453125\ndensity_nano=0\nfrequency_microhz=468750\ndensity_nano=0\nfrequency_microhz=484375\ndensity_nano=0\nfrequency_microhz=500000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(36), edge: EdgeId(386), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 0, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "zero",
+        "native": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=16000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=0\nfrequency_microhz=48000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "0"
+        },
+        "terminal": {
+          "stdout": "segments=1\nfrequency_microhz=0\ndensity_nano=0\nfrequency_microhz=16000000\ndensity_nano=0\nfrequency_microhz=32000000\ndensity_nano=0\nfrequency_microhz=48000000\ndensity_nano=0\nfrequency_microhz=64000000\ndensity_nano=0\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(36), edge: EdgeId(386), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 0, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "trailing",
+        "native": {
+          "stdout": "segments=3\nfrequency_microhz=0\ndensity_nano=378729\nfrequency_microhz=6250000\ndensity_nano=3422354\nfrequency_microhz=12500000\ndensity_nano=8134480\nfrequency_microhz=18750000\ndensity_nano=3803909\nfrequency_microhz=25000000\ndensity_nano=3353923\nfrequency_microhz=31250000\ndensity_nano=4346510\nfrequency_microhz=37500000\ndensity_nano=8831927\nfrequency_microhz=43750000\ndensity_nano=29488081\nfrequency_microhz=50000000\ndensity_nano=8627344\n",
+          "stderr": "",
+          "status": "0"
+        },
+        "terminal": {
+          "stdout": "segments=3\nfrequency_microhz=0\ndensity_nano=378729\nfrequency_microhz=6250000\ndensity_nano=3422354\nfrequency_microhz=12500000\ndensity_nano=8134480\nfrequency_microhz=18750000\ndensity_nano=3803909\nfrequency_microhz=25000000\ndensity_nano=3353923\nfrequency_microhz=31250000\ndensity_nano=4346510\nfrequency_microhz=37500000\ndensity_nano=8831927\nfrequency_microhz=43750000\ndensity_nano=29488081\nfrequency_microhz=50000000\ndensity_nano=8627344\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(36), edge: EdgeId(386), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 0, frontier_lower_bound: [] })"
+        }
+      }
+    ],
+    "invalid": [
+      {
+        "name": "invalid0",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid1",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid2",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid3",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid4",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid5",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid6",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid7",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid8",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid9",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid10",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid11",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid12",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid13",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid14",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid15",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid16",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid17",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid18",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid19",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      },
+      {
+        "name": "invalid20",
+        "native": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "10"
+        },
+        "terminal": {
+          "stdout": "ERROR input or options\n",
+          "stderr": "",
+          "status": "ExternalCompletion(TerminalExternalCompletion { machine: MachineId(1), block: BlockId(2), edge: EdgeId(38), boundary: BoundaryMachineId(29), kind: ProcessExit, return_code: 10, frontier_lower_bound: [] })"
+        }
+      }
+    ]
   }
 }
