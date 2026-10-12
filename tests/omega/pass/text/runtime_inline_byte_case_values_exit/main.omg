@@ -1,0 +1,44 @@
+// A returned case owns its inline text bytes, live length and common fields.
+domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+data Text [copy] { bytes: [u8; 8] in Utf8; }
+data Reply [copy] {
+    sequence: u64;
+    case Empty;
+    case Message(content: Text);
+}
+data DirectReply [copy] {
+    header: [u8; 8] in Utf8;
+    sequence: u64;
+    case Empty;
+    case Message(content: [u8; 8] in Utf8);
+}
+
+machine make() -> Reply {
+    Reply::Message { sequence: 17, content: Text { bytes: "Gate" } }
+}
+machine observe(reply: Reply) -> bool {
+    transition reply {
+        Reply::Message { content } -> (reply.sequence == 17 && content.bytes == "Gate")
+        Reply::Empty -> (false)
+    }
+}
+machine make_direct() -> DirectReply {
+    DirectReply::Message { content: "Next", sequence: 29, header: "Common" }
+}
+machine observe_direct(reply: DirectReply) -> bool {
+    transition reply {
+        DirectReply::Message { content } -> (reply.sequence == 29 && reply.header == "Common" && content == "Next")
+        DirectReply::Empty -> (false)
+    }
+}
+machine main() crashes Trap {
+    let valid: bool = observe(make());
+    transition valid { true -> direct(make_direct()) false -> bad() }
+    state direct(reply: DirectReply) {
+        let copied: DirectReply = reply;
+        let valid: bool = observe_direct(copied);
+        transition valid { true -> done() false -> bad() }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

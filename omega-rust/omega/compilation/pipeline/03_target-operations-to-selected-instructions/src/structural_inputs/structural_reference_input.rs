@@ -2608,50 +2608,51 @@ pub(crate) fn projected_byte_field(
     field: StructuralFieldId,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<ProjectedByteField> {
-    let count = ScalarType::Integer(
-        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
-            .ok()?,
-    );
-    // The carrier reached by the path is independent of the observation's
-    // consumer. Retain each pointer region instead of flattening its offsets
-    // into the descriptor home. Ordinary call operands use this same walker.
-    let geometry = reference_source_geometry(root, path, declarations)?;
-    let (field_offset, width, _) =
-        scalar_field_geometry(geometry.selected, &[], field, count, declarations, true)?;
-    let length_offset = geometry.byte_offset.checked_add(field_offset)?;
-    if width != 8 {
-        return None;
-    }
-    let carrier = geometry.selected;
-    let StructuralTypeShape::Record { fields, .. } =
-        &find_structural_type(declarations, carrier)?.shape
-    else {
-        return None;
+    let selected =
+        terminal_semantics::projected_field_declaration(declarations.iter(), root, path, field)?;
+    let (capacity, length_word) = match selected.field_type.byte_sequence_carrier() {
+        Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity }) => (Some(capacity), 0),
+        Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
+            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+        }) => (None, 8),
+        _ => match selected
+            .field_type
+            .as_structural()
+            .and_then(|identity| find_structural_type(declarations, identity))
+            .map(|declaration| &declaration.shape)
+        {
+            Some(
+                StructuralTypeShape::ElementView { .. }
+                | StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                    },
+                ),
+            ) => (None, 8),
+            _ => return None,
+        },
     };
-    let mut matching = fields
-        .iter()
-        .filter(|candidate| candidate.id == field && !candidate.relevance.is_erased());
-    let selected = matching.next()?;
-    if matching.next().is_some() {
-        return None;
-    }
-    let capacity = match selected.field_type.byte_sequence_carrier() {
-        Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity }) => Some(capacity),
-        _ => None,
-    };
-    // The scalar geometry owner admitted only length-bearing byte or element
-    // descriptors; an inline owner alone places its length before its bytes.
-    let descriptor_offset = if capacity.is_some() {
-        None
-    } else {
-        Some(length_offset.checked_sub(8)?)
-    };
+    // Resolve the complete field occurrence through the common storage walker.
+    // A trailing Case is a namespace, so it must stay joined to its Field.
+    // Inline byte storage needs no invented standalone type declaration.
+    let mut field_path = path.to_vec();
+    field_path.push(StructuralPathSegment::Field(selected.identity));
+    let regions = storage_projection_regions(root, &field_path, declarations)?;
+    let (_, offset, leaf_elements) = project_storage(
+        regions.root,
+        field_path[regions.segment_start..]
+            .iter()
+            .map(Projection::from),
+        declarations,
+    )?;
+    let mut elements = regions.elements;
+    elements.extend(leaf_elements);
     Some(ProjectedByteField {
-        length_offset,
-        descriptor_offset,
+        length_offset: offset.checked_add(length_word)?,
+        descriptor_offset: capacity.is_none().then_some(offset),
         capacity,
-        elements: geometry.elements,
-        pointer_slots: geometry.pointer_slots,
+        elements,
+        pointer_slots: regions.pointer_slots,
     })
 }
 

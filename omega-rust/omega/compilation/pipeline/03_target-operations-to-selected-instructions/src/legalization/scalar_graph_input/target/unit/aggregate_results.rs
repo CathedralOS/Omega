@@ -101,8 +101,9 @@ pub(super) fn validate(
                                 value: operand,
                                 range_obligation,
                             } => {
-                                terminal_semantics::scalar_field_requires_evidence(&declaration.field_type)
-                                    != range_obligation.is_some()
+                                terminal_semantics::scalar_field_requires_evidence(
+                                    &declaration.field_type,
+                                ) != range_obligation.is_some()
                                     || !sources.iter().any(|(value, source)| {
                                         *value == *operand
                                             && declaration.field_type.scalar_type()
@@ -110,23 +111,14 @@ pub(super) fn validate(
                                     })
                             }
                             terminal_psi::RecordFieldValue::Structural(argument) => {
-                                !matches!(
-                                    declaration.field_type,
-                                    terminal_psi::StructuralFieldType::Structural(_)
-                                        | terminal_psi::StructuralFieldType::ByteSequence(
-                                            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                                                | terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                                        )
-                                        | terminal_psi::StructuralFieldType::PredicateByteSequence {
-                                            carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                                                | terminal_psi::ByteSequenceCarrier::BorrowedView { .. }, ..
-                                        }
-                                ) || argument.access != terminal_psi::StructuralAccess::Owned
-                                    || (!argument.path.is_empty() && match declaration.field_type {
-                                        terminal_psi::StructuralFieldType::Structural(expected) =>
-                                            owned_projected_field_source(optimized, argument, &unit.structural_types) != Ok(expected),
-                                        _ => true,
-                                    })
+                                validate_owned_field_operand(
+                                    optimized,
+                                    result.place,
+                                    argument,
+                                    &declaration.field_type,
+                                    &unit.structural_types,
+                                )
+                                .is_err()
                             }
                         }
                 })
@@ -300,20 +292,72 @@ pub(super) fn validate(
                         { return Err(LegalizationError::custody()); }
                     }
                     terminal_psi::RecordFieldValue::Structural(argument) => {
-                        let Some(expected) = declared.field_type.as_structural() else {
-                            return Err(LegalizationError::custody());
-                        };
-                        if argument.access != terminal_psi::StructuralAccess::Owned
-                            || argument.place == result.place
-                        { return Err(LegalizationError::custody()); }
-                        let actual = owned_projected_field_source(optimized, argument, &unit.structural_types)?;
-                        if actual != expected
-                        { return Err(LegalizationError::custody()); }
+                        validate_owned_field_operand(
+                            optimized, result.place, argument,
+                            &declared.field_type, &unit.structural_types,
+                        )?;
                     }
                 }
             }
         }
         _ => return Err(LegalizationError::custody()),
+    }
+    Ok(())
+}
+
+/// The receiving field's carrier is independent of its record/case namespace.
+/// Rejoin the exact completed source before comparing physical storage; semantic
+/// predicates and backing custody remain on the source operation's evidence.
+fn validate_owned_field_operand(
+    function: &PsiOptimizationFunction,
+    destination: semantic_vocabulary::PlaceId,
+    argument: &terminal_psi::StructuralArgument,
+    field: &terminal_psi::StructuralFieldType,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Result<(), LegalizationError> {
+    if argument.access != terminal_psi::StructuralAccess::Owned || argument.place == destination {
+        return Err(LegalizationError::custody());
+    }
+    if let Some(expected) = field.as_structural() {
+        let actual = owned_projected_field_source(function, argument, types)?;
+        return if actual == expected {
+            Ok(())
+        } else {
+            Err(LegalizationError::custody())
+        };
+    }
+    if !argument.path.is_empty() {
+        return Err(LegalizationError::custody());
+    }
+    // Whole byte operands also include literal descriptors and qualified shared
+    // parameters. Read their common declaration/producer contract rather than
+    // reconstructing another list of permitted constructor source shapes.
+    let declaration = function
+        .structural_place(argument.place)
+        .ok_or(LegalizationError::custody())?;
+    let actual = optimization_unit::declared_structural_type(function, declaration)
+        .ok_or(LegalizationError::custody())?;
+    let access = optimization_unit_semantics::structural_place_access(function, argument.place)
+        .ok_or(LegalizationError::custody())?;
+    let actual = &terminal_psi::find_structural_type(types, actual)
+        .ok_or(LegalizationError::custody())?
+        .shape;
+    let compatible = match field.byte_sequence_carrier() {
+        Some(expected @ terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }) => {
+            access == terminal_psi::StructuralAccess::Owned
+                && *actual == terminal_psi::StructuralTypeShape::ByteSequence(expected)
+        }
+        Some(carrier) if carrier.is_shared_readable_view() => {
+            matches!(
+                access,
+                terminal_psi::StructuralAccess::Owned
+                    | terminal_psi::StructuralAccess::SharedBorrow
+            ) && actual.is_shared_readable_byte_view()
+        }
+        _ => false,
+    };
+    if !compatible {
+        return Err(LegalizationError::custody());
     }
     Ok(())
 }

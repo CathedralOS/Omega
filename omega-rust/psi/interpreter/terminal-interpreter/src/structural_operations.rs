@@ -9,8 +9,8 @@ use crate::execution::{OperationFlow, TerminalExecution};
 use crate::record::storage::{ConstructorStorage, ConstructorValue};
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::structural_inputs::case_membership::StructuralCaseContents;
-use crate::values::{ScalarFieldNamespace, StructuralScalarRuntimeField};
 use crate::values::{StructuralByteSequenceRuntimeField, StructuralRuntimePlace};
+use crate::values::{StructuralFieldNamespace, StructuralScalarRuntimeField};
 use crate::values::{TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::{IntegerType, IntegerValue, ScalarType};
 use std::collections::BTreeMap;
@@ -173,7 +173,7 @@ impl TerminalExecution<'_> {
         let roster = common
             .iter()
             .filter(|field| !matches!(field.field_type, StructuralFieldType::Erased { .. }))
-            .map(|declaration| (declaration, ScalarFieldNamespace::Member))
+            .map(|declaration| (declaration, StructuralFieldNamespace::Member))
             .chain(
                 selected
                     .fields
@@ -182,7 +182,7 @@ impl TerminalExecution<'_> {
                         !(field.relevance.is_erased()
                             && matches!(field.field_type, StructuralFieldType::Erased { .. }))
                     })
-                    .map(|declaration| (declaration, ScalarFieldNamespace::CasePayload)),
+                    .map(|declaration| (declaration, StructuralFieldNamespace::CasePayload)),
             )
             .collect::<Vec<_>>();
         if roster.len() != fields.len() {
@@ -237,14 +237,31 @@ impl TerminalExecution<'_> {
                     // Custody retains the namespace; physical payload storage
                     // overlays the sum and therefore omits its Case segment.
                     let mut claim_path = Vec::new();
-                    if namespace == ScalarFieldNamespace::CasePayload {
+                    if namespace == StructuralFieldNamespace::CasePayload {
                         claim_path.push(StructuralPathSegment::Case(result_case));
                     }
                     claim_path.extend_from_slice(&member.path);
                     claim_operands.push((argument, claim_path.clone()));
+                    let child = ConstructorValue::resolve(self, argument)?;
+                    if let Some(bytes) = self.prepare_constructor_byte_field(
+                        declaration,
+                        argument,
+                        &child,
+                        &mut frontier,
+                        &mut consumed,
+                    )? {
+                        storage.stage_byte_field(
+                            StructuralByteSequenceRuntimeField {
+                                parent: member_root.clone(),
+                                namespace,
+                                field: binding.field,
+                            },
+                            bytes,
+                        );
+                        continue;
+                    }
                     let transfers_custody =
                         self.stage_constructor_operand(argument, &mut frontier, &mut consumed)?;
-                    let child = ConstructorValue::resolve(self, argument)?;
                     if declaration.field_type
                         != StructuralFieldType::Structural(child.structural_type())
                     {
@@ -492,6 +509,7 @@ impl TerminalExecution<'_> {
                                 opaque_identity: value.opaque_identity,
                                 path: storage_path(),
                             },
+                            namespace: StructuralFieldNamespace::for_carrier(leaf.path()),
                             field: *field,
                         },
                         ByteSequenceView::new(Vec::new()),
@@ -1239,15 +1257,7 @@ impl TerminalExecution<'_> {
             .structural_byte_sequence_fields
             .iter()
             .filter_map(|(cell, view)| {
-                retarget(&cell.parent).map(|parent| {
-                    (
-                        crate::values::StructuralByteSequenceRuntimeField {
-                            parent,
-                            field: cell.field,
-                        },
-                        view.clone(),
-                    )
-                })
+                retarget(&cell.parent).map(|parent| (cell.relocated(parent), view.clone()))
             })
             .collect();
         let staged_arrays: Vec<_> = self
@@ -1519,8 +1529,25 @@ impl TerminalExecution<'_> {
             } else {
                 let mut parent = StructuralRuntimePlace::from(&leaf);
                 parent.path.pop().ok_or_else(malformed)?;
+                let namespace = match &operation.kind {
+                    OperationKind::StructuralLeafCopy { path, .. } => {
+                        StructuralFieldNamespace::for_carrier(&path[..path.len().saturating_sub(1)])
+                    }
+                    OperationKind::StructuralCaseLeafCopy { path, .. } => {
+                        if matches!(
+                            path.iter().rev().nth(1),
+                            Some(semantic_vocabulary::CanonicalStructuralPathSegment::Case(_))
+                        ) {
+                            StructuralFieldNamespace::CasePayload
+                        } else {
+                            StructuralFieldNamespace::Member
+                        }
+                    }
+                    _ => return Err(malformed()),
+                };
                 let cell = StructuralByteSequenceRuntimeField {
                     parent,
+                    namespace,
                     field: endpoint_field.ok_or_else(malformed)?,
                 };
                 self.structural_byte_sequence_fields

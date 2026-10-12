@@ -631,6 +631,7 @@ impl TerminalExecution<'_> {
         };
         let destination = StructuralByteSequenceRuntimeField {
             parent: StructuralRuntimePlace::from(&parent),
+            namespace: crate::values::StructuralFieldNamespace::Member,
             field: field.id,
         };
 
@@ -773,6 +774,7 @@ impl TerminalExecution<'_> {
                 .structural_byte_sequence_fields
                 .get(&StructuralByteSequenceRuntimeField {
                     parent: StructuralRuntimePlace::from(&parent),
+                    namespace: crate::values::StructuralFieldNamespace::Member,
                     field: field.id,
                 })
                 .ok_or_else(malformed)?
@@ -804,6 +806,7 @@ impl TerminalExecution<'_> {
         }
         let source = StructuralByteSequenceRuntimeField {
             parent: StructuralRuntimePlace::from(&parent),
+            namespace: crate::values::StructuralFieldNamespace::Member,
             field: field.id,
         };
         let bytes = self

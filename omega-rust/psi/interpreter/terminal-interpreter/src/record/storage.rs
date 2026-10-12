@@ -98,6 +98,14 @@ impl ConstructorStorage {
         )
     }
 
+    pub(crate) fn stage_byte_field(
+        &mut self,
+        destination: StructuralByteSequenceRuntimeField,
+        bytes: ByteSequenceView,
+    ) {
+        self.bytes.insert(destination, bytes);
+    }
+
     pub(crate) fn stage_byte_array(&mut self, destination: StructuralRuntimePlace, bytes: Vec<u8>) {
         // Byte arrays have one backing, never duplicate primitive cells. This
         // uses the same publication shape as constructor array establishment.
@@ -123,9 +131,11 @@ impl ConstructorStorage {
         execution: &TerminalExecution,
         parent: &StructuralRuntimePlace,
         field: semantic_vocabulary::StructuralFieldId,
+        namespace: crate::values::StructuralFieldNamespace,
     ) -> Result<(), TerminalInterpretError> {
         let cell = StructuralByteSequenceRuntimeField {
             parent: parent.clone(),
+            namespace,
             field,
         };
         let bytes = execution
@@ -397,13 +407,7 @@ impl ConstructorStorage {
         }
         for (field, bytes) in &execution.structural_byte_sequence_fields {
             if let Some(parent) = relocate(&field.parent) {
-                self.bytes.insert(
-                    StructuralByteSequenceRuntimeField {
-                        parent,
-                        field: field.field,
-                    },
-                    bytes.clone(),
-                );
+                self.bytes.insert(field.relocated(parent), bytes.clone());
             }
         }
         for (home, value) in &execution.structural_primitive_storage {

@@ -68,58 +68,37 @@ pub(super) fn readable_byte_field(
 ) -> Result<terminal_psi::StructuralArgument, LoweringError> {
     // The checked observation selects storage through ordered pointer crossings.
     let (structural_type, access) = field_root(function, types, prepared, live, source)?;
-    let regions = crate::lowering::structural_layout::reference_projection_regions(
+    let selected = terminal_semantics::projected_field_declaration(
+        types.values().copied(),
         structural_type,
         path,
-        types,
+        field,
     )
     .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-    let carrier = crate::lowering::structural_layout::runtime_projection(
-        regions.root,
-        regions.path,
-        types,
-        &mut BTreeMap::new(),
-        &mut BTreeSet::new(),
-    )?
-    .0;
-    let StructuralTypeShape::Record { fields, .. } = &types
-        .get(&carrier)
-        .ok_or(LoweringError::unsupported_control_flow(function.machine))?
-        .shape
-    else {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
-    };
-    let mut matching = fields.iter().filter(|candidate| candidate.id == field);
-    let selected = matching
-        .next()
-        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     // A shared view field is observed through its stored descriptor: the
     // length is the descriptor's extent word and bytes live behind its
     // pointer. Neither observation creates a borrow of that backing.
-    if matching.next().is_some()
-        || selected.relevance.is_erased()
-        || !(matches!(
-            selected.field_type.byte_sequence_carrier(),
-            Some(
-                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                    | terminal_psi::ByteSequenceCarrier::BorrowedView {
-                        access: Some(StructuralAccess::SharedBorrow),
-                    }
-            )
-        ) || matches!(
-            selected.field_type,
-            StructuralFieldType::Structural(child)
-                if types.get(&child).is_some_and(|declaration| {
-                    matches!(
-                        declaration.shape,
-                        StructuralTypeShape::ElementView { .. }
-                            | StructuralTypeShape::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-                            )
-                    )
-                })
-        ))
-    {
+    if !(matches!(
+        selected.field_type.byte_sequence_carrier(),
+        Some(
+            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                | terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(StructuralAccess::SharedBorrow),
+                }
+        )
+    ) || matches!(
+        selected.field_type,
+        StructuralFieldType::Structural(child)
+            if types.get(&child).is_some_and(|declaration| {
+                matches!(
+                    declaration.shape,
+                    StructuralTypeShape::ElementView { .. }
+                        | StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+                        )
+                )
+            })
+    )) {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     Ok(terminal_psi::StructuralArgument {
@@ -198,12 +177,15 @@ pub(super) fn field_indices(
     argument: &terminal_psi::StructuralArgument,
 ) -> Result<Vec<target_operations::TargetStructuralRuntimeIndex>, LoweringError> {
     let (root, _) = field_root(function, types, prepared, live, argument.place)?;
-    let regions = crate::lowering::structural_layout::reference_projection_regions(
-        root,
-        &argument.path,
-        types,
-    )
-    .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+    // A terminal Case selects the field namespace, not another storage home.
+    // Its active-tag evidence stays on the operation's original path.
+    let carrier_path = match argument.path.split_last() {
+        Some((terminal_psi::StructuralPathSegment::Case(_), prefix)) => prefix,
+        _ => &argument.path,
+    };
+    let regions =
+        crate::lowering::structural_layout::reference_projection_regions(root, carrier_path, types)
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
     let (_, _, _, leaf_indices) = crate::lowering::structural_layout::runtime_projection(
         regions.root,
         regions.path,

@@ -3,7 +3,7 @@
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, PlaceId, StructuralFieldId};
 use terminal_psi::{
     ByteSequenceCarrier, Operation, OperationKind, OperationResult, StructuralAccess,
-    StructuralPathSegment, StructuralTypeShape, live_field_by_id,
+    StructuralPathSegment, StructuralTypeShape,
 };
 
 use crate::byte_sequences::binding::ByteSequenceBinding;
@@ -259,6 +259,13 @@ impl TerminalExecution<'_> {
             }
             (StructuralAccess::Owned, false)
         };
+        // A final Case selects a payload namespace, not a child allocation.
+        // Resolve its sum first, then authenticate the stored tag at that exact
+        // backing before looking up its declaration-local field.
+        let (carrier_path, selected_case) = match path.split_last() {
+            Some((StructuralPathSegment::Case(case), prefix)) => (prefix, Some(*case)),
+            _ => (path, None),
+        };
         let parent = if let Some(view) = self.element_view_values.get(&root) {
             if parameter_root && requires_mutation && access != StructuralAccess::MutableBorrow {
                 return Err(malformed());
@@ -274,7 +281,7 @@ impl TerminalExecution<'_> {
                 return Err(malformed());
             };
             let (collection, selected_path) =
-                view.structural_projection(path, requires_mutation)?;
+                view.structural_projection(carrier_path, requires_mutation)?;
             let StructuralTypeShape::FixedArray {
                 element: backing_element,
                 ..
@@ -310,12 +317,28 @@ impl TerminalExecution<'_> {
             // A reference hop selects captured referent storage. Appending
             // Referent as a physical field path would instead write beneath
             // the descriptor and leave the caller's bytes unchanged.
-            self.resolve_live_projection(root, path, requested)?
+            self.resolve_live_projection(root, carrier_path, requested)?
         };
-        let Some(fields) = self.program.record_fields(&parent.structural_type) else {
-            return Err(malformed());
-        };
-        let field_declaration = live_field_by_id(fields, field).ok_or_else(malformed)?;
+        if let Some(case) = selected_case {
+            let actual = self
+                .structural_cases
+                .get(&StructuralRuntimePlace::from(&parent))
+                .ok_or_else(malformed)?;
+            if actual.structural_type != parent.structural_type || actual.case != case {
+                return Err(malformed());
+            }
+        }
+        let case_path: Vec<_> = selected_case
+            .into_iter()
+            .map(StructuralPathSegment::Case)
+            .collect();
+        let field_declaration = terminal_semantics::projected_field_declaration(
+            self.program.structural_types().values(),
+            parent.structural_type,
+            &case_path,
+            field,
+        )
+        .ok_or_else(malformed)?;
         let carrier = field_declaration
             .field_type
             .byte_sequence_carrier()
@@ -323,6 +346,7 @@ impl TerminalExecution<'_> {
         Ok((
             StructuralByteSequenceRuntimeField {
                 parent: StructuralRuntimePlace::from(&parent),
+                namespace: crate::values::StructuralFieldNamespace::for_carrier(path),
                 field,
             },
             carrier,

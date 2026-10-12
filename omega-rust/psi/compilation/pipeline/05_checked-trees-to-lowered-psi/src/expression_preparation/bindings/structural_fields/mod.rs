@@ -765,17 +765,19 @@ pub(crate) fn resolve_sequence_projection(
         .iter()
         .map(|segment| match segment {
             checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
-                Ok(CheckedUnitStructuralPathSegment::Field(identity.clone()))
+                CheckedUnitStructuralPathSegment::Field(identity.clone())
+            }
+            checked_trees::CheckedStructuralPredicatePathSegment::Case(identity) => {
+                CheckedUnitStructuralPathSegment::Case(identity.clone())
             }
             checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(index) => {
-                Ok(CheckedUnitStructuralPathSegment::FixedIndex(*index))
+                CheckedUnitStructuralPathSegment::FixedIndex(*index)
             }
-            checked_trees::CheckedStructuralPredicatePathSegment::RuntimeIndex(index) => Ok(
-                CheckedUnitStructuralPathSegment::RuntimeIndex(index.clone()),
-            ),
-            _ => unsupported("sequence field length has an unsupported case path"),
+            checked_trees::CheckedStructuralPredicatePathSegment::RuntimeIndex(index) => {
+                CheckedUnitStructuralPathSegment::RuntimeIndex(index.clone())
+            }
         })
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect::<Vec<_>>();
     let (path, field) = crate::emission::structural_scalar_store::lower_structural_field_steps(
         identities,
         structural_type,

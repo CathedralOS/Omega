@@ -28,6 +28,7 @@ use terminal_psi::StructuralParameterDeclaration;
 use terminal_psi::StructuralPathSegment;
 use terminal_psi::StructuralTypeShape;
 
+mod byte_fields;
 mod operands;
 pub(crate) mod storage;
 mod structural_array;
@@ -67,7 +68,6 @@ impl TerminalExecution<'_> {
         );
         let mut staged = BTreeMap::new();
         let mut storage = ConstructorStorage::default();
-        let mut staged_bytes = BTreeMap::new();
 
         let mut consumed = Vec::new();
         let mut claim_operands = Vec::new();
@@ -107,89 +107,20 @@ impl TerminalExecution<'_> {
                             &mut value.projected_qualifications,
                         );
                     }
-                    if declaration
-                        .field_type
-                        .byte_sequence_carrier()
-                        .is_some_and(|carrier| carrier.is_shared_readable_view())
-                    {
-                        let ConstructorValue::Placed(child) = &child else {
-                            return Err(malformed());
-                        };
-                        let bytes = self
-                            .byte_sequence_values
-                            .get(&argument.place)
-                            .ok_or_else(malformed)?
-                            .immutable()?;
-                        if argument.access != StructuralAccess::Owned
-                            || !argument.path.is_empty()
-                            || !self
-                                .program
-                                .structural_types()
-                                .get(&child.structural_type)
-                                .is_some_and(|row| row.shape.is_shared_readable_byte_view())
-                            || !terminal_semantics::byte_literal_qualifications_hold_in(
-                                self.program.catalogs.structural_domains.iter(),
-                                child.structural_type,
-                                &child.qualifications,
-                                bytes.bytes(),
-                            )
-                            || !declaration
-                                .field_type
-                                .byte_predicates()
-                                .holds_for(bytes.bytes())
-                        {
-                            return Err(malformed());
-                        }
-                        self.stage_constructor_operand(argument, &mut frontier, &mut consumed)?;
-                        staged_bytes.insert(
+                    if let Some(bytes) = self.prepare_constructor_byte_field(
+                        declaration,
+                        argument,
+                        &child,
+                        &mut frontier,
+                        &mut consumed,
+                    )? {
+                        storage.stage_byte_field(
                             crate::values::StructuralByteSequenceRuntimeField {
                                 parent: StructuralRuntimePlace::from(&value),
+                                namespace: crate::values::StructuralFieldNamespace::Member,
                                 field: binding.field,
                             },
-                            bytes.clone(),
-                        );
-                        continue;
-                    }
-                    if let Some(
-                        carrier @ terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
-                    ) = declaration.field_type.byte_sequence_carrier()
-                    {
-                        let ConstructorValue::Placed(child) = &child else {
-                            return Err(malformed());
-                        };
-                        let predicates = terminal_semantics::byte_qualification_predicates_in(
-                            self.program.catalogs.structural_domains.iter(),
-                            child.structural_type,
-                            &child.qualifications,
-                        )
-                        .ok_or_else(malformed)?;
-                        let bytes = self
-                            .byte_sequence_values
-                            .get(&argument.place)
-                            .ok_or_else(malformed)?
-                            .immutable()?;
-                        if argument.access != StructuralAccess::Owned
-                            || !argument.path.is_empty()
-                            || !child.path.is_empty()
-                            || !self
-                                .program
-                                .structural_types()
-                                .get(&child.structural_type)
-                                .is_some_and(|declaration| {
-                                    declaration.shape == StructuralTypeShape::ByteSequence(carrier)
-                                })
-                            || !predicates.implies(declaration.field_type.byte_predicates())
-                            || u64::try_from(bytes.len()).map_or(true, |length| length > capacity)
-                            || self.live_affine_discard_at(argument.place).is_some()
-                        {
-                            return Err(malformed());
-                        }
-                        staged_bytes.insert(
-                            crate::values::StructuralByteSequenceRuntimeField {
-                                parent: StructuralRuntimePlace::from(&value),
-                                field: binding.field,
-                            },
-                            bytes.clone(),
+                            bytes,
                         );
                         continue;
                     }
@@ -231,7 +162,6 @@ impl TerminalExecution<'_> {
             })?;
         self.commit_constructor_operands(frontier, &consumed, claims)?;
         self.structural_scalar_fields.extend(staged);
-        self.structural_byte_sequence_fields.extend(staged_bytes);
         storage.publish(self);
         self.structural_values.insert(result.place, value);
         Ok(())

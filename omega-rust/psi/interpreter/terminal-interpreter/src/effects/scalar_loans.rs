@@ -23,7 +23,7 @@ use crate::execution::TerminalExecution;
 use crate::primitive_storage::{PrimitiveStorage, PrimitiveStorageEndpoint};
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::values::{
-    ScalarFieldNamespace, StructuralRuntimePlace, TerminalScalarValue, TerminalStructuralValue,
+    StructuralFieldNamespace, StructuralRuntimePlace, TerminalScalarValue, TerminalStructuralValue,
 };
 
 /// One boundary argument's captured scalar payload. Replacement is staged,
@@ -366,7 +366,7 @@ impl TerminalExecution<'_> {
             .structural_types()
             .get(&parent_type)
             .ok_or_else(malformed)?;
-        let fields = if cell.namespace == ScalarFieldNamespace::CasePayload {
+        let fields = if cell.namespace == StructuralFieldNamespace::CasePayload {
             let case = self
                 .structural_cases
                 .get(&cell.parent)

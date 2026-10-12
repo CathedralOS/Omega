@@ -170,32 +170,7 @@ pub(super) fn validate_establish_structural_case(
         if declaration.id != field.field || declaration.relevance.is_erased() {
             return malformed("structural case establishment has an invalid field binding");
         }
-        match (&field.value, &declaration.field_type) {
-            (
-                terminal_psi::RecordFieldValue::Scalar {
-                    range_obligation, ..
-                },
-                field_type,
-            ) if field_type.scalar_type().is_some() => {
-                if range_obligation.is_some()
-                    != terminal_semantics::scalar_field_requires_evidence(field_type)
-                {
-                    return malformed("structural case establishment has an invalid field binding");
-                }
-            }
-            (
-                terminal_psi::RecordFieldValue::Structural(argument),
-                StructuralFieldType::Structural(_),
-            ) if argument.access == terminal_psi::StructuralAccess::Owned => {
-                validate_constructor_projection(
-                    module,
-                    machine,
-                    argument,
-                    &declaration.field_type,
-                )?;
-            }
-            _ => return malformed("structural case establishment has an invalid field binding"),
-        }
+        validate_constructor_field(module, machine, field, &declaration.field_type)?;
     }
     // Full module validation independently checks exact operand types,
     // dominance and declaration-derived obligations before acceptance.
@@ -376,37 +351,49 @@ pub(super) fn validate_establish_record(
         {
             return malformed("record field identity differs");
         }
-        match (&field.value, &declaration.field_type) {
-            (
-                terminal_psi::RecordFieldValue::Scalar {
-                    range_obligation, ..
-                },
-                field_type,
-            ) if field_type.scalar_type().is_some() => {
-                if range_obligation.is_some()
-                    != terminal_semantics::scalar_field_requires_evidence(field_type)
-                {
-                    return malformed("record range obligation differs");
-                }
-            }
-            (terminal_psi::RecordFieldValue::Structural(argument), field_type)
-                if (matches!(field_type, StructuralFieldType::Structural(_))
-                    || matches!(
-                        field_type.byte_sequence_carrier(),
-                        Some(
-                            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                                | terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                        )
-                    ))
-                    && argument.access == terminal_psi::StructuralAccess::Owned =>
+        validate_constructor_field(module, machine, field, &declaration.field_type)?;
+    }
+    Ok(())
+}
+
+/// Records and cases bind the same completed field operands. The selected
+/// declaration namespace changes the roster, never the carrier contract.
+fn validate_constructor_field(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    field: &terminal_psi::RecordFieldInitializer,
+    field_type: &StructuralFieldType,
+) -> Result<(), CodecError> {
+    match (&field.value, field_type) {
+        (
+            terminal_psi::RecordFieldValue::Scalar {
+                range_obligation, ..
+            },
+            field_type,
+        ) if field_type.scalar_type().is_some() => {
+            if range_obligation.is_some()
+                != terminal_semantics::scalar_field_requires_evidence(field_type)
             {
-                validate_constructor_projection(module, machine, argument, field_type)?;
-                // Predicate wrappers do not change whole descriptor custody.
-                // Independent verification checks availability, partial moves,
-                // backing lifetime and receiving predicates.
+                return malformed("constructor field range obligation differs");
             }
-            _ => return malformed("record field operand differs"),
         }
+        (terminal_psi::RecordFieldValue::Structural(argument), field_type)
+            if (matches!(field_type, StructuralFieldType::Structural(_))
+                || matches!(
+                    field_type.byte_sequence_carrier(),
+                    Some(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                            | terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                    )
+                ))
+                && argument.access == terminal_psi::StructuralAccess::Owned =>
+        {
+            validate_constructor_projection(module, machine, argument, field_type)?;
+            // Predicate wrappers do not change whole descriptor custody.
+            // Independent verification checks availability, partial moves,
+            // backing lifetime and receiving predicates.
+        }
+        _ => return malformed("constructor field operand differs"),
     }
     Ok(())
 }

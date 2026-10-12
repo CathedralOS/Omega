@@ -178,7 +178,15 @@ pub(super) fn stage(
                     declaration,
                 } => {
                     if !binding.leaves.iter().any(|old| old.path == leaf.path && matches!(&old.kind, StorageLeafKind::ByteField { declaration: original, .. } if original == declaration)) { return Err(TerminalInterpretError::UnsupportedSemanticVariant("case replacement lacks a semantic codec for new byte fields")); }
-                    staged.retain_byte_field(execution, parent, *field)?;
+                    let namespace = if matches!(
+                        leaf.path.iter().rev().nth(1),
+                        Some(semantic_vocabulary::CanonicalStructuralPathSegment::Case(_))
+                    ) {
+                        crate::values::StructuralFieldNamespace::CasePayload
+                    } else {
+                        crate::values::StructuralFieldNamespace::Member
+                    };
+                    staged.retain_byte_field(execution, parent, *field, namespace)?;
                 }
                 StorageLeafKind::ByteArray {
                     destination,

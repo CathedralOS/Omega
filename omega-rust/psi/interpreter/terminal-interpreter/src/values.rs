@@ -99,7 +99,7 @@ pub(crate) struct StructuralRuntimePlace {
 /// matches the establishment roster by position). The namespace keeps those
 /// two cells apart; the field identity alone cannot.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum ScalarFieldNamespace {
+pub(crate) enum StructuralFieldNamespace {
     /// A record field or a mixed shape's common field.
     Member,
     /// A payload field of the case active at the parent place.
@@ -109,7 +109,7 @@ pub(crate) enum ScalarFieldNamespace {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct StructuralScalarRuntimeField {
     pub(crate) parent: StructuralRuntimePlace,
-    pub(crate) namespace: ScalarFieldNamespace,
+    pub(crate) namespace: StructuralFieldNamespace,
     pub(crate) field: StructuralFieldId,
 }
 
@@ -118,7 +118,7 @@ impl StructuralScalarRuntimeField {
     pub(crate) fn member(parent: StructuralRuntimePlace, field: StructuralFieldId) -> Self {
         Self {
             parent,
-            namespace: ScalarFieldNamespace::Member,
+            namespace: StructuralFieldNamespace::Member,
             field,
         }
     }
@@ -127,7 +127,7 @@ impl StructuralScalarRuntimeField {
     pub(crate) fn case_payload(parent: StructuralRuntimePlace, field: StructuralFieldId) -> Self {
         Self {
             parent,
-            namespace: ScalarFieldNamespace::CasePayload,
+            namespace: StructuralFieldNamespace::CasePayload,
             field,
         }
     }
@@ -147,7 +147,28 @@ impl StructuralScalarRuntimeField {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct StructuralByteSequenceRuntimeField {
     pub(crate) parent: StructuralRuntimePlace,
+    pub(crate) namespace: StructuralFieldNamespace,
     pub(crate) field: StructuralFieldId,
+}
+
+impl StructuralByteSequenceRuntimeField {
+    pub(crate) fn relocated(&self, parent: StructuralRuntimePlace) -> Self {
+        Self {
+            parent,
+            namespace: self.namespace,
+            field: self.field,
+        }
+    }
+}
+
+impl StructuralFieldNamespace {
+    pub(crate) fn for_carrier(path: &[StructuralPathSegment]) -> Self {
+        if matches!(path.last(), Some(StructuralPathSegment::Case(_))) {
+            Self::CasePayload
+        } else {
+            Self::Member
+        }
+    }
 }
 
 impl From<&TerminalStructuralValue> for StructuralRuntimePlace {

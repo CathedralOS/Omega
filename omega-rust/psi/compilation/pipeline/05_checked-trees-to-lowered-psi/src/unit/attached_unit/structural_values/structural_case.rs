@@ -161,9 +161,13 @@ impl emission::Emission<'_, '_, '_> {
                             initialized.len(),
                         )?
                     } else {
-                        let Some(child_type) = target.field_type.as_structural() else {
-                            return unsupported("nested case operand has a scalar destination");
-                        };
+                        let child_type = super::field_carrier::resolve(
+                            identities,
+                            self.checked,
+                            self.structural_types,
+                            &target.field_type,
+                            field.type_reference,
+                        )?;
                         let mut prefix = Vec::new();
                         if roster.start == common.len() {
                             prefix.push(terminal_psi::StructuralPathSegment::Case(shape_case.id));
@@ -251,6 +255,11 @@ pub(crate) fn emit_completed<'parameter>(
             .ok_or(LoweringError::Unsupported(
                 "completed case field has no declaration",
             ))?;
+        // Inline byte fields carry their predicates in the field contract;
+        // projected qualifications describe nominal structural children.
+        if !matches!(declaration.field_type, StructuralFieldType::Structural(_)) {
+            continue;
+        }
         let mut prefix = Vec::new();
         if position >= common_fields {
             prefix.push(terminal_psi::StructuralPathSegment::Case(result_case));
