@@ -471,10 +471,6 @@ helper that passes does not close an item.
     views retain their backing loan (`fail/slices/noncopy_array_view_keeps_backing_loan`). Preserve
     the selected requirement, returned loan custody and bounds; do not
     substitute builtin slicing.
-    `pass/modules/runtime_public_generic_dependency_exit` must keep
-    executing the public template's selected range bodies; macOS at
-    `c2e6db4328a` rejects its entry fields with `lost its retained storage
-    declaration`. Private templates remain inaccessible across packages.
   - `samples/cli/basics/generic_counters` (exit 16) needs matching-host runs
     on its other declared targets.
   Acceptance: static customers execute with their authored exit/output; the

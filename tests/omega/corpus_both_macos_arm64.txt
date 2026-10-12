@@ -795,7 +795,7 @@ pass/operators/runtime_declared_range_guarded_collection_exit built 3840ms exit:
 pass/targets/target_machine_gating_exit built 3646ms exit:70 interpreter-exit:70 interpreter:agrees @678203d30209+wt
 pass/operators/runtime_declared_open_range_evaluates_collection_once_exit built 3984ms exit:0 interpreter-exit:0 interpreter:agrees @ebe013852fbf
 pass/operators/runtime_declared_open_range_preserves_operand_snapshot_exit built 3996ms exit:0 interpreter-exit:0 interpreter:agrees @ebe013852fbf
-pass/modules/runtime_public_generic_dependency_exit built 3682ms exit:0 interpreter-exit:0 interpreter:agrees @eb7a93e71125
+pass/modules/runtime_public_generic_dependency_exit built 3651ms exit:0 interpreter-exit:0 interpreter:agrees @92558d90488a+wt
 # context: {"cpus": 10, "jobs": "2", "load1_end": 3.03, "load1_start": 3.03, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/targets/portable_family_entry_installations_exit built 3110ms exit:0 interpreter-exit:0 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:trap terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @8d22fd65fdd6+wt
 pass/targets/selected_family_exclusion_closure_exit built 3024ms exit:0 interpreter-exit:0 interpreter:agrees @8d22fd65fdd6+wt
@@ -938,3 +938,5 @@ pass/borrows/runtime_computed_view_observation_composition_exit built 3712ms exi
 pass/borrows/runtime_projected_view_observations_exit built 3634ms exit:0 interpreter-exit:0 interpreter:agrees @54d47902d575+wt
 pass/borrows/runtime_byte_view_element_reference_calls_exit built 3607ms exit:0 interpreter-exit:0 interpreter:agrees @54d47902d575+wt
 pass/borrows/runtime_copied_byte_predicate_snapshot_exit built 3506ms exit:0 interpreter-exit:0 interpreter:agrees @54d47902d575+wt
+pass/build/entry_schema_same_leaf_exit built 3580ms exit:0 interpreter-exit:0 interpreter:agrees @92558d90488a+wt
+pass/entry/nested_where_record_binding_field_exit built 4394ms exit:70 interpreter-exit:70 interpreter:agrees @92558d90488a+wt

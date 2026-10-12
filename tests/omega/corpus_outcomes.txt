@@ -5319,7 +5319,7 @@ pass/modules/runtime_foreign_generic_scoped_constant_exit checked 11140ms check-
 pass/modules/runtime_named_constant_array_extent_exit checked 21222ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/modules/runtime_named_extent_generic_copy_exit checked 20629ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/modules/runtime_nominal_constant_lexical_ownership_exit checked 16334ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/modules/runtime_public_generic_dependency_exit checked 11437ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/modules/runtime_public_generic_dependency_exit checked 3592ms check-target:macos_arm64 @92558d90488a+wt
 pass/modules/runtime_qualified_static_mutation_exit checked 11682ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/modules/same_name_requirement_field_calls_exit rejected 11418ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
 	terminal-artifact production failed: Lowering(Unsupported("Unit services have empty or duplicate canonical identities"))

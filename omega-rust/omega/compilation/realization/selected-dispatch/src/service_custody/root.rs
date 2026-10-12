@@ -29,7 +29,7 @@ struct ServiceFieldApplication<'program> {
 #[derive(Clone, Copy)]
 struct ServiceFieldSource<'program> {
     definition: &'program DataDefinition,
-    storage_definition: &'program DataDefinition,
+    storage_reference: TypeReferenceHandle,
     reference: TypeReferenceHandle,
     lexical_owner: symbols::SymbolHandle,
 }
@@ -53,7 +53,7 @@ impl<'program> ServiceFieldSource<'program> {
             .type_symbol(&checked.type_reference_table);
         Some(Self {
             definition: checked.unique_data_definition_by_symbol(owner)?,
-            storage_definition: context.definition,
+            storage_reference: *referee,
             reference,
             lexical_owner,
         })
@@ -539,26 +539,21 @@ fn collect_service_fields<'a>(
             continue;
         };
         let field_identity = data_field_identity(field);
-        // Storage eligibility was qualified on the prepared receiver. Its
-        // exact retained field symbol rejoins that physical view, while the
-        // original field operand and its supplying prefix own region custody.
-        let mut stored = checked
-            .data_members(source.storage_definition)
-            .iter()
-            .filter_map(|member| member.as_field())
-            .filter(|stored| stored.symbol == field.symbol);
-        let Some(storage_field) = stored.next() else {
+        // Specialization gives storage fields new symbols. Rejoin the authored
+        // member through its retained generic origin and the exact reference
+        // used by storage eligibility, including occurrence-specific field
+        // views. The original field operand and its supplying prefix still
+        // own region custody; the prepared storage view cannot replace them.
+        let Some(storage_field) = checked.closed_data_constructor_field(
+            source.storage_reference,
+            source.definition.symbol,
+            field.symbol,
+        ) else {
             diagnostics.push(Diagnostic::error(format!(
                 "selected ProgramEntry field `{field_identity}` lost its retained storage declaration"
             )));
             continue;
         };
-        if stored.next().is_some() {
-            diagnostics.push(Diagnostic::error(format!(
-                "selected ProgramEntry field `{field_identity}` repeats its retained storage declaration"
-            )));
-            continue;
-        }
         let Some((reference, frames)) = checked.project_enclosing_data_type_reference(
             field.type_reference,
             enclosing_data_applications,
@@ -597,10 +592,9 @@ fn collect_service_fields<'a>(
                 field_path.pop();
             }
             Ok(None) => {
-                let Some(nested) = nested_source_record(checked, storage_field.type_reference)
-                else {
+                if nested_source_record(checked, storage_field.type_reference).is_none() {
                     continue;
-                };
+                }
                 let owner_symbol = checked
                     .type_reference_table
                     .type_reference(reference)
@@ -618,7 +612,7 @@ fn collect_service_fields<'a>(
                     owner,
                     ServiceFieldSource {
                         definition: declaration,
-                        storage_definition: nested,
+                        storage_reference: storage_field.type_reference,
                         reference,
                         lexical_owner: source.lexical_owner,
                     },
