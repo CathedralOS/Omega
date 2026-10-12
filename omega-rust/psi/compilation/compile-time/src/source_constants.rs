@@ -328,6 +328,10 @@ pub(crate) fn source_provider_bodies(
     let mut examined = Vec::new();
     let mut bodies = Vec::new();
     let mut owner = None;
+    let trace_choices = std::env::var_os("OMEGA_SOURCE_CONSTANT_INPUT_TRACE").is_some();
+    if trace_choices {
+        eprintln!("source-constant-choice-roster selections={} demanded-machines={} demanded-expressions={}", selections.len(), machines.len(), expressions.len());
+    }
     // Source selection can extend a demanded closure by its genuine body. The
     // finite fact roster is visited once per original occurrence; no frontend
     // pass or evaluation is repeated to discover another provider.
@@ -343,11 +347,30 @@ pub(crate) fn source_provider_bodies(
             }
             examined.push(key);
             let mut selected = None;
+            if trace_choices {
+                eprintln!("source-constant-choice-use expression={expression:?} source={:?} origin={origin:?} requirement={requirement:?} name={}", program.expression_table.source_span(*expression), program.symbols.display_path(*requirement, "::"));
+            }
             for selection in selections {
+                if trace_choices {
+                    let [subject, provider] = &selection.operands;
+                    eprintln!("source-constant-choice-input subject={:?} subject-name={} kind={:?} application={:?} receiver={:?} provider={:?} provider-name={}", subject.declaration, subject.owner.symbols.display_path(subject.declaration, "::"), subject.kind, subject.application, subject.receiver_type, provider.declaration, provider.owner.symbols.display_path(provider.declaration, "::"));
+                }
                 match selection.resolve(program, *requirement).map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])? {
-                    SourceProviderResolution::Unselected => {},
-                    SourceProviderResolution::Retained(reason) => return Ok(SourceProviderBodies::Retained(reason)),
+                    SourceProviderResolution::Unselected => {
+                        if trace_choices {
+                            eprintln!("source-constant-choice-resolution unselected");
+                        }
+                    },
+                    SourceProviderResolution::Retained(reason) => {
+                        if trace_choices {
+                            eprintln!("source-constant-choice-resolution retained reason={reason}");
+                        }
+                        return Ok(SourceProviderBodies::Retained(reason));
+                    },
                     SourceProviderResolution::Body(body) => {
+                        if trace_choices {
+                            eprintln!("source-constant-choice-resolution body={} state={:?}", program.symbols.display_path(body.machine, "::"), body.state);
+                        }
                         if selected.is_some() {
                             return Err(vec![diagnostics::Diagnostic::error("source constant use has competing executed provider choices")]);
                         }
