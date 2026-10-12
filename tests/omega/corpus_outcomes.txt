@@ -1804,16 +1804,15 @@ fail/float/digit_separator_missing_exponent_rejected rejected 0ms expected @a9ae
 	tests/omega/fail/float/digit_separator_missing_exponent_rejected/main.omg:1:35: invalid float literal
 fail/float/digit_separator_unknown_suffix_rejected rejected 0ms expected @a9ae30e1c334+wt
 	tests/omega/fail/float/digit_separator_unknown_suffix_rejected/main.omg:1:35: unknown float literal suffix
-fail/float/exact_format_conversion_requires_denotation rejected 5136ms expected @a9ae30e1c334+wt
+fail/float/exact_format_conversion_requires_denotation rejected 438ms expected @e2eb2e0b9606
 	machine `lossy` state `entry` cannot prove Exact float-to-`f32` cast operand `value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `lossy_literal` state `entry` cannot prove Exact float-to-`f32` cast operand `0.1` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `unknown` state `entry` cannot prove Exact float-to-`f32` cast operand `value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `finite_is_not_exact` state `entry` cannot prove Exact float-to-`f32` cast operand `value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `exact_ends_are_not_enough` state `entry` cannot prove Exact float-to-`f32` cast operand `value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `overflow` state `entry` cannot prove Exact float-to-`f32` cast operand `large()` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
-	cast target range in machine `receiving_type_is_not_proof` state `entry` cast expression is not proven from the source value; all target predicates must hold before policy qualification (unknown numeric bounds or unsupported non-integer membership require an explicit proof)
 	machine `receiving_type_is_not_proof` state `entry` cannot prove Exact float-to-`f32` cast operand `value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
-fail/float/exact_integer_coercion_requires_denotation rejected 5575ms expected @a9ae30e1c334+wt
+fail/float/exact_integer_coercion_requires_denotation rejected 436ms expected @e2eb2e0b9606
 	machine `fractional` state `entry` cannot prove Exact float-to-`i32` cast operand `value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `negative_fraction` state `entry` cannot prove Exact float-to-`u32` cast operand `-0.5` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `unknown` state `entry` cannot prove Exact float-to-`i32` cast operand `value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
@@ -1840,8 +1839,8 @@ fail/float/finite_store_invalidated rejected 5447ms expected @a9ae30e1c334+wt
 	cannot prove transition argument `sample.value` satisfies `finite` for bounded parameter `value` in `inspect.entry`
 fail/float/float_semantics_lookalike_grants_no_primitive rejected 42ms expected @a9ae30e1c334+wt
 	`FloatSemantics::add` names a compiler primitive, but only the sealed toolchain declaration supplies it; merely naming a declaration `FloatSemantics::add` grants no primitive implementation or proof authority
-fail/float/format_conversion_exclusive_upper rejected 5035ms expected @a9ae30e1c334+wt
-	cannot prove return value `F32.from_f64(value)` satisfies bounded return type in `exclusive.entry`; expected 0..1
+fail/float/format_conversion_exclusive_upper rejected 1330ms expected @e2eb2e0b9606
+	cannot prove ensures contract for exit from exclusive at statement 0: result >= 0.0 && result < 1.0
 fail/float/format_conversion_lookalike rejected 5491ms expected @a9ae30e1c334+wt
 	cannot prove return value `__hoist_34` satisfies bounded return type in `lookalike.entry`; expected 0.10000000149011612..=0.10000000149011612
 fail/float/format_conversion_requires_result_proof rejected 5121ms expected @a9ae30e1c334+wt
@@ -1897,6 +1896,8 @@ fail/float/normal_call_guarantee_inactive_match_arm rejected 32715ms expected @a
 	cannot prove ensures contract for exit from invalid at statement 1: result == F32.is_finite(value)
 fail/float/normal_call_guarantee_skipped_short_circuit rejected 32093ms expected @a9ae30e1c334+wt
 	cannot prove ensures contract for exit from invalid at statement 1: result == F32.is_finite(value)
+fail/float/parameter_guarantee_does_not_bound_result rejected 396ms expected @e2eb2e0b9606
+	machine `narrow` state `entry` cannot prove Exact float-to-`f32` cast operand `source(3.75, 0.1)` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 fail/float/policy_cast_requires_unchanged_denotation rejected 5214ms expected @a9ae30e1c334+wt
 	machine `fractional_saturating` state `entry` cannot prove Exact float-to-`i32` cast operand `3.75` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `fractional_trapping` state `entry` cannot prove Exact float-to-`i32` cast operand `3.75` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
@@ -1940,6 +1941,9 @@ fail/float/refined_conversion_target_requires_source_proof rejected 5501ms expec
 	machine `rounded` state `entry` cannot prove Exact float-to-`f32` cast operand `3.0000000000000004` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 fail/float/requirement_record_field_trapping_requires_coverage rejected 32683ms expected @a9ae30e1c334+wt
 	`multiply(value, 2.0)` in machine `packet` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
+fail/float/result_predicate_stale_or_wrong_value rejected 1328ms expected @e2eb2e0b9606
+	cannot prove requires contract for call accept from stale: current == 3.75 (needs fact `value == 3.75` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+	cannot prove requires contract for call accept from wrong_value: 0.1 == 3.75 (needs fact `value == 3.75` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/float/same_carrier_cast_cannot_mint_finite rejected 5698ms expected @a9ae30e1c334+wt
 	cannot prove initializer `identity(value) as f64` satisfies `finite` for the bounded value of machine `invalid` state `entry` local `finite`
 fail/float/state_arrival_ieee_predicate_unsatisfied rejected 34670ms expected @a9ae30e1c334+wt
@@ -1976,6 +1980,8 @@ fail/float/trapping_raw_finite_predicate_keeps_operand_identity rejected 33629ms
 fail/float/trapping_raw_finite_proof_keeps_operation_identity rejected 34257ms expected @a9ae30e1c334+wt
 	`divide(value, 0.0)` in machine `scale` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
 	`F32.from_f64(value)` in machine `wrong_format` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
+fail/float/unbounded_result_does_not_prove_guarantee rejected 1314ms expected @e2eb2e0b9606
+	cannot prove ensures contract for exit from tail at statement 1: result == 3.75
 fail/float/unguarded_scalar_state_contract rejected 32973ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call bounded from unchecked: value == value && value >= -100.0 && value <= 100.0 (needs fact `value == value && value >= -100.0 && value <= 100.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/generics/attached_machine_unresolved_extent rejected 869ms expected @a9ae30e1c334+wt
@@ -5015,14 +5021,14 @@ pass/float/runtime_authored_max_selection_exit timeout 120001ms @a9ae30e1c334+wt
 pass/float/runtime_builtin_guard_application_exit timeout 120000ms @a9ae30e1c334+wt
 pass/float/runtime_builtin_ieee_order_exit timeout 120000ms @a9ae30e1c334+wt
 pass/float/runtime_coercion_future_policy_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/runtime_exact_format_narrowing_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/runtime_exact_integer_coercion_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/float/runtime_exact_format_narrowing_exit checked 9264ms check-target:macos_arm64 @e2eb2e0b9606
+pass/float/runtime_exact_integer_coercion_exit checked 9260ms check-target:macos_arm64 @e2eb2e0b9606
 pass/float/runtime_exact_integer_to_float_coercion_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
 pass/float/runtime_finite_record_invariant_window_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
 pass/float/runtime_float_call_same_carrier_cast_exit timeout 120002ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
 pass/float/runtime_float_digit_separators_exit checked 145577ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/float/runtime_float_integer_conversion_boundaries_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/runtime_format_conversion_result_bounds_exit timeout 120002ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/float/runtime_format_conversion_result_bounds_exit checked 9133ms check-target:macos_arm64 @e2eb2e0b9606
 pass/float/runtime_named_float_to_integer_conversion_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
 pass/float/runtime_named_fma_sequence_exit timeout 120003ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
 pass/float/runtime_named_format_conversion_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5031,6 +5037,7 @@ pass/float/runtime_named_policy_result_exit timeout 120000ms regressed-from:chec
 pass/float/runtime_nested_float_min_max_exit checked 143720ms check-target:linux_x86_64 @e977d51d9986
 pass/float/runtime_qualified_carrier_conversion_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
 pass/float/runtime_refined_conversion_target_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/float/runtime_result_predicate_custody_exit checked 9135ms check-target:macos_arm64 @e2eb2e0b9606
 pass/float/runtime_resultless_law_equality_custody_exit checked 143939ms check-target:linux_x86_64 @e977d51d9986
 pass/float/runtime_shared_float_lazy_branch_exit timeout 120000ms @a9ae30e1c334+wt
 pass/float/runtime_shared_float_operand_once_exit timeout 120000ms @a9ae30e1c334+wt
