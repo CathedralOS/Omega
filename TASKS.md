@@ -1732,6 +1732,12 @@ defines the complete product bar.
   `pass/collections/runtime_nested_const_row_indexed_read_exit`,
   `pass/arithmetic/runtime_guard_narrowed_transition_arg_exit`,
   `pass/arithmetic/runtime_exact_guarded_shift_count_exit`,
+  `pass/termination/rank_range_call_component`,
+  `pass/termination/runtime_joint_rank_computed_copy_exit` and
+  `fail/termination/{rank_range_call_component_prefix_write,rank_range_declared_step_unbounded}`
+  (complete mutual cycles preserve reordered endpoints and computed copies;
+  restoring scalar bounds after a subject reset supplies no descent, and
+  an unconstrained zero stride still refuses strict decrease),
   `pass/termination/rank_range_{declared_step_copies,call_declared_step_copy}`.
 
   The 16 recursive filesystem parameter suffixes remain unmigrated. Their

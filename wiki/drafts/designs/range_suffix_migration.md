@@ -180,6 +180,27 @@ between fields and no permission to decrease the wrong coordinate; the invalid
 sibling retains its original refusal. The rank range expressions remain
 unchanged. They neither constrain storage identity nor make an endpoint static.
 
+## Audited mutual call and computed-copy arrivals
+
+Eleven scalar suffixes retain ordinary arrival propositions and unsigned zero
+floors. The recursive calls, computed-copy equations and rank windows remain
+unchanged; no interval-only domain substitutes for a bound.
+
+| Fixture and original revision | Original positions | Canonical obligations |
+|---|---|---|
+| `termination/rank_range_call_component_prefix_write`, `3e87e79438f` | `scan_a.index`, `scan_a.limit`, `scan_b.index`, `scan_b.limit`: `u64 [0..=4]` | each machine requires both `<= 4`, retaining `index <= limit` |
+| `termination/runtime_joint_rank_computed_copy_exit`, original `rank_range_call_computed_copy_unproven` at `88d4c1e4f77` | `count.remaining`, `pair.left`, `pair.right`, `step.n`: `u32 [0..=9]` | each parameter's own arrival requires `<= 9` |
+| `termination/rank_range_declared_step_unbounded`, `c788455baa2` | `walk.remaining`, `pair.live`, `pair.saved`: `u32 [0..=9]` | each parameter's own arrival requires `<= 9`; stride remains unconstrained |
+
+The [reordered-endpoint witness](../../../tests/omega/pass/termination/rank_range_call_component/README.md)
+now executes the existing mutual countdown and observes two. Its prefix-reset
+control re-establishes the recursive call's scalar bounds with a post-write
+guard, but still refuses entry-relative ranking. A guard grants no descent.
+The [computed-copy witness](../../../tests/omega/pass/termination/runtime_joint_rank_computed_copy_exit/README.md)
+still returns zero through its equal-copy weak edge and strict decrement.
+The unbounded-step control permits zero and retains the strict-decrease
+refusal, correcting an already-stale diagnostic pin rather than its algorithm.
+
 ## Audited mutable dependent state arrivals
 
 The [disjoint-write witness inventory](../../../tests/omega/pass/termination/runtime_rank_state_constraint_disjoint_write_exit/README.md)

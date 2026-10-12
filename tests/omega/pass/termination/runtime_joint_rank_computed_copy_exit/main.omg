@@ -5,11 +5,14 @@ machine Main::main(main: &mut Main) -> u32 {
     transition { _ -> Main::count(main, 5) }
 }
 
-machine Main::count(main: &mut Main, remaining: u32 [0..=9])
+machine Main::count(main: &mut Main, remaining: u32)
+requires remaining <= 9;
 terminates by remaining;
 -> u32 {
     transition { _ -> pair(main, remaining, remaining + 0) }
-    state pair(main: &mut Main, left: u32 [0..=9], right: u32 [0..=9]) {
+    state pair(main: &mut Main, left: u32, right: u32)
+    requires left <= 9 && right <= 9;
+    {
         transition left > 0 {
             true -> Main::step(main, right)
             false -> left
@@ -17,7 +20,8 @@ terminates by remaining;
     }
 }
 
-machine Main::step(main: &mut Main, n: u32 [0..=9])
+machine Main::step(main: &mut Main, n: u32)
+requires n <= 9;
 terminates by n in 0..=9;
 -> u32 {
     transition n > 0 {

@@ -23,3 +23,16 @@ terminates by pending in lower..=upper;
         false -> pending
     }
 }
+
+// Execute the original mutual component without changing its weak/strict
+// edges or reordered rank endpoints. The countdown stops at its lower bound.
+machine run() crashes Trap {
+    let mut main: Main;
+    let result: u64 = Main::main(&mut main);
+    transition result == 2 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

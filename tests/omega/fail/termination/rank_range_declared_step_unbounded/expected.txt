@@ -1,1 +1,1 @@
-cannot prove rank range
+cannot prove strict rank decrease on a recurrent arrival

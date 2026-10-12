@@ -12,19 +12,20 @@ machine bump(value: &mut u64) {
     value = 0;
 }
 
-machine Main::scan_a(main: &mut Main, mut index: u64 [0..=4], limit: u64 [0..=4])
-requires index <= limit;
+machine Main::scan_a(main: &mut Main, mut index: u64, limit: u64)
+requires index <= 4 && limit <= 4 && index <= limit;
 terminates by (index, limit) -> Nat::BoundedDistance in 0..=4;
 -> u64 {
     bump(&mut index);
-    transition index < limit {
+    // Re-establish call bounds after the write, not the original rank.
+    transition index < limit && limit <= 4 {
         true -> Main::scan_b(main, index + 1, limit)
         false -> index
     }
 }
 
-machine Main::scan_b(main: &mut Main, index: u64 [0..=4], limit: u64 [0..=4])
-requires index <= limit;
+machine Main::scan_b(main: &mut Main, index: u64, limit: u64)
+requires index <= 4 && limit <= 4 && index <= limit;
 terminates by (index, limit) -> Nat::BoundedDistance in 0..=4;
 -> u64 {
     transition index < limit {
