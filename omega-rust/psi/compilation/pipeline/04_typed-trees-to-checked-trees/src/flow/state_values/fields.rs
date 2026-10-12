@@ -244,22 +244,46 @@ fn carrier_integer_range(
     crate::values::bounds::primitive_range(primitive)
 }
 
-/// Integer literals authored anywhere in the program, sorted ascending. They
-/// are the widening thresholds: the constants the program itself compares
-/// against, which is where a still-extending bound is most likely to settle.
+/// Integer literals the program compares against, sorted ascending. They are
+/// the widening thresholds: a still-extending bound settles where a guard or
+/// contract compares it with a constant (named constants are substituted by
+/// now, so `i < LIMIT` reads as a literal comparison). A growing bound climbs
+/// one threshold per flow pass, so every other literal -- an increment, an
+/// index, a byte value -- only added passes: std's 193 literals made one
+/// loop counter take 183 passes, where its 81 compared literals suffice.
 /// The collection is program-pure; `FlowBuildContext` memoizes it so the
 /// arena scan runs at most once per flow build rather than per widening
 /// rejoin.
 pub(in crate::flow) fn integer_literal_thresholds(
     program: &dyn ::validation::CheckingInput,
 ) -> Vec<numerics::bignum::BigInt> {
+    use typed_trees::expression::BinaryOperator;
     let mut literals: Vec<numerics::bignum::BigInt> = program
         .expression_table
         .iter_expressions()
         .filter_map(|(_, expression)| match expression {
-            ExpressionNode::Integer(literal) => literal.value_bignum(),
+            ExpressionNode::Binary(binary)
+                if matches!(
+                    binary.operator,
+                    BinaryOperator::Less
+                        | BinaryOperator::LessOrEqual
+                        | BinaryOperator::Greater
+                        | BinaryOperator::GreaterOrEqual
+                        | BinaryOperator::Equal
+                        | BinaryOperator::NotEqual
+                ) =>
+            {
+                Some([binary.left, binary.right])
+            }
             _ => None,
         })
+        .flatten()
+        .filter_map(
+            |operand| match program.expression_table.expression(operand) {
+                ExpressionNode::Integer(literal) => literal.value_bignum(),
+                _ => None,
+            },
+        )
         .collect();
     literals.sort();
     literals.dedup();
