@@ -4,6 +4,11 @@
 //! `Expression` tree forms. `table_copies.rs` copies expression subtrees
 //! into a table and remaps a copy's symbols; `tree_conversion.rs` converts
 //! between owned trees and table rows.
+//!
+//! A completed constant retains its original nonexecuting expression graph.
+//! Declaration ownership traverses that graph so a whole-value fold cannot
+//! orphan nested selection obligations; operational readers consume only the
+//! published value. Copying carries both edges in the same handle namespace.
 
 use crate::AuthoredDeclarationSelectionOccurrenceId;
 use crate::name::Identifier;
@@ -33,6 +38,7 @@ pub use index_authority::{
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 struct ExpressionCorrespondence {
     source: language_core::expression_origin::ExpressionSourceOrigin,
+    completed_source: ExpressionHandle,
     selected_match_result: ExpressionHandle,
     selected_match_meaning: language_core::expression_origin::ConstMatchIntegerMeaning,
 }
@@ -730,6 +736,93 @@ impl ExpressionTable {
                 expression.generation(),
             ))
             .source = source;
+    }
+
+    /// The original graph of a completed expression is nonexecuting custody.
+    /// Reference discovery retains its declaration selections; evaluation reads
+    /// only the published value node and never reexecutes this graph.
+    pub fn completed_expression_source(&self, expression: ExpressionHandle) -> ExpressionHandle {
+        self.correspondences
+            .get(Handle::from_parts(
+                expression.arena_index(),
+                expression.generation(),
+            ))
+            .completed_source
+    }
+
+    /// Publish a computed value without discarding any authored operation.
+    /// The original node keeps its existing children and exact selection IDs;
+    /// no source span or literal spelling reconstructs their meaning. Returning
+    /// its handle lets the producer roll back an unfinished transaction.
+    pub fn publish_completed_expression(
+        &mut self,
+        expression: ExpressionHandle,
+        value: ExpressionNode,
+    ) -> ExpressionHandle {
+        let source = self.insert(self.expression(expression).clone());
+        let original_correspondence = *self.correspondences.get(Handle::from_parts(
+            expression.arena_index(),
+            expression.generation(),
+        ));
+        *self.correspondences.get_mut(Handle::from_parts(
+            source.arena_index(),
+            source.generation(),
+        )) = original_correspondence;
+        self.set_source_span(source, self.source_span(expression));
+        self.authored_selection_occurrences[source_span_index(source)] =
+            self.authored_selection_occurrences[source_span_index(expression)];
+        self.authored_selection_occurrences[source_span_index(expression)] = HandleSpan::empty();
+        let value_type = self.constructed_value_type_reference(expression);
+        if value_type.is_valid() {
+            self.set_constructed_value_type_reference(source, value_type);
+        }
+        if let Some(mut authority) = self.index_expression_authority(expression).cloned() {
+            if let Some(operation) = &mut authority.operation {
+                operation.expression = source;
+            }
+            *self.index_expression_authority_mut(source) = authority;
+        }
+        *self.correspondences.get_mut(Handle::from_parts(
+            expression.arena_index(),
+            expression.generation(),
+        )) = ExpressionCorrespondence {
+            source: original_correspondence.source,
+            completed_source: source,
+            ..ExpressionCorrespondence::default()
+        };
+        *self.expression_mut(expression) = value;
+        source
+    }
+
+    /// Restore this producer's exact pre-publication node and occurrence graph.
+    /// The archival row stays stable in backing storage but leaves iteration;
+    /// completed snapshots of a private preparation own their separate arenas.
+    pub fn restore_completed_expression(
+        &mut self,
+        expression: ExpressionHandle,
+        source: ExpressionHandle,
+    ) {
+        assert_eq!(self.completed_expression_source(expression), source);
+        *self.expression_mut(expression) = self.expression(source).clone();
+        let correspondence = *self.correspondences.get(Handle::from_parts(
+            source.arena_index(),
+            source.generation(),
+        ));
+        *self.correspondences.get_mut(Handle::from_parts(
+            expression.arena_index(),
+            expression.generation(),
+        )) = correspondence;
+        self.authored_selection_occurrences[source_span_index(expression)] =
+            self.authored_selection_occurrences[source_span_index(source)];
+        // The source row is no longer part of the owned graph. Sparse index
+        // enumeration follows these handles independently of expression roots.
+        if let Some(authority) = self
+            .index_expression_authority_handles
+            .get_mut(source_span_index(source))
+        {
+            *authority = Handle::invalid();
+        }
+        self.retain_expression_roots(|handle| handle != source);
     }
 
     /// Completed evaluation owns this edge; consumers never choose an arm here.

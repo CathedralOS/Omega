@@ -1293,6 +1293,12 @@ pub fn visit_expression(
     if !expression.is_valid() || !retained.expression(expression) {
         return;
     }
+    let completed_source = program
+        .expression_table
+        .completed_expression_source(expression);
+    if completed_source.is_valid() {
+        visit_expression(program, retained, completed_source);
+    }
     visit_type_reference(
         program,
         retained,
