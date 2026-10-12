@@ -1,0 +1,4 @@
+owner: Jarod / BIO01 dose_response_fit
+provenance: agent=codex model=unavailable requested_model=gpt-6.1-sol requested_effort=medium executor=Linux-x86_64 outcome=BIO01
+ticket: 1c862206b794493981d299f7ec679a3d
+published_utc: 2026-10-12T19:49:21.481766+00:00
