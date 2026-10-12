@@ -221,7 +221,7 @@ impl Invocation<'_> {
         expression: ExpressionHandle,
         destination: PrimitiveType,
     ) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String> {
-        let (value, warnings) = self.evaluate_scalar(expression, destination)?;
+        let (value, warnings) = self.evaluate_scalar(expression, destination, &mut Vec::new())?;
         Ok((value.into_index()?, warnings))
     }
 
@@ -229,6 +229,8 @@ impl Invocation<'_> {
         &self,
         expression: ExpressionHandle,
         destination: PrimitiveType,
+
+        inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
     ) -> Result<(ScalarValue, Vec<Diagnostic>), String> {
         value::evaluate_scalar(
             self.program.typed(),
@@ -237,6 +239,7 @@ impl Invocation<'_> {
             expression,
             destination,
             Some(self),
+            inputs,
         )
     }
 
@@ -293,10 +296,11 @@ impl Invocation<'_> {
             .ok_or("constant call lost its entry")?;
         let custody =
             BuildTimeInvocationCustody::Source(typed.expression_table.source_span(expression));
-        if call.source_call.is_valid() || self
-            .program
-            .admission
-            .closure_includes_authored_requires(typed, machine)
+        if call.source_call.is_valid()
+            || self
+                .program
+                .admission
+                .closure_includes_authored_requires(typed, machine)
         {
             self.program
                 .admission
@@ -414,50 +418,41 @@ impl ConstantCalls for Invocation<'_> {
     fn evaluate_call(
         &self,
         expression: ExpressionHandle,
+
+        inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
     ) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String> {
-        let (value, warnings) = self.evaluate_scalar_call(expression)?;
+        let (value, warnings) = self.evaluate_scalar_call(expression, inputs)?;
         Ok((value.into_index()?, warnings))
     }
 
     fn evaluate_scalar_call(
         &self,
         expression: ExpressionHandle,
+
+        inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
     ) -> Result<(ScalarValue, Vec<Diagnostic>), String> {
         let typed = self.program.typed();
         let AdmittedCall {
             target,
             arguments,
             warnings,
-        } = self.admit_call(expression)?;
+        } = self.admit_call(expression, inputs)?;
         let custody =
             BuildTimeInvocationCustody::Source(typed.expression_table.source_span(expression));
-        let result = match target {
+        let measured = match target {
             SelectedCall::Entry {
                 premise_discharge,
                 machine,
                 ..
-            } if premise_discharge => {
-                // The probe above re-ran ordinary checked contract proof at the
-                // snapshot arguments; its success is what admits the authored
-                // `requires` premises here. Interpretation itself proves
-                // nothing.
-                self.program
-                    .admission
-                    .evaluate_const_evaluable_machine_symbol_for_concrete_premise_invocation(
-                        typed,
-                        machine.symbol,
-                        arguments,
-                        custody,
-                    )?
-            }
-            SelectedCall::Entry { machine, .. } => self
+            } => self
                 .program
                 .admission
-                .evaluate_const_evaluable_machine_symbol_for_invocation(
+                .evaluate_const_evaluable_invocation_measured(
                     typed,
                     machine.symbol,
                     arguments,
                     custody,
+                    premise_discharge,
                 )?,
             SelectedCall::Operator(operator) => {
                 // A named requirement has no body to invoke, but the authored
@@ -478,14 +473,19 @@ impl ConstantCalls for Invocation<'_> {
                 );
                 let admission =
                     crate::BuildTimeAdmissionPlan::infer(&probe, self.program.authority.clone());
-                admission.evaluate_const_evaluable_machine_symbol_for_invocation(
+                admission.evaluate_const_evaluable_invocation_measured(
                     &probe,
                     owner,
                     Vec::new(),
                     custody,
+                    false,
                 )?
             }
         };
+        let (result, _, executed_input) = measured.into_parts_with_checked_input();
+        if let Some(executed_input) = executed_input {
+            inputs.push(executed_input);
+        }
         let destination = scalar_probe_destination(typed, target.return_type())
             .ok_or("constant result lost its exact carrier")?;
         let value = match result {
@@ -564,7 +564,11 @@ impl Invocation<'_> {
     /// closed entry or named requirement, evaluate every argument snapshot in
     /// this probe's context, and discharge its crash/requires contract at
     /// those concrete arguments.
-    fn admit_call(&self, expression: ExpressionHandle) -> Result<AdmittedCall<'_>, String> {
+    fn admit_call(
+        &self,
+        expression: ExpressionHandle,
+        inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+    ) -> Result<AdmittedCall<'_>, String> {
         let typed = self.program.typed();
         let target = self.selected(expression)?;
         // Reuse complete argument-independent evidence when it exists. A
@@ -646,6 +650,7 @@ impl Invocation<'_> {
                 argument,
                 destination,
                 Some(self),
+                inputs,
             )?;
             if needs_concrete_discharge {
                 // A payloadless NaN is an evaluable meaning, not a literal
@@ -724,7 +729,7 @@ impl Invocation<'_> {
         &self,
         expression: ExpressionHandle,
     ) -> Result<Vec<Diagnostic>, String> {
-        Ok(self.admit_call(expression)?.warnings)
+        Ok(self.admit_call(expression, &mut Vec::new())?.warnings)
     }
 
     /// Every expression root in this probe's single state: the return value
@@ -1120,6 +1125,7 @@ impl Invocation<'_> {
             expression,
             destination,
             Some(self),
+            &mut Vec::new(),
         )?;
         let value = value.into_index()?;
         let selected_matches =

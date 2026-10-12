@@ -90,7 +90,13 @@ pub(crate) fn evaluate_const_array_lengths_in(
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     domain: &EvaluationDomain,
 ) -> Result<(), Vec<Diagnostic>> {
-    evaluate_admitted_array_lengths(typed, selection_authority, domain, Default::default())
+    evaluate_admitted_array_lengths(
+        typed,
+        selection_authority,
+        domain,
+        Default::default(),
+        &mut Vec::new(),
+    )
 }
 
 pub(crate) fn evaluate_admitted_array_lengths(
@@ -98,6 +104,8 @@ pub(crate) fn evaluate_admitted_array_lengths(
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     domain: &EvaluationDomain,
     admission: crate::BuildTimeCheckingAdmission<'_>,
+
+    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
 ) -> Result<(), Vec<Diagnostic>> {
     LengthJobs::new(
         selection_authority,
@@ -105,7 +113,7 @@ pub(crate) fn evaluate_admitted_array_lengths(
         LengthProviderSelection::Independent,
     )
     .with_admission(admission)
-    .evaluate(typed)
+    .evaluate(typed, inputs)
     .map(|_| ())
 }
 
@@ -117,7 +125,8 @@ pub(crate) fn evaluate_independent_lengths(
     authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     domain: &EvaluationDomain,
 ) -> Result<bool, Vec<Diagnostic>> {
-    LengthJobs::new(authority, domain, LengthProviderSelection::Pending).evaluate(typed)
+    LengthJobs::new(authority, domain, LengthProviderSelection::Pending)
+        .evaluate(typed, &mut Vec::new())
 }
 
 pub(crate) fn evaluate_selected_array_lengths(
@@ -125,6 +134,8 @@ pub(crate) fn evaluate_selected_array_lengths(
     authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     selected: crate::SelectedBuildTimeOperators<'_>,
     domain: &EvaluationDomain,
+
+    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
 ) -> Result<(), Vec<Diagnostic>> {
     let crate::SelectedBuildTimeOperators {
         operators,
@@ -151,7 +162,7 @@ pub(crate) fn evaluate_selected_array_lengths(
     )
     .with_admission(admission)
     .with_provider_dependencies(provider_bodies)
-    .evaluate(&mut execution)?;
+    .evaluate(&mut execution, inputs)?;
     for (type_reference, _, _, _) in pending_array_lengths(typed, domain) {
         if let TypeReferenceNode::FixedArray {
             length: FixedArrayLength::Literal(value),
@@ -220,7 +231,11 @@ impl<'selection> LengthJobs<'selection> {
     /// declaration order and unrelated pending product fields cannot supply
     /// zero lengths or grant execution. Final product checking still owns all
     /// declarations after the ordinary continuation finishes.
-    fn evaluate(&mut self, typed: &mut TypedTrees) -> Result<bool, Vec<Diagnostic>> {
+    fn evaluate(
+        &mut self,
+        typed: &mut TypedTrees,
+        inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+    ) -> Result<bool, Vec<Diagnostic>> {
         let pending = pending_array_lengths(typed, self.domain);
         if pending.is_empty() {
             return Ok(false);
@@ -234,7 +249,7 @@ impl<'selection> LengthJobs<'selection> {
         let mut deferred = false;
         let mut diagnostics = Vec::new();
         for (handle, _, _, _) in pending {
-            match self.evaluate_length(&mut execution, handle) {
+            match self.evaluate_length(&mut execution, handle, inputs) {
                 Ok(Some(value)) => typed
                     .type_reference_table
                     .set_fixed_array_length(handle, value),
@@ -253,6 +268,8 @@ impl<'selection> LengthJobs<'selection> {
         &mut self,
         typed: &mut TypedTrees,
         handle: TypeReferenceHandle,
+
+        inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
     ) -> Result<Option<usize>, Vec<Diagnostic>> {
         let (machine, name, source) = match typed.type_reference_table.type_reference(handle) {
             TypeReferenceNode::FixedArray {
@@ -289,7 +306,7 @@ impl<'selection> LengthJobs<'selection> {
             ]);
         }
         self.active.push((handle, name.clone()));
-        let result = self.prepare_and_invoke(typed, machine, source);
+        let result = self.prepare_and_invoke(typed, machine, source, inputs);
         self.active.pop();
         let value = result.map_err(|mut errors| {
             for error in &mut errors {
@@ -317,6 +334,8 @@ impl<'selection> LengthJobs<'selection> {
         typed: &mut TypedTrees,
         machine: symbols::SymbolHandle,
         source: source::SourceSpan,
+
+        inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
     ) -> Result<Option<usize>, Vec<Diagnostic>> {
         let mut roots = self.provider_dependencies.clone();
         roots.push(machine);
@@ -338,7 +357,7 @@ impl<'selection> LengthJobs<'selection> {
             self.active.iter().any(|(active, _)| active == handle)
         });
         for (dependency, _, _, _) in dependencies {
-            if self.evaluate_length(typed, dependency)?.is_none() {
+            if self.evaluate_length(typed, dependency, inputs)?.is_none() {
                 deferred = true;
             }
         }
@@ -378,6 +397,7 @@ impl<'selection> LengthJobs<'selection> {
                 admission: self.admission,
             },
             &EvaluationDomain::all(),
+            inputs,
         )?;
         let (execution, preparation) = typed_trees_to_typed_trees::prepare_typed_trees(
             execution,
@@ -418,6 +438,10 @@ impl<'selection> LengthJobs<'selection> {
         let value = prepared
             .evaluate_checked_constant(&entry, &operators)
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let (value, _, executed_input) = value.into_parts_with_checked_input();
+        if let Some(executed_input) = executed_input {
+            inputs.push(executed_input);
+        }
         let execution = prepared.typed();
         let root = execution.machine_by_symbol(machine).ok_or_else(|| {
             vec![Diagnostic::error(

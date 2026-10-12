@@ -866,6 +866,7 @@ fn evaluate_probe_internal(
         *expression,
         destination,
         calls.map(|(_, calls)| calls),
+        &mut Vec::new(),
     )?;
     let selected_matches = retain_original_match_selections(typed, syntax, selected_matches)?;
     if value.type_name() != destination.name() {

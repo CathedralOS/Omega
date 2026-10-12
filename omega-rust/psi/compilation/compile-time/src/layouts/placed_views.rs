@@ -150,6 +150,7 @@ pub fn desugar_placed_views(
         selection_authority.clone(),
         crate::SelectedBuildTimeOperators::default(),
         &domain,
+        &mut Vec::new(),
     )?;
     super::plan_laid::compute_plan_laid_layouts_in(
         &mut typed,

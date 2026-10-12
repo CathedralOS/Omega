@@ -72,8 +72,9 @@ pub struct CheckRequest<'request> {
 }
 
 /// Coverage actually retained for completed source constants. Original binding
-/// associations do not include the consumed checked closure or invocation
-/// judgment; an empty roster cannot claim those dependencies were absent.
+/// Associations and the separately observed checked execution inputs are not
+/// a complete consumed-use or invocation-judgment roster. Earlier folds remain
+/// uncovered; an empty roster cannot claim those dependencies were absent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SourceConstantInputCoverage {
     OriginalAssociations,
@@ -87,6 +88,7 @@ pub enum SourceConstantInputCoverage {
 pub struct OriginalCheckedSourceInput {
     checked: Arc<checked_trees::CheckedTrees>,
     source_constants: Arc<[build_time_evaluation::SourceConstantSupply]>,
+    executed_constant_inputs: Arc<[build_time_evaluation::ExecutedCheckedConstantInput]>,
     source_constant_coverage: SourceConstantInputCoverage,
 }
 impl OriginalCheckedSourceInput {
@@ -95,6 +97,13 @@ impl OriginalCheckedSourceInput {
     }
     pub fn source_constants(&self) -> &[build_time_evaluation::SourceConstantSupply] {
         &self.source_constants
+    }
+    /// Actual checked execution inputs observed during continuation completion.
+    /// Earlier folds remain uncovered; this is independent of offered supplies.
+    pub fn executed_constant_inputs(
+        &self,
+    ) -> &[build_time_evaluation::ExecutedCheckedConstantInput] {
+        &self.executed_constant_inputs
     }
     pub const fn source_constant_coverage(&self) -> SourceConstantInputCoverage {
         self.source_constant_coverage
@@ -194,6 +203,7 @@ impl CheckRequest<'_> {
         let checking = typed_trees_to_checked_trees::CheckingRequest::new()
             .with_declaration_authority(self.admission.declarations);
         let mut source_constants = Vec::new();
+        let mut executed_constant_inputs = Vec::new();
         // Each continuation checks its demanded source dependencies before
         // evaluation. The finished input then owns one ordinary Product check;
         // an earlier language judgment cannot stand in for its new constants.
@@ -206,8 +216,12 @@ impl CheckRequest<'_> {
                     checking,
                 },
             )? {
-                build_time_evaluation::SourceConstantOutcome::Completed { supplies } => {
+                build_time_evaluation::SourceConstantOutcome::Completed {
+                    supplies,
+                    executed_inputs,
+                } => {
                     source_constants.extend(supplies);
+                    executed_constant_inputs.extend(executed_inputs);
                 }
                 build_time_evaluation::SourceConstantOutcome::Retained { reason, .. } => {
                     return Err(vec![Diagnostic::error(format!(
@@ -220,7 +234,7 @@ impl CheckRequest<'_> {
         // Completed source supplies do not yet retain a complete reusable
         // checked-closure/issuer identity. Equal folded values cannot donate
         // the prior judgment's source application or provider authority.
-        let reusable = source_constants.is_empty();
+        let reusable = source_constants.is_empty() && executed_constant_inputs.is_empty();
         let previous = if reusable { self.previous } else { &[] };
         let retain = self.retain && reusable;
         let matching = previous
@@ -259,6 +273,7 @@ impl CheckRequest<'_> {
         let original_input = Arc::new(OriginalCheckedSourceInput {
             checked: Arc::clone(&outcome.checked),
             source_constants: source_constants.into(),
+            executed_constant_inputs: executed_constant_inputs.into(),
             source_constant_coverage: SourceConstantInputCoverage::OriginalAssociations,
         });
         Ok(CheckedSource {
@@ -341,7 +356,9 @@ impl ProductSelections {
     ) -> Result<SelectedCheckedSource, Vec<Diagnostic>> {
         // Pruning may share a checked graph only when no incomplete source
         // supply association would be moved onto another producer's handles.
-        if !checked.original_input.source_constants().is_empty() {
+        if !checked.original_input.source_constants().is_empty()
+            || !checked.original_input.executed_constant_inputs().is_empty()
+        {
             return checked.select_product(roots);
         }
         if let Some(prior) = self

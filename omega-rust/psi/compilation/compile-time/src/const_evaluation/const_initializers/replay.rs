@@ -248,10 +248,12 @@ pub(crate) fn validate(
             .map_err(|reason| super::failure(declaration.initializer_source_span, reason))?;
     }
     let prepared = crate::PreparedBuildMachineProgram::prepare(&probe)?;
-    let checked =
-        super::invocations::CheckedInitializers::prepare(
-            &prepared, authority, &probe_symbols, checking_admission,
-        )?;
+    let checked = super::invocations::CheckedInitializers::prepare(
+        &prepared,
+        authority,
+        &probe_symbols,
+        checking_admission,
+    )?;
     let program = checked.typed();
     for declaration in replay_declarations {
         let index = leaves
@@ -272,7 +274,7 @@ pub(crate) fn validate(
                 )?;
                 validate_dependency_values(program, &dependencies, |expression, destination| {
                     calls
-                        .evaluate_scalar(expression, destination)
+                        .evaluate_scalar(expression, destination, &mut Vec::new())
                         .map(|(value, _)| value)
                 })?;
                 Ok(())
@@ -288,9 +290,16 @@ pub(crate) fn validate(
                     leaf.destination,
                 )
             {
-                let original = decode_scalar(calls.evaluate_scalar(leaf.original, destination)?.0)?;
-                let materialized =
-                    decode_scalar(calls.evaluate_scalar(leaf.materialized, destination)?.0)?;
+                let original = decode_scalar(
+                    calls
+                        .evaluate_scalar(leaf.original, destination, &mut Vec::new())?
+                        .0,
+                )?;
+                let materialized = decode_scalar(
+                    calls
+                        .evaluate_scalar(leaf.materialized, destination, &mut Vec::new())?
+                        .0,
+                )?;
                 if original != leaf.expected || materialized != leaf.expected {
                     return Err(
                         "retained constant invocation, materialized value, or canonical result drifted"
@@ -479,7 +488,10 @@ fn validate_anonymous_float(
         .then(|| {
             let prepared = crate::PreparedBuildMachineProgram::prepare(&probe)?;
             super::invocations::CheckedInitializers::prepare(
-                &prepared, authority.clone(), &[owner], checking_admission,
+                &prepared,
+                authority.clone(),
+                &[owner],
+                checking_admission,
             )
         })
         .transpose()
@@ -516,11 +528,26 @@ fn validate_anonymous_float(
     };
     let dependency_roots =
         validate_dependency_values(probe, &dependencies, |expression, destination| {
-            evaluate_scalar(probe, machine, state, expression, destination, scalar_calls)
-                .map(|(value, _)| value)
+            evaluate_scalar(
+                probe,
+                machine,
+                state,
+                expression,
+                destination,
+                scalar_calls,
+                &mut Vec::new(),
+            )
+            .map(|(value, _)| value)
         })?;
-    let (evaluated, _) =
-        evaluate_scalar(probe, machine, state, original, destination, scalar_calls)?;
+    let (evaluated, _) = evaluate_scalar(
+        probe,
+        machine,
+        state,
+        original,
+        destination,
+        scalar_calls,
+        &mut Vec::new(),
+    )?;
 
     let mut operators = Vec::new();
     let mut visited = Vec::new();
