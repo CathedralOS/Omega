@@ -176,6 +176,7 @@ pub fn evaluate_pre_resolution(
         sources.clone(),
         source_scoped_top_level_bindings,
         selection_authority.clone(),
+        &mut source_preparation_inputs,
     )?;
     let mut syntax_trees = const_generic_calls::evaluate_const_generic_calls(
         syntax_trees,
