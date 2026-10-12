@@ -129,8 +129,15 @@ pub struct CheckedSource {
 pub struct CheckedBuildMachineProgram {
     program: build_time_evaluation::PreparedBuildMachineProgram,
     projection: crate::source_compilation::BuildSourceProjection,
+    original_input: Arc<OriginalCheckedSourceInput>,
 }
 impl CheckedBuildMachineProgram {
+    /// Actual original Build judgment, retained separately from selected
+    /// comparison execution facts and every later Product source owner.
+    pub fn original_source_input(&self) -> &Arc<OriginalCheckedSourceInput> {
+        &self.original_input
+    }
+
     pub fn projection(&self) -> &validation::execution_projection::BuildProgramProjection {
         &self.projection.projection
     }
@@ -147,6 +154,7 @@ impl CheckedBuildMachineProgram {
         Self {
             program: self.program.with_selected_comparison_executions(executions),
             projection: self.projection,
+            original_input: self.original_input,
         }
     }
     pub fn activation(
@@ -209,6 +217,9 @@ impl CheckRequest<'_> {
             .with_declaration_authority(self.admission.declarations);
         let mut source_constants = Vec::new();
         let mut executed_constant_inputs = self.constants.executed_inputs;
+        if let Some(projection) = &build_projection {
+            executed_constant_inputs.extend(projection.constant_inputs.iter().cloned());
+        }
         // Each continuation checks its demanded source dependencies before
         // evaluation. The finished input then owns one ordinary Product check;
         // an earlier language judgment cannot stand in for its new constants.
@@ -261,6 +272,12 @@ impl CheckRequest<'_> {
                 retain,
             )?
         };
+        let original_input = Arc::new(OriginalCheckedSourceInput {
+            checked: Arc::clone(&outcome.checked),
+            source_constants: source_constants.into(),
+            executed_constant_inputs: executed_constant_inputs.into(),
+            source_constant_coverage: SourceConstantInputCoverage::OriginalAssociations,
+        });
         let prepared_build = build_projection
             .map(|projection| {
                 projection
@@ -272,15 +289,10 @@ impl CheckRequest<'_> {
                             Arc::clone(&outcome.checked),
                         ),
                     projection,
+                    original_input: Arc::clone(&original_input),
                 })
             })
             .transpose()?;
-        let original_input = Arc::new(OriginalCheckedSourceInput {
-            checked: Arc::clone(&outcome.checked),
-            source_constants: source_constants.into(),
-            executed_constant_inputs: executed_constant_inputs.into(),
-            source_constant_coverage: SourceConstantInputCoverage::OriginalAssociations,
-        });
         trace_source_constant_inputs(&original_input);
         Ok(CheckedSource {
             original_input,

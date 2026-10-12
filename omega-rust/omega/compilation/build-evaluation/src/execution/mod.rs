@@ -136,6 +136,7 @@ pub(crate) fn execute_admitted_build_program(
         evaluation_usage: Some(evaluation_usage),
         observation_summary: Some(observation_summary),
         executed_build_root: Some(executed_build_root),
+        original_build_source_input: Some(std::sync::Arc::clone(prepared.original_source_input())),
         generated_sources,
     })
 }
