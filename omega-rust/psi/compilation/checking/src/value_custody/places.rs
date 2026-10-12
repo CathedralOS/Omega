@@ -771,12 +771,14 @@ pub use member_resolution::{
 };
 mod projection_types;
 pub use projection_types::{
-    canonical_place_source_type_application, canonical_place_type_reference,
-    collection_element_type_reference, expression_type_reference_in_state,
-    loan_carrier_has_owned_storage, project_type_reference_from_segments,
-    unique_data_definition_by_symbol,
+    CanonicalPlaceTypeApplication, canonical_place_source_type_application,
+    canonical_place_type_application, canonical_place_type_reference,
+    collection_element_type_reference, expression_type_application_in_state,
+    expression_type_reference_in_state, loan_carrier_has_owned_storage,
+    project_type_reference_from_segments, unique_data_definition_by_symbol,
 };
 pub mod receiver_projections;
 pub use receiver_projections::{
-    projected_statement_receiver_place, projected_statement_receiver_type_reference,
+    CallDataApplication, call_data_application_in_state, projected_statement_receiver_place,
+    projected_statement_receiver_type_application, projected_statement_receiver_type_reference,
 };

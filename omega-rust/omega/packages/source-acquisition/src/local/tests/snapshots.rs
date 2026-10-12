@@ -68,7 +68,7 @@ fn local_snapshot_detects_live_mutation_and_removes_staging_tree() {
     let captured = capture_local_source(
         &root,
         LocalSourceLimits::default(),
-        SourceTreePolicy::LocalPackage,
+        SourceTreePolicy::LocalPackage(Default::default()),
     )
     .expect("capture source");
     let captured_custody_identity = local_snapshot_custody_identity(

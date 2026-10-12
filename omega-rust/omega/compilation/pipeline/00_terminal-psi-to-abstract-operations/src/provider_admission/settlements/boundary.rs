@@ -39,34 +39,17 @@ pub(super) fn settle_boundary<'request>(
             selected_plan.name
         ))]);
     }
-    let realization = match settlement.realization {
-        NativeBoundaryRealization::SystemCall => {
-            target_operations::BoundarySettlementRealization::NormalizedForeignCall(
-                super::system_call::rejoin_system_call(
-                    selected_plan,
-                    request.external_binding_rows,
-                    requirement,
-                    request.target(),
-                )?,
-            )
-        }
-        NativeBoundaryRealization::NormalizedForeignCall(same_stack) => {
-            target_operations::BoundarySettlementRealization::NormalizedForeignCall(
-                rejoin_normalized_foreign_call(
-                    selected_plan,
-                    request.external_binding_rows,
-                    same_stack,
-                    evidence.provider_plan_report_identity(),
-                    requirement,
-                    request.selected_provider_plans.identities(),
-                    request.target(),
-                )?,
-            )
-        }
-        NativeBoundaryRealization::Builtin(realization) => {
-            target_operations::BoundarySettlementRealization::Builtin(realization)
-        }
-    };
+    // This index belongs to the same selected facts table retained by native
+    // artifact admission, rather than the selected plan's private table.
+    let selected_requirement = request
+        .selected_provider_plans
+        .identities()
+        .index_of(requirement)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "admitted provider requirement lost its selected identity owner",
+            )]
+        })?;
     let matching_boundaries = input
         .plan()
         .boundary_machines
@@ -101,6 +84,50 @@ pub(super) fn settle_boundary<'request>(
                 "provider completion for `{requirement}` disagrees with its exact retained requirement contract"
             ))]);
         }
+        let public_requirement =
+            input
+                .plan()
+                .identities
+                .text(boundary.identity)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "native boundary lost its exact public application identity",
+                    )]
+                })?;
+        // The original provider/same-stack evidence remains unchanged.
+        // Physical external plans belong to this exact public boundary;
+        // absence cannot borrow an original declaration's different plan.
+        let binding_application = public_requirement;
+        let realization = match settlement.realization {
+            NativeBoundaryRealization::SystemCall => {
+                target_operations::BoundarySettlementRealization::NormalizedForeignCall(
+                    super::system_call::rejoin_system_call(
+                        selected_plan,
+                        request.external_binding_rows,
+                        requirement,
+                        binding_application,
+                        request.target(),
+                    )?,
+                )
+            }
+            NativeBoundaryRealization::NormalizedForeignCall(same_stack) => {
+                target_operations::BoundarySettlementRealization::NormalizedForeignCall(
+                    rejoin_normalized_foreign_call(
+                        selected_plan,
+                        request.external_binding_rows,
+                        same_stack,
+                        evidence.provider_plan_report_identity(),
+                        requirement,
+                        binding_application,
+                        request.selected_provider_plans.identities(),
+                        request.target(),
+                    )?,
+                )
+            }
+            NativeBoundaryRealization::Builtin(realization) => {
+                target_operations::BoundarySettlementRealization::Builtin(realization)
+            }
+        };
         if let target_operations::BoundarySettlementRealization::Builtin(builtin) = &realization {
             let completion = match builtin {
                 target_operations::BoundaryRealization::HostedExitProcessI32(_) => {
@@ -126,7 +153,17 @@ pub(super) fn settle_boundary<'request>(
         }
         admitted.push(AdmittedBoundarySettlement {
             boundary: boundary.id,
-            execution: crate::AdmittedBoundaryExecution::Provider(evidence),
+            execution: crate::AdmittedBoundaryExecution::Provider(
+                crate::AdmittedProviderBoundaryExecution::new(
+                    input.plan().psi,
+                    boundary.id,
+                    boundary.identity,
+                    selected_requirement,
+                    request.target(),
+                    selected_plan.identity_digest(),
+                    evidence,
+                ),
+            ),
             realization: realization.clone(),
         });
     }

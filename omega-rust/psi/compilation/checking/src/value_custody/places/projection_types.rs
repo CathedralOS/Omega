@@ -36,50 +36,123 @@ pub fn expression_type_reference_in_state(
     canonical_place_type_reference(program, state_symbol, statement_index, &place)
 }
 
+/// Original applications traversed by this exact place, ordered outer to inner.
+/// This is construction scratch for an occurrence-owned type-arena receipt;
+/// neither the final storage type nor another place supplies omitted regions.
+pub struct CanonicalPlaceTypeApplication {
+    pub reference: typed_trees::types::TypeReferenceHandle,
+    pub enclosing_data_applications: Vec<typed_trees::types::TypeReferenceHandle>,
+}
+
+pub fn expression_type_application_in_state(
+    program: &dyn crate::CheckingInput,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+) -> Option<CanonicalPlaceTypeApplication> {
+    let place = canonical_place_from_expression_in_state(
+        program,
+        state_symbol,
+        statement_index,
+        expression,
+    )?;
+    canonical_place_type_application(program, state_symbol, statement_index, &place)
+}
+
+pub fn canonical_place_type_application(
+    program: &dyn crate::CheckingInput,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    place: &CanonicalPlace,
+) -> Option<CanonicalPlaceTypeApplication> {
+    let mut applications = Vec::new();
+    let reference = canonical_place_type_reference_with_applications(
+        program,
+        state_symbol,
+        statement_index,
+        place,
+        Some(&mut applications),
+    )?;
+    Some(CanonicalPlaceTypeApplication {
+        reference,
+        enclosing_data_applications: applications,
+    })
+}
+
 pub fn canonical_place_type_reference(
     program: &dyn crate::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     place: &CanonicalPlace,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
-    // An expression root resumes wherever the position walk's leaf evidence
-    // places it — a call at its declared return type, a stored-type leaf at
-    // its own reference, a window at its element — then replays the retained
-    // segments through the same hop rules member resolution commits to.
+    canonical_place_type_reference_with_applications(
+        program,
+        state_symbol,
+        statement_index,
+        place,
+        None,
+    )
+}
+
+fn canonical_place_type_reference_with_applications(
+    program: &dyn crate::CheckingInput,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    place: &CanonicalPlace,
+    applications: Option<&mut Vec<typed_trees::types::TypeReferenceHandle>>,
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    // Expression roots resume at their exact stored leaf evidence. Keep the
+    // existing position owner for its declaration-only cases, and collect the
+    // same projection only when that owner supplies a root type reference.
     if let Some(expression) = place.root.as_expression() {
-        return super::member_resolution::expression_place_type_reference(
+        let reference = super::member_resolution::expression_place_type_reference(
             program,
             expression,
             &place.segments,
+        )?;
+        if let Some(applications) = applications {
+            let root = super::member_resolution::expression_place_type_reference(
+                program,
+                expression,
+                &[],
+            )?;
+            let projected = project_type_reference_with_applications(
+                program,
+                root,
+                &place.segments,
+                Some(applications),
+            )?;
+            if projected != reference {
+                return None;
+            }
+        }
+        return Some(reference);
+    }
+    if let Some(reference) = place.root.as_type_reference() {
+        return project_type_reference_with_applications(
+            program,
+            reference,
+            &place.segments,
+            applications,
         );
     }
-    // A type-reference root names the place's own stored type: its declared
-    // type is that reference replayed through the retained segments.
-    if let Some(reference) = place.root.as_type_reference() {
-        return project_type_reference_from_segments(program, reference, &place.segments);
-    }
     let root_symbol = place.root.as_symbol()?;
-
-    // `self` places may retain the authored state-parameter symbol or be
-    // normalized to the durable machine symbol. In either form, project their
-    // fields through the exact attached data declaration rather than treating
-    // the machine's nominal self type as an ordinary data reference.
     if let Some((machine, _)) = crate::find_state(program, state_symbol)
         && machine.symbol == root_symbol
         && let Some((facts::PlaceSegment::Field { symbol }, remaining)) =
             place.segments.split_first()
     {
         if machine.attached_data_application.is_valid() {
-            return project_type_reference_from_segments(
+            return project_type_reference_with_applications(
                 program,
                 machine.attached_data_application,
                 &place.segments,
+                applications,
             );
         }
         let current = attached_data_field_type_reference(program, machine, *symbol)?;
-        return project_type_reference_from_segments(program, current, remaining);
+        return project_type_reference_with_applications(program, current, remaining, applications);
     }
-
     if let Some((machine, _)) = crate::find_state(program, state_symbol)
         && machine.attached_data_application.is_valid()
         && let Some(field) = crate::exact_attached_field(
@@ -92,16 +165,16 @@ pub fn canonical_place_type_reference(
         let root_field = facts::PlaceSegment::Field {
             symbol: field.symbol,
         };
-        return project_type_reference_from_segment_iter(
+        return project_type_reference_with_applications(
             program,
             machine.attached_data_application,
             std::iter::once(&root_field).chain(&place.segments),
+            applications,
         );
     }
-
     let current =
         symbol_type_reference_in_state(program, state_symbol, statement_index, root_symbol)?;
-    project_type_reference_from_segments(program, current, &place.segments)
+    project_type_reference_with_applications(program, current, &place.segments, applications)
 }
 
 /// A semantic field occurrence keeps original declaration operands together
@@ -226,12 +299,22 @@ pub fn collection_element_type_reference(
 
 fn project_type_reference_from_segment_iter<'segment>(
     program: &dyn crate::CheckingInput,
+    current: typed_trees::types::TypeReferenceHandle,
+    segments: impl IntoIterator<Item = &'segment facts::PlaceSegment>,
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    project_type_reference_with_applications(program, current, segments, None)
+}
+
+fn project_type_reference_with_applications<'segment>(
+    program: &dyn crate::CheckingInput,
     mut current: typed_trees::types::TypeReferenceHandle,
     segments: impl IntoIterator<Item = &'segment facts::PlaceSegment>,
+    mut applications: Option<&mut Vec<typed_trees::types::TypeReferenceHandle>>,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     let mut substitutions = Vec::new();
     for segment in segments {
         current = substituted_type_reference(program, current, &substitutions);
+        retain_data_application(program, current, applications.as_deref_mut());
         match segment {
             facts::PlaceSegment::Case { .. } => {}
             facts::PlaceSegment::Field { symbol } => {
@@ -244,7 +327,38 @@ fn project_type_reference_from_segment_iter<'segment>(
         }
     }
 
-    Some(substituted_type_reference(program, current, &substitutions))
+    let current = substituted_type_reference(program, current, &substitutions);
+    retain_data_application(program, current, applications);
+    Some(current)
+}
+
+fn retain_data_application(
+    program: &dyn crate::CheckingInput,
+    current: typed_trees::types::TypeReferenceHandle,
+    applications: Option<&mut Vec<typed_trees::types::TypeReferenceHandle>>,
+) {
+    let Some(applications) = applications else {
+        return;
+    };
+    let current = program.type_reference_table.peeled_type_reference(current);
+    let original = program
+        .type_reference_table
+        .data_application_origin(current);
+    let application = if original.is_valid() {
+        original
+    } else {
+        current
+    };
+    let symbol = match program.type_reference_table.type_reference(application) {
+        typed_trees::types::TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
+        typed_trees::types::TypeReferenceNode::Named { symbol, .. } => *symbol,
+        _ => return,
+    };
+    if program.data_definition_by_symbol(symbol).is_some()
+        && applications.last() != Some(&application)
+    {
+        applications.push(application);
+    }
 }
 
 fn symbol_type_reference_in_state(

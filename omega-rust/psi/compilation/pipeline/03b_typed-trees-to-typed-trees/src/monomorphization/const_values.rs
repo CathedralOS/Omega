@@ -13,11 +13,15 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 mod structured;
 
 pub(super) fn substitute(
+    source: Option<&dyn ::validation::CheckingInput>,
     program: &mut TypedTrees,
     candidate: &Candidate,
     expression_start: Option<usize>,
     runtime_expression_roots: &[ExpressionHandle],
 ) -> Result<(), Diagnostic> {
+    // Relocated operand graphs are inputs, not new binder occurrences in the
+    // executable region being rewritten. Keep the original sweep boundary.
+    let expression_end = program.expression_table.expression_count() + 1;
     for (index, ((binder, name, declared_type), binding)) in candidate
         .template
         .const_parameters
@@ -66,6 +70,7 @@ pub(super) fn substitute(
             .iter_expressions()
             .filter(|(handle, _)| {
                 expression_start.is_none_or(|start| handle.arena_index() as usize >= start)
+                    && (handle.arena_index() as usize) < expression_end
             })
             .filter_map(|(handle, expression)| {
                 let ExpressionNode::Name(path) = expression else {
@@ -85,14 +90,47 @@ pub(super) fn substitute(
         if occurrences.is_empty() {
             continue;
         }
+        // A demanded application can bind against a declaration snapshot whose
+        // appended payload rows are absent from the executable arena. Relocate
+        // both actual and declared carrier through the same graph copier before
+        // materialization; their source symbols and const meaning stay intact.
+        // The selected candidate/application remains owned by its issuing graph.
+        let (binding, declared_type) = if let Some(source) = source {
+            let payload_expression_start = program.expression_table.expression_count() + 1;
+            let declared_type = super::body_cloning::copy_type_reference(
+                Some(source),
+                program,
+                *declared_type,
+                &[],
+            );
+            super::body_cloning::copy_cloned_expression_type_payloads(
+                Some(source),
+                program,
+                payload_expression_start,
+                &[],
+            )?;
+            let binding = binding
+                .map(|binding| {
+                    super::body_cloning::copy_type_reference_payloads(
+                        Some(source),
+                        program,
+                        binding,
+                        &[],
+                    )
+                })
+                .transpose()?;
+            (binding, declared_type)
+        } else {
+            (*binding, *declared_type)
+        };
         for occurrence in occurrences {
             // Each use owns its literal children and their checking context.
             let replacement = binding
-                .and_then(|binding| value(program, binding, *declared_type))
+                .and_then(|binding| value(program, binding, declared_type))
                 .ok_or_else(|| Diagnostic::error(format!(
                     "machine `{}` cannot materialize const parameter `{name}` as its declared value type `{}`",
                     candidate.template.template_name,
-                    program.display_type_reference(*declared_type),
+                    program.display_type_reference(declared_type),
                 )))?;
             *program.expression_table.expression_mut(occurrence) = replacement;
         }
@@ -100,11 +138,32 @@ pub(super) fn substitute(
     Ok(())
 }
 
-fn value(
+pub(super) fn value(
     program: &mut TypedTrees,
     binding: TypeReferenceHandle,
     declared_type: TypeReferenceHandle,
 ) -> Option<ExpressionNode> {
+    // Public header/result copying and ordinary inference retain the same
+    // closed const operand graph. Contextual provider cloning can consume it
+    // before the next round's selection scan, so value materialization owns
+    // that shared normalization too. This preserves an independently typed
+    // operand's canonical carrier; it never lands it under the destination.
+    // Unknown/open graphs remain unchanged and unavailable below. The original
+    // expression and tuple stay in their issuing arena; no source is replayed
+    // or captured specialization identity changed by consuming its value.
+    let binding = if let Some((TypeReferenceNode::Named { name, .. }, meaning)) =
+        super::application_arguments::normalized_const_type_argument_with_meaning(program, binding)
+    {
+        // Reuse the existing canonical value row without replacing the actual
+        // selected binding whose application/specialization already owns it.
+        super::application_arguments::intern_closed_const_with_meaning(
+            program,
+            name.as_str(),
+            meaning,
+        )
+    } else {
+        binding
+    };
     let TypeReferenceNode::Named { name, .. } =
         program.type_reference_table.type_reference(binding)
     else {

@@ -264,22 +264,14 @@ fn invocation_target_label(
     }
 }
 
-/// The boundary requirement symbol a type's service carrier names — or the
-/// type's own symbol when no exact service-parameter carrier classifies it.
-/// Callers then admit the symbol against the boundary trait table their own
-/// way (`.find` for the definition, `.any().then_some` for the symbol).
-pub(crate) fn boundary_requirement_symbol(
-    program: &dyn crate::CheckingInput,
-    type_reference: typed_trees::types::TypeReferenceHandle,
-) -> symbols::SymbolHandle {
-    typed_trees::invocations::boundary_requirement_symbol(program.typed_program(), type_reference)
-}
-
 fn boundary_trait_for_type(
     program: &dyn crate::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<&typed_trees::trait_definition::TraitDefinition> {
-    let symbol = boundary_requirement_symbol(program, type_reference);
+    let symbol =
+        typed_trees::service::exact_parameter_boundary_requirement(program, type_reference)
+            .ok()
+            .flatten()?;
     program
         .traits()
         .iter()

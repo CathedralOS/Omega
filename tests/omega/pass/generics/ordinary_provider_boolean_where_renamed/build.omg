@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "ordinary_provider_boolean_where_renamed");
+    Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
+}

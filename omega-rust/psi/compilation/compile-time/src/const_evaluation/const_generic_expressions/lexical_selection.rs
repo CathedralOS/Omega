@@ -1,4 +1,4 @@
-//! The original machine owner resolves operands before a standalone value probe.
+//! Original declaration owners resolve operands before a standalone value probe.
 
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
@@ -15,6 +15,19 @@ pub(crate) fn retain(
     resolved: &SymbolResolvedTrees,
     root: ExpressionHandle,
 ) -> Result<Vec<ConstArgumentOrigin>, String> {
+    retain_closed(syntax, resolved, root)?.ok_or_else(|| {
+        "machine index operand must select a constant in its original lexical scope; runtime locals, parameters and open binders cannot be evaluated".to_owned()
+    })
+}
+
+/// A free value binder is a genuine deferred application, not a declaration
+/// constant. Closed expressions still need every original lexical selection.
+pub(crate) fn retain_closed(
+    syntax: &SyntaxTrees,
+    resolved: &SymbolResolvedTrees,
+    root: ExpressionHandle,
+) -> Result<Option<Vec<ConstArgumentOrigin>>, String> {
+    let mut open = false;
     let mut pending = vec![root];
     let mut visited = Vec::new();
     let mut origins = Vec::new();
@@ -42,7 +55,11 @@ pub(crate) fn retain(
                     first.source_span().source_id,
                     source::Span::new(first.source_span().span.start, last.source_span().span.end),
                 );
-                let origin = selected_constant(resolved, reference)?;
+                let Some(origin) = selected_constant(syntax, resolved, expression, reference)?
+                else {
+                    open = true;
+                    continue;
+                };
                 if let Some(normalization) = syntax.root_items().find_map(|item| match item {
                     syntax_trees::item::Item::Const(definition)
                         if definition.name.source_span() == origin.declaration =>
@@ -79,7 +96,7 @@ pub(crate) fn retain(
             _ => {}
         }
     }
-    Ok(origins)
+    Ok((!open).then_some(origins))
 }
 
 /// Retain lexical call selections even in branches which will not execute.
@@ -275,20 +292,90 @@ fn has_namespace_receiver(
     )
 }
 
+/// A declaration selection exists independently of completed value packaging.
+/// This borrowed source row grants no generic-index eligibility.
+pub(super) struct SelectedConstDeclaration<'program> {
+    pub declaration_source: SourceSpan,
+    pub declaration: &'program symbol_resolved_trees::constant::ConstDeclaration,
+}
+
 fn selected_constant(
+    syntax: &SyntaxTrees,
     resolved: &SymbolResolvedTrees,
+    expression: ExpressionHandle,
     reference: SourceSpan,
-) -> Result<ConstArgumentOrigin, String> {
+) -> Result<Option<ConstArgumentOrigin>, String> {
+    selected_declaration(syntax, resolved, expression, reference)?
+        .map(|selected| {
+            Ok(ConstArgumentOrigin {
+                reference,
+                declaration: selected.declaration_source,
+                initializer: selected.declaration.initializer_source_span,
+                evaluated_value: selected
+                    .declaration
+                    .evaluated_value
+                    .clone()
+                    .ok_or("machine index constant has no canonical value")?,
+            })
+        })
+        .transpose()
+}
+
+pub(super) fn selected_declaration<'resolved>(
+    syntax: &SyntaxTrees,
+    resolved: &'resolved SymbolResolvedTrees,
+    authored_expression: ExpressionHandle,
+    reference: SourceSpan,
+) -> Result<Option<SelectedConstDeclaration<'resolved>>, String> {
     let table = &resolved.tables.bodies.expressions;
+    // Lowering seals each operand's syntax birth handle into this same
+    // retained syntax lineage. Copied identifiers may share source spans
+    // while belonging to distinct machine or conformance telescopes; those
+    // spans validate the selected occurrence but cannot select its owner.
+    let authored_origin = syntax.expressions.original_expression(authored_expression);
+    if !authored_origin.is_valid() {
+        return Err("constant argument lost its original lexical occurrence".to_owned());
+    }
     let mut origin = None;
+    let mut open_binder = false;
     for (expression, node) in table.iter_expressions() {
+        let selected_origin = table.expression_source_origin(expression);
+        if selected_origin.arena_index() != authored_origin.arena_index()
+            || selected_origin.generation() != authored_origin.generation()
+        {
+            continue;
+        }
         let mut matches_reference = false;
+        let mut selected_binder = None;
         if let symbol_resolved_trees::expression::ExpressionNode::Name(path) = node {
             let members = table.name_path_members(path.members);
             if let (Some(first), Some(last)) = (members.first(), members.last()) {
                 matches_reference = first.source_span().source_id == reference.source_id
                     && first.source_span().span.start == reference.span.start
                     && last.source_span().span.end == reference.span.end;
+                if matches_reference
+                    && members.len() == 1
+                    && path.symbol.is_valid()
+                    && path.symbol == path.head_symbol
+                {
+                    let mut parameters = resolved
+                        .tables
+                        .declarations
+                        .data_type_parameters
+                        .iter()
+                        .map(|(_, parameter)| parameter)
+                        .filter(|parameter| parameter.symbol == path.symbol);
+                    if let Some(parameter) = parameters.next()
+                        && parameters.next().is_none()
+                        && matches!(
+                            parameter.kind,
+                            symbol_resolved_trees::data::TypeParameterKind::Const { .. }
+                                | symbol_resolved_trees::data::TypeParameterKind::Value { .. }
+                        )
+                    {
+                        selected_binder = Some(parameter.symbol);
+                    }
+                }
             }
         }
         let mut selected_origin = None;
@@ -307,21 +394,18 @@ fn selected_constant(
             let Some(declaration) = resolved.const_declaration(selected.selected_symbol()) else {
                 continue;
             };
-            let candidate = ConstArgumentOrigin {
-                reference,
-                declaration: resolved
+            let candidate = SelectedConstDeclaration {
+                declaration_source: resolved
                     .symbols
                     .symbol_source_span(declaration.symbol)
                     .ok_or("machine index constant lost its declaration source")?,
-                initializer: declaration.initializer_source_span,
-                evaluated_value: declaration
-                    .evaluated_value
-                    .clone()
-                    .ok_or("machine index constant has no canonical value")?,
+                declaration,
             };
             if selected_origin
                 .as_ref()
-                .is_some_and(|previous| previous != &candidate)
+                .is_some_and(|previous: &SelectedConstDeclaration<'_>| {
+                    !same_declaration_selection(previous, &candidate)
+                })
             {
                 return Err("machine index operand has conflicting declaration custody".to_owned());
             }
@@ -330,20 +414,46 @@ fn selected_constant(
         if !matches_reference {
             continue;
         }
-        // Runtime locals, parameters and open binders intentionally do not
-        // publish a constant selection. They cannot disappear from this check.
+        if selected_binder.is_some() {
+            if selected_origin.is_some() || origin.is_some() {
+                return Err("constant argument has conflicting lexical owners".to_owned());
+            }
+            // A copied original occurrence may own another binder symbol.
+            // Every row must independently be a genuine open value binder;
+            // deferral selects no donor and publishes no canonical value.
+            open_binder = true;
+            continue;
+        }
+        if open_binder {
+            return Err("constant argument has conflicting lexical owners".to_owned());
+        }
+        // Runtime locals and state parameters never publish a static value.
         let selected_origin = selected_origin.ok_or(
             "machine index operand must select a constant in its original lexical scope; runtime locals, parameters and open binders cannot be evaluated",
         )?;
         if origin
             .as_ref()
-            .is_some_and(|previous| previous != &selected_origin)
+            .is_some_and(|previous| !same_declaration_selection(previous, &selected_origin))
         {
             return Err("machine index operand has conflicting lexical owners".to_owned());
         }
         origin = Some(selected_origin);
     }
-    origin.ok_or_else(|| "machine index operand lost its original lexical occurrence".to_owned())
+    if open_binder {
+        return Ok(None);
+    }
+    origin
+        .map(Some)
+        .ok_or_else(|| "machine index operand lost its original lexical occurrence".to_owned())
+}
+
+fn same_declaration_selection(
+    left: &SelectedConstDeclaration<'_>,
+    right: &SelectedConstDeclaration<'_>,
+) -> bool {
+    left.declaration_source == right.declaration_source
+        && left.declaration.initializer_source_span == right.declaration.initializer_source_span
+        && left.declaration.evaluated_value == right.declaration.evaluated_value
 }
 
 /// The call node's traversal children in visit order: arguments last-to-first

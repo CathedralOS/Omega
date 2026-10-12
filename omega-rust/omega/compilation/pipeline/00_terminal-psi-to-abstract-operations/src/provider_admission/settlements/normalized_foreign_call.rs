@@ -7,6 +7,7 @@ pub(super) fn rejoin_normalized_foreign_call(
     same_stack: &task_plans::AdmittedSameStackContribution,
     provider_plan_report_identity: u64,
     requirement: &str,
+    import_application: &str,
     identities: &terminal_psi::TerminalIdentityTable,
     target: target::NativeTarget,
 ) -> Result<NormalizedForeignCallBinding, Vec<Diagnostic>> {
@@ -14,7 +15,7 @@ pub(super) fn rejoin_normalized_foreign_call(
         *selected_plan.identity_digest().as_bytes(),
     );
     if same_stack.provider_plan_report_identity() != provider_plan_report_identity
-        || same_stack.provider_plan_commitment() != selected_commitment
+        || same_stack.provider_plan_commitment() != selected_commitment.into()
         || identities.index_of(requirement) != Some(same_stack.requirement_identity())
     {
         return Err(vec![Diagnostic::error(format!(
@@ -34,7 +35,7 @@ pub(super) fn rejoin_normalized_foreign_call(
     };
     let external_rows = external_binding_rows
         .iter()
-        .filter(|row| row.requirement_identity == requirement)
+        .filter(|row| row.requirement_identity == import_application)
         .collect::<Vec<_>>();
     let [external] = external_rows.as_slice() else {
         return Err(vec![Diagnostic::error(format!(

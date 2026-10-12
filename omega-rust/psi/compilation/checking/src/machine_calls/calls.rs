@@ -301,7 +301,7 @@ pub(crate) fn resolved_call_result_type(
     if let Some(slot) = program.dynamic_slot_by_symbol(call.target_symbol) {
         return slot.return_type.is_valid().then_some(slot.return_type);
     }
-    requirement_call_result_type(program, call.target_symbol)
+    requirement_call_result_type(program, call)
 }
 
 /// The authored contract a call's operands answer to: a machine's entry
@@ -349,30 +349,41 @@ pub(crate) fn callee_entry_contract(
 }
 
 /// A boundary or requirement call targets the trait's declared signature
-/// symbol rather than a machine-body state. A retained closed application owns
-/// its already-substituted signature, even when the authored trait has `Type`
-/// parameters. Invocation lifetimes remain universal; this carrier query does
-/// not establish which caller loan supplies the result. Without that exact row,
-/// declaration-local `Type` parameters keep the raw result unresolved rather
-/// than inventing an application from its expected destination.
+/// symbol rather than a machine-body state. Its declared result is exact
+/// evidence for a closed signature or an original caller-scoped result view.
+/// Raw declaration-local binders still stay unresolved instead of becoming
+/// inferred arguments in another caller.
 fn requirement_call_result_type(
     program: &dyn crate::CheckingInput,
-    target: symbols::SymbolHandle,
+    call: &typed_trees::expression::TableCallExpression,
 ) -> Option<TypeReferenceHandle> {
-    if !target.is_valid() {
+    let (definition, signature) = program.selected_trait_requirement_signature(
+        call.target_symbol,
+        call.authored_machine_application,
+    )?;
+    if program
+        .expression_table
+        .static_machine_application_is_valid(call.authored_machine_application)
+    {
+        let application = program
+            .expression_table
+            .static_machine_application(call.authored_machine_application);
+        if application.registration_operation == signature.symbol
+            && application.binding_declaration == signature.symbol
+            && application.public_result_type.is_valid()
+        {
+            return Some(application.public_result_type);
+        }
+    }
+    let applied = program
+        .instantiated_requirement_signatures
+        .iter()
+        .any(|(_, row)| {
+            program.trait_machine_signatures.get(row.signature).symbol == signature.symbol
+        });
+    if !applied && !definition.type_parameters.is_empty() {
         return None;
     }
-    if let Some(application) = program.closed_requirement_application(target) {
-        let signature = application.signature;
-        return (signature.type_parameters.is_empty() && signature.return_type.is_valid())
-            .then_some(signature.return_type);
-    }
-    let parent = program.symbols.get(target).parent;
-    let definition = program.trait_definition_by_symbol(parent)?;
-    if !definition.type_parameters.is_empty() {
-        return None;
-    }
-    let signature = program.trait_machine_signature_by_symbol(definition, target)?;
     if !signature.type_parameters.is_empty() || !signature.return_type.is_valid() {
         return None;
     }
@@ -724,6 +735,6 @@ pub use receiver_topology::{
 mod occurrences;
 pub use occurrences::{
     CallSite, call_is_unconditional, call_site_argument_expressions, call_site_evidence_arguments,
-    collect_call_sites_in_statement, find_call_site, find_call_site_in_state,
+    collect_call_sites_in_statement, find_call_site, find_call_site_in_state, find_source_call_site,
     transition_call_target,
 };

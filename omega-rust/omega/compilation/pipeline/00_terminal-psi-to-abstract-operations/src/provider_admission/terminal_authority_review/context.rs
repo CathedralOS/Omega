@@ -27,6 +27,8 @@ pub(super) struct ReviewContext<'a> {
     pub(super) boundaries:
         BTreeMap<BoundaryMachineId, &'a terminal_psi::BoundaryMachineDeclaration>,
     pub(super) selected: &'a SelectedProviderPlanFacts,
+    pub(super) direct:
+        &'a [super::super::source_evaluated_bindings::PreparedDirectForeignBinding<'a>],
     pub(super) physical_policy: &'a TerminalAuthorityPolicy,
     /// The explicitly supplied receiving permission policy, or `None` when the
     /// review makes no receiver-admission claim. `None` is not deny-all or
@@ -43,6 +45,7 @@ impl<'a> ReviewContext<'a> {
         target_profile: target::TargetProfile,
         input: &'a crate::VerifiedPsiOptimizationInput,
         selected: &'a SelectedProviderPlanFacts,
+        direct: &'a [super::super::source_evaluated_bindings::PreparedDirectForeignBinding<'a>],
         physical_policy: &'a TerminalAuthorityPolicy,
         permission_policy: Option<&'a TerminalAuthorityPermissionPolicy>,
         mechanisms: &[AdmittedTerminalMechanism],
@@ -94,6 +97,7 @@ impl<'a> ReviewContext<'a> {
             dynamic_dispatch: &plan.dynamic_dispatch,
             boundaries,
             selected,
+            direct,
             physical_policy,
             permission_policy,
             mechanisms: mechanism_map,

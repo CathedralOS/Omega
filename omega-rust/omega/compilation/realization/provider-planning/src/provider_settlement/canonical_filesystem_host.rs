@@ -35,7 +35,7 @@
 //! every selected plan against exactly one candidate, and this plan is a
 //! real retained candidate for the slot even though no package authored it.
 //! It enters the post-derivation review-provenance list as a
-//! `UniqueCoveringCandidate` so receiver admission, fused-service erasure,
+//! `ToolchainSettlement` so receiver admission, fused-service erasure,
 //! and downstream settlement readers see the same plan identity the
 //! selected facts carry; its per-row realization symbols stay `invalid`
 //! because the realization is a toolchain settlement table entry, not an

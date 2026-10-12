@@ -9,15 +9,21 @@ pub enum ContractProofFactKind {
     #[default]
     Requires,
     Ensures,
+    /// Static declaration premise, not a runtime call precondition.
+    Where,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum ContractProofFactOwner {
     #[default]
     Unknown,
+    /// One invocation contract. Preconditions are entry assumptions and
+    /// guarantees remain obligations at every ordinary machine return.
     Machine {
         machine_symbol: SymbolHandle,
     },
+    /// A genuine authored state contract, scoped to this state rather than
+    /// to every return from the enclosing invocation.
     MachineState {
         machine_symbol: SymbolHandle,
         state_symbol: SymbolHandle,
@@ -67,8 +73,10 @@ pub struct ContractProofFact {
 /// The exact conformance scope one contract fact migrated through when a
 /// satisfying machine inherited it from a trait requirement. Proposition
 /// families, carrier types, and requirement parameters are all schema-level in
-/// the authored row; the recorded trait arguments plus the satisfying state
-/// (the fact's owner) instantiate them without consulting display names.
+/// the authored row; the recorded trait arguments plus the original formal
+/// state instantiate them without consulting display names. A machine-owned
+/// contract binds the satisfier's entry parameters and follows invocation
+/// origins to each normal exit; a state-owned contract keeps its named state.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct InheritedContractScope {
     /// Machine bearing the `satisfies` edge the fact migrated through.

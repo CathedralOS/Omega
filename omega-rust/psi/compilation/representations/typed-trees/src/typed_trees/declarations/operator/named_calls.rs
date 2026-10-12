@@ -115,11 +115,12 @@ pub fn named_expression_call_candidates<'program>(
 pub fn selected_named_expression_call_has_no_runtime_receiver(
     program: &TypedTrees,
     call: &crate::expression::TableCallExpression,
+    target_symbol: symbols::SymbolHandle,
 ) -> bool {
-    if !call.target_symbol.is_valid() {
+    if !target_symbol.is_valid() {
         return false;
     }
-    let Some(operator) = super::declaration_by_symbol(program, call.target_symbol) else {
+    let Some(operator) = super::declaration_by_symbol(program, target_symbol) else {
         return false;
     };
     let parameters = program.operator_parameters(operator);
@@ -128,7 +129,9 @@ pub fn selected_named_expression_call_has_no_runtime_receiver(
         return false;
     }
     if !call.receiver.is_valid() {
-        return named_operator_path_matches_call(program, operator, None, call.target.as_str());
+        // The resolved occurrence owns the declaration. Builtin and authored
+        // spellings can share it; neither spelling supplies a runtime receiver.
+        return true;
     }
     let Some(namespace) = expression_static_receiver_segments(program, call) else {
         return false;

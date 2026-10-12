@@ -474,11 +474,13 @@ pub(crate) fn state_origins(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn rebase_contexts(
     program: &dyn ::validation::CheckingInput,
+    proof: &checked_trees::ProofFacts,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     contexts: HandleSpan<FlowSemanticContextRef>,
+    contracts: HandleSpan<checked_trees::ContractProofFactRef>,
     assumptions: bool,
 ) -> (
     HandleSpan<FlowSemanticContextRef>,
@@ -528,6 +530,29 @@ pub(super) fn rebase_contexts(
             .as_ref()
             .clone()
     };
+    // Inherited exit rows retain their original requirement symbols even
+    // though their semantic point is the satisfying state. Select them only
+    // from this exit's exact contract roster; state-local premises stay shared.
+    let selected_contract = |fact: &facts::Fact| {
+        let contract = match fact.payload {
+            FactPayload::ContractBooleanExpression { fact, .. }
+            | FactPayload::ContractDomainMembership { fact, .. }
+            | FactPayload::ContractPropositionApplication { fact, .. }
+            | FactPayload::ContractCarryPermission { fact, .. } => fact,
+            _ => return None,
+        };
+        crate::semantic::facts::selected_contract_parameter_correspondence(
+            program, proof, contracts, contract,
+        )
+    };
+    let needs_rebasing = |fact: &facts::Fact| {
+        matches!(fact.point, ProgramPoint::Machine { machine_symbol } if machine_symbol == machine.symbol)
+            || selected_contract(fact).is_some_and(|scope| {
+                // A declaration telescope different from its satisfying
+                // state must enter through the same runtime correspondence.
+                scope.declaration_owner != machine.symbol
+            })
+    };
     let mut rebased = HandleSpan::empty();
     let mut parameter_origins = HandleSpan::empty();
     let sources = build
@@ -543,9 +568,7 @@ pub(super) fn rebase_contexts(
             .iter()
             .map(|reference| (reference.fact, *semantic.facts.get(reference.fact)))
             .collect::<Vec<_>>();
-        if !source_facts.iter().any(|(_, fact)| {
-            matches!(fact.point, ProgramPoint::Machine { machine_symbol } if machine_symbol == machine.symbol)
-        }) {
+        if !source_facts.iter().any(|(_, fact)| needs_rebasing(fact)) {
             // Global and already state-local contexts are immutable shared
             // evidence. Republishing them at their original point makes the
             // next sibling collect every previous copy again.
@@ -569,11 +592,36 @@ pub(super) fn rebase_contexts(
         let mut refs = HandleSpan::empty();
         let mut complete = true;
         for (source_fact, mut fact) in source_facts {
-            if !matches!(fact.point, ProgramPoint::Machine { machine_symbol } if machine_symbol == machine.symbol)
-            {
+            if !needs_rebasing(&fact) {
                 semantic.append_ref(&mut refs, source_fact);
                 continue;
             }
+            let correspondence = selected_contract(&fact);
+            // Resolve declaration symbols through the retained conformance
+            // before following invocation origins. Spelling is never identity.
+            let target_for = |declared| {
+                let actual = if let Some(correspondence) = &correspondence {
+                    correspondence.actual_symbol(declared)?
+                } else {
+                    program.state_parameter_by_symbol(entry, declared)?;
+                    declared
+                };
+                if correspondence.as_ref().is_some_and(|scope| {
+                    scope.actual_state == state.symbol && state.symbol != entry.symbol
+                }) {
+                    return Some(if stable_parameter(program, machine, state, actual) {
+                        actual
+                    } else {
+                        SymbolHandle::invalid()
+                    });
+                }
+                Some(
+                    origins
+                        .iter()
+                        .find_map(|(entry, target)| (*entry == actual).then_some(*target))
+                        .unwrap_or_default(),
+                )
+            };
             fact.point = scoped_point;
             let contract = match fact.payload {
                 FactPayload::ContractBooleanExpression { fact, .. }
@@ -598,8 +646,10 @@ pub(super) fn rebase_contexts(
                 let mut place = *semantic.places.get(place);
                 if let Some(root) = place.root.as_symbol() {
                     required_roots.push(root);
-                    if let Some((_, target)) = origins.iter().find(|(entry, _)| *entry == root) {
-                        place.root = facts::PlaceRoot::Symbol(*target);
+                    if let Some(target) = target_for(root)
+                        && target.is_valid()
+                    {
+                        place.root = facts::PlaceRoot::Symbol(target);
                         fact.place = FactPlace::Place(semantic.places.append(place));
                     }
                 }
@@ -607,13 +657,9 @@ pub(super) fn rebase_contexts(
             required_roots.sort_by_key(|root| (root.arena_index(), root.generation()));
             required_roots.dedup();
             for root in required_roots {
-                if !program.state_parameter_by_symbol(entry, root).is_some() {
+                let Some(target) = target_for(root) else {
                     continue;
-                }
-                let target = origins
-                    .iter()
-                    .find_map(|(entry, target)| (*entry == root).then_some(*target))
-                    .unwrap_or_default();
+                };
                 // Entry assumptions do not establish arrival invariants after
                 // arbitrary predecessor writes. Only explicit state requires
                 // are assumed here; state_values transports independently

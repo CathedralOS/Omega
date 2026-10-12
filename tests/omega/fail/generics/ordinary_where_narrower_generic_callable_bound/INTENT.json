@@ -1,0 +1,7 @@
+{
+  "status": "unexecuted source-only reviewer control",
+  "intended_result": "reject at complete callable eligibility refinement; declaration predicates may not narrow universal promise",
+  "source_geometry": "different exact const-binder names; no carrier or signature mismatch",
+  "materialization": "Root places complete case in tests/omega/{pass,fail}/generics to preserve normal5up dependency; scratch path is not executable qualification",
+  "diagnostic": "not predicted"
+}

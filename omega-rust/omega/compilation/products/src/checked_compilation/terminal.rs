@@ -52,6 +52,8 @@ impl CheckedCompilation {
             package_terminal_authority_permission_identities,
         ) = execution.terminal_authority_permissions();
         Ok(TerminalNativeProposalRequest {
+            requirement_applications: providers.requirement_applications.clone(),
+            requirement_application_identities: providers.requirement_application_identities.clone(),
             provider_declarations: execution.selected_provider_provenance.iter().map(|retained| {
                 let typed = &execution.program.typed;
                 let provider_declaration = retained.provider.provider_type.map(|symbol| {
@@ -74,7 +76,8 @@ impl CheckedCompilation {
                     }
                 }).collect(),
                 calling_applications: providers.boundary_calling_plan_realizations.iter()
-                    .map(|realization| realization.native_application()).collect(),
+                    .map(|realization| realization.native_application())
+                    .chain(providers.compatibility_calling_applications.iter().cloned()).collect(),
             },
             native_target: execution.selected_native_target(),
             program_entry: execution.selected_program_entry.as_ref().map(|entry| {
@@ -94,6 +97,7 @@ impl CheckedCompilation {
             ),
             optimizations: selections.project_post_terminal(),
             external_bindings: &providers.external_binding_rows,
+            direct_foreign_realizations: &execution.direct_foreign_realizations,
             behavior_exclusions: self.build().config.behavior_exclusions.as_slice(),
             package_terminal_authority_permissions,
             package_terminal_authority_permission_identities,
@@ -145,9 +149,9 @@ impl CheckedCompilation {
                             "selected family realization has substituted target custody",
                         )]);
                     }
-                    // Foreign family heads export their exact checked terminal
-                    // declaration name. The portable overload identity is shared
-                    // by members and is not this emitted callable's identity.
+                    // Foreign family heads publish the original declaration's
+                    // callable identity. The checked selection's name is only
+                    // diagnostic payload and cannot join a Terminal boundary.
                     let mut heads = execution
                         .program
                         .facts
@@ -161,14 +165,16 @@ impl CheckedCompilation {
                             "selected family realization has no unique checked terminal head",
                         )]);
                     };
-                    if head.name.is_empty() {
+                    let head_identity = typed.machine_declaration_callable_identity(head.machine);
+                    let head_identity = typed.callable_identity_text(head_identity);
+                    if head_identity.is_empty() {
                         return Err(vec![Diagnostic::error(
-                            "selected family realization has an empty checked terminal head",
+                            "selected family realization has no original declaration identity",
                         )]);
                     }
                     rows.push(
                         terminal_psi_to_abstract_operations::SelectedFamilyRealizationSource {
-                            head_identity: head.name.clone(),
+                            head_identity,
                             target: plan.target.clone(),
                             selected_requirement_identity: plan
                                 .identities

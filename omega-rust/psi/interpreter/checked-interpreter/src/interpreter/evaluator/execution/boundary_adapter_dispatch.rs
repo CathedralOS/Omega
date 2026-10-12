@@ -42,10 +42,9 @@ impl<'program> Evaluator<'program> {
                 // requirement. A family row settles only for the call whose
                 // static arguments canonically equal its declared tuple.
                 dispatch.family_tuple.is_empty()
-                    || machine_arguments
-                        .iter()
-                        .map(|argument| self.program.static_const_argument_identity(argument))
-                        .collect::<Option<Vec<_>>>()
+                    || self
+                        .program
+                        .public_const_argument_identities(dispatch.requirement, machine_arguments)
                         .is_some_and(|tuple| tuple.as_slice() == dispatch.family_tuple.as_ref())
             })
             .cloned()

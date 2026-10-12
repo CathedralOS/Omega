@@ -1,0 +1,1 @@
+A direct match operand joins separately produced Carrier<u64> results before attached-call inference. The authored Count applications return 4 and 8, and all calls must agree with their runtime witnesses. The program exits 0 in native execution and the Terminal interpreter.

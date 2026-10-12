@@ -6,6 +6,15 @@ mod evaluation;
 pub(crate) use evaluation::prepare_evaluation;
 pub(crate) use evaluation::{PreparedEvaluationInputs, prepare_evaluation_inputs};
 
+/// Fork the exact input expression graph before provisional transformations.
+/// The original snapshot remains the normalization owner; source births from
+/// an earlier template copy cannot stand in for this invocation's operands.
+pub(crate) fn expression_probe(syntax: &syntax_trees::SyntaxTrees) -> syntax_trees::SyntaxTrees {
+    let mut probe = syntax.clone();
+    probe.expressions.begin_expression_lowering_lineage();
+    probe
+}
+
 /// A provisional index supplies a carrier, not membership in the indexed domain.
 /// Remove only affected constant qualifications in this private probe forest.
 /// The authoritative declarations keep every constraint and are checked after

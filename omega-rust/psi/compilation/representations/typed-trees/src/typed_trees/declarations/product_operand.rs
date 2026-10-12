@@ -18,7 +18,7 @@ pub fn is_declaration_operand(argument: &StaticMachineArgument) -> bool {
 /// Resolve the declaration a Build operand path names: subject position joins
 /// boundaries and top-level requirement machines, while non-subject position
 /// joins data declarations and non-generic conformances. A path that fails the
-/// operand shape (typed, applied, literal, projected, or empty) is not a
+/// operand shape (typed, literal, projected, or empty) is not a
 /// product operand at all.
 pub fn resolve_product_operand(
     typed: &TypedTrees,
@@ -27,7 +27,11 @@ pub fn resolve_product_operand(
     subject: bool,
 ) -> Option<symbols::SymbolHandle> {
     let program = typed.product_declarations();
-    if !is_declaration_operand(argument) {
+    if argument.type_reference.is_valid()
+        || argument.const_literal.is_some()
+        || argument.evidence_projection.is_some()
+        || argument.path.is_empty()
+    {
         return None;
     }
     let path = argument.path.joined_path();
@@ -71,12 +75,16 @@ pub fn resolve_product_operand(
             )
             .collect()
     };
-    let token_bound_machines = program
-        .machine_token_bindings()
-        .iter()
-        .filter(|binding| binding.is_boundary)
-        .map(|binding| binding.symbol)
-        .collect::<Vec<_>>();
+    let token_bound_machines = if subject {
+        program
+            .machine_token_bindings()
+            .iter()
+            .filter(|binding| binding.is_boundary)
+            .map(|binding| binding.symbol)
+            .collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    };
     program.symbols.find_build_subject_declaration_from_source(
         &path,
         occurrence,

@@ -45,11 +45,8 @@ impl ExpressionTableLowerer<'_, '_, '_> {
         {
             return member.member_symbol;
         }
-        self.program
-            .and_then(|program| {
-                declared_receiver_field(program, self.source, member, 0).map(|field| field.symbol)
-            })
-            .unwrap_or(member.member_symbol)
+        declared_receiver_field(self.program, self.source, member, 0)
+            .map_or(member.member_symbol, |field| field.symbol)
     }
 }
 

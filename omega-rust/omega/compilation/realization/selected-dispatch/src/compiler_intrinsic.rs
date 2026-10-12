@@ -404,7 +404,8 @@ fn exact_bundled_standalone_source(
         .symbol_source_span(symbol)
         .and_then(|span| typed.symbols.source_file(span))
         .is_some_and(|source| {
-            source.package_identity.is_none()
+            source.origin == source::SourceOrigin::Toolchain
+                && source.package_identity.is_none()
                 && source.path.strip_prefix(&source.package_root).ok()
                     == Some(std::path::Path::new(expected_relative_path))
                 && source.source.as_bytes() == expected_source
@@ -497,37 +498,12 @@ fn boundary_row_shape(
     shape: ConsoleIntrinsicShape,
 ) -> Result<bool, Diagnostic> {
     let typed = checked;
-
-    let traits = typed
-        .traits()
-        .iter()
-        .filter(|definition| definition.symbol == trait_symbol)
-        .collect::<Vec<_>>();
-    let [definition] = traits.as_slice() else {
-        return Err(Diagnostic::error(format!(
-            "selected ProviderPlan `{}` resolves its exact service symbol to {} trait declarations",
-            plan.name,
-            traits.len(),
-        )));
-    };
-    if !definition.is_boundary
-        || definition.name.as_str() != trait_name
-        || !definition.lifetime_parameters.is_empty()
-        || !typed.trait_type_parameters(definition).is_empty()
-    {
+    let Some(definition) = typed.trait_definition_by_symbol(trait_symbol) else {
         return Ok(false);
-    }
-    let requirements = typed
-        .trait_machine_signatures(definition)
-        .iter()
-        .filter(|signature| signature.symbol == requirement_symbol)
-        .collect::<Vec<_>>();
-    let [requirement] = requirements.as_slice() else {
-        return Err(Diagnostic::error(format!(
-            "selected ProviderPlan `{}` resolves its exact requirement symbol to {} trait signatures",
-            plan.name,
-            requirements.len(),
-        )));
+    };
+    let Some(requirement) = typed.trait_machine_signature_by_symbol(definition, requirement_symbol)
+    else {
+        return Ok(false);
     };
     let requirement_identity =
         typed.trait_requirement_callable_identity_text(definition, requirement);
@@ -557,6 +533,74 @@ fn boundary_row_shape(
         return Ok(false);
     }
 
+    let intrinsic_machine = match &row.binding {
+        ProviderBinding::CompilerIntrinsic { machine } => Some(machine),
+        ProviderBinding::Import { .. } => None,
+        _ => return Ok(false),
+    };
+    boundary_declaration_shape(
+        checked,
+        trait_symbol,
+        requirement_symbol,
+        realization_symbol,
+        trait_name,
+        require_inferred_supply,
+        requirement_name,
+        realization_name,
+        shape,
+        intrinsic_machine.map(String::as_str),
+    )
+}
+
+/// The original declaration relation is shared by selected rows and direct
+/// compiler supply. A plan binds this relation; it never creates its custody.
+#[allow(clippy::too_many_arguments)]
+fn boundary_declaration_shape(
+    checked: &CheckedTrees,
+    trait_symbol: SymbolHandle,
+    requirement_symbol: SymbolHandle,
+    realization_symbol: SymbolHandle,
+    trait_name: &str,
+    require_inferred_supply: bool,
+    requirement_name: &str,
+    realization_name: &str,
+    shape: ConsoleIntrinsicShape,
+    intrinsic_machine: Option<&str>,
+) -> Result<bool, Diagnostic> {
+    let typed = checked;
+
+    let traits = typed
+        .traits()
+        .iter()
+        .filter(|definition| definition.symbol == trait_symbol)
+        .collect::<Vec<_>>();
+    let [definition] = traits.as_slice() else {
+        return Err(Diagnostic::error(format!(
+            "hosted intrinsic resolves its exact service symbol to {} trait declarations",
+            traits.len(),
+        )));
+    };
+    if !definition.is_boundary
+        || definition.name.as_str() != trait_name
+        || !definition.lifetime_parameters.is_empty()
+        || !typed.trait_type_parameters(definition).is_empty()
+    {
+        return Ok(false);
+    }
+    let requirements = typed
+        .trait_machine_signatures(definition)
+        .iter()
+        .filter(|signature| signature.symbol == requirement_symbol)
+        .collect::<Vec<_>>();
+    let [requirement] = requirements.as_slice() else {
+        return Err(Diagnostic::error(format!(
+            "hosted intrinsic resolves its exact requirement symbol to {} trait signatures",
+            requirements.len(),
+        )));
+    };
+    if !exact_console_signature(typed, requirement, requirement_name, trait_symbol, shape) {
+        return Ok(false);
+    }
     let realizations = typed
         .machines()
         .iter()
@@ -564,8 +608,7 @@ fn boundary_row_shape(
         .collect::<Vec<_>>();
     let [realization] = realizations.as_slice() else {
         return Err(Diagnostic::error(format!(
-            "selected ProviderPlan `{}` resolves its exact realization symbol to {} machines",
-            plan.name,
+            "hosted intrinsic resolves its exact realization symbol to {} machines",
             realizations.len(),
         )));
     };
@@ -575,11 +618,6 @@ fn boundary_row_shape(
     // A hosted console leaf is either compiler-known (the intrinsic names the
     // realization's own identity) or, on a target whose kernel entry is DLL
     // linkage, an evaluated import the realization reaches through `via`.
-    let intrinsic_machine = match &row.binding {
-        ProviderBinding::CompilerIntrinsic { machine } => Some(machine),
-        ProviderBinding::Import { .. } => None,
-        _ => return Ok(false),
-    };
     // The realization's published envelope must spell the same honest shape
     // as its requirement: the hosted byte-input leaf may occupy the worker
     // while it waits and traps on a failed read; byte output and process
@@ -592,7 +630,7 @@ fn boundary_row_shape(
         return Ok(false);
     }
     if realization.name.as_str() != realization_name
-        || intrinsic_machine.is_some_and(|machine| machine != &realization_identity)
+        || intrinsic_machine.is_some_and(|machine| machine != realization_identity)
         || !realization.lifetime_parameters.is_empty()
         || !typed.machine_type_parameters(realization).is_empty()
         || realization.body_is_present
@@ -824,4 +862,264 @@ fn sole_unconditional_trap(contracts: &[typed_trees::signature::SignatureContrac
         }
     ) && contract.facts.is_empty()
         && contract.binding.is_none()
+}
+
+/// Issue direct native supply from the same private hosted catalog used by
+/// selected intrinsic rows. Population grants no provider selection: each
+/// retained callable is its own original declaration, not its abstract slot.
+pub(crate) fn retain_direct_compiler_intrinsics(
+    checked: &CheckedTrees,
+    target: Option<target::TargetProfile>,
+    selected: &[provider_planning::SelectedProviderReviewProvenance],
+    calling: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
+    opaque: &[representation_planning::OpaqueRepresentationSelection],
+) -> Result<Vec<std::sync::Arc<effects::DirectForeignRealization>>, Vec<Diagnostic>> {
+    let Some(target) = target else {
+        return Ok(Vec::new());
+    };
+    let Some(bundle) = HostedIntrinsicBundle::from_target_name(target.target_name()) else {
+        return Ok(Vec::new());
+    };
+    let typed = &checked.typed;
+    let context =
+        provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
+    let mut retained = Vec::new();
+    // Selection already owns these original rows. Publish their native calling
+    // custody from that aligned roster, not by rediscovering a Product copy of
+    // the same declaration during standalone source enumeration.
+    for original in selected {
+        for ((requirement_symbol, realization_symbol), execution) in original
+            .provider
+            .row_requirements
+            .iter()
+            .zip(&original.provider.row_realizations)
+            .zip(&original.row_compiler_intrinsic_executions)
+        {
+            let Some(execution) = execution else {
+                continue;
+            };
+            if !HOSTED_INTRINSIC_ROWS
+                .iter()
+                .any(|hosted| hosted.identity == *execution)
+            {
+                continue;
+            }
+            let definition = typed
+                .trait_definition_by_symbol(original.provider.schema.symbol())
+                .ok_or_else(|| vec![Diagnostic::error(
+                    "selected hosted intrinsic lost its original service declaration",
+                )])?;
+            let requirement = typed
+                .trait_machine_signature_by_symbol(definition, *requirement_symbol)
+                .ok_or_else(|| vec![Diagnostic::error(
+                    "selected hosted intrinsic lost its original requirement declaration",
+                )])?;
+            let mut realizations = typed
+                .machines()
+                .iter()
+                .filter(|machine| machine.symbol == *realization_symbol);
+            let (Some(realization), None) = (realizations.next(), realizations.next()) else {
+                return Err(vec![Diagnostic::error(
+                    "selected hosted intrinsic has no unique original realization declaration",
+                )]);
+            };
+            retain_hosted_intrinsic_calling_origin(
+                typed,
+                target,
+                definition,
+                requirement,
+                realization,
+                original.plan.schema.clone(),
+                *execution,
+                effects::DirectCompilerIntrinsicOrigin::SelectedProvider(original.plan.clone()),
+                calling,
+                opaque,
+                &mut retained,
+            )?;
+        }
+    }
+    for realization in typed.machines() {
+        if !context.contains(realization.symbol)
+            || realization
+                .authored_target
+                .as_ref()
+                .map(|target| target.as_str())
+                != Some(target.target_name())
+        {
+            continue;
+        }
+        for clause in typed.machine_trait_conformances(realization) {
+            let Some(typed_trees::machine::SatisfiedDeclaration::Trait {
+                definition,
+                requirement,
+            }) = typed_trees::machine::resolve_satisfied_declaration(typed, realization, clause)
+            else {
+                continue;
+            };
+            if !context.contains(definition.symbol) || !context.contains(requirement.symbol) {
+                continue;
+            }
+            for hosted in &HOSTED_INTRINSIC_ROWS {
+                if definition.name.as_str() != hosted.service.trait_name()
+                    || requirement.name.as_str() != hosted.requirement
+                    || realization.name.as_str() != hosted.realization
+                {
+                    continue;
+                }
+                let Some(overload) = typed.machine_callable_identity_text(realization) else {
+                    continue;
+                };
+                // An original selected row has already issued this exact
+                // realization. Do not mint a second standalone origin for it.
+                if selected.iter().any(|original| {
+                    original.provider.schema.symbol() == definition.symbol
+                        && original.provider.row_requirements.iter()
+                            .zip(&original.provider.row_realizations)
+                            .zip(&original.row_compiler_intrinsic_executions)
+                            .any(|((original_requirement, original_realization), execution)| {
+                                *original_requirement == requirement.symbol
+                                    && *original_realization == realization.symbol
+                                    && *execution == Some(hosted.identity)
+                            })
+                }) {
+                    continue;
+                }
+                if !hosted.service.bundled_binding(
+                    typed,
+                    definition.symbol,
+                    requirement.symbol,
+                    realization.symbol,
+                    bundle,
+                ) {
+                    continue;
+                }
+                if !boundary_declaration_shape(
+                    checked,
+                    definition.symbol,
+                    requirement.symbol,
+                    realization.symbol,
+                    hosted.service.trait_name(),
+                    hosted.shape == ConsoleIntrinsicShape::I32ToUnit,
+                    hosted.requirement,
+                    hosted.realization,
+                    hosted.shape,
+                    Some(&overload),
+                )
+                .map_err(|error| vec![error])?
+                {
+                    continue;
+                }
+                let source_digest = |symbol| {
+                    let unit = typed
+                        .symbols
+                        .symbol_source_span(symbol)
+                        .and_then(|span| typed.symbols.source_file(span))?;
+                    package_compilation::toolchain_source_identity_digest(unit).ok()
+                };
+                let (Some(trait_source), Some(requirement_source), Some(realization_source)) = (
+                    source_digest(definition.symbol),
+                    source_digest(requirement.symbol),
+                    source_digest(realization.symbol),
+                ) else {
+                    continue;
+                };
+                let Some(schema) =
+                    provider_planning::service_schema::from_typed(context, calling, definition)
+                else {
+                    continue;
+                };
+                retain_hosted_intrinsic_calling_origin(
+                    typed,
+                    target,
+                    definition,
+                    requirement,
+                    realization,
+                    schema,
+                    hosted.identity,
+                    effects::DirectCompilerIntrinsicOrigin::BundledDeclarations([
+                        trait_source,
+                        requirement_source,
+                        realization_source,
+                    ]),
+                    calling,
+                    opaque,
+                    &mut retained,
+                )?;
+            }
+        }
+    }
+    Ok(retained)
+}
+
+/// Both original issuers retain the same complete declaration/calling relation.
+/// No missing entry becomes an omitted candidate: once catalog custody exists,
+/// a missing application is a diagnostic at its producing boundary.
+#[allow(clippy::too_many_arguments)]
+fn retain_hosted_intrinsic_calling_origin(
+    typed: &typed_trees::TypedTrees,
+    target: target::TargetProfile,
+    definition: &typed_trees::trait_definition::TraitDefinition,
+    requirement: &typed_trees::signature::StateSignature,
+    realization: &typed_trees::machine::Machine,
+    schema: effects::provider_plan::ServiceSchema,
+    execution: CompilerIntrinsicExecutionIdentity,
+    origin: effects::DirectCompilerIntrinsicOrigin,
+    calling: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
+    opaque: &[representation_planning::OpaqueRepresentationSelection],
+    retained: &mut Vec<std::sync::Arc<effects::DirectForeignRealization>>,
+) -> Result<(), Vec<Diagnostic>> {
+    let requirement_identity =
+        typed.trait_requirement_callable_identity_text(definition, requirement);
+    let mut methods = schema.methods.iter().filter(|method| {
+        schema.identity_text(method.requirement_identity) == requirement_identity
+    });
+    let (Some(method), None) = (methods.next(), methods.next()) else {
+        return Err(vec![Diagnostic::error(
+            "hosted intrinsic lost its unique original schema method",
+        )]);
+    };
+    let declaration = typed.machine_declaration_callable_identity(realization.symbol);
+    let Some(overload) = typed.machine_callable_identity_text(realization) else {
+        return Err(vec![Diagnostic::error(
+            "hosted intrinsic lost its original callable overload",
+        )]);
+    };
+    if !declaration.is_valid() {
+        return Err(vec![Diagnostic::error(
+            "hosted intrinsic lost its unique physical declaration",
+        )]);
+    }
+    let binding = effects::DirectForeignBinding::CompilerIntrinsic {
+        execution,
+        origin: origin.clone(),
+    };
+    let entry = provider_planning::direct_boundary_entry_plan(
+        typed,
+        target,
+        &schema,
+        method,
+        requirement.symbol,
+        &binding,
+        calling,
+        opaque,
+    ).ok_or_else(|| vec![Diagnostic::error(format!(
+        "hosted intrinsic `{requirement_identity}` cannot retain its original calling application",
+    ))])?;
+    let direct = effects::DirectForeignRealization::from_compiler_catalog(
+        typed.callable_identity_text(declaration),
+        overload,
+        requirement_identity,
+        target,
+        schema,
+        execution,
+        origin,
+        entry,
+    ).map_err(|error| vec![Diagnostic::error(error)])?;
+    if retained.iter().any(|row| row.callable_identity() == direct.callable_identity()) {
+        return Err(vec![Diagnostic::error(
+            "direct compiler intrinsic has ambiguous original catalog custody",
+        )]);
+    }
+    retained.push(std::sync::Arc::new(direct));
+    Ok(())
 }

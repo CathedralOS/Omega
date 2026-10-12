@@ -108,3 +108,28 @@ Run the marker, captured-byte, truncation, and envelope-admission controls with:
 ```sh
 cargo nextest run -p terminal-codec --lib --no-fail-fast --no-tests fail -E 'test(current_format_tests)'
 ```
+
+## Mathematical content
+
+`encode_mathematical_certificate` and `encode_mathematical_signature` share the
+canonical mathematical term table and declaration-row writer in
+[mathematical_certificate_wire.rs](src/sections/semantic_module/mathematical_certificate_wire.rs).
+Certificate format 3 bytes remain unchanged. A standalone signature emits
+`PSISIGN\0`, a little-endian `u16` format marker 1, the `u32` term count and
+postorder term table, then the `u32` declaration count and declaration rows.
+Each row is its `u32` level arity, `u32` canonical statement-term index, and
+one-byte body-presence tag followed by the `u32` body-term index when present.
+
+Declaration order is the original kernel signature order. `Constant` references
+retain their positions within that complete encoded cohort. Canonical term-table
+identity comes from content; local arena handles and unused scratch do not enter
+the bytes. The encoder neither checks a signature nor supplies a certificate's
+context, evidence term, or goal. This standalone content form is a commitment
+input, not a Terminal module or an assumption-admission receipt.
+
+An authored signature cohort remains distinct from a bounded certificate's
+private signature. Its source-declaration association and exact reached-root
+and assumption roster travel under the original checked owner; an entire
+cohort's bytes do not establish that every declaration was reached or that its
+assumptions are authorized. Source correspondence, complete dependency identity
+and receiving acceptance remain separate.

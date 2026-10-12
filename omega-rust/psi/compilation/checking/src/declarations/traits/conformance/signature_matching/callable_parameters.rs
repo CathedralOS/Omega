@@ -6,34 +6,81 @@
 //! parameters: another edge mentioning U cannot erase that obligation here.
 //! Inline named implementations additionally capture their own telescope.
 
-use symbols::SymbolHandle;
 use typed_trees::data::TypeParameter;
-use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
-use typed_trees::references::{TypedReferences, visit_type_reference};
-use typed_trees::types::TypeReferenceHandle;
+use typed_trees::signature::StateSignature;
+use typed_trees::state::State;
+use typed_trees::trait_definition::AppliedTraitScope;
 
-pub(super) fn invocation_parameters(
+/// The authored family and its applied logical contract share one invocation
+/// telescope. A concrete executable header consumes that telescope; it cannot
+/// be compared to an unconsumed provider family as if they were one declaration.
+/// This view retains source correspondence, not conformance or proof authority.
+pub(crate) struct RequirementCallableCorrespondence<'program> {
+    pub(crate) machine: &'program Machine,
+    pub(crate) state: &'program State,
+    pub(crate) requirement: &'program StateSignature,
+    pub(crate) applied_requirement: &'program StateSignature,
+    pub(crate) invocation_parameters: Vec<TypeParameter>,
+}
+
+pub(crate) fn requirement_callable_correspondence<'program>(
+    program: &'program dyn crate::CheckingInput,
+    realization: &'program Machine,
+    state: &'program State,
+    application: &AppliedTraitScope<'_>,
+    requirement: &'program StateSignature,
+) -> Result<RequirementCallableCorrespondence<'program>, diagnostics::Diagnostic> {
+    let failure = || {
+        diagnostics::Diagnostic::error(format!(
+            "machine `{}` requirement correspondence lost its exact original callable family",
+            realization.name,
+        ))
+    };
+    let original = program
+        .trait_machine_signature_by_symbol(application.declaration, requirement.symbol)
+        .filter(|original| std::ptr::eq(*original, requirement))
+        .ok_or_else(failure)?;
+    let machine = super::authored_conformance_machine(program, realization)?;
+    let state = if machine.symbol == realization.symbol {
+        state
+    } else {
+        typed_trees::state::state_position(program.machine_states(realization), state.symbol)
+            .and_then(|ordinal| program.machine_states(machine).get(ordinal))
+            .ok_or_else(failure)?
+    };
+    let applied_requirement = if original.type_parameters.is_empty()
+        && application.declaration.type_parameters.is_empty()
+    {
+        original
+    } else {
+        program
+            .typed_program()
+            .applied_callable_signature(application, original.symbol)
+            .ok_or_else(failure)?
+    };
+    Ok(RequirementCallableCorrespondence {
+        machine,
+        state,
+        requirement: original,
+        applied_requirement,
+        invocation_parameters: requirement_invocation_parameters(
+            program,
+            realization,
+            machine,
+            application,
+        ),
+    })
+}
+
+pub fn requirement_invocation_parameters(
     program: &dyn crate::CheckingInput,
     realization: &Machine,
     family: &Machine,
-    trait_symbol: SymbolHandle,
-    requirement_symbol: SymbolHandle,
+    application: &AppliedTraitScope<'_>,
 ) -> Vec<TypeParameter> {
-    let mut captured = ApplicationReferences::default();
-    for edge in program
-        .machine_trait_conformances(family)
-        .iter()
-        .filter(|edge| edge.symbol == trait_symbol && edge.requirement_symbol == requirement_symbol)
-    {
-        for argument in program
-            .type_reference_table
-            .type_reference_handles(edge.arguments)
-        {
-            visit_type_reference(program, &mut captured, *argument);
-        }
-    }
-    captured.symbols.extend(
+    let mut captured = application.application_parameter_symbols(program);
+    captured.extend(
         program
             .conformances()
             .iter()
@@ -50,38 +97,7 @@ pub(super) fn invocation_parameters(
     program
         .machine_type_parameters(family)
         .iter()
-        .filter(|parameter| !captured.symbols.contains(&parameter.symbol))
+        .filter(|parameter| !captured.contains(&parameter.symbol))
         .cloned()
         .collect()
-}
-
-#[derive(Default)]
-struct ApplicationReferences {
-    symbols: Vec<SymbolHandle>,
-    types: Vec<TypeReferenceHandle>,
-    expressions: Vec<ExpressionHandle>,
-}
-
-impl Extend<SymbolHandle> for ApplicationReferences {
-    fn extend<References: IntoIterator<Item = SymbolHandle>>(&mut self, references: References) {
-        self.symbols.extend(references);
-    }
-}
-
-impl TypedReferences for ApplicationReferences {
-    fn type_reference(&mut self, reference: TypeReferenceHandle) -> bool {
-        if self.types.contains(&reference) {
-            return false;
-        }
-        self.types.push(reference);
-        true
-    }
-
-    fn expression(&mut self, expression: ExpressionHandle) -> bool {
-        if self.expressions.contains(&expression) {
-            return false;
-        }
-        self.expressions.push(expression);
-        true
-    }
 }

@@ -211,6 +211,11 @@ fn project_term(
         kind: match term.kind {
             checked_trees::ContractProofFactKind::Requires => PackageReviewContractKind::Requires,
             checked_trees::ContractProofFactKind::Ensures => PackageReviewContractKind::Ensures,
+            checked_trees::ContractProofFactKind::Where => {
+                return Err(vec![Diagnostic::error(
+                    "static where fact cannot own a runtime evidence term",
+                )]);
+            }
         },
         lane_position: portable_lane(term.lane_position)?,
     })

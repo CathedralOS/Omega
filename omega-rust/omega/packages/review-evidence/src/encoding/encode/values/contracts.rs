@@ -17,6 +17,7 @@ pub(crate) fn encode_callable_contract(
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field("kind", |encoder| {
         match (contract.kind, contract.result_case.as_ref()) {
+            (PackageReviewContractKind::Where, None) => encoder.tag("where", 3),
             (PackageReviewContractKind::Requires, None) => encoder.tag("requires", 0),
             (PackageReviewContractKind::Ensures, None) => encoder.tag("ensures", 1),
             (PackageReviewContractKind::Ensures, Some(result_case)) => {
@@ -28,7 +29,7 @@ pub(crate) fn encode_callable_contract(
                     encode_nominal(encoder, &result_case.result_case)
                 })?;
             }
-            (PackageReviewContractKind::Requires, Some(_)) => {
+            (PackageReviewContractKind::Requires | PackageReviewContractKind::Where, Some(_)) => {
                 return Err(PackageReviewEncodingError::new(
                     "requires contract cannot carry a result-case guard",
                 ));
@@ -153,6 +154,7 @@ pub(crate) fn encode_proposition_application(
                         encoder.tag("evidence_projection", 3);
                         encoder.field("source_kind", |encoder| {
                             match source_kind {
+                                PackageReviewContractKind::Where => encoder.tag("where", 2),
                                 PackageReviewContractKind::Requires => encoder.tag("requires", 0),
                                 PackageReviewContractKind::Ensures => encoder.tag("ensures", 1),
                             };

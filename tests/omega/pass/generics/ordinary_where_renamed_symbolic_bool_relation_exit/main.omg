@@ -1,0 +1,18 @@
+pub boundary trait BooleanPolicy {
+    machine choose<const Left: bool, const Right: bool>() -> u64
+    where Left == Right;
+}
+machine selected<const A: bool, const B: bool>() -> u64
+satisfies BooleanPolicy::choose
+where A == B
+{ transition { _ -> 7 } }
+BooleanProvider satisfies BooleanPolicy {
+    BooleanPolicy::choose = selected;
+}
+data Main {}
+machine Main::main(main: &mut Main) reaches BooleanPolicy crashes Trap {
+    let result: u64 = BooleanPolicy::choose<false, false>();
+    transition result == 7 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

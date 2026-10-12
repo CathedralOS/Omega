@@ -1,6 +1,7 @@
 //! Inert baseline recovery under one shared reader and allocation budget.
 
 use crate::record::PackagePolicyBaseline;
+mod assumed_bindings;
 pub(in crate::encoding::recovery) mod boundary;
 pub(in crate::encoding::recovery) mod dependencies;
 pub(in crate::encoding::recovery) mod restricted_build;
@@ -30,9 +31,11 @@ impl PackagePolicyBaseline {
         if reader.u16()? != PACKAGE_POLICY_BASELINE_VERSION {
             return Err(Error::UnsupportedVersion);
         }
+        let package = package(&mut reader)?;
+        let target = selected_providers::target(&mut reader)?;
         let policy = Self {
-            package: package(&mut reader)?,
-            target: selected_providers::target(&mut reader)?,
+            package,
+            target,
             public_api: public_api::public_api(&mut reader)?,
             callables: callable_policy::policy(&mut reader)?,
             selected_providers: selected_providers::policy(&mut reader)?,
@@ -44,6 +47,7 @@ impl PackagePolicyBaseline {
             semantic_dependencies: reader.sequence(1, dependencies::semantic_dependency)?,
             boundary_applications: boundary::applications(&mut reader)?,
             restricted_build_requests: restricted_build::requests(&mut reader)?,
+            assumed_binding_contracts: assumed_bindings::contracts(&mut reader, package, target)?,
         };
         reader.finish()?;
         policy

@@ -164,10 +164,8 @@ fn validate_family_tuple(
                     .collect::<Vec<_>>()
                     .join(" or ")
             };
-            let tuple_identities: Option<Vec<String>> = machine_arguments
-                .iter()
-                .map(|argument| program.static_const_argument_identity(argument))
-                .collect();
+            let tuple_identities =
+                program.signature_const_argument_identities(call.signature, machine_arguments);
             let selects_exact_tuple = tuple_identities.as_deref().is_some_and(|identities| {
                 identities.len() == arity
                     && tuples

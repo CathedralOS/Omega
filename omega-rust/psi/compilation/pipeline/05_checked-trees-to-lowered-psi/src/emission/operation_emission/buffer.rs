@@ -207,6 +207,12 @@ pub(crate) struct OperationBuffer {
     /// completed joins. Cleanup uses this chronology, never local declarations
     /// alone; each selected exit still supplies its own disposal authority.
     pub(crate) structural_establishments: Vec<PlaceId>,
+    /// Anonymous values completed by block ingress, without inventing an
+    /// operation result or an authored result-binding ordinal.
+    pub(crate) structural_completions: Vec<(
+        terminal_psi::StructuralParameterDeclaration,
+        Vec<terminal_psi::StructuralResultClaimBinding>,
+    )>,
     /// Value-establishment obligations accompany the exact private arrival.
     pub(crate) scalar_block_invariants: Vec<terminal_psi::ScalarBlockInvariant>,
     pub(crate) selected_ieee_float_comparisons:
@@ -282,6 +288,20 @@ impl OperationBuffer {
         self.structural_values.push((ordinal, value));
     }
 
+    pub(crate) fn complete_structural_value(
+        &mut self,
+        parameter: terminal_psi::StructuralParameterDeclaration,
+        claims: Vec<terminal_psi::StructuralResultClaimBinding>,
+    ) {
+        // Anonymous join results establish homes in the same chronology as
+        // operation results. Their actual ingress also retains custody for an
+        // enclosing constructor before an authored local exists.
+        if !self.structural_establishments.contains(&parameter.place) {
+            self.structural_establishments.push(parameter.place);
+        }
+        self.structural_completions.push((parameter, claims));
+    }
+
     /// Publish the claims transported by completed constructor operands.
     /// The operation owns the result home; its receiving binding is separate.
     pub(crate) fn set_structural_result_claims(
@@ -330,6 +350,7 @@ impl OperationBuffer {
             dynamic_dispatch,
             structural_values: Vec::new(),
             structural_establishments: Vec::new(),
+            structural_completions: Vec::new(),
             scalar_block_invariants: Vec::new(),
             next_identity: identity_base
                 .checked_add(1)

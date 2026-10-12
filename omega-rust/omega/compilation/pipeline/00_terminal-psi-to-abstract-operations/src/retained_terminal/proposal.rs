@@ -16,6 +16,8 @@ use diagnostics::Diagnostic;
 /// canonical artifact. Completed callback bodies arrive in placement order;
 /// neither their cardinality nor their identity is trusted.
 pub struct TerminalNativeProposalRequest<'input> {
+    pub requirement_applications: Vec<effects::SelectedRequirementApplication>,
+    pub requirement_application_identities: terminal_psi::TerminalIdentityTable,
     pub provider_declarations:
         Vec<crate::provider_admission::NativeProviderPlanDeclaration<'input>>,
     pub target_profile: Option<target::TargetProfile>,
@@ -26,6 +28,7 @@ pub struct TerminalNativeProposalRequest<'input> {
     pub application: target::NativeApplicationMetadata,
     pub optimizations: optimization_core::PostTerminalOptimizationSelectionProjection,
     pub external_bindings: &'input [calling_conventions::ExternalBindingRow],
+    pub direct_foreign_realizations: &'input [std::sync::Arc<effects::DirectForeignRealization>],
     pub behavior_exclusions: &'input [effects::AuthoredBehaviorExclusion],
     pub package_terminal_authority_permissions: Vec<effects::ServiceTerminalAuthorityPermission>,
     pub package_terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
@@ -168,10 +171,19 @@ fn project_terminal_native_body(
     request: &TerminalNativeProposalRequest<'_>,
 ) -> Result<TerminalNativeBodyProposal, Vec<Diagnostic>> {
     let terminal_module = artifact.semantic_module();
+    let selected = request
+        .boundaries
+        .selected_provider_plans
+        .clone()
+        .with_requirement_applications(
+            request.requirement_applications.clone(),
+            &request.requirement_application_identities,
+        )
+        .map_err(|message| vec![Diagnostic::error(message)])?;
     let selected = close_family_realizations(
         artifact,
         target_profile,
-        request.boundaries.selected_provider_plans,
+        &selected,
         &request.family_realizations,
     )?;
     let checked_adapters = crate::provider_admission::retain_selected_provider_adapters(
@@ -197,6 +209,7 @@ fn project_terminal_native_body(
             &demanded_intrinsics,
             &terminal_module.boundary_machines,
             &terminal_module.identities,
+            request.direct_foreign_realizations,
         )?;
     let callback_occurrences = project_callback_occurrences(
         &request.callback_placements,
@@ -217,6 +230,14 @@ fn project_terminal_native_body(
         &selected,
         &boundary_application_coverage,
     )?;
+    let calling_bindings =
+        crate::boundary_application_settlement::settle_calling_application_bindings(
+            terminal_module,
+            &selected,
+            &request.boundaries.calling_applications,
+            request.external_bindings,
+        )
+        .map_err(|message| vec![Diagnostic::error(message)])?;
     let external_binding_rows = crate::settle_callback_registrar_imports(
         terminal_module,
         &request.callback_placements,
@@ -226,8 +247,9 @@ fn project_terminal_native_body(
                 placement_index: occurrence.placement_index(),
                 terminal_operation: occurrence.terminal_operation(),
             }),
+        &selected,
         &request.boundaries.calling_applications,
-        request.external_bindings,
+        &calling_bindings,
     )
     .map_err(|message| vec![Diagnostic::error(message)])?;
     Ok(TerminalNativeBodyProposal {
@@ -235,6 +257,7 @@ fn project_terminal_native_body(
             selection: selected,
             checked_adapters,
             external_bindings: external_binding_rows,
+            direct_foreign_realizations: request.direct_foreign_realizations.to_vec(),
             compiler_builtins: builtin_proposals,
             x86_scalar_fma: request.x86_scalar_fma_provider,
         },

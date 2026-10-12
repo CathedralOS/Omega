@@ -4,6 +4,7 @@
 //! fresh compilation attempt receives an explicitly sponsored empty directory;
 //! checked results retain immutable output custody after session disposal.
 
+mod batch_disposal;
 mod bindings;
 mod inputs;
 mod order;
@@ -209,20 +210,38 @@ impl PackageBuildSession {
     /// Release staging before publishing accepted project files. Closing does
     /// not create another grant, and this owner cannot execute another Build.
     pub fn close(&mut self) -> Result<(), CompileResolvedPackageReviewsError> {
+        self.close_staging().map_err(|error| {
+            CompileResolvedPackageReviewsError::BuildStagingCleanup {
+                path: self.root.clone(),
+                error: std::sync::Arc::new(error),
+                prior: None,
+            }
+        })
+    }
+
+    fn close_staging(&mut self) -> io::Result<()> {
         if !self.active {
             return Ok(());
         }
-        self.filesystem_sponsor
-            .dispose_private_staging()
-            .map_err(
-                |error| CompileResolvedPackageReviewsError::BuildStagingCleanup {
-                    path: self.root.clone(),
-                    error,
-                    prior: None,
-                },
-            )?;
+        self.filesystem_sponsor.dispose_private_staging()?;
         self.active = false;
         Ok(())
+    }
+
+    /// Finish every target under the same invocation's cleanup result. A
+    /// cleanup failure prevents success reporting and retains each target's
+    /// earlier failure independently; it does not issue another resource grant.
+    pub(crate) fn dispose_batch<Outcome, Value, Error>(
+        mut self,
+        outcomes: Vec<Outcome>,
+        result: impl FnMut(&mut Outcome) -> &mut Result<Value, Error>,
+        review_error: impl FnMut(CompileResolvedPackageReviewsError) -> Error,
+    ) -> Vec<Outcome>
+    where
+        Error: std::fmt::Display,
+    {
+        let cleanup = self.close_staging();
+        batch_disposal::dispose(&self.root, cleanup, outcomes, result, review_error)
     }
 
     /// Finish the invocation on success or failure, retaining an earlier

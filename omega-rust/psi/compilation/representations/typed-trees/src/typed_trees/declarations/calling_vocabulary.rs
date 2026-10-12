@@ -10,6 +10,60 @@ use crate::trait_definition::TraitDefinition;
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use symbols::SymbolHandle;
 
+/// An authored boundary policy requires a callback ABI at realization, not a
+/// target plan during source checking. Join the resolved relationship rather
+/// than treating the presence of an evaluated native plan as source semantics.
+pub fn boundary_has_explicit_calling_policy(
+    program: &TypedTrees,
+    definition: &TraitDefinition,
+) -> bool {
+    definition.is_boundary
+        && standard_calling_vocabularies(program)
+            .iter()
+            .any(|(calling, _)| {
+                program
+                    .trait_requirements(definition)
+                    .iter()
+                    .any(|requirement| requirement.symbol == calling.symbol)
+            })
+}
+
+/// Whether this exact public requirement owes a Calling callback resource
+/// receipt. Source checking consumes original interface custody, not a target
+/// plan or an independently selected ancestor policy. Missing ancestor evidence
+/// does not erase an authored obligation; realization still needs its tuple.
+pub fn boundary_requirement_has_explicit_calling_policy(
+    program: &TypedTrees,
+    declaring_trait: SymbolHandle,
+    requirement: SymbolHandle,
+) -> bool {
+    if program
+        .trait_definition_by_symbol(declaring_trait)
+        .is_some_and(|definition| boundary_has_explicit_calling_policy(program, definition))
+    {
+        return true;
+    }
+    let typed = program;
+    typed
+        .instantiated_requirement_signatures
+        .iter()
+        .any(|(_, header)| {
+            header.declaring_trait == declaring_trait
+                && typed.trait_machine_signatures.get(header.signature).symbol == requirement
+                && typed
+                    .requirement_interface_applications
+                    .span_or_empty(header.interface_applications)
+                    .iter()
+                    .any(|scope| {
+                        program
+                            .trait_definition_by_symbol(scope.interface)
+                            .is_some_and(|definition| {
+                                boundary_has_explicit_calling_policy(program, definition)
+                            })
+                    })
+        })
+}
+
 /// Every standard calling vocabulary the program loads, paired per declaring
 /// source file. The toolchain copy and a dependency-supplied public copy are
 /// each one exact vocabulary; another copy under a different

@@ -6,7 +6,10 @@ mod field_domains;
 mod points;
 use contracts::append_contract_semantic_facts;
 pub(crate) use contracts::contract_fact_place;
-pub(crate) use contracts::{contract_parameter_position, projected_argument_place};
+pub(crate) use contracts::{
+    ContractParameterCorrespondence, contract_parameter_position, projected_argument_place,
+    selected_contract_parameter_correspondence,
+};
 use field_domains::{
     append_local_case_payload_domain_facts, append_local_zii_field_domain_facts,
     append_state_parameter_domain_facts,

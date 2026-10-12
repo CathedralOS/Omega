@@ -31,7 +31,7 @@ struct NullaryErasedInitializer {
 }
 
 pub(super) struct ExpressionTableLowerer<'program, 'target, 'scope> {
-    pub(super) program: Option<&'program resolved::SymbolResolvedTrees>,
+    pub(super) program: &'program resolved::SymbolResolvedTrees,
     pub(super) source: &'program resolved::expression::ExpressionTable,
     pub(super) target_trees: &'target mut typed::TypedTrees,
     symbol_substitution: Option<(symbols::SymbolHandle, typed::expression::ExpressionHandle)>,
@@ -48,7 +48,7 @@ pub(super) struct ExpressionTableLowerer<'program, 'target, 'scope> {
 
 impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope> {
     pub(super) fn new(
-        program: Option<&'program resolved::SymbolResolvedTrees>,
+        program: &'program resolved::SymbolResolvedTrees,
         source: &'program resolved::expression::ExpressionTable,
         target_trees: &'target mut typed::TypedTrees,
         symbol_substitution: Option<(symbols::SymbolHandle, typed::expression::ExpressionHandle)>,
@@ -73,9 +73,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         &mut self,
         atom: symbols::BuiltinTypeAtom,
     ) -> Result<(), Diagnostic> {
-        let Some(program) = self.program else {
-            return Ok(());
-        };
+        let program = self.program;
         let symbol = program
             .symbols
             .child_handles(program.symbols.root())
@@ -110,9 +108,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
     /// Retain that reference here, where expressions acquire type meaning;
     /// read-only checking and lowering must not invent an expected destination.
     fn retain_data_type_reference(&mut self, symbol: symbols::SymbolHandle) {
-        let Some(program) = self.program else {
-            return;
-        };
+        let program = self.program;
         let Some(owner) = program.data_definition_by_symbol(symbol) else {
             return;
         };
@@ -154,6 +150,16 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         self.target()
             .attach_authored_selection_occurrences(lowered, authored_selection_occurrences);
         self.lowered_expressions.push((expression, lowered));
+        let source_origin = self.source.expression_source_origin(expression);
+        self.target()
+            .retain_expression_source_origin(lowered, source_origin);
+        let selected = self.source.selected_const_match_result(expression);
+        if selected.is_valid() {
+            let meaning = self.source.selected_const_match_meaning(expression);
+            let selected = self.lower(selected)?;
+            self.target()
+                .retain_selected_const_match_result(lowered, selected, meaning);
+        }
         Ok(lowered)
     }
 
@@ -267,11 +273,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 .insert(typed::expression::ExpressionNode::Boolean(*value))),
             resolved::expression::ExpressionNode::Cast(cast) => {
                 let value = self.lower(cast.value)?;
-                let program = self.program.ok_or_else(|| {
-                    Diagnostic::error(
-                        "cast target type lowering requires the enclosing resolved program",
-                    )
-                })?;
+                let program = self.program;
                 let exposure = self.source.authored_expression_exposure(expression).unwrap_or(
                     language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
                 );
@@ -336,12 +338,11 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             resolved::expression::ExpressionNode::Call(call) => {
                 if !call.receiver.is_valid()
                     && call.target.as_str() == symbols::BuiltinFunction::IntegerEmbed.name()
-                    && self.program.is_some_and(|program| {
-                        program
-                            .symbols
-                            .builtin_function_for_symbol(call.target_symbol)
-                            == Some(symbols::BuiltinFunction::IntegerEmbed)
-                    })
+                    && self
+                        .program
+                        .symbols
+                        .builtin_function_for_symbol(call.target_symbol)
+                        == Some(symbols::BuiltinFunction::IntegerEmbed)
                 {
                     // `embed` has a compiler-owned Int result even when no
                     // authored signature happens to mention Int. Retain that
@@ -349,10 +350,9 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     // name fallback in later validation.
                     self.retain_builtin_type_reference(symbols::BuiltinTypeAtom::Int)?;
                 }
-                if let Some(program) = self.program
-                    && call.target_symbol.is_valid()
+                if call.target_symbol.is_valid()
                     && matches!(
-                        program.symbols.get(call.target_symbol).kind,
+                        self.program.symbols.get(call.target_symbol).kind,
                         symbols::SymbolKind::Proposition
                             | symbols::SymbolKind::PropositionParameter
                     )
@@ -381,25 +381,22 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 };
                 let arguments = self.lower_expression_handle_span(call.arguments)?;
                 let target_symbol = if !call.target_symbol.is_valid() {
-                    self.program
-                        .map(|program| {
-                            let declared = super::declared_receiver_method_target(
-                                program,
-                                self.source,
-                                call.receiver,
-                                &call.target,
-                            );
-                            if declared.is_valid() {
-                                return declared;
-                            }
-                            crate::expressions::call_results::computed_receiver_method_target(
-                                program,
-                                &self.target_trees.expression_table,
-                                receiver,
-                                &call.target,
-                            )
-                        })
-                        .unwrap_or_default()
+                    let declared = super::declared_receiver_method_target(
+                        self.program,
+                        self.source,
+                        call.receiver,
+                        &call.target,
+                    );
+                    if declared.is_valid() {
+                        declared
+                    } else {
+                        crate::expressions::call_results::computed_receiver_method_target(
+                            self.program,
+                            &self.target_trees.expression_table,
+                            receiver,
+                            &call.target,
+                        )
+                    }
                 } else {
                     call.target_symbol
                 };
@@ -409,10 +406,9 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 // Retain the obligation instead of treating explicit arguments
                 // as evidence that they satisfied the declaration's equations.
                 if !call.target_symbol.is_valid()
-                    && let Some(program) = self.program
-                    && program.machines.iter().any(|machine| {
+                    && self.program.machines.iter().any(|machine| {
                         machine.has_structural_type_equations
-                            && machine.symbol == program.symbols.get(target_symbol).parent
+                            && machine.symbol == self.program.symbols.get(target_symbol).parent
                     })
                 {
                     return Err(Diagnostic::error(
@@ -451,6 +447,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     .target()
                     .insert(typed::expression::ExpressionNode::Call(
                         typed::expression::TableCallExpression {
+                            source_call: Default::default(),
                             authored_machine_application: Default::default(),
                             exact_coercion_target: typed::types::TypeReferenceHandle::invalid(),
                             receiver,
@@ -540,16 +537,13 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     )))
             }
             resolved::expression::ExpressionNode::Name(path) => {
-                if self.program.is_some_and(|program| {
-                    program.symbols.builtin_type_member(path.symbol)
-                        == Some(symbols::BuiltinTypeMember::AddressBound)
-                }) {
+                if self.program.symbols.builtin_type_member(path.symbol)
+                    == Some(symbols::BuiltinTypeMember::AddressBound)
+                {
                     self.retain_builtin_type_reference(symbols::BuiltinTypeAtom::Int)?;
                 }
-                if let Some(program) = self.program
-                    && program.symbols.get(path.symbol).kind == symbols::SymbolKind::Variant
-                {
-                    self.retain_data_type_reference(program.symbols.get(path.symbol).parent);
+                if self.program.symbols.get(path.symbol).kind == symbols::SymbolKind::Variant {
+                    self.retain_data_type_reference(self.program.symbols.get(path.symbol).parent);
                 }
                 if let Some((symbol, substitution)) = self.symbol_substitution
                     && symbol.is_valid()
@@ -620,11 +614,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     )))
             }
             resolved::expression::ExpressionNode::ZeroValue(type_reference) => {
-                let program = self.program.ok_or_else(|| {
-                    Diagnostic::error(
-                        "zero-value type lowering requires the enclosing resolved program",
-                    )
-                })?;
+                let program = self.program;
                 if let Some(quotient) = quotient_zero_value_target(
                     program,
                     program.child_type_reference(*type_reference),
@@ -678,11 +668,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             return Ok(None);
         }
 
-        let Some(program) = self.program else {
-            return Err(Diagnostic::error(
-                "a sealed Quotient operation requires a complete resolved program",
-            ));
-        };
+        let program = self.program;
         if receiver.head_symbol.is_valid()
             || receiver.symbol.is_valid()
             || call.target_symbol.is_valid()
@@ -792,11 +778,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         if namespace.as_str() != "Plan" {
             return Ok(None);
         }
-        let Some(program) = self.program else {
-            return Err(Diagnostic::error(
-                "a private layout placement requires a complete resolved program",
-            ));
-        };
+        let program = self.program;
         let [selected_slot] = call.machine_arguments.as_ref() else {
             return Err(Diagnostic::error(
                 "`Plan::place_private` requires exactly one static argument naming one exact conformance",
@@ -910,10 +892,10 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             // static-argument symbol rather than a structural type reference.
             // Rebuild the queried carrier from that selection when it names a
             // data type; anything else is not a layout operand.
-            let operand_kind = self
-                .program
-                .filter(|_| operand.symbol.is_valid())
-                .map(|program| program.symbols.get(operand.symbol).kind);
+            let operand_kind = operand
+                .symbol
+                .is_valid()
+                .then(|| self.program.symbols.get(operand.symbol).kind);
             match self.layout_query_operand_type(operand)? {
                 Some(type_reference) => lowered.type_reference = type_reference,
                 None => {
@@ -957,9 +939,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         if operand.const_literal.is_some() || operand.evidence_projection.is_some() {
             return Ok(None);
         }
-        let program = self
-            .program
-            .ok_or_else(|| Diagnostic::error("layout query requires its resolved program"))?;
+        let program = self.program;
         if operand.type_reference.is_valid() {
             return crate::type_reference::lower_type_reference_into_trees_with_exposure(
                 program,
@@ -1074,9 +1054,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         &self,
         literal: &resolved::expression::TableStructLiteral,
     ) -> Vec<NullaryErasedInitializer> {
-        let Some(program) = self.program else {
-            return Vec::new();
-        };
+        let program = self.program;
         let Some(holder) = program.data_definitions.iter().find(|definition| {
             definition.symbol == literal.type_symbol
                 && definition.type_parameters.is_empty()
@@ -1175,11 +1153,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         &mut self,
         membership: &resolved::expression::TableMembershipExpression,
     ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
-        let Some(program) = self.program else {
-            return Err(Diagnostic::error(
-                "cannot lower executable domain membership without a resolved program context",
-            ));
-        };
+        let program = self.program;
         if membership.domain_symbol.is_valid() {
             let value = self.lower(membership.value)?;
             return lower_domain_membership_expression(

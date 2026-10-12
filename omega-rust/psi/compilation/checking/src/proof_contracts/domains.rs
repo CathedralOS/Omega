@@ -57,7 +57,9 @@ pub(crate) fn validate_domain_definitions(
                 generic_depth: 0,
             },
             crate::value_custody::type_references::TypeParameterScope {
-                lexical_owner: domain.symbol,
+                lexical_owner: typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(
+                    domain.symbol,
+                ),
                 type_parameters: program.domain_type_parameters(domain),
                 lifetime_parameters: &[],
             },

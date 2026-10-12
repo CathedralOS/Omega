@@ -17,6 +17,10 @@
 //! An ordinary bodyless boundary token machine has the same call shape but retains
 //! requirement supply: Psi emits its requirement call and Omega installs the
 //! selected provider. Its operator view never creates a second executable slot.
+//! A public boundary-trait token selects its original requirement from the
+//! operand telescope before retaining the same typed application and complete
+//! public header as a named call. Its inferred tuple chooses no implementation;
+//! the resulting ordinary call still requires independent provider selection.
 //!
 //! Private typed preparation binds its initial roots once. Each elaboration
 //! round then binds only the new bodies and inferred-result owners it produced,
@@ -183,8 +187,21 @@ pub(crate) fn bind_selected_operator_calls(
         if bindings.iter().any(|(bound, _, _)| *bound == expression) {
             continue;
         }
-        let target = match selected_call_target(program, expression, origin, spelling, operator_use)
-        {
+        let selected_domain = operator_use.is_some_and(|usage| {
+            usage.status == CheckedOperatorResolutionStatus::Resolved
+                && facts.candidates(usage).iter().any(|candidate| {
+                    candidate.is_domain_owned()
+                        && candidate.operator_symbol == usage.selected_operator_symbol
+                })
+        });
+        let target = match selected_call_target(
+            program,
+            expression,
+            origin,
+            spelling,
+            operator_use,
+            selected_domain,
+        ) {
             Ok(Some(target)) => target,
             Ok(None) => continue,
             Err(diagnostic) => {
@@ -311,7 +328,58 @@ pub(crate) fn bind_selected_operator_calls(
             bound_count += 1;
         }
     }
-    for (expression, target, origin) in bindings {
+    // One immutable original-input cohort owns all inferred tuples in this
+    // pass. Header production may append to the live graph but cannot change
+    // another occurrence's source operands or retain growing graph snapshots.
+    let application_owner = bindings
+        .iter()
+        .any(|(_, target, _)| target.application.is_valid())
+        .then(|| std::sync::Arc::<typed_trees::FrozenTypedTrees>::new(program.clone().into()));
+    for (expression, mut target, origin) in bindings {
+        if let Some(owner) = &application_owner
+            && target.application.is_valid()
+        {
+            let demand = typed_trees::static_applications::StaticApplicationDemand {
+                declaration: target.entry,
+                owner: owner.clone(),
+                application: target.application,
+            };
+            crate::monomorphization::demanded_applications::instantiate(
+                program,
+                std::slice::from_ref(&demand),
+            )?;
+            let instance = program
+                .instantiated_static_applications()
+                .find(|(_, produced)| {
+                    std::sync::Arc::ptr_eq(&produced.demand.owner, owner)
+                        && produced.demand.application == target.application
+                })
+                .map(|(_, produced)| produced.instance)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "selected boundary token lost its produced public header",
+                    )]
+                })?;
+            let (_, signature) = program.trait_machine_signature(instance).ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "selected boundary token lost its applied public signature",
+                )]
+            })?;
+            target.entry = instance;
+            target.name = signature.name.clone();
+            let parameters = program.state_signature_parameters(signature);
+            target.collection_parameter = parameters
+                .first()
+                .map_or_else(TypeReferenceHandle::invalid, |parameter| {
+                    parameter.type_reference
+                });
+            target.start_parameter = parameters
+                .get(1)
+                .map_or_else(TypeReferenceHandle::invalid, |parameter| {
+                    parameter.type_reference
+                });
+        }
+
         // Copy the operand source handles before any endpoint normalization
         // mutates the expression table below.
         let operand_source = match program.expression_table.expression(expression) {
@@ -382,7 +450,8 @@ pub(crate) fn bind_selected_operator_calls(
         };
         *program.expression_table.expression_mut(expression) =
             ExpressionNode::Call(TableCallExpression {
-                authored_machine_application: Default::default(),
+                source_call: Default::default(),
+                authored_machine_application: target.application,
                 exact_coercion_target: typed_trees::types::TypeReferenceHandle::invalid(),
                 receiver,
                 target_symbol: target.entry,
@@ -411,6 +480,7 @@ pub(crate) fn bind_selected_operator_calls(
 /// One ordinary call destination, whether supplied by a token machine or an
 /// explicit implementation. The binder is a namespace, never a data argument.
 struct SelectedOperatorCall {
+    application: typed_trees::static_applications::StaticMachineApplicationHandle,
     entry: SymbolHandle,
     name: typed_trees::name::Identifier,
     binder: SymbolHandle,
@@ -421,11 +491,12 @@ struct SelectedOperatorCall {
 }
 
 fn selected_call_target(
-    program: &TypedTrees,
+    program: &mut TypedTrees,
     expression: ExpressionHandle,
     origin: CheckedValueOrigin,
     spelling: language_core::OperatorSpelling,
     operator_use: Option<&checked_trees::CheckedOperatorUseFact>,
+    selected_domain: bool,
 ) -> Result<Option<SelectedOperatorCall>, Diagnostic> {
     let operand_types = match program.expression_table.expression(expression) {
         ExpressionNode::Binary(binary) => Some(
@@ -475,6 +546,7 @@ fn selected_call_target(
                     )
                 })?;
             return Ok(Some(SelectedOperatorCall {
+                application: Default::default(),
                 entry,
                 name: meaning.requirement.name.clone(),
                 binder: meaning.bound.binder,
@@ -512,6 +584,7 @@ fn selected_call_target(
                     Diagnostic::error("selected implementation lost its realization entry")
                 })?;
             return Ok(Some(SelectedOperatorCall {
+                application: Default::default(),
                 entry: entry.symbol,
                 name: entry.name.clone(),
                 binder: SymbolHandle::invalid(),
@@ -543,6 +616,69 @@ fn selected_call_target(
                 "operator has multiple explicitly selected implementation meanings",
             ));
         }
+        // The existing binding-site owner already selected an active semantic
+        // domain meaning. Public boundary slots occupy the ordinary surface;
+        // they neither replace that meaning nor turn it into an ambiguity.
+        let boundary = if selected_domain {
+            Vec::new()
+        } else {
+            typed_trees::operator::boundary_trait_operator_meanings(
+                program,
+                spelling,
+                &operand_types,
+                program.expression_table.source_span(expression),
+            )
+        };
+        if !boundary.is_empty() {
+            // An explicit implementation has already fixed its meaning above.
+            // Public slots otherwise compete with every ordinary declaration;
+            // neither a provider nor an expected result ranks candidates.
+            if boundary.len() != 1
+                || operator_use.is_some_and(|usage| {
+                    !matches!(
+                        usage.status,
+                        CheckedOperatorResolutionStatus::Missing
+                            | CheckedOperatorResolutionStatus::BuiltinFallback
+                            | CheckedOperatorResolutionStatus::Inadmissible
+                    )
+                })
+            {
+                return Err(Diagnostic::error(
+                    "operator has multiple declared meanings for its complete operand tuple",
+                ));
+            }
+            let requirement = boundary[0].1.symbol;
+            let application = crate::monomorphization::retain_requirement_operand_application(
+                program,
+                requirement,
+                machine,
+                &operand_types,
+            )?;
+            let (_, signature) = program
+                .trait_machine_signature(requirement)
+                .ok_or_else(|| {
+                    Diagnostic::error("selected boundary token lost its applied public signature")
+                })?;
+            let parameters = program.state_signature_parameters(signature);
+            return Ok(Some(SelectedOperatorCall {
+                application,
+                entry: requirement,
+                name: signature.name.clone(),
+                binder: SymbolHandle::invalid(),
+                collection_parameter: parameters
+                    .first()
+                    .map_or_else(TypeReferenceHandle::invalid, |parameter| {
+                        parameter.type_reference
+                    }),
+                start_parameter: parameters
+                    .get(1)
+                    .map_or_else(TypeReferenceHandle::invalid, |parameter| {
+                        parameter.type_reference
+                    }),
+                dispatch: None,
+                arguments: Box::default(),
+            }));
+        }
     }
     let Some(operator_use) = operator_use else {
         return Ok(None);
@@ -561,6 +697,7 @@ fn selected_call_target(
         .first()
         .ok_or_else(|| Diagnostic::error("selected token machine declares no entry state"))?;
     Ok(Some(SelectedOperatorCall {
+        application: Default::default(),
         entry: entry.symbol,
         name: entry.name.clone(),
         binder: SymbolHandle::invalid(),

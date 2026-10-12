@@ -56,6 +56,7 @@ pub(crate) fn checked_contract_fact<'a>(
 ) -> Result<&'a checked_trees::ContractProofFact, Vec<Diagnostic>> {
     let checked_kind = match kind {
         PackageReviewContractKind::Requires => checked_trees::ContractProofFactKind::Requires,
+        PackageReviewContractKind::Where => checked_trees::ContractProofFactKind::Where,
         PackageReviewContractKind::Ensures => checked_trees::ContractProofFactKind::Ensures,
     };
     let matching = compilation

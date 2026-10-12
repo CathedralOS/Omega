@@ -228,7 +228,7 @@ pub use quotient::{
 };
 pub use signature::{
     Declaration, Signature, SignatureCheckError, assumption_closure, check_signature,
-    check_signature_with_attribution, judgment_assumption_closure,
+    check_signature_with_attribution, judgment_assumption_closure, term_declaration_references,
 };
 pub use substitution::{instantiate_levels, shift, substitute};
 pub use term::{Level, Sort, Term, TermArena, TermHandle};

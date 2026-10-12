@@ -159,27 +159,25 @@ fn derive_declared_service_reach(
                 })
         })
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-    let non_self_parameters = parameters.iter().collect::<Vec<_>>();
     for invocation in invocations {
         let symbol = match invocation {
-            flow_effects::InvocationTarget::Parameter(ordinal) => non_self_parameters
-                .get(*ordinal as usize)
-                .map(|parameter| {
-                    typed_trees::service::inspect_service_parameter_contract(
-                        compilation,
-                        parameter.type_reference,
-                    )
-                    .ok()
-                    .flatten()
-                    .map(|parameter| parameter.carrier.requirement)
-                    .unwrap_or_else(|| {
-                        compilation
-                            .type_reference_table
-                            .type_reference(parameter.type_reference)
-                            .type_symbol(&compilation.type_reference_table)
-                    })
-                })
-                .unwrap_or_else(SymbolHandle::invalid),
+            flow_effects::InvocationTarget::Parameter(ordinal) => {
+                let parameter = parameters.get(*ordinal as usize).ok_or_else(|| {
+                    vec![Diagnostic::error(format!(
+                        "reviewed callable `{owner_name}` has no original invocation parameter {ordinal}",
+                    ))]
+                })?;
+                typed_trees::service::exact_parameter_boundary_requirement(
+                    compilation,
+                    parameter.type_reference,
+                )
+                .map_err(|reason| {
+                    vec![Diagnostic::error(format!(
+                        "reviewed callable `{owner_name}` invocation parameter {ordinal} has an invalid boundary carrier: {reason}",
+                    ))]
+                })?
+                .unwrap_or_else(SymbolHandle::invalid)
+            }
             flow_effects::InvocationTarget::Service(symbol) => *symbol,
         };
         let service = compilation

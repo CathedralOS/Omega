@@ -30,7 +30,7 @@ pub(crate) fn resolve_materialized_source(
 pub(crate) fn capture_local_source(
     requested_root: &Path,
     limits: LocalSourceLimits,
-    policy: SourceTreePolicy,
+    policy: SourceTreePolicy<'_>,
 ) -> Result<CapturedLocalTree, SourceResolveError> {
     let root = requested_root
         .canonicalize()
@@ -47,7 +47,7 @@ pub(crate) fn capture_local_source_from_open_root(
     root: PathBuf,
     root_directory: CapabilityDirectory,
     limits: LocalSourceLimits,
-    policy: SourceTreePolicy,
+    policy: SourceTreePolicy<'_>,
 ) -> Result<CapturedLocalTree, SourceResolveError> {
     let mut source_entries = Vec::new();
     let mut captured_file_bytes = 0_u64;

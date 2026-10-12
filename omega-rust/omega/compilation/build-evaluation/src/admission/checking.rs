@@ -77,7 +77,7 @@ pub(crate) fn prepare_checked_build(
         ),
     );
     let (selected_provider_plan_facts, provenance) =
-        if candidates.is_empty() && declarations.provider_defaults.is_empty() {
+        if !candidates.has_executable_candidates() && declarations.provider_defaults.is_empty() {
             (effects::SelectedProviderPlanFacts::default(), Vec::new())
         } else {
             let profile = execution_profile.ok_or_else(|| {
@@ -86,9 +86,10 @@ pub(crate) fn prepare_checked_build(
                 )]
             })?;
             let selected = provider_planning::select_derived_provider_plans(
+                context,
                 &candidates,
-                profile.native_target(),
-                &declarations.provider_defaults,
+                Some(profile),
+                &declarations,
                 &[],
             )?;
             provider_planning::selected_provider_plan_facts(context, selected)?
@@ -103,6 +104,8 @@ pub(crate) fn prepare_checked_build(
             &[],
             &operator_selections,
             &selected_provider_plan_facts,
+            &provenance,
+            execution_profile,
         )?
         .evaluate_pending(typed, pending)?;
     }
@@ -118,6 +121,7 @@ pub(crate) fn prepare_checked_build(
             let program = validation::execution_projection::project_build_program(typed, entry)?;
             let result = psi_compiler::CheckRequest {
                 program,
+                constants: Default::default(),
                 admission: psi_compiler::SourceAdmission {
                     declarations: packages
                         .map(|inputs| inputs as &dyn validation::DeclarationSelectionAuthority),
@@ -149,6 +153,7 @@ pub(crate) fn prepare_checked_build(
         &mut checked,
         source::DependencyScope::Build,
         &provenance,
+        execution_profile,
     )?;
     // Only successful Build admission discharges this continuation's Build
     // work. Product keeps its exact complement, not a second full evaluation.

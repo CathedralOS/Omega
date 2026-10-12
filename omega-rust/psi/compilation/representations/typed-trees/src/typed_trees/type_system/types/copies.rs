@@ -123,6 +123,13 @@ impl TypeReferenceTable {
             copied.arena_index(),
             copied.generation(),
         )) = source.operand_lifetime_owner(type_reference);
+        self.retain_const_integer_meaning(copied, source.const_integer_meaning(type_reference));
+        let application = source.data_application_origin(type_reference);
+        if application.is_valid() {
+            let application =
+                self.copy_from(source, source_expressions, target_expressions, application);
+            self.retain_data_application_origin(copied, application);
+        }
         copied
     }
 
@@ -137,6 +144,10 @@ impl TypeReferenceTable {
     ) {
         if !type_reference.is_valid() {
             return;
+        }
+        let application = self.data_application_origin(type_reference);
+        if application.is_valid() {
+            self.remap_symbols_in(application, expressions, symbols);
         }
         let node = self.type_reference(type_reference).clone();
         match node {

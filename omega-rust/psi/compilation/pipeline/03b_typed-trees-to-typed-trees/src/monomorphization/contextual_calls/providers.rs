@@ -58,8 +58,39 @@ pub(super) fn close(
     let Some(state) = state else {
         return Ok(None);
     };
-    let lifetimes =
-        lifetime_arguments::bind(program, source_selected, &source_selection, application)?;
+    // Expected operands belong to the original invocation telescope. Apply
+    // its retained caller correspondence before inferring the provider tuple.
+    let caller_lifetimes = program
+        .expression_table
+        .static_machine_application_lifetimes(application)
+        .iter()
+        // A nested expected callable owns fresh invocation binders. Shield
+        // its telescope just as the shared full-signature copier does; an
+        // outer same-spelled row supplies no actual for this universal binder.
+        .filter(|binding| !expected.lifetime_parameters.contains(&binding.parameter))
+        .map(|binding| (binding.parameter.clone(), binding.argument.clone()))
+        .collect::<Vec<_>>();
+    let expected_types = program
+        .state_signature_parameters(expected)
+        .iter()
+        .map(|parameter| parameter.type_reference)
+        .collect::<Vec<_>>();
+    let mut applied_expected_types = Vec::with_capacity(expected_types.len());
+    for required in &expected_types {
+        applied_expected_types.push(
+            program
+                .apply_callable_type(*required, caller_types, &caller_lifetimes, expected.symbol)
+                .map_err(|message| vec![Diagnostic::error(message)])?,
+        );
+    }
+    let lifetimes = lifetime_arguments::bind(
+        program,
+        source_selected,
+        &source_selection,
+        application,
+        expected,
+        &applied_expected_types,
+    )?;
     if let Some(explicit) = &source_selection.application {
         explicit_arguments::bind(
             program,
@@ -75,24 +106,24 @@ pub(super) fn close(
         .iter()
         .map(|parameter| parameter.type_reference)
         .collect::<Vec<_>>();
-    let expected_types = program
-        .state_signature_parameters(expected)
-        .iter()
-        .map(|parameter| parameter.type_reference)
-        .collect::<Vec<_>>();
     if actual_types.len() != expected_types.len() {
         return Ok(None);
     }
     let mut type_proposals = Vec::new();
     let mut const_proposals = Vec::new();
+    let applied_return = program
+        .apply_callable_type(
+            expected.return_type,
+            caller_types,
+            &caller_lifetimes,
+            expected.symbol,
+        )
+        .map_err(|message| vec![Diagnostic::error(message)])?;
     for (actual, required) in actual_types
         .into_iter()
         .chain([state.return_type])
-        .zip(expected_types.into_iter().chain([expected.return_type]))
+        .zip(applied_expected_types.into_iter().chain([applied_return]))
     {
-        let required = program
-            .apply_callable_type(required, caller_types, &[], expected.symbol)
-            .map_err(|message| vec![Diagnostic::error(message)])?;
         super::super::infer_static_bindings(
             program,
             actual,
@@ -251,20 +282,12 @@ pub(super) fn close(
         )]);
     };
     let commitment = accepted_template_commitment(program, machine_index);
-    let instance_ordinal = program
-        .machine_specializations
-        .iter()
-        .filter(|instance| instance.template == provider.template.template_symbol)
-        .count();
-    let states = super::super::body_cloning::clone_specialized_machine(
-        None,
-        program,
-        &provider,
-        instance_ordinal,
-        identity,
-        commitment,
+
+    let specialization = super::super::body_cloning::clone_specialized_machine(
+        None, program, &provider, identity, commitment,
     )?;
-    let entry = states
+    let entry = specialization
+        .state_symbols
         .into_iter()
         .find(|(original, _)| *original == source_selected)
         .map(|(_, concrete)| concrete);

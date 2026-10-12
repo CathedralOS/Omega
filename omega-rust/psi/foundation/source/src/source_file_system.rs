@@ -57,6 +57,36 @@ impl SourceFileSystem {
         Ok(())
     }
 
+    /// Project an already captured directory without reopening the host. An
+    /// exact mount shares its original tree; a contained directory shares the
+    /// original byte allocations under relative paths. Absence of a capture is
+    /// explicit, and a captured missing/non-directory member rejects.
+    pub fn captured_tree_at(&self, path: &Path) -> io::Result<Option<Arc<CapturedSourceTree>>> {
+        let (root, tree, relative) = match self.route(path)? {
+            SourcePath::Captured {
+                root,
+                tree,
+                relative,
+            } => (root, tree, relative),
+            SourcePath::Physical(_) => return Ok(None),
+        };
+        let relative = tree.canonicalize(&relative)?;
+        if !tree.is_dir(&relative) {
+            return Err(io::Error::new(
+                io::ErrorKind::NotADirectory,
+                "captured source root is not a directory",
+            ));
+        }
+        if relative.as_os_str().is_empty() {
+            return Ok(self.captures.get(root).cloned());
+        }
+        let entries = tree.entries().filter_map(|(member, node)| {
+            let member = member.strip_prefix(&relative).ok()?;
+            (!member.as_os_str().is_empty()).then(|| (member.to_path_buf(), node.clone()))
+        });
+        CapturedSourceTree::new(entries).map(|tree| Some(Arc::new(tree)))
+    }
+
     /// Resolve through the selected capture or the physical host. Traversal that
     /// lexically leaves a capture rejects before any physical operation occurs.
     pub fn canonicalize(&self, path: &Path) -> io::Result<PathBuf> {

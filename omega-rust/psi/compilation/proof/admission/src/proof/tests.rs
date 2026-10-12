@@ -88,10 +88,10 @@ fn standalone_certificate_receipt_reserves_stack_and_matches_admission() {
         crate::mathematical_core::verification_workers_started(),
         before + 1
     );
-    assert_eq!(
-        accepted.mathematical_core,
-        super::MathematicalCoreDecision::Judged(receipt)
-    );
+    let super::MathematicalCoreDecision::Judged(judgment) = accepted.mathematical_core else {
+        panic!("accepted transport has its original kernel judgment");
+    };
+    assert_eq!(judgment.receipt(), receipt);
 }
 
 #[test]

@@ -27,7 +27,7 @@ use cap_std::fs::Dir as CapabilityDirectory;
 
 use super::traversal_observations::{SourceEntry, SourceEntryKind, SourceTreePolicy};
 use crate::SourceResolveError;
-use crate::limits::{DEFAULT_BUILD_OUTPUT_DIRECTORY, LocalSourceLimits};
+use crate::limits::LocalSourceLimits;
 use crate::tree::filesystem::{
     CapturedEntryObservation, io_error, open_captured_directory, raw_os_bytes,
     read_capability_file_bounded, require_unchanged_entry,
@@ -67,7 +67,7 @@ pub(super) fn visit_directory(
     depth: usize,
     root: &Path,
     limits: LocalSourceLimits,
-    policy: SourceTreePolicy,
+    policy: SourceTreePolicy<'_>,
     captured_file_bytes: &mut u64,
     entries: &mut Vec<SourceEntry>,
     observations: &mut CapturedTreeObservations,
@@ -82,8 +82,14 @@ pub(super) fn visit_directory(
     let remaining_entries = limits.max_entries.saturating_sub(entries.len());
     let excluded_entry_allowance = match policy {
         SourceTreePolicy::ExactMaterialized => 0,
-        SourceTreePolicy::LocalPackage if logical_dir.as_os_str().is_empty() => 4,
-        SourceTreePolicy::LocalPackage => 1,
+        SourceTreePolicy::LocalPackage(context) => {
+            let reserved = if logical_dir.as_os_str().is_empty() {
+                4
+            } else {
+                1
+            };
+            reserved + context.excluded_entry_allowance()
+        }
     };
     let directory_listing_limit = remaining_entries.saturating_add(excluded_entry_allowance);
     let opening_metadata = directory
@@ -151,17 +157,25 @@ pub(super) fn visit_directory(
             )?;
         } else if metadata.is_dir() {
             let child = open_captured_directory(directory, name, &display_path)?;
-            push_entry(
-                entries,
-                logical_path.clone(),
-                SourceEntryKind::Directory,
-                limits,
-            )?;
+            let directory_entry = entries.len();
+            let output_ancestor = matches!(
+                policy,
+                SourceTreePolicy::LocalPackage(context)
+                    if context.is_output_ancestor(&logical_path)
+            );
+            if !output_ancestor {
+                push_entry(
+                    entries,
+                    logical_path.clone(),
+                    SourceEntryKind::Directory,
+                    limits,
+                )?;
+            }
             visit_directory(
                 root_directory,
                 &child,
                 &display_path,
-                logical_path,
+                logical_path.clone(),
                 depth + 1,
                 root,
                 limits,
@@ -170,6 +184,13 @@ pub(super) fn visit_directory(
                 entries,
                 observations,
             )?;
+            // Output creation may create this directory's missing ancestors.
+            // Only an ordinary captured child makes such an ancestor input;
+            // the original observations still enforce capture drift. Delay its
+            // input row so an omitted ancestor cannot consume the entry budget.
+            if output_ancestor && entries.len() != directory_entry {
+                push_entry(entries, logical_path, SourceEntryKind::Directory, limits)?;
+            }
         } else if metadata.is_file() {
             let remaining = limits.max_bytes.checked_sub(*captured_file_bytes).ok_or(
                 SourceResolveError::TooManyBytes {
@@ -361,11 +382,11 @@ fn open_observed_directory(
 /// the closing membership recheck is not required because the close compares
 /// raw membership — an excluded member appearing or vanishing mid-traversal
 /// is still drift under the quiescent-tree premise and rejects.
-fn excluded_from_capture(policy: SourceTreePolicy, logical_dir: &Path, name: &OsStr) -> bool {
-    policy == SourceTreePolicy::LocalPackage
-        && (name == ".git"
-            || (logical_dir.as_os_str().is_empty()
-                && (name == DEFAULT_BUILD_OUTPUT_DIRECTORY || is_root_control_file(name))))
+fn excluded_from_capture(policy: SourceTreePolicy<'_>, logical_dir: &Path, name: &OsStr) -> bool {
+    let SourceTreePolicy::LocalPackage(context) = policy else {
+        return false;
+    };
+    context.excludes_member(&logical_dir.join(name))
 }
 
 fn read_and_validate_symlink_target(
@@ -375,7 +396,7 @@ fn read_and_validate_symlink_target(
     logical_directory: &Path,
     name: &OsStr,
     link: &Path,
-    policy: SourceTreePolicy,
+    policy: SourceTreePolicy<'_>,
 ) -> Result<PathBuf, SourceResolveError> {
     let raw_target = directory
         .read_link_contents(name)
@@ -394,25 +415,16 @@ fn read_and_validate_symlink_target(
             target: target_display,
         }
     })?;
-    if policy == SourceTreePolicy::LocalPackage
-        && (relative_target
-            .components()
-            .any(|component| component.as_os_str() == ".git")
-            || relative_target
-                .components()
-                .next()
-                .is_some_and(|component| is_root_control_file(component.as_os_str())))
+    if let SourceTreePolicy::LocalPackage(context) = policy
+        && context.excludes_metadata(&relative_target)
     {
         return Err(SourceResolveError::SymlinkTargetsExcludedMetadata {
             link: link.to_path_buf(),
             target: root.join(&relative_target),
         });
     }
-    if policy == SourceTreePolicy::LocalPackage
-        && relative_target
-            .components()
-            .next()
-            .is_some_and(|component| component.as_os_str() == DEFAULT_BUILD_OUTPUT_DIRECTORY)
+    if let SourceTreePolicy::LocalPackage(context) = policy
+        && context.excludes_output(&relative_target)
     {
         return Err(SourceResolveError::SymlinkTargetsExcludedBuildOutput {
             link: link.to_path_buf(),
@@ -420,12 +432,6 @@ fn read_and_validate_symlink_target(
         });
     }
     Ok(raw_target)
-}
-
-fn is_root_control_file(name: &OsStr) -> bool {
-    // The package lock is not a package source input. Reserve case variants
-    // too so the rule agrees on case-folding filesystems.
-    name.as_encoded_bytes().eq_ignore_ascii_case(b"omega.lock")
 }
 
 fn push_entry(

@@ -1,0 +1,33 @@
+// Invocation requirements apply to each ordinary exit with original formal origins.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+pub boundary trait Addition {
+    machine combine(first: u32, second: u32) -> u32
+    terminates
+    requires (first <= 4) && (second <= 4)
+    ensures result == first + second;
+}
+
+data AdditionProvider {}
+
+machine AdditionProvider::combine(left: u32, right: u32) -> u32
+satisfies Addition::combine
+terminates;
+requires (left <= 4) && (right <= 4);
+{ transition { _ -> finish(left, right) }
+    state finish(saved_left: u32, saved_right: u32)
+    requires (saved_left <= 4) && (saved_right <= 4);
+    { saved_left + saved_right } }
+
+data Main { console: Binding<Console>; }
+
+machine Main::main(main: &mut Main)
+reaches Console
+{
+    let selected: u32 = AdditionProvider::combine(2, 3);
+    transition selected == 5 { true -> expected(main) _ -> wrong(main) }
+
+    state expected(main: &mut Main) { main.console.exit_process(0); }
+    state wrong(main: &mut Main) { main.console.exit_process(1); }
+}

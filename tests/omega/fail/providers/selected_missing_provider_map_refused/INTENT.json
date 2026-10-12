@@ -1,0 +1,7 @@
+{
+  "status": "source-only unexecuted",
+  "selected_provider": "MissingProvider",
+  "selected_target": "macos_arm64",
+  "expected": "honest selected provider target-member availability refusal",
+  "materialization": "ordinary tests/omega/pass or fail/providers; five-up std SourcePath assumes that location"
+}

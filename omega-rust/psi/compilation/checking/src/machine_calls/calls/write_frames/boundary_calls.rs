@@ -35,6 +35,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpress
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
 use typed_trees::statement::TableCall;
+use typed_trees::typed_trees::calls::PublicTraitRequirementSignature;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// Recognition is deliberately broader than signature selection: even an
@@ -120,14 +121,14 @@ pub(crate) fn boundary_trait_signature<'program>(
 /// `native callback name from Binder` destination takes its selection from
 /// that argument (private_callbacks.md, "Authored selection"). The caller
 /// still validates result use and every runtime argument against the
-/// selected signature. `Type` binders stay excluded: validation has no
-/// substitution for their formals, and fact seeding (the monomorphic
-/// `boundary_trait_signature`) must not read uninstantiated contracts.
+/// applied contract. Its consumed telescope never replaces the original
+/// declaration's callback binder axes. Unapplied `Type` binders stay excluded;
+/// fact seeding must not read uninstantiated contracts.
 pub(crate) fn boundary_trait_call_signature<'program>(
     program: &'program dyn crate::CheckingInput,
     current_machine: &Machine,
     call: &TableCall,
-) -> Option<&'program typed_trees::signature::StateSignature> {
+) -> Option<PublicTraitRequirementSignature<'program>> {
     let receiver_members =
         crate::machine_calls::calls::signature_queries::call_receiver_member_names(program, call);
     boundary_trait_signature_and_receiver_inner(
@@ -138,7 +139,7 @@ pub(crate) fn boundary_trait_call_signature<'program>(
         CallerWriteSite::Call(call),
         SignatureBinders::StaticMachines,
     )
-    .map(|selected| selected.signature)
+    .map(|selected| selected.public_signature)
 }
 
 /// Value-position boundary calls select the same declaration and admitted
@@ -148,9 +149,13 @@ pub(crate) fn boundary_trait_expression_call_signature<'program>(
     program: &'program dyn crate::CheckingInput,
     current_machine: &Machine,
     expression: ExpressionHandle,
-) -> Option<&'program typed_trees::signature::StateSignature> {
-    let call = program.expression_table.call_node(expression)?;
-    let receiver_members = receiver_member_chain(program, call.receiver)?;
+) -> Option<PublicTraitRequirementSignature<'program>> {
+    let call = program.expression_table.source_call_node(expression)?;
+    let receiver_members = if call.receiver.is_valid() {
+        receiver_member_chain(program, call.receiver)?
+    } else {
+        Vec::new()
+    };
     boundary_trait_signature_and_receiver_inner(
         program,
         current_machine,
@@ -159,7 +164,7 @@ pub(crate) fn boundary_trait_expression_call_signature<'program>(
         CallerWriteSite::Expression(expression),
         SignatureBinders::StaticMachines,
     )
-    .map(|selected| selected.signature)
+    .map(|selected| selected.public_signature)
 }
 
 pub(super) fn boundary_trait_signature_for_parts<'program>(
@@ -191,7 +196,12 @@ fn boundary_trait_signature_and_receiver<'program>(
         site,
         SignatureBinders::Monomorphic,
     )
-    .map(|selected| (selected.signature, selected.has_runtime_receiver))
+    .map(|selected| {
+        (
+            selected.public_signature.contract,
+            selected.has_runtime_receiver,
+        )
+    })
 }
 
 /// Which generic binders of a selected requirement a route can discharge.
@@ -208,7 +218,7 @@ enum SignatureBinders {
 }
 
 struct BoundaryWriteSignature<'program> {
-    signature: &'program typed_trees::signature::StateSignature,
+    public_signature: PublicTraitRequirementSignature<'program>,
     /// Caller-visible provider-object storage, not an authenticated service
     /// binding that routes to independently established provider storage.
     has_runtime_receiver: bool,
@@ -275,7 +285,24 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
     binders: SignatureBinders,
 ) -> Option<BoundaryWriteSignature<'program>> {
     let (receiver_symbol, target_symbol) = call_site_symbols(program, site)?;
+    let application = match site {
+        CallerWriteSite::Call(call) => call.authored_machine_application,
+        CallerWriteSite::Expression(expression) => {
+            program
+                .expression_table
+                .source_call_node(expression)?
+                .authored_machine_application
+        }
+        CallerWriteSite::Transition(_) => Default::default(),
+        CallerWriteSite::Statement(_) => return None,
+    };
+    let selected =
+        program.selected_public_trait_requirement_signature(target_symbol, application)?;
+    let signature_owner = selected.owner;
+    let signature = selected.contract;
+    let applied_signature = selected.application.is_valid();
     let (trait_definition, has_runtime_receiver, receiver_reference) = match receiver_members {
+        [] => (signature_owner, false, TypeReferenceHandle::invalid()),
         [receiver] => {
             if !receiver_symbol.is_valid() {
                 return None;
@@ -337,7 +364,6 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
             let definition = program.trait_definition_by_symbol(receiver_type)?;
             (definition, true, reference)
         }
-        _ => return None,
     };
     if !trait_definition.is_boundary {
         return None;
@@ -351,66 +377,44 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
     } else {
         typed_trees::trait_definition::AppliedTraitScope::abstract_scope(trait_definition)
     };
-    let template = program
-        .closed_requirement_application(target_symbol)
-        .map_or(target_symbol, |application| application.template);
-    let (trait_definition, _) = program.trait_machine_signature(template)?;
-    receiver_scope.declaring_scope(program, trait_definition.symbol)?;
-    if program
+    receiver_scope.declaring_scope(program, signature_owner.symbol)?;
+    if has_runtime_receiver && applied_signature {
+        if !program.requirement_application_matches_receiver(
+            target_symbol,
+            application,
+            &receiver_scope,
+            receiver_reference,
+            typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(
+                current_machine.symbol,
+            ),
+        ) {
+            return None;
+        }
+    } else if program
         .closed_requirement_application(target_symbol)
         .is_some()
         && !program.requirement_application_matches_scope(target_symbol, &receiver_scope)
     {
         return None;
     }
-    let bindings = super::type_instantiation::trait_receiver_type_bindings(
-        program,
-        trait_definition,
-        target_symbol,
-        receiver_reference,
-    )?;
-    let mut signatures = program
-        .trait_machine_signatures(trait_definition)
-        .iter()
-        .filter(|signature| signature.name.as_str() == target);
-    let declaration = signatures.next()?;
-    if signatures.next().is_some() {
-        return None;
-    }
-    let signature = program.trait_machine_signature_by_symbol(trait_definition, target_symbol)?;
-    if !trait_definition.type_parameters.is_empty()
-        && !program
-            .closed_requirement_application(signature.symbol)
-            .is_some_and(|application| {
-                typed_trees::service::inspect_service_parameter_contract(
-                    program,
-                    receiver_reference,
-                )
-                .ok()
-                .flatten()
-                .and_then(|carrier| {
-                    carrier
-                        .carrier
-                        .application(program, current_machine.symbol, &[])
-                })
-                .is_some_and(|scope| {
-                    program
-                        .requirement_application_matches_scope(application.signature.symbol, &scope)
-                })
-            })
-        && binders != SignatureBinders::ArgumentPinnedTypes
+    if binders != SignatureBinders::ArgumentPinnedTypes
+        && !applied_signature
+        && !signature_owner.type_parameters.is_empty()
     {
         return None;
     }
-    // Executable substitution changes the signature symbol, never which
-    // authored receiver member the call selected.
-    if signature.symbol != declaration.symbol
-        && !program
-            .closed_requirement_application(signature.symbol)
-            .is_some_and(|application| application.template == declaration.symbol)
-    {
-        return None;
-    }
+    let bindings = if applied_signature {
+        // The public header owns its complete original substitutions. The
+        // receiver still rejoins the declaring application above.
+        Vec::new()
+    } else {
+        super::type_instantiation::trait_receiver_type_bindings(
+            program,
+            signature_owner,
+            target_symbol,
+            receiver_reference,
+        )?
+    };
     let admitted_binder = |parameter: &typed_trees::data::TypeParameter| {
         parameter.symbol.is_valid()
             && match binders {
@@ -426,16 +430,20 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
                 }
             }
     };
-    let exact_signature = program
-        .state_signature_type_parameters(signature)
-        .iter()
-        .all(admitted_binder)
+    let exact_signature = signature.name.as_str() == target
+        && program
+            .state_signature_type_parameters(signature)
+            .iter()
+            .all(admitted_binder)
         && target_symbol.is_valid()
-        && signature.symbol == target_symbol
+        // The shared selection authenticated the executed target separately
+        // from this application-owned contract's original formal identities.
         && (has_runtime_receiver
-            || (program.symbols.get(declaration.symbol).kind == symbols::SymbolKind::State
-                && program.symbols.get(declaration.symbol).parent == trait_definition.symbol
-                && program.symbols.name(declaration.symbol) == signature.name.as_str()));
+            || (program.symbols.get(selected.declaration.symbol).kind
+                == symbols::SymbolKind::State
+                && program.symbols.get(selected.declaration.symbol).parent
+                    == signature_owner.symbol
+                && program.symbols.name(selected.declaration.symbol) == signature.name.as_str()));
     if !exact_signature {
         return None;
     }
@@ -453,7 +461,7 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
         false
     };
     Some(BoundaryWriteSignature {
-        signature,
+        public_signature: selected,
         has_runtime_receiver: has_runtime_receiver && !binding_receiver,
         bindings,
     })
@@ -472,7 +480,7 @@ fn parameter_boundary_receiver_type(
     let root = match site {
         CallerWriteSite::Call(call) => call.receiver_root_symbol,
         CallerWriteSite::Expression(expression) => {
-            let call = program.expression_table.call_node(expression)?;
+            let call = program.expression_table.source_call_node(expression)?;
             let mut receiver = call.receiver;
             let mut root = SymbolHandle::invalid();
             for _ in 0..members.len() {
@@ -525,11 +533,7 @@ fn call_site_symbols(
     match site {
         CallerWriteSite::Call(call) => Some((call.receiver_symbol, call.target_symbol)),
         CallerWriteSite::Expression(expression) => {
-            let typed_trees::expression::ExpressionNode::Call(call) =
-                program.expression_table.expression(expression)
-            else {
-                return None;
-            };
+            let call = program.expression_table.source_call_node(expression)?;
             Some((
                 expression_receiver_symbol(program, call.receiver),
                 call.target_symbol,
@@ -979,10 +983,11 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
     let selected =
         boundary_write_signature_and_receiver(program, current_machine, receiver, target, site)?;
     let BoundaryWriteSignature {
-        signature,
+        public_signature,
         has_runtime_receiver,
         bindings,
     } = selected;
+    let signature = public_signature.contract;
     let mut written = if has_runtime_receiver {
         vec![receiver.join(".")]
     } else {
@@ -1027,7 +1032,7 @@ fn boundary_argument_origins(
     argument: ExpressionHandle,
     inference: &mut FrameInference,
 ) -> Option<Vec<FramePlaceOrigin>> {
-    if let Some(call) = program.expression_table.call_node(argument) {
+    if let Some(call) = program.expression_table.source_call_node(argument) {
         if selected_boundary_signature(program, call.target_symbol) {
             return boundary_result_origins(
                 program,
@@ -1106,10 +1111,11 @@ fn boundary_result_origins(
         CallerWriteSite::Expression(expression),
     )?;
     let BoundaryWriteSignature {
-        signature,
+        public_signature,
         has_runtime_receiver,
         bindings,
     } = selected;
+    let signature = public_signature.contract;
     let arguments = program.expression_table.expression_handles(call.arguments);
     let mut bindings = super::type_instantiation::signature_call_type_bindings_seeded(
         program,

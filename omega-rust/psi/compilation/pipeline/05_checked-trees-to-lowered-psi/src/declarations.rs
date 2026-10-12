@@ -80,6 +80,7 @@ pub(crate) fn target_signature(
     checked: &CheckedTrees,
     caller_machine: SymbolHandle,
     source_target: SymbolHandle,
+    application: typed_trees::static_applications::StaticMachineApplicationHandle,
 ) -> Result<TargetSignature<'_>, LoweringError> {
     let program = &checked.typed;
     if !source_target.is_valid() {
@@ -149,17 +150,13 @@ pub(crate) fn target_signature(
     } else {
         source_target
     };
-    let mut signatures = program
-        .traits()
-        .iter()
-        .filter(|definition| definition.is_boundary)
-        .flat_map(|definition| program.trait_machine_instances(definition))
-        .filter(|signature| signature.symbol == requirement);
-    let signature = signatures.next().ok_or(LoweringError::Unsupported(
-        "call source custody has no authored boundary requirement",
-    ))?;
-    if signatures.next().is_some() || !signature.symbol.is_valid() {
-        return unsupported("call source custody disagrees with its authored boundary requirement");
+    let (owner, signature) = program
+        .selected_trait_requirement_signature(requirement, application)
+        .ok_or(LoweringError::Unsupported(
+            "call source custody has no exact selected boundary requirement",
+        ))?;
+    if !owner.is_boundary || !signature.symbol.is_valid() {
+        return unsupported("call source custody disagrees with its boundary requirement");
     }
     Ok(TargetSignature {
         parameters: program.state_signature_parameters(signature),

@@ -20,6 +20,7 @@ pub(super) fn encode_contract_evidence_argument(
             encoder.field("owner", |encoder| encode_nominal(encoder, term.owner()))?;
             encoder.field("kind", |encoder| {
                 match term.kind() {
+                    PackageReviewContractKind::Where => encoder.tag("where", 2),
                     PackageReviewContractKind::Requires => encoder.tag("requires", 0),
                     PackageReviewContractKind::Ensures => encoder.tag("ensures", 1),
                 };

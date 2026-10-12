@@ -30,6 +30,13 @@ pub use index_authority::{
     IndexExpressionAuthority, OpenIndexNormalization, OpenIndexOperationSelection,
 };
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct ExpressionCorrespondence {
+    source: language_core::expression_origin::ExpressionSourceOrigin,
+    selected_match_result: ExpressionHandle,
+    selected_match_meaning: language_core::expression_origin::ConstMatchIntegerMeaning,
+}
+
 pub type ExpressionHandle = Handle<ExpressionNode>;
 
 /// Arena dummy storage for an occurrence identity. `None` exists only to
@@ -90,6 +97,7 @@ pub struct AtomicExpression {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExpressionTable {
     expressions: Arena<ExpressionNode>,
+    correspondences: Arena<ExpressionCorrespondence>,
     /// Iteration-visible expressions of this program. Backing rows remain at
     /// their stable handles when a compilation projects a closed body roster.
     expression_roots: Arena<ExpressionHandle>,
@@ -108,8 +116,11 @@ pub struct ExpressionTable {
     name_path_member_symbols: Arena<SymbolHandle>,
     struct_fields: Arena<TableStructLiteralField>,
     match_arms: Arena<TableMatchArm>,
+    /// Nonexecuting original invocation payloads retained by selected calls.
+    source_calls: Arena<TableCallExpression>,
     static_machine_applications: Arena<StaticMachineApplication>,
     static_machine_arguments: Arena<StaticMachineArgument>,
+    static_machine_argument_parameters: Arena<SymbolHandle>,
     static_machine_bindings: Arena<StaticMachineBinding>,
     static_machine_lifetime_bindings: Arena<StaticMachineLifetimeBinding>,
 }
@@ -131,6 +142,7 @@ impl ExpressionTable {
     pub(crate) fn retains_exact_prefix(&self, base: &Self) -> bool {
         let Self {
             expressions,
+            correspondences,
             expression_roots,
             authored_selection_occurrence_ids,
             expression_handles,
@@ -144,19 +156,29 @@ impl ExpressionTable {
             index_expression_authorities,
             index_expression_authority_handles,
             authored_selection_occurrences,
+            source_calls,
             static_machine_applications,
             static_machine_arguments,
+            static_machine_argument_parameters,
             static_machine_bindings,
             static_machine_lifetime_bindings,
         } = base;
-        crate::typed_trees::retained_prefix::arena_is_exact_prefix(expressions, &self.expressions)
+        crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+            correspondences,
+            &self.correspondences,
+        ) && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+            expressions,
+            &self.expressions,
+        ) && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+            index_expression_authorities,
+            &self.index_expression_authorities,
+        ) && self
+            .index_expression_authority_handles
+            .starts_with(index_expression_authority_handles)
             && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
-                index_expression_authorities,
-                &self.index_expression_authorities,
+                source_calls,
+                &self.source_calls,
             )
-            && self
-                .index_expression_authority_handles
-                .starts_with(index_expression_authority_handles)
             && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
                 static_machine_applications,
                 &self.static_machine_applications,
@@ -164,6 +186,10 @@ impl ExpressionTable {
             && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
                 static_machine_arguments,
                 &self.static_machine_arguments,
+            )
+            && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+                static_machine_argument_parameters,
+                &self.static_machine_argument_parameters,
             )
             && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
                 static_machine_bindings,
@@ -291,6 +317,7 @@ impl ExpressionTable {
     pub fn revision(&self) -> u64 {
         self.expressions
             .revision()
+            .wrapping_add(self.correspondences.revision())
             .wrapping_add(self.expression_roots.revision())
             .wrapping_add(self.index_expression_authorities.revision())
             .wrapping_add(self.authored_selection_occurrence_ids.revision())
@@ -299,8 +326,10 @@ impl ExpressionTable {
             .wrapping_add(self.name_path_member_symbols.revision())
             .wrapping_add(self.struct_fields.revision())
             .wrapping_add(self.match_arms.revision())
+            .wrapping_add(self.source_calls.revision())
             .wrapping_add(self.static_machine_applications.revision())
             .wrapping_add(self.static_machine_arguments.revision())
+            .wrapping_add(self.static_machine_argument_parameters.revision())
             .wrapping_add(self.constructed_value_types.revision())
             .wrapping_add(self.static_machine_bindings.revision())
             .wrapping_add(self.static_machine_lifetime_bindings.revision())
@@ -326,6 +355,7 @@ impl ExpressionTable {
     pub fn with_capacities(capacity: ExpressionTableCapacity) -> Self {
         Self {
             expressions: Arena::with_capacity(capacity.expressions),
+            correspondences: Arena::with_capacity(capacity.expressions),
             expression_roots: Arena::with_capacity(capacity.expressions),
             source_spans: Vec::with_capacity(capacity.expressions),
             constructed_value_types: Arena::default(),
@@ -341,8 +371,10 @@ impl ExpressionTable {
             name_path_member_symbols: Arena::with_capacity(capacity.name_path_member_symbols),
             struct_fields: Arena::with_capacity(capacity.struct_fields),
             match_arms: Arena::with_capacity(capacity.match_arms),
+            source_calls: Arena::default(),
             static_machine_applications: Arena::default(),
             static_machine_arguments: Arena::default(),
+            static_machine_argument_parameters: Arena::default(),
             static_machine_bindings: Arena::default(),
             static_machine_lifetime_bindings: Arena::default(),
         }
@@ -350,6 +382,7 @@ impl ExpressionTable {
 
     pub fn clear(&mut self) {
         self.expressions.reset_retain_capacity();
+        self.correspondences.reset_retain_capacity();
         self.expression_roots.reset_retain_capacity();
         self.source_spans.clear();
         self.constructed_value_types.reset_retain_capacity();
@@ -364,8 +397,11 @@ impl ExpressionTable {
         self.name_path_member_symbols.reset_retain_capacity();
         self.struct_fields.reset_retain_capacity();
         self.match_arms.reset_retain_capacity();
+        self.source_calls.reset_retain_capacity();
         self.static_machine_applications.reset_retain_capacity();
         self.static_machine_arguments.reset_retain_capacity();
+        self.static_machine_argument_parameters
+            .reset_retain_capacity();
         self.static_machine_bindings.reset_retain_capacity();
         self.static_machine_lifetime_bindings
             .reset_retain_capacity();
@@ -387,14 +423,28 @@ impl ExpressionTable {
         self.static_machine_applications
             .insert(StaticMachineApplication {
                 registration_operation,
+                selected_interface: SymbolHandle::invalid(),
                 lexical_owner: SymbolHandle::invalid(),
+                captured_lexical_scope: Handle::invalid(),
                 target,
                 arguments,
+                argument_parameters: HandleSpan::empty(),
+                enclosing_data_applications: HandleSpan::empty(),
+                receiving_data_parameter: SymbolHandle::invalid(),
                 selected_machine_arguments: HandleSpan::empty(),
                 bindings: HandleSpan::empty(),
                 lifetime_bindings: HandleSpan::empty(),
                 binding_declaration: SymbolHandle::invalid(),
+                public_result_type: crate::types::TypeReferenceHandle::invalid(),
+                public_contract: Handle::invalid(),
             })
+    }
+
+    pub fn static_machine_application_is_valid(
+        &self,
+        application: StaticMachineApplicationHandle,
+    ) -> bool {
+        self.static_machine_applications.is_valid(application)
     }
 
     pub fn static_machine_application(
@@ -408,7 +458,9 @@ impl ExpressionTable {
         &mut self,
         application: StaticMachineApplicationHandle,
     ) -> &mut StaticMachineApplication {
-        self.static_machine_applications.get_mut(application)
+        let row = self.static_machine_applications.get_mut(application);
+        row.public_contract = Handle::invalid();
+        row
     }
 
     pub fn static_machine_application_bindings(
@@ -423,6 +475,9 @@ impl ExpressionTable {
         &mut self,
         application: StaticMachineApplicationHandle,
     ) -> &mut [StaticMachineBinding] {
+        self.static_machine_applications
+            .get_mut(application)
+            .public_contract = Handle::invalid();
         let bindings = self.static_machine_applications.get(application).bindings;
         self.static_machine_bindings.span_mut_or_empty(bindings)
     }
@@ -438,6 +493,12 @@ impl ExpressionTable {
         if self.static_machine_bindings.span_or_empty(previous) == bindings {
             return;
         }
+        self.static_machine_applications
+            .get_mut(application)
+            .public_contract = Handle::invalid();
+        self.static_machine_applications
+            .get_mut(application)
+            .public_result_type = crate::types::TypeReferenceHandle::invalid();
         if previous.len() == bindings.len() {
             self.static_machine_bindings
                 .span_mut_or_empty(previous)
@@ -460,6 +521,71 @@ impl ExpressionTable {
             .span_or_empty(self.static_machine_application(application).arguments)
     }
 
+    pub fn static_machine_application_argument_parameters(
+        &self,
+        application: StaticMachineApplicationHandle,
+    ) -> &[SymbolHandle] {
+        self.static_machine_argument_parameters.span_or_empty(
+            self.static_machine_application(application)
+                .argument_parameters,
+        )
+    }
+
+    /// The source producer supplies the receiving slots before retargeting.
+    /// Copying lexical operands never rewrites these original callee handles.
+    pub fn set_static_machine_application_argument_parameters(
+        &mut self,
+        application: StaticMachineApplicationHandle,
+        parameters: &[SymbolHandle],
+    ) {
+        let previous = self
+            .static_machine_applications
+            .get(application)
+            .argument_parameters;
+        if self
+            .static_machine_argument_parameters
+            .span_or_empty(previous)
+            == parameters
+        {
+            return;
+        }
+        let parameters = self
+            .static_machine_argument_parameters
+            .insert_many(parameters.iter().copied());
+        let application = self.static_machine_applications.get_mut(application);
+        application.argument_parameters = parameters;
+        application.public_contract = Handle::invalid();
+        application.public_result_type = crate::types::TypeReferenceHandle::invalid();
+    }
+
+    /// The original source-place producer supplies this type-arena span.
+    /// Payload copying must reissue it in the receiving arena before publication.
+    pub fn set_static_machine_application_receiving_data_parameter(
+        &mut self,
+        application: StaticMachineApplicationHandle,
+        parameter: SymbolHandle,
+    ) {
+        let application = self.static_machine_application_mut(application);
+        if application.receiving_data_parameter != parameter {
+            application.receiving_data_parameter = parameter;
+            application.public_contract = Handle::invalid();
+            application.public_result_type = crate::types::TypeReferenceHandle::invalid();
+        }
+    }
+
+    pub fn set_static_machine_application_enclosing_data_applications(
+        &mut self,
+        application: StaticMachineApplicationHandle,
+        applications: HandleSpan<crate::types::TypeReferenceHandle>,
+    ) {
+        let row = self.static_machine_applications.get_mut(application);
+        if row.enclosing_data_applications != applications {
+            row.enclosing_data_applications = applications;
+            row.public_contract = Handle::invalid();
+            row.public_result_type = crate::types::TypeReferenceHandle::invalid();
+        }
+    }
+
     pub fn static_machine_application_selected_machines(
         &self,
         application: StaticMachineApplicationHandle,
@@ -474,6 +600,9 @@ impl ExpressionTable {
         &mut self,
         application: StaticMachineApplicationHandle,
     ) -> &mut [StaticMachineArgument] {
+        self.static_machine_applications
+            .get_mut(application)
+            .public_contract = Handle::invalid();
         let selected = self
             .static_machine_applications
             .get(application)
@@ -489,6 +618,9 @@ impl ExpressionTable {
         if self.static_machine_application_selected_machines(application) == selected {
             return;
         }
+        self.static_machine_applications
+            .get_mut(application)
+            .public_contract = Handle::invalid();
         let selected = self
             .static_machine_arguments
             .insert_many(selected.iter().cloned());
@@ -523,6 +655,12 @@ impl ExpressionTable {
         {
             return;
         }
+        self.static_machine_applications
+            .get_mut(application)
+            .public_contract = Handle::invalid();
+        self.static_machine_applications
+            .get_mut(application)
+            .public_result_type = crate::types::TypeReferenceHandle::invalid();
         if previous.len() == bindings.len() {
             self.static_machine_lifetime_bindings
                 .span_mut_or_empty(previous)
@@ -543,12 +681,20 @@ impl ExpressionTable {
         &mut self,
         application: StaticMachineApplicationHandle,
     ) -> &mut [StaticMachineArgument] {
+        self.static_machine_applications
+            .get_mut(application)
+            .public_contract = Handle::invalid();
         let arguments = self.static_machine_applications.get(application).arguments;
         self.static_machine_arguments.span_mut_or_empty(arguments)
     }
 
     pub fn insert(&mut self, expression: ExpressionNode) -> ExpressionHandle {
         let handle = self.expressions.insert(expression);
+        let correspondence = self
+            .correspondences
+            .insert(ExpressionCorrespondence::default());
+        debug_assert_eq!(handle.arena_index(), correspondence.arena_index());
+        debug_assert_eq!(handle.generation(), correspondence.generation());
         self.expression_roots.insert(handle);
         self.source_spans.push(SourceSpan::default());
         self.authored_selection_occurrences
@@ -559,6 +705,77 @@ impl ExpressionTable {
             self.authored_selection_occurrences.len() - 1
         );
         handle
+    }
+
+    pub fn expression_source_origin(
+        &self,
+        expression: ExpressionHandle,
+    ) -> language_core::expression_origin::ExpressionSourceOrigin {
+        self.correspondences
+            .get(Handle::from_parts(
+                expression.arena_index(),
+                expression.generation(),
+            ))
+            .source
+    }
+
+    pub fn retain_expression_source_origin(
+        &mut self,
+        expression: ExpressionHandle,
+        source: language_core::expression_origin::ExpressionSourceOrigin,
+    ) {
+        self.correspondences
+            .get_mut(Handle::from_parts(
+                expression.arena_index(),
+                expression.generation(),
+            ))
+            .source = source;
+    }
+
+    /// Completed evaluation owns this edge; consumers never choose an arm here.
+    pub fn selected_const_match_result(&self, expression: ExpressionHandle) -> ExpressionHandle {
+        self.correspondences
+            .get(Handle::from_parts(
+                expression.arena_index(),
+                expression.generation(),
+            ))
+            .selected_match_result
+    }
+
+    pub fn selected_const_match_meaning(
+        &self,
+        expression: ExpressionHandle,
+    ) -> language_core::expression_origin::ConstMatchIntegerMeaning {
+        self.correspondences
+            .get(Handle::from_parts(
+                expression.arena_index(),
+                expression.generation(),
+            ))
+            .selected_match_meaning
+    }
+
+    pub fn retain_selected_const_match_result(
+        &mut self,
+        expression: ExpressionHandle,
+        selected: ExpressionHandle,
+        meaning: language_core::expression_origin::ConstMatchIntegerMeaning,
+    ) {
+        let ExpressionNode::Match(dispatch) = self.expression(expression) else {
+            panic!("selected const result belongs to a Match occurrence");
+        };
+        assert!(
+            self.match_arms(dispatch.arms)
+                .iter()
+                .any(|arm| arm.value == selected)
+        );
+        let row = self.correspondences.get_mut(Handle::from_parts(
+            expression.arena_index(),
+            expression.generation(),
+        ));
+        assert!(!row.selected_match_result.is_valid() || row.selected_match_result == selected);
+        assert!(!row.selected_match_result.is_valid() || row.selected_match_meaning == meaning);
+        row.selected_match_result = selected;
+        row.selected_match_meaning = meaning;
     }
 
     pub fn source_span(&self, handle: ExpressionHandle) -> SourceSpan {
@@ -819,6 +1036,65 @@ impl ExpressionTable {
         }
     }
 
+    /// The original invocation judged by source checking. A selected call's
+    /// executable target remains on `call`; its public payload is a separate
+    /// original occurrence, never a reconstructed declaration or equal tuple.
+    pub fn source_call<'table>(
+        &'table self,
+        call: &'table TableCallExpression,
+    ) -> Option<&'table TableCallExpression> {
+        if !call.source_call.is_valid() {
+            return Some(call);
+        }
+        if !self.source_calls.is_valid(call.source_call) {
+            return None;
+        }
+        let original = self.source_calls.get(call.source_call);
+        (!original.source_call.is_valid()).then_some(original)
+    }
+
+    pub fn source_call_node(&self, expression: ExpressionHandle) -> Option<&TableCallExpression> {
+        self.source_call(self.call_node(expression)?)
+    }
+
+    pub fn source_call_node_mut(
+        &mut self,
+        expression: ExpressionHandle,
+    ) -> Option<&mut TableCallExpression> {
+        let source = self.call_node(expression)?.source_call;
+        if source.is_valid() {
+            let original = self.source_call_mut(source)?;
+            (!original.source_call.is_valid()).then_some(original)
+        } else {
+            match self.expression_mut(expression) {
+                ExpressionNode::Call(call) => Some(call),
+                _ => None,
+            }
+        }
+    }
+
+    /// Retain one original payload before changing its executable occurrence.
+    /// There is one source view, not a chain of transformed calls. The issuer
+    /// still owes provider correspondence and ordinary invocation admission.
+    pub fn retain_source_call(
+        &mut self,
+        call: TableCallExpression,
+    ) -> Result<Handle<TableCallExpression>, &'static str> {
+        if call.source_call.is_valid() {
+            return Err("source invocation cannot retain a transformed call");
+        }
+        Ok(self.source_calls.insert(call))
+    }
+
+    pub fn source_call_mut(
+        &mut self,
+        source: Handle<TableCallExpression>,
+    ) -> Option<&mut TableCallExpression> {
+        self.source_calls
+            .is_valid(source)
+            .then(|| self.source_calls.get_mut(source))
+    }
+
     /// The typed `Member` node, or `None` for every other kind.
     pub fn member_node(&self, handle: ExpressionHandle) -> Option<&TableMemberExpression> {
         match self.expression(handle) {
@@ -973,8 +1249,19 @@ impl ExpressionTable {
     }
 
     pub fn iter_expressions(&self) -> impl Iterator<Item = (ExpressionHandle, &ExpressionNode)> {
+        self.iter_expressions_from_roster_offset(0)
+    }
+
+    /// Resume the current semantic expression roster at a zero-based offset.
+    /// Its private roster is rebuilt as a whole on projection and appended by
+    /// insertion; no individual roster row is freed. A caller that only copies
+    /// payloads can therefore advance once while newly copied children append.
+    pub fn iter_expressions_from_roster_offset(
+        &self,
+        roster_offset: usize,
+    ) -> impl Iterator<Item = (ExpressionHandle, &ExpressionNode)> {
         self.expression_roots
-            .iter()
+            .iter_from_storage_offset(roster_offset)
             .map(|(_, handle)| (*handle, self.expressions.get(*handle)))
     }
 
@@ -1160,7 +1447,8 @@ impl ExpressionTable {
                     && self.optional_expression_structurally_equal(x.end, y.end)
             }
             (ExpressionNode::Call(x), ExpressionNode::Call(y)) => {
-                x.target_symbol == y.target_symbol
+                x.source_call == y.source_call
+                    && x.target_symbol == y.target_symbol
                     && x.exact_coercion_target == y.exact_coercion_target
                     && x.target.as_str() == y.target.as_str()
                     && self.expressions_structurally_equal(x.receiver, y.receiver)
@@ -1431,8 +1719,12 @@ pub struct CallExpression {
     pub operational_acknowledgement: language_semantics::CallOperationalAcknowledgement,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TableCallExpression {
+    /// Exact original invocation before executable provider substitution. The
+    /// handle belongs to this table's nonexecuting call arena. Zero denotes
+    /// an unchanged invocation; retaining this payload grants no admission.
+    pub source_call: Handle<TableCallExpression>,
     /// Zero until specialization erases this call's authored static operands.
     pub authored_machine_application: StaticMachineApplicationHandle,
     /// An Exact carrier coercion elaborated to this conversion requirement.
@@ -1520,6 +1812,10 @@ pub struct QuotientOperationRequest {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StaticMachineArgument {
+    /// Original source operand geometry in its retained call application.
+    /// Introduced actual children have no coordinate in the callee's source.
+    pub authored_position:
+        Option<language_semantics::declaration_selection::StaticArgumentPosition>,
     /// An explicit structural type argument; zero denotes another static argument kind.
     pub type_reference: crate::types::TypeReferenceHandle,
     /// Historical storage name shared by type/const/machine proposition
@@ -1535,6 +1831,77 @@ pub struct StaticMachineArgument {
 }
 
 impl StaticMachineArgument {
+    /// Compare ordered operands without their original source positions.
+    ///
+    /// Every other field, including nested lifetime applications and evidence
+    /// projections, remains exact. This compares content within one retained
+    /// typed owner; it neither normalizes types nor establishes cross-owner
+    /// declaration identity. Exact occurrence and certificate joins use `Eq`.
+    pub fn semantic_contents_equal(left: &[Self], right: &[Self]) -> bool {
+        left.len() == right.len()
+            && left.iter().zip(right).all(|(left, right)| {
+                let Self {
+                    authored_position: _,
+                    type_reference,
+                    path,
+                    application,
+                    const_literal,
+                    evidence_projection,
+                    symbol,
+                } = left;
+                type_reference == &right.type_reference
+                    && path == &right.path
+                    && const_literal == &right.const_literal
+                    && evidence_projection == &right.evidence_projection
+                    && symbol == &right.symbol
+                    && match (application, &right.application) {
+                        (None, None) => true,
+                        (Some(left), Some(right)) => {
+                            let StaticSymbolApplication {
+                                lifetime_arguments,
+                                arguments,
+                            } = left.as_ref();
+                            lifetime_arguments == &right.lifetime_arguments
+                                && Self::semantic_contents_equal(arguments, &right.arguments)
+                        }
+                        _ => false,
+                    }
+            })
+    }
+
+    /// Called by original source-application capture before specialization.
+    /// Every node counts, including literals which mint no selection occurrence.
+    pub fn retain_authored_positions(arguments: &mut [Self]) {
+        fn retain(argument: &mut StaticMachineArgument, index: usize, ordinal: &mut usize) {
+            argument.authored_position = Some(
+                language_semantics::declaration_selection::StaticArgumentPosition {
+                    argument_index: index,
+                    descendant_ordinal: *ordinal,
+                },
+            );
+            *ordinal += 1;
+            if let Some(application) = &mut argument.application {
+                for child in &mut application.arguments {
+                    retain(child, index, ordinal);
+                }
+            }
+        }
+        for (index, argument) in arguments.iter_mut().enumerate() {
+            retain(argument, index, &mut 0);
+        }
+    }
+
+    /// A forwarded actual retains its caller custody elsewhere. Its inserted
+    /// children cannot acquire coordinates in the callee's original source.
+    pub fn clear_authored_positions(&mut self) {
+        self.authored_position = None;
+        if let Some(application) = &mut self.application {
+            for child in &mut application.arguments {
+                child.clear_authored_positions();
+            }
+        }
+    }
+
     /// Remap every nested lexical operand. The generic declaration governing
     /// an enclosing retained application is not part of this operand map.
     pub fn remap_symbols(&mut self, symbols: &[(SymbolHandle, SymbolHandle)]) {

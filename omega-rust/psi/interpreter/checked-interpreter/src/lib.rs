@@ -138,10 +138,11 @@ pub use evaluation::{
     CURRENT_EVALUATION_USAGE_SCHEMA, DescribedProductEntry, DescribedProductProvider,
     DescribedProductSchema, EvaluationObservations, EvaluationSemanticsIdentity,
     EvaluationStepScheduleIdentity, EvaluationUsage, EvaluationUsageSchemaIdentity,
-    ExecutedBehaviorExclusion, ExecutedBehaviorExclusionKind, ExecutedBehaviorExclusionSite,
-    ExecutedProviderSelection, ExecutedProviderSelectionSite, ExecutedRootBinding,
-    InterpretOutcome, MAX_BUILD_OUTPUT_OBLIGATIONS, MAX_INCLUDED_BUILD_SOURCES,
-    MeasuredBuildMachineEvaluation, MeasuredEvaluation, PrivateLayoutPlacementReceipt,
+    ExecutedAssumedBindingRegistration, ExecutedBehaviorExclusion, ExecutedBehaviorExclusionKind,
+    ExecutedBehaviorExclusionSite, ExecutedBuildDeclarationSite, ExecutedProviderSelection,
+    ExecutedRootBinding, InterpretOutcome, MAX_BUILD_OUTPUT_OBLIGATIONS,
+    MAX_INCLUDED_BUILD_SOURCES, MeasuredBuildMachineEvaluation, MeasuredEvaluation,
+    PrivateLayoutPlacementReceipt,
 };
 pub use filesystem_access::{CapturedFilesystemRoot, FilesystemAccess};
 pub use filesystem_authority::*;

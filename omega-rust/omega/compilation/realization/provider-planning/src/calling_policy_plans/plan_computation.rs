@@ -4,7 +4,7 @@
 
 use crate::calling_policy_plans::boundary_signatures::{
     call_signature_from_top_level_requirement, call_signature_from_typed,
-    collect_boundary_signatures, compatibility_call_signature, exact_compatibility_overload_index,
+    compatibility_call_signature, exact_compatibility_overload_index,
 };
 use crate::calling_policy_plans::build_time_decoding::{
     CALLBACK_FIELD_PATH_CAPACITY, CALLBACK_MATERIALIZATION_CAPACITY, PARAMETER_CAPACITY,
@@ -13,9 +13,7 @@ use crate::calling_policy_plans::build_time_decoding::{
 use crate::calling_policy_plans::callback_bindings::{
     callback_materialization_context, validate_retained_callback_binders,
 };
-use crate::calling_policy_plans::policy_implementations::{
-    BoundaryPolicyInstance, boundary_policy_instances, selected_policy_machine,
-};
+use crate::calling_policy_plans::policy_implementations::selected_policy_machine;
 use crate::calling_policy_plans::{
     BoundaryCallingPlanRealization, BoundaryNativeParameterOrigin, BoundaryNativeParameterShape,
     BoundaryValueClass, BoundaryValueField, BoundaryValueShape, MaterializedBoundarySignature,
@@ -109,9 +107,21 @@ pub(crate) fn evaluate_compatibility_boundary_entry_plan(
         return Ok(None);
     };
     let materialized = if let Some((signature, _)) = trait_candidates.get(candidate_index) {
+        let public = typed
+            .public_trait_requirement_signature(signature.symbol)
+            .ok_or_else(|| "compatibility Calling lost its original public signature".to_owned())?;
+        // Universal source schemas do not issue physical applications. Their
+        // genuine applied headers own the full bindings and plan separately.
+        if !typed.trait_type_parameters(public.owner).is_empty()
+            || !typed
+                .state_signature_type_parameters(public.declaration)
+                .is_empty()
+        {
+            return Ok(None);
+        }
         call_signature_from_typed(
             typed,
-            signature,
+            public,
             &[],
             requirement_identity,
             native_target,
@@ -124,6 +134,10 @@ pub(crate) fn evaluate_compatibility_boundary_entry_plan(
                 "compatibility boundary selection index is outside its exact candidate catalog"
                     .to_owned()
             })?;
+        // Top-level declarations retain their existing specialization/family
+        // custody rather than the trait-header correspondence roster. Preserve
+        // their authentic source evaluation; unresolved applied geometry still
+        // fails the ordinary value-graph classifier and cannot become a donor.
         call_signature_from_top_level_requirement(
             typed,
             requirement,
@@ -140,24 +154,94 @@ pub(crate) fn evaluate_compatibility_boundary_entry_plan(
         .map_err(|diagnostic| diagnostic.to_string())
 }
 
-/// Discover concrete `Calling<Policy>` relationships, evaluate the selected implementation row once for
-/// every method in the boundary service surface, and retain only canonical
-/// evaluated applications in the realization output. Source trees are borrowed.
-pub fn compute_boundary_calling_plans(
+/// Compatibility publishes the same completed application as explicit Calling.
+/// The caller supplies the authentic applied header, never original geometry.
+pub(crate) fn evaluate_compatibility_boundary_application(
     typed: &TypedTrees,
+    public: checked_trees::typed_trees::typed_trees::calls::PublicTraitRequirementSignature<'_>,
+    original_requirement_identity: &str,
+    public_requirement_identity: String,
+    native_target: NativeTarget,
+    policy: CallingPolicy,
+    opaque: &[OpaqueRepresentationSelection],
+) -> Result<calling_conventions::BoundaryCallingApplication, String> {
+    let materialized = call_signature_from_typed(
+        typed,
+        public,
+        &[],
+        original_requirement_identity,
+        native_target,
+        opaque,
+    )?;
+    // Nominal callbacks still require their existing closure producer.
+    if !materialized.callback_binders.is_empty() {
+        return Err("compatibility calling application has unclosed callback binders".into());
+    }
+    let classified = compatibility_call_signature(&materialized, policy, 0)?;
+    let validated = evaluate_ordinary_boundary_entry_plan(policy, &classified)
+        .map_err(|diagnostic| diagnostic.to_string())?;
+    let (report, commitment) = boundary_plan_application_identity(&materialized, &validated);
+    Ok(super::native_applications::publish_native_application(
+        &materialized,
+        public_requirement_identity,
+        validated,
+        report,
+        commitment,
+        true,
+    ))
+}
+
+struct BoundaryCallingPresentation {
+    declaring_trait: symbols::SymbolHandle,
+    selected_interface: symbols::SymbolHandle,
+    boundary_arguments: Vec<checked_trees::typed_trees::types::TypeReferenceHandle>,
+    binding_application:
+        checked_trees::typed_trees::static_applications::StaticMachineApplicationHandle,
+    requirement_machine: symbols::SymbolHandle,
+    public_requirement_identity: String,
+}
+
+struct PendingBoundaryCallingPlan {
+    identity: super::applications::BoundaryCallingApplicationIdentity,
+    presentations: Vec<BoundaryCallingPresentation>,
+    policy_machine: String,
+    policy_symbol: symbols::SymbolHandle,
+    signature: MaterializedBoundarySignature,
+    relationship_span: source::SourceSpan,
+}
+
+/// Extend the existing calling inventory with newly closed public applications.
+/// Each newly closed application enters the same selector and evaluator once
+/// during inventory completion. Callback closure may subsequently enrich its
+/// private demands through its existing evaluator. Retained rows belong to this
+/// compilation and target; source preparation can append
+/// complete headers without rebuilding provider facts or rechecking old plans.
+/// Source trees are borrowed and no target plan is inserted into portable Psi.
+pub fn extend_boundary_calling_plans(
+    typed: &TypedTrees,
+    retained: &mut Vec<BoundaryCallingPlanRealization>,
     native_target: NativeTarget,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
-) -> Result<Vec<BoundaryCallingPlanRealization>, Vec<Diagnostic>> {
+) -> Result<(), Vec<Diagnostic>> {
+    if retained
+        .iter()
+        .any(|row| row.materialized_signature().native_target() != native_target)
+    {
+        return Err(vec![Diagnostic::error(
+            "calling inventory cannot change its target during application completion",
+        )]);
+    }
     let vocabularies =
         checked_trees::typed_trees::calling_vocabulary::standard_calling_vocabularies(typed);
     if vocabularies.is_empty() {
         // Programs that do not import std::calling cannot accidentally opt in
         // merely by having an unrelated local trait named Calling.
-        return Ok(Vec::new());
+        return Ok(());
     }
 
-    let mut pending = Vec::new();
+    let mut pending: Vec<PendingBoundaryCallingPlan> = Vec::new();
+    let mut reused = Vec::new();
     for boundary in typed
         .traits()
         .iter()
@@ -201,28 +285,75 @@ pub fn compute_boundary_calling_plans(
             ))
             .with_source_span(relationship_span)]);
         }
-        let instances =
-            boundary_policy_instances(typed, boundary, arguments[0]).map_err(|reason| {
+        let applications =
+            super::applications::collect(typed, boundary, arguments[0]).map_err(|reason| {
                 vec![
                     Diagnostic::error(format!(
-                        "boundary trait `{}` cannot evaluate Calling<Policy>: {reason}",
+                        "boundary trait `{}` cannot close Calling<Policy>: {reason}",
                         boundary.name
                     ))
                     .with_source_span(relationship_span),
                 ]
             })?;
-        for BoundaryPolicyInstance {
-            arguments: boundary_arguments,
-            argument_owner,
-            policy_argument,
-        } in instances
-        {
+        for application in applications {
+            let signature = application.signature.public_signature.signature;
+            // A later source preparation appends public headers. Original
+            // applications retain their exact evaluated row; only new keys
+            // enter policy selection and evaluation on this continuation.
+            let presentation = BoundaryCallingPresentation {
+                declaring_trait: application.signature.declaring_trait,
+                selected_interface: application.selected_interface,
+                boundary_arguments: application.boundary_arguments,
+                argument_owner: application.argument_owner,
+                binding_application: application.binding_application,
+                requirement_machine: signature.symbol,
+                public_requirement_identity: typed.trait_requirement_callable_identity_text(
+                    application.signature.public_signature.owner,
+                    signature,
+                ),
+            };
+            if let Some(previous) = retained
+                .iter()
+                .find(|previous| previous.application_identity == application.identity)
+            {
+                if !retained
+                    .iter()
+                    .chain(&reused)
+                    .any(|row: &BoundaryCallingPlanRealization| {
+                        row.application_identity == application.identity
+                            && row.requirement_machine == presentation.requirement_machine
+                            && row.boundary_arguments == presentation.boundary_arguments
+                    })
+                {
+                    let mut row = previous.clone();
+                    row.declaring_trait = presentation.declaring_trait;
+                    row.boundary_trait = presentation.selected_interface;
+                    row.requirement_machine = presentation.requirement_machine;
+                    row.public_requirement_identity = presentation.public_requirement_identity;
+                    row.binding_application = presentation.binding_application;
+                    row.boundary_arguments = presentation.boundary_arguments;
+                    row.argument_owner = presentation.argument_owner;
+                    reused.push(row);
+                }
+                continue;
+            }
+            if let Some(previous) = pending
+                .iter_mut()
+                .find(|previous| previous.identity == application.identity)
+            {
+                if !previous.presentations.iter().any(|row| {
+                    row.requirement_machine == presentation.requirement_machine
+                        && row.boundary_arguments == presentation.boundary_arguments
+                }) {
+                    previous.presentations.push(presentation);
+                }
+                continue;
+            }
             let policy_machine = selected_policy_machine(
                 typed,
-                boundary,
-                &boundary_arguments,
-                policy_argument,
+                application.policy_argument,
                 calling_policy_trait,
+                &application.policy_bindings,
             )
             .map_err(|reason| {
                 vec![
@@ -233,49 +364,37 @@ pub fn compute_boundary_calling_plans(
                     .with_source_span(relationship_span),
                 ]
             })?;
-            let mut signatures = Vec::new();
-            collect_boundary_signatures(
+            let boundary_signature = call_signature_from_typed(
                 typed,
-                boundary,
-                &boundary_arguments,
-                &mut Vec::new(),
-                &mut signatures,
-            );
-            for signature_instance in signatures {
-                let signature = signature_instance.signature;
-                let boundary_signature = call_signature_from_typed(
-                    typed,
-                    signature,
-                    &signature_instance.bindings,
-                    &signature_instance.requirement_identity,
-                    native_target,
-                    opaque_representation_selections,
-                )
-                .map_err(|reason| {
-                    vec![
-                        Diagnostic::error(format!(
-                            "cannot materialize boundary signature `{}::{}` for `{}`: {reason}",
-                            boundary.name, signature.name, policy_machine.name
-                        ))
-                        .with_source_span(relationship_span),
-                    ]
-                })?;
-                pending.push((
-                    boundary.symbol,
-                    boundary_arguments.clone(),
-                    argument_owner,
-                    signature.symbol,
-                    policy_machine.name.as_str().to_owned(),
-                    policy_machine.symbol,
-                    boundary_signature,
-                    relationship_span,
-                ));
-            }
+                application.signature.public_signature,
+                &application.signature.bindings,
+                &application.signature.requirement_identity,
+                native_target,
+                opaque_representation_selections,
+            )
+            .map_err(|reason| {
+                vec![
+                    Diagnostic::error(format!(
+                        "cannot materialize boundary signature `{}::{}` for `{}`: {reason}",
+                        boundary.name, signature.name, policy_machine.name
+                    ))
+                    .with_source_span(relationship_span),
+                ]
+            })?;
+            pending.push(PendingBoundaryCallingPlan {
+                identity: application.identity,
+                presentations: vec![presentation],
+                policy_machine: policy_machine.name.as_str().to_owned(),
+                policy_symbol: policy_machine.symbol,
+                signature: boundary_signature,
+                relationship_span,
+            });
         }
     }
 
     if pending.is_empty() {
-        return Ok(Vec::new());
+        retained.extend(reused);
+        return Ok(());
     }
     let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(
         typed,
@@ -285,16 +404,14 @@ pub fn compute_boundary_calling_plans(
         }),
     );
     let mut evaluated = Vec::with_capacity(pending.len());
-    for (
-        boundary_trait,
-        boundary_arguments,
-        argument_owner,
-        requirement_machine,
+    for PendingBoundaryCallingPlan {
+        identity,
+        presentations,
         policy_machine,
         policy_symbol,
         signature,
         relationship_span,
-    ) in pending
+    } in pending
     {
         let validated = evaluate_selected_materialized_calling_policy_plan(
             typed,
@@ -314,40 +431,49 @@ pub fn compute_boundary_calling_plans(
         })?;
         let (application_report_fingerprint, application_commitment) =
             boundary_plan_application_identity(&signature, &validated);
-        evaluated.push(BoundaryCallingPlanRealization {
-            boundary_trait,
-            boundary_arguments,
-            argument_owner,
-            requirement_machine,
-            report_fingerprint: application_report_fingerprint,
-            commitment: effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(
-                application_commitment,
-            ),
-            boundary_entry_plan: validated.plan().clone(),
-            validated_boundary_entry_plan: validated,
-            callback_binders: signature.callback_binders.clone(),
-            synchronous_callback_binders: super::callback_bindings::synchronous_callback_binders(
-                typed,
-                boundary_trait,
-                requirement_machine,
-                &signature.callback_binders,
-            )
-            .map_err(|reason| {
-                vec![Diagnostic::error(reason).with_source_span(relationship_span)]
-            })?,
-            callback_demands: signature.callback_demands.clone(),
-            callback_context_closed: false,
-            native_parameters: signature.native_parameters.clone(),
-            materialized_signature: signature,
-            policy_machine,
-            relationship_span,
-        });
+        for presentation in presentations {
+            evaluated.push(BoundaryCallingPlanRealization {
+                application_identity: identity.clone(),
+                declaring_trait: presentation.declaring_trait,
+                boundary_trait: presentation.selected_interface,
+                boundary_arguments: presentation.boundary_arguments,
+                argument_owner: presentation.argument_owner,
+                binding_application: presentation.binding_application,
+                requirement_machine: presentation.requirement_machine,
+                public_requirement_identity: presentation.public_requirement_identity,
+                report_fingerprint: application_report_fingerprint,
+                commitment: effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(
+                    application_commitment,
+                ),
+                boundary_entry_plan: validated.plan().clone(),
+                validated_boundary_entry_plan: validated.clone(),
+                callback_binders: signature.callback_binders.clone(),
+                synchronous_callback_binders:
+                    super::callback_bindings::synchronous_callback_binders(
+                        typed,
+                        presentation.declaring_trait,
+                        identity.requirement,
+                        &signature.callback_binders,
+                    )
+                    .map_err(|reason| {
+                        vec![Diagnostic::error(reason).with_source_span(relationship_span)]
+                    })?,
+                callback_demands: signature.callback_demands.clone(),
+                callback_context_closed: false,
+                native_parameters: signature.native_parameters.clone(),
+                materialized_signature: signature.clone(),
+                policy_machine: policy_machine.clone(),
+                relationship_span,
+            });
+        }
     }
     for realization in &evaluated {
         validate_retained_callback_binders(realization)
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
     }
-    Ok(evaluated)
+    retained.extend(reused);
+    retained.extend(evaluated);
+    Ok(())
 }
 
 /// One refused calling-policy evaluation. `source_span` locates the authored

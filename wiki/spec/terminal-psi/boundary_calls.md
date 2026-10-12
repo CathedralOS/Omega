@@ -261,12 +261,20 @@ is not a runtime slot, publication event, or Independent service handle.
 
 ## Consumer-owned settlement
 
-Join each demanded evaluated import to one exact retained selected plan.
+Join each demanded evaluated import for a selected requirement to one exact
+retained selected plan.
 Provider-execution evidence and same-stack contributions require independently
 supplied admission. Callers cannot choose a replacement plan/index, locator,
 target, builtin, or checked-source receipt at this join. Replay the complete
 plan, external row, atomic locator, target, and strong stack commitment.
 Missing, extra, duplicate, or builtin-substituted demanded settlements reject.
+An exact call to a foreign realization delegates to that concrete declaration's
+original evaluated binding, public satisfaction edge, calling application,
+issuing identity table, and admitted target. Retain that direct origin separately
+from selected provider plans through execution, receiving-authority review, and
+physical occurrence evidence. It cannot settle the abstract requirement or elect
+an implementation. Missing or ambiguous original custody rejects a demanded
+call; an unexecuted candidate does not acquire execution authority.
 Selected but unreachable imports retain identity without requiring execution
 inputs. [Callback use](../build/private_callbacks.md) additionally needs combined callback and checked-scope
 custody; neither half authorizes the other.

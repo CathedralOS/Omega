@@ -16,6 +16,9 @@ pub enum SourceResolveError {
     NotDirectory {
         path: PathBuf,
     },
+    InvalidOwnedOutputPath {
+        path: PathBuf,
+    },
     TooManyFiles {
         limit: usize,
     },
@@ -149,6 +152,11 @@ impl fmt::Display for SourceResolveError {
                     path.display()
                 )
             }
+            Self::InvalidOwnedOutputPath { path } => write!(
+                output,
+                "capture output `{}` must be a nonempty root-relative extent",
+                path.display()
+            ),
             Self::TooManyFiles { limit } => {
                 write!(
                     output,

@@ -39,10 +39,42 @@ struct ElisionCall {
 pub(crate) fn resolve_elided_conformance_lifetimes(
     program: &mut TypedTrees,
 ) -> Result<(), Vec<Diagnostic>> {
-    let calls = collect_elision_calls(program);
+    let calls = collect_elision_calls(program)?;
     let mut diagnostics = Vec::new();
     for mut call in calls {
-        let Some((callee_machine, callee_state)) = validation::find_state(program, call.target)
+        let retained = match call.site {
+            ElisionCallSite::Expression(handle) => program
+                .expression_table
+                .source_call_node(handle)
+                .map(|call| call.authored_machine_application),
+            ElisionCallSite::Statement(handle) => program
+                .statement_table
+                .statement(handle)
+                .as_call()
+                .map(|call| call.authored_machine_application),
+        }
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "lifetime inference lost its original source invocation",
+            )]
+        })?;
+        if retained.is_valid() {
+            // Ordinary specialization consumes the executable static operands.
+            // Its original application owns the declaration and operand roster,
+            // independently of whether a separate source-call arena was needed.
+            call.target = program
+                .expression_table
+                .static_machine_application(retained)
+                .registration_operation;
+            call.machine_arguments = program
+                .expression_table
+                .static_machine_application_arguments(retained)
+                .to_vec()
+                .into_boxed_slice();
+        }
+        let Some((callee_machine, callee_state)) =
+            validation::find_machine_head(program, call.target)
+                .or_else(|| validation::find_state(program, call.target))
         else {
             continue;
         };
@@ -51,16 +83,51 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
         };
         // The caller state must resolve inside the caller machine itself; a
         // whole-program find could admit a same-named state stored elsewhere.
-        let caller_state =
-            validation::find_state_in_machine(program, call.caller_machine, call.caller_state);
+        let Some(caller_state) =
+            validation::find_state_in_machine(program, call.caller_machine, call.caller_state)
+        else {
+            continue;
+        };
 
         let mut call_lifetimes = Vec::<(String, String)>::new();
+        let mut invocation_lifetimes = Vec::new();
         let mut conflicting_call_lifetime = false;
         let parameters = program.state_parameters(callee_state);
         let skip = parameters.len().saturating_sub(call.arguments.len());
         for (argument, parameter) in call.arguments.iter().zip(parameters.iter().skip(skip)) {
-            let Some((actual, applications)) = caller_state
-                .and_then(|state| argument_scopes::source_application(program, state, *argument))
+            // A newly formed anonymous outer loan belongs to this invocation.
+            // Named/nested operands below still use their authentic supplying scopes.
+            if let Some(actual) = validation::expression_result_type_reference(
+                program,
+                caller_machine,
+                caller_state,
+                *argument,
+            ) {
+                let mut formed = Vec::new();
+                collect_lifetime_arguments(
+                    program,
+                    parameter.type_reference,
+                    actual,
+                    &callee_machine.lifetime_parameters,
+                    &mut formed,
+                    &mut conflicting_call_lifetime,
+                );
+                for binding in formed {
+                    if matches!(
+                        binding.argument,
+                        typed_trees::static_applications::StaticMachineLifetimeArgument::Anonymous
+                    ) {
+                        retain_lifetime_argument(
+                            &binding.parameter,
+                            None,
+                            &mut invocation_lifetimes,
+                            &mut conflicting_call_lifetime,
+                        );
+                    }
+                }
+            }
+            let Some((actual, applications)) =
+                argument_scopes::source_application(program, caller_state, *argument)
             else {
                 continue;
             };
@@ -102,6 +169,12 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
                                 actual.as_str(),
                                 &mut conflicting_call_lifetime,
                             );
+                            retain_lifetime_argument(
+                                required,
+                                Some(actual),
+                                &mut invocation_lifetimes,
+                                &mut conflicting_call_lifetime,
+                            );
                         }
                     },
                 );
@@ -123,7 +196,7 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
         let application = match call.site {
             ElisionCallSite::Expression(handle) => program
                 .expression_table
-                .call_node(handle)
+                .source_call_node(handle)
                 .map(|call| call.authored_machine_application),
             ElisionCallSite::Statement(handle) => program
                 .statement_table
@@ -224,6 +297,14 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
             let declared_arguments = program
                 .type_reference_table
                 .type_reference_handles(conformance.arguments);
+            let inferred_region_scope = inferred_substitutions
+                .iter()
+                .map(|(parameter, argument)| (parameter.clone(), Some(argument.clone())))
+                .collect::<Vec<_>>();
+            let caller_region_scope = call_lifetimes
+                .iter()
+                .map(|(parameter, argument)| (parameter.clone(), Some(argument.clone())))
+                .collect::<Vec<_>>();
             let shapes_match = declared_arguments.len() == bound.arguments.len()
                 && declared_arguments
                     .iter()
@@ -232,22 +313,30 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
                         applied_type_identity(
                             program,
                             *declared,
-                            call.caller_machine,
+                            typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(
+                                call.caller_machine,
+                            ),
                             &[AppliedTypeIdentityScope {
+                region_role: typed_trees::type_identity::AppliedTypeIdentityRegionRole::Supplied,
                                 declaration: conformance.symbol,
                                 arguments: &conformance_substitutions,
-                                lifetimes: &inferred_substitutions,
+                                lifetimes: &inferred_region_scope,
                             }],
+                            typed_trees::type_identity::TypeIdentityQualification::Ordinary,
                         )
                         .zip(applied_type_identity(
                             program,
                             *expected,
-                            call.caller_machine,
+                            typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(
+                                call.caller_machine,
+                            ),
                             &[AppliedTypeIdentityScope {
+                region_role: typed_trees::type_identity::AppliedTypeIdentityRegionRole::Supplied,
                                 declaration: callee_machine.symbol,
                                 arguments: &machine_substitutions,
-                                lifetimes: &call_lifetimes,
+                                lifetimes: &caller_region_scope,
                             }],
+                            typed_trees::type_identity::TypeIdentityQualification::Ordinary,
                         ))
                         .is_some_and(|(declared, expected)| declared == expected)
                     });
@@ -279,45 +368,89 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
             call.machine_arguments[argument_ordinal] = selected;
         }
 
-        if let Some(application) = application.filter(|application| application.is_valid()) {
-            let binding_declaration = program.lifetime_declaration_owner(callee_machine.symbol);
-            let lifetimes = call_lifetimes
-                .iter()
-                .map(|(parameter, argument)| {
-                    typed_trees::static_applications::StaticMachineLifetimeBinding {
-                        parameter: Identifier::generated(parameter),
-                        argument: Identifier::generated(argument),
-                    }
-                })
-                .collect::<Vec<_>>();
-            // Region-only ordinary calls have no type-specialization step to
-            // bind their source telescope later. Retain its exact declaration
-            // with the operands; an existing static selection keeps its owner.
-            let source = program
-                .expression_table
-                .static_machine_application_mut(application);
-            if !source.binding_declaration.is_valid() {
-                source.binding_declaration = binding_declaration;
+        // A new receipt captures this original arena occurrence. An existing
+        // receipt already owns the original static operands; do not restore
+        // consumed operands into an executable call after specialization.
+        if !retained.is_valid() {
+            // Publish inferred conformance operands on the authentic original call
+            // before retain_authored_call reads that occurrence into its receipt.
+            match call.site {
+                ElisionCallSite::Expression(handle) => {
+                    let Some(original) = program.expression_table.source_call_node_mut(handle)
+                    else {
+                        diagnostics.push(Diagnostic::error(
+                            "lifetime inference lost its original source invocation",
+                        ));
+                        continue;
+                    };
+                    original.machine_arguments = call.machine_arguments.clone();
+                }
+                ElisionCallSite::Statement(handle) => {
+                    let StatementNode::Call(current) =
+                        program.statement_table.statement_mut(handle)
+                    else {
+                        continue;
+                    };
+                    current.machine_arguments = call.machine_arguments.clone();
+                }
             }
-            program
-                .expression_table
-                .set_static_machine_application_lifetimes(application, &lifetimes);
         }
-        match call.site {
+
+        let site = match call.site {
             ElisionCallSite::Expression(handle) => {
-                let ExpressionNode::Call(current) = program.expression_table.expression_mut(handle)
-                else {
-                    continue;
-                };
-                current.machine_arguments = call.machine_arguments;
+                crate::monomorphization::CallSite::Expression(handle)
             }
             ElisionCallSite::Statement(handle) => {
-                let StatementNode::Call(current) = program.statement_table.statement_mut(handle)
-                else {
-                    continue;
-                };
-                current.machine_arguments = call.machine_arguments;
+                crate::monomorphization::CallSite::Statement(handle)
             }
+        };
+        let application = crate::monomorphization::applications::retain_authored_call(
+            program,
+            site,
+            call.caller_machine,
+        );
+        if !application.is_valid() {
+            diagnostics.push(Diagnostic::error(
+                "lifetime inference lost its original source invocation",
+            ));
+            continue;
+        }
+        // Existing receipts must observe the same completed source operands as
+        // newly issued receipts. This updates only the original occurrence,
+        // never the rewritten executable application's tuple.
+        if program
+            .expression_table
+            .static_machine_application_arguments(application)
+            != call.machine_arguments.as_ref()
+        {
+            let arguments = program
+                .expression_table
+                .static_machine_application_arguments_mut(application);
+            if arguments.len() != call.machine_arguments.len() {
+                diagnostics.push(Diagnostic::error(
+                    "lifetime inference changed its retained original operand telescope",
+                ));
+                continue;
+            }
+            arguments.clone_from_slice(&call.machine_arguments);
+        }
+        let binding_declaration = program.lifetime_declaration_owner(callee_machine.symbol);
+        let source = program
+            .expression_table
+            .static_machine_application_mut(application);
+        if !source.binding_declaration.is_valid() {
+            source.binding_declaration = binding_declaration;
+        }
+        // Publish before any instance key consumes the source receipt. Reuse
+        // unchanged rows so this producer does not create clone-only progress.
+        if program
+            .expression_table
+            .static_machine_application_lifetimes(application)
+            != invocation_lifetimes
+        {
+            program
+                .expression_table
+                .set_static_machine_application_lifetimes(application, &invocation_lifetimes);
         }
     }
     if diagnostics.is_empty() {
@@ -327,8 +460,11 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
     }
 }
 
-fn collect_elision_calls(program: &dyn ::validation::CheckingInput) -> Vec<ElisionCall> {
+fn collect_elision_calls(
+    program: &dyn ::validation::CheckingInput,
+) -> Result<Vec<ElisionCall>, Vec<Diagnostic>> {
     let mut calls = Vec::new();
+    let mut diagnostics = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for handle in state.statement_nodes.handles() {
@@ -352,6 +488,7 @@ fn collect_elision_calls(program: &dyn ::validation::CheckingInput) -> Vec<Elisi
                                 state.symbol,
                                 *argument,
                                 &mut calls,
+                                &mut diagnostics,
                             );
                         }
                     }
@@ -361,6 +498,7 @@ fn collect_elision_calls(program: &dyn ::validation::CheckingInput) -> Vec<Elisi
                         state.symbol,
                         *expression,
                         &mut calls,
+                        &mut diagnostics,
                     ),
                     StatementNode::LocalData(local) => collect_expression_elision_calls(
                         program,
@@ -368,6 +506,7 @@ fn collect_elision_calls(program: &dyn ::validation::CheckingInput) -> Vec<Elisi
                         state.symbol,
                         local.initial_value,
                         &mut calls,
+                        &mut diagnostics,
                     ),
                     StatementNode::Assignment(assignment) => {
                         collect_expression_elision_calls(
@@ -376,6 +515,7 @@ fn collect_elision_calls(program: &dyn ::validation::CheckingInput) -> Vec<Elisi
                             state.symbol,
                             assignment.target,
                             &mut calls,
+                            &mut diagnostics,
                         );
                         collect_expression_elision_calls(
                             program,
@@ -383,6 +523,7 @@ fn collect_elision_calls(program: &dyn ::validation::CheckingInput) -> Vec<Elisi
                             state.symbol,
                             assignment.value,
                             &mut calls,
+                            &mut diagnostics,
                         );
                     }
                     StatementNode::AssemblyFact(fact) => collect_expression_elision_calls(
@@ -391,13 +532,18 @@ fn collect_elision_calls(program: &dyn ::validation::CheckingInput) -> Vec<Elisi
                         state.symbol,
                         fact.expression,
                         &mut calls,
+                        &mut diagnostics,
                     ),
                     _ => {}
                 }
             }
         }
     }
-    calls
+    if diagnostics.is_empty() {
+        Ok(calls)
+    } else {
+        Err(diagnostics)
+    }
 }
 
 fn collect_expression_elision_calls(
@@ -406,6 +552,7 @@ fn collect_expression_elision_calls(
     caller_state: SymbolHandle,
     expression: ExpressionHandle,
     calls: &mut Vec<ElisionCall>,
+    diagnostics: &mut Vec<Diagnostic>,
 ) {
     if !expression.is_valid()
         || calls.iter().any(
@@ -415,7 +562,13 @@ fn collect_expression_elision_calls(
         return;
     }
     match program.expression_table.expression(expression) {
-        ExpressionNode::Call(call) => {
+        ExpressionNode::Call(_) => {
+            let Some(call) = program.expression_table.source_call_node(expression) else {
+                diagnostics.push(Diagnostic::error(
+                    "lifetime inference lost its original source invocation",
+                ));
+                return;
+            };
             calls.push(ElisionCall {
                 site: ElisionCallSite::Expression(expression),
                 caller_machine,
@@ -433,6 +586,7 @@ fn collect_expression_elision_calls(
                 caller_state,
                 call.receiver,
                 calls,
+                diagnostics,
             );
             for argument in program.expression_table.expression_handles(call.arguments) {
                 collect_expression_elision_calls(
@@ -441,6 +595,7 @@ fn collect_expression_elision_calls(
                     caller_state,
                     *argument,
                     calls,
+                    diagnostics,
                 );
             }
         }
@@ -452,6 +607,7 @@ fn collect_expression_elision_calls(
                     caller_state,
                     *value,
                     calls,
+                    diagnostics,
                 );
             }
         }
@@ -462,6 +618,7 @@ fn collect_expression_elision_calls(
                 caller_state,
                 atomic.value,
                 calls,
+                diagnostics,
             );
             collect_expression_elision_calls(
                 program,
@@ -469,6 +626,7 @@ fn collect_expression_elision_calls(
                 caller_state,
                 atomic.result,
                 calls,
+                diagnostics,
             );
         }
         ExpressionNode::Match(dispatch) => {
@@ -479,6 +637,7 @@ fn collect_expression_elision_calls(
                     caller_state,
                     handle,
                     calls,
+                    diagnostics,
                 );
                 true
             });
@@ -490,6 +649,7 @@ fn collect_expression_elision_calls(
                 caller_state,
                 binary.left,
                 calls,
+                diagnostics,
             );
             collect_expression_elision_calls(
                 program,
@@ -497,6 +657,7 @@ fn collect_expression_elision_calls(
                 caller_state,
                 binary.right,
                 calls,
+                diagnostics,
             );
         }
         ExpressionNode::Cast(cast) => collect_expression_elision_calls(
@@ -505,6 +666,7 @@ fn collect_expression_elision_calls(
             caller_state,
             cast.value,
             calls,
+            diagnostics,
         ),
         ExpressionNode::Indexed(indexed) => {
             collect_expression_elision_calls(
@@ -513,6 +675,7 @@ fn collect_expression_elision_calls(
                 caller_state,
                 indexed.collection,
                 calls,
+                diagnostics,
             );
             collect_expression_elision_calls(
                 program,
@@ -520,6 +683,7 @@ fn collect_expression_elision_calls(
                 caller_state,
                 indexed.index,
                 calls,
+                diagnostics,
             );
         }
         ExpressionNode::Member(member) => collect_expression_elision_calls(
@@ -528,6 +692,7 @@ fn collect_expression_elision_calls(
             caller_state,
             member.receiver,
             calls,
+            diagnostics,
         ),
         ExpressionNode::Borrow(inner) => collect_expression_elision_calls(
             program,
@@ -535,6 +700,7 @@ fn collect_expression_elision_calls(
             caller_state,
             inner.target,
             calls,
+            diagnostics,
         ),
         ExpressionNode::Range(range) => {
             collect_expression_elision_calls(
@@ -543,6 +709,7 @@ fn collect_expression_elision_calls(
                 caller_state,
                 range.start,
                 calls,
+                diagnostics,
             );
             collect_expression_elision_calls(
                 program,
@@ -550,6 +717,7 @@ fn collect_expression_elision_calls(
                 caller_state,
                 range.end,
                 calls,
+                diagnostics,
             );
         }
         ExpressionNode::StructLiteral(literal) => {
@@ -560,6 +728,7 @@ fn collect_expression_elision_calls(
                     caller_state,
                     field.value,
                     calls,
+                    diagnostics,
                 );
             }
         }
@@ -569,6 +738,7 @@ fn collect_expression_elision_calls(
             caller_state,
             unary.operand,
             calls,
+            diagnostics,
         ),
         typed_trees::literal_expression_pattern!() => {}
     }
@@ -594,6 +764,63 @@ fn resolved_lifetime<'a>(bindings: &'a [(String, String)], name: &str) -> Option
         .iter()
         .rev()
         .find_map(|(parameter, argument)| (parameter == name).then_some(argument.as_str()))
+}
+
+/// Retain the actual operand class for every region constrained by ordinary
+/// reference inputs. An anonymous operand is present correspondence, not a
+/// guessed named binder; unused or unresolved formals remain absent.
+pub(crate) fn collect_lifetime_arguments(
+    program: &dyn ::validation::CheckingInput,
+    required: TypeReferenceHandle,
+    actual: TypeReferenceHandle,
+    parameters: &[Identifier],
+    bindings: &mut Vec<typed_trees::static_applications::StaticMachineLifetimeBinding>,
+    conflict: &mut bool,
+) {
+    visit_lifetime_bindings(
+        program,
+        required,
+        actual,
+        parameters,
+        &mut |parameter, actual| retain_lifetime_argument(parameter, actual, bindings, conflict),
+    );
+    bindings.sort_by_key(|binding| {
+        parameters
+            .iter()
+            .position(|parameter| parameter == &binding.parameter)
+    });
+}
+
+fn retain_lifetime_argument(
+    parameter: &Identifier,
+    actual: Option<&Identifier>,
+    bindings: &mut Vec<typed_trees::static_applications::StaticMachineLifetimeBinding>,
+    conflict: &mut bool,
+) {
+    use typed_trees::static_applications::{
+        StaticMachineLifetimeArgument, StaticMachineLifetimeBinding,
+    };
+    let argument = StaticMachineLifetimeArgument::inferred(actual);
+    if let Some(previous) = bindings
+        .iter_mut()
+        .find(|binding| binding.parameter == *parameter)
+    {
+        match (&previous.argument, &argument) {
+            (StaticMachineLifetimeArgument::Anonymous, StaticMachineLifetimeArgument::Named(_)) => {
+                previous.argument = argument;
+            }
+            (
+                StaticMachineLifetimeArgument::Named(left),
+                StaticMachineLifetimeArgument::Named(right),
+            ) if left != right => *conflict = true,
+            _ => {}
+        }
+    } else {
+        bindings.push(StaticMachineLifetimeBinding {
+            parameter: parameter.clone(),
+            argument,
+        });
+    }
 }
 
 pub(crate) fn collect_lifetime_bindings(

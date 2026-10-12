@@ -16,6 +16,7 @@ use symbols::SymbolHandle;
 
 pub(crate) struct AuthoredCall {
     pub source_target: SymbolHandle,
+    pub application: typed_trees::static_applications::StaticMachineApplicationHandle,
     pub source_site: Option<NominalMachineUseSite>,
     pub scalar_arguments: Vec<(ExpressionHandle, PrimitiveType)>,
     pub structural_arguments: Vec<(u32, ExpressionHandle)>,
@@ -67,6 +68,7 @@ fn planned_call<'checked>(
     };
     Ok(PlannedCall {
         target: call.authored_target,
+        application: call.authored_application,
         arguments: control
             .call_arguments
             .span_or_empty(call.authored_arguments),
@@ -76,6 +78,7 @@ fn planned_call<'checked>(
 
 struct PlannedCall<'checked> {
     target: SymbolHandle,
+    application: typed_trees::static_applications::StaticMachineApplicationHandle,
     arguments: &'checked [ExpressionHandle],
     site: Option<NominalMachineUseSite>,
 }
@@ -89,10 +92,12 @@ pub(crate) fn locate(
     let (machine, state) = crate::declarations::state_declaration(checked, caller_state)?;
     let PlannedCall {
         target: source_target,
+        application,
         arguments,
         site: source_site,
     } = planned_call(checked, state, caller_state, coordinate)?;
-    let target = crate::declarations::target_signature(checked, machine.symbol, source_target)?;
+    let target =
+        crate::declarations::target_signature(checked, machine.symbol, source_target, application)?;
     let parameters = target.parameters;
     if arguments.len() != parameters.len() {
         return unsupported("call row disagrees with its callee's argument count");
@@ -120,6 +125,7 @@ pub(crate) fn locate(
     }
     Ok(AuthoredCall {
         source_target,
+        application,
         source_site,
         scalar_arguments,
         structural_arguments,

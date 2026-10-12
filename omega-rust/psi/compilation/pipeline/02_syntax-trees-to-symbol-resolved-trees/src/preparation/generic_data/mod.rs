@@ -15,7 +15,6 @@
 //! views without reopening the frozen program during checking.
 
 use crate::preparation::declaration_selection;
-use crate::preparation::generic_data::uses::concrete_machine_expression_handles;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::CanonicalConstValue;
@@ -54,24 +53,25 @@ pub(crate) use arguments::{
     selected_domain_family, type_reference_slug,
 };
 pub(in crate::preparation::generic_data) use arguments::{
-    canonicalize_monomorphizable_argument_handles, complete_argument_tuple,
+    canonicalize_monomorphizable_argument_handles, closed_const_argument_identity,
+    complete_argument_tuple,
 };
 pub(crate) use const_evaluation::{
-    ConstFactValue, ConstScalarSpelling, ConstScalarValue, closed_fixed_array_length,
-    evaluate_const_fact_binary, evaluate_const_fact_expression, evaluate_const_membership_fact,
-    prove_const_literal_predicates, prove_declared_const_domain_constraints,
+    ConstFactValue, ConstScalarSpelling, ConstScalarValue, canonicalize_selected_index_expression,
+    closed_fixed_array_length, evaluate_const_fact_binary, evaluate_const_fact_expression,
+    evaluate_const_membership_fact, prove_const_literal_predicates,
+    prove_declared_const_domain_constraints,
 };
 pub(in crate::preparation::generic_data) use const_evaluation::{
     EvaluatedConst, canonicalize_closed_domain_indices, canonicalize_const_definition,
-    canonicalize_selected_declaration_value, canonicalize_selected_index_expression,
-    capture_machine_runtime_template_names, checked_fact_integer,
-    collect_data_type_reference_positions, collect_machine_type_reference_positions,
-    const_integer_in_envelope, const_integer_type, domain_index_parameters,
-    evaluate_const_argument_expression, generic_const_integer_types, integer_literal_value,
-    normalize_generic_template_const_expressions, prepare_closed_application,
-    prove_const_leaf_domain_constraints, qualified_const_name, replace_const_expression_names_from,
-    replace_machine_const_expression_names_from, syntax_type_identity, validate_const_index_type,
-    validate_syntax_integer_range,
+    canonicalize_selected_declaration_value, capture_machine_runtime_template_names,
+    checked_fact_integer, collect_data_type_reference_positions,
+    collect_lexical_type_reference_positions, const_integer_in_envelope, const_integer_type,
+    domain_index_parameters, evaluate_const_argument_expression, generic_const_integer_types,
+    integer_literal_value, normalize_generic_template_const_expressions,
+    prepare_closed_application, prove_const_leaf_domain_constraints, qualified_const_name,
+    replace_const_expression_names_from, replace_machine_const_expression_names_from,
+    syntax_type_identity, validate_const_index_type, validate_syntax_integer_range,
 };
 pub(in crate::preparation) use const_evaluation::{
     canonicalize_selected_const_definition, collect_type_positions,
@@ -111,17 +111,17 @@ pub fn closed_data_const_argument_expressions(
     ))
 }
 
-/// Authored constant arguments in nongeneric machine type owners. Discovery
-/// supplies destinations, not value-selection authority: callers must resolve
-/// each expression in its original machine and state scope before evaluation.
-pub fn closed_machine_const_arguments(
+/// Declaration-owned constant arguments. Discovery supplies destinations, not
+/// value-selection authority: each expression resolves in its original lexical
+/// scope before evaluation; free const binders remain for specialization.
+pub fn original_scope_const_arguments(
     syntax: &SyntaxTrees,
     sources: Option<std::sync::Arc<source::SourceMap>>,
     top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
 ) -> Result<Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>, Vec<Diagnostic>> {
     let selection =
         declaration_selection::ConstantSelection::new(syntax, sources, top_level_bindings)?;
-    let (positions, public_positions) = collect_machine_type_reference_positions(syntax);
+    let (positions, public_positions) = collect_lexical_type_reference_positions(syntax);
     Ok(collect_closed_const_arguments(
         syntax,
         &selection,
@@ -216,14 +216,18 @@ fn collect_closed_const_arguments(
         }
     }
     if include_machine_casts {
-        let concrete = concrete_machine_expression_handles(syntax);
-        for (handle, expression) in syntax.expressions.iter_expressions() {
-            if !concrete.contains(handle) {
-                continue;
-            }
+        for (_, expression) in syntax.expressions.iter_expressions() {
             let ExpressionNode::Cast(cast) = expression else {
                 continue;
             };
+            if !syntax
+                .type_references
+                .type_reference_handles(cast.semantic_domain_arguments)
+                .iter()
+                .any(|argument| positions.contains(argument))
+            {
+                continue;
+            }
             let members = syntax
                 .expressions
                 .identifier_path_members(cast.semantic_domain);
@@ -395,8 +399,8 @@ pub fn normalize_generic_data(
 }
 
 /// Replay direct structural arguments at their actual generic owner. The
-/// encoded label is consistency data; the selected template's parameter owns
-/// the carrier used by the existing canonical encoder.
+/// encoded result is consistency data; original operands and the selected
+/// template's parameter independently own carrier and operation admission.
 pub(crate) fn validate_direct_const_arguments(
     syntax: &SyntaxTrees,
     base_name: &Identifier,
@@ -452,7 +456,7 @@ pub(crate) fn validate_direct_const_arguments(
             Some(selection),
         )
         .map_err(|message| Diagnostic::error(message).with_source_span(normalization.reference))?;
-        if value.encoding != normalization.canonical_result_encoding {
+        if !crate::constant::normalized_const_result_matches(&value, normalization) {
             return Err(Diagnostic::error(
                 "direct constant expression differs from its normalized value",
             )

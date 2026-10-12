@@ -118,7 +118,7 @@ pub(super) fn selection(
             roots.push((place, true));
         }
     }
-    let selected = evaluation.selection_return_discards(roots)?;
+    let selected = evaluation.selection_return_discards(roots, operations)?;
     let previous = std::mem::take(actions);
     for place in selected {
         let retained = previous

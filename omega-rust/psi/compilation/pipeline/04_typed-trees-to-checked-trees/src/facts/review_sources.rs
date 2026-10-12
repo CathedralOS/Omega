@@ -178,6 +178,11 @@ pub(crate) fn bind_checked_body_call_source_spans(
             };
             checked_call.authored_site = site;
             checked_call.authored_target = target;
+            checked_call.authored_application = match &call_site {
+                CallSite::Statement(call) => call.authored_machine_application,
+                CallSite::Expression { call, .. } => call.authored_machine_application,
+                CallSite::TransitionNamed { .. } => Default::default(),
+            };
             checked_call.authored_arguments = control
                 .call_arguments
                 .insert_many(arguments.iter().copied());

@@ -29,6 +29,7 @@
 use crate::build_time_evaluation::EvaluationDomain;
 use diagnostics::Diagnostic;
 use numerics::bignum::BigInt;
+use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
@@ -67,6 +68,16 @@ fn pending_array_lengths(
         .collect()
 }
 
+pub(crate) fn source_constant_demands(
+    typed: &TypedTrees,
+    domain: &EvaluationDomain,
+    demands: &mut crate::source_constants::SourceConstantDemands,
+) {
+    for (_, machine, _, _) in pending_array_lengths(typed, domain) {
+        demands.machine(machine);
+    }
+}
+
 pub fn evaluate_const_array_lengths(
     typed: &mut TypedTrees,
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
@@ -79,11 +90,21 @@ pub(crate) fn evaluate_const_array_lengths_in(
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     domain: &EvaluationDomain,
 ) -> Result<(), Vec<Diagnostic>> {
+    evaluate_admitted_array_lengths(typed, selection_authority, domain, Default::default())
+}
+
+pub(crate) fn evaluate_admitted_array_lengths(
+    typed: &mut TypedTrees,
+    selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
+    domain: &EvaluationDomain,
+    admission: crate::BuildTimeCheckingAdmission<'_>,
+) -> Result<(), Vec<Diagnostic>> {
     LengthJobs::new(
         selection_authority,
         domain,
         LengthProviderSelection::Independent,
     )
+    .with_admission(admission)
     .evaluate(typed)
     .map(|_| ())
 }
@@ -108,6 +129,7 @@ pub(crate) fn evaluate_selected_array_lengths(
     let crate::SelectedBuildTimeOperators {
         operators,
         provider_bodies,
+        admission,
     } = selected;
     // Admission and execution must see the same selected realization. When a
     // selected use means an ordinary checked provider body, rebind its
@@ -127,6 +149,8 @@ pub(crate) fn evaluate_selected_array_lengths(
         domain,
         LengthProviderSelection::Selected(operators),
     )
+    .with_admission(admission)
+    .with_provider_dependencies(provider_bodies)
     .evaluate(&mut execution)?;
     for (type_reference, _, _, _) in pending_array_lengths(typed, domain) {
         if let TypeReferenceNode::FixedArray {
@@ -157,6 +181,8 @@ struct LengthJobs<'selection> {
     domain: &'selection EvaluationDomain,
     providers: LengthProviderSelection<'selection>,
     active: Vec<(TypeReferenceHandle, String)>,
+    admission: crate::BuildTimeCheckingAdmission<'selection>,
+    provider_dependencies: Vec<SymbolHandle>,
 }
 
 impl<'selection> LengthJobs<'selection> {
@@ -170,7 +196,23 @@ impl<'selection> LengthJobs<'selection> {
             domain,
             providers,
             active: Vec::new(),
+            admission: Default::default(),
+            provider_dependencies: Vec::new(),
         }
+    }
+
+    fn with_admission(mut self, admission: crate::BuildTimeCheckingAdmission<'selection>) -> Self {
+        self.admission = admission;
+        self
+    }
+
+    fn with_provider_dependencies(
+        mut self,
+        bodies: &[crate::SelectedBuildTimeProviderBody],
+    ) -> Self {
+        self.provider_dependencies =
+            crate::machine_execution::selected_operators::selected_execution_roots(&[], bodies);
+        self
     }
 
     /// Only successful source-owned lengths leave the private job graph. A
@@ -276,7 +318,9 @@ impl<'selection> LengthJobs<'selection> {
         machine: symbols::SymbolHandle,
         source: source::SourceSpan,
     ) -> Result<Option<usize>, Vec<Diagnostic>> {
-        let domain = EvaluationDomain::all().demanded_roots(typed, &[machine]);
+        let mut roots = self.provider_dependencies.clone();
+        roots.push(machine);
+        let domain = EvaluationDomain::all().demanded_roots(typed, &roots);
         let mut execution = domain.execution_program(typed);
         let admission = BuildTimeAdmissionPlan::infer(&execution, self.authority.clone());
         if matches!(self.providers, LengthProviderSelection::Pending) {
@@ -331,27 +375,21 @@ impl<'selection> LengthJobs<'selection> {
             crate::SelectedBuildTimeOperators {
                 operators: &operators,
                 provider_bodies: &[],
+                admission: self.admission,
             },
             &EvaluationDomain::all(),
         )?;
-        let preparation_request = typed_trees_to_typed_trees::PreparationRequest::settled();
-        let checking = typed_trees_to_checked_trees::CheckingRequest::new();
-        let (execution, preparation) =
-            typed_trees_to_typed_trees::prepare_typed_trees(execution, &preparation_request)?;
-        let checked =
-            typed_trees_to_checked_trees::lower_typed_trees(execution, preparation, &checking)?;
-        // Admission sees the selected operation's executable meaning, not a
-        // bodyless requirement introduced by ordinary call normalization.
-        // Derive that semantic view from the fully checked graph: preparation
-        // also resolves member meaning such as a newly-known array length.
-        // The executed checked graph and all its facts remain immutable.
-        let admitted = crate::machine_execution::selected_operators::prepare_selected_execution(
-            &checked.typed,
-            &[],
-            &operators,
-        )
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        let execution = admitted.as_ref().unwrap_or(&checked.typed);
+        let (execution, preparation) = typed_trees_to_typed_trees::prepare_typed_trees(
+            execution,
+            &self.admission.preparation,
+        )?;
+        let checked = typed_trees_to_checked_trees::lower_typed_trees(
+            execution,
+            preparation,
+            &self.admission.checking,
+        )?;
+        let prepared = crate::PreparedBuildMachineProgram::from_checked(checked);
+        let execution = prepared.typed();
         let root = execution.machine_by_symbol(machine).ok_or_else(|| {
             vec![Diagnostic::error(
                 "array length lost its exact selected machine",
@@ -359,7 +397,8 @@ impl<'selection> LengthJobs<'selection> {
         })?;
         require_zero_argument_entry(execution, root)
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        let admission = BuildTimeAdmissionPlan::infer(execution, self.authority.clone())
+        let admission = BuildTimeAdmissionPlan::infer_prepared(&prepared, self.authority.clone())
+            .map_err(|reason| vec![Diagnostic::error(reason)])?
             .with_selected_operators(execution, &operators)
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
         // The immutable checked entry consumes the same sealed occurrence row,
@@ -373,7 +412,6 @@ impl<'selection> LengthJobs<'selection> {
                 false,
             )
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        let prepared = crate::PreparedBuildMachineProgram::from_checked(checked);
         let entry = prepared
             .entry(machine)
             .map_err(|reason| vec![Diagnostic::error(reason)])?;

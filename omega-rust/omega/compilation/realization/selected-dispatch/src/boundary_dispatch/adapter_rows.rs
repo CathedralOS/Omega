@@ -4,7 +4,6 @@ use crate::boundary_dispatch::boundary_fields::exact_boundary_trait;
 use crate::boundary_dispatch::signature_families::{FamilyProbe, finite_signature_family};
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
-mod closed_trait_applications;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct AdapterRow {
@@ -37,13 +36,10 @@ pub(crate) enum AdapterReceiver {
     Direct { namespace: symbols::SymbolHandle },
 }
 
-/// A selected requirement that declares local generic binders but cannot
-/// produce dispatch rows: either it declares no complete finite `where`
-/// family, or the selected provider's checked specializations do not cover
-/// every declared tuple. Ineligibility is individual: the requirement
-/// supplies no dispatch row, sibling requirements still settle, and a call
-/// targeting it rejects below instead of silently dispatching every tuple to
-/// the unbound generic template.
+/// A selected open requirement without executable rows for its invocation.
+/// Missing exact source applications and incomplete universal finite families
+/// remain visible independently of sibling requirements. Calling an unbound
+/// template rejects rather than dispatching to a provider without a tuple.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct GenericBoundaryRequirement {
     pub(crate) receiver_trait: symbols::SymbolHandle,
@@ -201,38 +197,14 @@ pub(crate) fn resolve_selected_adapter_target<'a>(
     }))
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn resolve_selected_adapter_row(
-    typed: &TypedTrees,
+    checked: &checked_trees::CheckedTrees,
     declarations: &typed_trees::references::DeclarationSelection,
     plan: &effects::provider_plan::ProviderPlan,
     row: &effects::provider_plan::ProviderPlanRow,
-    specialization_rows: &[effects::SelectedRequirementSpecialization],
-    specialization_identities: &terminal_psi::TerminalIdentityTable,
-) -> Result<Vec<ResolvedAdapterRow>, Diagnostic> {
-    let rows = resolve_template_adapter_rows(
-        typed,
-        declarations,
-        plan,
-        row,
-        specialization_rows,
-        specialization_identities,
-    )?;
-    closed_trait_applications::project(
-        typed,
-        declarations,
-        plan,
-        row,
-        specialization_rows,
-        specialization_identities,
-        rows,
-    )
-}
-
-fn resolve_template_adapter_rows(
-    typed: &TypedTrees,
-    declarations: &typed_trees::references::DeclarationSelection,
-    plan: &effects::provider_plan::ProviderPlan,
-    row: &effects::provider_plan::ProviderPlanRow,
+    row_ordinal: usize,
+    selected_providers: &[provider_planning::SelectedProviderReviewProvenance],
     specialization_rows: &[effects::SelectedRequirementSpecialization],
     specialization_identities: &terminal_psi::TerminalIdentityTable,
 ) -> Result<Vec<ResolvedAdapterRow>, Diagnostic> {
@@ -245,85 +217,135 @@ fn resolve_template_adapter_rows(
         return Ok(Vec::new());
     };
     let machine_identity = plan.identity_text(*machine_identity);
-    let (method, receiver_trait, requirement_owner, signature) =
-        match resolve_selected_adapter_target(typed, plan, row)? {
-            Some(SelectedAdapterTarget::TopLevelRequirement {
+    let Some(target) = resolve_selected_adapter_target(checked, plan, row)? else {
+        return Ok(Vec::new());
+    };
+    let mut providers = selected_providers
+        .iter()
+        .filter(|provider| provider.plan == *plan);
+    let selected = providers.next().ok_or_else(|| {
+        Diagnostic::error("selected checked adapter lost its original source provenance")
+    })?;
+    if providers.next().is_some() {
+        return Err(Diagnostic::error(
+            "selected checked adapter has competing source provenance",
+        ));
+    }
+    let source = provider_planning::selected_applications::selected_checked_requirement_row(
+        checked,
+        selected,
+        row_ordinal,
+    )?;
+    let adapter = source.adapter();
+    let (method, receiver_trait, requirement_owner, signature) = match target {
+        SelectedAdapterTarget::TopLevelRequirement {
+            method,
+            requirement,
+        } => {
+            if source.requirement_template() != requirement.symbol {
+                return Err(Diagnostic::error(
+                    "selected adapter schema disagrees with its original required declaration",
+                ));
+            }
+            return resolve_top_level_requirement_adapter_row(
+                checked,
+                declarations,
+                plan,
+                row,
                 method,
                 requirement,
-            }) => {
-                return resolve_top_level_requirement_adapter_row(
-                    typed,
-                    declarations,
-                    plan,
-                    row,
-                    method,
-                    requirement,
-                    machine_identity,
-                    specialization_rows,
-                    specialization_identities,
-                );
-            }
-            Some(SelectedAdapterTarget::TraitRequirement {
-                method,
-                receiver_trait,
-                requirement_owner,
-                signature,
-            }) => (method, receiver_trait, requirement_owner, signature),
-            None => return Ok(Vec::new()),
+                adapter,
+                machine_identity,
+                specialization_rows,
+                specialization_identities,
+            );
+        }
+        SelectedAdapterTarget::TraitRequirement {
+            method,
+            receiver_trait,
+            requirement_owner,
+            signature,
+        } => (method, receiver_trait, requirement_owner, signature),
+    };
+    if source.requirement_template() != signature.symbol {
+        return Err(Diagnostic::error(
+            "selected adapter schema disagrees with its original required declaration",
+        ));
+    }
+    let mut resolved = Vec::new();
+    for application in source.applications()? {
+        let schema = source.schema(&application).ok_or_else(|| {
+            Diagnostic::error(
+                "selected source application lost its complete public requirement schema",
+            )
+        })?;
+        let [method] = schema.methods.as_slice() else {
+            return Err(Diagnostic::error(
+                "selected source application lost its exact public requirement row",
+            ));
         };
-
-    // Requirement-local binders make this a family of rows keyed by canonical
-    // value tuple, not one exact overload. The signature's `where` clause
-    // must declare the complete finite roster explicitly.
-    if !typed.state_signature_type_parameters(signature).is_empty() {
-        return resolve_family_adapter_row(
-            typed,
+        if schema.identity_text(method.requirement_identity).is_empty() {
+            return Err(Diagnostic::error(
+                "selected source application lost its public identity owner",
+            ));
+        }
+        let implementation = checked
+            .machine(application.realization_instance())
+            .ok_or_else(|| {
+                Diagnostic::error("selected source application lost its checked provider body")
+            })?;
+        let entry = exact_adapter_entry(checked, implementation, machine_identity)?;
+        require_parameter_count(&schema, method, checked.state_parameters(entry).len())?;
+        resolved.push(ResolvedAdapterRow::Adapter(AdapterRow {
+            receiver_trait: receiver_trait.symbol,
+            provider_plan_digest: *plan.identity_digest().as_bytes(),
+            receiver_trait_name: receiver_trait.name.as_str().to_owned(),
+            requirement: method.name.clone(),
+            // The local target is the owned header symbol. Its static tuple is
+            // retained in checking's original application, independently of
+            // the overload identity used for diagnostics and selected schema.
+            requirement_identity: schema.identity_text(method.requirement_identity).to_owned(),
+            requirement_symbol: application.requirement_instance(),
+            adapter_target: implementation.name.as_str().to_owned(),
+            symbol: entry.symbol,
+            family_tuple: Box::default(),
+            family_tuple_display: Box::default(),
+            receiver: AdapterReceiver::Service,
+        }));
+    }
+    // A universal finite member family owns dynamic tuple dispatch. Concrete
+    // static applications above retain distinct public header targets; neither
+    // catalog supplies an unbound generic template on the other's behalf.
+    if !checked
+        .state_signature_type_parameters(signature)
+        .is_empty()
+    {
+        resolved.extend(resolve_family_adapter_row(
+            checked,
             plan,
             row,
             method,
             receiver_trait,
             requirement_owner,
             signature,
+            adapter,
             machine_identity,
-        );
+        )?);
+    } else if resolved.is_empty() {
+        resolved.push(ResolvedAdapterRow::GenericRequirement(
+            GenericBoundaryRequirement {
+                receiver_trait: receiver_trait.symbol,
+                provider_plan_digest: *plan.identity_digest().as_bytes(),
+                requirement_symbol: signature.symbol,
+                requirement_identity: plan
+                    .schema
+                    .identity_text(method.requirement_identity)
+                    .to_owned(),
+                reason: "selected requirement has no closed checked source application".to_owned(),
+            },
+        ));
     }
-
-    let adapter = planned_checked_adapter(typed, plan, row, machine_identity)?;
-    let entry = exact_adapter_entry(typed, adapter, machine_identity)?;
-
-    if !provider_planning::provider_trait_requirement_matches(
-        provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
-        plan,
-        row,
-        adapter,
-        requirement_owner.symbol,
-        signature.symbol,
-    ) {
-        return Err(Diagnostic::error(format!(
-            "selected checked adapter `{machine_identity}` has no exact selected provider association for overload `{}`",
-            plan.schema.identity_text(method.requirement_identity),
-        )));
-    }
-
-    let actual_parameters = typed.state_parameters(entry);
-    require_parameter_count(plan, method, actual_parameters.len())?;
-
-    Ok(vec![ResolvedAdapterRow::Adapter(AdapterRow {
-        receiver_trait: receiver_trait.symbol,
-        provider_plan_digest: *plan.identity_digest().as_bytes(),
-        receiver_trait_name: receiver_trait.name.as_str().to_owned(),
-        requirement: method.name.clone(),
-        requirement_identity: plan
-            .schema
-            .identity_text(method.requirement_identity)
-            .to_owned(),
-        requirement_symbol: signature.symbol,
-        adapter_target: adapter.name.as_str().to_owned(),
-        symbol: entry.symbol,
-        family_tuple: Box::default(),
-        family_tuple_display: Box::default(),
-        receiver: AdapterReceiver::Service,
-    })])
+    Ok(resolved)
 }
 
 /// Resolve the exact checked adapter realizing a top-level `boundary
@@ -346,14 +368,14 @@ fn resolve_template_adapter_rows(
 /// Execution consumes the association while Terminal retains the
 /// requirement.
 fn require_parameter_count(
-    plan: &effects::provider_plan::ProviderPlan,
+    schema: &effects::provider_plan::ServiceSchema,
     method: &effects::provider_plan::ServiceMethod,
     actual: usize,
 ) -> Result<(), Diagnostic> {
     if actual != method.parameter_count {
         return Err(Diagnostic::error(format!(
             "selected checked adapter for `{}` has {} entry parameters; expected exactly {}",
-            plan.schema.identity_text(method.requirement_identity),
+            schema.identity_text(method.requirement_identity),
             actual,
             method.parameter_count,
         )));
@@ -368,6 +390,7 @@ fn resolve_top_level_requirement_adapter_row(
     row: &effects::provider_plan::ProviderPlanRow,
     method: &effects::provider_plan::ServiceMethod,
     requirement: &typed_trees::machine::Machine,
+    adapter: &typed_trees::machine::Machine,
     machine_identity: &str,
     specialization_rows: &[effects::SelectedRequirementSpecialization],
     specialization_identities: &terminal_psi::TerminalIdentityTable,
@@ -388,7 +411,6 @@ fn resolve_top_level_requirement_adapter_row(
             "selected top-level boundary requirement `{requirement_name}` has no exact entry-state symbol",
         )));
     }
-    let adapter = planned_checked_adapter(typed, plan, row, machine_identity)?;
     if !typed.machine_type_parameters(requirement).is_empty() {
         return resolve_specialized_top_level_requirement_adapter_rows(
             typed,
@@ -414,7 +436,7 @@ fn resolve_top_level_requirement_adapter_row(
         "requirement",
     )?;
     let actual_parameters = typed.state_parameters(adapter_entry);
-    require_parameter_count(plan, method, actual_parameters.len())?;
+    require_parameter_count(&plan.schema, method, actual_parameters.len())?;
     // A direct machine call targets the requirement's entry state, exactly
     // as the realization is keyed by its own entry state.
     Ok(vec![ResolvedAdapterRow::Adapter(AdapterRow {
@@ -603,7 +625,7 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
             )));
         }
         let actual_parameters = typed.state_parameters(instance_entry);
-        require_parameter_count(plan, method, actual_parameters.len())?;
+        require_parameter_count(&plan.schema, method, actual_parameters.len())?;
         resolved.push(ResolvedAdapterRow::Adapter(AdapterRow {
             receiver_trait: closed.symbol,
             provider_plan_digest: *plan.identity_digest().as_bytes(),
@@ -662,6 +684,7 @@ fn resolve_family_adapter_row(
     receiver_trait: &typed_trees::trait_definition::TraitDefinition,
     requirement_owner: &typed_trees::trait_definition::TraitDefinition,
     signature: &typed_trees::signature::StateSignature,
+    adapter: &typed_trees::machine::Machine,
     machine_identity: &str,
 ) -> Result<Vec<ResolvedAdapterRow>, Diagnostic> {
     let ineligible = |reason: String| {
@@ -688,7 +711,6 @@ fn resolve_family_adapter_row(
         }
     };
 
-    let adapter = planned_checked_adapter(typed, plan, row, machine_identity)?;
     // A family provider must be generic over exactly the requirement's
     // enumerable value binders; other binder kinds have no `where` equality
     // to close them and mixed static arguments cannot key a value tuple.
@@ -732,7 +754,7 @@ fn resolve_family_adapter_row(
     // The template entry's parameter shape is invariant under const
     // specialization, so the arity check is computed once on the template.
     let actual_parameters = typed.state_parameters(template_entry);
-    require_parameter_count(plan, method, actual_parameters.len())?;
+    require_parameter_count(&plan.schema, method, actual_parameters.len())?;
 
     let mut rows = Vec::new();
     let mut missing = Vec::new();
@@ -817,45 +839,6 @@ fn resolve_family_adapter_row(
         )));
     }
     Ok(rows)
-}
-
-/// The exact checked adapter a boundary row's ProviderPlan names: the plan
-/// must carry a nominal provider type, the resolved adapter must belong to
-/// it, and the adapter must be a checked body.
-fn planned_checked_adapter<'typed>(
-    typed: &'typed TypedTrees,
-    plan: &effects::provider_plan::ProviderPlan,
-    row: &effects::provider_plan::ProviderPlanRow,
-    machine_identity: &str,
-) -> Result<&'typed typed_trees::machine::Machine, Diagnostic> {
-    if plan.provider_type.is_empty() {
-        return Err(Diagnostic::error(format!(
-            "selected checked-adapter ProviderPlan `{}` has no nominal provider type",
-            plan.name,
-        )));
-    }
-    let adapter = provider_planning::exact_checked_adapter(
-        provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
-        plan,
-        row,
-    )?;
-    if !provider_planning::provider_row_matches(
-        provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
-        plan,
-        row,
-        adapter,
-    ) {
-        return Err(Diagnostic::error(format!(
-            "selected checked adapter `{machine_identity}` does not belong to nominal provider `{}`",
-            plan.provider_type,
-        )));
-    }
-    if !adapter.supply_mode.is_checked_body() {
-        return Err(Diagnostic::error(format!(
-            "selected checked adapter `{machine_identity}` is not a checked body",
-        )));
-    }
-    Ok(adapter)
 }
 
 /// The executable entry state of an exact checked adapter: a generic

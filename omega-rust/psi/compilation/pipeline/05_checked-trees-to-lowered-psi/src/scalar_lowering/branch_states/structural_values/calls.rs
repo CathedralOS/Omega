@@ -25,6 +25,36 @@ impl Storage {
             let node = checked.facts.values.structural_values.nodes.get(value);
             if matches!(
                 node.kind,
+                checked_trees::CheckedStructuralValueKind::Dispatch { .. }
+            ) && !self.joins.iter().any(|(candidate, _)| *candidate == value)
+            {
+                let count = checked
+                    .facts
+                    .flow
+                    .ownership
+                    .owned_selection_for_expression(
+                        node.state,
+                        node.statement_index,
+                        node.expression,
+                    )
+                    .map(|(_, receipt)| {
+                        checked
+                            .facts
+                            .flow
+                            .ownership
+                            .selection_sources
+                            .span_or_empty(receipt.sources)
+                            .len()
+                    })
+                    .unwrap_or(0);
+                let mut residuals = Vec::new();
+                for _ in 1..count {
+                    residuals.push(place_id(allocate_dense(next_place)?));
+                }
+                self.joins.push((value, residuals));
+            }
+            if matches!(
+                node.kind,
                 checked_trees::CheckedStructuralValueKind::Call { .. }
             ) && !node.qualification_decisions.is_empty()
                 && !self

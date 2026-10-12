@@ -21,6 +21,72 @@ pub struct TypeConstantOrigin {
     pub reference: source::SourceSpan,
 }
 
+/// Source-selected integer meaning retained when a value is normalized into
+/// a canonical atom. The value codec carries width/bits; this issuing type row
+/// independently carries operation policy. Missing custody is not Exact.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum ConstIntegerMeaning {
+    #[default]
+    Unavailable,
+    Anonymous,
+    Typed {
+        primitive: PrimitiveType,
+        arithmetic_domain: numerics::arithmetic::ArithmeticDomain,
+    },
+}
+
+impl ConstIntegerMeaning {
+    pub fn identity_encoding(self) -> String {
+        match self {
+            Self::Unavailable => "unavailable".to_owned(),
+            Self::Anonymous => "anonymous".to_owned(),
+            Self::Typed {
+                primitive,
+                arithmetic_domain,
+            } => format!("{}:{}", primitive.name(), arithmetic_domain.name()),
+        }
+    }
+
+    /// Decode the explicit meaning field in canonical type identity. Value
+    /// atoms have no such field and cannot invoke this receipt transport.
+    pub fn from_identity_encoding(encoding: &str) -> Option<Self> {
+        match encoding {
+            "unavailable" => Some(Self::Unavailable),
+            "anonymous" => Some(Self::Anonymous),
+            _ => {
+                let (primitive, domain) = encoding.split_once(':')?;
+                let primitive = PrimitiveType::from_name(primitive)
+                    .filter(|primitive| primitive.accepts_integer_literal())?;
+                let arithmetic_domain = match domain {
+                    "Exact" => numerics::arithmetic::ArithmeticDomain::Exact,
+                    "Wrapping" => numerics::arithmetic::ArithmeticDomain::Wrapping,
+                    "Saturating" => numerics::arithmetic::ArithmeticDomain::Saturating,
+                    "Trapping" => numerics::arithmetic::ArithmeticDomain::Trapping,
+                    _ => return None,
+                };
+                Some(Self::Typed {
+                    primitive,
+                    arithmetic_domain,
+                })
+            }
+        }
+    }
+
+    pub fn from_closed_value(
+        value: &crate::closed_numeric::ClosedIntegerValue,
+        table: &TypeReferenceTable,
+    ) -> Self {
+        match (value.primitive, value.type_reference) {
+            (None, _) => Self::Anonymous,
+            (Some(primitive), Some(reference)) => Self::Typed {
+                primitive,
+                arithmetic_domain: table.arithmetic_domain(reference),
+            },
+            _ => Self::Unavailable,
+        }
+    }
+}
+
 #[derive(Clone, PartialEq, Eq)]
 pub struct TypeReferenceTable {
     type_references: Arena<TypeReferenceNode>,
@@ -31,6 +97,10 @@ pub struct TypeReferenceTable {
     /// A substituted operand retains its original lifetime environment after
     /// copying into a private declaration. Zero means ordinary lexical lookup.
     operand_lifetime_owners: Arena<SymbolHandle>,
+    const_integer_meanings: Arena<ConstIntegerMeaning>,
+    /// Each generated carrier use retains its own original full application.
+    /// Shared storage never donates the first use's argument admission.
+    data_application_origins: Arena<TypeReferenceHandle>,
     named_rows: NamedRowIndex,
 }
 
@@ -45,6 +115,8 @@ impl std::fmt::Debug for TypeReferenceTable {
             .field("constant_origin_spans", &self.constant_origin_spans)
             .field("constant_origins", &self.constant_origins)
             .field("operand_lifetime_owners", &self.operand_lifetime_owners)
+            .field("const_integer_meanings", &self.const_integer_meanings)
+            .field("data_application_origins", &self.data_application_origins)
             .finish()
     }
 }
@@ -74,6 +146,8 @@ impl TypeReferenceTable {
             constant_origin_spans,
             constant_origins,
             operand_lifetime_owners,
+            const_integer_meanings,
+            data_application_origins,
             named_rows: _,
         } = base;
         crate::typed_trees::retained_prefix::arena_is_exact_prefix(
@@ -94,6 +168,12 @@ impl TypeReferenceTable {
         ) && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
             operand_lifetime_owners,
             &self.operand_lifetime_owners,
+        ) && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+            const_integer_meanings,
+            &self.const_integer_meanings,
+        ) && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+            data_application_origins,
+            &self.data_application_origins,
         )
     }
 
@@ -105,6 +185,8 @@ impl TypeReferenceTable {
             constant_origin_spans: Arena::new(),
             constant_origins: Arena::new(),
             operand_lifetime_owners: Arena::new(),
+            const_integer_meanings: Arena::new(),
+            data_application_origins: Arena::new(),
             named_rows: NamedRowIndex::default(),
         }
     }
@@ -119,6 +201,8 @@ impl TypeReferenceTable {
             .wrapping_add(self.constant_origins.revision())
             .wrapping_add(self.constant_origin_spans.revision())
             .wrapping_add(self.operand_lifetime_owners.revision())
+            .wrapping_add(self.const_integer_meanings.revision())
+            .wrapping_add(self.data_application_origins.revision())
     }
 
     pub fn insert(&mut self, type_reference: TypeReferenceNode) -> TypeReferenceHandle {
@@ -129,6 +213,16 @@ impl TypeReferenceTable {
         let handle = self.type_references.insert(type_reference);
         let origins = self.constant_origin_spans.insert(HandleSpan::empty());
         let lifetime_owner = self.operand_lifetime_owners.insert(SymbolHandle::invalid());
+        let meaning = self
+            .const_integer_meanings
+            .insert(ConstIntegerMeaning::Unavailable);
+        let application = self
+            .data_application_origins
+            .insert(TypeReferenceHandle::invalid());
+        debug_assert_eq!(handle.arena_index(), application.arena_index());
+        debug_assert_eq!(handle.generation(), application.generation());
+        debug_assert_eq!(handle.arena_index(), meaning.arena_index());
+        debug_assert_eq!(handle.generation(), meaning.generation());
         debug_assert_eq!(handle.arena_index(), lifetime_owner.arena_index());
         debug_assert_eq!(handle.arena_index(), origins.arena_index());
         debug_assert_eq!(handle.generation(), origins.generation());
@@ -136,6 +230,65 @@ impl TypeReferenceTable {
             self.note_named_row(symbol, handle);
         }
         handle
+    }
+
+    /// The exact use's original application, independently of shared storage.
+    /// Zero denotes an ordinary type with no generated-carrier correspondence.
+    pub fn data_application_origin(&self, reference: TypeReferenceHandle) -> TypeReferenceHandle {
+        if !self.contains_type_reference(reference) {
+            return TypeReferenceHandle::invalid();
+        }
+        *self.data_application_origins.get(Handle::from_parts(
+            reference.arena_index(),
+            reference.generation(),
+        ))
+    }
+
+    /// Only the original-application lowering/copy owner publishes this edge.
+    /// The application keeps every actual operand; neither a canonical result
+    /// nor the shared instance's first tuple can replace its admission.
+    pub fn retain_data_application_origin(
+        &mut self,
+        reference: TypeReferenceHandle,
+        application: TypeReferenceHandle,
+    ) {
+        assert!(self.contains_type_reference(reference));
+        assert!(
+            !application.is_valid()
+                || (application != reference
+                    && self.contains_type_reference(application)
+                    && matches!(
+                        self.type_reference(application),
+                        TypeReferenceNode::Generic { .. }
+                    ))
+        );
+        *self.data_application_origins.get_mut(Handle::from_parts(
+            reference.arena_index(),
+            reference.generation(),
+        )) = application;
+    }
+
+    pub fn const_integer_meaning(&self, reference: TypeReferenceHandle) -> ConstIntegerMeaning {
+        if !self.contains_type_reference(reference) {
+            return ConstIntegerMeaning::Unavailable;
+        }
+        *self.const_integer_meanings.get(Handle::from_parts(
+            reference.arena_index(),
+            reference.generation(),
+        ))
+    }
+
+    /// The normalization producer records the original value's meaning after
+    /// replacing its expression node. No receiving slot supplies this receipt.
+    pub fn retain_const_integer_meaning(
+        &mut self,
+        reference: TypeReferenceHandle,
+        meaning: ConstIntegerMeaning,
+    ) {
+        *self.const_integer_meanings.get_mut(Handle::from_parts(
+            reference.arena_index(),
+            reference.generation(),
+        )) = meaning;
     }
 
     /// Record the supplying declaration before a simultaneous operand is

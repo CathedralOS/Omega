@@ -6,8 +6,8 @@ use crate::operator::indexing;
 use crate::typed_trees::declarations::operator::operand_signatures::normalized_operand_parameters;
 use crate::typed_trees::declarations::operator::type_matching::type_reference_matches;
 use crate::typed_trees::declarations::operator::{
-    OperatorConstBinding, OperatorDefinition, SpelledOperator,
-    selected_trait_operator_meaning_exists, trait_scope_operator_meaning_exists,
+    OperatorDefinition, SpelledOperator, selected_trait_operator_meaning_exists,
+    trait_scope_operator_meaning_exists,
 };
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use language_core::operator_spelling::OperatorSpelling;
@@ -296,16 +296,13 @@ pub(crate) fn operator_matches_operands_with_indexed_collection(
                 }
                 OperandType::Reference(actual) => actual,
             };
-            let (matched_actual, matched_expected) = if indexed_collection && position == 0 {
-                indexing::shared_collection_elements(program, actual, expected.type_reference)
-                    .unwrap_or((actual, expected.type_reference))
-            } else {
-                (
-                    scalar_operand_read_type(program, actual, expected.type_reference),
-                    expected.type_reference,
-                )
-            };
-            (type_reference_matches(
+            let (matched_actual, matched_expected) = operator_operand_types(
+                program,
+                actual,
+                expected.type_reference,
+                indexed_collection && position == 0,
+            );
+            type_reference_matches(
                 program,
                 matched_actual,
                 matched_expected,
@@ -313,15 +310,7 @@ pub(crate) fn operator_matches_operands_with_indexed_collection(
                 type_parameters,
                 &mut bindings,
                 &mut const_bindings,
-            ) || indexed_collection_borrow_matches(
-                program,
-                indexed_collection && position == 0,
-                actual,
-                expected.type_reference,
-                type_parameters,
-                &mut bindings,
-                &mut const_bindings,
-            )) && declared_domain_constraints_match(program, actual, expected.type_reference)
+            ) && declared_domain_constraints_match(program, actual, expected.type_reference)
                 && declared_domain_constraints_match(program, matched_actual, matched_expected)
         })
 }
@@ -357,37 +346,24 @@ pub fn scalar_operand_read_type(
     }
 }
 
-/// The `[]`/`[..]` collection loan behind the ordinary match follows the
-/// explicit first parameter's borrow contract. A failed direct attempt can leave speculative
-/// type-parameter bindings behind, so the loan retries on copies that replace
-/// the working sets only when the retry succeeds.
-fn indexed_collection_borrow_matches(
+/// The same source operand interpretation serves declaration selection and
+/// static substitution. Indexed collection lending changes the matched pair,
+/// never the stored source value; ordinary checking still admits that loan.
+pub fn operator_operand_types(
     program: &TypedTrees,
-    applies: bool,
     actual: TypeReferenceHandle,
     expected: TypeReferenceHandle,
-    type_parameters: &[crate::data::TypeParameter],
-    bindings: &mut Vec<(SymbolHandle, TypeReferenceHandle)>,
-    const_bindings: &mut Vec<OperatorConstBinding>,
-) -> bool {
-    if !applies {
-        return false;
+    indexed_collection: bool,
+) -> (TypeReferenceHandle, TypeReferenceHandle) {
+    if indexed_collection
+        && let Some(pair) = indexing::indexed_collection_operand_types(program, actual, expected)
+    {
+        return pair;
     }
-    let mut retry_bindings = bindings.clone();
-    let mut retry_const_bindings = const_bindings.clone();
-    let matched = indexing::borrowed_collection_match(
-        program,
-        actual,
+    (
+        scalar_operand_read_type(program, actual, expected),
         expected,
-        type_parameters,
-        &mut retry_bindings,
-        &mut retry_const_bindings,
-    );
-    if matched {
-        *bindings = retry_bindings;
-        *const_bindings = retry_const_bindings;
-    }
-    matched
+    )
 }
 
 /// Operator operand matching is structurally permissive about refinements, but
@@ -396,7 +372,7 @@ fn indexed_collection_borrow_matches(
 /// `Quantity<KILOMETER>` share one family symbol while carrying different
 /// normalized instance identities; stripping both constrained shells would
 /// make ordinary per-unit overloads ambiguous.
-pub(crate) fn declared_domain_constraints_match(
+pub fn declared_domain_constraints_match(
     program: &TypedTrees,
     actual: TypeReferenceHandle,
     expected: TypeReferenceHandle,

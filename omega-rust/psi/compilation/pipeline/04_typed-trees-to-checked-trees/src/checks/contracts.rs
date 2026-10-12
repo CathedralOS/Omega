@@ -81,8 +81,6 @@ use exits::{CyclicHeaderInvariants, check_exit_ensures};
 pub(crate) use exits::{
     exclusive_referent_type, is_readable_mutable_reference, value_provable_domain,
 };
-use symbols::SymbolHandle;
-use typed_trees::expression::ExpressionHandle;
 use writes::check_domain_field_writes;
 
 pub(super) struct ContractDecisions {
@@ -95,7 +93,7 @@ pub(super) fn check_flow_call_contracts(
     facts: &CheckFacts,
     incoming_guards: &crate::checks::ranges::incoming_guards::IncomingGuardIndex,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
-    proven_machine_contracts: &[(SymbolHandle, Vec<ExpressionHandle>)],
+    proven_machine_contracts: &checked_trees::CheckedSourceContractEntailments,
     expression_intervals: &[validation::ExpressionInterval],
 ) -> Result<ContractDecisions, Vec<Diagnostic>> {
     let mut diagnostics =

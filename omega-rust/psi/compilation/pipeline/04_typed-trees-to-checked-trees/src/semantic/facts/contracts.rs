@@ -13,7 +13,11 @@ use typed_trees::proposition::PropositionLabels;
 mod parameters;
 mod payload;
 mod places;
-pub(crate) use parameters::{contract_parameter_position, projected_argument_place};
+pub(crate) use parameters::{
+    ContractParameterCorrespondence, contract_parameter_correspondence,
+    contract_parameter_position, projected_argument_place,
+    selected_contract_parameter_correspondence,
+};
 pub(crate) use places::contract_fact_place;
 
 use payload::semantic_contract_payload;
@@ -39,9 +43,11 @@ pub(super) fn append_contract_semantic_facts(
             evidence: QualificationEvidence::default(),
             payload,
         };
-        seed_current_requirement(program, operators, facts, &declaration_fact);
+        seed_current_assumption(program, operators, facts, &declaration_fact);
         let fact = match contract.kind {
-            ContractProofFactKind::Requires => {
+            // Both are body hypotheses. Their durable checked kind remains
+            // distinct: only Requires participates in runtime call obligations.
+            ContractProofFactKind::Requires | ContractProofFactKind::Where => {
                 let dependency_places =
                     places::contract_fact_dependency_places(program, facts, contract);
                 if dependency_places.is_empty() {
@@ -301,19 +307,18 @@ pub(super) fn append_contract_semantic_facts(
     }
 }
 
-/// An authored precondition is an assumption only at its exact arrival, with
-/// the same storage-dependent lifetime as every other current predicate.
-/// Its declaration row remains for contract identity and admission; this
-/// checked formula lets ordinary value consumers use the whole proposition.
-/// Ensures declarations are obligations and never enter this premise path.
-fn seed_current_requirement(
+/// Runtime preconditions are assumptions at their exact arrival; immutable
+/// Where facts retain their declaration-wide point across every state.
+/// The declaration row preserves identity while this checked formula lets
+/// ordinary body proof consumers use the proposition. Ensures never seed it.
+fn seed_current_assumption(
     program: &dyn ::validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
     facts: &mut FactPlan,
     fact: &Fact,
 ) {
     let FactPayload::ContractBooleanExpression {
-        kind: facts::ContractFactKind::Requires,
+        kind,
         expression,
         instantiated,
         ..
@@ -323,21 +328,34 @@ fn seed_current_requirement(
     };
     // Inherited declarations retain their foreign formal namespace until
     // the existing contract substitution owner instantiates them.
-    if instantiated.is_valid() {
+    if !kind.is_body_assumption() || instantiated.is_valid() {
         return;
     }
-    let ProgramPoint::State {
-        machine_symbol,
-        state_symbol,
-    } = fact.point
-    else {
-        return;
+    let (machine, state) = match fact.point {
+        ProgramPoint::State {
+            machine_symbol,
+            state_symbol,
+        } => {
+            let Some(parts) = validation::find_state(program, state_symbol)
+                .filter(|(machine, _)| machine.symbol == machine_symbol)
+            else {
+                return;
+            };
+            parts
+        }
+        ProgramPoint::Machine { machine_symbol } => {
+            let Some(machine) = program.machine(machine_symbol) else {
+                return;
+            };
+            let Some(entry) = program.machine_states(machine).first() else {
+                return;
+            };
+            (machine, entry)
+        }
+        _ => return,
     };
-    let Some((machine, state)) = validation::find_state(program, state_symbol)
-        .filter(|(machine, _)| machine.symbol == machine_symbol)
-    else {
-        return;
-    };
+    let machine_symbol = machine.symbol;
+    let state_symbol = state.symbol;
     let Some(expression) = crate::values::lower_state_scalar_contract_predicate(
         program, operators, machine, state, expression, &mut 4096,
     ) else {
@@ -356,9 +374,10 @@ fn seed_current_requirement(
 }
 
 /// Resolve one inherited contract fact's migrated proposition endpoint: the
-/// declaring trait, its requirement signature, and the satisfying state the
-/// fact is owned by. `None` fails closed -- the fact keeps its authored schema
-/// identity rather than publishing a partial substitution.
+/// declaring trait, its requirement signature, and the original formal state.
+/// An invocation-owned contract uses its machine's entry telescope; a genuine
+/// state-owned contract uses that exact named state. `None` fails closed -- the
+/// fact keeps its authored schema identity rather than a partial substitution.
 fn inherited_contract_scope_parts<'program>(
     program: &'program dyn ::validation::CheckingInput,
     proof: &'program ProofFacts,
@@ -375,13 +394,20 @@ fn inherited_contract_scope_parts<'program>(
     let trait_definition = program.trait_definition_by_symbol(scope.declaring_trait)?;
     let requirement =
         program.trait_machine_signature_by_symbol(trait_definition, scope.requirement)?;
-    let ContractProofFactOwner::MachineState { state_symbol, .. } = contract.owner else {
-        return None;
+    let satisfier_state = match contract.owner {
+        ContractProofFactOwner::Machine { machine_symbol } => {
+            let machine = program.machine(machine_symbol)?;
+            program.machine_states(machine).first()?
+        }
+        ContractProofFactOwner::MachineState {
+            machine_symbol,
+            state_symbol,
+        } => {
+            let machine = program.machine(machine_symbol)?;
+            program.state_in_machine(machine, state_symbol)?
+        }
+        _ => return None,
     };
-    let satisfier_state = program
-        .machines()
-        .iter()
-        .find_map(|machine| program.state_in_machine(machine, state_symbol))?;
     Some((trait_definition, requirement, satisfier_state, scope))
 }
 
@@ -455,7 +481,7 @@ fn instantiate_call_domain_membership_instance(
     if arguments.is_empty() || arguments.len() != index_parameters.len() {
         return;
     }
-    let Some(site) = validation::find_call_site(
+    let Some(site) = validation::find_source_call_site(
         program,
         call.caller_machine_symbol,
         call.caller_state_symbol,
@@ -580,7 +606,7 @@ fn instantiate_call_contract_payload(
     ) {
         return;
     }
-    let Some(call_site) = validation::find_call_site(
+    let Some(call_site) = validation::find_source_call_site(
         program,
         call.caller_machine_symbol,
         call.caller_state_symbol,
@@ -616,33 +642,11 @@ fn instantiate_call_contract_payload(
     if let Some((trait_definition, requirement, satisfier_state, scope)) =
         inherited_contract_scope_parts(program, proof, contract)
     {
-        let required_parameters = program.state_signature_parameters(requirement);
-        // Boundary satisfiers may carry one extra leading trait-typed adapter
-        // parameter; align through the validation helper so the requirement
-        // telescope binds positionally to the satisfier's own parameter row.
-        // Arity drift fails closed, keeping the authored schema identity.
-        let Some(satisfier_parameters) = validation::inherited_satisfier_parameters(
-            program,
-            trait_definition,
-            requirement,
-            satisfier_state,
-        ) else {
+        let Some(correspondence) = contract_parameter_correspondence(program, proof, contract)
+        else {
             return;
         };
-        alias_parameters = required_parameters
-            .iter()
-            .zip(satisfier_parameters.iter())
-            .map(
-                |(required, actual)| typed_trees::signature::StateParameter {
-                    symbol: required.symbol,
-                    name: required.name.clone(),
-                    type_reference: actual.type_reference,
-                    is_const: actual.is_const,
-                    is_mutable: actual.is_mutable,
-                    relevance: actual.relevance,
-                },
-            )
-            .collect();
+        alias_parameters = correspondence.materialized_parameters();
         if matches!(payload, FactPayload::ContractPropositionApplication { .. }) {
             let Some(application) = program.proof_facts.get(contract.fact).as_proposition() else {
                 return;
@@ -858,7 +862,7 @@ fn append_parameter_domain_requirements(
     call: &ContractCallFact,
     refs: &mut HandleSpan<FactRef>,
 ) {
-    let Some(site) = validation::find_call_site(
+    let Some(site) = validation::find_source_call_site(
         program,
         call.caller_machine_symbol,
         call.caller_state_symbol,

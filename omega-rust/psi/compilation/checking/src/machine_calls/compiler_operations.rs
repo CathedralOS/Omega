@@ -5,10 +5,16 @@
 //! authority by spelling; Build execution still checks the original activation cell.
 
 mod build_declarations;
+mod product_requirements;
 pub use build_declarations::{
-    build_operation, is_build_declaration_selection, is_build_provider_selection,
-    provider_selection_expressions, resolve_build_declaration_operand, resolve_product_operand,
+    ProductDeclarationKind, ProductDeclarationTelescope, build_declaration_expression_source_span,
+    build_declaration_operand_kind, build_operation, build_operation_for_call,
+    is_build_declaration_selection, is_build_provider_selection, product_application_declaration,
+    product_requirement_application_declaration, product_requirement_declaration,
+    product_requirement_selection_declaration, provider_selection_expressions,
+    resolve_product_declaration, resolve_product_operand, resolve_static_argument_selection,
 };
+pub use product_requirements::{ProductRequirementSelection, resolve_product_requirement};
 
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionIntrinsic, BuildOperation,
@@ -137,29 +143,16 @@ pub fn classify_expression_call_intrinsic(
     program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
 ) -> Option<AuthoredDeclarationSelectionIntrinsic> {
-    if build_declarations::is_provider_selection_call(program, call) {
-        return Some(AuthoredDeclarationSelectionIntrinsic::BuildProviderSelection);
-    }
-    if let Some(
-        operation @ (BuildOperation::ServiceExclusion
-        | BuildOperation::RepresentationSelection
-        | BuildOperation::BoundaryAcceptance
-        | BuildOperation::WireCompatibilityRequest
-        | BuildOperation::AssumedBindingContract),
-    ) = BuildOperation::from_call_target(call.target.as_str())
+    if let Some(operation) = BuildOperation::from_call_target(call.target.as_str())
+        && let Some((static_count, value_count)) = operation.declaration_operand_counts()
         && build_declarations::has_explicit_build_argument(program, call)
-        && program
-            .expression_table
-            .expression_handles(call.arguments)
-            .len()
-            == 1
-        && match operation {
-            BuildOperation::WireCompatibilityRequest => call.machine_arguments.len() >= 5,
-            BuildOperation::RepresentationSelection | BuildOperation::AssumedBindingContract => {
-                call.machine_arguments.len() == 2
-            }
-            _ => call.machine_arguments.len() == 1,
-        }
+        && static_count.contains(&call.machine_arguments.len())
+        && value_count.contains(
+            &program
+                .expression_table
+                .expression_handles(call.arguments)
+                .len(),
+        )
     {
         return Some(operation.intrinsic());
     }

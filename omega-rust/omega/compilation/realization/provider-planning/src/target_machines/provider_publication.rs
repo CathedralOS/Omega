@@ -14,9 +14,9 @@ use crate::{ProviderPlanningContext, ProviderSelection, ProviderSelectionSubject
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
-/// Complete interface roster for selections, including inherited methods.
-/// Retaining only called coordinates would turn a whole-provider selection
-/// into an unauthorized partial composition.
+/// Original interface inventory for whole selections, including inherited
+/// members. Terminal production projects these declaration roots onto complete
+/// originals and retained concrete applications; it does not invent calls.
 pub fn provider_selection_roots<'selection>(
     context: ProviderPlanningContext<'_>,
     selections: impl IntoIterator<Item = &'selection ProviderSelection>,
@@ -33,18 +33,17 @@ pub fn provider_selection_roots<'selection>(
                             "provider selection lost its exact trait declaration",
                         )]
                     })?;
-                checked_trees::typed_trees::trait_definition::AppliedTraitScope::abstract_scope(
-                    definition,
-                )
-                .visit(context.typed, &mut |scope| {
-                    roots.extend(
-                        context
-                            .typed
-                            .trait_machine_signatures(scope.declaration)
-                            .iter()
-                            .map(|row| row.symbol),
-                    );
-                });
+                let members =
+                    checked_trees::typed_trees::static_applications::boundary_interface_members(
+                        context.typed,
+                        definition.symbol,
+                    )
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "provider selection lost its original boundary member roster",
+                        )]
+                    })?;
+                roots.extend(members.into_iter().map(|(_, member)| member));
             }
             ProviderSelectionSubject::BoundaryRequirement(identity) => roots.push(identity.symbol),
             ProviderSelectionSubject::BoundaryOperatorFamily(family) => {
@@ -68,7 +67,7 @@ pub fn provider_selection_roots<'selection>(
 /// Immutable checked input and its exact produced artifact. Derivation never
 /// reruns Build, checking, specialization or foreign-binding evaluation.
 pub struct TargetProviderPublicationRequest<'program> {
-    pub context: ProviderPlanningContext<'program>,
+    pub checked: &'program checked_trees::CheckedTrees,
     pub artifact: terminal_codec::TerminalArtifactView<'program>,
     pub exact_toolchain_sources: &'program [(source::SourceId, [u8; 32])],
     pub defaults: &'program [crate::TargetProviderDefaults],
@@ -79,6 +78,10 @@ pub struct TargetProviderPublicationRequest<'program> {
 }
 
 impl TargetProviderPublicationRequest<'_> {
+    fn context(&self) -> ProviderPlanningContext<'_> {
+        ProviderPlanningContext::new(self.checked, source::DependencyScope::Product)
+    }
+
     /// Produce every requested target row, preserving a named failure for an
     /// unavailable realization. No row authorizes native or host execution.
     pub fn publish(&self) -> Vec<backend_plan::TerminalTargetProviderProposal> {
@@ -107,9 +110,9 @@ impl TargetProviderPublicationRequest<'_> {
                 "provider proposal has no receiving target catalog for `{target}`"
             ))]
         })?;
-        let declarations = super::settle_provider_defaults(self.context, self.defaults, profile);
+        let declarations = super::settle_provider_defaults(self.context(), self.defaults, profile);
         let candidates = crate::derive_satisfies_plans(crate::ProviderPlanDerivation::evaluated(
-            self.context,
+            self.context(),
             &self.settlement.boundary_calling_plan_realizations,
             Some(target),
             &self.settlement.evaluated_via_bindings,
@@ -120,11 +123,10 @@ impl TargetProviderPublicationRequest<'_> {
         // obligation. Explicit declarations retain their complete schema even
         // when no runtime body calls it; every demanded schema remains whole.
         let module = self.artifact.module();
-        let mut demanded = Vec::with_capacity(candidates.len());
-        for candidate in candidates {
-            let schema = candidate.provenance.schema.symbol();
-            let owner = self.declaration_identity(schema)?;
-            if module.boundary_machines.iter().any(|boundary| {
+        let demanded = candidates.retain_demanded(|declaration, schema| {
+            let symbol = declaration.symbol();
+            let owner = self.declaration_identity(symbol)?;
+            Ok(module.boundary_machines.iter().any(|boundary| {
                 boundary.role == terminal_psi::BoundaryDeclarationRole::Callable
                     && module.identities.text(boundary.owner.identity()) == Some(owner.as_str())
             }) || declarations
@@ -132,48 +134,175 @@ impl TargetProviderPublicationRequest<'_> {
                 .iter()
                 .chain(self.overrides)
                 .any(|selection| {
-                    candidate.plan.rows.iter().any(|row| {
-                        selection.subject.selects_schema(
+                    schema.methods.iter().any(|method| {
+                        crate::service_schema::selection_matches_schema(
+                            &selection.subject,
+                            symbol,
+                            schema.identity_text(method.requirement_identity),
                             schema,
-                            candidate.plan.identity_text(row.requirement_identity),
                         )
                     })
-                })
-            {
-                demanded.push(candidate);
-            }
-        }
+                }))
+        })?;
         let selected = crate::select_derived_provider_plans(
+            self.context(),
             &demanded,
-            profile.native_target(),
-            &declarations.provider_defaults,
+            Some(profile),
+            &declarations,
             self.overrides,
         )?;
-        // This ordinary owner checks authored provenance, operator-family
-        // completeness and independent composition. Its returned provenance
-        // keeps each whole plan with its selecting symbol; independently sorted
-        // plan/owner vectors must never be positionally zipped.
-        let (_, provenance) = crate::selected_provider_plan_facts(self.context, selected)?;
-        let plans = provenance
-            .into_iter()
-            .map(|selected| {
-                let provider_declaration = selected
-                    .provider
-                    .provider_type
-                    .map(|provider| self.declaration_identity(provider))
-                    .transpose()?;
-                Ok(backend_plan::TerminalTargetProviderPlan {
-                    plan: selected.plan,
-                    provider_declaration,
-                })
-            })
-            .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-        backend_plan::TerminalTargetProviderSelection::from_plans(plans, self.artifact)
-            .map_err(|reason| vec![Diagnostic::error(reason)])
+        let mut checked_candidates = Vec::new();
+        let mut plans = Vec::new();
+        for selection in &selected {
+            let plan = &selection.derived.plan;
+            let provenance = &selection.derived.provenance;
+            if plan.rows.len() != provenance.row_requirements.len()
+                || plan.rows.len() != provenance.row_realizations.len()
+            {
+                return Err(vec![Diagnostic::error(
+                    "selected provider lost its complete source association",
+                )]);
+            }
+            let provider_declaration = provenance
+                .provider_type
+                .map(|provider| self.declaration_identity(provider))
+                .transpose()?;
+            let mut checked_applications = Vec::new();
+            let mut checked_application_identities =
+                terminal_psi::TerminalIdentityTableBuilder::default();
+            for (row_ordinal, row) in plan.rows.iter().enumerate() {
+                let effects::provider_plan::ProviderBinding::CheckedAdapter {
+                    machine_identity,
+                    ..
+                } = &row.binding
+                else {
+                    continue;
+                };
+                let provider = provider_declaration.as_deref().ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "checked provider row has no exact declaration owner",
+                    )]
+                })?;
+                let requirement = provenance.row_requirements[row_ordinal];
+                let applications = if self.checked.machine(requirement).is_some()
+                    || self.checked.trait_machine_signature(requirement).is_some()
+                {
+                    let source =
+                        crate::selected_applications::selected_checked_requirement_row_for_plan(
+                            self.checked,
+                            &self.checked.facts,
+                            plan,
+                            row_ordinal,
+                            requirement,
+                        )
+                        .map_err(|diagnostic| vec![diagnostic])?;
+                    if source.adapter().symbol != provenance.row_realizations[row_ordinal] {
+                        return Err(vec![Diagnostic::error(
+                            "selected provider application changed its original realization",
+                        )]);
+                    }
+                    source.applications().map_err(|diagnostic| vec![diagnostic])?
+                        .into_iter().map(|application| {
+                            let requirement = self.checked.machine(application.requirement_instance())
+                                .and_then(|machine| self.checked.machine_callable_identity_text(machine))
+                                .or_else(|| self.checked.trait_machine_signature(application.requirement_instance())
+                                    .map(|(definition, signature)| self.checked.trait_requirement_callable_identity_text(definition, signature)))
+                                .filter(|identity| !identity.is_empty())
+                                .ok_or_else(|| vec![Diagnostic::error("selected provider application lost its exact requirement identity")])?;
+                            let realization = self.checked.machine(application.realization_instance())
+                                .and_then(|machine| self.checked.machine_callable_identity_text(machine))
+                                .filter(|identity| !identity.is_empty())
+                                .ok_or_else(|| vec![Diagnostic::error("selected provider application lost its exact callable identity")])?;
+                            Ok((requirement, realization))
+                        }).collect::<Result<Vec<_>, Vec<Diagnostic>>>()?
+                } else if self
+                    .checked
+                    .operator_definition_by_symbol(requirement)
+                    .is_some_and(|operator| operator.is_boundary)
+                {
+                    // Legacy operator rows have no machine/member application
+                    // telescope. Their exact original selected coordinate stays
+                    // separate from the source requirement application owner.
+                    vec![(
+                        plan.identity_text(row.requirement_identity).to_owned(),
+                        plan.identity_text(*machine_identity).to_owned(),
+                    )]
+                } else {
+                    return Err(vec![Diagnostic::error(
+                        "selected provider row lost its original requirement role",
+                    )]);
+                };
+                for (requirement_identity, realization) in applications {
+                    let mut matching = module.provider_candidates.iter().filter(|candidate| {
+                        module
+                            .identities
+                            .text(candidate.provider_declaration.identity())
+                            == Some(provider)
+                            && module.identities.text(candidate.requirement_identity)
+                                == Some(requirement_identity.as_str())
+                            && module.identities.text(candidate.candidate_identity)
+                                == Some(realization.as_str())
+                    });
+                    let candidate = matching.next().ok_or_else(|| {
+                        vec![Diagnostic::error(format!("selected provider requirement `{requirement_identity}` has no emitted exact application candidate"))]
+                    })?;
+                    if matching.next().is_some() {
+                        return Err(vec![Diagnostic::error(
+                            "selected provider association does not name one surviving canonical row",
+                        )]);
+                    }
+                    let provider_identity = self
+                        .artifact
+                        .module()
+                        .identities
+                        .text(candidate.provider_identity)
+                        .ok_or_else(|| {
+                            vec![Diagnostic::error(
+                                "selected provider association lost its canonical identity",
+                            )]
+                        })?;
+                    checked_candidates.push(terminal_installation::ProviderInstallationSelection {
+                        boundary: candidate.boundary,
+                        candidate: candidate.candidate,
+                        provider_identity: provider_identity.to_owned(),
+                        provider_declaration: provider.to_owned(),
+                    });
+                    checked_applications.push(effects::SelectedRequirementSpecialization {
+                        provider_plan_report_identity: plan.report_fingerprint(),
+                        selected_requirement_identity: checked_application_identities
+                            .intern(plan.identity_text(row.requirement_identity)),
+                        selected_machine_identity: checked_application_identities
+                            .intern(plan.identity_text(*machine_identity)),
+                        requirement_identity: checked_application_identities
+                            .intern(&requirement_identity),
+                        machine_identity: checked_application_identities.intern(&realization),
+                    });
+                }
+            }
+            plans.push(backend_plan::TerminalTargetProviderPlan {
+                plan: plan.clone(),
+                provider_declaration,
+                checked_applications,
+                checked_application_identities: checked_application_identities.build(),
+            });
+        }
+        // The ordinary source owner checks complete original plan provenance,
+        // operator-family coverage and independent composition. Concrete
+        // application rows never replace those whole declaration-level plans.
+        crate::selected_provider_plan_facts(self.context(), selected)?;
+        checked_candidates.sort();
+        // Required parent schemas can share the same exact selected row.
+        // Collapse only identical tuples; competing providers remain distinct
+        // and ordinary installation admission rejects the conflicting boundary.
+        checked_candidates.dedup();
+        Ok(backend_plan::TerminalTargetProviderSelection {
+            plans,
+            checked_candidates,
+        })
     }
 
     fn declaration_identity(&self, symbol: SymbolHandle) -> Result<String, Vec<Diagnostic>> {
-        let typed = self.context.typed;
+        let typed = &self.checked.typed;
         let identity = typed
             .exact_owner_nominal_identity(symbol, self.exact_toolchain_sources)
             .and_then(|identity| typed.type_identity_text(identity))

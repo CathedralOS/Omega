@@ -21,6 +21,8 @@ mod nominal_inputs;
 /// a nested machine contract all reduce to these parts.
 pub(super) struct CallableParts<'a> {
     pub(super) lexical_owner: SymbolHandle,
+    pub(super) declaration: SymbolHandle,
+    pub(super) where_facts: arena::HandleSpan<typed_trees::domain::ProofFact>,
     pub(super) lifetime_parameters: &'a [typed_trees::name::Identifier],
     pub(super) type_parameters: &'a [TypeParameter],
     pub(super) parameters: &'a [StateParameter],
@@ -38,6 +40,8 @@ impl<'a> CallableParts<'a> {
     ) -> Self {
         Self {
             lexical_owner: crate::borrow_contracts::lexical_region_owner(program, signature.symbol),
+            declaration: signature.symbol,
+            where_facts: signature.where_facts,
             lifetime_parameters: &signature.lifetime_parameters,
             type_parameters: program.state_signature_type_parameters(signature),
             parameters: program.state_signature_parameters(signature),
@@ -164,6 +168,8 @@ fn validate_callable_shape(
         requirement,
         &CallableParts {
             lexical_owner: actual_machine.symbol,
+            declaration: actual_machine.symbol,
+            where_facts: actual_machine.where_facts,
             lifetime_parameters: &actual_machine.lifetime_parameters,
             type_parameters: program.machine_type_parameters(actual_machine),
             parameters: program.state_parameters(actual_state),
@@ -359,6 +365,9 @@ fn validate_callable_formation(
         parameter,
         requirement,
         actual.contracts,
+        actual.declaration,
+        actual.type_parameters,
+        actual.where_facts,
         required_parameters,
         actual_parameters,
         diagnostics,
@@ -391,6 +400,7 @@ fn validate_callable_regions(
         substitution_scope_starts: &[0],
         application_scopes: &[],
         binders: &binders,
+        lifetime_binding_declaration: SymbolHandle::invalid(),
         lifetime_bindings: &[],
         argument_owner: actual.lexical_owner,
         supplied_telescope: false,
@@ -404,6 +414,7 @@ fn validate_callable_regions(
         substitution_scope_starts: &[0],
         application_scopes: &[],
         binders: &binders,
+        lifetime_binding_declaration: SymbolHandle::invalid(),
         lifetime_bindings: &[],
         argument_owner: actual.lexical_owner,
         supplied_telescope: false,
@@ -453,6 +464,7 @@ fn validate_callable_regions(
             substitution_scope_starts: &[0],
             application_scopes: &[],
             binders: &binders,
+            lifetime_binding_declaration: applied.caller_lifetime_declaration,
             lifetime_bindings: applied.caller_lifetimes,
             argument_owner: applied.lexical_owner,
             supplied_telescope: false,
@@ -466,6 +478,7 @@ fn validate_callable_regions(
             substitution_scope_starts: &[0],
             application_scopes: &[],
             binders: &binders,
+            lifetime_binding_declaration: source.binding_declaration,
             lifetime_bindings: program
                 .expression_table
                 .static_machine_application_lifetimes(applied.provider),

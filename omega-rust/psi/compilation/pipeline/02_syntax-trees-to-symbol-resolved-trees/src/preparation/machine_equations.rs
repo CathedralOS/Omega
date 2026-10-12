@@ -7,9 +7,9 @@
 //! tuples, before ordinary checked monomorphization. Open applications remain
 //! obligations and reject rather than entering later inference unchecked.
 //! Selected scalar constants share declaration canonicalization across direct
-//! and nested arguments. Nested constructor slots consume the selected declared
-//! carrier before scalar normalization erases it; direct arguments retain their
-//! authored syntax for the ordinary immutable static-argument checker.
+//! and nested arguments. Nested constructor slots retain their original literal
+//! or selected operand after checking its declared carrier; direct arguments
+//! retain their authored syntax for the immutable static-argument checker.
 
 use super::{
     declaration_selection::ConstantSelection,
@@ -24,7 +24,7 @@ use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::JoinedPath;
 use syntax_trees::{
     SyntaxTrees,
-    expression::StaticMachineArgument,
+    expression::{ExpressionNode, StaticMachineArgument},
     item::{Item, Machine, TypeParameterKind},
     types::{TypeReferenceHandle, TypeReferenceNode},
 };
@@ -45,7 +45,7 @@ pub(crate) struct SourceLinks {
 pub(crate) fn required(syntax: &SyntaxTrees, base: Option<&SymbolResolvedTrees>) -> bool {
     syntax
         .root_items()
-        .any(|item| matches!(item, Item::Machine(machine) if !machine.where_facts.is_empty()))
+        .any(|item| matches!(item, Item::Machine(machine) if !type_equations::classify_where_facts(syntax, syntax.items.type_parameters(machine.type_parameters), syntax.items.proof_facts(machine.where_facts)).equations.is_empty()))
         || base.is_some_and(|base| {
             base.machines
                 .iter()
@@ -61,6 +61,14 @@ pub(crate) fn validate_declarations(syntax: &SyntaxTrees) -> Result<(), Vec<Diag
         if machine.where_facts.is_empty() {
             continue;
         }
+        let classification = type_equations::classify_where_facts(
+            syntax,
+            syntax.items.type_parameters(machine.type_parameters),
+            syntax.items.proof_facts(machine.where_facts),
+        );
+        if classification.equations.is_empty() {
+            continue;
+        }
         // Explicit attached calls have the same selected declaration and
         // source links as free calls, so their tuples use `complete` below.
         // Implicit operator/conformance selection still needs its own complete
@@ -74,14 +82,7 @@ pub(crate) fn validate_declarations(syntax: &SyntaxTrees) -> Result<(), Vec<Diag
                     .with_source_span(machine.name.source_span()),
             ]);
         }
-        let equations = type_equations::classify_type_equations(
-            syntax,
-            syntax.items.type_parameters(machine.type_parameters),
-            syntax.items.proof_facts(machine.where_facts),
-        );
-        if equations.len() != machine.where_facts.count() as usize {
-            return Err(vec![Diagnostic::error("machine where clause requires a structural type equation or a named conformance bound").with_source_span(machine.name.source_span())]);
-        }
+        let equations = classification.equations;
         for equation in equations {
             equation
                 .validate_kind("machine")
@@ -401,17 +402,12 @@ fn complete_arguments(
         .items
         .type_parameters(declaration.type_parameters)
         .to_vec();
-    let equations = type_equations::classify_type_equations(
+    let equations = type_equations::classify_where_facts(
         syntax,
         &parameters,
         syntax.items.proof_facts(declaration.where_facts),
-    );
-    if equations.len() != declaration.where_facts.count() as usize {
-        return Err(Diagnostic::error(
-            "machine where clause requires a structural type equation or a named conformance bound",
-        )
-        .with_source_span(target.source_span()));
-    }
+    )
+    .equations;
     if supplied.len() > parameters.len() {
         return Err(Diagnostic::error(
             "machine equation application supplies too many static arguments",
@@ -547,8 +543,8 @@ fn complete_arguments(
 /// Expose an authored scalar const's value to equation matching without
 /// replacing its source argument. The immutable static-argument checker still
 /// owns the selected declaration's exact carrier and policy. Constructor slots
-/// below have different custody: normalization erases their nested arguments,
-/// so they must validate those arguments before constructing the type.
+/// below keep their original operand in the completed type application too;
+/// this value-only reference is private equation matching scratch.
 fn supplied_const_argument_reference(
     syntax: &mut SyntaxTrees,
     argument: &StaticMachineArgument,
@@ -561,7 +557,7 @@ fn supplied_const_argument_reference(
 /// Select one scalar value while retaining its declaration's type separately.
 /// A Boolean keyword/atom has known Boolean authority and no declaration type.
 /// Direct machine arguments keep their original syntax for immutable checking;
-/// constructor normalization must consume the declared type before erasure.
+/// constructor normalization retains that same source custody after checking.
 fn scalar_const_argument(
     syntax: &SyntaxTrees,
     argument: &StaticMachineArgument,
@@ -649,9 +645,9 @@ fn application_argument_reference(
                 ));
             if argument.const_literal.is_none() {
                 let (value, declared_type) = scalar_const_argument(syntax, argument, selection)?;
-                // The nested argument will become a mathematical integer or
-                // canonical Boolean leaf. Its encoded payload is no authority
-                // to change carriers: compare the selected declaration first.
+                // Check the selected declaration independently of its value,
+                // then retain the original operand. Canonical value bytes do
+                // not carry its integer width or arithmetic policy.
                 if declared_type.is_valid()
                     && super::generic_data::closed_argument_identity(
                         syntax,
@@ -676,7 +672,16 @@ fn application_argument_reference(
                         ));
                     }
                 }
-                return scalar_const_argument_reference(syntax, value);
+                let first = argument
+                    .path
+                    .first()
+                    .ok_or_else(|| reject("requires a selected scalar const argument"))?;
+                return Ok(syntax.type_references.insert(TypeReferenceNode::Named(
+                    syntax_trees::identifier::Identifier::new(
+                        argument.path.joined_path(),
+                        first.source_span(),
+                    ),
+                )));
             }
             if boolean {
                 return Err(reject("requires a closed Boolean constructor argument"));
@@ -703,9 +708,12 @@ fn application_argument_reference(
                     "has a constructor constant outside its declared carrier",
                 ));
             }
-            Ok(syntax.type_references.insert(TypeReferenceNode::Named(
-                syntax_trees::identifier::Identifier::generated(value.to_string()),
-            )))
+            let expression = syntax
+                .expressions
+                .insert(ExpressionNode::Integer(literal.clone()));
+            Ok(syntax
+                .type_references
+                .insert(TypeReferenceNode::ConstExpression(expression)))
         }
         TypeParameterKind::Type => {
             if argument.const_literal.is_some() {

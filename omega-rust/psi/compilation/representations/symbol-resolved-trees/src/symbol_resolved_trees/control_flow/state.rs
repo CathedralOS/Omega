@@ -32,6 +32,7 @@ pub(crate) fn test_state(statements: HandleSpan<Statement>) -> State {
             parameters: HandleSpan::empty(),
             contracts: HandleSpan::empty(),
             return_type: Some(crate::types::TypeReference::Named {
+                application_origin: arena::Handle::invalid(),
                 symbol: SymbolHandle::invalid(),
                 name: DiagnosticName::generated("i32"),
             }),

@@ -83,6 +83,9 @@ pub struct RetainedCheck {
     program: std::sync::Arc<typed_trees::FrozenTypedTrees>,
     admits_pending_inputs: bool,
     opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
+    opaque_representation_selections: Vec<OpaqueRepresentationSelection>,
+    assumed_binding_contract_demands:
+        typed_trees::static_applications::AssumedBindingContractDemands,
     checked: std::sync::Arc<CheckedTrees>,
 }
 
@@ -159,10 +162,13 @@ pub fn lower_typed_trees_reusing(
         mathematics,
         opaque_property_receipts,
         opaque_representation_selections,
+        assumed_binding_contract_demands,
     ) = preparation.into_checking_judgments();
     let equal_prior = prior.filter(|prior| {
         prior.admits_pending_inputs == admits_pending_inputs
             && prior.opaque_property_receipts == opaque_property_receipts
+            && prior.opaque_representation_selections == opaque_representation_selections
+            && prior.assumed_binding_contract_demands == assumed_binding_contract_demands
             && *prior.program == program
     });
     let took_prior = equal_prior.is_some();
@@ -175,6 +181,7 @@ pub fn lower_typed_trees_reusing(
                     preparation_admission,
                     std::sync::Arc::new(program.clone()),
                     opaque_property_receipts.clone(),
+                    opaque_representation_selections.clone(),
                 )
             });
             let checked = std::sync::Arc::new(check_program(
@@ -183,15 +190,24 @@ pub fn lower_typed_trees_reusing(
                 mathematics,
                 opaque_property_receipts,
                 opaque_representation_selections,
+                &assumed_binding_contract_demands,
             )?);
             let retained = input.map(
-                |(preparation_input, preparation_admission, program, opaque_property_receipts)| {
+                |(
+                    preparation_input,
+                    preparation_admission,
+                    program,
+                    opaque_property_receipts,
+                    opaque_representation_selections,
+                )| {
                     RetainedCheck {
                         preparation_input,
                         preparation_admission,
                         program,
                         admits_pending_inputs,
                         opaque_property_receipts,
+                        opaque_representation_selections,
+                        assumed_binding_contract_demands: assumed_binding_contract_demands.clone(),
                         checked: checked.clone(),
                     }
                 },
@@ -232,6 +248,8 @@ fn check_program(
     mathematics: proof::mathematical_declarations::CheckedMathematics,
     opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
     opaque_representation_selections: Vec<OpaqueRepresentationSelection>,
+    assumed_binding_contract_demands:
+        &typed_trees::static_applications::AssumedBindingContractDemands,
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
     // Borrow the prepared program with invocation-owned query state. Read-only inputs
     // carry this context through the checking flow; no consumer discovers it
@@ -264,7 +282,7 @@ fn check_program(
     let (mut facts, prepared_effects) = build_check_facts(
         &program,
         &validated.proof_plan,
-        &validated.integer_assignments,
+        validated.proof_decisions,
         validated.operational,
         validated.service_reaches,
         validated.validation_facts,
@@ -338,6 +356,7 @@ fn check_program(
             })
             .collect(),
     );
+    facts.public_contract_sources = crate::facts::public_contract_sources::record(&program);
     drop(program);
     let program = typed_program;
     facts.finalized_selections =
@@ -377,12 +396,19 @@ fn check_program(
 
     // Mathematical terms remained borrowed by every source judgment. Transfer
     // their checked metadata only after the final context has been dropped.
+    facts.proof.source_contract_entailments = proven_machine_contracts;
     facts.proof.mathematical_declarations = mathematics.declarations;
     facts.proof.mathematical_signature = mathematics.signature;
+    facts.proof.mathematical_applications = mathematics.applications.source_applications;
+    facts.proof.mathematical_application_captures = mathematics.applications.captures;
     let mut checked = CheckedTrees::with_roots(program, facts);
     validation::validate_boundary_calls(&checked)?;
     target_families::validate_portable_references(&checked)?;
     crate::operators::retain_boundary_body_candidates(&mut checked)
         .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
+    checked.facts.assumed_binding_contracts = crate::facts::assumed_binding_contracts::record(
+        &checked,
+        assumed_binding_contract_demands,
+    )?;
     Ok(checked)
 }

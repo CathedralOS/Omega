@@ -112,6 +112,7 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
     demanded_boundaries: &BTreeSet<String>,
     boundaries: &[terminal_psi::BoundaryMachineDeclaration],
     identities: &terminal_psi::TerminalIdentityTable,
+    direct_intrinsics: &[std::sync::Arc<effects::DirectForeignRealization>],
 ) -> Result<Vec<super::TerminalCompilerBuiltinProposal>, Vec<Diagnostic>> {
     let plans = selected.plans();
     let float_formats = boundary_float_formats(identities, boundaries);
@@ -203,11 +204,43 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
             )));
             continue;
         };
+        let boundary_entry_plan = match execution {
+            target_operations::CompilerBuiltinExecution::NearestIeeeFloatArithmetic { .. } => None,
+            target_operations::CompilerBuiltinExecution::HostedExitProcessI32
+            | target_operations::CompilerBuiltinExecution::HostedReadByte
+            | target_operations::CompilerBuiltinExecution::HostedWriteByteI32 => {
+                let mut originals = direct_intrinsics.iter().filter(|original| {
+                    original.requirement_identity() == selected_row.requirement_identity
+                        && matches!(
+                            original.binding(),
+                            effects::DirectForeignBinding::CompilerIntrinsic {
+                                execution: meaning,
+                                origin: effects::DirectCompilerIntrinsicOrigin::SelectedProvider(plan),
+                            } if plan == &plans[selected_row.plan_index]
+                                && compiler_builtin_execution(*meaning, None) == Some(execution)
+                        )
+                });
+                let (Some(original), None) = (originals.next(), originals.next()) else {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "selected hosted intrinsic `{requirement}` lost its exact catalog calling origin"
+                    )));
+                    continue;
+                };
+                let Some(entry) = original.boundary_entry_plan() else {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "selected hosted intrinsic `{requirement}` has no original calling application"
+                    )));
+                    continue;
+                };
+                Some(entry.clone())
+            }
+        };
         evidence.push(super::TerminalCompilerBuiltinProposal::new(
             selected_row.requirement_identity.to_owned(),
             selected_row.plan_index,
             boundary.id,
             execution,
+            boundary_entry_plan,
         ));
     }
     if diagnostics.is_empty() {
@@ -245,7 +278,7 @@ fn nearest_arithmetic(
 /// catalog has one. `boundary_format` is the called boundary's IEEE
 /// format, which the format-free builtin identities need; admission rejoins
 /// the complete boundary signature independently.
-fn compiler_builtin_execution(
+pub fn compiler_builtin_execution(
     identity: CompilerIntrinsicExecutionIdentity,
     boundary_format: Option<semantic_vocabulary::IeeeFloatFormat>,
 ) -> Option<target_operations::CompilerBuiltinExecution> {
@@ -282,9 +315,7 @@ fn compiler_builtin_execution(
                 Primitive::Less => Arithmetic::Compare(Relation::Less),
                 Primitive::LessOrEqual => Arithmetic::Compare(Relation::LessOrEqual),
                 Primitive::Greater => Arithmetic::Compare(Relation::Greater),
-                Primitive::GreaterOrEqual => {
-                    Arithmetic::Compare(Relation::GreaterOrEqual)
-                }
+                Primitive::GreaterOrEqual => Arithmetic::Compare(Relation::GreaterOrEqual),
             };
             (operation, ieee_format(format))
         }

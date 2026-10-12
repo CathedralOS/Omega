@@ -1,34 +1,43 @@
 //! The source producer checks and reduces applications once. Checking borrows
 //! these terms alongside their source captures; neither kernel Int typing nor
 //! an uninterpreted assumption supplies a source operation's value law.
-//! This invocation-owned view is discarded after checking, not encoded as a
-//! second program or proof bundle.
+//! Normalized terms and operation meanings remain invocation-owned scratch.
+//! Original checked applications/captures transfer to the ordinary proof ledger
+//! beside their signature; no second program or accepted proof is fabricated.
 
-use arena::{Arena, HandleSpan};
+use arena::{Arena, Handle};
 use numerics::bignum::BigInt;
 use proof_admission::{TermArena, TermHandle};
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
+pub use checked_trees::CheckedMathematicalApplicationCapture as PreparedCapture;
+
 #[derive(Debug, Default)]
 pub struct PreparedMathematicalApplications {
     pub applications: Arena<PreparedApplication>,
+    pub source_applications: Arena<checked_trees::CheckedMathematicalApplication>,
     pub captures: Arena<PreparedCapture>,
     pub constants: Arena<PreparedConstant>,
 }
 
 #[derive(Debug, Default)]
 pub struct PreparedApplication {
-    pub expression: ExpressionHandle,
+    /// Exact original formed application; normalization cannot replace source
+    /// occurrence or capture custody with a second scratch copy.
+    pub source_application: Handle<checked_trees::CheckedMathematicalApplication>,
     pub term: TermHandle,
-    pub captures: HandleSpan<PreparedCapture>,
 }
 
-#[derive(Debug, Default)]
-pub struct PreparedCapture {
-    pub expression: ExpressionHandle,
-    pub source_type: TypeReferenceHandle,
+/// One original prepared read, including the precise source application
+/// coordinate a judgment-use producer can retain. Reading it is not acceptance
+/// of the application proposition or a complete proof dependency receipt.
+#[derive(Clone, Copy, Debug)]
+pub struct PreparedApplicationView<'program> {
+    pub source_application: Handle<checked_trees::CheckedMathematicalApplication>,
+    pub original: &'program checked_trees::CheckedMathematicalApplication,
+    pub term: TermHandle,
 }
 
 #[derive(Debug, Default)]
@@ -69,18 +78,53 @@ pub enum PreparedConstantMeaning {
 pub struct PreparedMathematicalView<'program> {
     pub arena: &'program TermArena,
     pub applications: &'program PreparedMathematicalApplications,
+    reads: Option<&'program super::uses::MathematicalApplicationReads>,
 }
 
 impl<'program> PreparedMathematicalView<'program> {
+    /// Borrow the original prepared owner without a source judgment read scope.
+    pub fn new(
+        arena: &'program TermArena,
+        applications: &'program PreparedMathematicalApplications,
+    ) -> Self {
+        Self {
+            arena,
+            applications,
+            reads: None,
+        }
+    }
+
+    pub(super) fn observing(
+        mut self,
+        reads: &'program super::uses::MathematicalApplicationReads,
+    ) -> Self {
+        self.reads = Some(reads);
+        self
+    }
+
     pub fn application(
         self,
         expression: ExpressionHandle,
-    ) -> Option<&'program PreparedApplication> {
+    ) -> Option<PreparedApplicationView<'program>> {
         self.applications
             .applications
             .iter()
             .find_map(|(_, application)| {
-                (application.expression == expression).then_some(application)
+                let original = self
+                    .applications
+                    .source_applications
+                    .get(application.source_application);
+                if original.expression != expression {
+                    return None;
+                }
+                if let Some(reads) = self.reads {
+                    reads.record(application.source_application);
+                }
+                Some(PreparedApplicationView {
+                    source_application: application.source_application,
+                    original,
+                    term: application.term,
+                })
             })
     }
 

@@ -1,13 +1,15 @@
 // The selected source provider returns the actual descriptor and original
 // backing loan, not a length-only signature result or a builtin substitution.
-data Window { }
-data WindowBody { }
+pub boundary trait Window {
+    machine middle(bytes: &[u8], start: u64, end: u64) -> &[u8]
+    requires start <= end && end <= bytes.len;
+}
 
-boundary requirement Window::middle(bytes: &[u8], start: u64, end: u64) -> &[u8]
-requires start <= end && end <= bytes.len;
+WindowProvider satisfies Window {
+    Window::middle = middle_window;
+}
 
-machine WindowBody::middle(bytes: &[u8], start: u64, end: u64) -> &[u8]
-    satisfies Window::middle
+machine middle_window(bytes: &[u8], start: u64, end: u64) -> &[u8]
 requires start <= end && end <= bytes.len {
     bytes[start..end]
 }
@@ -22,7 +24,7 @@ machine first(bytes: &[u8]) -> u8 {
 
 data Main { bytes: [u8; 4]; }
 
-machine Main::main(main: &mut Main) crashes Trap {
+machine Main::main(main: &mut Main) reaches Window crashes Trap {
     main.bytes[1] = 70;
     let middle: &[u8] = Window::middle(&main.bytes, 1, 3);
     let nested: u8 = first(Window::middle(&main.bytes, 1, 3));

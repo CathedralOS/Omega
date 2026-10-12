@@ -92,6 +92,17 @@ pub(super) fn assign_contract_reference_symbols(
             child_type_references,
         );
 
+        assign_fact_span(
+            symbols,
+            &scope,
+            &[],
+            entry_symbol,
+            machine.where_facts,
+            proof_facts,
+            expression_table,
+            child_type_references,
+        );
+
         for handle in states {
             let state = machine_states.get(*handle);
             assign_contract_span(
@@ -224,42 +235,75 @@ fn assign_contract_span(
     expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
     child_type_references: &mut arena::Arena<symbol_resolved_trees::types::TypeReference>,
 ) {
+    // Every contract child uses the same declaration telescope. A member's
+    // binders shadow its enclosing trait's binders before value names, calls,
+    // casts and domain arguments acquire their original symbol identities.
+    let local_type_parameters = (!signature_type_parameters.is_empty()).then(|| {
+        super::scope::declaration_type_scope(signature_type_parameters, machine.type_parameters)
+    });
+    let machine = &MachineScope {
+        type_parameters: local_type_parameters
+            .as_deref()
+            .unwrap_or(machine.type_parameters),
+        ..*machine
+    };
     for contract in signature_contracts.span_or_empty(contracts) {
-        for fact in proof_facts.span_or_empty(contract.facts) {
-            let expression = match fact {
-                symbol_resolved_trees::domain::ProofFact::Expression(expression) => *expression,
-                symbol_resolved_trees::domain::ProofFact::Membership(membership) => {
-                    // An indexed application's arguments resolve in the
-                    // signature's lexical generic scope, exactly as a
-                    // parameter's `T in Family<P>` constraint arguments do:
-                    // the requirement's own binders shadow the owning
-                    // machine or trait telescope under first-match lookup.
-                    let mut local_type_parameters = signature_type_parameters.to_vec();
-                    local_type_parameters.extend_from_slice(machine.type_parameters);
-                    for handle in membership.domain_arguments.handles() {
-                        let mut argument = child_type_references.get(handle).clone();
-                        crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_constraints(
-                            symbols,
-                            child_type_references,
-                            machine.type_constraints,
-                            &local_type_parameters,
-                            &mut argument,
-);
-                        *child_type_references.get_mut(handle) = argument;
-                    }
-                    membership.value
+        assign_fact_span(
+            symbols,
+            machine,
+            parameters,
+            state_symbol,
+            contract.facts,
+            proof_facts,
+            expression_table,
+            child_type_references,
+        );
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn assign_fact_span(
+    symbols: &SymbolTable,
+    machine: &MachineScope<'_>,
+    parameters: &[symbol_resolved_trees::signature::StateParameter],
+    state_symbol: SymbolHandle,
+    facts: arena::HandleSpan<symbol_resolved_trees::domain::ProofFact>,
+    proof_facts: &arena::Arena<symbol_resolved_trees::domain::ProofFact>,
+    expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
+    child_type_references: &mut arena::Arena<symbol_resolved_trees::types::TypeReference>,
+) {
+    for fact in proof_facts.span_or_empty(facts) {
+        let expression = match fact {
+            symbol_resolved_trees::domain::ProofFact::Expression(expression) => *expression,
+            symbol_resolved_trees::domain::ProofFact::Membership(membership) => {
+                // An indexed application's arguments resolve in the
+                // signature's lexical generic scope, exactly as a
+                // parameter's `T in Family<P>` constraint arguments do:
+                // the requirement's own binders shadow the owning
+                // machine or trait telescope under first-match lookup.
+                for handle in membership.domain_arguments.handles() {
+                    let mut argument = child_type_references.get(handle).clone();
+                    crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_constraints(
+                        symbols,
+                        child_type_references,
+                        machine.type_constraints,
+                        machine.type_parameters,
+                        &mut argument,
+    );
+                    *child_type_references.get_mut(handle) = argument;
                 }
-            };
-            assign_calls!(
-                symbols,
-                machine,
-                parameters,
-                state_symbol,
-                expression_table,
-                child_type_references,
-                expression
-            );
-        }
+                membership.value
+            }
+        };
+        assign_calls!(
+            symbols,
+            machine,
+            parameters,
+            state_symbol,
+            expression_table,
+            child_type_references,
+            expression
+        );
     }
 }
 

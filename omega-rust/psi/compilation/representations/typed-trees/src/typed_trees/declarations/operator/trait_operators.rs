@@ -60,6 +60,48 @@ struct TraitOperatorOperandBindings {
     constants: Vec<super::OperatorConstBinding>,
 }
 
+/// Public boundary slots are selected by their complete operand telescope,
+/// independently of the implementation Build will install. Only original
+/// declarations participate; generated headers retain that same slot rather
+/// than introducing another spelling candidate.
+pub fn boundary_trait_operator_meanings<'program>(
+    program: &'program TypedTrees,
+    spelling: OperatorSpelling,
+    operand_types: &[Option<TypeReferenceHandle>],
+    use_site: source::SourceSpan,
+) -> Vec<(
+    &'program crate::trait_definition::TraitDefinition,
+    &'program crate::signature::StateSignature,
+)> {
+    program
+        .traits()
+        .iter()
+        .filter(|definition| {
+            definition.is_boundary
+                && program
+                    .symbols
+                    .source_reference_may_select_symbol(use_site, definition.symbol)
+        })
+        .flat_map(|definition| {
+            program
+                .trait_machine_signatures(definition)
+                .iter()
+                .filter_map(move |requirement| {
+                    (requirement.spelling == Some(spelling)
+                        && trait_operator_operand_bindings(
+                            program,
+                            definition,
+                            requirement,
+                            operand_types,
+                            None,
+                        )
+                        .is_some())
+                    .then_some((definition, requirement))
+                })
+        })
+        .collect()
+}
+
 fn trait_operator_operand_bindings(
     program: &TypedTrees,
     trait_definition: &crate::trait_definition::TraitDefinition,
@@ -83,25 +125,47 @@ fn trait_operator_operand_bindings(
     if !operand_types
         .iter()
         .zip(normalized_operand_parameters(parameters))
-        .all(|(actual, expected)| {
+        .enumerate()
+        .all(|(position, (actual, expected))| {
             actual.is_none_or(|actual| {
+                let (matched_actual, matched_expected) = super::spellings::operator_operand_types(
+                    program,
+                    actual,
+                    expected.type_reference,
+                    position == 0
+                        && matches!(
+                            requirement.spelling,
+                            Some(OperatorSpelling::Index | OperatorSpelling::Range)
+                        ),
+                );
+                if !super::spellings::declared_domain_constraints_match(
+                    program,
+                    actual,
+                    expected.type_reference,
+                ) || !super::spellings::declared_domain_constraints_match(
+                    program,
+                    matched_actual,
+                    matched_expected,
+                ) {
+                    return false;
+                }
                 // An applied telescope already fixes its trait parameters.
                 // Compare those types directly before inferring any remaining
                 // requirement parameters. This also preserves symbolic const
                 // arguments through inherited applications without type nodes.
                 if let Some(substitutions) = application
-                    && program.normalized_type_identity(actual)
+                    && program.normalized_type_identity(matched_actual)
                         == program.type_identity(TypeIdentityRequest {
                             substitutions,
-                            ..TypeIdentityRequest::ordinary(expected.type_reference)
+                            ..TypeIdentityRequest::ordinary(matched_expected)
                         })
                 {
                     return true;
                 }
                 type_reference_matches_with_policy(
                     program,
-                    actual,
-                    expected.type_reference,
+                    matched_actual,
+                    matched_expected,
                     None,
                     &type_parameters,
                     &mut bindings,

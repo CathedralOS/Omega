@@ -65,22 +65,23 @@ impl PreparedCheckedSource {
     }
 
     pub fn admit_root(&self, root_path: &Path) -> Result<(), Vec<Diagnostic>> {
-        if root_path != self.source_checkpoint.root_path() {
-            return Err(vec![Diagnostic::error(
-                "checked child compilation root does not match its prepared source checkpoint",
-            )]);
-        }
-        Ok(())
+        self.source_checkpoint.admit_root(root_path)
     }
 
     /// Select by the package owner's complete assembly inputs. Even an exact
     /// hit revalidates live package custody before any Build effects can run.
+    /// The original unmanaged output exclusion is checkpoint-wide: each child
+    /// keeps that exact request context before selecting any typed frontier.
     /// The final consumer retains no new frontend copy for nonexistent siblings.
     pub fn into_frontier(
         self,
         package_inputs: Option<&PackageCompilationInputs>,
         build_execution_profile: Option<target::TargetProfile>,
+        build_directory: Option<&Path>,
     ) -> Result<PreparedSourceFrontier, Vec<Diagnostic>> {
+        if let Some(capture) = self.source_checkpoint.unmanaged_source_capture() {
+            capture.admit_build_directory(build_directory)?;
+        }
         let inputs = SourceAssemblyInputs::new(package_inputs, build_execution_profile);
         let retain = Arc::strong_count(&self.frontiers) > 1;
         let retained = self

@@ -1,0 +1,9 @@
+data Token { value: u64; }
+machine consume(token: Token) -> u64 { token.value }
+machine main() {
+    let left: Token = Token { value: 11 };
+    let right: Token = Token { value: 22 };
+    let selected: Token = match true { true -> left, _ -> right };
+    let chosen: u64 = consume(selected);
+    let stale: u64 = consume(left);
+}

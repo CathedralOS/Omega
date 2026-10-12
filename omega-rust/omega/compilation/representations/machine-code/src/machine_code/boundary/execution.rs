@@ -69,6 +69,7 @@ pub fn derive_completion_provider_custody(
 /// target lowering, which requires the ledger-owned admitted binding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ProviderExecutionRecord {
+    pub direct_foreign_realization: Option<[u8; 32]>,
     pub provider_plan_report_identity: u64,
     pub provider_execution_report_identity: u64,
     pub provider_execution_report_fingerprint: u64,
@@ -94,6 +95,7 @@ impl ProviderExecutionRecord {
         .iter()
         .all(|identity| *identity != 0)
         .then_some(Self {
+            direct_foreign_realization: None,
             provider_plan_report_identity,
             provider_execution_report_identity,
             provider_execution_report_fingerprint,
@@ -106,6 +108,7 @@ impl ProviderExecutionRecord {
 impl From<ProviderExecutionBinding> for ProviderExecutionRecord {
     fn from(binding: ProviderExecutionBinding) -> Self {
         Self {
+            direct_foreign_realization: binding.direct_foreign_realization(),
             provider_plan_report_identity: binding.provider_plan_report_identity().get(),
             provider_execution_report_identity: binding.provider_execution_report_identity(),
             provider_execution_report_fingerprint: binding.provider_execution_report_fingerprint(),

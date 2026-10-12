@@ -238,7 +238,7 @@ pub(crate) fn evaluate(
                 declarations[dependency].evaluated_value = Some(value.encoding.into());
             }
         }
-        let mut probe = syntax.clone();
+        let mut probe = crate::syntax_probes::expression_probe(&syntax);
         for declaration in declarations.iter().filter(|declaration| {
             declaration.definition.is_public
                 && declaration.leaves.is_empty()
@@ -317,7 +317,7 @@ pub(crate) fn evaluate(
             )?
                 .into_iter()
                 .chain(
-                    syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_machine_const_arguments(
+                    syntax_trees_to_symbol_resolved_trees::pre_resolution::original_scope_const_arguments(
                         &probe,
                         sources.clone(),
                         bindings.to_vec(),
@@ -406,7 +406,9 @@ pub(crate) fn evaluate(
                     }
                 }
                 let prepared = crate::PreparedBuildMachineProgram::prepare_in(&typed, &domain)?;
-                invocations::CheckedInitializers::prepare(&prepared, authority.clone(), &symbols)
+                invocations::CheckedInitializers::prepare(
+                    &prepared, authority.clone(), &symbols, Default::default(),
+                )
             })
             .transpose()?;
         let typed = checked

@@ -12,10 +12,41 @@ pub(super) fn validate_contract_facts(
     parameter: &TypeParameter,
     requirement: &typed_trees::signature::StateSignature,
     actual_contracts: &[SignatureContract],
+    actual_declaration: symbols::SymbolHandle,
+    actual_type_parameters: &[TypeParameter],
+    actual_where_facts: arena::HandleSpan<ProofFact>,
     required_parameters: &[StateParameter],
     actual_parameters: &[StateParameter],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    if !actual_where_facts.is_empty() {
+        use crate::proof_contracts::contract_entailment::{
+            StrictArithmeticImplicationJudgment, callable_where_refinement_judgment,
+        };
+        let required_types = program.state_signature_type_parameters(requirement);
+        let actual_types = actual_type_parameters.iter().collect::<Vec<_>>();
+        let correspondence = required_types
+            .iter()
+            .zip(actual_type_parameters)
+            .map(|(required, actual)| (required.symbol, actual.symbol))
+            .collect::<Vec<_>>();
+        let judgment = (required_types.len() == actual_type_parameters.len()).then(|| {
+            callable_where_refinement_judgment(
+                program,
+                actual_declaration,
+                &actual_types,
+                actual_parameters,
+                actual_where_facts,
+                requirement,
+                &correspondence,
+            )
+        });
+        if judgment != Some(StrictArithmeticImplicationJudgment::Proven) {
+            diagnostics.push(Diagnostic::error(format!(
+                "{label} does not refine `{}`: its declared where facts are not entailed by the complete required callable contract", parameter.name,
+            )));
+        }
+    }
     let required_contracts = program.state_signature_contracts(requirement);
     validate_callable_contract_refinement(
         program,

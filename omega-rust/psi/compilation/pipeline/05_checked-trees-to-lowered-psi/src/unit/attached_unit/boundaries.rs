@@ -20,7 +20,7 @@ use super::{
 use crate::emission::borrowed_window::terminal_multiplicity;
 use crate::terminal_identities::value_id;
 use crate::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_carrier};
-use crate::unit::attached_unit::call_closure::BoundaryIdentity;
+use crate::unit::attached_unit::CheckedBoundaryIdentity;
 use crate::unit::attached_unit::catalog::lower_program_local_root_introductions;
 use crate::unit::{Proposition, ScalarType, ValueDeclaration};
 
@@ -31,7 +31,7 @@ pub(crate) fn lower_declarations(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
-    boundaries: &[(&CheckedBoundaryMachinePlan, BoundaryIdentity)],
+    boundaries: &[(&CheckedBoundaryMachinePlan, CheckedBoundaryIdentity)],
     type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
     domain_ids: &[StructuralDomainBinding],
@@ -113,7 +113,7 @@ pub(crate) fn lower_declarations(
                 &plan.structural_parameters,
             )?,
             id,
-            identity: identities.intern(&identity.render(checked)?),
+            identity: identities.intern(&identity.portable_identity(checked)?),
             owner: crate::machine_lowering::declarations::nominal(
                 identities,
                 checked,
@@ -194,16 +194,15 @@ pub(crate) fn validate_requirement_kind(
             BoundaryRequirementKind::Machine => checked.typed.machines().iter().any(|machine| {
                 machine.symbol == plan.machine && plan.contract_owner == machine.symbol
             }),
-            BoundaryRequirementKind::Trait => checked.typed.traits().iter().any(|definition| {
-                definition.is_boundary
-                    && definition.symbol == plan.contract_owner
-                    && checked
-                        .typed
-                        .trait_machine_instances(definition)
-                        .any(|signature| {
-                            signature.symbol == plan.machine && plan.state == signature.symbol
-                        })
-            }),
+            BoundaryRequirementKind::Trait => checked
+                .typed
+                .public_trait_requirement_signatures()
+                .any(|(definition, signature)| {
+                    definition.is_boundary
+                        && definition.symbol == plan.contract_owner
+                        && signature.symbol == plan.machine
+                        && plan.state == signature.symbol
+                }),
             BoundaryRequirementKind::Operator => checked.typed.operators().iter().any(|operator| {
                 operator.is_boundary
                     && operator.symbol == plan.machine
@@ -408,7 +407,7 @@ pub(crate) fn lower_boundary_result(
 pub(crate) fn retain_unit_boundary<'plans>(
     checked: &CheckedTrees,
     plans: UnitPlans<'plans>,
-    boundaries: &mut Vec<(&'plans CheckedBoundaryMachinePlan, BoundaryIdentity)>,
+    boundaries: &mut Vec<(&'plans CheckedBoundaryMachinePlan, CheckedBoundaryIdentity)>,
     machine: symbols::SymbolHandle,
 ) -> Result<(), LoweringError> {
     let target = unique_unit_boundary(plans, machine)?;
@@ -439,13 +438,9 @@ fn unconditional_termination(
             .and_then(|machine| machine.termination_plan.interface.published()),
         BoundaryRequirementKind::Trait => checked
             .typed
-            .trait_definition_by_symbol(plan.contract_owner)
-            .and_then(|definition| {
-                checked
-                    .typed
-                    .trait_machine_signature_by_symbol(definition, plan.machine)
-            })
-            .map(|signature| &signature.termination_guarantee),
+            .trait_machine_signature(plan.machine)
+            .filter(|(owner, _)| owner.symbol == plan.contract_owner)
+            .map(|(_, signature)| &signature.termination_guarantee),
         // The current operator requirement vocabulary publishes no progress
         // contract. Its result type or chosen implementation cannot supply one.
         BoundaryRequirementKind::Operator => None,

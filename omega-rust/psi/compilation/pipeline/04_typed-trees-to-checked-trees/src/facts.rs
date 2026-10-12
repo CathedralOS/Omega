@@ -31,10 +31,12 @@ pub(crate) use expression_children::{
 pub(crate) mod index_compatibility;
 mod integer_writes;
 pub(crate) use integer_writes::obligations::integer_write_obligation;
+pub(crate) mod assumed_binding_contracts;
 mod machine_facts;
 pub(crate) mod operator_crashes;
 mod placed_views_and_uses;
 pub(crate) mod provider_closed_requirements;
+pub(crate) mod public_contract_sources;
 pub(crate) mod qualification_evidence;
 mod qualification_facts;
 mod requirement_call_specializations;
@@ -129,7 +131,7 @@ fn project_operational_rows(
 pub(crate) fn build_check_facts(
     program: &dyn ::validation::CheckingInput,
     proof_plan: &ProofPlan<'_>,
-    integer_assignments: &[proof::checker::CheckedIntegerAssignment],
+    proof_decisions: proof::checker::ProofPlanDecisions,
     operational: OperationalPlan,
     service_reach_inference: flow_effects::ServiceReachInferencePlan,
     mut validation_facts: validation::ProgramValidationFacts,
@@ -146,8 +148,14 @@ pub(crate) fn build_check_facts(
     let mut operators = build_operator_facts(program, &values);
     operators.exact_integer_casts = validation_facts.exact_integer_casts.clone();
     operators.decided_formations = validation_facts.decided_formations.clone();
-    let mut proof = build_proof_facts(program, proof_plan, &borrow, &operators)?;
-    for decision in integer_assignments {
+    let mut proof = build_proof_facts(
+        program,
+        proof_plan,
+        proof_decisions.accepted_judgments,
+        &borrow,
+        &operators,
+    )?;
+    for decision in proof_decisions.integer_assignments {
         let proof::obligations::ProofObligation::BoundedAssignment(assignment) =
             proof_plan.obligations.get(decision.obligation)
         else {
@@ -162,8 +170,8 @@ pub(crate) fn build_check_facts(
                 target: assignment.target,
                 value: assignment.value,
                 target_type: assignment.base_type,
-                minimum: decision.range.minimum.clone(),
-                maximum: decision.range.maximum.clone(),
+                minimum: decision.range.minimum,
+                maximum: decision.range.maximum,
             });
     }
     for decision in validation_facts.integer_assignments.drain(..) {

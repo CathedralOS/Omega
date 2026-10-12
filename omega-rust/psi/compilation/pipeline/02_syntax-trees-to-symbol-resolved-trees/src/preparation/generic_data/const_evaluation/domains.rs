@@ -390,13 +390,20 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_applicati
                     }
                     None => {}
                 }
-                // Exact header selection is limited to concrete data owners.
-                // Other owners retain their existing normalization path until
-                // their complete lexical selection context is available.
-                if let Some(selection) = selection
-                    && concrete_data_positions.contains(&argument)
-                {
-                    let Some(definition) = selection.select(syntax, &name)? else {
+                if let Some(selection) = selection {
+                    // Concrete data owns its ordinary selection context. Other
+                    // original scopes must retain their authenticated lexical
+                    // declaration before the receiving slot can fold its value.
+                    if !concrete_data_positions.contains(&argument)
+                        && syntax
+                            .type_references
+                            .const_argument_declaration(argument)
+                            .is_none()
+                    {
+                        continue;
+                    }
+                    let Some(definition) = selection.select_argument(syntax, argument, &name)?
+                    else {
                         // Ambiguous or unresolved names belong to ordinary
                         // resolution; never select from the legacy string map.
                         continue;
@@ -433,6 +440,15 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_applicati
                     );
                     continue;
                 }
+                if syntax
+                    .type_references
+                    .const_argument_declaration(argument)
+                    .is_some()
+                {
+                    // Missing original namespace is incomplete closure, not
+                    // permission to reselect from the legacy value map.
+                    continue;
+                }
                 super::module_constant_selection_gate(
                     syntax,
                     &name,
@@ -440,10 +456,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_applicati
                     const_definitions,
                 )?;
                 if let Some(value) = const_values.get(name.as_str()) {
-                    syntax.tables.type_references.replace_type_reference(
-                        argument,
-                        TypeReferenceNode::Named(Identifier::generated(value.to_string())),
-                    );
+                    super::replace_integer_argument(syntax, argument, *value);
                     continue;
                 }
                 let Some(definition) = const_definitions.get(name.as_str()) else {
@@ -459,6 +472,13 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_applicati
                             family_name
                         ))
                     })?;
+                syntax.type_references.retain_const_argument_normalization(
+                    argument,
+                    name.source_span(),
+                    value.encoding.clone(),
+                    [],
+                    [],
+                );
                 syntax.tables.type_references.replace_type_reference(
                     argument,
                     TypeReferenceNode::Named(Identifier::generated(value.atom())),
@@ -497,10 +517,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_applicati
                         syntax_type_identity(syntax, *parameter_type).map_err(Diagnostic::error)?;
                     validate_syntax_integer_range(&required, value).map_err(Diagnostic::error)?;
                 }
-                syntax.tables.type_references.replace_type_reference(
-                    argument,
-                    TypeReferenceNode::Named(Identifier::generated(value.to_string())),
-                );
+                super::replace_integer_argument(syntax, argument, value);
             }
             _ => {
                 return Err(Diagnostic::error(format!(

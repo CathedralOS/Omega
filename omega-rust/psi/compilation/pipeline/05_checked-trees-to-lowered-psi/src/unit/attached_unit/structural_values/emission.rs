@@ -33,7 +33,7 @@ mod dispatch;
 mod element_views;
 mod parameters;
 mod reference;
-mod residual_complement;
+pub(super) mod residual_complement;
 
 pub(super) type StructuralOperandEmitter<'a> = dyn FnMut(
         &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -2352,6 +2352,10 @@ impl Emission<'_, '_, '_> {
         // still have a result even when they have no residual input owners.
         self.arrival_claims
             .push((continuation.place, self.completion_claims.clone()));
+        if let Some(parameter) = continuation.structural_parameters.last() {
+            self.operations
+                .complete_structural_value(parameter.clone(), self.completion_claims.clone());
+        }
         if self.sources.is_empty() {
             return;
         }
@@ -2422,6 +2426,12 @@ fn completed_place_claims(
         .structural_values
         .iter()
         .map(|(_, root)| (root.place(), root.claims()))
+        .chain(
+            operations
+                .structural_completions
+                .iter()
+                .map(|(parameter, claims)| (parameter.place, claims.as_slice())),
+        )
         .chain(
             operations
                 .operations

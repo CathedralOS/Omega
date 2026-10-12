@@ -4,10 +4,12 @@ impl TableCallExpression {
     /// Whether the call reaches its callee through the ordinary nominal route,
     /// so `target_symbol` alone names the operation that runs.
     ///
-    /// Three retained requests each redirect a call away from that route, and a
+    /// Retained requests redirect a call away from that route, and a
     /// consumer modelling an ordinary application must exclude every one of
     /// them:
     ///
+    /// * `source_call` — source checking judges the retained original
+    ///   invocation while its executable symbol names a selected body.
     /// * `static_requirement_dispatch` — static conformance dispatch rewrote
     ///   `target_symbol` to a satisfier's private closed realization. The
     ///   public requirement, not the rewritten symbol, remains the contract and
@@ -27,6 +29,14 @@ impl TableCallExpression {
     /// symbol or the positional arguments: each of those is a caller's own
     /// narrowing and stays visible at its site.
     pub fn selects_only_nominal_route(&self) -> bool {
+        !self.source_call.is_valid() && self.executes_nominal_route()
+    }
+
+    /// Dispatch of the executable payload, independently of its source view.
+    /// This supplies no source judgment or selection authority. Execution
+    /// consumers must already own the checked closure that admitted both the
+    /// original invocation and the supplying body before using this route.
+    pub fn executes_nominal_route(&self) -> bool {
         self.static_requirement_dispatch.is_none()
             && self.quotient_operation.is_none()
             && self.private_layout_operation.is_none()

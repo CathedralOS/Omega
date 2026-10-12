@@ -1,0 +1,6 @@
+machine preserve<'a>(value: &'a i32) -> &'a i32 { value }
+machine forward<'outer>(value: &'outer i32) -> &'outer i32 {
+    let captured: &'outer i32 = preserve(value);
+    captured
+}
+machine main() {}

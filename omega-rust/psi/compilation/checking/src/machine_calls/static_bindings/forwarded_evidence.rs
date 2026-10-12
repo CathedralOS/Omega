@@ -4,7 +4,7 @@
 
 use diagnostics::Diagnostic;
 use typed_trees::{
-    machine::Machine,
+    machine::GenericConformanceBound,
     static_applications::{
         StaticMachineApplication, StaticMachineBinding, StaticMachineBindingValue,
         StaticMachineLifetimeBinding,
@@ -14,7 +14,9 @@ use typed_trees::{
 
 pub(super) fn validate(
     program: &dyn crate::CheckingInput,
-    machine: &Machine,
+    declaration: symbols::SymbolHandle,
+    name: &str,
+    conformance_bounds: &[GenericConformanceBound],
     application: &StaticMachineApplication,
     bindings: &[StaticMachineBinding],
     lifetimes: &[StaticMachineLifetimeBinding],
@@ -48,16 +50,17 @@ pub(super) fn validate(
         .map(|binding| {
             (
                 binding.parameter.as_str().to_owned(),
-                binding.argument.as_str().to_owned(),
+                binding.argument.scope_argument(),
             )
         })
         .collect::<Vec<_>>();
     let scope = AppliedTypeIdentityScope {
-        declaration: machine.symbol,
+        region_role: typed_trees::type_identity::AppliedTypeIdentityRegionRole::Supplied,
+        declaration,
         arguments: &operands,
         lifetimes: &regions,
     };
-    for required in &machine.conformance_bounds {
+    for required in conformance_bounds {
         let Some(selected) = bindings.iter().find_map(|binding| {
             if binding.parameter != required.binder {
                 return None;
@@ -72,11 +75,18 @@ pub(super) fn validate(
         }) else {
             continue;
         };
+        let Some(owner) = application.type_identity_owner(program.typed_program()) else {
+            diagnostics.push(Diagnostic::error(
+                "forwarded evidence application lost its original lexical owner",
+            ));
+            continue;
+        };
         let required_arguments = crate::conformance_applications::applied_bound_argument_identities(
             program,
             required,
-            application.lexical_owner,
+            owner,
             &[scope],
+            typed_trees::type_identity::TypeIdentityQualification::Ordinary,
         );
         if let Err(reason) = crate::conformance_applications::validate_forwarded_argument(
             program,
@@ -89,8 +99,9 @@ pub(super) fn validate(
                         crate::conformance_applications::applied_bound_argument_identities(
                             program,
                             actual,
-                            application.lexical_owner,
+                            owner,
                             &[],
+                            typed_trees::type_identity::TypeIdentityQualification::Ordinary,
                         )
                         .as_ref(),
                     )
@@ -99,7 +110,7 @@ pub(super) fn validate(
         ) {
             diagnostics.push(Diagnostic::error(format!(
                 "generic machine `{}` cannot bind implementation `{}`: {reason}",
-                machine.name, required.binder_name,
+                name, required.binder_name,
             )));
         }
     }

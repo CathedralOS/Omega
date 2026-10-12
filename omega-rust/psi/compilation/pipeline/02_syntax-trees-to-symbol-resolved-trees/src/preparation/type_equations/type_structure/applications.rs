@@ -18,8 +18,8 @@
 use super::super::{Binding, Solver, const_binder_envelope, normalized_boolean_argument};
 use crate::preparation::generic_data::{
     ClosedArgumentIdentity, DomainCarrier, DomainHead, canonicalize_selected_const_definition,
-    closed_argument_identity, closed_name_identity, domain_application_head,
-    domain_index_telescope, selected_domain_family,
+    canonicalize_selected_index_expression, closed_argument_identity, closed_name_identity,
+    domain_application_head, domain_index_telescope, selected_domain_family,
 };
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
@@ -390,11 +390,24 @@ impl Solver<'_, '_> {
                         else {
                             return Ok(None);
                         };
-                        arguments.push(self.syntax.type_references.insert(
-                            TypeReferenceNode::Named(Identifier::generated(
-                                CanonicalConstValue::boolean(value).atom(),
-                            )),
-                        ));
+                        let derived = self
+                            .syntax
+                            .type_references
+                            .type_reference(argument)
+                            .as_named()
+                            .is_some_and(|name| self.parameter_position(name.as_str()).is_some());
+                        // A closed original operand already passed this slot's
+                        // selection and carrier checks. Reconstruction retains
+                        // it; a mathematical binder assignment is a distinct
+                        // producer with no original closed operand to forward.
+                        let reference = if derived {
+                            self.syntax.type_references.insert(TypeReferenceNode::Named(
+                                Identifier::generated(CanonicalConstValue::boolean(value).atom()),
+                            ))
+                        } else {
+                            argument
+                        };
+                        arguments.push(reference);
                         continue;
                     }
                     let Some(value) =
@@ -403,9 +416,22 @@ impl Solver<'_, '_> {
                         return Ok(None);
                     };
                     self.validate_application_integer(type_reference, &value, span)?;
-                    self.syntax.type_references.insert(TypeReferenceNode::Named(
-                        Identifier::generated(value.to_string()),
-                    ))
+                    let derived = self
+                        .syntax
+                        .type_references
+                        .type_reference(argument)
+                        .as_named()
+                        .is_some_and(|name| self.parameter_position(name.as_str()).is_some());
+                    if derived {
+                        // Preserve the existing derived-assignment frontier:
+                        // these mathematical bindings do not carry an original
+                        // integer policy receipt and cannot be called Anonymous.
+                        self.syntax.type_references.insert(TypeReferenceNode::Named(
+                            Identifier::generated(value.to_string()),
+                        ))
+                    } else {
+                        argument
+                    }
                 }
                 _ => {
                     return Err(
@@ -454,6 +480,26 @@ impl Solver<'_, '_> {
         binders: bool,
         span: SourceSpan,
     ) -> Result<Option<BigInt>, Diagnostic> {
+        if let TypeReferenceNode::ConstExpression(expression) =
+            self.syntax.type_references.type_reference(reference)
+        {
+            let value = canonicalize_selected_index_expression(
+                self.syntax,
+                parameter_type,
+                parameter_type,
+                *expression,
+                self.selection,
+            )
+            .map_err(|reason| self.type_structure_error(&reason, span))?;
+            return match value.decode_encoding() {
+                Some(DecodedCanonicalConstValue::Integer { value, .. }) => {
+                    Ok(Some(BigInt::from_i128(value)))
+                }
+                _ => {
+                    Err(self.type_structure_error("requires an integer constructor constant", span))
+                }
+            };
+        }
         let Some(name) = self
             .syntax
             .type_references
@@ -541,6 +587,24 @@ impl Solver<'_, '_> {
         binders: bool,
         span: SourceSpan,
     ) -> Result<Option<bool>, Diagnostic> {
+        if let TypeReferenceNode::ConstExpression(expression) =
+            self.syntax.type_references.type_reference(reference)
+        {
+            let value = canonicalize_selected_index_expression(
+                self.syntax,
+                parameter_type,
+                parameter_type,
+                *expression,
+                self.selection,
+            )
+            .map_err(|reason| self.type_structure_error(&reason, span))?;
+            return match value.decode_encoding() {
+                Some(DecodedCanonicalConstValue::Boolean(value)) => Ok(Some(value)),
+                _ => {
+                    Err(self.type_structure_error("requires a Boolean constructor constant", span))
+                }
+            };
+        }
         let Some(name) = self
             .syntax
             .type_references

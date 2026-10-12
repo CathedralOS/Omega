@@ -80,22 +80,30 @@ pub(super) fn checked_provider_attachment_requirements(
     // admitting exactly one field.
     let mut providers = Vec::with_capacity(provider_fields.len());
     for (field, provider_type_identity) in &provider_fields {
-        let provider_symbol = program.data_members(attached).iter().find_map(|member| {
+        let mut source_fields = program.data_members(attached).iter().filter_map(|member| {
             let source_field = member.as_field()?;
-            if source_field.name.as_str() != field.identity.spelling() {
-                return None;
-            }
-            typed_trees::service::service_requirement_declaration(
+            (source_field.member_identity() == field.identity).then_some(source_field)
+        });
+        let source_field = source_fields.next()?;
+        if source_fields.next().is_some() {
+            return None;
+        }
+        let provider_symbol = typed_trees::service::service_requirement_declaration(
+            program,
+            source_field.type_reference,
+        )
+        .or_else(|| {
+            crate::execution::terminal_unit::types::mutable_boundary_trait_symbol(
                 program,
                 source_field.type_reference,
             )
-            .or_else(|| {
-                crate::execution::terminal_unit::types::mutable_boundary_trait_symbol(
-                    program,
-                    source_field.type_reference,
-                )
-            })
         })?;
+        let interface_identity = typed_trees::static_applications::trait_type_application_identity(
+            program,
+            source_field.type_reference,
+            typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(attached.symbol),
+        )
+        .ok()?;
         let provider = program
             .traits()
             .iter()
@@ -104,11 +112,7 @@ pub(super) fn checked_provider_attachment_requirements(
             *field,
             *provider_type_identity,
             provider,
-            program
-                .trait_machine_signatures(provider)
-                .iter()
-                .map(|requirement| requirement.symbol)
-                .collect::<Vec<_>>(),
+            interface_identity,
         ));
     }
 
@@ -136,10 +140,19 @@ pub(super) fn checked_provider_attachment_requirements(
             call.statement_index,
             call.call_ordinal,
         );
+        let selected_requirement = program
+            .selected_trait_requirement_signature(call.target_symbol, call.authored_application);
         let candidates = providers
             .iter()
-            .filter(|(_, _, _, provider_requirements)| {
-                provider_requirements.contains(&call.target_symbol)
+            .filter(|(_, _, provider, interface_identity)| {
+                selected_requirement.is_some_and(|(_, signature)| {
+                    typed_trees::static_applications::requirement_provider_application_identity(
+                        program,
+                        signature.symbol,
+                        provider.symbol,
+                    )
+                    .is_ok_and(|selected| selected == *interface_identity)
+                })
             })
             .collect::<Vec<_>>();
         if candidates.is_empty() {
@@ -161,6 +174,17 @@ pub(super) fn checked_provider_attachment_requirements(
                         && program.operators().iter().any(|operator| {
                             operator.is_boundary && operator.symbol == target_machine
                         }))
+                    || selected_requirement.is_some_and(|(owner, signature)| {
+                        signature.symbol == target_machine
+                            && call_site.as_ref().is_some_and(|site| {
+                                matches!(
+                                    crate::execution::terminal_unit::calls::boundary_trait_receiver_source(
+                                        program, state, call, site, owner.symbol,
+                                    ),
+                                    Some(crate::execution::terminal_unit::calls::BoundaryTraitReceiver::Namespace)
+                                )
+                            })
+                    })
                     || validation::exact_external_leaf_boundary_requirement(
                         program,
                         call.target_symbol,

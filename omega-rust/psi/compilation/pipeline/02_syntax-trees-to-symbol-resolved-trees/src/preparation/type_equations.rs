@@ -69,6 +69,32 @@ use syntax_trees::types::{
 
 mod type_structure;
 
+/// Structural equations and callable predicates share authored `where` storage,
+/// but only equations owe structural completion. This source-owned partition
+/// is used by validation, lowering and selected application completion.
+pub(crate) struct WhereFactClassification {
+    pub(crate) equations: Vec<TypeEquation>,
+}
+
+impl WhereFactClassification {
+    pub(crate) fn equation_offsets(&self) -> Vec<usize> {
+        self.equations
+            .iter()
+            .map(|equation| equation.fact_offset)
+            .collect()
+    }
+}
+
+pub(crate) fn classify_where_facts(
+    syntax: &SyntaxTrees,
+    parameters: &[TypeParameter],
+    facts: &[ProofFact],
+) -> WhereFactClassification {
+    WhereFactClassification {
+        equations: classify_type_equations(syntax, parameters, facts),
+    }
+}
+
 /// One declaration-level `where` fact that states a type equation, by its offset in
 /// the template's fact span. Instances never carry it: applying the template
 /// decides it against the complete argument tuple.

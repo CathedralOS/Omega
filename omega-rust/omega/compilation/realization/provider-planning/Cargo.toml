@@ -24,8 +24,11 @@ task-plans = { path = "../../backend/runtime/task-plans" }
 arena = { path = "../../../../psi/foundation/arena" }
 build-time-evaluation = { path = "../../../../psi/compilation/compile-time" }
 checked-trees = { path = "../../../../psi/compilation/representations/checked-trees" }
+facts = { path = "../../../../psi/compilation/representations/checked-trees/facts" }
 terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
 terminal-codec = { path = "../../../../psi/compilation/representations/terminal-psi/codec" }
+terminal-installation = { path = "../../../../psi/compilation/checking/terminal-installation" }
+proof-admission = { path = "../../../../psi/compilation/proof/admission" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }
 flow-effects = { path = "../../../../psi/foundation/flow-effects" }

@@ -1,12 +1,14 @@
 //! Select the toolchain Build prelude without capturing source-stage execution.
 
 use super::SourceStorage;
+use diagnostics::Diagnostic;
+use std::sync::Arc;
 
 /// Source and scoped aliases to append together before name resolution.
 /// The bindings name the next source id in the supplied storage; the caller
 /// must append this prelude before appending any other source.
 pub(crate) struct BuildPrelude {
-    pub source: String,
+    pub source: Arc<str>,
     pub bindings: Vec<symbols::SourceScopedTopLevelBinding>,
 }
 
@@ -16,7 +18,7 @@ pub(crate) struct BuildPrelude {
 pub(crate) fn prepare_build_prelude(
     source_storage: &SourceStorage,
     build_source_id: Option<source::SourceId>,
-) -> Option<BuildPrelude> {
+) -> Result<Option<BuildPrelude>, Vec<Diagnostic>> {
     let mut has_build_machine = false;
     let mut build_source_declares_build_data = false;
     let mut program_declares_build_data = false;
@@ -42,7 +44,7 @@ pub(crate) fn prepare_build_prelude(
     }
     let inject_build_vocabulary = has_build_machine && !build_source_declares_build_data;
     if !inject_build_vocabulary {
-        return None;
+        return Ok(None);
     }
 
     let bindings = match (program_declares_build_data, build_source_id) {
@@ -53,8 +55,13 @@ pub(crate) fn prepare_build_prelude(
         )],
         _ => Vec::new(),
     };
-    Some(BuildPrelude {
-        source: build_declarations::build_prelude_source(),
+    let source = source_storage.original_build_vocabulary().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "Build prelude injection has no original prepared vocabulary",
+        )]
+    })?;
+    Ok(Some(BuildPrelude {
+        source: Arc::clone(source),
         bindings,
-    })
+    }))
 }

@@ -53,6 +53,7 @@ pub(super) fn emit_state(
     operations.length_observations.clear();
     let mut values = parameters.to_vec();
     let mut block_parameters = parameters.to_vec();
+    let mut structural_parameters = state.structural_parameters.clone();
     let mut operation_start = operations.len();
     for binding in &state.bindings {
         if let LoweredScalarBinding::Expression(LoweredDirectExpression::Boolean { expression }) =
@@ -96,6 +97,7 @@ pub(super) fn emit_state(
                 ))?;
                 if index == 0 {
                     decision.id = block;
+                    decision.structural_parameters = std::mem::take(&mut structural_parameters);
                     decision.operations.splice(0..0, prefix.iter().cloned());
                 }
                 blocks.push(decision);
@@ -858,7 +860,7 @@ pub(super) fn emit_state(
         }
     };
     blocks.push(Block {
-        structural_parameters: Vec::new(),
+        structural_parameters,
         id: block,
         parameters: block_parameters,
         erased_scalar_formals: block_erased_formals,

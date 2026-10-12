@@ -10,23 +10,26 @@ pub(super) fn provider_identities(
     let CatalogRequirement::Trait {
         definition,
         signature,
+        application,
     } = requirement
     else {
         return Ok(Vec::new());
     };
     let typed = &checked.typed;
-    let application = typed.closed_requirement_application(signature.symbol);
-    let template = application.map_or(signature.symbol, |application| application.template);
+    let family_application = typed.closed_requirement_application(signature.symbol);
+    let template = family_application.map_or(signature.symbol, |application| application.template);
     let mut identities = Vec::new();
-    for implementation in typed
-        .conformances()
+    for (conformance, implementation) in typed
+        .conformances
         .iter()
-        .filter(|implementation| implementation.type_parameters.is_empty())
+        .filter(|(_, implementation)| implementation.type_parameters.is_empty())
     {
         let rows = &implementation.rows;
-        let mut matching = rows
-            .iter()
-            .filter(|row| row.declaring_trait == definition.symbol && row.requirement == template);
+        let original_requirement =
+            application.map_or(template, |application| application.requirement_template);
+        let mut matching = rows.iter().filter(|row| {
+            row.declaring_trait == definition.symbol && row.requirement == original_requirement
+        });
         let Some(row) = matching.next() else {
             continue;
         };
@@ -43,10 +46,7 @@ pub(super) fn provider_identities(
         {
             return unsupported("named provider row has no exact realization entry");
         }
-        if application.is_some() {
-            // Checking has joined the complete receiving application to this
-            // map's public slots. Comparing the unapplied map with the receiver
-            // here would confuse declaration parameters with their actuals.
+        if family_application.is_some() {
             if !checked
                 .facts
                 .provider_closed_requirements
@@ -56,7 +56,7 @@ pub(super) fn provider_identities(
                         && row.selecting_declaration == implementation.symbol
                         && row.template == template
                         && row.closed_requirement == signature.symbol
-                        && application.is_some_and(|application| {
+                        && family_application.is_some_and(|application| {
                             row.receiving_application == application.trait_application_identity
                         })
                 })
@@ -68,24 +68,32 @@ pub(super) fn provider_identities(
             {
                 continue;
             }
-        } else if !implementation.lifetime_parameters.is_empty() {
-            // A regional candidate needs a retained closed application and its
-            // checked slot mapping; the nominal template supplies neither.
-            continue;
-        } else if realization.symbol != machine.symbol {
-            // Specialization owns the ordered template-to-instance state
-            // correspondence; the map's entry above must remain its origin.
-            let receipts = typed
-                .machine_specializations
-                .iter()
-                .filter(|receipt| {
-                    receipt.template == realization.symbol && receipt.instance == machine.symbol
-                })
-                .count();
-            if receipts == 0 {
+        } else if let Some(application) = application {
+            if !super::requirements::realizes_closed_requirement(
+                checked,
+                machine,
+                realization.symbol,
+                conformance,
+                application,
+            )? {
                 continue;
             }
-            if receipts != 1 || typed.machine_states(machine).len() != states.len() {
+        } else if !implementation.lifetime_parameters.is_empty() {
+            // Regional candidates require the retained receiving application
+            // and its checked public slot mapping; nominal lineage is insufficient.
+            continue;
+        } else {
+            // Original requirements need no produced public header. Recover
+            // this candidate's exact instance owner from the same source and
+            // family receipts used by complete applied requirement headers.
+            if !super::requirements::realization_candidate_matches(
+                typed,
+                realization.symbol,
+                machine.symbol,
+            ) {
+                continue;
+            }
+            if typed.machine_states(machine).len() != states.len() {
                 return unsupported("named provider lost its exact specialization entry");
             }
         }

@@ -1,4 +1,4 @@
-//! Canonical wire form for mathematical derivation certificates.
+//! Canonical mathematical term, signature and derivation-certificate encoding.
 //!
 //! A [`MathematicalCertificate`] is untrusted producer evidence for one
 //! complete judgment `Γ ⊢ t : T` of the common mathematical kernel
@@ -43,6 +43,11 @@ use super::CodecError;
 use super::wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSICORE\0";
+const SIGNATURE_MAGIC: &[u8; 8] = b"PSISIGN\0";
+const SIGNATURE_FORMAT_MARKER: u16 = 1;
+
+#[cfg(test)]
+mod tests;
 /// Format 3 adds the declaration signature and `Term::Constant`; format 2
 /// carried level expressions but no declarations, and format 1 held only
 /// closed constant levels. Neither must decode a signature as judgment
@@ -63,10 +68,10 @@ pub struct DecodedMathematicalCertificate {
 
 /// Encode one certificate against the arena its handles resolve in.
 ///
-/// Only nodes reachable from the context bindings, the term, and the claimed
-/// type are emitted, so producer-side scratch (normalization residue, unused
-/// lemmas) never enters the certificate. A `Term::Dummy` anywhere reachable
-/// is a producer defect and rejects.
+/// Only nodes reachable from signature statements/bodies, context bindings,
+/// the evidence term and the claimed type are emitted. Producer-side scratch
+/// never enters the certificate. A `Term::Dummy` anywhere reachable is a
+/// producer defect and rejects.
 pub fn encode_mathematical_certificate(
     arena: &TermArena,
     certificate: &MathematicalCertificate,
@@ -74,12 +79,7 @@ pub fn encode_mathematical_certificate(
     let mut term_writer = MathematicalTermWriter::new(arena);
     // Declaration statements and bodies are roots: the signature's terms
     // join the table before the judgment's, in signature order.
-    for declaration in &certificate.signature {
-        term_writer.encode_term(declaration.ty, 0)?;
-        if let Some(body) = declaration.body {
-            term_writer.encode_term(body, 0)?;
-        }
-    }
+    term_writer.encode_signature_roots(&certificate.signature)?;
     for &binding in &certificate.context {
         term_writer.encode_term(binding, 0)?;
     }
@@ -100,21 +100,12 @@ pub fn encode_mathematical_certificate(
     writer.u32(certificate.level_arity);
     writer.u32(count);
     writer.bytes(&nodes.finish());
-    writer.len(
+    encode_declaration_rows(
+        &mut writer,
+        &certificate.signature,
+        &by_handle,
         "mathematical certificate signature",
-        certificate.signature.len(),
     )?;
-    for declaration in &certificate.signature {
-        writer.u32(declaration.level_arity);
-        writer.u32(by_handle[&declaration.ty]);
-        match declaration.body {
-            Some(body) => {
-                writer.u8(1);
-                writer.u32(by_handle[&body]);
-            }
-            None => writer.u8(0),
-        }
-    }
     writer.len(
         "mathematical certificate context",
         certificate.context.len(),
@@ -125,6 +116,62 @@ pub fn encode_mathematical_certificate(
     writer.u32(by_handle[&certificate.term]);
     writer.u32(by_handle[&certificate.expected]);
     Ok(writer.finish())
+}
+
+/// Encode an original mathematical declaration cohort without a judgment.
+///
+/// This uses the certificate codec's canonical term table and declaration
+/// rows, retaining signature order and every statement/body root. It emits
+/// `PSISIGN\0`, signature format 1, the counted canonical term table, then the
+/// counted declaration rows. It never invents context, evidence or goal roots.
+/// Encoding does not check the signature or authorize any assumption. Source
+/// correspondence and an exact reached-root closure remain separate inputs.
+/// Unreachable arena scratch does not participate in these bytes.
+pub fn encode_mathematical_signature(
+    arena: &TermArena,
+    declarations: &[Declaration],
+) -> Result<Vec<u8>, CodecError> {
+    let mut term_writer = MathematicalTermWriter::new(arena);
+    term_writer.encode_signature_roots(declarations)?;
+    let MathematicalTermWriter {
+        nodes,
+        by_handle,
+        count,
+        ..
+    } = term_writer;
+    let mut writer = Writer::default();
+    writer.bytes(SIGNATURE_MAGIC);
+    writer.u16(SIGNATURE_FORMAT_MARKER);
+    writer.u32(count);
+    writer.bytes(&nodes.finish());
+    encode_declaration_rows(
+        &mut writer,
+        declarations,
+        &by_handle,
+        "mathematical signature",
+    )?;
+    Ok(writer.finish())
+}
+
+fn encode_declaration_rows(
+    writer: &mut Writer,
+    declarations: &[Declaration],
+    by_handle: &HashMap<TermHandle, u32>,
+    label: &'static str,
+) -> Result<(), CodecError> {
+    writer.len(label, declarations.len())?;
+    for declaration in declarations {
+        writer.u32(declaration.level_arity);
+        writer.u32(by_handle[&declaration.ty]);
+        match declaration.body {
+            Some(body) => {
+                writer.u8(1);
+                writer.u32(by_handle[&body]);
+            }
+            None => writer.u8(0),
+        }
+    }
+    Ok(())
 }
 
 /// Decode one certificate, materializing its term table into a fresh arena.
@@ -225,6 +272,16 @@ impl<'arena> MathematicalTermWriter<'arena> {
             by_bytes: HashMap::new(),
             count: 0,
         }
+    }
+
+    fn encode_signature_roots(&mut self, declarations: &[Declaration]) -> Result<(), CodecError> {
+        for declaration in declarations {
+            self.encode_term(declaration.ty, 0)?;
+            if let Some(body) = declaration.body {
+                self.encode_term(body, 0)?;
+            }
+        }
+        Ok(())
     }
 
     /// Encode one term and its transitive children, each exactly once and always

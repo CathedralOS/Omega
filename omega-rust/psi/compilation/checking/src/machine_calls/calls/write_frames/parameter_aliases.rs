@@ -70,6 +70,7 @@ pub(super) fn expression_reborrows_transparent_alias_binding(
         }
         ExpressionNode::Atomic(atomic) => visit(atomic.value) || visit(atomic.result),
         ExpressionNode::Call(call) => {
+            let Some(call) = program.expression_table.source_call(call) else { return true; };
             (call.receiver.is_valid() && visit(call.receiver))
                 || program
                     .expression_table

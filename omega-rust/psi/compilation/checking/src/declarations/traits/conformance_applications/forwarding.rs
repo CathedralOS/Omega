@@ -6,8 +6,8 @@ use symbols::SymbolKind;
 use typed_trees::{
     data::TypeParameterKind,
     type_identity::{
-        AppliedTypeIdentityScope, IndexIdentityArgument, NormalizedTypeIdentity,
-        applied_type_identity,
+        AppliedTypeIdentityOwner, AppliedTypeIdentityScope, IndexIdentityArgument,
+        NormalizedTypeIdentity, TypeIdentityQualification, applied_type_identity,
     },
 };
 use typed_trees::{expression::StaticMachineArgument, machine::GenericConformanceBound};
@@ -57,8 +57,9 @@ pub(crate) fn validate_forwarded_argument(
 pub(crate) fn applied_bound_argument_identities(
     program: &dyn crate::CheckingInput,
     bound: &GenericConformanceBound,
-    owner: symbols::SymbolHandle,
+    owner: AppliedTypeIdentityOwner<'_>,
     scopes: &[AppliedTypeIdentityScope<'_>],
+    qualification: TypeIdentityQualification,
 ) -> Option<Vec<NormalizedTypeIdentity>> {
     let carrier = crate::refinement_fit::resolve_bound_carrier(program, bound.trait_symbol);
     let identity = |arguments: &[typed_trees::types::TypeReferenceHandle],
@@ -66,7 +67,13 @@ pub(crate) fn applied_bound_argument_identities(
         arguments
             .iter()
             .map(|argument| {
-                applied_type_identity(program.typed_program(), *argument, owner, scopes)
+                applied_type_identity(
+                    program.typed_program(),
+                    *argument,
+                    owner,
+                    scopes,
+                    qualification,
+                )
             })
             .collect()
     };
@@ -94,6 +101,7 @@ pub(crate) fn applied_bound_argument_identities(
             .collect::<Vec<_>>();
         let mut scopes = scopes.to_vec();
         scopes.push(AppliedTypeIdentityScope {
+            region_role: typed_trees::type_identity::AppliedTypeIdentityRegionRole::Supplied,
             declaration: refinement.symbol,
             arguments: &head,
             lifetimes: &[],

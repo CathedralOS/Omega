@@ -102,6 +102,7 @@ pub fn instantiated_value_call_requires_proven(
         caller_state,
         statement_index,
         site,
+        arena::Handle::invalid(),
         expression,
     ) {
         return true;

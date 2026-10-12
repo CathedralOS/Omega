@@ -31,6 +31,7 @@ pub(super) fn expression_is_effectful_for_transparent_result(
         }
         ExpressionNode::Atomic(_) => true,
         ExpressionNode::Call(call) => {
+            let Some(call) = program.expression_table.source_call(call) else { return true; };
             !call_is_effect_free_slice_view(program, call)
                 || expression_is_effectful_for_transparent_result(program, call.receiver)
         }

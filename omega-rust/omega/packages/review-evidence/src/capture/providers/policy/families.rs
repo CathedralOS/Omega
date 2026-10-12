@@ -41,7 +41,7 @@ pub(super) fn project(
             }
             if let Some((_, existing)) = seeds.iter().find(|(candidate_authority, candidate)| {
                 *candidate_authority == authority
-                    && candidate.subject.same_declaration_as(&declaration.subject)
+                    && candidate.subject.same_subject_as(&declaration.subject)
             }) {
                 if existing.provider_type.symbol != declaration.provider_type.symbol {
                     return Err(rejected(
@@ -163,7 +163,8 @@ fn authored(
             PackageReviewProviderSelectionAuthority::TargetDefault,
             declarations,
         )),
-        ProviderSelectionProvenance::UniqueCoveringCandidate => None,
+        ProviderSelectionProvenance::ToolchainSettlement
+        | ProviderSelectionProvenance::CompilerCatalog(_) => None,
     }
 }
 
@@ -175,7 +176,7 @@ fn selects(
     authored(provenance).is_some_and(|(candidate_authority, declarations)| {
         candidate_authority == authority
             && declarations.iter().any(|candidate| {
-                candidate.subject.same_declaration_as(&selection.subject)
+                candidate.subject.same_subject_as(&selection.subject)
                     && candidate.provider_type.symbol == selection.provider_type.symbol
             })
     })

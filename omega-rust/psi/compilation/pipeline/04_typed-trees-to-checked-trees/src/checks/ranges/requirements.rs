@@ -56,6 +56,7 @@ pub(in crate::checks) fn state_requires_facts<'program>(
         .chain(program.state_contracts(state))
         .filter(|contract| contract.kind == SignatureContractKind::Requires)
         .flat_map(|contract| contract.facts.handles())
+        .chain(machine.where_facts.handles())
 }
 
 /// Seeds slice proof vocabulary implied by an assumed-valid subslice access.

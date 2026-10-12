@@ -40,10 +40,11 @@ pub struct BuildSnapshotRequest {
 /// before execution.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BuildSnapshotCapture {
-    /// The root package's complete sealed inventory — the exact custody the
-    /// resolver already validated. Capture reads no member the package
-    /// binding did not commit.
-    PackageInventory,
+    /// The complete original source inventory retained by the loader or the
+    /// package resolver. An unmanaged root's original capture supplies the
+    /// same custody without manufacturing a named package identity.
+    /// A bare request without either owner cannot authorize host capture.
+    SourceInventory,
     /// An explicit invocation inventory of files and subtrees. A package
     /// root retains full resolver provenance while its build receives only
     /// the selected view; a standalone root captures only declared members.
@@ -51,13 +52,13 @@ pub enum BuildSnapshotCapture {
 }
 
 impl BuildSnapshotRequest {
-    /// A snapshot over the root package's sealed inventory. Package custody
-    /// is itself the caller-authorized inventory — the resolver's canonical
-    /// index fixes membership — so this form needs no capture request.
+    /// A snapshot over the original loader/resolver inventory. Its retained
+    /// capture fixes membership, so this form needs no second capture request.
+    /// A request alone grants neither source custody nor host access.
     pub fn new(required_outputs: impl IntoIterator<Item = Vec<u8>>) -> Self {
         Self {
             required_outputs: required_outputs.into_iter().collect(),
-            capture: BuildSnapshotCapture::PackageInventory,
+            capture: BuildSnapshotCapture::SourceInventory,
             inputs: BTreeMap::new(),
             dependency_inputs: BTreeMap::new(),
         }

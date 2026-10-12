@@ -56,11 +56,11 @@ pub(super) fn establishes_scalar_predicates(
             }
             let (expression, holds) = match fact.payload {
                 FactPayload::ContractBooleanExpression {
-                    kind: facts::ContractFactKind::Requires,
+                    kind,
                     expression,
                     instantiated,
                     ..
-                } if !instantiated.is_valid() => (expression, true),
+                } if kind.is_body_assumption() && !instantiated.is_valid() => (expression, true),
                 FactPayload::BooleanExpression(expression) => (expression, true),
                 FactPayload::BooleanValue { expression, value } => (expression, value),
                 _ => return None,
@@ -204,7 +204,7 @@ pub(super) fn establishes_scalar_predicates(
                 expression: *expression,
                 bindings,
             };
-            validation::scoped_arithmetic_implication(program, machine, &hypotheses, &goal)
+            validation::scoped_arithmetic_implication(program, machine.symbol, &hypotheses, &goal)
                 == validation::StrictArithmeticImplicationJudgment::Proven
         })
 }

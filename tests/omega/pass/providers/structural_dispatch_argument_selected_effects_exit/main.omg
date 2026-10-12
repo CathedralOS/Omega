@@ -1,0 +1,28 @@
+data Carrier { value: u64; }
+data Main { left: bool; right: bool; choice: bool; inner: bool; }
+machine make_left(main: &mut Main) -> Carrier { main.left = true; Carrier { value: 11 } }
+machine make_right(main: &mut Main) -> Carrier { main.right = true; Carrier { value: 22 } }
+machine flip(main: &mut Main) -> bool { main.choice = !main.choice; main.choice }
+machine read(carrier: &Carrier) -> u64 { carrier.value }
+machine Main::main(main: &mut Main) crashes Trap {
+    main.inner = true;
+    let first: u64 = read(&(match flip(main) {
+        true -> match main.inner { true -> make_left(main), _ -> make_right(main) },
+        _ -> make_right(main),
+    }));
+    transition first == 11 && main.left && !main.right && main.choice {
+        true -> second(main)
+        _ -> bad()
+    }
+    state second(main: &mut Main) {
+        main.left = false;
+        main.right = false;
+        let next: u64 = read(&(match flip(main) {
+            true -> make_left(main),
+            _ -> make_right(main),
+        }));
+        transition next == 22 && !main.left && main.right && !main.choice { true -> done() _ -> bad() }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -1,7 +1,9 @@
 //! Exact replay for canonical structured-data const arguments.
 
 use super::super::{exact_field_symbol, exact_top_level_data_symbol};
-use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+use language_semantics::const_value::{
+    CanonicalConstValue, DecodedCanonicalConstValue, canonical_index_display,
+};
 use symbol_resolved_trees::{
     SymbolResolvedTrees,
     data::{DataDefinition, DataMember, DataShapeKind, DataVariant},
@@ -44,7 +46,7 @@ pub(super) fn closed_argument_is_supported(
     let Some(decoded) = value.decode_encoding() else {
         return false;
     };
-    value.display == canonical_display(&decoded)
+    value.display == canonical_index_display(&decoded)
         && decoded_value_matches(source, expected_type, &decoded, &mut Vec::new())
 }
 
@@ -293,46 +295,4 @@ fn exact_variant_symbol(
         && source.symbols.get(variant.symbol).kind == SymbolKind::Variant
         && source.symbols.get(variant.symbol).parent == owner
         && source.symbols.name(variant.symbol) == variant.name.as_str()
-}
-
-fn canonical_display(value: &DecodedCanonicalConstValue) -> String {
-    match value {
-        // Index decoding and carrier validation both reject this declaration-only form.
-        DecodedCanonicalConstValue::Float { .. } => "<ineligible floating const index>".to_owned(),
-        DecodedCanonicalConstValue::Integer { value, .. } => value.to_string(),
-        DecodedCanonicalConstValue::Boolean(value) => value.to_string(),
-        DecodedCanonicalConstValue::Array { values, .. } => format!(
-            "[{}]",
-            values
-                .iter()
-                .map(canonical_display)
-                .collect::<Vec<_>>()
-                .join(", ")
-        ),
-        DecodedCanonicalConstValue::Record { type_name, fields } => format!(
-            "{type_name} {{ {} }}",
-            fields
-                .iter()
-                .map(|(name, value)| format!("{name}: {}", canonical_display(value)))
-                .collect::<Vec<_>>()
-                .join(", ")
-        ),
-        DecodedCanonicalConstValue::Variant {
-            type_name,
-            case_name,
-            fields,
-        } if fields.is_empty() => format!("{type_name}::{case_name}"),
-        DecodedCanonicalConstValue::Variant {
-            type_name,
-            case_name,
-            fields,
-        } => format!(
-            "{type_name}::{case_name} {{ {} }}",
-            fields
-                .iter()
-                .map(|(name, value)| format!("{name}: {}", canonical_display(value)))
-                .collect::<Vec<_>>()
-                .join(", ")
-        ),
-    }
 }

@@ -35,8 +35,9 @@ impl PreparedLocalProjectCheckRequest {
 
     /// One check request covering several exact targets. Their prepared source
     /// shares one candidate preparation: each package's binding-independent
-    /// parse frontier is built once for the union while each target still
-    /// checks under its own staging root and accepted consent.
+    /// parse frontier is built once for the union. Each target checks under
+    /// its accepted consent and fresh occurrence directory in the same
+    /// invocation-owned staging root and aggregate resource budget.
     pub fn for_targets(
         prepared: PreparedLocalProject,
         build_dir: impl Into<PathBuf>,
@@ -169,8 +170,8 @@ pub struct CheckedProjectTargetOutcome {
 /// source custody, so a package's binding-independent parse
 /// frontier — and any typed frontier whose inputs two targets carry
 /// identically — assembles exactly once for the request. Each target still
-/// stages into `build_dir/<target>`, arms its own accepted checkpoint, and
-/// resolves its own trust grants and report.
+/// arms its own accepted checkpoint and resolves its own trust grants and
+/// report. Fresh occurrence directories share the invocation's staging owner.
 pub fn check_prepared_local_project_for_targets(
     request: PreparedLocalProjectCheckRequest,
 ) -> Vec<CheckedProjectTargetOutcome> {
@@ -187,6 +188,9 @@ pub fn check_prepared_local_project_for_targets(
         .into_iter()
         .filter(|target| target_profiles.contains(&target.profile))
         .collect();
+    if targets.is_empty() {
+        return Vec::new();
+    }
     // The whole batch borrows one invocation: sponsors, staging and the pure
     // Build store persist across targets rather than replenishing per check.
     let mut session = match PackageBuildSession::create(&build_dir) {
@@ -245,11 +249,11 @@ pub fn check_prepared_local_project_for_targets(
             }
         })
         .collect::<Vec<_>>();
-    // Staging cleanup is disposal work, not a target outcome; the shared
-    // Drop would otherwise swallow it silently.
-    let _ = session.close();
-
-    outcomes
+    session.dispose_batch(
+        outcomes,
+        |outcome| &mut outcome.result,
+        CheckPreparedLocalProjectError::Review,
+    )
 }
 
 fn product_failure(error: compiler::CompilationProductError) -> CheckPreparedLocalProjectError {

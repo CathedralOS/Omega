@@ -28,7 +28,46 @@ pub enum CallSite<'program> {
     },
 }
 
-impl CallSite<'_> {
+impl<'program> CallSite<'program> {
+    /// Logical invocation at the same executable occurrence/ordinal. This
+    /// reads the original payload; it neither selects a body nor grants its
+    /// source application's argument, contract or effect admission.
+    pub fn source(self, program: &'program dyn crate::CheckingInput) -> Option<Self> {
+        match self {
+            Self::Expression { expression, call } => Some(Self::Expression {
+                expression,
+                call: program.expression_table.source_call(call)?,
+            }),
+            other => Some(other),
+        }
+    }
+
+    /// Use the flow-resolved endpoint for an unchanged ordinary call. A
+    /// redirected call must instead name its retained original endpoint; an
+    /// unresolved original cannot borrow its private provider's authority.
+    pub fn source_target_symbol(
+        self,
+        program: &'program dyn crate::CheckingInput,
+        resolved_target: SymbolHandle,
+    ) -> Option<SymbolHandle> {
+        if let Self::Expression { expression, .. } = self {
+            let executable = program.expression_table.call_node(expression)?;
+            if executable.source_call.is_valid() {
+                let target = program.expression_table.source_call(executable)?.target_symbol;
+                return target.is_valid().then_some(target);
+            }
+        }
+        Some(resolved_target)
+    }
+
+    pub fn target_symbol(&self) -> SymbolHandle {
+        match self {
+            Self::Statement(call) => call.target_symbol,
+            Self::Expression { call, .. } => call.target_symbol,
+            Self::TransitionNamed { path, .. } => path.symbol,
+        }
+    }
+
     pub fn static_requirement_dispatch(
         &self,
     ) -> Option<&typed_trees::typed_trees::StaticRequirementDispatch> {
@@ -50,6 +89,19 @@ pub fn find_call_site<'program>(
     let state = find_state_in_machine(program, machine_symbol, state_symbol)?;
     let machine = program.machine_by_symbol(machine_symbol)?;
     find_call_site_in_state(program, machine, state, statement_index, call_ordinal)
+}
+
+/// Source judgment projection of the same exact executable occurrence. This
+/// shares ordinal discovery; it does not walk or check another invocation.
+pub fn find_source_call_site<'program>(
+    program: &'program dyn crate::CheckingInput,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    call_ordinal: usize,
+) -> Option<CallSite<'program>> {
+    find_call_site(program, machine_symbol, state_symbol, statement_index, call_ordinal)?
+        .source(program)
 }
 
 /// Exact ordinary call occurrence that executes without a selection fork.

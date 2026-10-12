@@ -13,7 +13,8 @@ use super::context::ReviewContext;
 type LeafKey = (
     effects::provider_plan::ServiceSchemaDigest,
     String,
-    effects::provider_plan::ProviderPlanDigest,
+    [u8; 32],
+    u8,
 );
 
 pub(super) struct Reviewer<'a> {
@@ -65,6 +66,66 @@ impl<'a> Reviewer<'a> {
             .identities
             .text(declaration.identity)
             .unwrap_or_default();
+        let mut direct = self
+            .context
+            .direct
+            .iter()
+            .filter(|row| row.realization.callable_identity() == requirement);
+        if let Some(first) = direct.next() {
+            if direct.next().is_some() {
+                return Err(format!(
+                    "direct foreign callable `{requirement}` has ambiguous binding custody"
+                ));
+            }
+            let realization = first.realization.clone();
+            let mechanism = *self.context.mechanisms.get(&boundary).ok_or_else(|| {
+                format!("direct foreign callable `{requirement}` has no admitted mechanism")
+            })?;
+            let exercised = match self.context.physical_policy.classify(mechanism) {
+                Ok(exercised) => Some(exercised),
+                Err(_) if self.context.permission_policy.is_some() => {
+                    return Err(format!(
+                        "direct foreign callable `{requirement}` has no receiving mechanism classification"
+                    ));
+                }
+                Err(_) => None,
+            };
+            let permitted = self
+                .context
+                .permission_policy
+                .map(|policy| {
+                    policy.permission_for(
+                        realization.schema().identity_digest(),
+                        realization.requirement_identity(),
+                    )
+                })
+                .transpose()
+                .map_err(|_| {
+                    format!(
+                        "direct foreign callable `{requirement}` has no exact receiving permission"
+                    )
+                })?;
+            let key = (
+                realization.schema().identity_digest(),
+                requirement.to_owned(),
+                realization.identity(),
+                1,
+            );
+            let leaf = TerminalAuthorityClosureLeaf::from_direct_realization(
+                self.identities.intern(requirement),
+                realization,
+                mechanism,
+                exercised,
+                permitted,
+            )
+            .map_err(|error| format!("direct foreign authority closure rejected: {error:?}"))?;
+            if let Some(previous) = self.leaves.insert(key, leaf.clone()) {
+                if previous != leaf {
+                    return Err("direct foreign mechanism custody conflicts".into());
+                }
+            }
+            return Ok(());
+        }
         let (selected_plan, selected_row, specialization) =
             self.context.selected_requirement(requirement)?;
         match &selected_row.binding {
@@ -201,7 +262,7 @@ impl<'a> Reviewer<'a> {
                 "terminal mechanism for `{requirement}` exceeds its exact service permission: {error:?}"
             )
         })?;
-        let key = (schema, requirement.to_owned(), provider_plan);
+        let key = (schema, requirement.to_owned(), *provider_plan.as_bytes(), 0);
         if let Some(previous) = self.leaves.insert(key, leaf.clone())
             && previous != leaf
         {

@@ -86,30 +86,30 @@ pub(crate) fn build_nominal_machine_use_facts(
                 "admitted nominal machine use retained an empty contract-envelope identity",
             )]);
         }
-        let callback_entry = match program.traits().iter().find(|definition| {
-            definition.symbol == nominal_use.satisfaction_trait
-                && validation::boundary_has_explicit_calling_policy(program, definition)
-        }) {
-            Some(_) => {
-                let Some(resource_envelope) = contract_plans
-                    .resource_envelope(nominal_use.selected_machine, nominal_use.selected_entry)
-                else {
-                    return Err(vec![diagnostics::Diagnostic::error(
-                        "admitted nominal callback use is missing its exact checked entry resource envelope",
-                    )]);
-                };
-                let resource_receipt =
-                    checked_trees::CheckedCallbackResourceReceipt::try_from_entry_envelope(
-                        resource_envelope,
-                    )
-                    .map_err(|error| {
-                        vec![diagnostics::Diagnostic::error(format!(
-                            "admitted nominal callback resource receipt failed checked replay: {error}"
-                        ))]
+        let callback_entry = if validation::boundary_requirement_has_explicit_calling_policy(
+            program,
+            nominal_use.satisfaction_trait,
+            nominal_use.satisfaction_requirement,
+        ) {
+            let Some(resource_envelope) = contract_plans
+                .resource_envelope(nominal_use.selected_machine, nominal_use.selected_entry)
+            else {
+                return Err(vec![diagnostics::Diagnostic::error(
+                    "admitted nominal callback use is missing its exact checked entry resource envelope",
+                )]);
+            };
+            let resource_receipt =
+                checked_trees::CheckedCallbackResourceReceipt::try_from_entry_envelope(
+                    resource_envelope,
+                )
+                .map_err(|error| {
+                    vec![diagnostics::Diagnostic::error(format!(
+                        "admitted nominal callback resource receipt failed checked replay: {error}"
+                    ))]
                 })?;
-                Some(resource_receipt)
-            }
-            None => None,
+            Some(resource_receipt)
+        } else {
+            None
         };
         checked.push(checked_trees::CheckedNominalMachineUse {
             application_index: 0, // Assigned when the complete roster is frozen.

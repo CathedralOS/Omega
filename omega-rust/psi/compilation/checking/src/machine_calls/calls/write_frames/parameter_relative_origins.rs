@@ -227,6 +227,7 @@ fn parameter_relative_place_origins_in(
             admit_carrier_roots,
         )?,
         ExpressionNode::Call(call) => {
+            let call = program.expression_table.source_call(call)?;
             if call_is_transparent_mutable_slice_view(program, call) {
                 // An unresolved view builtin supplies a conservative
                 // collection footprint, not a nominal helper-result identity.
@@ -411,6 +412,7 @@ fn parameter_relative_call_result_origins(
     inference: &mut FrameInference,
     admit_carrier_roots: bool,
 ) -> Option<Vec<ParameterRelativeFrameOrigin>> {
+    let call = program.expression_table.source_call(call)?;
     if std::iter::once(call.receiver)
         .chain(
             program

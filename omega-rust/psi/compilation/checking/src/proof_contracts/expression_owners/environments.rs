@@ -109,11 +109,13 @@ pub(super) fn signature_environment(
     owner_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
 ) -> Option<TypeEnvironment> {
-    if let Some(signature) = program.traits().iter().find_map(|definition| {
-        (definition.symbol == owner_symbol)
-            .then(|| program.trait_machine_signature_by_symbol(definition, state_symbol))
-            .flatten()
-    }) {
+    if let Some((_, signature)) =
+        program
+            .public_trait_requirement_signatures()
+            .find(|(definition, signature)| {
+                definition.symbol == owner_symbol && signature.symbol == state_symbol
+            })
+    {
         return Some(environment_from_parameters(
             program.state_signature_parameters(signature),
             signature.return_type,
@@ -309,15 +311,13 @@ pub(super) fn collect_parameter_constraint_environments(
         }
     }
 
-    for definition in program.traits() {
-        for signature in program.trait_machine_signatures(definition) {
-            collect_telescope_constraint_environments(
-                program,
-                program.state_signature_parameters(signature),
-                expression,
-                environments,
-            )?;
-        }
+    for (_, signature) in program.public_trait_requirement_signatures() {
+        collect_telescope_constraint_environments(
+            program,
+            program.state_signature_parameters(signature),
+            expression,
+            environments,
+        )?;
     }
     for operator in program.all_operators() {
         collect_telescope_constraint_environments(

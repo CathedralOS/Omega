@@ -107,10 +107,14 @@ impl CheckedCompilation {
     /// checking already sealed that closure; realization must not hash it again.
     /// This assembles products, not package admission or publication authority.
     pub fn from_settled_execution(
-        execution: CheckedCompilationInputs,
+        mut execution: CheckedCompilationInputs,
         sources: Arc<CheckedSourceCustody>,
         timings: CompileTimings,
     ) -> Self {
+        provider_planning::assumed_binding_relationships::retain_assumed_binding_declaration_revisions(
+            &mut execution.settled.assumed_binding_relationships,
+            &sources,
+        );
         Self {
             execution,
             sources,

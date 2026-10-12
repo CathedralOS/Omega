@@ -180,6 +180,8 @@ fn lower_machine_contents(
         // `lower_machine` validates the exact clone origin before entering
         // this conversion; retain it for application-property checking.
         generic_data_template: machine.generic_data_origin.template,
+        generic_data_member_parameters: arena::HandleSpan::empty(),
+        conformance_applications: arena::HandleSpan::empty(),
         // Copied, never re-derived from the leaf name.
         spelling: machine.spelling,
         is_public: machine.is_public,
@@ -219,6 +221,7 @@ fn lower_machine_contents(
         suspends: machine.suspends,
         blocks: machine.blocks,
         contracts: arena::HandleSpan::empty(),
+        where_facts: arena::HandleSpan::empty(),
         states: arena::HandleSpan::empty(),
     };
 
@@ -226,6 +229,8 @@ fn lower_machine_contents(
     // enters only with the implementation.
     typed_machine.termination_plan.implementation_witness = None;
     typed_machine.type_parameters = lower_type_parameters(lowerer, machine.type_parameters)?;
+    typed_machine.generic_data_member_parameters =
+        lower_type_parameters(lowerer, machine.generic_data_origin.member_parameters)?;
 
     if let Some(application) = &machine.attached_data_application {
         typed_machine.attached_data_application =
@@ -368,6 +373,9 @@ fn lower_machine_contents(
             .typed_trees
             .push_machine_invoke(&mut typed_machine, invocation);
     }
+
+    typed_machine.where_facts =
+        crate::contracts::proof_facts::lower_proof_facts(lowerer, machine.where_facts)?;
 
     for contract in lowerer.source_trees.machine_contracts(machine) {
         let contract = crate::contracts::proof_facts::lower_signature_contract(lowerer, contract)?;
