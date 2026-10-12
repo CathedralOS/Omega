@@ -448,8 +448,8 @@ fn complete_arguments(
                 let value = argument.const_literal.as_ref().and_then(IntegerLiteral::value_bignum).ok_or_else(|| Diagnostic::error("machine equation const argument is not an exact integer"))?;
                 syntax.type_references.insert(TypeReferenceNode::Named(syntax_trees::identifier::Identifier::generated(value.to_string())))
             }
-            TypeParameterKind::Const { .. } => {
-                supplied_const_argument_reference(syntax, argument, selection)?
+            TypeParameterKind::Const { type_reference } => {
+                supplied_const_argument_reference(syntax, argument, *type_reference, selection)?
             }
             _ => return Err(Diagnostic::error("machine equation argument mixes type and value kinds or retains an open static argument").with_source_span(target.source_span())),
         };
@@ -473,7 +473,9 @@ fn complete_arguments(
     // authored operand graph. A decimal rendering cannot issue integer policy.
     let mut original_arguments = Vec::with_capacity(supplied.len());
     for (argument, reference) in supplied.iter().zip(&arguments) {
-        let original = if let Some(literal) = &argument.const_literal {
+        let original = if argument.type_reference.is_valid() {
+            argument.type_reference
+        } else if let Some(literal) = &argument.const_literal {
             let expression = syntax
                 .expressions
                 .insert(ExpressionNode::Integer(literal.clone()));
@@ -582,9 +584,10 @@ fn complete_arguments(
 fn supplied_const_argument_reference(
     syntax: &mut SyntaxTrees,
     argument: &StaticMachineArgument,
+    parameter_type: TypeReferenceHandle,
     selection: &ConstantSelection<'_>,
 ) -> Result<TypeReferenceHandle, Diagnostic> {
-    let (value, _) = scalar_const_argument(syntax, argument, selection)?;
+    let (value, _) = scalar_const_argument(syntax, argument, parameter_type, selection)?;
     scalar_const_argument_reference(syntax, value)
 }
 
@@ -595,11 +598,67 @@ fn supplied_const_argument_reference(
 fn scalar_const_argument(
     syntax: &SyntaxTrees,
     argument: &StaticMachineArgument,
+    parameter_type: TypeReferenceHandle,
     selection: &ConstantSelection<'_>,
 ) -> Result<(CanonicalConstValue, TypeReferenceHandle), Diagnostic> {
     let reject = |reason: &str| Diagnostic::error(format!("machine equation application {reason}"));
-    if argument.type_reference.is_valid()
-        || argument.application.is_some()
+    if argument.type_reference.is_valid() {
+        if !argument.path.is_empty()
+            || argument.application.is_some()
+            || argument.evidence_projection.is_some()
+            || argument.const_literal.is_some()
+        {
+            return Err(reject("retains conflicting scalar const operand lanes"));
+        }
+        let reference = argument.type_reference;
+        let normalization = syntax
+            .type_references
+            .const_argument_normalization(reference);
+        let original = normalization.map_or(reference, |record| record.original_operand);
+        if let Some(record) = normalization {
+            // Read this producer's already completed value for equation
+            // matching. Its source graph remains the operand and is never
+            // assigned a policy from this value or the receiving parameter.
+            let value = CanonicalConstValue::new("", record.canonical_result_encoding.clone(), "");
+            if !matches!(
+                value.decode_encoding(),
+                Some(
+                    DecodedCanonicalConstValue::Integer { .. }
+                        | DecodedCanonicalConstValue::Boolean(_)
+                )
+            ) {
+                return Err(reject("requires an integer or Boolean const operand"));
+            }
+            return Ok((value, TypeReferenceHandle::invalid()));
+        }
+        match syntax.type_references.type_reference(original) {
+            TypeReferenceNode::ConstExpression(expression) => {
+                let value = super::generic_data::canonicalize_selected_index_expression(
+                    syntax,
+                    parameter_type,
+                    parameter_type,
+                    *expression,
+                    Some(selection),
+                )
+                .map_err(|reason| reject(&reason))?;
+                return Ok((value, TypeReferenceHandle::invalid()));
+            }
+            TypeReferenceNode::Named(name) => {
+                let definition = selection
+                    .select_argument(syntax, original, name)?
+                    .ok_or_else(|| reject("requires an original selected scalar const operand"))?;
+                let value = super::generic_data::canonicalize_selected_declared_const_definition(
+                    syntax,
+                    &definition,
+                    Some(selection),
+                )
+                .map_err(|reason| reject(&reason))?;
+                return Ok((value, definition.type_reference));
+            }
+            _ => return Err(reject("requires an original scalar const operand")),
+        }
+    }
+    if argument.application.is_some()
         || argument.evidence_projection.is_some()
         || argument.const_literal.is_some()
     {
@@ -678,7 +737,8 @@ fn application_argument_reference(
                     symbols::BuiltinTypeAtom::Bool,
                 ));
             if argument.const_literal.is_none() {
-                let (value, declared_type) = scalar_const_argument(syntax, argument, selection)?;
+                let (value, declared_type) =
+                    scalar_const_argument(syntax, argument, *type_reference, selection)?;
                 // Check the selected declaration independently of its value,
                 // then retain the original operand. Canonical value bytes do
                 // not carry its integer width or arithmetic policy.
@@ -705,6 +765,11 @@ fn application_argument_reference(
                             "has a constructor argument with a different scalar kind",
                         ));
                     }
+                }
+                if argument.type_reference.is_valid() {
+                    // A repeated or nested application keeps the same issued
+                    // graph, including selected carrier and policy custody.
+                    return Ok(argument.type_reference);
                 }
                 let first = argument
                     .path
