@@ -1761,7 +1761,17 @@ pub(super) fn apply_operation(
                         .sources
                         .iter()
                         .map(|formal| {
-                            call_source(&callee.structural_parameters, structural_arguments, formal)
+                            callee.structural_parameter(formal.place)
+                        .and_then(|parameter| {
+                            let formal = StructuralArgument {
+                                place: formal.place,
+                                path: terminal_semantics::reference_source_storage_path(
+                                    structural_types.values().copied(), parameter.structural_type, &formal.path,
+                                ).to_vec(),
+                                access: formal.access,
+                            };
+                            call_source(&callee.structural_parameters, structural_arguments, &formal)
+                        })
                         .map(|source| {
                             (
                                 source,
@@ -1965,7 +1975,7 @@ pub(super) fn transferred_ingress_leaf(
         .structural_parameter(source.place)
         .filter(|parameter| parameter.access == StructuralAccess::Owned)?;
     if !matches!(
-        formal_origin(function, source),
+        formal_origin(types, function, source),
         Some(ReferenceOrigin::IngressLeaf(_))
     ) || matches!(
         types.get(&parameter.structural_type)?.shape,
@@ -2140,7 +2150,7 @@ pub(super) fn transfer_return(
             .sources
             .iter()
             .filter(|source| {
-                formal_origin(function, source)
+                formal_origin(structural_types, function, source)
                     .is_some_and(|origin| contains_origin(&origins, &origin))
             })
             .cloned()

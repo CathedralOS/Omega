@@ -112,9 +112,10 @@ pub use record_field::{
     runtime_structural_field, static_field_projection,
 };
 pub use reference_views::{
-    reference_source_compatible, reference_storage_byte_width, reference_storage_export_byte_width,
-    reference_storage_source_compatible, reference_storage_view_is_compatible,
-    scalar_reference_view_is_total, scalar_reference_view_value,
+    reference_source_compatible, reference_source_storage_path, reference_storage_byte_width,
+    reference_storage_export_byte_width, reference_storage_source_compatible,
+    reference_storage_view_is_compatible, scalar_reference_view_is_total,
+    scalar_reference_view_value,
 };
 pub use scalar_array::{scalar_array_leaf_declaration, scalar_array_leaf_shape};
 pub use scalar_field_requirements::{

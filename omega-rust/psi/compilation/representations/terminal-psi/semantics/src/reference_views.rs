@@ -7,6 +7,26 @@
 
 use semantic_vocabulary::{ScalarType, StructuralTypeId};
 
+/// Reference provenance may end in a marker naming ordinary borrowed storage.
+/// Only a reference-typed endpoint crosses a descriptor there. Formation and
+/// result-origin consumers use this same geometry before resolving live loans;
+/// internal crossings, access, bounds and backing identity remain their checks.
+/// Unknown geometry retains the original path so it cannot bypass validation.
+pub fn reference_source_storage_path<'types, 'path>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &'path [terminal_psi::StructuralPathSegment],
+) -> &'path [terminal_psi::StructuralPathSegment] {
+    if let Some((terminal_psi::StructuralPathSegment::Referent, prefix)) = path.split_last()
+        && crate::runtime_structural_path_tip(types, root, prefix)
+            .is_some_and(|tip| !matches!(tip.shape, StructuralTypeShape::Reference { .. }))
+    {
+        prefix
+    } else {
+        path
+    }
+}
+
 /// Exact byte footprint of a closed scalar storage interpretation. This is
 /// independent of the logical reference type and grants no access authority.
 pub fn reference_storage_byte_width(stored: ScalarType) -> Option<u8> {

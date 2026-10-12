@@ -466,20 +466,13 @@ impl TerminalExecution<'_> {
     ) -> Result<(), TerminalInterpretError> {
         let result = operation.result.structural().ok_or_else(malformed)?;
         let (referent_type, access) = self.reference_contract(result.structural_type)?;
-        // Reference-source provenance ends with a borrowed-leaf marker even
-        // for non-reference storage. Only a real descriptor has pointer bytes
-        // to cross; formation at ordinary storage captures that exact place.
         let mut normalized_source = source.clone();
-        if let Some((StructuralPathSegment::Referent, prefix)) = source.path.split_last()
-            && terminal_semantics::runtime_structural_path_tip(
-                self.program.structural_types().values(),
-                self.live_structural_type(source.place)?,
-                prefix,
-            )
-            .is_some_and(|tip| !matches!(tip.shape, StructuralTypeShape::Reference { .. }))
-        {
-            normalized_source.path.pop();
-        }
+        normalized_source.path = terminal_semantics::reference_source_storage_path(
+            self.program.structural_types().values(),
+            self.live_structural_type(source.place)?,
+            &source.path,
+        )
+        .to_vec();
         let source = &normalized_source;
         // Both local storage and ingress borrows already name their backing.
         // An explicit Referent projection reborrows that backing through a live
@@ -1208,11 +1201,13 @@ impl TerminalExecution<'_> {
                     {
                         return Err(malformed());
                     }
-                    let Some(expected) = self.resolve_reference_path(
-                        arguments.get(&parameter.place).ok_or_else(malformed)?,
+                    let owner = arguments.get(&parameter.place).ok_or_else(malformed)?;
+                    let path = terminal_semantics::reference_source_storage_path(
+                        self.program.structural_types().values(),
+                        owner.structural_type,
                         &source.path,
-                        source.access,
-                    )?
+                    );
+                    let Some(expected) = self.resolve_reference_path(owner, path, source.access)?
                     else {
                         continue;
                     };

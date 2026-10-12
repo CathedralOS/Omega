@@ -773,14 +773,19 @@ fn formal_origin(
     source: &StructuralArgument,
 ) -> Option<ReferenceRoot> {
     let parameter = function.structural_parameter(source.place)?;
-    if source.path.is_empty()
+    let path = terminal_semantics::reference_source_storage_path(
+        types.values().copied(),
+        parameter.structural_type,
+        &source.path,
+    );
+    if path.is_empty()
         && matches!(
             parameter.access,
             terminal_psi::reading_borrow_pair_pattern!()
         )
     {
         Some(ReferenceRoot::Place(source.place))
-    } else if let Some((StructuralPathSegment::Referent, path)) = source.path.split_last()
+    } else if let Some((StructuralPathSegment::Referent, path)) = path.split_last()
         && matches!(
             parameter.access,
             StructuralAccess::Owned | StructuralAccess::SharedBorrow
@@ -807,11 +812,11 @@ fn formal_origin(
                 .entry_claims
                 .iter()
                 .any(|claim| claim.input == source.place)
-            || leaf_type(types, parameter.structural_type, &source.path).is_none()
+            || leaf_type(types, parameter.structural_type, path).is_none()
         {
             return None;
         }
-        Some(ReferenceRoot::Ingress(source.place, source.path.clone()))
+        Some(ReferenceRoot::Ingress(source.place, path.to_vec()))
     } else {
         None
     }
@@ -1201,6 +1206,19 @@ pub(super) fn call_results(
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         let mut candidates = Vec::with_capacity(mapping.sources.len());
         for formal in &mapping.sources {
+            let parameter = callee_function
+                .structural_parameter(formal.place)
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+            let formal = &StructuralArgument {
+                place: formal.place,
+                path: terminal_semantics::reference_source_storage_path(
+                    types.values().copied(),
+                    parameter.structural_type,
+                    &formal.path,
+                )
+                .to_vec(),
+                access: formal.access,
+            };
             if !access_covers(formal.access, result_access) {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }

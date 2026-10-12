@@ -468,11 +468,17 @@ fn direct_reference_parameter<'a>(
 /// The formal origin a callee result mapping names: a mutable primitive
 /// parameter or an owned-carrier ingress leaf path.
 pub(crate) fn formal_origin(
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     function: &PsiOptimizationFunction,
     source: &terminal_psi::StructuralArgument,
 ) -> Option<ReferenceOrigin> {
     let parameter = function.structural_parameter(source.place)?;
-    if source.path.is_empty()
+    let path = terminal_semantics::reference_source_storage_path(
+        types.values().copied(),
+        parameter.structural_type,
+        &source.path,
+    );
+    if path.is_empty()
         && matches!(
             parameter.access,
             terminal_psi::StructuralAccess::MutableBorrow
@@ -480,8 +486,7 @@ pub(crate) fn formal_origin(
         )
     {
         Some(ReferenceOrigin::Primitive(source.place))
-    } else if let Some((terminal_psi::StructuralPathSegment::Referent, path)) =
-        source.path.split_last()
+    } else if let Some((terminal_psi::StructuralPathSegment::Referent, path)) = path.split_last()
         && matches!(
             parameter.access,
             terminal_psi::StructuralAccess::Owned | terminal_psi::StructuralAccess::SharedBorrow
@@ -491,9 +496,9 @@ pub(crate) fn formal_origin(
             place: source.place,
             path: path.to_vec(),
         }))
-    } else if !source.path.is_empty()
+    } else if !path.is_empty()
         && direct_reference_parameter(function, source).is_some()
-        && source.path.iter().all(|segment| {
+        && path.iter().all(|segment| {
             matches!(
                 segment,
                 terminal_psi::StructuralPathSegment::Field(_)
@@ -503,7 +508,7 @@ pub(crate) fn formal_origin(
     {
         Some(ReferenceOrigin::IngressLeaf(ReferenceIdentity {
             place: source.place,
-            path: source.path.clone(),
+            path: path.to_vec(),
         }))
     } else {
         None
@@ -519,7 +524,7 @@ pub(crate) fn formal_transfers_reference(
     source: &terminal_psi::StructuralArgument,
 ) -> bool {
     matches!(
-        formal_origin(function, source),
+        formal_origin(types, function, source),
         Some(ReferenceOrigin::IngressLeaf(identity))
             if structural_source_contract(function, identity.place)
                 .and_then(|signature| {
@@ -758,6 +763,19 @@ pub(crate) fn validate_function_references(
             }
         }
         for formal in &mapping.sources {
+            let parameter = function
+                .structural_parameter(formal.place)
+                .ok_or_else(invalid)?;
+            let formal = &terminal_psi::StructuralArgument {
+                place: formal.place,
+                path: terminal_semantics::reference_source_storage_path(
+                    types.values().copied(),
+                    parameter.structural_type,
+                    &formal.path,
+                )
+                .to_vec(),
+                access: formal.access,
+            };
             // Repeated observations of borrowed ingress create independent
             // shared descendants. An owned ingress instead transfers existing
             // carrier identities, which cannot fill multiple result slots.
@@ -779,7 +797,7 @@ pub(crate) fn validate_function_references(
                 || !function.structural_parameter(formal.place).is_some()
                 || reference_source_type(function, types, formal) != Some(expected_referent)
                 || !leaf_access_within(types, result.structural_type, path, formal.access)
-                || formal_origin(function, formal).is_none()
+                || formal_origin(types, function, formal).is_none()
             {
                 return Err(invalid());
             }

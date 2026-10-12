@@ -2511,51 +2511,14 @@ crash and native exit behavior.
     `expression_preparation/bindings/` and
     `scalar_lowering/computations/fields.rs`. Reuse the shared source-place
     and view-narrowing operations; do not add local-specific call or range routes.
-  - State: landed on main through `72c941fdb7` and demonstrated on macOS arm64
-    (e7-m2): the
-    [cohort fixture](tests/omega/pass/borrows/runtime_selected_shared_reference_cohort_exit/README.md)
-    and [selected helper fixture](tests/omega/pass/borrows/runtime_selected_reference_record_helper_exit/README.md)
-    hold 0 under native execution and Terminal checking, and the live-copy
-    write plus only-one-arm transfer controls reject on their authored
-    diagnostics. The helper's `verify_refill_after_selection` had been
-    rejected on the landed base (`argument referent requires a reference
-    carrier`) — an earlier claim of 0 was stale candidate evidence;
-    `prepare_structural_argument_projection` now consumes the plan's own
-    leading `Referent` instead of replaying the published-carrier hop a
-    second time, so a shared borrow of a referent-rooted local (`chosen.target`)
-    lowers to its `&Cell` descriptor exactly once.
-    Call-result loans now cover each exclusive
-    operand's and the receiver's local root through
-    `checks/borrows/place_access.rs`; `lent` keeps the selected leaf for
-    result-origin identity, so shared `&` operands never acquire receiver
-    custody and unselected same-lifetime inputs stay writable.
-    `view_subslice` admits `&mut` views over immutable owned locals as
-    collection storage, the view-descriptor edge gate accepts backing
-    storage proved by `storage_backs_view_parameter`, and
-    `lends_collection` spells a range initializer's lent place through the
-    same in-state canonicalization the borrow ledger uses, so a
-    whole-collection window (`coll[0..N]` over the declared extent) matches
-    its backing loan instead of falling through to the scalar route;
-    element-spelling view lets on receiver fields lower natively
-    (`runtime_boundary_receiver_disjoint_loan_exit` holds 70).
-    Every named control
-    below holds its authored exit natively; the public
-    `samples/cli/systems/descriptor_walk` 50/50 result remains UNQUALIFIED
-    pending an authority review (its capability rows were mechanically
-    accepted, which the audit disallowed).
-    The current-occurrence refill and leaf-only retirement controls
-    (whole-local refill installs a new carrier without reviving the consumed
-    one; consumed-source RHS, partial-child refill and early-new-backing
-    write reject; receiving-holder correspondence across replacement,
-    copied suppliers and anonymous complements; nested borrowed call
-    results keep receiving leaf groups) hold their authored oracles on
-    this base.
-    Remaining: runtime-indexed shared constrained-field reads still require
-    cross-host execution coverage
-    under **PLACED-ACCESS-NATIVE-OPS**; preserve the
-    [unchanged authored witness](tests/omega/pass/layouts/runtime_indexed_restricted_field_read/README.md),
-    and the whole item needs Ubuntu and Windows
-    host coverage before deletion.
+  - Remaining: qualify every acceptance route on Ubuntu and Windows.
+    Runtime-indexed shared constrained-field reads also need cross-host
+    execution under **PLACED-ACCESS-NATIVE-OPS**; retain the
+    [unchanged authored witness](tests/omega/pass/layouts/runtime_indexed_restricted_field_read/README.md).
+    The public `samples/cli/systems/descriptor_walk` 50/50 result remains
+    unqualified pending authority review: its capability rows were mechanically
+    accepted. Preserve the selected-helper, replacement, projected-return and
+    shared-cohort controls below while completing these host and authority gates.
   - Constraints: shared loans cannot gain mutation authority by widening the
     exclusive `receiver_aliases` match. Keep the local symbol as the loan
     subject and compose its captured projection at use; substituting the root
@@ -2574,6 +2537,7 @@ crash and native exit behavior.
   and restored mutation, with
   `fail/borrows/selected_primitive_reference_live_backing_write` rejected.
   Keep these controls at their oracles:
+  `pass/borrows/runtime_{projected_reference_call_return,replaced_reference_record_return,selected_reference_record_helper,selected_shared_reference_cohort}_exit` (0),
   `pass/borrows/runtime_record_byte_region_loan_exit` (50),
   `run/borrows/{reference_local_binding_routes,reference_result_call_binding,shared_record_loan_member_read}` (0),
   `pass/borrows/shared_recast_loan_member_read` (0),
