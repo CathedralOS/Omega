@@ -298,6 +298,26 @@ fn declaration_dependencies(
                 })
                 .map(|(_, operator_use)| operator_use.selected_operator_symbol),
         );
+        // Automatic semantics depend on every declared realization leaf.
+        // Retain the complete roster before ordinary checking; pruning a mixed
+        // roster to an intrinsic subset must never create automatic authority.
+        // This declaration query only adds dependencies, not execution evidence.
+        for contract in &operators.operator_realization_contracts {
+            let requirement = contract.operator_symbol();
+            if (selection.contains(requirement) || referenced_symbols.contains(&requirement))
+                && operators
+                    .requirement_realization(
+                        program,
+                        requirement,
+                        typed_trees::expression::ExpressionHandle::invalid(),
+                    )
+                    .ok()
+                    .flatten()
+                    .is_some_and(|meaning| meaning.is_compiler_intrinsic())
+            {
+                referenced_symbols.insert(contract.machine_symbol());
+            }
+        }
         let mut changed = false;
         for mut symbol in referenced_symbols {
             while symbol.is_valid() {

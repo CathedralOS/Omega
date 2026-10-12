@@ -384,9 +384,21 @@ pub(crate) fn source_provider_bodies(
                 }) || program.public_trait_requirement_signature(*requirement).is_some_and(|member| member.owner.is_boundary)
                     || typed_trees::operator::declaration_by_symbol(program, *requirement).is_some_and(|operator| operator.is_boundary);
                 if boundary {
-                    return Err(vec![diagnostics::Diagnostic::error(
-                        "source constant boundary application requires exact authored selection before evaluation",
-                    )]);
+                    // Declaration facts may retain an automatic semantic input
+                    // provisionally, but never authorize its execution. The
+                    // ordinary private preparation retains and checks the full
+                    // intrinsic roster; admission and interpretation consume
+                    // that same checked owner's exact occurrence query.
+                    let automatic_input = facts
+                        .requirement_realization(program, *requirement, *expression)
+                        .ok()
+                        .flatten()
+                        .is_some_and(|meaning| meaning.is_compiler_intrinsic());
+                    if !automatic_input {
+                        return Err(vec![diagnostics::Diagnostic::error(
+                            "source constant boundary application requires exact authored selection before evaluation",
+                        )]);
+                    }
                 }
                 continue;
             };
