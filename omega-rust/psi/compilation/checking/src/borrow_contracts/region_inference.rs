@@ -143,6 +143,13 @@ impl InputRegionApplication {
         Ok(())
     }
 
+    pub(super) fn fresh_argument(&self, ordinal: usize) -> Option<&RegionIdentity> {
+        self.fresh
+            .iter()
+            .find(|(source, _)| *source == ordinal)
+            .map(|(_, region)| region)
+    }
+
     pub(super) fn apply(&self, region: &mut RegionIdentity) {
         if let RegionIdentity::AnonymousInvocation(declaration, ordinal) = region {
             if let Some((_, _, target)) = self

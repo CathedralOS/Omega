@@ -69,6 +69,7 @@ pub(super) fn provider_application(
         .ok_or_else(|| Diagnostic::error("declared provider edge has no original requirement"))?;
     let required_parameters = source.state_signature_type_parameters(signature).to_vec();
     let invocation_regions = signature.lifetime_parameters.clone();
+    let requirement_symbol = signature.symbol;
     let invocation =
         validation::requirement_invocation_parameters(source, provider, provider, &scope);
     if invocation.len() != required_parameters.len()
@@ -233,117 +234,204 @@ pub(super) fn provider_application(
         return Ok(None);
     }
     let substitutions = identity_operands(&bindings);
+    let caller_view =
+        typed_trees::static_applications::StaticApplicationView::new(source, application)
+            .map_err(Diagnostic::error)?;
     let lifetimes = source
         .expression_table
         .static_machine_application_lifetimes(application);
-    let mut regions = Vec::new();
-    let mut provider_lifetimes: Vec<StaticMachineLifetimeBinding> = Vec::new();
-    for (parameter, root_ordinal) in scope
-        .declaration
-        .lifetime_parameters
-        .iter()
-        .zip(&region_ordinals)
-    {
-        let ordinal = usize::try_from(*root_ordinal)
-            .ok()
-            .and_then(|ordinal| edge.trait_lifetime_arguments.get(ordinal))
-            .ok_or_else(|| {
-                Diagnostic::error("declared provider lost an inherited captured region slot")
-            })?;
-        let caller = lifetimes
-            .iter()
-            .find(|binding| &binding.parameter == parameter)
-            .ok_or_else(|| {
-                Diagnostic::error("required application lost a captured trait region")
-            })?;
-        if caller.argument.named().is_none() {
-            return Err(Diagnostic::error(
-                "captured provider region has no named source correspondence",
-            ));
-        }
-        let provider_region = usize::try_from(*ordinal)
-            .ok()
-            .and_then(|ordinal| provider.lifetime_parameters.get(ordinal))
-            .ok_or_else(|| {
-                Diagnostic::error("declared provider maps a region outside its original telescope")
-            })?;
-        if let Some(known) = provider_lifetimes
-            .iter()
-            .find(|row| &row.parameter == provider_region)
-        {
-            if known.argument != caller.argument {
-                return Ok(None);
-            }
-        } else {
-            regions.push((
-                provider_region.as_str().to_owned(),
-                caller.argument.scope_argument(),
-            ));
-            provider_lifetimes.push(StaticMachineLifetimeBinding {
-                parameter: provider_region.clone(),
-                argument: caller.argument.clone(),
-            });
-        }
-    }
-    for ordinal in &edge.trait_lifetime_arguments {
-        let region = usize::try_from(*ordinal)
-            .ok()
-            .and_then(|ordinal| provider.lifetime_parameters.get(ordinal))
-            .ok_or_else(|| {
-                Diagnostic::error("declared provider region lies outside its original family")
-            })?;
-        if !provider_lifetimes
-            .iter()
-            .any(|row| &row.parameter == region)
-        {
-            return Ok(None);
-        }
-    }
-    let remaining_regions = provider
-        .lifetime_parameters
-        .iter()
-        .enumerate()
-        .filter(|(ordinal, _)| {
-            !edge
-                .trait_lifetime_arguments
-                .iter()
-                .any(|captured| usize::try_from(*captured).ok() == Some(*ordinal))
-        })
-        .map(|(_, region)| region)
-        .collect::<Vec<_>>();
-    if std::env::var_os("OMEGA_MAIN21_SCOPE_TRACE").is_some() {
-        eprintln!(
-            "main21-provider-regions provider={} named={named_conformance:?} requirement={requirement:?} original={:?} captured={provider_lifetimes:?} remaining={remaining_regions:?} invocation={invocation_regions:?} caller={lifetimes:?}",
-            provider.name, provider.lifetime_parameters
-        );
-    }
-    if remaining_regions.len() != invocation_regions.len() {
-        return Err(Diagnostic::error(
-            "declared trait provider changes the universal invocation lifetime family",
-        ));
-    }
-    for (required, provider_region) in invocation_regions.iter().zip(remaining_regions) {
-        if let Some(caller) = lifetimes
-            .iter()
-            .find(|binding| &binding.parameter == required)
-        {
-            regions.push((
-                provider_region.as_str().to_owned(),
-                caller.argument.scope_argument(),
-            ));
-            provider_lifetimes.push(StaticMachineLifetimeBinding {
-                parameter: provider_region.clone(),
-                argument: caller.argument.clone(),
-            });
-        }
-    }
-    let lexical = source
-        .expression_table
-        .static_machine_application(application)
+    let lexical = caller_view
+        .application()
         .type_identity_owner(source)
         .ok_or_else(|| {
             Diagnostic::error("required application lost its original lexical region owner")
         })?;
+    let caller_owner = match lexical {
+        typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(owner) => owner,
+        typed_trees::type_identity::AppliedTypeIdentityOwner::Captured(capture) => {
+            if !source.retains_source_declaration_symbol(capture.owner(), capture.symbol()) {
+                return Err(Diagnostic::error(
+                    "provider input application lost its original caller declaration",
+                ));
+            }
+            capture.symbol()
+        }
+    };
+    let (source_owner, source_lifetimes) = if named_conformance.is_valid() {
+        let declaration = original.conformances.get(named_conformance);
+        (
+            declaration.symbol,
+            declaration.lifetime_parameters.as_slice(),
+        )
+    } else {
+        (provider.symbol, provider.lifetime_parameters.as_slice())
+    };
+    let mut explicit_regions = Vec::new();
+    for (ordinal, root_ordinal) in region_ordinals.iter().enumerate() {
+        let source_ordinal = usize::try_from(*root_ordinal)
+            .ok()
+            .and_then(|ordinal| edge.trait_lifetime_arguments.get(ordinal))
+            .and_then(|ordinal| usize::try_from(*ordinal).ok())
+            .ok_or_else(|| {
+                Diagnostic::error("declared provider lost an inherited captured region slot")
+            })?;
+        if source_ordinal >= source_lifetimes.len() {
+            return Err(Diagnostic::error(
+                "declared source maps a region outside its original telescope",
+            ));
+        }
+        let argument =
+            required_region_argument(&caller_view, scope.declaration.symbol, ordinal, false)?;
+        let Some(name) = argument.named() else {
+            return Err(Diagnostic::error(
+                "captured provider region has no named source correspondence",
+            ));
+        };
+        let identity = caller_region_identity(source, lexical, name)?;
+        explicit_regions.push((
+            source_ordinal,
+            validation::borrow_contracts::InputLifetimeArgument::Captured(identity),
+        ));
+    }
+    let provider_substitutions = bindings
+        .iter()
+        .filter_map(|binding| match &binding.value {
+            StaticMachineBindingValue::Type(reference)
+            | StaticMachineBindingValue::Const(reference) => Some((binding.parameter, *reference)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let type_inputs = projected
+        .iter()
+        .map(|(_, actual, required)| (*actual, *required))
+        .collect::<Vec<_>>();
+    let source_application = validation::borrow_contracts::infer_type_input_lifetime_application(
+        source,
+        validation::borrow_contracts::InputTypeRegionScope {
+            declaration: source_owner,
+            lifetime_parameters: source_lifetimes,
+            substitutions: &provider_substitutions,
+            argument_owner: caller_owner,
+        },
+        caller_owner,
+        &type_inputs,
+        if named_conformance.is_valid() {
+            0
+        } else {
+            invocation_regions.len()
+        },
+        &explicit_regions,
+    )
+    .map_err(Diagnostic::error)?;
+    let source_regions = source_application
+        .iter()
+        .map(|binding| {
+            let argument = receiving_region_argument(
+                source,
+                lexical,
+                &caller_view,
+                requirement_symbol,
+                &binding.argument,
+            )?;
+            Ok((
+                binding.parameter.as_str().to_owned(),
+                argument.scope_argument(),
+            ))
+        })
+        .collect::<Result<Vec<_>, Diagnostic>>()?;
+    let source_applied = AppliedTypeIdentityScope {
+        region_role: typed_trees::type_identity::AppliedTypeIdentityRegionRole::Supplied,
+        declaration: source_owner,
+        arguments: &[],
+        lifetimes: &source_regions,
+    };
+    let original_signature = original
+        .trait_machine_signature_by_symbol(scope.declaration, requirement)
+        .ok_or_else(|| {
+            Diagnostic::error("provider input correspondence lost its original requirement")
+        })?;
+    let state = original.machine_states(provider).first().ok_or_else(|| {
+        Diagnostic::error("provider input correspondence lost its original entry")
+    })?;
+    let invocation_binders = invocation
+        .iter()
+        .zip(&required_parameters)
+        .enumerate()
+        .flat_map(|(ordinal, (actual, required))| {
+            let name = format!("$provider-invocation-{ordinal}");
+            [(actual.symbol, name.clone()), (required.symbol, name)]
+        })
+        .collect::<Vec<_>>();
+    let input_application = scope
+        .with_identity_scopes(&original, |scopes| {
+            validation::borrow_contracts::infer_callable_input_lifetime_application(
+                &original,
+                validation::borrow_contracts::CallableBorrowContract {
+                    lexical_owner: original_signature.symbol,
+                    lifetime_parameters: &original_signature.lifetime_parameters,
+                    parameters: original.state_signature_parameters(original_signature),
+                    return_type: original_signature.return_type,
+                    substitutions: &scope.substitutions,
+                    substitution_scope_starts: &scope.substitution_scope_starts,
+                    application_scopes: scopes,
+                    binders: &invocation_binders,
+                    lifetime_binding_declaration: SymbolHandle::invalid(),
+                    lifetime_bindings: &[],
+                    argument_owner: scope.argument_owner,
+                    supplied_telescope: false,
+                },
+                validation::borrow_contracts::CallableBorrowContract {
+                    lexical_owner: provider.symbol,
+                    lifetime_parameters: &provider.lifetime_parameters,
+                    parameters: original.state_parameters(state),
+                    return_type: state.return_type,
+                    substitutions: &[],
+                    substitution_scope_starts: &[],
+                    application_scopes: &[],
+                    binders: &invocation_binders,
+                    lifetime_binding_declaration: SymbolHandle::invalid(),
+                    lifetime_bindings: &[],
+                    argument_owner: provider.symbol,
+                    supplied_telescope: false,
+                },
+            )
+        })
+        .map_err(Diagnostic::error)?;
+    let mut regions = Vec::new();
+    let mut provider_lifetimes = Vec::new();
+    for binding in input_application {
+        let argument = match binding.argument {
+            validation::borrow_contracts::InputLifetimeArgument::Captured(identity)
+                if identity.declaration == original.lifetime_declaration_owner(source_owner) =>
+            {
+                source_application
+                    .get(identity.ordinal)
+                    .ok_or_else(|| {
+                        Diagnostic::error(
+                            "provider input lost its captured source application slot",
+                        )
+                    })?
+                    .argument
+                    .clone()
+            }
+            argument => argument,
+        };
+        let argument = receiving_region_argument(
+            source,
+            lexical,
+            &caller_view,
+            requirement_symbol,
+            &argument,
+        )?;
+        regions.push((
+            binding.parameter.as_str().to_owned(),
+            argument.scope_argument(),
+        ));
+        provider_lifetimes.push(StaticMachineLifetimeBinding {
+            parameter: binding.parameter,
+            argument,
+        });
+    }
     let applied = AppliedTypeIdentityScope {
         region_role: typed_trees::type_identity::AppliedTypeIdentityRegionRole::Supplied,
         declaration: provider.symbol,
@@ -372,7 +460,8 @@ pub(super) fn provider_application(
     // Anonymous values land only through this independently admitted slot;
     // typed values retain their own width/policy, and missing custody declines.
     let agrees = scope.with_identity_scopes(source, |source_scopes| {
-        let mut provider_scopes = Vec::with_capacity(source_scopes.len() + 1);
+        let mut provider_scopes = Vec::with_capacity(source_scopes.len() + 2);
+        provider_scopes.push(source_applied);
         provider_scopes.push(applied);
         provider_scopes.extend_from_slice(source_scopes);
         projected.iter().all(|(parameter, required, actual)| {
@@ -425,6 +514,98 @@ pub(super) fn provider_application(
         bindings,
         lifetimes: provider_lifetimes,
     }))
+}
+
+fn required_region_argument<'owner>(
+    view: &typed_trees::static_applications::StaticApplicationView<'owner>,
+    declaration: SymbolHandle,
+    ordinal: usize,
+    invocation: bool,
+) -> Result<&'owner typed_trees::static_applications::StaticMachineLifetimeArgument, Diagnostic> {
+    let mut matching = view.lifetimes().iter().filter(|(formal, _)| {
+        formal.declaration == declaration
+            && formal.ordinal == ordinal
+            && formal.invocation == invocation
+    });
+    let (_, binding) = matching.next().ok_or_else(|| {
+        Diagnostic::error("required application lost its original lifetime coordinate")
+    })?;
+    if matching.next().is_some() {
+        return Err(Diagnostic::error(
+            "required lifetime coordinate has competing bindings",
+        ));
+    }
+    let binding = *binding;
+    Ok(&binding.argument)
+}
+
+fn caller_region_identity(
+    program: &TypedTrees,
+    owner: typed_trees::type_identity::AppliedTypeIdentityOwner<'_>,
+    name: &typed_trees::name::Identifier,
+) -> Result<typed_trees::type_identity::LifetimeParameterIdentity, Diagnostic> {
+    let identity = match owner {
+        typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(owner) => {
+            typed_trees::type_identity::lifetime_parameter_identity(program, owner, name.as_str())
+        }
+        typed_trees::type_identity::AppliedTypeIdentityOwner::Captured(capture) => {
+            typed_trees::type_identity::lifetime_parameter_identity(
+                capture.owner(),
+                capture.symbol(),
+                name.as_str(),
+            )
+        }
+    };
+    identity.ok_or_else(|| {
+        Diagnostic::error("input region lost its original caller declaration coordinate")
+    })
+}
+
+fn receiving_region_argument(
+    program: &TypedTrees,
+    owner: typed_trees::type_identity::AppliedTypeIdentityOwner<'_>,
+    caller: &typed_trees::static_applications::StaticApplicationView<'_>,
+    requirement: SymbolHandle,
+    argument: &validation::borrow_contracts::InputLifetimeArgument,
+) -> Result<typed_trees::static_applications::StaticMachineLifetimeArgument, Diagnostic> {
+    use validation::borrow_contracts::InputLifetimeArgument;
+    match argument {
+        InputLifetimeArgument::Invocation(ordinal) => {
+            required_region_argument(caller, requirement, *ordinal, true).cloned()
+        }
+        InputLifetimeArgument::Captured(identity) => {
+            let name = match owner {
+                typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(_) => {
+                    typed_trees::type_identity::lifetime_parameter_name(program, *identity)
+                }
+                typed_trees::type_identity::AppliedTypeIdentityOwner::Captured(capture) => {
+                    typed_trees::type_identity::lifetime_parameter_name(capture.owner(), *identity)
+                }
+            }
+            .ok_or_else(|| {
+                Diagnostic::error("captured input region lost its original payload owner")
+            })?;
+            if caller_region_identity(program, owner, name)? != *identity {
+                return Err(Diagnostic::error(
+                    "captured input region differs from its caller scope",
+                ));
+            }
+            Ok(name.clone().into())
+        }
+        InputLifetimeArgument::AnonymousInvocation(identity) => {
+            let argument =
+                required_region_argument(caller, identity.declaration, identity.ordinal, true)?;
+            if !matches!(
+                argument,
+                typed_trees::static_applications::StaticMachineLifetimeArgument::Anonymous
+            ) {
+                return Err(Diagnostic::error(
+                    "anonymous input region lost its original invocation formal",
+                ));
+            }
+            Ok(argument.clone())
+        }
+    }
 }
 
 fn binding_reference(
