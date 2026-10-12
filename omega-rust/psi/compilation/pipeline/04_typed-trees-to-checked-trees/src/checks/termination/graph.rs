@@ -239,9 +239,11 @@ fn outgoing_state_indices(
             if accepted_entry_call {
                 continue;
             }
-            if let Some((destination, _)) =
+            if let Some(transfer) =
                 source_state_transfer(program, machine, state, statement_index, target)
-                && let Some(index) = states.iter().position(|state| state.symbol == destination)
+                && let Some(index) = states
+                    .iter()
+                    .position(|state| state.symbol == transfer.destination)
             {
                 outgoing.push(index);
             }
@@ -253,47 +255,61 @@ fn outgoing_state_indices(
 
 /// Exact source control operands, before checked Flow retains their captures.
 /// The original whole call stays available to all application/ranking/loan
-/// judgments; this query adds no authority or claimed decrease.
+/// judgments; this record adds no authority or claimed decrease.
+/// A runtime receiver is evaluated before the positional arguments; Named
+/// state transfers have no expression receiver. Physical reuse is separate.
+pub(crate) struct SourceStateTransfer<'program> {
+    pub(crate) destination: symbols::SymbolHandle,
+    pub(crate) receiver: typed_trees::expression::ExpressionHandle,
+    pub(crate) arguments: &'program [typed_trees::expression::ExpressionHandle],
+}
+
 pub(crate) fn source_state_transfer<'program>(
     program: &'program dyn validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
     target: typed_trees::statement::TransitionTargetHandle,
-) -> Option<(
-    symbols::SymbolHandle,
-    &'program [typed_trees::expression::ExpressionHandle],
-)> {
+) -> Option<SourceStateTransfer<'program>> {
+    let statement = program
+        .statement_table
+        .statement_at(state, statement_index)?;
     let expression = if target.is_valid() {
+        if !statement
+            .as_transition()?
+            .targets()
+            .any(|selected| selected == target)
+        {
+            return None;
+        }
         match program.statement_table.transition_target(target) {
             TransitionTargetNode::Named {
                 path, arguments, ..
             } => {
                 let destination =
                     named_transition_target_state_index(program, machine, path.symbol)?;
-                return Some((
-                    program.machine_states(machine).get(destination)?.symbol,
-                    program.statement_table.expression_handles(*arguments),
-                ));
+                return Some(SourceStateTransfer {
+                    destination: program.machine_states(machine).get(destination)?.symbol,
+                    receiver: Default::default(),
+                    arguments: program.statement_table.expression_handles(*arguments),
+                });
             }
             TransitionTargetNode::Value(expression) => *expression,
             TransitionTargetNode::Terminal => return None,
         }
     } else {
-        *program
-            .statement_table
-            .statement_at(state, statement_index)?
-            .as_expression()?
+        *statement.as_expression()?
     };
     let call = validation::source_tail_call(program, state, statement_index, expression)?;
     let entry = program.machine_states(machine).first()?;
     if call.target_symbol != machine.symbol && call.target_symbol != entry.symbol {
         return None;
     }
-    Some((
-        program.machine_states(machine).first()?.symbol,
-        program.expression_table.expression_handles(call.arguments),
-    ))
+    Some(SourceStateTransfer {
+        destination: program.machine_states(machine).first()?.symbol,
+        receiver: call.receiver,
+        arguments: program.expression_table.expression_handles(call.arguments),
+    })
 }
 
 /// Resolve one named transition target to its state index inside `machine`.
