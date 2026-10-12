@@ -63,7 +63,11 @@ fn evaluate_application_group(
         selection_authority,
     } = context;
     let mut applications = Vec::new();
-    for (type_reference, expression) in syntax.type_references.const_expression_nodes() {
+    for (type_reference, expression) in
+        syntax_trees_to_symbol_resolved_trees::pre_resolution::source_const_expression_positions(
+            &syntax,
+        )
+    {
         if contains_call(&syntax, expression) {
             applications.push((type_reference, expression));
         }
