@@ -115,7 +115,7 @@ class ProjectGateTests(unittest.TestCase):
         with patch.object(native_gate, "accept_review", return_value=(None, "")), patch.object(native_gate, "run", return_value=subprocess.CompletedProcess([], 1, "", "error: source rejected")):
             row = native_gate.measure("omega", str(directory), "linux_x86_64", 10)
         self.assertEqual(row["state"], "check-fail")
-        with patch.object(sys, "argv", ["sample_native_gate.py"]), patch.object(native_gate, "discover", return_value=[str(directory)]), patch.object(native_gate, "measure", return_value=row), contextlib.redirect_stdout(io.StringIO()):
+        with patch.object(sys, "argv", ["sample_native_gate.py", "--history-dir", ""]), patch.object(native_gate, "discover", return_value=[str(directory)]), patch.object(native_gate, "measure", return_value=row), contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(native_gate.main(), 1)
 
     def test_unscored_no_oracle_and_freestanding_reporting_stays(self):

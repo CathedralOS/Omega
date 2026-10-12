@@ -138,5 +138,116 @@ class FixtureOracleTests(unittest.TestCase):
             self.assertEqual(runs, [subprocess.DEVNULL])
 
 
+class HostScopeAndDiagnosticTests(unittest.TestCase):
+    """Samples are scored on the targets they author, and failures keep the
+    whole refusal, including the review's own error."""
+
+    def project(self, directory, binds=("macos_arm64",), role="program"):
+        root = Path(directory)
+        (root / "main.omg").write_text("// Expected exit: 0.\nmodule probe;\n", encoding="utf-8")
+        lines = "".join(
+            f"    Build::bind(builder, {target}::ProgramEntry, probe::Main::main);\n"
+            for target in binds)
+        (root / "build.omg").write_text(
+            'machine build(builder: &mut Build) {\n'
+            '    Build::application(builder, "probe");\n'
+            '    // Build::bind(builder, windows_x86_64::ProgramEntry, probe::Main::main);\n'
+            + lines + '}\n',
+            encoding="utf-8",
+        )
+        return sample_projects.Project(directory=root, entry=root / "main.omg", role=role)
+
+    def measure(self, directory, project, fake_run):
+        with patch.object(gate, "run", side_effect=fake_run), \
+                patch.object(gate, "project_at", return_value=project):
+            return gate.measure("omega", directory, "macos_arm64", 10)
+
+    def test_sample_without_this_target_is_not_host_runnable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            project = self.project(directory, binds=("linux_x86_64",))
+            calls = []
+            result = self.measure(directory, project, lambda *a, **k: calls.append(a))
+            self.assertEqual(result["state"], "not-host-runnable")
+            self.assertIn("linux_x86_64", result["detail"])
+            self.assertEqual(calls, [], "an unbound host must not build or run the sample")
+
+    def test_commented_binding_does_not_count(self):
+        with tempfile.TemporaryDirectory() as directory:
+            self.project(directory, binds=("linux_x86_64",))
+            self.assertEqual(gate.bound_targets(directory), {"linux_x86_64"})
+
+    def test_failed_review_reports_its_own_error(self):
+        with tempfile.TemporaryDirectory() as directory:
+            project = self.project(directory)
+            refusal = ("package candidate checking failed: checked compilation failed\n"
+                       "  error: selected ProgramEntry Binding field `Main::fs` requires a "
+                       "selected Fused provider for boundary `FilesystemHost`\n")
+
+            def fake_run(command, timeout, stdin=subprocess.DEVNULL):
+                if "update" in command:
+                    return subprocess.CompletedProcess(command, 1, "", refusal)
+                self.fail(f"nothing runs after a failed review: {command}")
+
+            result = self.measure(directory, project, fake_run)
+            self.assertEqual(result["state"], "no-native-build")
+            self.assertIn("FilesystemHost", result["diagnostic"])
+            self.assertTrue(result["detail"].startswith("package review: "))
+
+    def test_failed_review_of_a_probe_stays_a_check_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            project = self.project(directory, role="check-only")
+            refusal = "  error: cannot resolve `Missing`\n"
+            result = self.measure(
+                directory, project,
+                lambda command, timeout, stdin=None: subprocess.CompletedProcess(command, 1, "", refusal))
+            self.assertEqual(result["state"], "check-fail")
+
+    def test_pending_decisions_are_not_a_review_failure(self):
+        # `omega update` exits nonzero while decisions are pending; that is
+        # the normal path, not a refusal.
+        with tempfile.TemporaryDirectory() as directory:
+            pending = subprocess.CompletedProcess([], 3, "review: pending decisions", "")
+            with patch.object(gate, "run", return_value=pending):
+                reason, _ = gate.accept_review("omega", directory, "macos_arm64", 10)
+            self.assertIsNone(reason)
+
+    def test_pending_review_mentioning_an_error_is_still_accepted(self):
+        # A finding may quote `error:` text; pending decisions still win.
+        with tempfile.TemporaryDirectory() as directory:
+            review = Path(directory) / "build/package-manager/review-macos_arm64.txt"
+            review.parent.mkdir(parents=True)
+            review.write_bytes(b"finding: error: quoted\ndecision row ab12 pending\n")
+            results = [
+                subprocess.CompletedProcess([], 3, "finding: error: quoted", ""),
+                subprocess.CompletedProcess([], 0, "", ""),
+            ]
+            with patch.object(gate, "run", side_effect=results):
+                reason, _ = gate.accept_review("omega", directory, "macos_arm64", 10)
+            self.assertIsNone(reason)
+            self.assertIn(b"decision row ab12 accept", review.read_bytes())
+
+    def test_diagnostic_keeps_the_construct_name(self):
+        construct = "state graph: terminator: guarded transition into a borrowed window"
+        message = ("error: `Main::main` has no executable body: this compiler does not "
+                   f"lower a state of it yet ({construct})")
+        self.assertNotIn(construct, gate.classify(message))
+        self.assertIn(construct, gate.classify(message, limit=None))
+
+
+class RunHistoryTests(unittest.TestCase):
+    def test_each_run_writes_a_dated_record(self):
+        with tempfile.TemporaryDirectory() as directory:
+            arguments = gate.argparse.Namespace(
+                history_dir=directory, target="macos_arm64", cli="omega", filter="games")
+            started = gate.datetime.datetime(2026, 10, 12, 22, 0, tzinfo=gate.datetime.timezone.utc)
+            results = [{"sample": "samples/cli/games/a", "state": "pass", "detail": ""}]
+            gate.record_run(arguments, started, results, {"pass": results}, 1, 1)
+            written = Path(directory) / "20261012T220000Z-macos_arm64.json"
+            record = gate.json.loads(written.read_text())
+            self.assertEqual(record["summary"], {"passed": 1, "scored": 1, "states": {"pass": 1}})
+            self.assertEqual(record["filter"], "games")
+            self.assertEqual(record["results"], results)
+
+
 if __name__ == "__main__":
     unittest.main()

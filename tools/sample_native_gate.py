@@ -40,9 +40,22 @@ stripped before the stderr comparison.
 Discovery is shared with the check gate. Complete intended-invalid controls use
 source checking only and require their authored rejection identity. Positive
 check-only probes have no runtime score but their failure still fails this gate.
+
+A sample is scored only on the targets it authors. When `build.omg` binds
+`<target>::ProgramEntry` for named targets and the selected target is not
+among them, the sample is `not-host-runnable` here: SAMPLE-CORPUS judges
+documented output "on matching hosts", so a Linux-only sample is not a macOS
+failure.
+
+Each result keeps a short `detail` for the console and the complete refusal
+in `diagnostic`; the short form cuts the construct name off long lowering
+refusals. Every run is also recorded under `--history-dir` (default
+`build/sample-gate-runs/`) with its revision, target and summary, so the pass
+rate has a history to compare against.
 """
 
 import argparse
+import datetime
 import json
 import os
 import re
@@ -67,6 +80,10 @@ EXPECT_OUTPUT = re.compile(r"//\s*Expected output contains:\s*(.+)")
 # program output.
 WRAPPER_LINE = re.compile(
     r"native (exit -?\d+|signal \d+|terminated without an exit code)$")
+PROGRAM_ENTRY_BINDING = re.compile(r"\b([a-z][a-z0-9_]*)::ProgramEntry\b")
+COMMENT = re.compile(r"//[^\n]*|/\*.*?\*/", re.S)
+# Console rows and the scored `detail` stay short; `diagnostic` keeps the rest.
+DETAIL_LIMIT = 110
 
 
 def discover(root, filters=()):
@@ -82,6 +99,20 @@ def oracle(sample, entry=None):
         int(exit_match.group(1)) if exit_match else None,
         output_match.group(1).strip() if output_match else None,
     )
+
+
+def bound_targets(sample):
+    """Targets whose program-entry slot `build.omg` binds by name.
+
+    Only explicit `<target>::ProgramEntry` spellings count. A build that binds
+    through some other construction yields no names, and the sample is then
+    measured on every target as before rather than skipped on a guess.
+    """
+    build = Path(sample, "build.omg")
+    if not build.is_file():
+        return set()
+    text = COMMENT.sub("", build.read_text(encoding="utf-8", errors="ignore"))
+    return set(PROGRAM_ENTRY_BINDING.findall(text))
 
 
 def run(command, timeout, stdin=subprocess.DEVNULL):
@@ -141,34 +172,49 @@ def accept_review(cli, sample, target, timeout):
         return "review-timeout", ""
     output = completed.stdout + completed.stderr
     review = os.path.join(sample, "build", "package-manager", f"review-{target}.txt")
+    text = b""
     if os.path.exists(review):
-        # Review framing is byte-sensitive and LF-only, including on Windows.
-        # Change only decision tokens; never transcode findings or newlines.
         with open(review, "rb") as document:
             text = document.read()
-        if DECISION.search(text):
-            with open(review, "wb") as document:
-                document.write(DECISION.sub(rb"\1 accept", text))
-            resumed = run([cli, "update", "--project", sample, "--resume"], timeout)
-            if resumed is None:
-                return "resume-timeout", output
-            if resumed.returncode != 0:
-                return "resume-failed", resumed.stdout + resumed.stderr
+    if completed.returncode != 0 and "error:" in output and not DECISION.search(text):
+        # The candidate failed checking, for example a binding field without
+        # a provider on this target, so no decision awaits acceptance. `omega
+        # run` would later report only the missing acceptance; keep this one.
+        return "review-failed", output
+    if DECISION.search(text):
+        # Review framing is byte-sensitive and LF-only, including on Windows.
+        # Change only decision tokens; never transcode findings or newlines.
+        with open(review, "wb") as document:
+            document.write(DECISION.sub(rb"\1 accept", text))
+        resumed = run([cli, "update", "--project", sample, "--resume"], timeout)
+        if resumed is None:
+            return "resume-timeout", output
+        if resumed.returncode != 0:
+            return "resume-failed", resumed.stdout + resumed.stderr
     return None, output
 
 
-def classify(message):
+def classify(message, limit=DETAIL_LIMIT):
+    """The refusal a failure reports, cut to `limit` characters.
+
+    `limit=None` returns the whole refusal: the `diagnostic` field, where
+    a lowering refusal's construct name survives.
+    """
     message = " ".join(message.split())
+
+    def cut(text):
+        return text if limit is None else text[:limit]
+
     if "byte replacement requires bounded bytes" in message:
         return "byte replacement (predicate carrier)"
     # The diagnostic arrives with escaped quotes inside a Debug-formatted
     # Vec<Diagnostic>, so the inner reason is `Unsupported(\"...\")`.
-    match = re.search(r'Unsupported\(\\?"([^"\\]{0,90})', message)
+    match = re.search(r'Unsupported\(\\?"([^"\\]*)', message)
     if match:
-        return f"lowering unsupported: {match.group(1)}"
-    match = re.search(r'message: \\?"([^"\\]{0,90})', message)
+        return cut(f"lowering unsupported: {match.group(1)}")
+    match = re.search(r'message: \\?"([^"\\]*)', message)
     if match:
-        return f"realization: {match.group(1)}"
+        return cut(f"realization: {match.group(1)}")
     if "omitted at local construction at" in message:
         phase = re.search(r"omitted at local construction at `([^`]*)`", message)
         return f"does not check: {phase.group(1) if phase else '?'}"
@@ -197,8 +243,18 @@ def classify(message):
     ]
     refusals = [error for error in errors if not error.startswith(wrappers)]
     if refusals or errors:
-        return (refusals or errors)[0][:110]
-    return message.strip()[:110] or "unknown"
+        return cut((refusals or errors)[0])
+    return cut(message.strip()) or "unknown"
+
+
+def failure(sample, state, message, prefix=""):
+    """A failing result: short `detail` for the console, whole `diagnostic`."""
+    return {
+        "sample": sample,
+        "state": state,
+        "detail": prefix + classify(message),
+        "diagnostic": prefix + classify(message, limit=None),
+    }
 
 
 def check_refusal(cli, sample, timeout):
@@ -208,11 +264,12 @@ def check_refusal(cli, sample, timeout):
     so the review file never appears and `omega run` reports the missing
     acceptance. Reporting that would blame the gate's own review step for a
     sample the check gate already refuses, so ask the checker instead.
+    Returns the checker's output, or None on timeout.
     """
     completed = run([cli, "--check", os.path.join(sample, "main.omg")], timeout)
     if completed is None:
-        return "check-timeout"
-    return classify(completed.stdout + completed.stderr)
+        return None
+    return completed.stdout + completed.stderr
 
 
 def measure(cli, sample, target, timeout):
@@ -233,11 +290,26 @@ def measure(cli, sample, target, timeout):
             "state": "not-host-runnable",
             "detail": "freestanding target; no host oracle",
         }
+    targets = bound_targets(sample)
+    if targets and target not in targets:
+        # The sample authors other targets only; measuring it here would
+        # report its missing binding as a compiler failure on this host.
+        return {
+            "sample": sample,
+            "state": "not-host-runnable",
+            "detail": f"binds ProgramEntry only for {', '.join(sorted(targets))}",
+        }
     expected_exit, expected_output = oracle(sample, project.entry)
     reason, review_output = accept_review(cli, sample, target, timeout)
+    if reason == "review-failed":
+        # A candidate that fails checking cannot build natively; report why.
+        # A check-only probe that fails checking stays a check failure.
+        state = "check-fail" if project.role in ("check-only", "library") else "no-native-build"
+        return failure(sample, state, review_output, prefix="package review: ")
     if reason:
-        detail = reason + (": " + classify(review_output) if review_output else "")
-        return {"sample": sample, "state": "error", "detail": detail}
+        if review_output:
+            return failure(sample, "error", review_output, prefix=reason + ": ")
+        return {"sample": sample, "state": "error", "detail": reason}
     if project.role in ("check-only", "library"):
         # A check-only probe: report whether it checks, never as a native
         # build failure. It is not scored against a runtime oracle.
@@ -245,8 +317,7 @@ def measure(cli, sample, target, timeout):
         if completed is None:
             return {"sample": sample, "state": "timeout", "detail": f">{timeout}s"}
         if completed.returncode != 0:
-            detail = classify(completed.stdout + completed.stderr)
-            return {"sample": sample, "state": "check-fail", "detail": detail}
+            return failure(sample, "check-fail", completed.stdout + completed.stderr)
         return {"sample": sample, "state": "checked", "detail": "check-only: binds no program entry"}
     # A project carrying `input.txt` runs under the corpus-runner fixture
     # contract: the file is the launched program's stdin. Its authored
@@ -265,8 +336,7 @@ def measure(cli, sample, target, timeout):
         if completed is None:
             return {"sample": sample, "state": "timeout", "detail": f">{timeout}s"}
         if completed.returncode != 0:
-            detail = classify(completed.stdout + completed.stderr)
-            return {"sample": sample, "state": "no-native-build", "detail": detail}
+            return failure(sample, "no-native-build", completed.stdout + completed.stderr)
         return {"sample": sample, "state": "no-oracle", "detail": "header documents neither"}
     input_stream = open(input_path, "rb") if has_input else subprocess.DEVNULL
     try:
@@ -278,14 +348,16 @@ def measure(cli, sample, target, timeout):
         return {"sample": sample, "state": "timeout", "detail": f">{timeout}s"}
     combined = completed.stdout + completed.stderr
     if "native compile FAILED" in combined or "cannot realize" in combined:
-        detail = classify(combined)
-        if detail == "package review incomplete":
-            detail = check_refusal(cli, sample, timeout)
+        message, prefix = combined, ""
+        if classify(message) == "package review incomplete":
+            message = check_refusal(cli, sample, timeout)
+            if message is None:
+                return {"sample": sample, "state": "no-native-build", "detail": "check-timeout"}
         # `--check` of a package with a stale lock reports only the lock too;
         # the review step's own output then carries the checking refusal.
-        if detail == "package review incomplete" and "error:" in review_output:
-            detail = f"does not check: {classify(review_output)}"
-        return {"sample": sample, "state": "no-native-build", "detail": detail}
+        if classify(message) == "package review incomplete" and "error:" in review_output:
+            message, prefix = review_output, "does not check: "
+        return failure(sample, "no-native-build", message, prefix)
     mismatches = []
     if fixture and authored["exit"] is not None:
         expectation = normalized(authored["exit"]).strip()
@@ -329,7 +401,10 @@ def main():
     parser.add_argument("--jobs", type=int, default=4)
     parser.add_argument("--timeout", type=int, default=300, help="seconds per CLI call")
     parser.add_argument("--write-results", metavar="PATH")
+    parser.add_argument("--history-dir", default=os.path.join("build", "sample-gate-runs"),
+                        help="directory receiving one dated record per run; empty disables")
     arguments = parser.parse_args()
+    started = datetime.datetime.now(datetime.timezone.utc)
 
     wanted = [fragment.strip() for fragment in (arguments.filter or "").split(",") if fragment.strip()]
     samples = discover("samples", wanted)
@@ -379,9 +454,42 @@ def main():
         print(f"sample_native_gate: {len(buckets.get('rejected', []))}/{len(negatives)} intended-invalid controls match their authored rejection")
     if arguments.write_results:
         json.dump(results, open(arguments.write_results, "w"), indent=1)
+    if arguments.history_dir:
+        record_run(arguments, started, results, buckets, passed, len(scored))
     failures = [result for result in results if result["state"] not in
                 ("pass", "checked", "rejected", "no-oracle", "not-host-runnable")]
     return 1 if failures else 0
+
+
+def record_run(arguments, started, results, buckets, passed, scored):
+    """One dated record per run, so the pass rate has a history.
+
+    The revision and dirty flag say which checkout produced the numbers; a
+    filtered run says so, since its counts cover only the selected samples.
+    """
+    def git(*command):
+        completed = subprocess.run(["git", *command], capture_output=True, text=True)
+        return completed.stdout.strip() if completed.returncode == 0 else ""
+
+    record = {
+        "started": started.isoformat(timespec="seconds"),
+        "finished": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+        "revision": git("rev-parse", "HEAD"),
+        "dirty": bool(git("status", "--porcelain", "--untracked-files=no")),
+        "target": arguments.target,
+        "cli": arguments.cli,
+        "filter": arguments.filter or "",
+        "summary": {
+            "passed": passed,
+            "scored": scored,
+            "states": {state: len(rows) for state, rows in sorted(buckets.items())},
+        },
+        "results": results,
+    }
+    os.makedirs(arguments.history_dir, exist_ok=True)
+    name = f"{started:%Y%m%dT%H%M%SZ}-{arguments.target}.json"
+    with open(os.path.join(arguments.history_dir, name), "w") as document:
+        json.dump(record, document, indent=1)
 
 
 if __name__ == "__main__":

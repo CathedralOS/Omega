@@ -72,7 +72,8 @@ positive program and its own validator.
 `sample_gate.py` checks the positive entries and validates the negative controls.
 `sample_native_gate.py` shares the same selection and reports negative coverage
 separately from runtime scores. Failed positive check-only probes still make it
-fail. No-oracle and freestanding projects retain their explicit unscored reporting.
+fail. No-oracle and freestanding projects retain their explicit unscored reporting,
+as does a project whose `build.omg` binds `ProgramEntry` only for other targets.
 Library-only packages appear in the catalog; their runnable consumers enter the
 gates. This changes repository discovery, not the shipped `omega refresh-samples`
 command, package authority, review policy or compiler semantics.
