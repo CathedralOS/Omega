@@ -353,9 +353,10 @@ pub fn declared_place_type_raw(
         );
         if std::env::var_os("OMEGA_MAIN21_SCOPE_TRACE").is_some() {
             eprintln!(
-                "main21-member expression={handle:?} member={} retained={:?} selected={symbol:?} receiver={receiver:?} receiver-type={} projected={projected:?} projected-type={:?}",
+                "main21-member expression={handle:?} member={} retained={:?} retained-path={} selected={symbol:?} receiver={receiver:?} receiver-type={} projected={projected:?} projected-type={:?}",
                 member.member,
                 member.member_symbol,
+                program.symbols.display_path(member.member_symbol, "::"),
                 program.display_type_reference(receiver),
                 projected.map(|reference| program.display_type_reference(reference))
             );
