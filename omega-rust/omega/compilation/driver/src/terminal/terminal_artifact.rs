@@ -25,6 +25,7 @@ const TERMINAL_PRODUCTION_STAGE: StageMeta = StageMeta::new(
 /// Review descriptions and new product selections supply this same view; the
 /// producer does not branch on the caller's installation history.
 pub(crate) struct TerminalProductionView<'a> {
+    original_input: &'a Arc<psi_compiler::OriginalCheckedSourceInput>,
     program: &'a Arc<checked_trees::CheckedTrees>,
     sources: &'a package_compilation::CheckedSourceCustody,
     build: &'a compilation_products::ComputedBuildConfig,
@@ -39,6 +40,7 @@ pub(crate) struct TerminalProductionView<'a> {
 impl<'a> TerminalProductionView<'a> {
     pub(crate) fn selection(selection: &'a mut SelectedProviderCustody) -> Self {
         Self {
+            original_input: &selection.original_input,
             program: &selection.checked.program,
             sources: &selection.sources,
             build: &selection.build,
@@ -56,6 +58,7 @@ impl<'a> TerminalProductionView<'a> {
         timings: &'a mut CompileTimings,
     ) -> Self {
         Self {
+            original_input: checked.original_source_input(),
             program: &checked.execution().program,
             sources: checked.sources(),
             build: checked.build(),
@@ -121,6 +124,7 @@ pub(crate) fn produce_retained_terminal_artifacts(
             let first_index = group[0];
             let first = &requests[first_index];
             Arc::ptr_eq(first.view.program, request.view.program)
+                && Arc::ptr_eq(first.view.original_input, request.view.original_input)
                 && first.view.sources == request.view.sources
                 && first.selections.project_psi() == request.selections.project_psi()
         });
@@ -218,6 +222,7 @@ pub(crate) fn produce_retained_terminal_artifacts(
                         })
                         .map_or(default, |family| family.canonical);
                     terminal_production::TerminalProductionRequest {
+                        original_source_input: Some(first.view.original_input),
                         checked: checked_program,
                         exact_toolchain_sources: first.view.sources.exact_toolchain_sources(),
                         machine: terminal_production::TerminalMachineSelection::Symbol(default),

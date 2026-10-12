@@ -21,6 +21,7 @@ pub fn inspect_terminal(
         TerminalMachineSelection::Name(machine),
         checked.sources().exact_toolchain_sources(),
     )
+    .with_original_source_input(checked.original_source_input())
     .produce(TerminalProductionCustody {
         applications: &[],
         timings: &mut timings,

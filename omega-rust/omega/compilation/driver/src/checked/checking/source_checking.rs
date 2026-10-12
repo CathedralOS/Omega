@@ -140,9 +140,9 @@ pub(crate) fn check_product_source(
     // selected entry later, without changing this portable judgment.
     let roots = build.checked_tree_product_roots(rollback);
     let psi_compiler::SelectedCheckedSource {
+        original_input,
         program,
         provider_defaults,
-        source_constants,
         retained,
         selection: product_selection,
     } = selections.select(outcome, roots)?;
@@ -150,9 +150,9 @@ pub(crate) fn check_product_source(
     let accepted_template_classifications =
         trust_model::AcceptedTemplateClassifications::capture(&program);
     Ok(CheckedProductSource {
+        original_input,
         program,
         provider_defaults: provider_defaults.into(),
-        source_constants: source_constants.into(),
         computed_build_config,
         admission,
         sources,
