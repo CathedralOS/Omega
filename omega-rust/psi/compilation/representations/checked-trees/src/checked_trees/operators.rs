@@ -716,6 +716,16 @@ impl CheckedOperatorRealizationContract {
 }
 
 impl CheckedOperatorFacts {
+    pub fn replace_selected_float_comparisons(
+        &mut self,
+        executions: Vec<CheckedSelectedFloatComparisonExecution>,
+    ) {
+        self.selected_float_comparisons.clear();
+        for execution in executions {
+            self.selected_float_comparisons.append(execution);
+        }
+    }
+
     /// Whether checking decided every formation condition of this integer
     /// operation occurrence.
     pub fn formation_is_decided(&self, expression: ExpressionHandle) -> bool {

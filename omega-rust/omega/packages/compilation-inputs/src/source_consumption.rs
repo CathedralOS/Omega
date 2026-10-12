@@ -3,7 +3,7 @@ use source::{SourceFile, SourceOrigin};
 use std::path::{Component, Path};
 
 mod checked_sources;
-pub use checked_sources::{BuildSourceCustody, CheckedSourceCustody};
+pub use checked_sources::{BuildSourceCustody, CheckedSourceCustody, ConsumedDeclarationSource};
 
 const SOURCE_CONTENT_DOMAIN: &[u8] = b"OMEGA-CONSUMED-SOURCE-CONTENT-V1\0";
 const SOURCE_CONSUMPTION_DOMAIN: &[u8] = b"OMEGA-PACKAGE-SOURCE-CONSUMPTION-V4\0";

@@ -23,6 +23,30 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use syntax_trees::SyntaxTrees;
 
+/// Exact companion Build source chosen by project discovery and retained by
+/// source assembly. No consumer can substitute a source id or recreate this
+/// association from a filename after imports extend the frontier.
+#[derive(Clone)]
+pub struct SelectedBuildSource {
+    source_id: source::SourceId,
+    owner: Arc<source::SourceMap>,
+    application: Option<build_declarations::ApplicationDeclaration>,
+}
+
+impl SelectedBuildSource {
+    pub fn application(&self) -> Option<&build_declarations::ApplicationDeclaration> {
+        self.application.as_ref()
+    }
+
+    pub(crate) fn source_id(&self) -> source::SourceId {
+        self.source_id
+    }
+
+    pub(crate) fn owner(&self) -> &Arc<source::SourceMap> {
+        &self.owner
+    }
+}
+
 #[derive(Clone)]
 pub struct AssembledSyntax {
     pub syntax_trees: SyntaxTrees,
@@ -30,7 +54,7 @@ pub struct AssembledSyntax {
     /// Exact companion `build.omg` selected during project discovery. Build
     /// authority is attached to this source, never reconstructed from a leaf
     /// filename after imports have expanded the source frontier.
-    pub build_source_id: Option<source::SourceId>,
+    pub selected_build_source: Option<SelectedBuildSource>,
     /// The validated authored application declaration (name and artifact-only
     /// intent) when the selected build root declares `Build::application(builder, ...)`;
     /// `None` for package/workspace roles or a missing build root. Publication
@@ -308,10 +332,16 @@ impl ImmutableSourceParseCheckpoint {
             .filter(|file| file.dependency_scope == source::DependencyScope::Build)
             .map(|file| file.source_id)
             .collect();
+        let sources = Arc::new(source_storage.sources);
+        let selected_build_source = self.build_source_id.map(|source_id| SelectedBuildSource {
+            source_id,
+            owner: Arc::clone(&sources),
+            application: self.application.clone(),
+        });
         let syntax = AssembledSyntax {
             syntax_trees: source_storage.syntax_trees,
-            sources: Arc::new(source_storage.sources),
-            build_source_id: self.build_source_id,
+            sources,
+            selected_build_source,
             application: self.application,
             source_scoped_top_level_bindings,
             generated_source_custody,

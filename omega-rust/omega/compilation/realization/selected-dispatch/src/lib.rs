@@ -37,7 +37,7 @@ pub use selected_dispatch::{
     CheckedOperatorAuthoredUseKind, SelectedCompilerIntrinsicExecutionIdentity,
     SelectedExecutionDispatch, derive_checked_nongeneric_operator_application_realizations,
     derive_checked_specialized_operator_application_realizations,
-    settle_selected_comparison_execution,
+    derive_selected_comparison_execution, settle_selected_comparison_execution,
 };
 pub(crate) use selected_dispatch::{
     derive_selected_compiler_intrinsic_execution_identity,

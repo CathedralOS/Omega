@@ -26,10 +26,12 @@ mod layouts;
 mod machine_execution;
 pub mod provider_declarations;
 mod reflection;
-mod syntax_probes;
 mod source_constants;
+mod syntax_probes;
 
-pub use source_constants::{SourceProviderSelection, SourceProviderBinding, SourceConstantOutcome, SourceConstantSupply};
+pub use source_constants::{
+    SourceConstantOutcome, SourceConstantSupply, SourceProviderBinding, SourceProviderSelection,
+};
 mod wire_demands;
 
 pub use language_semantics::wire::WireCompatibilityDemand;
@@ -79,16 +81,18 @@ pub use machine_execution::build_activation::{
     admit_toolchain_build_activation, is_exact_toolchain_build_prelude_data,
 };
 pub use machine_execution::build_machines::{
-    BuildEvaluationSponsor, BuildEvaluationSponsorLimits, BuildMachineCapturedFilesystemRoot,
-    BuildMachineEvaluationError, BuildMachineExecutionMode, BuildMachineFilesystemAccess,
-    BuildMachineFilesystemGrantRoot, BuildMachineFilesystemGrantRootIdentity,
-    BuildMachineFilesystemGrants, BuildMachineFilesystemMetadataLayout,
-    BuildMachineFilesystemSponsor, BuildMachineFilesystemSponsorLimits, BuildMachineInvocation,
-    CheckedBuildProgram, PreparedBuildMachineEntry, PreparedBuildMachineProgram,
-    evaluate_build_machine_measured,
+    BuildEvaluationSponsor, BuildEvaluationSponsorLimits, BuildMachineActivationIdentity,
+    BuildMachineCapturedFilesystemRoot, BuildMachineEvaluationError, BuildMachineExecutionMode,
+    BuildMachineFilesystemAccess, BuildMachineFilesystemGrantRoot,
+    BuildMachineFilesystemGrantRootIdentity, BuildMachineFilesystemGrants,
+    BuildMachineFilesystemMetadataLayout, BuildMachineFilesystemSponsor,
+    BuildMachineFilesystemSponsorLimits, BuildMachineInvocation, CheckedBuildProgram,
+    ExecutedBuildMachineEvaluation, ExecutedBuildMachineRoot, PreparedBuildMachineActivation,
+    PreparedBuildMachineEntry, PreparedBuildMachineProgram, evaluate_build_machine_measured,
 };
 pub use machine_execution::selected_operators::{
-    BuildTimeProviderAuthority, SelectedBuildTimeProviderBody, validate_selected_operators, validate_selected_provider_bodies,
+    BuildTimeProviderAuthority, SelectedBuildTimeProviderBody, validate_selected_operators,
+    validate_selected_provider_bodies,
 };
 pub use reflection::{
     CaseDescription, DeclarationDescription, FieldDescription, FieldInfo, MemberKind,
@@ -101,8 +105,7 @@ pub use reflection::{
 };
 
 pub use build_time_evaluation::{
-    BuildTimeCheckingAdmission,
-    AuthorizedSelection, BuildTimeEvaluationRequest, BuildTimeSourceContext, BuildTimeSources,
-    PreCheckEvaluation, PreResolutionEvaluation, SelectedBuildTimeOperators,
-    evaluate_pre_resolution,
+    AuthorizedSelection, BuildTimeCheckingAdmission, BuildTimeEvaluationRequest,
+    BuildTimeSourceContext, BuildTimeSources, PreCheckEvaluation, PreResolutionEvaluation,
+    SelectedBuildTimeOperators, evaluate_pre_resolution,
 };

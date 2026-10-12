@@ -39,10 +39,32 @@ pub struct SourceConstantRequest {
     pub selections: Vec<build_time_evaluation::SourceProviderSelection>,
 }
 
+/// One ordinary source program or an authentic owned Build projection. Both
+/// use the same checking operation; consumers cannot attach projection metadata
+/// to a replacement mutable program through a public tuple constructor.
+pub struct CheckingProgram(CheckingProgramKind);
+
+enum CheckingProgramKind {
+    Source(typed_trees::TypedTrees),
+    Build(crate::source_compilation::BuildSourceProjection),
+}
+
+impl From<typed_trees::TypedTrees> for CheckingProgram {
+    fn from(program: typed_trees::TypedTrees) -> Self {
+        Self(CheckingProgramKind::Source(program))
+    }
+}
+
+impl From<crate::source_compilation::BuildSourceProjection> for CheckingProgram {
+    fn from(program: crate::source_compilation::BuildSourceProjection) -> Self {
+        Self(CheckingProgramKind::Build(program))
+    }
+}
+
 /// Consume a complete typed program. Previous judgments belong to the same
 /// invocation; the first is the incremental predecessor, followed by siblings.
 pub struct CheckRequest<'request> {
-    pub program: typed_trees::TypedTrees,
+    pub program: CheckingProgram,
     pub constants: SourceConstantRequest,
     pub admission: SourceAdmission<'request>,
     pub previous: &'request [&'request RetainedCheck],
@@ -51,10 +73,60 @@ pub struct CheckRequest<'request> {
 
 /// Successful language judgment, before optional whole-product root selection.
 pub struct CheckedSource {
+    prepared_build: Option<CheckedBuildMachineProgram>,
     pub program: Arc<checked_trees::CheckedTrees>,
     pub source_constants: Vec<build_time_evaluation::SourceConstantSupply>,
     pub retained: Option<RetainedCheck>,
     pub reused: bool,
+}
+
+/// The actual successful facade judgment of one privately owned Build input.
+/// No public constructor joins an arbitrary checked body to a projection.
+pub struct CheckedBuildMachineProgram {
+    program: build_time_evaluation::PreparedBuildMachineProgram,
+    projection: crate::source_compilation::BuildSourceProjection,
+}
+impl CheckedBuildMachineProgram {
+    pub fn projection(&self) -> &validation::execution_projection::BuildProgramProjection {
+        &self.projection.projection
+    }
+    pub fn source_input_identity(&self) -> &crate::source_compilation::BuildSourceInputIdentity {
+        &self.projection.identity
+    }
+    pub fn program(&self) -> &build_time_evaluation::PreparedBuildMachineProgram {
+        &self.program
+    }
+    pub fn with_selected_comparison_executions(
+        self,
+        executions: Vec<checked_trees::CheckedSelectedFloatComparisonExecution>,
+    ) -> Self {
+        Self {
+            program: self.program.with_selected_comparison_executions(executions),
+            projection: self.projection,
+        }
+    }
+    pub fn activation(
+        &self,
+        entry: &build_time_evaluation::PreparedBuildMachineEntry,
+        arguments: Vec<build_time_evaluation::BuildTimeValue>,
+        mode: build_time_evaluation::BuildMachineExecutionMode,
+    ) -> Result<
+        build_time_evaluation::PreparedBuildMachineActivation,
+        build_time_evaluation::BuildMachineEvaluationError,
+    > {
+        if entry.symbol() != self.projection.projection.entry() {
+            return Err(build_time_evaluation::BuildMachineEvaluationError::Entry(
+                "selected Build activation names a different projected entry".into(),
+            ));
+        }
+        self.program.source_root_activation(entry, arguments, mode)
+    }
+}
+impl std::ops::Deref for CheckedBuildMachineProgram {
+    type Target = build_time_evaluation::PreparedBuildMachineProgram;
+    fn deref(&self) -> &Self::Target {
+        &self.program
+    }
 }
 
 /// Shared source product with the exact optional root-selection evidence.
@@ -70,7 +142,12 @@ pub struct SelectedCheckedSource {
 
 impl CheckRequest<'_> {
     pub fn check(self) -> Result<CheckedSource, Vec<Diagnostic>> {
-        let mut program = self.program;
+        let (mut program, build_projection) = match self.program.0 {
+            CheckingProgramKind::Source(program) => (program, None),
+            CheckingProgramKind::Build(projection) => {
+                (projection.program().clone(), Some(projection))
+            }
+        };
         validation::source_completion::prepare_source_completion(
             &mut program,
             self.admission.completion,
@@ -135,7 +212,22 @@ impl CheckRequest<'_> {
                 retain,
             )?
         };
+        let prepared_build = build_projection
+            .map(|projection| {
+                projection
+                    .projection
+                    .validate_checked_entry(&outcome.checked.typed)?;
+                Ok::<_, Vec<Diagnostic>>(CheckedBuildMachineProgram {
+                    program:
+                        build_time_evaluation::PreparedBuildMachineProgram::from_checked_shared(
+                            Arc::clone(&outcome.checked),
+                        ),
+                    projection,
+                })
+            })
+            .transpose()?;
         Ok(CheckedSource {
+            prepared_build,
             program: outcome.checked,
             source_constants,
             retained: outcome.retained,
@@ -145,6 +237,17 @@ impl CheckRequest<'_> {
 }
 
 impl CheckedSource {
+    pub fn into_prepared_build(
+        self,
+    ) -> Result<(CheckedBuildMachineProgram, Option<RetainedCheck>), Vec<Diagnostic>> {
+        let prepared = self.prepared_build.ok_or_else(|| {
+            vec![Diagnostic::error(
+                "source judgment has no owned Build projection",
+            )]
+        })?;
+        Ok((prepared, self.retained))
+    }
+
     /// Select all authored Product roots after checking, or retain the complete
     /// checked program when no pruning was requested. An explicit empty root set
     /// remains an invalid request, not permission to skip checking or selection.
