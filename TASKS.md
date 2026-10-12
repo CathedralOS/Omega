@@ -171,37 +171,21 @@ helper that passes does not close an item.
   also need per-package Terminal Psi reuse. Next: produce the six summaries
   per public machine from std's own check and serve `--check` from them.
 
-- **FLOAT-PAYLOAD-COMPILE-TIME.** (new-scope) Remove the ~28x source-checking
-  slowdown on the float case-payload cohort.
+- **FLOAT-PAYLOAD-COMPILE-TIME.** (new-scope) Finish restoring the float
+  case-payload cohort's full corpus-check path to its historical 4–5s bound.
   `pass/control_flow/runtime_{float_payload_snapshot_after_case_replacement,projected_float_case_payload,root_float_case_payload}_exit`
-  checked in 4.0–5.0s at `a800cc9ab970` and ballooned to ~113–137s from
-  `ab81d5d531` onward: the spec-call admission series made per-leaf
-  structural judgment re-derive program-fixed verdicts
-  (`checked_value_call_candidate` queried 1.6M times on 138 unique pairs;
-  `nominal_cleanup_machine_for_type` scanned ~1,260 machines per call).
-  Landed so far: denotational-candidacy and cleanup-owner memos plus the
-  owner→cleanup-machine index (`2434d11413`, 113s→~39s on a quiet Linux
-  box), the selected-application carrier verdict memo keyed on
-  (caller, target, declared result, arity) (~39s→~32s), Arc-shared
-  judge fact vectors so per-leaf judge clones stop deep-copying
-  `StructuralTerm` lists (~32s→~26s), and program-pure fact sharing
-  across each judge tree: one lazily built CallFrameResolver behind an
-  Arc<OnceLock> on StructuralJudge plus bucketed rewrite probes
-  (resolver builds -31%, deep term-eq probes -48%; fixture wall ~20–26s,
-  within box noise of the ~20.2s pre-leg baseline). The residual is no
-  longer a single hot spot: per-leaf judgment still spreads ~10^5–10^6
-  calls across ~50 helpers (`resolve_at` 941k, `callee_term` 702k,
-  `structural_term` 473k, specification equations 1.1M) because every
-  leaf clone re-walks deep Box/Vec terms. The remaining lever is
-  StructuralTerm interning or a resolved-subject cache with complete
-  representation identity and resolve-state custody. Semantic equality
-  deliberately erases observation authority and literal landing metadata;
-  it cannot key a cache that returns those payloads. Preserve raw versus
-  observed values, nested observation types, scalar/indexed authority and
-  literal landings across any representation repair. Arena handles should
-  make equality and dedup O(1) without merging those distinctions. Restore
-  the pinned 4–5s ordering and repin the rows only after the measured
-  representation repair meets it.
+  now meets that bound through public `--check` on macOS ARM64; the corpus
+  check leg, which also realizes the bound entry, still records 6.4–7.3s at
+  one worker. Profile that remaining work before choosing another repair.
+  Linux's last 20–26s measurement predates shared family analysis, exact
+  declaration lookups and immutable case-reference reuse; remeasure there
+  rather than extrapolating from this Mac. Use an optimized dev compiler
+  (`CARGO_PROFILE_DEV_OPT_LEVEL=1`), comparable host/load and the same path
+  when comparing with `a800cc9ab970`; retain native/Terminal exit 70.
+  Any reuse must preserve raw versus observed values, nested observation
+  types, scalar/indexed authority and literal landings: structural semantic
+  equality deliberately erases authority and landing metadata and cannot
+  key returned payloads.
 
 - **CHECKED-ASM-LABEL-CONTRACTS.** (split-of:STATIC-MACHINE-MIGRATION)
   Implement the ratified checked-assembly control-flow model in

@@ -21,6 +21,19 @@ pub(super) fn sort_symbol_rows<Position>(rows: &mut [(SymbolHandle, Position)]) 
     rows.sort_by_key(|(symbol, _)| symbol_key(*symbol));
 }
 
+/// First-match readers need only the lower bound. Finding the entire duplicate
+/// range made every machine lookup search twice during structural checking.
+/// Keep the full-range query below for readers that must detect ambiguity.
+pub(super) fn first_symbol_row<Position>(
+    rows: &[(SymbolHandle, Position)],
+    symbol: SymbolHandle,
+) -> Option<&(SymbolHandle, Position)> {
+    let key = symbol_key(symbol);
+    let start = rows.partition_point(|(symbol, _)| symbol_key(*symbol) < key);
+    rows.get(start)
+        .filter(|(candidate, _)| *candidate == symbol)
+}
+
 pub(super) fn symbol_rows<Position>(
     rows: &[(SymbolHandle, Position)],
     symbol: SymbolHandle,
@@ -188,9 +201,7 @@ impl crate::TypedTrees {
     /// First case declaration carrying this full symbol identity.
     pub fn data_variant_position_for_symbol(&self, symbol: SymbolHandle) -> Option<(u32, u32)> {
         self.with_data_members(|index| {
-            symbol_rows(&index.variants, symbol)
-                .first()
-                .map(|(_, position)| *position)
+            first_symbol_row(&index.variants, symbol).map(|(_, position)| *position)
         })
     }
 

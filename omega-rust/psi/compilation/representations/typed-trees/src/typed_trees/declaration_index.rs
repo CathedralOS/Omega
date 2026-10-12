@@ -21,7 +21,9 @@ use arena::{Handle, HandleSpan, OwnedIndex};
 use symbols::SymbolHandle;
 
 mod relationships;
+mod requirement_applications;
 use relationships::{DataMemberIndex, StateDeclarationIndex};
+use requirement_applications::RequirementApplicationIndex;
 
 /// Handle-keyed maps take the integer hasher; none is iterated for output
 /// order, and `Box<str>`/`usize`/tuple keys hash through the same mixing as
@@ -238,6 +240,7 @@ pub struct DeclarationIndexes {
     domains: OwnedIndex<DomainPositionIndex>,
     attached_drops: OwnedIndex<AttachedDropIndex>,
     call_targets: OwnedIndex<CallTargetIndex>,
+    requirement_applications: OwnedIndex<RequirementApplicationIndex>,
     domain_candidates: OwnedIndex<DomainCandidateIndex>,
     isolation: OwnedIndex<IsolationVerdicts>,
 }
@@ -299,8 +302,7 @@ impl super::TypedTrees {
             return None;
         }
         self.with_machine_position_index(|index| {
-            relationships::symbol_rows(&index.rows, symbol)
-                .first()
+            relationships::first_symbol_row(&index.rows, symbol)
                 .map(|(_, position)| *position as usize)
         })
     }

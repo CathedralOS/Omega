@@ -4528,7 +4528,7 @@ pass/control_flow/runtime_entry_loan_with_view_field_forwarded_exit checked 1185
 pass/control_flow/runtime_entry_receiver_loan_with_byte_fields_exit checked 11588ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_exclusive_state_loan_shared_handoff_exit checked 11418ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_far_case_tag_dispatch_exit checked 11611ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/control_flow/runtime_float_payload_snapshot_after_case_replacement_exit timeout 120003ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/control_flow/runtime_float_payload_snapshot_after_case_replacement_exit checked 7246ms check-target:macos_arm64 @aef42baa7504+wt
 pass/control_flow/runtime_guard_case_survives_disjoint_conjunct_exit checked 11582ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_heterogeneous_static_parent_state_loan_exit checked 11198ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/control_flow/runtime_index_state_child_loan_exit checked 11683ms check-target:linux_x86_64 @a9ae30e1c334+wt
@@ -4555,14 +4555,14 @@ pass/control_flow/runtime_owned_state_parallel_swap_exit checked 6231ms check-ta
 pass/control_flow/runtime_parameter_index_state_loan_exit checked 12177ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/control_flow/runtime_projected_case_large_offset_exit checked 16824ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_projected_case_payload_forwarding_exit checked 11491ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/control_flow/runtime_projected_float_case_payload_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/control_flow/runtime_projected_float_case_payload_exit checked 6367ms check-target:macos_arm64 @aef42baa7504+wt
 pass/control_flow/runtime_projected_index_case_payload_forwarding_exit checked 13169ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_projected_index_single_case_payload_exit checked 12991ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_projected_single_case_payload_exit checked 11692ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_ranked_state_cycle_borrowed_record_exit checked 11387ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_ranked_state_cycle_owned_record_exit checked 11629ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_returned_nested_case_payload_capture_exit checked 12354ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/control_flow/runtime_root_float_case_payload_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/control_flow/runtime_root_float_case_payload_exit checked 6507ms check-target:macos_arm64 @aef42baa7504+wt
 pass/control_flow/runtime_selected_parent_state_loan_exit checked 11926ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/control_flow/runtime_shared_case_return_call_exit checked 14412ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_string_literal_dispatch_exit checked 11401ms check-target:macos_arm64 @a9ae30e1c334+wt

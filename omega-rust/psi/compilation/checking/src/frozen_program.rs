@@ -414,6 +414,11 @@ pub struct CheckingMemos {
     pub(crate) content_conservation: OnceLock<Arc<Vec<ContentConservationSourcePlan>>>,
     pub(crate) binary_meanings:
         Mutex<symbols::SymbolKeyMap<(u32, u32, typed_trees::expression::ExpressionHandle), bool>>,
+    /// Exact case-reference paths depend only on this immutable input's
+    /// expression, symbol and data tables. Retain the declaration position,
+    /// including a negative verdict, without merging equal source spellings.
+    pub(crate) case_reference_owners:
+        Mutex<symbols::SymbolKeyMap<typed_trees::expression::ExpressionHandle, Option<usize>>>,
     /// One denotational candidacy verdict per selected (machine, state); the
     /// answer is a pure function of the program's call plans, so repeated
     /// consultations across case-arm leaves share the closure walks.

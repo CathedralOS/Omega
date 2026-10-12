@@ -55,6 +55,13 @@ pub(crate) struct AppliedCallableSignature {
     signature: signature::StateSignature,
 }
 
+impl AppliedCallableSignature {
+    pub(super) fn requirement_instance_symbol(&self) -> Option<SymbolHandle> {
+        matches!(self.owner, AppliedCallableOwner::RequirementInstance { .. })
+            .then_some(self.signature.symbol)
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 enum AppliedCallableOwner {
     #[default]

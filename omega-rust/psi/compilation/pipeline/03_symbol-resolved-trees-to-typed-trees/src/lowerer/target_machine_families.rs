@@ -21,6 +21,10 @@ pub(super) fn append(
         .filter(|machine| machine.target_family.is_valid())
         .collect::<Vec<_>>();
     declarations.sort_by_key(|machine| machine.target_family.arena_index());
+    // Every comparison reads this same completed typing frontier. Reuse its
+    // program-fixed contract facts, then discard them before publishing the
+    // appended families; a later seeded append starts a fresh invocation.
+    let checking = validation::CheckingContext::new(typed);
     let mut families = Vec::new();
     for declarations in
         declarations.chunk_by(|left, right| left.target_family == right.target_family)
@@ -68,7 +72,7 @@ pub(super) fn append(
                 Diagnostic::error("target-machine family member did not survive typing")
             })?;
             let member_identity = typed.machine_callable_identity(member_machine);
-            telescopes::validate(typed, machine, member_machine)?;
+            telescopes::validate(&checking, machine, member_machine)?;
             if !canonical_identity.is_valid()
                 || !member_identity.is_valid()
                 || member_identity != canonical_identity
@@ -92,6 +96,7 @@ pub(super) fn append(
     // Preserve a retained base byte-for-byte; new cohorts are ordered within
     // their own append, never globally sorted across the retained prefix.
     families.sort_by(|left, right| left.name.as_str().cmp(right.name.as_str()));
+    drop(checking);
     typed.target_machine_families.extend(families);
     Ok(())
 }

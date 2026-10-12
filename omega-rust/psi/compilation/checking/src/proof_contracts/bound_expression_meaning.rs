@@ -577,6 +577,35 @@ pub fn exact_case_reference_owner(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<&DataDefinition> {
+    // Structural leaf checking revisits the same resolved path. Only its exact
+    // expression identity in an immutable input can reuse this declaration
+    // verdict; membership, selected operator meaning and operand custody are
+    // still checked by the caller. Mutable projections have no shared memos.
+    let position = if let Some(memos) = crate::frozen_program::frozen_program_memos(program) {
+        let cached = memos
+            .case_reference_owners
+            .lock()
+            .ok()
+            .and_then(|owners| owners.get(&expression).copied());
+        if let Some(position) = cached {
+            position
+        } else {
+            let position = exact_case_reference_owner_position(program, expression);
+            if let Ok(mut owners) = memos.case_reference_owners.lock() {
+                owners.insert(expression, position);
+            }
+            position
+        }
+    } else {
+        exact_case_reference_owner_position(program, expression)
+    }?;
+    program.data_definitions().get(position)
+}
+
+fn exact_case_reference_owner_position(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<usize> {
     if !program.expression_table.expression_is_valid(expression) {
         return None;
     }
@@ -588,7 +617,7 @@ pub fn exact_case_reference_owner(
     // spent in resolution and the owning union remains as the case's parent.
     if members.len() == 1 && selected.len() == 1 && selected.first() == Some(&case.symbol) {
         let parent = program.symbols.get(case.symbol).parent;
-        return program.data_definitions().iter().find(|owner| {
+        return program.data_definitions().iter().position(|owner| {
             owner.symbol == parent
                 && program.data_members(owner).iter().any(|member| {
                     matches!(
@@ -616,7 +645,7 @@ pub fn exact_case_reference_owner(
         return None;
     }
     let carrier = selected[selected.len() - 2];
-    program.data_definitions().iter().find(|owner| {
+    program.data_definitions().iter().position(|owner| {
         owner.symbol == carrier
             && program.symbols.get(case.symbol).parent == carrier
             && program.data_members(owner).iter().any(|member| {

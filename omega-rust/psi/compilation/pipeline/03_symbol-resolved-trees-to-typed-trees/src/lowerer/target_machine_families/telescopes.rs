@@ -18,7 +18,7 @@ use validation::contract_structure::{declared_callable, generic_binders};
 mod callable_carriers;
 
 pub(super) fn validate(
-    program: &TypedTrees,
+    program: &validation::CheckingContext<'_>,
     interface: &Machine,
     member: &Machine,
 ) -> Result<(), Diagnostic> {
@@ -93,7 +93,6 @@ pub(super) fn validate(
             "ordinary parameter relevance/calling shape or result",
         ));
     }
-    let content_conservation = validation::content_conservation_plans(program);
     for (required, actual) in required.iter().zip(actual) {
         if std::mem::discriminant(&required.kind) != std::mem::discriminant(&actual.kind) {
             return Err(incompatible(member, "generic parameter category"));
@@ -101,6 +100,10 @@ pub(super) fn validate(
         if typed_trees::data::type_parameter_demands_stronger_properties(required, actual) {
             return Err(unjoined(member, "generic property-demand conjunction"));
         }
+        // Only generic contract encoding consumes conservation facts. The
+        // shared immutable context derives them at most once for this append,
+        // and ordinary target-family signatures do not request them at all.
+        let content_conservation = validation::content_conservation_plans(program);
         if let (
             TypeParameterKind::Machine { contract: required },
             TypeParameterKind::Machine { contract: actual },

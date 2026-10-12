@@ -35,48 +35,52 @@ impl TypedTrees {
     ) -> impl Iterator<Item = ClosedRequirementApplication<'_>> {
         self.applied_callable_signatures
             .iter()
-            .filter_map(|(_, prepared)| {
-                let AppliedCallableOwner::RequirementInstance {
-                    declaration,
-                    template,
-                    trait_application_identity,
-                    portable_trait_application_identity,
-                    portable_local_arguments,
-                    trait_scope,
-                    trait_arguments,
-                    local_arguments,
-                    application,
-                } = prepared.owner
-                else {
-                    return None;
-                };
-                Some(ClosedRequirementApplication {
-                    declaring_trait: declaration,
-                    template,
-                    trait_application_identity,
-                    portable_trait_application_identity,
-                    portable_local_arguments: self
-                        .callable_argument_identities
-                        .span_or_empty(portable_local_arguments),
-                    trait_scope,
-                    trait_arguments: self
-                        .type_reference_table
-                        .type_reference_handles(trait_arguments),
-                    local_arguments: self
-                        .type_reference_table
-                        .type_reference_handles(local_arguments),
-                    application,
-                    signature: &prepared.signature,
-                })
-            })
+            .filter_map(|(_, prepared)| self.closed_requirement_record(prepared))
     }
 
     pub fn closed_requirement_application(
         &self,
         instance: SymbolHandle,
     ) -> Option<ClosedRequirementApplication<'_>> {
-        self.closed_requirement_applications()
-            .find(|application| application.signature.symbol == instance)
+        self.closed_requirement_record(self.closed_requirement_signature(instance)?)
+    }
+
+    fn closed_requirement_record<'program>(
+        &'program self,
+        prepared: &'program AppliedCallableSignature,
+    ) -> Option<ClosedRequirementApplication<'program>> {
+        let AppliedCallableOwner::RequirementInstance {
+            declaration,
+            template,
+            trait_application_identity,
+            portable_trait_application_identity,
+            portable_local_arguments,
+            trait_scope,
+            trait_arguments,
+            local_arguments,
+            application,
+        } = prepared.owner
+        else {
+            return None;
+        };
+        Some(ClosedRequirementApplication {
+            declaring_trait: declaration,
+            template,
+            trait_application_identity,
+            portable_trait_application_identity,
+            portable_local_arguments: self
+                .callable_argument_identities
+                .span_or_empty(portable_local_arguments),
+            trait_scope,
+            trait_arguments: self
+                .type_reference_table
+                .type_reference_handles(trait_arguments),
+            local_arguments: self
+                .type_reference_table
+                .type_reference_handles(local_arguments),
+            application,
+            signature: &prepared.signature,
+        })
     }
 
     /// Whether a checked satisfaction/map scope selects this closed requirement's
