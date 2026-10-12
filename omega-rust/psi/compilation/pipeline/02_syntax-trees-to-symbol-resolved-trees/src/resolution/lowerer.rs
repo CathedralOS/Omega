@@ -54,14 +54,26 @@ pub(crate) struct PendingConstArgumentSelection {
     pub(crate) is_argument_value: bool,
 }
 
-/// A use-site constant occurrence and its actual retained generic argument slot.
+/// A use-site constant occurrence and its retained original operand or generic slot.
 /// This private link survives symbol allocation; encoded value labels never
-/// reconstruct which nominal binder received the selected declaration.
+/// reconstruct the operand or which nominal binder received its declaration.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct PendingConstArgumentSlot {
     pub(crate) selection: usize,
-    pub(crate) arguments: arena::HandleSpan<symbol_resolved_trees::types::TypeReference>,
-    pub(crate) ordinal: usize,
+    pub(crate) receiving: PendingConstArgumentReceiving,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum PendingConstArgumentReceiving {
+    Generic {
+        arguments: arena::HandleSpan<symbol_resolved_trees::types::TypeReference>,
+        ordinal: usize,
+    },
+    /// This original graph selects a declaration, not a generic receiver.
+    /// Its actual machine telescope is admitted by immutable checking.
+    OriginalOperand {
+        argument: arena::Handle<symbol_resolved_trees::types::TypeReference>,
+    },
 }
 
 #[derive(Debug, Clone)]
