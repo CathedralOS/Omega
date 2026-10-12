@@ -211,11 +211,15 @@ fn lower_data_definition_with_argument_origins(
         syntax_trees,
         data_definition,
     )?;
+    let lexical_owner = crate::lowering::domain::DeclarationLexicalInputOwner::Data(
+        lowerer.symbol_resolved_trees.data_definitions.len(),
+    );
     let where_facts = crate::lowering::domain::lower_proof_facts_excluding(
         lowerer,
         syntax_trees,
         data_definition.where_facts,
         &type_equations,
+        Some(lexical_owner),
     )?;
     // Names are not bound yet: treating every identifier as a zero-valued
     // field would also zero static arguments. Resolved fact admission refines
