@@ -158,6 +158,28 @@ arrival requirement is not store enforcement: the separately canonical
 prefix does not write the bound; `rank_range_mutable_endpoint_overflow_after_write`
 rejects Exact endpoint arithmetic after replacing the bound with `u64::MAX`.
 
+## Audited ranked record arrivals and snapshots
+
+All 13 suffix declarations below use `u32 [0..=5]` in their original revisions.
+The carriers remain `u32`, supplying the zero floor. Fields retain `<= 5` on
+their containing data; callable and state parameters retain `<= 5` as their
+own arrival requirements. No interval-only domain is introduced.
+
+| Fixture and original revision | Original positions | Canonical obligations |
+|---|---|---|
+| `termination/rank_range_record_snapshot_compile`, `568c41c7a7f` | `Pair.left`, `walk.remaining`, `s.copy`, `finish.result` | data `where left <= 5`; three parameter `requires` |
+| `termination/rank_arrival_captured_record_fields_exit`, `bd68c42a6ef` | `Pair.left`, `Pair.right`, `walk.remaining` | data `where left <= 5, right <= 5`; entry `requires remaining <= 5` |
+| `termination/rank_arrival_same_carrier_fields_exit`, `bd68c42a6ef` | the same three positions | the same clauses on those declarations |
+| `termination/rank_arrival_unrelated_field_step`, `bd68c42a6ef` | the same three positions | the same clauses; strict rank decrease still rejects |
+
+The [snapshot witness](../../../tests/omega/pass/termination/rank_range_record_snapshot_compile/README.md)
+now executes the existing walk, returning the initial five after the live field
+reaches zero. The other two valid programs return zero in both engines, with
+and without an immutable record capture. Equal field bounds supply no equation
+between fields and no permission to decrease the wrong coordinate; the invalid
+sibling retains its original refusal. The rank range expressions remain
+unchanged. They neither constrain storage identity nor make an endpoint static.
+
 ## Audited calling vocabulary counts
 
 The 11 scalar suffixes in `source/library/std/calling.omg` at `c1303f89d4`

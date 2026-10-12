@@ -2379,7 +2379,7 @@ pass/termination/rank_range_nested_slice_carrier_borrowed checked 1675ms @a9ae30
 pass/termination/rank_range_nested_slice_length checked 1843ms @a9ae30e1c334+wt
 pass/termination/rank_range_prefix_call checked 1649ms @a9ae30e1c334+wt
 pass/termination/rank_range_projected_slice_length checked 1706ms @a9ae30e1c334+wt
-pass/termination/rank_range_record_snapshot_compile checked 1819ms @a9ae30e1c334+wt
+pass/termination/rank_range_record_snapshot_compile checked 4638ms check-target:macos_arm64 @2ab552549670+wt
 pass/termination/rank_range_scratch_input_write checked 1650ms @a9ae30e1c334+wt
 pass/termination/rank_range_state_call checked 11475ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/termination/rank_range_state_call_requires_bridge checked 1637ms @a9ae30e1c334+wt

@@ -1511,7 +1511,7 @@ defines the complete product bar.
   `pass/termination/runtime_rankless_boundary_suffix_exit` for a finishing
   boundary call with no synchronous-invocation permission, and
   `pass/termination/rank_range_record_snapshot_compile` for an ordinary
-  snapshot return (source-only). Empty `invokes` does not imply termination.
+  snapshot return (saved value five, exit 0). Empty `invokes` does not imply termination.
   Rankless exits returning to recurrence,
   nondecreasing cycles, stale premises, overwritten requirement inputs and
   unproved arrivals reject; entry requirements do not become internal-arrival
@@ -1662,6 +1662,12 @@ defines the complete product bar.
   `fail/termination/{nested_field_without_predicate_cannot_bound_result,rank_range_mutable_endpoint_overflow_after_write,rank_range_subject_intervening_write}`
   (declaration-owned nested field bounds and ranked loan transport survive;
   neither matching field names nor stale mutable arrival facts grant bounds),
+  `pass/termination/rank_range_record_snapshot_compile`,
+  `pass/termination/rank_arrival_{captured_record_fields,same_carrier_fields}_exit`
+  and `fail/termination/rank_arrival_unrelated_field_step` (record fields keep
+  their predicates through arrivals and captures; a saved scalar survives
+  countdown without becoming its measure, and decreasing a sibling is not
+  evidence about the selected field),
   `pass/host/runtime_console_bounded_line_{lf,full,partial_eof,middle_window}_exit`
   and `pass/host/runtime_console_byte_payload_bounds_exit`
   and `fail/host/console_byte_payload_{negative,above_byte}` (active i32 payload

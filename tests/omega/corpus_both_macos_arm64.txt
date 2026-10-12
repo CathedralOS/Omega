@@ -876,3 +876,4 @@ pass/host/runtime_console_byte_payload_bounds_exit built 5280ms exit:70 interpre
 pass/calls/runtime_dispatch_binary_call_argument_exit built 5355ms exit:70 interpreter-exit:70 interpreter:agrees @a0a35c7bbb43+wt
 pass/termination/rank_endpoint_borrows_recovery built 5679ms exit:0 interpreter-exit:0 interpreter:agrees @2430f497a77c+wt
 pass/termination/ranked_callee_projected_receiver_compile built 5681ms exit:70 interpreter-exit:70 interpreter:agrees @2430f497a77c+wt
+pass/termination/rank_range_record_snapshot_compile built 4734ms exit:0 interpreter-exit:0 interpreter:agrees @2ab552549670+wt

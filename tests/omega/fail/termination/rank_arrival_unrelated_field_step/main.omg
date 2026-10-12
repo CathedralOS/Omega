@@ -1,6 +1,7 @@
-data Pair { left: u32 [0..=5]; right: u32 [0..=5]; }
+data Pair where left <= 5, right <= 5 { left: u32; right: u32; }
 
-machine walk(remaining: u32 [0..=5])
+machine walk(remaining: u32)
+requires remaining <= 5
 terminates by remaining in 0..=5;
 -> u32 {
     transition { _ -> iterate(Pair { left: remaining, right: 4 }) }
