@@ -308,7 +308,13 @@ pub(super) fn validate_successors(
                         )?;
                     if binding.parameter != parameter.place
                         || binding.argument.access != parameter.access
-                        || selected.0 != parameter.structural_type
+                        || (selected.0 != parameter.structural_type
+                            && !crate::lowering::scalar::descriptor_operands::storage_backs_view_parameter(
+                                selected.0,
+                                &binding.argument.path,
+                                parameter,
+                                structural_types,
+                            ))
                     {
                         return Err(LoweringError::unsupported_control_flow(function.machine));
                     }

@@ -5,8 +5,12 @@ use crate::LoweringError;
 use crate::lowering::structural_layout::runtime_descriptor_projection;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::AbstractFunction;
+use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType, StructuralTypeId};
 use std::collections::BTreeMap;
-use terminal_psi::{StructuralAccess, StructuralArgument};
+use terminal_psi::{
+    StructuralAccess, StructuralArgument, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralTypeShape,
+};
 
 /// A projected descriptor borrows its exact current carrier. Runtime selectors
 /// stay in operand custody on the side of each stored-reference crossing.
@@ -135,6 +139,64 @@ pub(in crate::lowering) fn observes_count(
         }
         _ => false,
     })
+}
+
+/// Whether `collection` storage can back the parameter's declared view
+/// descriptor when an edge binds the storage itself as the argument. A
+/// borrowed view parameter can also arrive over a loaned local's storage: the
+/// destination receives a descriptor formed over that exact backing, so the
+/// argument's resolved type is the referent's, not the descriptor's. Element
+/// identity, extent and window shape stay under the same establishment rules
+/// as an ordinary view formation; this grants no access, liveness or custody.
+pub(in crate::lowering) fn storage_backs_view_parameter(
+    collection: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    parameter: &StructuralParameterDeclaration,
+    structural_types: &StructuralTypeLookup<'_>,
+) -> bool {
+    let Some(declaration) = structural_types.get(&parameter.structural_type).copied() else {
+        return false;
+    };
+    let view_element = match &declaration.shape {
+        StructuralTypeShape::ElementView { element } => Some(*element),
+        shape if shape.is_borrowed_byte_carrier() => None,
+        _ => return false,
+    };
+    let element = view_element.or_else(|| {
+        structural_types.values().find_map(|declaration| {
+            (declaration.scalar_restriction.is_none()
+                && matches!(declaration.shape,
+                    StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
+                    if Ok(integer) == IntegerType::new(IntegerSign::Unsigned, 8)))
+            .then_some(declaration.id)
+            .filter(|element| {
+                terminal_semantics::collection_backing(
+                    structural_types.values().copied(),
+                    collection,
+                    *element,
+                )
+                .is_some()
+            })
+        })
+    });
+    let Some(element) = element else {
+        return false;
+    };
+    let Some(backing) = terminal_semantics::collection_backing(
+        structural_types.values().copied(),
+        collection,
+        element,
+    ) else {
+        return false;
+    };
+    terminal_semantics::collection_view_descriptor(
+        &declaration.shape,
+        Some(backing.extent),
+        terminal_psi::ElementViewRegion::WholeCollection,
+        path,
+        structural_types.get(&element).copied(),
+    )
+    .is_some()
 }
 
 /// Optional developer provenance for a descriptor refusal; semantic admission
