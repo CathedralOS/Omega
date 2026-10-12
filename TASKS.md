@@ -203,32 +203,6 @@ helper that passes does not close an item.
   the pinned 4–5s ordering and repin the rows only after the measured
   representation repair meets it.
 
-- **REFERENCE-CUSTODY-JOIN-SCALING.** (new-scope) Investigate and remove
-  avoidable compilation cost in reference-custody joins without weakening their
-  semantics. The former `custody-join-build-cost` escalation is engineering
-  under [Psi ownership](omega-rust/pipeline.md#psi-implementation-and-deferred-human-audit).
-  - Current [measurements](wiki/drafts/measurements/reference_custody_join_cost.json):
-    at `a195e6cdf06` on macOS ARM64, three serial native runs take
-    4080–4104 ms for indexed float fields and 1604–1623 ms for the
-    stored-reference sibling, all exit 70. Float capacities 8/32 stay near
-    3.9s. Eight reference carriers run; 32 exposed a call-free link-register
-    preservation bug, now covered by
-    `pass/borrows/runtime_reference_array_pressure_exit` (native/interpreter
-    exit 70). These probes repeat two reference roots, not distinct owners.
-    The historical Linux regression still needs a same-host revision
-    comparison and scaling with distinct roots/observations; no superlinear
-    custody join or compile-time speedup is established by this measurement.
-  - Reproduce on one host/configuration and profile the exact reader before
-    choosing a repair. Own the evidenced Psi custody/fact propagation path;
-    compare against stored-reference sibling programs and increasing record/
-    reference counts to distinguish fixed work from superlinear recomputation.
-    Do not add timing thresholds to semantic tests or omit custody checks.
-  Acceptance: the customer still produces its authored result; report repeated
-  before/after timings and scaling on the same configuration, plus
-  `python tools/corpus_gate.py --filter expressions/runtime_indexed_float_record_fields_exit,borrows/runtime_indexed_reference_array_bounded_read_exit`.
-  If the regression no longer reproduces, remove this task with that evidence;
-  do not invent a new language decision to justify keeping it open.
-
 - **ENTRY-SLOT-EXACT-SCHEMA-SELECTION.** (split-of:UEFI-PHYSICAL-SEMANTIC-ENTRY)
   Finish alternate accepted-contract coverage after exact
   [target-slot](wiki/spec/build/entry_roots.md#slots) selection.
