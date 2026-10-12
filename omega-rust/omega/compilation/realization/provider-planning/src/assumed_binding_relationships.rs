@@ -22,6 +22,8 @@
 //! Calling compatibility retains both original evaluated application commitments.
 //! Domain establishment routes are queried through the retained declaration owner;
 //! neither those authored routes nor checked issuer authorization is a receipt.
+//! Structural content retains the already checked positional correspondence,
+//! custody decisions and original public/calling applications for later consent.
 
 mod application_content;
 pub use application_content::AssumedBindingApplicationContent;
@@ -42,6 +44,7 @@ mod proof_content;
 pub use proof_content::AssumedBindingMathematicalJudgmentContent;
 mod semantic_content;
 mod semantic_obligations;
+mod structural_content;
 pub use mathematical_dependencies::{
     AssumedBindingMathematicalAssumption, AssumedBindingMathematicalCohortContent,
     AssumedBindingMathematicalDependencies, AssumedBindingMathematicalRoot,
@@ -51,6 +54,7 @@ pub use physical_dependencies::{
     retain_assumed_binding_physical_dependencies,
 };
 pub use semantic_content::AssumedBindingSemanticContent;
+pub use structural_content::AssumedBindingStructuralContent;
 
 pub use dependencies::{
     AssumedBindingMathematicalApplicationUse, AssumedBindingProofJudgmentUse,
@@ -101,6 +105,7 @@ pub struct PreparedAssumedBindingRelationship {
     registration: AssumedBindingRegistration,
     subjects: Vec<AssumedBindingSubjectCorrespondence>,
     application_content: Option<AssumedBindingApplicationContent>,
+    structural_content: Option<AssumedBindingStructuralContent>,
     required_declaration_coordinate: declaration_revisions::DeclarationCoordinate,
     supplied_declaration_coordinate: declaration_revisions::DeclarationCoordinate,
     declaration_revisions: Option<AssumedBindingDeclarationRevisions>,
@@ -153,6 +158,12 @@ impl PreparedAssumedBindingRelationship {
     /// absence never changes source admission or manufactures a runtime tuple.
     pub const fn application_content(&self) -> Option<AssumedBindingApplicationContent> {
         self.application_content
+    }
+
+    /// Produced positional and structural compatibility content. Absence is
+    /// missing portable application evidence, never assumed compatibility.
+    pub const fn structural_content(&self) -> Option<AssumedBindingStructuralContent> {
+        self.structural_content
     }
 
     /// None means missing seal-owned revision evidence, including unmanaged
@@ -385,6 +396,17 @@ pub fn prepare_assumed_binding_relationships(
             let domain_demands = domain_authority::capture(program, &required, &supplied);
             let required_public_contract = required.public_contract(program)?;
             let supplied_public_contract = supplied.public_contract(program)?;
+            let application_content =
+                application_content::capture(&registration.required, &registration.supplied);
+            let structural_content = structural_content::capture(
+                program,
+                &required,
+                &supplied,
+                &subjects,
+                application_content,
+                (required_public_contract, supplied_public_contract),
+                calling_compatibility,
+            );
             let demand =
                 checked_trees::typed_trees::static_applications::AssumedBindingContractDemand {
                     required: registration.required.application_demand(),
@@ -414,10 +436,8 @@ pub fn prepare_assumed_binding_relationships(
                 declaration_owner: Arc::clone(program),
                 registration: registration.clone(),
                 subjects,
-                application_content: application_content::capture(
-                    &registration.required,
-                    &registration.supplied,
-                ),
+                application_content,
+                structural_content,
                 required_declaration_coordinate:
                     declaration_revisions::DeclarationCoordinate::capture(&required),
                 supplied_declaration_coordinate:
