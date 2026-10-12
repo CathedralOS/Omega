@@ -126,8 +126,8 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
                     }
                 }
             }
-            let Some((actual, applications)) = caller_state
-                .and_then(|state| argument_scopes::source_application(program, state, *argument))
+            let Some((actual, applications)) =
+                argument_scopes::source_application(program, caller_state, *argument)
             else {
                 continue;
             };
