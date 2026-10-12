@@ -79,7 +79,10 @@ impl ServiceCarrierContract {
         program: &TypedTrees,
         lexical_owner: SymbolHandle,
     ) -> Result<(), &'static str> {
-        program.require_declared_application_operands(self.arguments(program), lexical_owner)?;
+        program.require_declared_application_operands(
+            self.arguments(program),
+            crate::type_identity::AppliedTypeIdentityOwner::Declaration(lexical_owner),
+        )?;
         let scope = self
             .application(program, lexical_owner, &[])
             .ok_or("service declaration lost its complete application telescope")?;
