@@ -95,6 +95,11 @@ pub enum CheckedUnitCallRoute {
         interface_identity: TypeIdentityId,
         /// The exact requirement the slot instantiates.
         requirement: SymbolHandle,
+        /// Evaluated actuals of a finite-family call in the roster's
+        /// family-binder order; the dispatch compares them against each
+        /// candidate row's declared tuple identities to select one row at
+        /// runtime. Empty on an ordinary requirement call.
+        family_operands: Vec<CheckedCallScalarArgument>,
     },
 }
 

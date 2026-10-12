@@ -153,8 +153,10 @@ fn instantiate_slot(
 }
 
 /// Point every selector call at its slot. A call carrying static machine
-/// arguments selects a finite-family row, which has no slot yet; it keeps
-/// its requirement target and lowering refuses it.
+/// arguments selects a finite-family row through the same slot: the slot's
+/// formals stay the selector and the requirement's instantiated parameters,
+/// while the arguments ride on the call as family actuals that call lowering
+/// turns into the dispatch's row-selection operand.
 /// Instantiate the inner requirement before substituting its outer scopes.
 /// Each telescope is simultaneous: following one replacement through another
 /// binder of that same telescope would capture caller-side parameters.
@@ -186,7 +188,6 @@ fn retarget_selector_calls(program: &mut TypedTrees) {
                 .enumerate()
             {
                 if let Some(call) = statement.as_call()
-                    && call.machine_arguments.is_empty()
                     && let Some(slot) = slot_for(
                         program,
                         validation::dynamic_call_demand(
@@ -213,9 +214,6 @@ fn retarget_selector_calls(program: &mut TypedTrees) {
                         let Some(call) = program.expression_table.call_node(expression) else {
                             continue;
                         };
-                        if !call.machine_arguments.is_empty() {
-                            continue;
-                        }
                         if let Some(slot) = slot_for(
                             program,
                             validation::dynamic_expression_call_demand(

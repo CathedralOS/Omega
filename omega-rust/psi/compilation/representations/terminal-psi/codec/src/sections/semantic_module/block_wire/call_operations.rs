@@ -155,6 +155,7 @@ pub(super) fn encode_call_dynamic(
     interface: u32,
     slot: u32,
     arguments: Vec<ValueId>,
+    family_actuals: Vec<ValueId>,
     erased_arguments: Vec<ScalarTerm>,
     erased_proof_arguments: Vec<ProofTerm>,
     structural_arguments: Vec<StructuralArgument>,
@@ -169,6 +170,13 @@ pub(super) fn encode_call_dynamic(
     writer.len("dynamic-call scalar arguments", arguments.len())?;
     for argument in arguments {
         writer.id(argument);
+    }
+    writer.len(
+        "dynamic-call family actuals",
+        family_actuals.len(),
+    )?;
+    for actual in family_actuals {
+        writer.id(actual);
     }
     encode_scalar_terms(writer, &erased_arguments)?;
     encode_proof_terms(writer, &erased_proof_arguments)?;
@@ -190,6 +198,7 @@ pub(super) fn decode_call_dynamic(reader: &mut Reader<'_>) -> Result<OperationKi
         interface: reader.u32()?,
         slot: reader.u32()?,
         arguments: decode_ids(reader, "ValueId")?,
+        family_actuals: decode_ids(reader, "ValueId")?,
         erased_arguments: decode_scalar_terms(reader)?,
         erased_proof_arguments: decode_proof_terms(reader)?,
         structural_arguments: decode_structural_arguments(reader)?,

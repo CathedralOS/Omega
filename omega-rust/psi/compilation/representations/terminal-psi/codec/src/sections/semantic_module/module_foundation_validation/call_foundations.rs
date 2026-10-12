@@ -97,6 +97,7 @@ pub(super) fn validate_call_dynamic(
         interface,
         slot,
         arguments,
+        family_actuals,
         structural_arguments,
         claim_transfers,
         ..
@@ -104,13 +105,51 @@ pub(super) fn validate_call_dynamic(
     else {
         unreachable!("dispatched validate_call_dynamic")
     };
-    let Some(shape) = module
+    let Some(interface_slots) = module
         .dynamic_dispatch
         .interface(*interface)
-        .and_then(|interface| interface.slots.get(usize::try_from(*slot).ok()?))
+        .map(|interface| interface.slots.as_slice())
     else {
         return malformed("dynamic call names an unknown interface slot");
     };
+    let Some(shape) = usize::try_from(*slot)
+        .ok()
+        .and_then(|index| interface_slots.get(index))
+    else {
+        return malformed("dynamic call names an unknown interface slot");
+    };
+    // A family call names the first tuple slot of its requirement's roster:
+    // the contiguous run sharing the requirement identity must commit a
+    // normalized roster of complete tuples whose arity matches the call's
+    // actuals, with no empty tuple and no duplicates.
+    if !family_actuals.is_empty() {
+        let mut roster = Vec::new();
+        for candidate in interface_slots
+            .iter()
+            .skip(usize::try_from(*slot).unwrap_or(usize::MAX))
+        {
+            if candidate.family_tuple.is_empty()
+                || candidate.requirement_identity != shape.requirement_identity
+            {
+                break;
+            }
+            roster.push(&candidate.family_tuple);
+        }
+        if roster.is_empty()
+            || roster
+                .iter()
+                .any(|tuple| tuple.len() != family_actuals.len())
+            || {
+                let mut ordered = roster.clone();
+                ordered.sort();
+                ordered.windows(2).any(|pair| pair[0] >= pair[1])
+            }
+        {
+            return malformed("dynamic family call disagrees with its slot roster");
+        }
+    } else if !shape.family_tuple.is_empty() {
+        return malformed("dynamic family call carries no family actuals");
+    }
     if !shape.matches_operation_result(&operation.result)
         || arguments.len() != shape.scalar_parameters.len()
         || structural_arguments.len() != shape.structural_parameters.len()

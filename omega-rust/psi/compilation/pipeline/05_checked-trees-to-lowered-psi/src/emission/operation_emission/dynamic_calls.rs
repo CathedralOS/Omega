@@ -17,6 +17,7 @@ use super::expressions::{LoweredDirectExpression, emit_direct_expression};
 use crate::lowering_error::{LoweringError, unsupported};
 use crate::terminal_identities::value_id;
 use semantic_vocabulary::{QualifiedScalarType, ValueId};
+use semantic_vocabulary::OperationId;
 use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
 
 /// A completed selector call: its selector and data operands are parameters
@@ -34,6 +35,9 @@ pub(crate) struct LoweredDynamicCallBinding {
     pub(crate) result_type: QualifiedScalarType,
     pub(crate) selector: LoweredDirectExpression,
     pub(crate) arguments: Vec<LoweredDirectExpression>,
+    /// Evaluated finite-family actuals in roster-binder order; dispatch
+    /// matches them against each family slot's declared tuple identities.
+    pub(crate) family_actuals: Vec<LoweredDirectExpression>,
     pub(crate) structural_arguments: Vec<PreparedStructuralArgument>,
     pub(crate) claim_transfers: Vec<crate::emission::claim_bindings::PreparedClaimTransfer>,
 }
@@ -47,6 +51,11 @@ pub(super) fn emit_dynamic_call_binding(
 ) -> Result<ValueId, LoweringError> {
     if !call.result_type.qualifications.is_empty() {
         return unsupported("a selector call's result carries qualifications");
+    }
+    if !call.family_actuals.is_empty() {
+        return unsupported(
+            "finite-family selector call outside its dispatch expansion",
+        );
     }
     let interface = operations
         .dynamic_dispatch
@@ -67,6 +76,13 @@ pub(super) fn emit_dynamic_call_binding(
         .iter()
         .map(|argument| {
             emit_direct_expression(argument, parameters, next_value_identity, operations)
+        })
+        .collect();
+    let family_actuals = call
+        .family_actuals
+        .iter()
+        .map(|actual| {
+            emit_direct_expression(actual, parameters, next_value_identity, operations)
         })
         .collect();
     let structural_arguments = call
@@ -94,20 +110,53 @@ pub(super) fn emit_dynamic_call_binding(
         call.slot,
         &lowered_psi::LoweredSourceFrontierBindings::default(),
     )?;
+    emit_dynamic_call_leaf(
+        selector,
+        interface,
+        slot,
+        arguments,
+        family_actuals,
+        structural_arguments,
+        claim_transfers,
+        ValueDeclaration {
+            id: result,
+            scalar_type: call.result_type.scalar_type,
+            qualifications: Default::default(),
+        },
+        operation,
+        operations,
+    );
+    Ok(result)
+}
+
+/// Push one resolved selector call. `produced` names the value the
+/// enclosing dispatch merges for the call's result; leaf callers pass their
+/// own tuple slot so each emitted indirect call keeps the ordinary
+/// `{selector, interface, slot}` shape.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn emit_dynamic_call_leaf(
+    selector: ValueId,
+    interface: u32,
+    slot: u32,
+    arguments: Vec<ValueId>,
+    family_actuals: Vec<ValueId>,
+    structural_arguments: Vec<terminal_psi::StructuralArgument>,
+    claim_transfers: Vec<terminal_psi::ClaimTransfer>,
+    produced: ValueDeclaration,
+    operation: OperationId,
+    operations: &mut OperationBuffer,
+) {
     operations.push(Operation {
         static_reach_binding: None,
         suspension_crossing: None,
         id: operation,
-        result: OperationResult::Scalar(ValueDeclaration {
-            id: result,
-            scalar_type: call.result_type.scalar_type,
-            qualifications: Default::default(),
-        }),
+        result: OperationResult::Scalar(produced),
         kind: OperationKind::CallDynamic {
             selector,
             interface,
             slot,
             arguments,
+            family_actuals,
             erased_arguments: Vec::new(),
             erased_proof_arguments: Vec::new(),
             structural_arguments,
@@ -116,5 +165,4 @@ pub(super) fn emit_dynamic_call_binding(
             crash_continuations: Vec::new(),
         },
     });
-    Ok(result)
 }

@@ -6,9 +6,11 @@ use crate::values::scalar::expression_plans::{ScalarLocal, located_binding_symbo
 use crate::values::scalar::scalar_lowering::lower_return_expression;
 use checked_trees::{
     CheckedLocatedProofTerm, CheckedLocatedScalarExpression, CheckedOperatorFacts,
-    CheckedProofTerm, CheckedProofTermField, CheckedProofTermRole, CheckedScalarExpressionBindings,
-    CheckedScalarExpressionRole,
+    CheckedProofTerm, CheckedProofTermField, CheckedProofTermRole, CheckedScalarExpression,
+    CheckedScalarExpressionBindings, CheckedScalarExpressionRole,
 };
+use numerics::arithmetic::ArithmeticDomain;
+use numerics::literals::IntegerLanding;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
 use typed_trees::types::PrimitiveType;
@@ -221,10 +223,130 @@ pub(crate) fn lower_call_arguments(
         }
         scalar_index = scalar_index.checked_add(1)?;
     }
-    (explicit_index == explicit_arguments.len()).then_some(LoweredCallArguments {
+    if explicit_index != explicit_arguments.len() {
+        return None;
+    }
+    // A dynamic-family call's generic actuals are row-selection operands,
+    // not callee formals: each roster binder's actual is evaluated beside the
+    // call under its own family ordinal so lowering can compare it against
+    // the declared tuple identities. Only a slot whose requirement declares a
+    // finite family accepts a nonempty machine-argument roster here; any
+    // other generic argument retains its own admission path.
+    let machine_arguments: &[typed_trees::expression::StaticMachineArgument] = match call_site {
+        validation::CallSite::Statement(call) => call.machine_arguments.as_ref(),
+        validation::CallSite::Expression { call, .. } => call.machine_arguments.as_ref(),
+        validation::CallSite::TransitionNamed { .. } => &[],
+    };
+    if machine_arguments.is_empty() {
+        return Some(LoweredCallArguments {
+            scalar_arguments: output,
+            proof_terms,
+        });
+    }
+    let slot = program.dynamic_slot_by_symbol(target_symbol)?;
+    let requirement = program.dynamic_slot_requirement(slot)?;
+    let typed_trees::finite_family::FamilyProbe::Finite { arity, .. } =
+        program.finite_signature_family(requirement)
+    else {
+        return None;
+    };
+    let binders = program
+        .state_signature_type_parameters(requirement)
+        .iter()
+        .filter(|parameter| parameter.kind.is_const_or_value())
+        .collect::<Vec<_>>();
+    if arity != binders.len() || machine_arguments.len() != arity {
+        return None;
+    }
+    for (family_ordinal, (argument, binder)) in machine_arguments
+        .iter()
+        .zip(binders.iter())
+        .enumerate()
+    {
+        let expected_type = program.primitive_type_reference(match binder.kind {
+            typed_trees::data::TypeParameterKind::Const { type_reference }
+            | typed_trees::data::TypeParameterKind::Value { type_reference } => type_reference,
+            _ => return None,
+        })?;
+        let expression = family_argument_expression(
+            program,
+            argument,
+            parameters,
+            locals,
+            expected_type,
+        )?;
+        output.push((
+            typed_trees::expression::ExpressionHandle::default(),
+            CheckedLocatedScalarExpression {
+                state: state.symbol,
+                statement_ordinal,
+                role: CheckedScalarExpressionRole::DynamicFamilyArgument {
+                    call_ordinal: u32::try_from(call_ordinal).ok()?,
+                    family_ordinal: u32::try_from(family_ordinal).ok()?,
+                },
+                expression,
+            },
+        ));
+    }
+    Some(LoweredCallArguments {
         scalar_arguments: output,
         proof_terms,
     })
+}
+
+/// The evaluated operand one finite-family actual contributes: a closed
+/// const lands at the binder's declared primitive type, and an ordinary
+/// runtime subject reads its dense scalar parameter, value-binding, or
+/// storage position -- the same reading the subject's name would produce as
+/// an explicit argument. Anything else owns no row-selection operand.
+fn family_argument_expression(
+    program: &dyn ::validation::CheckingInput,
+    argument: &typed_trees::expression::StaticMachineArgument,
+    scalar_parameters: &[StateParameter],
+    locals: &[ScalarLocal],
+    expected_type: PrimitiveType,
+) -> Option<CheckedScalarExpression> {
+    if let Some(literal) = &argument.const_literal {
+        let landed_type = expected_type.landed_landing()?;
+        return Some(CheckedScalarExpression::IntegerLiteral {
+            literal: literal.clone().with_landing(IntegerLanding {
+                landed_type,
+                domain: ArithmeticDomain::Exact,
+            }),
+        });
+    }
+    if !validation::static_arguments::is_runtime_value_subject(program, argument) || !argument.symbol.is_valid() {
+        return None;
+    }
+    if let Some(position) = scalar_parameters
+        .iter()
+        .position(|parameter| parameter.symbol == argument.symbol)
+    {
+        return Some(CheckedScalarExpression::Parameter {
+            position,
+            primitive_type: expected_type,
+        });
+    }
+    let mut value_position = 0usize;
+    for local in locals {
+        if !local.is_value_binding() {
+            if local.symbol == argument.symbol {
+                return Some(CheckedScalarExpression::StorageRead {
+                    symbol: local.symbol,
+                    primitive_type: expected_type,
+                });
+            }
+            continue;
+        }
+        if local.symbol == argument.symbol {
+            return Some(CheckedScalarExpression::Local {
+                position: value_position,
+                primitive_type: expected_type,
+            });
+        }
+        value_position += 1;
+    }
+    None
 }
 
 /// The declared type of one struct-literal field: the data member carrying

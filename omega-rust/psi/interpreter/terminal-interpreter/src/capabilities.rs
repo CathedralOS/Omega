@@ -558,6 +558,7 @@ mod tests {
             interface,
             slot,
             arguments: Vec::new(),
+            family_actuals: Vec::new(),
             erased_arguments: Vec::new(),
             erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),

@@ -373,6 +373,14 @@ pub enum CheckedScalarExpressionRole {
         call_ordinal: u32,
         erased_ordinal: u32,
     },
+    /// Scalar actual for one finite-family binder of a dynamic requirement
+    /// call, keyed by the exact call coordinate and the roster's dense
+    /// family-binder ordinal. It is the runtime row-selection operand the
+    /// dispatch compares against the declared tuple identities.
+    DynamicFamilyArgument {
+        call_ordinal: u32,
+        family_ordinal: u32,
+    },
     /// Present start of one exclusive `view[start..end]` range at its site.
     /// An omitted endpoint has no expression or source-binding row.
     SubsliceStart {

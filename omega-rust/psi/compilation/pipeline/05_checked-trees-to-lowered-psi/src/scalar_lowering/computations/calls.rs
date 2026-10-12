@@ -493,6 +493,42 @@ impl Expansion<'_> {
                 .ok_or(LoweringError::Unsupported(
                     "selector call names a slot with no checked call shape",
                 ))?;
+            // A finite-family call's row-selection actuals are retained
+            // beside the call as `DynamicFamilyArgument` scalar expressions;
+            // lower each through the caller's namespace exactly as an
+            // ordinary operand, in roster-binder order.
+            let mut family_actuals = Vec::new();
+            for family_ordinal in 0usize.. {
+                let role = checked_trees::CheckedScalarExpressionRole::DynamicFamilyArgument {
+                    call_ordinal,
+                    family_ordinal: u32::try_from(family_ordinal)
+                        .map_err(|_| LoweringError::Unsupported(
+                            "dynamic family operand ordinal overflows",
+                        ))?,
+                };
+                let Some((_, expression)) = self
+                    .checked
+                    .facts
+                    .values
+                    .scalar_expressions
+                    .bound_expression_at(
+                        site.state,
+                        u32::try_from(source.statement_index).map_err(|_| {
+                            LoweringError::Unsupported(
+                                "dynamic family call statement ordinal overflows",
+                            )
+                        })?,
+                        role,
+                    )
+                else {
+                    break;
+                };
+                family_actuals.push(site.bindings.expression(
+                    identities,
+                    &self.checked.facts.proven_scalar_indexes,
+                    expression,
+                )?);
+            }
             LoweredScalarBinding::DynamicCall(
                 crate::emission::operation_emission::dynamic_calls::LoweredDynamicCallBinding {
                     source_coordinate: coordinate,
@@ -506,6 +542,7 @@ impl Expansion<'_> {
                         "selector call lost its dispatch operand",
                     ))?,
                     arguments: scalar_actuals,
+                    family_actuals,
                     structural_arguments,
                     claim_transfers:
                         crate::emission::claim_bindings::prepare_checked_claim_transfers(

@@ -7,14 +7,15 @@
 //! nested emission. Sharing the identity table changes neither correspondence.
 use super::super::{
     BlockId, QualifiedScalarType, StructuralAccess, StructuralParameterDeclaration,
-    StructuralTypeDeclaration, block_id, scalar_carriers,
+    StructuralTypeDeclaration, ValueId, block_id, scalar_carriers,
 };
 use super::{
     Block, CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectOperationPlan,
-    LoweringError, Operation, OperationResult, PlaceId, ScalarType, StructuralMultiplicity,
-    StructuralTypeShape, Terminator, ValueDeclaration, allocate_dense,
-    direct_expression_contains_short_circuit, edge_id, emit_direct_expression,
-    terminal_scalar_type, unsupported, validate_direct_parameter_types, value_id,
+    LoweringError, Operation, OperationKind, OperationResult, PlaceId, ScalarType,
+    StructuralMultiplicity, StructuralTypeShape, Terminator, ValueDeclaration,
+    allocate_dense, direct_expression_contains_short_circuit, edge_id,
+    emit_direct_expression, terminal_scalar_type, unsupported,
+    validate_direct_parameter_types, value_id,
 };
 use crate::emission::borrowed_window::terminal_multiplicity;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
@@ -1484,4 +1485,261 @@ pub(crate) fn validated_values(
         return unsupported("completed call scalar operands disagree with the target signature");
     }
     Ok(values.to_vec())
+}
+
+/// Emit one finite-family `CallDynamic`'s runtime roster dispatch as ordinary
+/// block control flow: the caller's block closes on the first tuple's binder
+/// equality, each later binder test or tuple owns one guard block, and each
+/// matched tuple performs the ordinary implementation-selector indirect call
+/// on its own canonical slot before joining the merge block that following
+/// operations continue in. `emit_leaf` pushes the leaf call operation for the
+/// tuple at `index`; `produced` is the scalar declaration that leaf must
+/// produce so each dispatch edge can bind the merge parameter.
+///
+/// Keeping the row pick in the caller's own blocks leaves the emitted call
+/// shape unchanged — each leaf names one exact interface slot through the
+/// same `selector, slot` pair a static membership already admits — and keeps
+/// the roster's source-produced tuple rows the only dispatch table this
+/// mechanism consults.
+/// One in-flight block's emission span: the identities and parameter
+/// rosters a dispatch expansion closes on its guard terminator and reopens
+/// at the merge block.
+pub(super) struct BlockEmissionSpan {
+    pub(super) id: BlockId,
+    pub(super) parameters: Vec<ValueDeclaration>,
+    pub(super) structural_parameters:
+        Vec<terminal_psi::StructuralParameterDeclaration>,
+    pub(super) operation_start: usize,
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn emit_dynamic_family_dispatch(
+    span: &mut BlockEmissionSpan,
+    blocks: &mut Vec<Block>,
+    operations: &mut OperationBuffer,
+    next_value: &mut u64,
+    next_block: &mut u64,
+    next_edge: &mut u64,
+    tuples: &[Vec<String>],
+    family_actuals: &[ValueId],
+    family_actual_types: &[ScalarType],
+    merge_result: Option<ValueDeclaration>,
+    mut emit_leaf: impl FnMut(
+        &mut OperationBuffer,
+        &mut u64,
+        usize,
+        Option<ValueDeclaration>,
+    ) -> Result<(), LoweringError>,
+) -> Result<(), LoweringError> {
+    let arity = family_actuals.len();
+    if arity == 0 || arity != family_actual_types.len() {
+        return unsupported("dynamic family call's actuals disagree with its binders");
+    }
+    if tuples.len() < 2 || tuples.iter().any(|tuple| tuple.len() != arity) {
+        return unsupported("dynamic family roster does not cover the call's binders");
+    }
+    let merge = block_id(allocate_dense(next_block)?);
+    let crash = block_id(allocate_dense(next_block)?);
+    let next_block_id = |next_block: &mut u64| -> Result<BlockId, LoweringError> {
+        Ok(block_id(allocate_dense(next_block)?))
+    };
+    let dispatch = (0..tuples.len())
+        .map(|_| next_block_id(next_block))
+        .collect::<Result<Vec<_>, _>>()?;
+    let tests = tuples
+        .iter()
+        .map(|tuple| {
+            (0..tuple.len())
+                .map(|_| next_block_id(next_block))
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let matched = emit_tuple_test(
+        tuples,
+        family_actuals,
+        family_actual_types,
+        next_value,
+        operations,
+        0,
+        0,
+    )?;
+    let continue_target = |tuple: usize, binder: usize| -> BlockId {
+        if binder + 1 < arity {
+            tests[tuple][binder + 1]
+        } else {
+            dispatch[tuple]
+        }
+    };
+    let next_tuple_target = |tuple: usize| -> BlockId {
+        if tuple + 1 < tuples.len() {
+            tests[tuple + 1][0]
+        } else {
+            crash
+        }
+    };
+    blocks.push(Block {
+        id: span.id,
+        parameters: std::mem::take(&mut span.parameters),
+        erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
+        structural_parameters: std::mem::take(&mut span.structural_parameters),
+        operations: operations[span.operation_start..].to_vec(),
+        terminator: Terminator::Conditional {
+            condition: matched,
+            when_true: dispatch_successor_edge(next_edge, continue_target(0, 0))?,
+            when_false: dispatch_successor_edge(next_edge, next_tuple_target(0))?,
+        },
+    });
+    for (tuple_index, test_blocks) in tests.iter().enumerate() {
+        for (binder, &test_block) in test_blocks
+            .iter()
+            .enumerate()
+            .skip(usize::from(tuple_index == 0))
+        {
+            let start = operations.len();
+            let matched = emit_tuple_test(
+                tuples,
+                family_actuals,
+                family_actual_types,
+                next_value,
+                operations,
+                tuple_index,
+                binder,
+            )?;
+            blocks.push(Block {
+                id: test_block,
+                parameters: Vec::new(),
+                erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
+                structural_parameters: Vec::new(),
+                operations: operations[start..].to_vec(),
+                terminator: Terminator::Conditional {
+                    condition: matched,
+                    when_true: dispatch_successor_edge(next_edge, continue_target(tuple_index, binder))?,
+                    when_false: dispatch_successor_edge(next_edge, next_tuple_target(tuple_index))?,
+                },
+            });
+        }
+    }
+    for (tuple_index, block) in dispatch.iter().enumerate() {
+        let start = operations.len();
+        let produced = merge_result
+            .as_ref()
+            .map(|result| -> Result<ValueDeclaration, LoweringError> {
+                Ok(ValueDeclaration {
+                    qualifications: Default::default(),
+                    id: value_id(allocate_dense(next_value)?),
+                    scalar_type: result.scalar_type,
+                })
+            })
+            .transpose()?;
+        emit_leaf(operations, next_value, tuple_index, produced)?;
+        blocks.push(Block {
+            id: *block,
+            parameters: Vec::new(),
+            erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
+            structural_parameters: Vec::new(),
+            operations: operations[start..].to_vec(),
+            terminator: Terminator::Jump {
+                edge: edge_id(allocate_dense(next_edge)?),
+                target: merge,
+                arguments: produced
+                    .map(|declaration| declaration.id)
+                    .into_iter()
+                    .collect(),
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                cleanup_actions: Vec::new(),
+            },
+        });
+    }
+    blocks.push(Block {
+        id: crash,
+        parameters: Vec::new(),
+        erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
+        structural_parameters: Vec::new(),
+        operations: Vec::new(),
+        terminator: Terminator::Crash {
+            edge: edge_id(allocate_dense(next_edge)?),
+            cause: terminal_psi::CrashCause::Abort,
+            site_guard: Vec::new(),
+            frontier_lower_bound: Vec::new(),
+        },
+    });
+    span.id = merge;
+    span.parameters = merge_result.into_iter().collect();
+    span.structural_parameters = Vec::new();
+    span.operation_start = operations.len();
+    Ok(())
+}
+
+/// Emit the constant and equality test matching tuple `tuple_index`'s binder
+/// `binder` against the call's evaluated actual, inside the caller's current
+/// operation segment.
+fn emit_tuple_test(
+    tuples: &[Vec<String>],
+    family_actuals: &[ValueId],
+    family_actual_types: &[ScalarType],
+    next_value: &mut u64,
+    operations: &mut OperationBuffer,
+    tuple_index: usize,
+    binder: usize,
+) -> Result<ValueId, LoweringError> {
+    let carrier = family_actual_types[binder]
+        .as_integer()
+        .ok_or(LoweringError::Unsupported(
+            "dynamic family actual has no integer carrier",
+        ))?;
+    let value = family_tuple_integer(&tuples[tuple_index][binder], carrier.sign())?;
+    let constant = crate::emission::operation_emission::expressions::emit_scalar_leaf(
+        OperationKind::IntegerConstant { value },
+        family_actual_types[binder],
+        next_value,
+        operations,
+    );
+    Ok(crate::emission::operation_emission::expressions::emit_scalar_leaf(
+        OperationKind::IntegerEqual {
+            left: family_actuals[binder],
+            right: constant,
+        },
+        ScalarType::Boolean,
+        next_value,
+        operations,
+    ))
+}
+
+/// Decode one canonical family tuple member (`named(integer-const(v))`) into
+/// the integer constant the binder's signedness carries.
+fn family_tuple_integer(
+    identity: &str,
+    sign: semantic_vocabulary::IntegerSign,
+) -> Result<semantic_vocabulary::IntegerValue, LoweringError> {
+    let value = identity
+        .strip_prefix("named(integer-const(")
+        .and_then(|inner| inner.strip_suffix("))"))
+        .and_then(|digits| digits.parse::<i128>().ok())
+        .ok_or(LoweringError::Unsupported(
+            "dynamic family tuple identity is not an integer constant",
+        ))?;
+    semantic_vocabulary::IntegerValue::for_sign(sign, value).map_err(|_| {
+        LoweringError::Unsupported("dynamic family tuple overflows its binder carrier")
+    })
+}
+
+fn dispatch_successor_edge(
+    next_edge: &mut u64,
+    target: BlockId,
+) -> Result<terminal_psi::SuccessorEdge, LoweringError> {
+    Ok(terminal_psi::SuccessorEdge {
+        edge: edge_id(allocate_dense(next_edge)?),
+        target,
+        arguments: Vec::new(),
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        structural_arguments: Vec::new(),
+        cleanup_actions: Vec::new(),
+    })
 }

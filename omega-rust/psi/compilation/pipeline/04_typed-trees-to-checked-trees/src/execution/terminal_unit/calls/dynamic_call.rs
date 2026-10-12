@@ -122,6 +122,19 @@ pub(super) fn build(
         return None;
     }
     let selector = scalar_arguments.remove(0);
+    // A finite-family call's generic actuals arrive beside the call under
+    // `DynamicFamilyArgument` rows; they are the row-selection operands the
+    // dispatch compares against each candidate row's declared tuple. An
+    // ordinary requirement call carries none.
+    phase("call operation: dynamic family operands");
+    let family_operands = dynamic_family_operands(
+        program,
+        facts,
+        state.symbol,
+        coordinate,
+        call_site,
+        requirement,
+    )?;
     let structural_result = match expected_call_result {
         Some(super::ExpectedCallValueResult::Structural(result)) => Some(*result),
         _ => None,
@@ -161,6 +174,7 @@ pub(super) fn build(
             selector,
             interface_identity: slot.interface_identity.clone(),
             requirement: slot.requirement,
+            family_operands,
         },
         scalar_arguments,
         structural_arguments,
@@ -190,4 +204,64 @@ pub(super) fn build(
     } else {
         CheckedUnitCallPlan::new(parts).map(CheckedUnitEffectOperationPlan::Call)
     }
+}
+
+/// The evaluated row-selection actuals of a finite-family call: every
+/// `DynamicFamilyArgument` expression the scalar plan recorded for the call,
+/// in roster-binder order and checked against each binder's declared
+/// primitive type. A call carrying no family actuals lowers with an empty
+/// roster only when its requirement declares no finite family; any other
+/// generic-argument shape keeps refusing here.
+fn dynamic_family_operands(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    caller_state: SymbolHandle,
+    coordinate: CheckedUnitCallCoordinate,
+    call_site: &validation::CallSite<'_>,
+    requirement: &typed_trees::signature::StateSignature,
+) -> Option<Vec<checked_trees::CheckedCallScalarArgument>> {
+    let machine_arguments: &[typed_trees::expression::StaticMachineArgument] = match call_site {
+        validation::CallSite::Statement(call) => call.machine_arguments.as_ref(),
+        validation::CallSite::Expression { call, .. } => call.machine_arguments.as_ref(),
+        validation::CallSite::TransitionNamed { .. } => &[],
+    };
+    let typed_trees::finite_family::FamilyProbe::Finite { arity, .. } =
+        program.finite_signature_family(requirement)
+    else {
+        return machine_arguments.is_empty().then(Vec::new);
+    };
+    if machine_arguments.len() != arity {
+        return None;
+    }
+    let binders = program
+        .state_signature_type_parameters(requirement)
+        .iter()
+        .filter(|parameter| parameter.kind.is_const_or_value())
+        .collect::<Vec<_>>();
+    if binders.len() != arity {
+        return None;
+    }
+    machine_arguments
+        .iter()
+        .enumerate()
+        .map(|(family_ordinal, _)| {
+            let role = checked_trees::CheckedScalarExpressionRole::DynamicFamilyArgument {
+                call_ordinal: coordinate.call_ordinal,
+                family_ordinal: u32::try_from(family_ordinal).ok()?,
+            };
+            let (_, expression) = facts.values.scalar_expressions.bound_expression_at(
+                caller_state,
+                coordinate.statement_index,
+                role,
+            )?;
+            let binder = binders[family_ordinal];
+            let expected = program.primitive_type_reference(match binder.kind {
+                typed_trees::data::TypeParameterKind::Const { type_reference }
+                | typed_trees::data::TypeParameterKind::Value { type_reference } => type_reference,
+                _ => return None,
+            })?;
+            (crate::values::scalar_expression_type(expression)? == expected)
+                .then(|| checked_trees::CheckedCallScalarArgument::Pure(expression.clone()))
+        })
+        .collect()
 }

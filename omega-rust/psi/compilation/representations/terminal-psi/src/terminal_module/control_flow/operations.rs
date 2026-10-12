@@ -681,11 +681,16 @@ pub enum OperationKind {
     /// for `slot` receives the ordinary arguments exactly as a direct call to
     /// that machine would; the interface slot owns the call shape. The
     /// selector is the dispatch operand and never one of the arguments.
+    /// `family_actuals` are the evaluated actuals of a finite-family call in
+    /// roster-binder order: dispatch compares them against the declared tuple
+    /// identities of the slots starting at `slot`, selecting the matching
+    /// row. An ordinary requirement call carries none.
     CallDynamic {
         selector: ValueId,
         interface: u32,
         slot: u32,
         arguments: Vec<ValueId>,
+        family_actuals: Vec<ValueId>,
         /// Proof-only actuals for the slot's erased scalar formals, in roster
         /// order, verified against the caller's namespace.
         erased_arguments: Vec<ScalarTerm>,
@@ -1239,11 +1244,15 @@ impl OperationKind {
             Self::CallDynamic {
                 selector,
                 arguments,
+                family_actuals,
                 ..
             } => {
                 *selector = map(*selector);
                 for argument in arguments {
                     *argument = map(*argument);
+                }
+                for actual in family_actuals {
+                    *actual = map(*actual);
                 }
             }
             Self::SelectImplementation { .. }

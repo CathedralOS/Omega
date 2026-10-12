@@ -104,6 +104,135 @@ pub(super) fn emit_state(
             values = continuation_parameters.clone();
             block_parameters = continuation_parameters;
             operation_start = operations.len();
+        } else if let LoweredScalarBinding::DynamicCall(call) = binding
+            && !call.family_actuals.is_empty()
+        {
+            // A finite-family call selects its tuple row at runtime: the
+            // caller's block ends on the first binder test, tuple blocks
+            // perform the ordinary per-slot indirect call, and the merge
+            // block publishes the result the same way the base emitter would.
+            let mut family_actuals = Vec::new();
+            let mut family_actual_types = Vec::new();
+            for actual in &call.family_actuals {
+                family_actual_types.push(actual.scalar_type());
+                family_actuals.push(emit_direct_expression(
+                    actual, &values, next_value, operations,
+                ));
+            }
+            let interface = operations
+                .dynamic_dispatch
+                .interface(&call.interface_identity)
+                .ok_or(LoweringError::Unsupported(
+                    "selector call names an interface no implementation is selected for",
+                ))?;
+            let slot = operations
+                .dynamic_dispatch
+                .slot(interface, &call.requirement_identity)
+                .ok_or(LoweringError::Unsupported(
+                    "selector call names a requirement absent from its interface",
+                ))?;
+            let roster: Vec<Vec<String>> = operations
+                .dynamic_dispatch
+                .interface_slots(interface)
+                .ok_or(LoweringError::Unsupported(
+                    "selector call names an interface with no slot roster",
+                ))?
+                .iter()
+                .skip(usize::try_from(slot).map_err(|_| {
+                    LoweringError::Unsupported("dynamic family slot overflows")
+                })?)
+                .take_while(|(requirement, tuple)| {
+                    *requirement == call.requirement_identity && !tuple.is_empty()
+                })
+                .map(|(_, tuple)| tuple.clone())
+                .collect();
+            let produced_decl = ValueDeclaration {
+                qualifications: Default::default(),
+                id: value_id(allocate_dense(next_value)?),
+                scalar_type: call.result_type.scalar_type,
+            };
+            let mut span = super::BlockEmissionSpan {
+                id: block,
+                parameters: std::mem::take(&mut block_parameters),
+                structural_parameters: Vec::new(),
+                operation_start,
+            };
+            let mut first_leaf: Option<semantic_vocabulary::OperationId> = None;
+            super::emit_dynamic_family_dispatch(
+                &mut span,
+                blocks,
+                operations,
+                next_value,
+                next_block,
+                next_edge,
+                &roster,
+                &family_actuals,
+                &family_actual_types,
+                Some(produced_decl),
+                |operations, next_value, tuple_index, produced| {
+                    let selector = emit_direct_expression(
+                        &call.selector,
+                        &values,
+                        next_value,
+                        operations,
+                    );
+                    let arguments = call
+                        .arguments
+                        .iter()
+                        .map(|argument| {
+                            emit_direct_expression(argument, &values, next_value, operations)
+                        })
+                        .collect();
+                    let structural_arguments = call
+                        .structural_arguments
+                        .iter()
+                        .map(|argument| {
+                            argument.emit(&values, calls, next_value, operations)
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let claim_transfers =
+                        crate::emission::claim_bindings::emit_prepared_claim_transfers(
+                            &call.claim_transfers,
+                            calls.claims.bindings(),
+                        )?;
+                    let operation = first_leaf
+                        .take()
+                        .unwrap_or_else(|| operations.allocate());
+                    if tuple_index == 0 {
+                        operations.record_source_call(
+                            call.source_coordinate,
+                            Some(checked_trees::NominalMachineUseSite::Expression(
+                                call.source_expression,
+                            )),
+                            operation,
+                            call.slot,
+                            &lowered_psi::LoweredSourceFrontierBindings::default(),
+                        )?;
+                    }
+                    crate::emission::operation_emission::dynamic_calls::emit_dynamic_call_leaf(
+                        selector,
+                        interface,
+                        slot + u32::try_from(tuple_index).map_err(|_| {
+                            LoweringError::Unsupported("dynamic family slot overflows")
+                        })?,
+                        arguments,
+                        family_actuals.clone(),
+                        structural_arguments,
+                        claim_transfers,
+                        produced.ok_or(LoweringError::Unsupported(
+                            "dynamic family leaf has no result",
+                        ))?,
+                        operation,
+                        operations,
+                    );
+                    Ok(())
+                },
+            )?;
+            block = span.id;
+            block_parameters = span.parameters.clone();
+            values = span.parameters;
+            operation_start = span.operation_start;
+            continue;
         } else {
             let value_type = binding.value_type(
                 &values

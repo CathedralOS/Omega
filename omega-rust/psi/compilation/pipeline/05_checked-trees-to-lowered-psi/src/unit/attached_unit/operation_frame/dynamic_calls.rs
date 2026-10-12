@@ -111,6 +111,120 @@ impl OperationFrame<'_, '_> {
                 (OperationResult::Structural(returned), Some(declaration))
             }
         };
+        // A finite-family call's row-selection actuals lower through the
+        // same scalar evaluator every ordinary operand uses: the slot's base
+        // position names the first tuple slot, and dispatch matches these
+        // values against each family slot's declared tuple identities.
+        let mut family_actuals = Vec::new();
+        let mut family_actual_types = Vec::new();
+        for operand in match call.route() {
+            checked_trees::CheckedUnitCallRoute::Dynamic {
+                family_operands, ..
+            } => family_operands.as_slice(),
+            _ => &[],
+        } {
+            let expression = match operand {
+                checked_trees::CheckedCallScalarArgument::Pure(expression) => expression,
+                _ => {
+                    return unsupported(
+                        "dynamic family operand is not a pure scalar expression",
+                    )
+                }
+            };
+            let lowered = self.evaluation.scalar_bindings.expression(
+                identities,
+                &checked.facts.proven_scalar_indexes,
+                expression,
+            )?;
+            family_actual_types.push(lowered.scalar_type());
+            family_actuals.push(
+                crate::emission::operation_emission::expressions::emit_direct_expression(
+                    &lowered,
+                    self.values,
+                    self.next_value,
+                    self.operations,
+                ),
+            );
+        }
+        if !family_actuals.is_empty() {
+            let Some(merge_result) = result.scalar() else {
+                return unsupported(
+                    "dynamic family dispatch does not yet cover non-scalar results",
+                );
+            };
+            let dispatch = &self.operations.dynamic_dispatch;
+            let roster: Vec<Vec<String>> = dispatch
+                .interface_slots(interface)
+                .ok_or(LoweringError::Unsupported(
+                    "selector call names an interface with no slot roster",
+                ))?
+                .iter()
+                .skip(slot as usize)
+                .take_while(|(requirement, tuple)| {
+                    *requirement == slot_plan.requirement_identity && !tuple.is_empty()
+                })
+                .map(|(_, tuple)| tuple.clone())
+                .collect();
+            let leaf_selector = selector.id;
+            let leaf_arguments: Vec<_> = data.iter().map(|value| value.id).collect();
+            let mut first_leaf = Some(id);
+            self.record_source_call(call.coordinate, None, id, call.target.machine)?;
+            let mut span = super::super::argument_evaluation::BlockEmissionSpan {
+                id: self.evaluation.current,
+                parameters: std::mem::take(&mut self.evaluation.parameters),
+                structural_parameters: std::mem::take(
+                    &mut self.evaluation.block_structural_parameters,
+                ),
+                operation_start: self.evaluation.operation_start,
+            };
+            let dispatch_result = super::super::argument_evaluation::emit_dynamic_family_dispatch(
+                &mut span,
+                &mut self.evaluation.blocks,
+                self.operations,
+                self.next_value,
+                self.next_block,
+                self.next_edge,
+                &roster,
+                &family_actuals,
+                &family_actual_types,
+                Some(merge_result),
+                |operations, _next_value, tuple_index, produced| {
+                    let operation = first_leaf
+                        .take()
+                        .unwrap_or_else(|| operations.allocate());
+                    operations.push(Operation {
+                        static_reach_binding: None,
+                        suspension_crossing: None,
+                        id: operation,
+                        result: produced
+                            .map(OperationResult::Scalar)
+                            .unwrap_or(OperationResult::Unit),
+                        kind: OperationKind::CallDynamic {
+                            selector: leaf_selector,
+                            interface,
+                            slot: slot + u32::try_from(tuple_index).map_err(|_| {
+                                LoweringError::Unsupported("dynamic family slot overflows")
+                            })?,
+                            arguments: leaf_arguments.clone(),
+                            family_actuals: family_actuals.clone(),
+                            erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
+                            structural_arguments: structural_arguments.clone(),
+                            claim_transfers: claim_transfers.clone(),
+                            requirement_obligations: Vec::new(),
+                            crash_continuations: Vec::new(),
+                        },
+                    });
+                    Ok(())
+                },
+            );
+            self.evaluation.current = span.id;
+            self.evaluation.parameters = span.parameters;
+            self.evaluation.block_structural_parameters = span.structural_parameters;
+            self.evaluation.operation_start = span.operation_start;
+            dispatch_result?;
+            return self.bind_scalar_result(identities, call.coordinate, merge_result);
+        }
         if declaration.is_none() {
             self.record_source_call(call.coordinate, None, id, call.target.machine)?;
         }
@@ -124,6 +238,7 @@ impl OperationFrame<'_, '_> {
                 interface,
                 slot,
                 arguments: data.iter().map(|value| value.id).collect(),
+                family_actuals,
                 erased_arguments: Vec::new(),
                 erased_proof_arguments: Vec::new(),
                 structural_arguments,

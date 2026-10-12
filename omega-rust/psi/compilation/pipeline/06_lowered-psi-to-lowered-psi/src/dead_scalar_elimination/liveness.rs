@@ -332,6 +332,7 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
         O::CallDynamic {
             selector,
             arguments,
+            family_actuals,
             crash_continuations,
             ..
         } => {
@@ -340,6 +341,7 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
             }
             values.push(*selector);
             values.extend(arguments);
+            values.extend(family_actuals);
         }
         O::CallStructural { .. } => return false,
     }

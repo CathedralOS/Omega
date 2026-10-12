@@ -35,6 +35,12 @@ pub struct DynamicConformanceRowFact {
     /// Complete normalized callable identity of the selected realization.
     /// This remains logical descriptor identity; it is never a table address.
     pub realization_identity: CallableIdentityId,
+    /// The finite-family value tuple this row realizes, keyed by the canonical
+    /// const identities a specialization carries for the same arguments (for
+    /// example `named(integer-const(16))`), in the requirement's const/value
+    /// binder declaration order. Empty on an exact nongeneric row: it matches
+    /// every call to its requirement without consulting family actuals.
+    pub family_tuple: Box<[String]>,
     pub source: DynamicConformanceRowSource,
 }
 

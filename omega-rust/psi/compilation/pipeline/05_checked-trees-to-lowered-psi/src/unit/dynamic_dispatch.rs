@@ -33,8 +33,15 @@ pub(crate) struct DynamicDispatchIndex {
     /// Sorted, unique (interface identity, implementation); position is the
     /// table id.
     tables: Vec<(typed_trees::type_identity::TypeIdentityId, SymbolHandle)>,
-    /// Per interface id: the canonical requirement identities, by slot.
-    slots: Vec<Vec<typed_trees::type_identity::CallableIdentityId>>,
+    /// Per interface id: each slot's requirement identity and, for a
+    /// finite-family row, the canonical tuple identities it commits; one
+    /// slot per canonical row.
+    slots: Vec<
+        Vec<(
+            typed_trees::type_identity::CallableIdentityId,
+            Vec<String>,
+        )>,
+    >,
 }
 
 impl DynamicDispatchIndex {
@@ -76,7 +83,12 @@ impl DynamicDispatchIndex {
                     Some(selection) => selection
                         .rows
                         .iter()
-                        .map(|row| row.requirement_identity.clone())
+                        .map(|row| {
+                            (
+                                row.requirement_identity.clone(),
+                                row.family_tuple.as_ref().to_vec(),
+                            )
+                        })
                         .collect(),
                     None => {
                         let mut called = slot_plans
@@ -87,6 +99,9 @@ impl DynamicDispatchIndex {
                         called.sort();
                         called.dedup();
                         called
+                            .into_iter()
+                            .map(|identity| (identity, Vec::new()))
+                            .collect()
                     }
                 }
             })
@@ -122,6 +137,23 @@ impl DynamicDispatchIndex {
         u32::try_from(position).ok()
     }
 
+    /// One interface's slots with each slot's requirement identity and
+    /// canonical tuple roster entry (`Vec::new()` for nongeneric rows); a
+    /// family call reads the contiguous tuple run starting at its base slot.
+    pub(crate) fn interface_slots(
+        &self,
+        interface: u32,
+    ) -> Option<
+        &[(
+            typed_trees::type_identity::CallableIdentityId,
+            Vec<String>,
+        )],
+    > {
+        self.slots
+            .get(usize::try_from(interface).ok()?)
+            .map(Vec::as_slice)
+    }
+
     /// The slot a requirement occupies in an interface.
     pub(crate) fn slot(
         &self,
@@ -131,7 +163,7 @@ impl DynamicDispatchIndex {
         let slots = self.slots.get(usize::try_from(interface).ok()?)?;
         let position = slots
             .iter()
-            .position(|candidate| candidate == requirement_identity)?;
+            .position(|(candidate, _)| candidate == requirement_identity)?;
         u32::try_from(position).ok()
     }
 }
@@ -207,7 +239,9 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
         let interface_id = u32::try_from(interface_id)
             .map_err(|_| LoweringError::Unsupported("dynamic interface id overflows"))?;
         let mut slots = Vec::new();
-        for (slot, requirement_identity) in index.slots[interface_id as usize].iter().enumerate() {
+        for (slot, (requirement_identity, family_tuple)) in
+            index.slots[interface_id as usize].iter().enumerate()
+        {
             let Some(plan) = slot_plans.iter().find(|plan| {
                 plan.interface_identity == *interface_identity
                     && plan.requirement_identity == *requirement_identity
@@ -220,6 +254,7 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
                 plan,
                 u32::try_from(slot)
                     .map_err(|_| LoweringError::Unsupported("dynamic slot id overflows"))?,
+                family_tuple,
                 &type_ids,
                 &module.structural_types,
                 &domain_ids,
@@ -311,6 +346,7 @@ fn lower_slot(
     checked: &CheckedTrees,
     plan: &CheckedDynamicSlotPlan,
     slot: u32,
+    family_tuple: &[String],
     type_ids: &[(
         typed_trees::type_identity::TypeIdentityId,
         semantic_vocabulary::StructuralTypeId,
@@ -392,7 +428,7 @@ fn lower_slot(
                 .typed
                 .callable_identity_text(plan.requirement_identity),
         ),
-        family_tuple: Vec::new(),
+        family_tuple: family_tuple.to_vec(),
         scalar_parameters,
         structural_parameters,
         entry_claim_paths,

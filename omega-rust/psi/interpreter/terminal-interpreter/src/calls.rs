@@ -155,6 +155,7 @@ impl TerminalExecution<'_> {
             interface,
             slot,
             ref arguments,
+            ref family_actuals,
             ref structural_arguments,
             ref claim_transfers,
             ..
@@ -174,6 +175,52 @@ impl TerminalExecution<'_> {
         if catalog.table(table).map(|table| table.interface) != Some(interface) {
             return Err(malformed());
         }
+        // A family call's `slot` names the roster's first tuple slot: scan
+        // the contiguous run sharing its requirement identity and select the
+        // row whose declared tuple equals the evaluated actuals. A proved
+        // call always matches exactly one row; a missing row is malformed
+        // input, never a fallback.
+        let slot = if family_actuals.is_empty() {
+            slot
+        } else {
+            let interface_slots = catalog
+                .interface(interface)
+                .map(|interface| interface.slots.as_slice())
+                .ok_or(malformed())?;
+            let base = interface_slots
+                .get(usize::try_from(slot).map_err(|_| malformed())?)
+                .ok_or(malformed())?;
+            let actuals = family_actuals
+                .iter()
+                .map(|actual| self.family_actual_integer(*actual))
+                .collect::<Result<Vec<_>, _>>()?;
+            let mut matched = None;
+            for (index, candidate) in interface_slots
+                .iter()
+                .enumerate()
+                .skip(usize::try_from(slot).map_err(|_| malformed())?)
+            {
+                if candidate.family_tuple.is_empty() {
+                    break;
+                }
+                if candidate.requirement_identity != base.requirement_identity {
+                    break;
+                }
+                if candidate.family_tuple.len() == actuals.len()
+                    && candidate
+                        .family_tuple
+                        .iter()
+                        .zip(&actuals)
+                        .all(|(identity, actual)| {
+                            family_tuple_member_value(identity) == Some(*actual)
+                        })
+                {
+                    matched = Some(u32::try_from(index).map_err(|_| malformed())?);
+                    break;
+                }
+            }
+            matched.ok_or(malformed())?
+        };
         let callee = catalog.row(table, slot).ok_or(malformed())?;
         let (scalar_arguments, prepared_arguments) =
             self.resolve_call_arguments(callee, arguments, structural_arguments)?;
@@ -620,4 +667,37 @@ impl TerminalExecution<'_> {
         self.next_operation = 0;
         Ok(OperationFlow::Redispatch)
     }
+}
+
+impl TerminalExecution<'_> {
+    /// The integer one evaluated family actual carries, for tuple matching.
+    /// A roster member is a landed integer literal; any other value shape is
+    /// malformed admission input, not a miss.
+    fn family_actual_integer(
+        &self,
+        actual: semantic_vocabulary::ValueId,
+    ) -> Result<i128, TerminalInterpretError> {
+        match self.values.get(&actual).copied() {
+            Some(crate::values::TerminalScalarValue::Integer {
+                value: semantic_vocabulary::IntegerValue::Signed(value),
+                ..
+            }) => Ok(value),
+            Some(crate::values::TerminalScalarValue::Integer {
+                value: semantic_vocabulary::IntegerValue::Unsigned(value),
+                ..
+            }) => i128::try_from(value).map_err(|_| malformed()),
+            Some(_) => Err(malformed()),
+            None => Err(TerminalInterpretError::VerifiedValueMissing(actual)),
+        }
+    }
+}
+
+/// The integer one canonical tuple identity declares:
+/// `named(integer-const(v))`. Any other canonical member shape does not
+/// participate in runtime row matching yet.
+fn family_tuple_member_value(identity: &str) -> Option<i128> {
+    identity
+        .strip_prefix("named(integer-const(")
+        .and_then(|inner| inner.strip_suffix("))"))
+        .and_then(|inner| inner.parse::<i128>().ok())
 }

@@ -29,28 +29,81 @@ pub(crate) fn build_dynamic_conformance_facts(
                         continue;
                     }
                 };
-            rows.push(checked_trees::DynamicConformanceRowFact {
-                declaring_trait: row.declaring_trait,
-                requirement: row.requirement,
-                requirement_identity,
-                realization_machine: row.realization_machine,
-                realization_state: row.realization_state,
-                realization_identity,
-                source: match row.source {
-                    // A synthesized core row is an ordinary checked member
-                    // body of its own block, exactly as an inline row is.
-                    typed_trees::trait_definition::ConformanceRowSource::Inline
-                    | typed_trees::trait_definition::ConformanceRowSource::Synthesized => {
-                        checked_trees::DynamicConformanceRowSource::Inline
+            let source = match row.source {
+                // A synthesized core row is an ordinary checked member
+                // body of its own block, exactly as an inline row is.
+                typed_trees::trait_definition::ConformanceRowSource::Inline
+                | typed_trees::trait_definition::ConformanceRowSource::Synthesized => {
+                    checked_trees::DynamicConformanceRowSource::Inline
+                }
+                typed_trees::trait_definition::ConformanceRowSource::Reference => {
+                    checked_trees::DynamicConformanceRowSource::Reference
+                }
+                typed_trees::trait_definition::ConformanceRowSource::TraitDefault => {
+                    checked_trees::DynamicConformanceRowSource::TraitDefault
+                }
+            };
+            // A finite-family requirement's row fans out to one checked row
+            // per declared roster tuple: each tuple's realization is the
+            // specialization `generate_dynamic_family_specializations`
+            // materialized for it, joined by the same canonical const
+            // identities the roster declares. A missing tuple row is a
+            // program error -- a selected conformance must cover the roster.
+            match family_roster(program, row) {
+                FamilyRows::Exact => rows.push(checked_trees::DynamicConformanceRowFact {
+                    declaring_trait: row.declaring_trait,
+                    requirement: row.requirement,
+                    requirement_identity,
+                    realization_machine: row.realization_machine,
+                    realization_state: row.realization_state,
+                    realization_identity,
+                    family_tuple: Box::default(),
+                    source,
+                }),
+                FamilyRows::Finite(tuples) => {
+                    for tuple in &tuples {
+                        let Some(instance) = family_specialization_instance(
+                            program,
+                            row.realization_machine,
+                            tuple,
+                        ) else {
+                            diagnostics.push(diagnostics::Diagnostic::error(format!(
+                                "dynamic implementation row `{}::{}` has no checked specialization for declared family tuple {}",
+                                row.declaring_trait_name,
+                                row.requirement_name,
+                                tuple.display.join(", ")
+                            )));
+                            continue;
+                        };
+                        let Some(instance_state) = family_realization_state(
+                            program,
+                            instance,
+                            row.realization_state,
+                        ) else {
+                            diagnostics.push(diagnostics::Diagnostic::error(format!(
+                                "dynamic family specialization `{}` has no realization state for tuple {}",
+                                program.symbols.name(instance),
+                                tuple.display.join(", ")
+                            )));
+                            continue;
+                        };
+                        let Some(instance_machine) = program.machine_by_symbol(instance) else {
+                            continue;
+                        };
+                        rows.push(checked_trees::DynamicConformanceRowFact {
+                            declaring_trait: row.declaring_trait,
+                            requirement: row.requirement,
+                            requirement_identity,
+                            realization_machine: instance,
+                            realization_state: instance_state,
+                            realization_identity: program
+                                .machine_callable_identity(instance_machine),
+                            family_tuple: tuple.identities.clone(),
+                            source,
+                        });
                     }
-                    typed_trees::trait_definition::ConformanceRowSource::Reference => {
-                        checked_trees::DynamicConformanceRowSource::Reference
-                    }
-                    typed_trees::trait_definition::ConformanceRowSource::TraitDefault => {
-                        checked_trees::DynamicConformanceRowSource::TraitDefault
-                    }
-                },
-            });
+                }
+            }
         }
         selections.push(checked_trees::DynamicSelectionFact {
             occurrence: selection.occurrence,
@@ -68,6 +121,75 @@ pub(crate) fn build_dynamic_conformance_facts(
         return Err(diagnostics);
     }
     Ok(checked_trees::DynamicConformanceFacts { selections })
+}
+
+/// The roster one conformance row must cover: exact rows produce their
+/// template realization; finite rows produce one specialization per tuple.
+enum FamilyRows {
+    Exact,
+    Finite(Vec<typed_trees::finite_family::FamilyTuple>),
+}
+
+/// The declared roster of a conformance row's requirement, when the applied
+/// requirement signature enumerates a finite family. Reads the prepared
+/// applied signature (the same view the specialization demand collector used)
+/// so an inherited family's carriers match the checked roster.
+fn family_roster(
+    program: &dyn ::validation::CheckingInput,
+    row: &typed_trees::trait_definition::ConformanceRow,
+) -> FamilyRows {
+    let Some(definition) = program.trait_definition_by_symbol(row.declaring_trait) else {
+        return FamilyRows::Exact;
+    };
+    let Some(signature) =
+        program.trait_machine_signature_by_symbol(definition, row.requirement)
+    else {
+        return FamilyRows::Exact;
+    };
+    match program.finite_signature_family(signature) {
+        typed_trees::finite_family::FamilyProbe::Finite { tuples, .. } => {
+            FamilyRows::Finite(tuples)
+        }
+        typed_trees::finite_family::FamilyProbe::NotFinite(_) => FamilyRows::Exact,
+    }
+}
+
+/// The specialization instance a family tuple commits: the checked-body
+/// specialization of `template` whose retained const identities equal the
+/// tuple exactly, with no non-value argument coordinates.
+fn family_specialization_instance(
+    program: &dyn ::validation::CheckingInput,
+    template: symbols::SymbolHandle,
+    tuple: &typed_trees::finite_family::FamilyTuple,
+) -> Option<symbols::SymbolHandle> {
+    program
+        .machine_specializations
+        .iter()
+        .find(|specialization| {
+            specialization.template == template
+                && specialization.const_argument_identities.as_slice()
+                    == tuple.identities.as_ref()
+                && specialization.is_const_only()
+        })
+        .map(|specialization| specialization.instance)
+}
+
+/// The specialization's realization state for the template row's entry:
+/// specialization cloning preserves state names, so the instance state with
+/// the template realization's name is the same body position.
+fn family_realization_state(
+    program: &dyn ::validation::CheckingInput,
+    instance: symbols::SymbolHandle,
+    template_state: symbols::SymbolHandle,
+) -> Option<symbols::SymbolHandle> {
+    let machine = program.machine_by_symbol(instance)?;
+    let name = program.symbols.name(template_state);
+    program
+        .machine_states(machine)
+        .iter()
+        .find(|state| program.symbols.name(state.symbol) == name)
+        .or_else(|| program.machine_states(machine).first())
+        .map(|state| state.symbol)
 }
 
 pub(crate) fn normalized_dynamic_row_identities(
