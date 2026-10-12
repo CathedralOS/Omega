@@ -855,7 +855,6 @@ impl Operation<'_, '_> {
         // Mathematical carrier bounds and retained relational proofs establish
         // representability separately.
         exact_result_proven
-            || increase_fits()
             || (operator == BinaryOperator::Subtract && interval.low.is_some_and(|low| low >= 0))
             || unsigned_representability::binary_fits(
                 operator,
@@ -864,6 +863,11 @@ impl Operation<'_, '_> {
                 self.known_unsigned(primitive, self.binary.left),
                 self.known_unsigned(primitive, self.binary.right),
             )
+            // Operand formation is already checked. Use its independent
+            // carrier bounds before constructing an ordered identity, which
+            // can re-enter arithmetic analysis for this entire operand tree.
+            // Retained relations still prove sums that carrier bounds cannot.
+            || increase_fits()
     }
 
     fn unsigned_increase_fits(&self, ceiling: Option<i64>) -> bool {

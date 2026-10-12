@@ -1028,6 +1028,13 @@ pub(super) fn unsigned_increase_fits(
     if low < 0 || high < low {
         return false;
     }
+    // A positive gap requires a retained relation. Carrier-only analysis has
+    // an empty relation environment; rebuilding its operand identity here
+    // recursively repeats the same unavailable proof search. Zero increases
+    // retain the ordinary operand-eligibility check below.
+    if high > 0 && environment.ordered_values.is_empty() {
+        return false;
+    }
     let Some(value) = operand(program, machine, state, value, None) else {
         return false;
     };
