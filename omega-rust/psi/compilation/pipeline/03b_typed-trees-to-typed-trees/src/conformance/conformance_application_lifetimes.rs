@@ -916,6 +916,19 @@ fn visit_lifetime_bindings_in_scope(
     let Some((actual, actual_scope)) = actual_scope.resolve(program, actual) else {
         return;
     };
+    if std::env::var_os("OMEGA_LIFETIME_CORRESPONDENCE_TRACE").is_some() {
+        eprintln!(
+            "lifetime-pair caller={caller:?} required={required:?} required-node={:?} actual={actual:?} actual-node={:?} actual-owner={:?} frames={:?}",
+            program.type_reference_table.type_reference(required),
+            program.type_reference_table.type_reference(actual),
+            actual_scope.owner,
+            actual_scope
+                .frames
+                .iter()
+                .map(|frame| (frame.declaration, frame.lifetimes))
+                .collect::<Vec<_>>()
+        );
+    }
     match (
         program.type_reference_table.type_reference(required),
         program.type_reference_table.type_reference(actual),
