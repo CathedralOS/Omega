@@ -26,6 +26,7 @@ pub(super) fn select<'program>(
     accept: &mut dyn FnMut(&super::RankArrivalAdmission) -> bool,
     failure: &mut RankArrivalFailure,
 ) -> Option<SelectedCorrespondence> {
+    let trace = std::env::var_os("OMEGA_RANK_ARRIVAL_TRACE").is_some();
     let states = program.machine_states(machine);
     let mut adjacency = graph::machine_adjacency(program, machine);
     for targets in &mut adjacency {
@@ -33,7 +34,19 @@ pub(super) fn select<'program>(
         targets.dedup();
     }
     let entry_is_initial = !adjacency.iter().any(|targets| targets.contains(&0));
-    let discovered = validation::discover_rank_arrival_correspondence(program, machine)?;
+    let discovered =
+        validation::discover_rank_arrival_correspondence(program, machine).or_else(|| {
+            if trace {
+                eprintln!("rank-arrival discovery missing {}", machine.name);
+            }
+            None
+        })?;
+    if trace {
+        eprintln!(
+            "rank-arrival begin {} adjacency={adjacency:?}",
+            machine.name
+        );
+    }
     let required =
         validation::ranking_range_required_coordinates(program, machine, range, measure, premises)?;
     let relevance = validation::rank_relevance(program, &[machine.symbol])?;
@@ -64,6 +77,9 @@ pub(super) fn select<'program>(
                     .iter()
                     .find(|selection| selection.state == source.symbol)
                 else {
+                    if trace {
+                        eprintln!("rank-arrival rejected {} at {}", machine.name, line!());
+                    }
                     return validation::RankArrivalCompatibility::Refuted;
                 };
                 let source_ready = !relevance.requires_rank(source.symbol)
@@ -81,6 +97,9 @@ pub(super) fn select<'program>(
                     Some(source_bindings),
                     premise_inputs,
                 ) else {
+                    if trace {
+                        eprintln!("rank-arrival rejected {} at {}", machine.name, line!());
+                    }
                     return validation::RankArrivalCompatibility::Refuted;
                 };
                 let protected = protected.iter().map(String::as_str).collect::<Vec<_>>();
@@ -93,6 +112,9 @@ pub(super) fn select<'program>(
                         .iter()
                         .find(|selection| selection.state == target.symbol)
                     else {
+                        if trace {
+                            eprintln!("rank-arrival rejected {} at {}", machine.name, line!());
+                        }
                         return validation::RankArrivalCompatibility::Refuted;
                     };
                     let target_ready = !relevance.requires_rank(target.symbol)
@@ -117,6 +139,9 @@ pub(super) fn select<'program>(
                             edge.statement_ordinal,
                             &protected,
                         ) else {
+                            if trace {
+                                eprintln!("rank-arrival rejected {} at {}", machine.name, line!());
+                            }
                             return validation::RankArrivalCompatibility::Refuted;
                         };
                         // Even a rankless suffix keeps prefix/formation custody.
@@ -137,6 +162,9 @@ pub(super) fn select<'program>(
                             edge.statement_ordinal,
                             edge.arguments,
                         ) {
+                            if trace {
+                                eprintln!("rank-arrival rejected {} at {}", machine.name, line!());
+                            }
                             return validation::RankArrivalCompatibility::Refuted;
                         }
                         let guards = edge
@@ -170,9 +198,15 @@ pub(super) fn select<'program>(
                             &prefix,
                             edge.arguments,
                         ) else {
+                            if trace {
+                                eprintln!("rank-arrival rejected {} at {}", machine.name, line!());
+                            }
                             return validation::RankArrivalCompatibility::Refuted;
                         };
                         if !proof.membership_and_pinning {
+                            if trace {
+                                eprintln!("rank-arrival rejected {} at {}", machine.name, line!());
+                            }
                             return validation::RankArrivalCompatibility::Refuted;
                         }
                         if cyclic && !proof.strictly_decreases {
@@ -180,9 +214,15 @@ pub(super) fn select<'program>(
                                 source: source.symbol,
                                 destination: target.symbol,
                             };
+                            if trace {
+                                eprintln!("rank-arrival rejected {} at {}", machine.name, line!());
+                            }
                             return validation::RankArrivalCompatibility::Refuted;
                         }
                         let Ok(statement_ordinal) = u32::try_from(edge.statement_ordinal) else {
+                            if trace {
+                                eprintln!("rank-arrival rejected {} at {}", machine.name, line!());
+                            }
                             return validation::RankArrivalCompatibility::Refuted;
                         };
                         edge_judgments.push(checked_trees::CheckedRankArrivalEdge {
@@ -206,6 +246,9 @@ pub(super) fn select<'program>(
                     edges,
                 };
                 if !accept(&candidate) {
+                    if trace {
+                        eprintln!("rank-arrival rejected {} at {}", machine.name, line!());
+                    }
                     return validation::RankArrivalCompatibility::Refuted;
                 }
                 accepted_edges = edge_judgments;
