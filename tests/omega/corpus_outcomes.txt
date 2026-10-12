@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 3.36, "load1_start": 1.44, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 32, "jobs": null, "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 835ms expected @a9ae30e1c334+wt
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -349,11 +349,28 @@ fail/borrow/write_only_nominal_cleanup_replacement rejected 245ms expected @6abc
 fail/borrow/write_only_observation rejected 850ms expected @a9ae30e1c334+wt
 	machine `observe` state `entry` reads write-only parameter `source`; `&write` permits replacement or exact `&write` forwarding, never observation
 	machine `observe_record` state `entry` reads field `code` from write-only parameter `source`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
+fail/borrow/write_only_reference_aggregate_conditional_replacement_loan rejected 341ms expected @992d27dd3135+wt
+	machine `replace` stores a borrowed value without a complete normal-exit backing relation
+	call stores a borrowed value without a complete destination/backing relation
+	statement 5 mutates `main.left.value` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 6)
+fail/borrow/write_only_reference_aggregate_replacement_detached_loan rejected 320ms expected @992d27dd3135+wt
+	statement 6 mutates `main.left.value` while local borrow `old` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/borrow/write_only_reference_aggregate_replacement_new_loan rejected 322ms expected @992d27dd3135+wt
+	statement 6 mutates `main.right.value` while local borrow `held` is still active (borrowed at statement 4; its last use is at statement 7)
 fail/borrow/write_only_state_readable_widening rejected 828ms expected @a9ae30e1c334+wt
 	machine `widen_shared` state `observe` declares result `named(name(i64))`, which differs from the machine's no result
 	machine `widen_mutable` state `entry` widens write-only parameter `pair` to `&mut`; forward it explicitly as `&write pair` instead
 	machine `widen_shared` state `entry` reads field `cell` from write-only parameter `pair`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
 	mutable argument `pair` for state `store` is not writable in this state; the source cannot lend the requested exclusive access
+fail/borrow/write_only_stored_pointer_observation rejected 133ms expected @992d27dd3135+wt
+	machine `replace` state `entry` forms `&write` from an unsupported projection or computed expression; the current checked slice supports explicit attenuation of a whole parameter, an exact direct-reborrow local, or a content-independent path through eligible relevant record fields and proven-in-bounds fixed-array indexes with non-observing selectors whose declared `&write` referee carries exactly the same type
+fail/borrow/write_only_stored_reference_constraint_loss rejected 115ms expected @992d27dd3135+wt
+	machine `replace` state `entry` lends `slot.value` of type `i32[0..=9]` as `&write` to a parameter declared `&write i32`; a write-only subloan must preserve the callee-declared constraint atoms exactly, so a weaker, stronger, or different referee remains rejected
+	machine `capture` state `entry` captures `slot.value` of type `i32[0..=9]` as `&write i32`; a write-only formation must preserve the declared constraint atoms exactly, so a weaker, stronger, or different referee remains rejected
+	argument `value` for state `entry` expects `&write i32`, got `member access`
+fail/borrow/write_only_stored_shared_widening rejected 116ms expected @992d27dd3135+wt
+	machine `replace` state `entry` forms `&write` from an unsupported projection or computed expression; the current checked slice supports explicit attenuation of a whole parameter, an exact direct-reborrow local, or a content-independent path through eligible relevant record fields and proven-in-bounds fixed-array indexes with non-observing selectors whose declared `&write` referee carries exactly the same type
+	write-only argument `slot` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 fail/borrows/affine_record_copy_handoff rejected 1237ms expected @a9ae30e1c334+wt
 	cannot use `settings` in machine `inspect` state `entry` (statement 2) after `settings` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `settings` first
 fail/borrows/array_carried_reference_live_source_move rejected 1533ms expected @a9ae30e1c334+wt
@@ -531,10 +548,10 @@ fail/borrows/plain_read_during_live_exclusive_loan rejected 1820ms expected @a9a
 	statement 2 reads `cell.value` while local borrow `selection` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/borrows/primitive_aggregate_live_owner_read rejected 1701ms expected @a9ae30e1c334+wt
 	state `observe` receives `value` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
-fail/borrows/projected_fixed_array_shared_source_mutable_local rejected 178ms expected @77acc22653d9
-	machine `violate` state `entry` local `requested` requires mutable source access; shared or immutable storage cannot supply it
 fail/borrows/projected_descriptor_retains_backing_loan rejected 1869ms expected @a9ae30e1c334+wt
 	statement 2 mutates `cells[1].value` while local borrow `envelope` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/borrows/projected_fixed_array_shared_source_mutable_local rejected 178ms expected @77acc22653d9
+	machine `violate` state `entry` local `requested` requires mutable source access; shared or immutable storage cannot supply it
 fail/borrows/qualified_byte_element_mutable_call_rejected rejected 1636ms expected @a9ae30e1c334+wt
 	cannot prove default-domain field requirement for return from Packet::main at statement 1: packet.bytes requires [u8; N]::Ascii
 fail/borrows/read_positions_during_live_exclusive_loan rejected 1558ms expected @a9ae30e1c334+wt
@@ -562,6 +579,12 @@ fail/borrows/record_result_retains_declared_lifetime_origins rejected 1630ms exp
 	statement 2 mutates `second` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrows/record_view_field_backing_write_while_stored rejected 1621ms expected @a9ae30e1c334+wt
 	statement 2 mutates `main.buffer[0]` while local borrow `room` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+fail/borrows/reference_aggregate_conditional_replacement_loan rejected 307ms expected @b886c487061b+wt
+	statement 5 mutates `main.left.value` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 6)
+fail/borrows/reference_aggregate_replacement_detached_loan rejected 303ms expected @b886c487061b+wt
+	statement 6 mutates `main.left.value` while local borrow `old` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/borrows/reference_aggregate_replacement_new_loan rejected 305ms expected @b886c487061b+wt
+	statement 6 mutates `main.right.value` while local borrow `held` is still active (borrowed at statement 4; its last use is at statement 7)
 fail/borrows/reference_array_result_conditional_live_write rejected 5630ms expected @a9ae30e1c334+wt
 	statement 8 mutates `main.cells.first.value` while local borrow `messages` is still active (borrowed at statement 7; its last use is at statement 10)
 	statement 8 mutates `main.cells.first.value` while local borrow `messages` is still active (borrowed at statement 7; its last use is at statement 10)
@@ -2808,6 +2831,8 @@ fail/providers/applied_provider_declaration_operand rejected 568ms expected @80b
 	provider selection operands must name bare declarations, not applied types, conformance applications, values or projections
 fail/providers/binding_formal_runtime_operand rejected 243ms expected @a8cedb3946d5+wt
 	machine `bad` state `entry` parameter `binding` uses an invalid routed service carrier: open operands do not close a requirement instance
+fail/providers/borrowed_binding_local_fabricated_carrier rejected 123ms expected @619f89e4fed6+wt
+	opaque boundary data `Binding` has no public constructor; a boundary provider must establish its values
 fail/providers/checked_boundary_operator_const_application_unselected rejected 952ms unexpected @d986b866df88+wt
 	unimplemented: portable provider-dependent constant recipes; target realization cannot fold selected values into checked source
 fail/providers/checked_boundary_operator_missing_contract rejected 1307ms expected @a9ae30e1c334+wt
@@ -2846,6 +2871,9 @@ fail/providers/named_provider_wrong_requirement_owner rejected 27ms expected @a9
 	closed conformance `WrongProvider satisfies CounterOperations` has no inherited requirement slot `OtherOperations::read`
 fail/providers/nested_binding_missing_establishment rejected 23947ms expected @a9ae30e1c334+wt
 	selected ProgramEntry Binding field `Main::session::reading` requires a selected Fused provider for boundary `Reading`
+fail/providers/occurrence_region_binding_conflicting_inputs rejected 42ms expected @619f89e4fed6+wt
+	call to `entry` has conflicting ordinary borrow constraints for an erased lifetime
+	call to `entry` has conflicting ordinary borrow constraints for an erased lifetime
 fail/providers/ordinary_exit_name_preserves_return_obligations rejected 1225ms expected @1e469c9b15bb
 	cannot prove ensures contract for exit from impossible at statement 1: false
 fail/providers/provider_selection_fabricated_activation rejected 2725ms expected @a9ae30e1c334+wt
@@ -3078,6 +3106,14 @@ fail/slices/returned_range_extent_contract_retires_replaced_descriptor rejected 
 	cannot prove ensures contract for exit from middle at statement 4: result.len == end - start
 fail/slices/returned_shared_slice_mutable_call rejected 841ms expected @a9ae30e1c334+wt
 	argument `items` for state `entry` is declared `&mut` (`&mut [i32]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/slices/same_carrier_cast_reassigned_index rejected 819ms expected @2ab552549670+wt
+	cannot prove index `position` is within unknown slice length of `items` in read::entry
+fail/slices/same_carrier_cast_wrong_collection_index rejected 755ms expected @2ab552549670+wt
+	cannot prove index `position` is within unknown slice length of `other` in read::entry
+fail/slices/same_carrier_inline_cast_after_index_write rejected 765ms expected @2ab552549670+wt
+	cannot prove index `position as u64` is within unknown slice length of `items` in read::entry
+fail/slices/same_carrier_inline_cast_wrong_collection rejected 765ms expected @2ab552549670+wt
+	cannot prove index `index as u64` is within unknown slice length of `other` in read::entry
 fail/slices/scalar_copy_invalidated_domain rejected 888ms expected @a9ae30e1c334+wt
 	cannot prove assignment value `101` satisfies bounded target `items[1]` in `copy.entry`; expected 0..=100
 fail/slices/scalar_copy_missing_bounds rejected 1723ms expected @a9ae30e1c334+wt
@@ -3096,6 +3132,8 @@ fail/slices/signed_slice_index_upper_only rejected 1654ms unexpected @a9ae30e1c3
 	cannot prove index `__hoist_14` is non-negative
 fail/slices/signed_slice_range_upper_only rejected 1708ms expected @a9ae30e1c334+wt
 	cannot prove every subslice range endpoint of `__hoist_14..__hoist_15` is non-negative
+fail/slices/signed_to_unsigned_cast_does_not_inherit_position rejected 291ms expected @2ab552549670+wt
+	Exact integer cast in machine `read` state `entry` from `i64` to `u64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/slices/subslice_range_operator_contract_unproven rejected 1808ms expected @a9ae30e1c334+wt
 	machine `Main::main` state `main` value call to `Slice::range` violates required fact `start <= end && end <= items.len`: the instantiated fact is structurally false
 fail/slices/termination_slice_length_order_unimplemented rejected 310ms expected @dca1c7cd7e6f+wt
@@ -3415,6 +3453,8 @@ fail/traits/applied_nominal_callback_proposition_tag_rejected rejected 1271ms ex
 	machine parameter `Callback` of provider machine `visit` for trait requirement `Visitor::visit` does not refine `Callback`: its requires facts are not a conservative refinement
 fail/traits/conformance_item_missing_member rejected 19ms expected @a9ae30e1c334+wt
 	closed conformance `PointShape satisfies Shape` is incomplete: missing `Shape::code`
+fail/traits/conformance_phantom_foreign_captured_operand rejected 253ms expected @619f89e4fed6+wt
+	conformance `Mapped satisfies Reader` parameter `Value` uses undeclared lifetime argument `'same' in `Marker`; declare it in the owner's generic parameter list
 fail/traits/conformance_unused_lifetime_foreign_scope rejected 188ms expected @a9ae30e1c334+wt
 	conformance application `ReadingMap<'foreign>` supplies undeclared lifetime argument `'foreign'; declare it in the lexical owner's lifetime telescope
 fail/traits/conformance_unused_lifetime_header_undeclared rejected 175ms expected @a9ae30e1c334+wt
@@ -3547,6 +3587,8 @@ fail/traits/ordinary_trait_inherits_boundary rejected 833ms expected @a9ae30e1c3
 	ordinary trait `HiddenDevice` cannot inherit boundary service `Device`; declare the child as `boundary trait`
 fail/traits/owned_row_captured_region_not_invocation rejected 353ms expected @21c44dfab69b
 	machine `Reader::read` state `read` does not satisfy trait `Reading` machine `read`: conformance borrow contract: fresh invocation lifetime telescope is not universally refined
+fail/traits/prepared_callable_wrong_member_source rejected 239ms expected @992d27dd3135+wt
+	machine `flip` state `entry` does not satisfy trait `Flipping` machine `flip`: conformance borrow contract: callable returned view has a different input-source relation
 fail/traits/resultless_float_law_false_identity rejected 40370ms expected @a9ae30e1c334+wt
 	machine `false_identity` cannot prove ensures contract proof fact `first == second` from the requires contract
 fail/traits/self_type_retired rejected 938ms expected @a9ae30e1c334+wt
@@ -3715,6 +3757,14 @@ pass/borrow/runtime_write_only_indexed_record_copy_exit checked 4227ms check-tar
 pass/borrow/runtime_write_only_local_affine_aggregate_exit checked 4298ms check-target:macos_arm64 @6abc05dd203a
 pass/borrow/runtime_write_only_record_array_argument_exit rejected 10341ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
 	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(1), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
+pass/borrow/runtime_write_only_reference_aggregate_alias_exit checked 3862ms check-target:macos_arm64 @992d27dd3135+wt
+pass/borrow/runtime_write_only_reference_aggregate_array_alias_exit checked 3863ms check-target:macos_arm64 @992d27dd3135+wt
+pass/borrow/runtime_write_only_reference_aggregate_call_exit checked 3862ms check-target:macos_arm64 @992d27dd3135+wt
+pass/borrow/runtime_write_only_reference_aggregate_call_result_exit checked 2785ms check-target:macos_arm64 @992d27dd3135+wt
+pass/borrow/runtime_write_only_reference_aggregate_capture_exit checked 2785ms check-target:macos_arm64 @992d27dd3135+wt
+pass/borrow/runtime_write_only_reference_aggregate_copy_exit checked 2786ms check-target:macos_arm64 @992d27dd3135+wt
+pass/borrow/runtime_write_only_reference_aggregate_detached_exit checked 2813ms check-target:macos_arm64 @992d27dd3135+wt
+pass/borrow/runtime_write_only_reference_aggregate_projected_exit checked 2813ms check-target:macos_arm64 @992d27dd3135+wt
 pass/borrow/runtime_write_only_sum_copy_exit checked 4097ms check-target:macos_arm64 @2e62c6e27183+wt
 pass/borrow/runtime_write_only_utf8_field_exit checked 4414ms check-target:macos_arm64 @7fa075570fe9
 pass/borrow/stored_write_only_metadata checked 1593ms @a9ae30e1c334+wt
@@ -3836,6 +3886,11 @@ pass/borrows/runtime_record_primitive_reference_capture_exit checked 10276ms che
 pass/borrows/runtime_recursive_mutable_array_store_exit checked 11152ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_recursive_shared_array_read_exit checked 11097ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_reentered_mutable_array_loan_exit checked 11049ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_reference_aggregate_alias_replacement_exit checked 3771ms check-target:macos_arm64 @b886c487061b+wt
+pass/borrows/runtime_reference_aggregate_array_alias_replacement_exit checked 3771ms check-target:macos_arm64 @b886c487061b+wt
+pass/borrows/runtime_reference_aggregate_call_replacement_exit checked 3771ms check-target:macos_arm64 @b886c487061b+wt
+pass/borrows/runtime_reference_aggregate_call_result_replacement_exit checked 2693ms check-target:macos_arm64 @b886c487061b+wt
+pass/borrows/runtime_reference_aggregate_projected_replacement_exit checked 2693ms check-target:macos_arm64 @b886c487061b+wt
 pass/borrows/runtime_reference_array_pressure_exit checked 11385ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_reference_call_scalar_snapshot_exit checked 5051ms check-target:macos_arm64 @a9c11ff574b9+wt
 pass/borrows/runtime_reference_initializer_selector_before_later_write_exit checked 11132ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5086,8 +5141,7 @@ pass/host/runtime_descriptor_reference_record_prefix_exit rejected 12270ms check
 	native artifact fragment object publication failed: fragment import lacks selected call custody
 pass/host/runtime_descriptor_scalar_input_exit checked 11138ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/host/runtime_fixed_arithmetic_across_console_exit checked 11481ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/host/runtime_foreign_scalar_loan_writeback_exit rejected 12267ms check-target:windows_x86_64 regressed-from:checked+check-target:windows_x86_64 @a9ae30e1c334+wt
-	native artifact fragment object publication failed: fragment import lacks selected call custody
+pass/host/runtime_foreign_scalar_loan_writeback_exit checked 7606ms check-target:windows_x86_64 @d041496df109
 pass/host/runtime_gui_foreground_window_exit rejected 11838ms check-target:macos_arm64 @a9ae30e1c334+wt
 	selected ProgramEntry Binding field `Main::gui` requires a selected Fused provider for boundary `Gui`
 pass/host/runtime_gui_window_lifecycle_exit rejected 11646ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5618,6 +5672,9 @@ pass/providers/lifetime_boundary_requirement_dispatch_exit checked 11424ms check
 pass/providers/local_record_foreign_borrow_exit checked 11406ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/module_named_operator_result_domain_satisfaction checked 12148ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/nested_binding_borrowed_call_exit checked 10664ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/providers/occurrence_region_binding_exit checked 3567ms check-target:macos_arm64 @619f89e4fed6+wt
+pass/providers/occurrence_region_binding_forwarding_exit checked 3577ms check-target:macos_arm64 @619f89e4fed6+wt
+pass/providers/occurrence_region_binding_projected_type_exit checked 3577ms check-target:macos_arm64 @619f89e4fed6+wt
 pass/providers/owned_array_operand_epochs_exit checked 10855ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/provider_type_target_default_override checked 11443ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/runtime_adapter_dispatch_exit checked 11788ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5809,6 +5866,7 @@ pass/slices/runtime_range_qualified_scalar_copy_local_exit checked 12523ms check
 pass/slices/runtime_range_qualified_scalar_dynamic_store_exit checked 12966ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_range_qualified_scalar_store_phi_exit checked 12890ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_returned_range_extent_contract_exit checked 14564ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/slices/runtime_same_carrier_inline_cast_index_exit checked 8205ms check-target:macos_arm64 @2ab552549670+wt
 pass/slices/runtime_saturating_array_element_guard_exit checked 12581ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_shared_subslice_return_exit checked 13917ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_shared_whole_view_return_exit checked 13933ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5827,6 +5885,7 @@ pass/slices/runtime_subslice_len_exit checked 11632ms check-target:macos_arm64 @
 pass/slices/runtime_subslice_range_pointer_exit checked 12322ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_unit_state_subslice_and_read_call_operands_exit checked 11987ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_view_index_copied_argument_exit checked 11410ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/slices/same_carrier_index_cast_alias_compile checked 2355ms @2ab552549670+wt
 pass/slices/signed_index_and_range_lower_bounds checked 1589ms @a9ae30e1c334+wt
 pass/slices/state_record_array_mutable_view_exit checked 11644ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/state_record_array_shared_child_view_exit checked 11883ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6034,6 +6093,7 @@ pass/termination/runtime_nested_borrowed_rank_carrier_exit checked 12725ms check
 pass/termination/runtime_projected_element_rank_arrivals_exit checked 11715ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/termination/runtime_public_result_field_rank_arrivals_exit checked 11711ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/termination/runtime_quotient_result_rank_arrivals_exit checked 11326ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/termination/runtime_rank_arrival_field_premise_disjoint_write_exit checked 4465ms check-target:macos_arm64 @5135246a13ab+wt
 pass/termination/runtime_rank_range_state_call_exit checked 12758ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/termination/runtime_rank_state_constraint_disjoint_write_exit checked 11734ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/termination/runtime_ranked_assignment_call_prefix_exit checked 6463ms check-target:macos_arm64 @2be890c63e5e5bb4ced219b4470436492e7ad97c
@@ -6143,6 +6203,7 @@ pass/traits/conformance_unused_lifetime_scope_exit checked 11299ms check-target:
 pass/traits/default_row_captured_invocation_regions_exit checked 2765ms check-target:macos_arm64 @21c44dfab69b
 pass/traits/default_row_domain_region_scopes checked 485ms @21c44dfab69b
 pass/traits/default_row_mixed_captured_operand checked 470ms @eee96af606fc+wt
+pass/traits/default_row_nested_captured_reference_exit checked 3567ms check-target:macos_arm64 @619f89e4fed6+wt
 pass/traits/default_row_shadowed_captured_operand checked 470ms @eee96af606fc+wt
 pass/traits/default_row_shadowed_captured_operand_exit checked 2755ms check-target:macos_arm64 @eee96af606fc+wt
 pass/traits/dyn_finite_family_dispatch checked 1661ms @a9ae30e1c334+wt
@@ -6159,6 +6220,7 @@ pass/traits/implementation_argument_region_mapping checked 1680ms @a9ae30e1c334+
 pass/traits/inherited_region_application_identity_exit checked 10560ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/nominal_generic_reference_forwarding_exit checked 11241ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/nominal_machine_binder_static_dispatch checked 11071ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/traits/prepared_callable_nested_borrow_paths_exit checked 3390ms check-target:macos_arm64 @992d27dd3135+wt
 pass/traits/resultless_law_float_equality_exit timeout 120000ms @a9ae30e1c334+wt
 pass/traits/ring_requirement_satisfies_exit rejected 4829ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
 	specification call `add` is not denotational: the selected machine is not unconditionally terminating
@@ -6247,228 +6309,3 @@ run/stores/runtime_float_indexed_call_result_exit checked 90790ms check-target:l
 run/stores/runtime_float_store_selector_snapshot_exit checked 96305ms check-target:linux_x86_64 @16ed47526a08
 run/variant_decimal_runtime_division checked 11419ms check-target:linux_x86_64 @a9ae30e1c334+wt
 run/variant_record_normalization_repeats checked 13906ms check-target:linux_x86_64 @a9ae30e1c334+wt
-fail/layouts/public_layout_keeps_private_schema rejected 364ms expected @63dcd4df414+wt
-	public interface selects private data `LayoutPolicy<HiddenSchema>`
-fail/layouts/public_schema_keeps_private_layout rejected 370ms expected @63dcd4df414+wt
-	public interface selects private data `HiddenPolicy<RecordSchema>`
-fail/domains/offset_borrow_return_unestablished_field rejected 411ms expected @1e469c9b15bb
-	cannot prove default-domain field requirement for return from pick at statement 2: rows[1].labels[1].text requires [u8; N]::NonEmpty
-	cannot prove default-domain field requirement for return from pick at statement 2: bag.rows[2].labels[1].text requires [u8; N]::NonEmpty
-	cannot prove default-domain field requirement for return from pick at statement 3: bag.rows[2].labels[1].text requires [u8; N]::NonEmpty
-	cannot prove index `0` is within unknown slice length of `bag.rows[2].labels[1].text` in pick::entry
-fail/providers/ordinary_exit_name_preserves_return_obligations rejected 1225ms expected @1e469c9b15bb
-	cannot prove ensures contract for exit from impossible at statement 1: false
-pass/collections/runtime_offset_view_case_observation_exit checked 2717ms check-target:macos_arm64 @1e469c9b15bb
-pass/domains/runtime_selected_nested_field_domain_exit checked 2724ms check-target:macos_arm64 @1e469c9b15bb
-pass/text/runtime_qualified_owner_view_open_exit checked 3079ms check-target:macos_arm64 @b7075f98d14c+wt
-pass/calls/owned_overaligned_local_call checked 5291ms check-target:macos_arm64 @6d4927c3710+wt
-fail/traits/external_row_does_not_capture_map_region rejected 223ms expected @21c44dfab69b
-	machine `read` state `entry` parameter `context` uses undeclared lifetime `'storage'; declare it in the owner's generic parameter list
-fail/traits/owned_row_captured_region_not_invocation rejected 353ms expected @21c44dfab69b
-	machine `Reader::read` state `read` does not satisfy trait `Reading` machine `read`: conformance borrow contract: fresh invocation lifetime telescope is not universally refined
-pass/traits/default_row_captured_invocation_regions_exit checked 2765ms check-target:macos_arm64 @21c44dfab69b
-pass/traits/default_row_domain_region_scopes checked 485ms @21c44dfab69b
-fail/targets/distinct_roots_exclusion_selected_body rejected 12971ms expected @ad0459650859+wt
-	1 authored behavior exclusion(s) could not be satisfied
-	behavior exclusion violated: crash cause Trap is reachable in machine `trapping` (Terminal machine 2) at crash terminator in block 2
-	the selected composition retains crash cause Trap through machine `trapping` (Terminal machine 2) declared here
-pass/targets/shared_program_distinct_roots_exit checked 6993ms check-target:macos_arm64 @ad0459650859+wt
-fail/borrows/reassigned_view_cannot_escape_local_backing rejected 625ms expected @eee96af606fc+wt
-	machine `reject` returns a view borrowing the local `items`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/borrows/reassigned_view_conflicts_with_captured_child rejected 662ms expected @eee96af606fc+wt
-	statement 2 creates local borrow `view` while local borrow `view` is still active (borrowed at statement 0)
-	statement 2 creates local borrow `view` while local borrow `child` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
-fail/borrows/reassigned_view_uses_new_extent rejected 636ms expected @eee96af606fc+wt
-	cannot prove index `1` is within length 1
-pass/borrows/runtime_reassigned_view_capture_exit checked 4224ms check-target:macos_arm64 @eee96af606fc+wt
-pass/borrows/runtime_reassigned_view_return_exit checked 4368ms check-target:macos_arm64 @eee96af606fc+wt
-pass/traits/default_row_mixed_captured_operand checked 470ms @eee96af606fc+wt
-pass/traits/default_row_shadowed_captured_operand checked 470ms @eee96af606fc+wt
-pass/traits/default_row_shadowed_captured_operand_exit checked 2755ms check-target:macos_arm64 @eee96af606fc+wt
-pass/constants/closed_generic_predicate_constant checked 656ms @ea68f95d0acea7b04f53f3efe179629294cb3491
-pass/constants/runtime_predicate_constant_materialization_exit checked 4187ms check-target:macos_arm64 @ea68f95d0acea7b04f53f3efe179629294cb3491
-fail/constants/predicate_constant_field_shadows_outer_constant rejected 6ms expected @ea68f95d0acea7b04f53f3efe179629294cb3491
-	constant `INVALID` is invalid: data constant `Bounded` violates its default-domain predicate
-fail/constants/predicate_constant_generic_static_index_fence rejected 6ms expected @ea68f95d0acea7b04f53f3efe179629294cb3491
-	const argument for `Indexed::Value` is invalid at this index site: data `Counter` has default-domain facts whose index-site proof is not implemented; it is not yet eligible as a const index
-fail/constants/predicate_constant_nested_projection_shadow rejected 5ms expected @ea68f95d0acea7b04f53f3efe179629294cb3491
-	constant `INVALID` is invalid: data constant `Packet` violates its default-domain predicate
-fail/constants/predicate_constant_static_index_fence rejected 6ms expected @ea68f95d0acea7b04f53f3efe179629294cb3491
-	const argument for `Indexed::Value` is invalid at this index site: data `Bounded` has default-domain facts whose index-site proof is not implemented; it is not yet eligible as a const index
-fail/constants/unused_case_predicate_constant rejected 6ms expected @ea68f95d0acea7b04f53f3efe179629294cb3491
-	constant `INVALID` is invalid: data constant `Choice` violates its case predicate
-fail/constants/unused_default_domain_constant rejected 6ms expected @ea68f95d0acea7b04f53f3efe179629294cb3491
-	constant `INVALID` is invalid: data constant `Bounded` violates its default-domain predicate
-fail/constants/unused_empty_case_predicate_constant rejected 6ms expected @ea68f95d0acea7b04f53f3efe179629294cb3491
-	constant `INVALID` is invalid: data constant `Choice` violates its case predicate
-fail/constants/unused_generic_default_domain_constant rejected 10ms expected @ea68f95d0acea7b04f53f3efe179629294cb3491
-	constant `INVALID` is invalid: data constant `Counter<7>` violates its default-domain predicate
-fail/constants/unused_nested_default_domain_constant rejected 6ms expected @ea68f95d0acea7b04f53f3efe179629294cb3491
-	constant `INVALID` is invalid: data constant `Bounded` violates its default-domain predicate
-fail/time/duration_constant_unnormalized rejected 33ms expected @ea68f95d0acea7b04f53f3efe179629294cb3491
-	constant `INVALID` is invalid: data constant `Duration` violates its default-domain predicate
-pass/borrow/runtime_write_only_array_indexed_calls_exit checked 2848ms check-target:macos_arm64 @e67b2abb52b9+wt
-fail/calls/callback_shared_program_excluded_trap rejected 24191ms expected @eee96af606fc+wt
-	1 authored behavior exclusion(s) could not be satisfied
-	behavior exclusion violated: crash cause Trap is reachable in machine `PointHandler::visit` (Terminal machine 2) at crash terminator in block 12
-	the selected composition retains crash cause Trap through machine `PointHandler::visit` (Terminal machine 2) declared here
-fail/providers/applied_provider_declaration_operand rejected 568ms expected @80bdb14533eb+wt
-	provider selection operands must name bare declarations, not applied types, conformance applications, values or projections
-fail/traits/ordinary_selection_name_missing_conformance_region rejected 376ms expected @80bdb14533eb+wt
-	generic conformance `ReadingMap` has 1 erased lifetime parameter(s), but this application supplies none and no unique ordinary borrow constraint is available; write the lifetime argument explicitly
-fail/layouts/placement_policy_unproved_callee_premise rejected 28ms expected @86441935879a64d7f3af4c34d1475129884c2970
-	placed view `Placed<CheckedPolicy,Register>`: machine `CheckedPolicy::plan` is not build-time admissible: machine `CheckedPolicy::limit` has an authored `requires` premise along `CheckedPolicy::plan -> CheckedPolicy::limit`; pre-check semantic evaluation has no checked invocation proof for that premise; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
-fail/borrow/write_only_capture_missing_bounds rejected 419ms expected @e80db4a269fa+wt
-	cannot prove index `position` is within length 3 in select::entry
-fail/borrow/write_only_capture_selector_observation rejected 211ms expected @e80db4a269fa+wt
-	machine `select` state `entry` reads field `value` from write-only parameter `cells`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
-pass/borrow/runtime_write_only_array_selector_snapshot_exit checked 4145ms check-target:macos_arm64 @e80db4a269fa+wt
-pass/termination/runtime_ranked_assignment_call_prefix_exit checked 6463ms check-target:macos_arm64 @2be890c63e5e5bb4ced219b4470436492e7ad97c
-fail/termination/ranked_assignment_call_prefix_write rejected 637ms expected @2be890c63e5e5bb4ced219b4470436492e7ad97c
-	cannot prove requires contract for call scan from countdown: remaining - 1 <= 9 (needs fact `remaining <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-	terminating machine countdown: cannot prove rank range `0..=9` for the rank produced by the selected view
-fail/termination/ranked_index_call_prefix_write rejected 635ms expected @2be890c63e5e5bb4ced219b4470436492e7ad97c
-	cannot prove requires contract for call scan from countdown: remaining - 1 <= 9 (needs fact `remaining <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-	terminating machine countdown: cannot prove rank range `0..=9` for the rank produced by the selected view
-pass/targets/runtime_family_callback_guarantee_conjunction_exit checked 2751ms check-target:macos_arm64 @8ef927ca678b
-pass/borrow/runtime_write_only_captured_record_copy_exit checked 4227ms check-target:macos_arm64 @2e62c6e27183+wt
-pass/borrow/runtime_write_only_indexed_record_copy_exit checked 4227ms check-target:macos_arm64 @2e62c6e27183+wt
-pass/borrow/runtime_write_only_sum_copy_exit checked 4097ms check-target:macos_arm64 @2e62c6e27183+wt
-pass/time/runtime_duration_units_and_scaling_exit checked 6659ms check-target:macos_arm64 @2ed2725134e877372235f00d3ce5c1602f59468c
-fail/time/instant_constant_unnormalized rejected 33ms expected @2ed2725134e877372235f00d3ce5c1602f59468c
-	constant `INVALID` is invalid: data constant `Instant` violates its default-domain predicate
-fail/time/instant_mutation_leaves_invalid_return rejected 1111ms expected @2ed2725134e877372235f00d3ce5c1602f59468c
-	machine `corrupt` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-pass/host/runtime_console_byte_payload_bounds_exit checked 5573ms check-target:macos_arm64 @afccbf17d92b+wt
-fail/host/console_byte_payload_above_byte rejected 735ms expected @afccbf17d92b+wt
-	data `ByteRead` case `Byte` literal violates the case constraint: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/host/console_byte_payload_negative rejected 674ms expected @afccbf17d92b+wt
-	data `ByteRead` case `Byte` literal violates the case constraint: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/time/system_time_constant_unnormalized rejected 35ms expected @2ed2725134e877372235f00d3ce5c1602f59468c
-	constant `INVALID` is invalid: data constant `SystemTime` violates its default-domain predicate
-fail/layouts/resource_profile_exceeds_region_capacity rejected 401ms expected @ec089e4c2b1b
-	data `ResourceProfile` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/layouts/schema_field_exceeds_declared_size rejected 1594ms expected @ec089e4c2b1b
-	plan-laid value type `Contiguous<Payload>`: error: supplied policy arguments failed value establishment: [Diagnostic { severity: Error, message: "data `SchemaField` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)", exceeded_provision: None, source_span: None, resolved_location: None }]
-fail/layouts/schema_identity_payload_predicate rejected 35ms expected @ec089e4c2b1b
-	plan-laid value type `Contiguous<Payload>`: error: supplied policy arguments failed value establishment: [Diagnostic { severity: Error, message: "data `Identity` case `Some` literal violates the case constraint: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)", exceeded_provision: None, source_span: None, resolved_location: None }]
-pass/layouts/schema_field_at_declared_size checked 3484ms @ec089e4c2b1b
-pass/layouts/schema_identity_payload_within_predicate checked 1780ms @ec089e4c2b1b
-
-fail/borrow/bounded_reference_cannot_lend_unrestricted_mutable rejected 959ms expected @a9c11ff574b9+wt
-	argument `position` for state `entry` expects `&mut u64`, got `named value`
-fail/borrow/bounded_reference_store_preserves_range rejected 947ms expected @a9c11ff574b9+wt
-	cannot prove assignment value `2` satisfies bounded target `position` in `reset.entry`; expected 0..=1
-pass/borrow/runtime_write_only_aggregate_selector_snapshot_exit checked 5105ms check-target:macos_arm64 @a9c11ff574b9+wt
-pass/borrows/runtime_bounded_and_shared_field_loans_exit checked 5029ms check-target:macos_arm64 @a9c11ff574b9+wt
-pass/borrows/runtime_reference_call_scalar_snapshot_exit checked 5051ms check-target:macos_arm64 @a9c11ff574b9+wt
-pass/operators/runtime_declared_reference_index_capture_exit checked 4355ms check-target:macos_arm64 @a9c11ff574b9+wt
-pass/operators/runtime_generic_reference_selector_snapshot_exit checked 4337ms check-target:macos_arm64 @a9c11ff574b9+wt
-fail/borrow/write_only_affine_replacement_reuse rejected 342ms expected @6abc05dd203a
-	cannot use `incoming` in machine `replace` state `entry` (statement 1) after `incoming` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `incoming` first
-fail/borrow/write_only_linear_replacement rejected 247ms expected @6abc05dd203a
-	machine `replace` state `entry` replaces whole write-only aggregate `cell`; whole-root replacement requires a freely discardable supported root, so replace one eligible leaf through an invariant-free record path or declare and prove a statically discardable material aggregate instead
-fail/borrow/write_only_nominal_cleanup_replacement rejected 245ms expected @6abc05dd203a
-	machine `replace` state `entry` replaces whole write-only aggregate `cell`; whole-root replacement requires a freely discardable supported root, so replace one eligible leaf through an invariant-free record path or declare and prove a statically discardable material aggregate instead
-pass/borrow/runtime_write_only_affine_sum_exit checked 4298ms check-target:macos_arm64 @6abc05dd203a
-pass/borrow/runtime_write_only_local_affine_aggregate_exit checked 4298ms check-target:macos_arm64 @6abc05dd203a
-pass/borrow/runtime_write_only_utf8_field_exit checked 4414ms check-target:macos_arm64 @7fa075570fe9
-fail/borrow/write_only_byte_field_missing_membership rejected 467ms expected @7fa075570fe9
-	cannot prove the value assigned to `tagged.label` in replace is in domain `[u8; N]::Utf8`; a place declared `in [u8; N]::Utf8` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
-pass/calling/calling_count_boundaries_exit checked 7399ms check-target:macos_arm64 @a14ec34a59ab+wt
-pass/control_flow/runtime_owned_state_parallel_swap_exit checked 6231ms check-target:macos_arm64 @a14ec34a59ab+wt
-fail/calling/call_plan_count_invalid_handback rejected 568ms expected @a14ec34a59ab+wt
-	machine `corrupt` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/calling/native_field_path_empty rejected 574ms expected @a14ec34a59ab+wt
-	data `NativePlace` case `Field` literal violates the case constraint: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
-pass/arithmetic/runtime_widened_result_predicates_exit checked 6363ms check-target:macos_arm64 @44e66b7d2fb4+wt
-fail/arithmetic/widened_result_does_not_grant_stricter_bound rejected 495ms expected @44e66b7d2fb4+wt
-	cannot prove requires contract for call consume from widen_and_consume: widen_u8_to_u16(value) <= 254 (needs fact `value <= 254` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/arithmetic/widened_result_predicate_invalid_write rejected 173ms expected @44e66b7d2fb4+wt
-	machine `corrupt` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/calls/state_arrival_call_result_above_bound rejected 421ms expected @a0a35c7bbb43+wt
-	cannot prove requires contract for call visit from main: index <= 3 (needs fact `index <= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/termination/nested_field_without_predicate_cannot_bound_result rejected 418ms expected @2430f497a77c+wt
-	cannot prove ensures contract for exit from Engine::observe at statement 0: result <= 8
-fail/termination/rank_range_mutable_endpoint_overflow_after_write rejected 152ms expected @2430f497a77c+wt
-	exact arithmetic in machine `walk` state `entry` local `endpoint` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/providers/inherited_boundary_private_field_postcondition rejected 1027ms expected @2430f497a77c+wt
-	cannot prove index `main.counter.count` is within length 4 in Main::main::main
-fail/recast/boundary_postcondition_aliased_write rejected 1036ms expected @2430f497a77c+wt
-	cannot prove index `main.source.first` is within length 8 in Main::main::main
-fail/recast/boundary_postcondition_nested_write rejected 1033ms expected @2430f497a77c+wt
-	cannot prove index `main.source.first` is within length 8 in Main::main::main
-fail/recast/boundary_postcondition_reinterpreted_scalar rejected 1036ms expected @2430f497a77c+wt
-	cannot prove index `main.source.first` is within length 8 in Main::main::main
-fail/recast/boundary_postcondition_wrong_backing_scalar rejected 982ms expected @2430f497a77c+wt
-	cannot prove index `main.source.count` is within length 8 in Main::main::main
-pass/providers/inherited_boundary_field_postcondition_exit checked 3376ms check-target:macos_arm64 @2430f497a77c+wt
-pass/recast/boundary_postcondition_backing_scalar_exit checked 3377ms check-target:macos_arm64 @2430f497a77c+wt
-pass/recast/boundary_postcondition_disjoint_aliased_write_exit checked 3345ms check-target:macos_arm64 @2430f497a77c+wt
-pass/recast/reference_view_helper_backing_write_exit checked 3343ms check-target:macos_arm64 @2430f497a77c+wt
-pass/recast/reference_view_shared_call_backing_exit checked 3329ms check-target:macos_arm64 @2430f497a77c+wt
-pass/recast/reference_view_shared_primitive_neighbor_exit checked 3328ms check-target:macos_arm64 @2430f497a77c+wt
-pass/termination/runtime_rank_arrival_field_premise_disjoint_write_exit checked 4465ms check-target:macos_arm64 @5135246a13ab+wt
-# Same-carrier position regressions; new observations only.
-pass/slices/runtime_same_carrier_inline_cast_index_exit checked 8205ms check-target:macos_arm64 @2ab552549670+wt
-pass/slices/same_carrier_index_cast_alias_compile checked 2355ms @2ab552549670+wt
-fail/slices/same_carrier_cast_reassigned_index rejected 819ms expected @2ab552549670+wt
-	cannot prove index `position` is within unknown slice length of `items` in read::entry
-fail/slices/same_carrier_cast_wrong_collection_index rejected 755ms expected @2ab552549670+wt
-	cannot prove index `position` is within unknown slice length of `other` in read::entry
-fail/slices/same_carrier_inline_cast_after_index_write rejected 765ms expected @2ab552549670+wt
-	cannot prove index `position as u64` is within unknown slice length of `items` in read::entry
-fail/slices/same_carrier_inline_cast_wrong_collection rejected 765ms expected @2ab552549670+wt
-	cannot prove index `index as u64` is within unknown slice length of `other` in read::entry
-fail/slices/signed_to_unsigned_cast_does_not_inherit_position rejected 291ms expected @2ab552549670+wt
-	Exact integer cast in machine `read` state `entry` from `i64` to `u64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
-pass/borrows/runtime_reference_aggregate_call_replacement_exit checked 3771ms check-target:macos_arm64 @b886c487061b+wt
-pass/borrows/runtime_reference_aggregate_alias_replacement_exit checked 3771ms check-target:macos_arm64 @b886c487061b+wt
-pass/borrows/runtime_reference_aggregate_projected_replacement_exit checked 2693ms check-target:macos_arm64 @b886c487061b+wt
-pass/borrows/runtime_reference_aggregate_array_alias_replacement_exit checked 3771ms check-target:macos_arm64 @b886c487061b+wt
-fail/borrows/reference_aggregate_replacement_new_loan rejected 305ms expected @b886c487061b+wt
-	statement 6 mutates `main.right.value` while local borrow `held` is still active (borrowed at statement 4; its last use is at statement 7)
-fail/borrows/reference_aggregate_replacement_detached_loan rejected 303ms expected @b886c487061b+wt
-	statement 6 mutates `main.left.value` while local borrow `old` is still active (borrowed at statement 4; its last use is at statement 7)
-fail/borrows/reference_aggregate_conditional_replacement_loan rejected 307ms expected @b886c487061b+wt
-	statement 5 mutates `main.left.value` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 6)
-pass/borrows/runtime_reference_aggregate_call_result_replacement_exit checked 2693ms check-target:macos_arm64 @b886c487061b+wt
-pass/borrow/runtime_write_only_reference_aggregate_call_exit checked 3862ms check-target:macos_arm64 @992d27dd3135+wt
-pass/borrow/runtime_write_only_reference_aggregate_alias_exit checked 3862ms check-target:macos_arm64 @992d27dd3135+wt
-pass/borrow/runtime_write_only_reference_aggregate_projected_exit checked 2813ms check-target:macos_arm64 @992d27dd3135+wt
-pass/borrow/runtime_write_only_reference_aggregate_array_alias_exit checked 3863ms check-target:macos_arm64 @992d27dd3135+wt
-pass/borrow/runtime_write_only_reference_aggregate_call_result_exit checked 2785ms check-target:macos_arm64 @992d27dd3135+wt
-pass/borrow/runtime_write_only_reference_aggregate_copy_exit checked 2786ms check-target:macos_arm64 @992d27dd3135+wt
-pass/borrow/runtime_write_only_reference_aggregate_detached_exit checked 2813ms check-target:macos_arm64 @992d27dd3135+wt
-fail/borrow/write_only_reference_aggregate_conditional_replacement_loan rejected 341ms expected @992d27dd3135+wt
-	machine `replace` stores a borrowed value without a complete normal-exit backing relation
-	call stores a borrowed value without a complete destination/backing relation
-	statement 5 mutates `main.left.value` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 6)
-fail/borrow/write_only_reference_aggregate_replacement_detached_loan rejected 320ms expected @992d27dd3135+wt
-	statement 6 mutates `main.left.value` while local borrow `old` is still active (borrowed at statement 4; its last use is at statement 7)
-fail/borrow/write_only_reference_aggregate_replacement_new_loan rejected 322ms expected @992d27dd3135+wt
-	statement 6 mutates `main.right.value` while local borrow `held` is still active (borrowed at statement 4; its last use is at statement 7)
-fail/borrow/write_only_stored_pointer_observation rejected 133ms expected @992d27dd3135+wt
-	machine `replace` state `entry` forms `&write` from an unsupported projection or computed expression; the current checked slice supports explicit attenuation of a whole parameter, an exact direct-reborrow local, or a content-independent path through eligible relevant record fields and proven-in-bounds fixed-array indexes with non-observing selectors whose declared `&write` referee carries exactly the same type
-fail/borrow/write_only_stored_shared_widening rejected 116ms expected @992d27dd3135+wt
-	machine `replace` state `entry` forms `&write` from an unsupported projection or computed expression; the current checked slice supports explicit attenuation of a whole parameter, an exact direct-reborrow local, or a content-independent path through eligible relevant record fields and proven-in-bounds fixed-array indexes with non-observing selectors whose declared `&write` referee carries exactly the same type
-	write-only argument `slot` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
-fail/borrow/write_only_stored_reference_constraint_loss rejected 115ms expected @992d27dd3135+wt
-	machine `replace` state `entry` lends `slot.value` of type `i32[0..=9]` as `&write` to a parameter declared `&write i32`; a write-only subloan must preserve the callee-declared constraint atoms exactly, so a weaker, stronger, or different referee remains rejected
-	machine `capture` state `entry` captures `slot.value` of type `i32[0..=9]` as `&write i32`; a write-only formation must preserve the declared constraint atoms exactly, so a weaker, stronger, or different referee remains rejected
-	argument `value` for state `entry` expects `&write i32`, got `member access`
-pass/borrow/runtime_write_only_reference_aggregate_capture_exit checked 2785ms check-target:macos_arm64 @992d27dd3135+wt
-fail/traits/prepared_callable_wrong_member_source rejected 239ms expected @992d27dd3135+wt
-	machine `flip` state `entry` does not satisfy trait `Flipping` machine `flip`: conformance borrow contract: callable returned view has a different input-source relation
-pass/traits/prepared_callable_nested_borrow_paths_exit checked 3390ms check-target:macos_arm64 @992d27dd3135+wt
-fail/providers/borrowed_binding_local_fabricated_carrier rejected 123ms expected @619f89e4fed6+wt
-	opaque boundary data `Binding` has no public constructor; a boundary provider must establish its values
-fail/providers/occurrence_region_binding_conflicting_inputs rejected 42ms expected @619f89e4fed6+wt
-	call to `entry` has conflicting ordinary borrow constraints for an erased lifetime
-	call to `entry` has conflicting ordinary borrow constraints for an erased lifetime
-fail/traits/conformance_phantom_foreign_captured_operand rejected 253ms expected @619f89e4fed6+wt
-	conformance `Mapped satisfies Reader` parameter `Value` uses undeclared lifetime argument `'same' in `Marker`; declare it in the owner's generic parameter list
-pass/providers/occurrence_region_binding_exit checked 3567ms check-target:macos_arm64 @619f89e4fed6+wt
-pass/providers/occurrence_region_binding_forwarding_exit checked 3577ms check-target:macos_arm64 @619f89e4fed6+wt
-pass/providers/occurrence_region_binding_projected_type_exit checked 3577ms check-target:macos_arm64 @619f89e4fed6+wt
-pass/traits/default_row_nested_captured_reference_exit checked 3567ms check-target:macos_arm64 @619f89e4fed6+wt

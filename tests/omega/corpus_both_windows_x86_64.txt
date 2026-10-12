@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 8, "jobs": null, "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 32, "jobs": null, "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/runtime_dispatch_cast_decisions_exit built 3510ms exit:70 interpreter-exit:70 interpreter:agrees @6dd207b5fbb6+wt
 pass/borrows/interleaved_parameter_field_replacement_exit built 8195ms exit:70 interpreter-exit:70 interpreter:agrees @5b40b0f7256d
 pass/borrows/qualified_byte_owner_exclusive_call_exit built 5310ms exit:70 interpreter-exit:70 interpreter:agrees @e399918ecace+wt
@@ -33,6 +33,12 @@ pass/domains/named_subject_capacity_identity_exit built 5855ms exit:70 interpret
 pass/float/runtime_total_order_satisfiers_exit built 74829ms exit:70 interpreter-exit:70 interpreter:agrees @6d9868469d56+wt
 pass/generics/runtime_const_container_methods_exit built 6084ms exit:70 interpreter-exit:70 interpreter:agrees @0bb2f2c02dae+wt
 pass/generics/runtime_container_setter_matrix_exit built 5872ms exit:1 interpreter-exit:1 interpreter:agrees @506354b3cca3+wt
+pass/host/console_exit_process_exit built 8308ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @d041496df109
+pass/host/process_exit_after_zero_payload_construction built 7810ms exit:70 interpreter-exit:70 interpreter:agrees @d041496df109
+pass/host/process_exit_explicit_standalone_domain_exit built 7614ms exit:70 interpreter-exit:70 interpreter:agrees @d041496df109
+pass/host/process_exit_i32_status_mapped built 7682ms @d041496df109
+pass/host/process_exit_i32_status_ordered built 8787ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @d041496df109
+pass/host/process_exit_preserves_scalar_contract built 8902ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @d041496df109
 pass/host/runtime_console_bounded_line_cr_midline_exit built 10842ms exit:14 stdout:match interpreter-exit:14 interpreter-stdout:match interpreter:agrees @da842c101400+wt
 pass/host/runtime_console_bounded_line_eof_repeat_exit built 10996ms exit:21 interpreter-exit:21 interpreter:agrees @da842c101400+wt
 pass/host/runtime_console_bounded_line_exit built 13411ms exit:20 interpreter-exit:20 interpreter:agrees @198b139eb8ff+wt
@@ -41,6 +47,10 @@ pass/host/runtime_console_bounded_line_lf_exit built 13373ms exit:13 stdout:matc
 pass/host/runtime_console_bounded_line_middle_window_exit built 13360ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @198b139eb8ff+wt
 pass/host/runtime_console_bounded_line_nul_crlf_exit built 10777ms exit:14 stdout:match interpreter-exit:14 interpreter-stdout:match interpreter:agrees @da842c101400+wt
 pass/host/runtime_console_bounded_line_partial_eof_exit built 13378ms exit:22 stdout:match interpreter-exit:22 interpreter-stdout:match interpreter:agrees @198b139eb8ff+wt
+pass/host/runtime_console_byte_echo_exit built 8390ms exit:70 interpreter-exit:70 interpreter:agrees @d041496df109
+pass/host/runtime_console_byte_payload_bounds_exit built 8406ms exit:70 interpreter-exit:70 interpreter:agrees @d041496df109
+pass/host/runtime_fixed_arithmetic_across_console_exit built 8426ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @d041496df109
+pass/host/runtime_foreign_scalar_loan_writeback_exit built 8475ms exit:70 interpreter-exit:70 interpreter:agrees @d041496df109
 pass/layouts/authored_layout_query_names_exit built 40883ms exit:0 interpreter-exit:0 interpreter:agrees @cde8fd7883a1
 pass/layouts/portable_data_layout_queries rejected 162ms interpreter:unchecked @cde8fd7883a1
 	unimplemented: `size_of` requires a portable Terminal data-layout query; native layout must not rewrite the checked source

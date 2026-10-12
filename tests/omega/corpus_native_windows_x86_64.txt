@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 8, "jobs": null, "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 32, "jobs": null, "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 302ms @0484de104502
 pass/arithmetic/anonymous_rational_integer_landing checked 306ms @0484de104502
 pass/arithmetic/bounded_assignment checked 323ms @0484de104502
@@ -597,9 +597,12 @@ pass/generics/runtime_generic_multiple_specializations_exit built 1213ms @7fc7a3
 pass/generics/runtime_mixed_generic_erased_sum_exit built 1357ms @7fc7a3a06d34
 pass/generics/runtime_nested_generic_instantiations_exit built 1365ms @7fc7a3a06d34
 pass/generics/runtime_value_generic_subject_exit built 1279ms @7fc7a3a06d34
-pass/host/console_exit_process_exit built 3182ms exit:70 stdout:match @a23a13432354+wt
+pass/host/console_exit_process_exit built 8442ms exit:70 stdout:match @d041496df109
+pass/host/process_exit_after_zero_payload_construction built 7617ms exit:70 @d041496df109
+pass/host/process_exit_explicit_standalone_domain_exit built 7879ms exit:70 @d041496df109
 pass/host/process_exit_i32_status_mapped built 955ms @0484de104502
 pass/host/process_exit_i32_status_ordered built 4071ms exit:70 stdout:match @a23a13432354+wt
+pass/host/process_exit_preserves_scalar_contract built 8732ms exit:70 stdout:match @d041496df109
 pass/host/runtime_console_bounded_line_cr_midline_exit built 9373ms exit:14 stdout:match @da842c101400+wt
 pass/host/runtime_console_bounded_line_eof_repeat_exit built 9446ms exit:21 @da842c101400+wt
 pass/host/runtime_console_bounded_line_exit built 3258ms exit:20 @f493df928d32+wt
@@ -608,13 +611,15 @@ pass/host/runtime_console_bounded_line_lf_exit built 3283ms exit:13 stdout:match
 pass/host/runtime_console_bounded_line_middle_window_exit built 3156ms exit:70 stdout:match @f493df928d32+wt
 pass/host/runtime_console_bounded_line_nul_crlf_exit built 9527ms exit:14 stdout:match @da842c101400+wt
 pass/host/runtime_console_bounded_line_partial_eof_exit built 3310ms exit:22 stdout:match @f493df928d32+wt
-pass/host/runtime_console_byte_echo_exit rejected 1169ms @7fc7a3a06d34
-	selected compiler intrinsic `<selected target>::ConsoleNativeProvider::satisfies::Console` for Terminal boundary `named-callable(path(Console::read_byte),parameters(),result-dispatch())` has no closed native catalog identity
-	selected compiler intrinsic `<selected target>::ConsoleNativeProvider::satisfies::Console` for Terminal boundary `named-callable(path(Console::write_byte),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has no closed native catalog identity
+pass/host/runtime_console_byte_echo_exit built 8384ms exit:70 @d041496df109
+pass/host/runtime_console_byte_payload_bounds_exit built 8397ms exit:70 @d041496df109
+pass/host/runtime_fixed_arithmetic_across_console_exit built 8365ms exit:0 stdout:match stderr:match @d041496df109
+pass/host/runtime_foreign_scalar_loan_writeback_exit built 8406ms exit:70 @d041496df109
 pass/host/runtime_gui_foreground_window_exit rejected 1016ms @0484de104502
 	selected ProgramEntry Binding field `Main::gui` requires a selected Fused provider for boundary `Gui`
 pass/host/runtime_gui_window_lifecycle_exit rejected 1049ms @0484de104502
 	selected ProgramEntry Binding field `Main::gui` requires a selected Fused provider for boundary `Gui`
+pass/host/std_clock_sleep_exit built 9183ms exit:70 @d041496df109
 pass/inline_asm/asm_aarch64_system_registers_compile rejected 481ms @0484de104502
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`Main::main` has no admitted body (local construction stopped at call operation: target state, statement 0)") })
 pass/inline_asm/asm_block_jmp_state built 491ms @0484de104502
