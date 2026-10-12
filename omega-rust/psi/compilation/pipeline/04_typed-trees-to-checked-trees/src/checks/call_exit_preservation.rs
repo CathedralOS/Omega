@@ -77,8 +77,15 @@ pub(super) fn record(
                     let Ok(ordinal) = u32::try_from(ordinal) else {
                         continue;
                     };
-                    let role = checked_trees::CheckedScalarExpressionRole::TransitionArgument {
-                        argument_ordinal: ordinal,
+                    let continuation = exit.kind == FlowClaimJoinExitKind::TransitionContinuation;
+                    let role = if continuation {
+                        checked_trees::CheckedScalarExpressionRole::TransitionContinuationArgument {
+                            argument_ordinal: ordinal,
+                        }
+                    } else {
+                        checked_trees::CheckedScalarExpressionRole::TransitionArgument {
+                            argument_ordinal: ordinal,
+                        }
                     };
                     let scalar = facts
                         .values
@@ -95,8 +102,14 @@ pub(super) fn record(
                         .located_term_at(
                             state.symbol,
                             statement_index,
-                            checked_trees::CheckedProofTermRole::TransitionArgument {
-                                argument_ordinal: ordinal,
+                            if continuation {
+                                checked_trees::CheckedProofTermRole::TransitionContinuationArgument {
+                                    argument_ordinal: ordinal,
+                                }
+                            } else {
+                                checked_trees::CheckedProofTermRole::TransitionArgument {
+                                    argument_ordinal: ordinal,
+                                }
                             },
                         )
                         .filter(|term| term.expression == argument);

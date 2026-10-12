@@ -1052,8 +1052,14 @@ impl StateGraphEmission<'_, '_> {
                     checked,
                     state.state,
                     edge.statement_ordinal,
-                    CheckedScalarExpressionRole::TransitionArgument {
-                        argument_ordinal: argument.argument_ordinal,
+                    if edge.is_continuation {
+                        CheckedScalarExpressionRole::TransitionContinuationArgument {
+                            argument_ordinal: argument.argument_ordinal,
+                        }
+                    } else {
+                        CheckedScalarExpressionRole::TransitionArgument {
+                            argument_ordinal: argument.argument_ordinal,
+                        }
                     },
                 )?;
                 crate::proofs::crash_routes::lowered_direct_scalar_term(
