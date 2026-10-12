@@ -45,11 +45,13 @@ pub(super) fn index_arguments_equal(
         program,
         IndexIdentityArgument::TypeReference(actual),
         substitutions,
+        typed_trees::type_identity::TypeIdentityQualification::Ordinary,
     )
     .zip(normalized_index_identity(
         program,
         IndexIdentityArgument::TypeReference(expected),
         substitutions,
+        typed_trees::type_identity::TypeIdentityQualification::Ordinary,
     ))
     .is_some_and(|(actual, expected)| actual == expected)
 }
@@ -132,11 +134,13 @@ pub(crate) fn bound_index_expressions_equal(
         program,
         IndexIdentityArgument::Expression(actual),
         &bindings,
+        typed_trees::type_identity::TypeIdentityQualification::Ordinary,
     )
     .zip(normalized_index_identity(
         program,
         IndexIdentityArgument::Expression(expected),
         &bindings,
+        typed_trees::type_identity::TypeIdentityQualification::Ordinary,
     ))
     .is_some_and(|(actual, expected)| actual == expected)
 }

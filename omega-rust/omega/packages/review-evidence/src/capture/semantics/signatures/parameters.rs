@@ -13,8 +13,8 @@ use super::super::types::project_data_properties;
 use crate::capture::PackageReviewInput;
 use crate::record::{
     PackageReviewCrashRoute, PackageReviewMachineParameterContract,
-    PackageReviewMachineParameterSignature, PackageReviewSignatureParameter,
-    PackageReviewPropositionParameterSignature, PackageReviewPropositionParameterValue,
+    PackageReviewMachineParameterSignature, PackageReviewPropositionParameterSignature,
+    PackageReviewPropositionParameterValue, PackageReviewSignatureParameter,
     PackageReviewTypeParameter, PackageReviewTypeParameterKind,
 };
 use diagnostics::Diagnostic;
@@ -284,6 +284,7 @@ fn project_machine_parameter_contract_inner(
             let contracts = project_contracts(
                 checked_source,
                 checked_source.state_signature_contracts(source_signature),
+                source_signature.where_facts,
                 &context,
                 &binders,
             )?;

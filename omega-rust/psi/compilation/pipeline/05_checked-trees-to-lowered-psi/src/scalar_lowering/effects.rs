@@ -23,6 +23,20 @@ pub(crate) fn emit(
 ) -> Result<(), LoweringError> {
     for effect in effects {
         match effect {
+            LoweredScalarEffect::StructuralCompletion { parameter, claims } => {
+                let claims = crate::emission::claim_bindings::emit_establishment_claims(
+                    claims,
+                    &mut calls.claims,
+                )?;
+                if operations
+                    .structural_completions
+                    .iter()
+                    .any(|(prior, _)| prior.place == parameter.place)
+                {
+                    return unsupported("structural completion published twice");
+                }
+                operations.complete_structural_value(parameter.clone(), claims);
+            }
             LoweredScalarEffect::EstablishReference {
                 storage,
                 state,

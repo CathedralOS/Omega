@@ -1094,8 +1094,13 @@ fn validate_foreign_calls(
                 owner: call.owner,
             });
         }
-        if call.same_stack_contribution.provider_plan_report_identity()
-            != call.provider_execution.provider_plan_report_identity
+        let direct_origin = match call.same_stack_contribution.provider_plan_commitment() {
+            task_plans::SameStackExecutionCommitment::SelectedProvider(_) => None,
+            task_plans::SameStackExecutionCommitment::DirectForeign(commitment) => Some(commitment),
+        };
+        if direct_origin != call.provider_execution.direct_foreign_realization
+            || call.same_stack_contribution.provider_plan_report_identity()
+                != call.provider_execution.provider_plan_report_identity
         {
             return Err(ObjectError::ForeignStackProviderPlanMismatch {
                 caller: function.machine,

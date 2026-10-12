@@ -21,7 +21,7 @@ pub(in crate::legalization) fn validate_boundary_origins(
         for operation in function.graph.operations() {
             // Normalized bindings name provider requirements; the original
             // boundary remains the portable call contract. Rejoin the exact
-            // admitted family relation here, where the artifact receipt is
+            // admitted provider relation here, where the artifact receipt is
             // available, before operation-local placement validation.
             if let TargetUnitOperation::NormalizedForeignCall {
                 boundary,
@@ -30,60 +30,54 @@ pub(in crate::legalization) fn validate_boundary_origins(
                 ..
             } = operation
             {
+                if binding.direct_foreign_realization()
+                    != provider_execution.direct_foreign_realization()
+                {
+                    return Err(LegalizationError::custody());
+                }
                 let declaration = unit
                     .boundary_machine(*boundary)
                     .ok_or_else(LegalizationError::custody)?;
-                // The admitted contribution indexes the selection identity
-                // table, carried beside the family realizations; the unit
-                // table only resolves the boundary's own identities.
-                let binding_identities = input
-                    .map(|input| input.target_family_realization_identities())
-                    .unwrap_or(&unit.identities);
-                if binding.requirement_identity(binding_identities)
-                    != unit.identities.text(declaration.identity)
-                {
-                    let input = input.ok_or_else(LegalizationError::custody)?;
-                    let plan_commitment = match &binding.mechanism {
-                        target_operations::NormalizedForeignCallMechanism::Import {
-                            same_stack_contribution,
-                            ..
-                        } => same_stack_contribution
-                            .provider_plan_commitment()
-                            .as_bytes(),
-                        target_operations::NormalizedForeignCallMechanism::SystemCall(kernel) => {
-                            kernel.provider_plan_commitment
-                        }
-                    };
-                    if !input.target_family_realizations().iter().any(|row| {
-                        row.terminal == native.psi
-                            && *row.provider_plan_digest.as_bytes() == plan_commitment
-                            && target::TargetProfile::from_canonical_target_name(&row.target)
-                                .is_ok_and(|profile| {
-                                    profile.native_realization() == Some(native.target)
-                                })
-                            && ((row.head == *boundary
-                                && unit.identities.text(declaration.identity)
-                                    == input
-                                        .target_family_realization_identities()
-                                        .text(row.head_identity))
-                                || (row.member == *boundary
-                                    && unit.identities.text(declaration.identity)
-                                        == input
-                                            .target_family_realization_identities()
-                                            .text(row.member_identity)))
-                            && input
-                                .target_family_realization_identities()
-                                .text(row.selected_requirement_identity)
-                                == binding.requirement_identity(
-                                    input.target_family_realization_identities(),
-                                )
-                            && row.provider_plan_report_identity
-                                == binding.provider_plan_report_identity()
-                            && row.provider_plan_report_identity
-                                == provider_execution.provider_plan_report_identity().get()
-                    }) {
+                if provider_execution.direct_foreign_realization().is_some() {
+                    if binding.requirement_identity(&unit.identities)
+                        != unit.identities.text(declaration.identity)
+                    {
                         return Err(LegalizationError::custody());
                     }
+                    continue;
+                }
+                // Original selected requirements and public applications use
+                // different owning tables. Consume the actual stage-00 receipt
+                // for both equal and different identities; selected catalog
+                // membership or a planning report cannot supply this cut.
+                let input = input.ok_or_else(LegalizationError::custody)?;
+                let selected_identities = input.selected_provider_identities();
+                let plan_commitment = match &binding.mechanism {
+                    target_operations::NormalizedForeignCallMechanism::Import {
+                        same_stack_contribution,
+                        ..
+                    } => same_stack_contribution
+                        .provider_plan_commitment()
+                        .as_bytes(),
+                    target_operations::NormalizedForeignCallMechanism::SystemCall(kernel) => {
+                        kernel.provider_plan_commitment
+                    }
+                };
+                if !input
+                    .admitted_provider_correspondences()
+                    .iter()
+                    .any(|receipt| {
+                        receipt.matches_public_boundary(native.psi, *boundary, declaration.identity)
+                            && receipt.target() == native.target
+                            && *receipt.provider_plan_digest().as_bytes() == plan_commitment
+                            && selected_identities.text(receipt.selected_requirement())
+                                == binding.requirement_identity(selected_identities)
+                            && receipt.provider_plan_report_identity()
+                                == binding.provider_plan_report_identity()
+                            && receipt.matches_execution(*provider_execution)
+                    })
+                {
+                    return Err(LegalizationError::custody());
                 }
                 continue;
             }

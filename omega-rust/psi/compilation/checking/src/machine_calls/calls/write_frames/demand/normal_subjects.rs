@@ -32,8 +32,42 @@ impl<'program> CallFrameResolver<'program> {
         expression: ExpressionHandle,
         parameters: &[StateParameter],
     ) -> Option<Vec<InvocationReferenceSubject>> {
+        let requested = parameters
+            .iter()
+            .map(|parameter| parameter.symbol)
+            .collect::<Vec<_>>();
+        self.call_reference_subjects(
+            machine,
+            expression,
+            parameters,
+            &requested,
+            &self.expression_write_frame(machine, expression),
+        )
+    }
+
+    /// Dependency-projected subjects of the same exact invocation. Unused
+    /// owned operands grant no reference relation and require no isolation.
+    pub(crate) fn expression_call_reference_subjects_for_parameters(
+        &self,
+        machine: &'program Machine,
+        expression: ExpressionHandle,
+        parameters: &[StateParameter],
+        requested: &[SymbolHandle],
+        writes: &facts::NormalizedWriteFrame,
+    ) -> Option<Vec<InvocationReferenceSubject>> {
+        self.call_reference_subjects(machine, expression, parameters, requested, writes)
+    }
+
+    fn call_reference_subjects(
+        &self,
+        machine: &'program Machine,
+        expression: ExpressionHandle,
+        parameters: &[StateParameter],
+        requested: &[SymbolHandle],
+        writes: &facts::NormalizedWriteFrame,
+    ) -> Option<Vec<InvocationReferenceSubject>> {
         let program = self.program;
-        let call = program.expression_table.call_node(expression)?;
+        let call = program.expression_table.source_call_node(expression)?;
         let arguments = program.expression_table.expression_handles(call.arguments);
         let leading_operands =
             if let Some(slot) = program.dynamic_slot_by_symbol(call.target_symbol) {
@@ -65,10 +99,12 @@ impl<'program> CallFrameResolver<'program> {
         }
         if !parameters
             .iter()
+            .filter(|parameter| requested.contains(&parameter.symbol))
             .any(|parameter| crate::reference_shell(program, parameter.type_reference).is_some())
         {
             return parameters
                 .iter()
+                .filter(|parameter| requested.contains(&parameter.symbol))
                 .all(|parameter| self.proof_value_is_caller_isolated(parameter.type_reference))
                 .then(Vec::new);
         }
@@ -77,7 +113,6 @@ impl<'program> CallFrameResolver<'program> {
         }
         let (state, _, index) =
             caller_statement_owner(program, machine, CallerWriteSite::Expression(expression))?;
-        let writes = self.expression_may_write_paths(machine, expression)?;
         let origins = self.expression_call_write_origins(machine, expression)?;
         if origins.arguments.len() != arguments.len() {
             return None;
@@ -87,6 +122,9 @@ impl<'program> CallFrameResolver<'program> {
             .iter()
             .zip(origins.arguments.get(leading_operands..)?)
         {
+            if !requested.contains(&parameter.symbol) {
+                continue;
+            }
             let Some(shell) = crate::reference_shell(program, parameter.type_reference) else {
                 // An owned aggregate can itself carry live reference leaves.
                 // A detached whole-value term is not their post-state relation.
@@ -125,9 +163,11 @@ impl<'program> CallFrameResolver<'program> {
                 source: source.clone(),
                 type_reference,
                 preserved_on_return: !parameter.is_mutable
-                    && !writes
-                        .iter()
-                        .any(|written| super::frame_paths_overlap(written, &source.path)),
+                    && writes.complete_paths().is_some_and(|writes| {
+                        !writes
+                            .iter()
+                            .any(|written| super::frame_paths_overlap(written, &source.path))
+                    }),
             });
         }
         Some(subjects)

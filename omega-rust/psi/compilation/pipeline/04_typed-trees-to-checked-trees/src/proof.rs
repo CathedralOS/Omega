@@ -48,6 +48,7 @@ use obligations::lower_proof_obligation;
 pub(crate) fn build_proof_facts(
     program: &dyn ::validation::CheckingInput,
     proof_plan: &proof::obligations::ProofPlan,
+    accepted: Vec<proof::checker::AcceptedProofJudgment>,
     borrow: &BorrowFacts,
     operators: &CheckedOperatorFacts,
 ) -> Result<ProofFacts, Vec<diagnostics::Diagnostic>> {
@@ -57,9 +58,28 @@ pub(crate) fn build_proof_facts(
     let mut outcome_specific_guarantees = arena::Arena::default();
     let mut evidence_terms = arena::Arena::default();
 
-    for (_, obligation) in proof_plan.obligations.iter() {
-        obligations.append(lower_proof_obligation(obligation));
+    // Accepted rows are produced in obligation order. Publish the exact
+    // source-to-destination handle association in this same pass, without a
+    // lookup table or interpreting a source handle as a destination handle.
+    let mut accepted = accepted.into_iter().peekable();
+    let mut accepted_judgments = arena::Arena::with_capacity(accepted.len());
+    for (source, obligation) in proof_plan.obligations.iter() {
+        let destination = obligations.append(lower_proof_obligation(obligation));
+        while accepted
+            .peek()
+            .is_some_and(|judgment| judgment.obligation == source)
+        {
+            let judgment = accepted.next().expect("peeked accepted judgment");
+            accepted_judgments.append(checked_trees::CheckedProofJudgment {
+                obligation: destination,
+                accepted: Some(judgment.accepted),
+            });
+        }
     }
+    debug_assert!(
+        accepted.next().is_none(),
+        "all accepted rows retain their original obligation"
+    );
 
     for machine in program.machines() {
         append_machine_contract_facts(program, machine, &mut contract_facts, &mut evidence_terms);
@@ -175,18 +195,18 @@ pub(crate) fn build_proof_facts(
             &mut contract_facts,
             &mut evidence_terms,
         );
-        for requirement in program.trait_machine_signatures(trait_definition) {
-            append_parameter_evidence_contract_facts(
-                program,
-                program.state_signature_type_parameters(requirement),
-                &mut contract_facts,
-                &mut evidence_terms,
-            );
-        }
+    }
+    for (trait_definition, requirement) in program.public_trait_requirement_signatures() {
+        append_parameter_evidence_contract_facts(
+            program,
+            program.state_signature_type_parameters(requirement),
+            &mut contract_facts,
+            &mut evidence_terms,
+        );
         append_state_signature_contract_facts(
             program,
             trait_definition.symbol,
-            program.trait_machine_signatures(trait_definition),
+            std::slice::from_ref(requirement),
             &mut contract_facts,
             &mut evidence_terms,
         );
@@ -208,6 +228,7 @@ pub(crate) fn build_proof_facts(
 
     Ok(ProofFacts {
         obligations,
+        accepted_judgments,
         contract_facts,
         inherited_contract_scopes,
         outcome_specific_guarantees,

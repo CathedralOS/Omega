@@ -6,7 +6,7 @@
 //! type rows or treating an unprepared generic carrier as reference-free.
 
 use symbols::SymbolHandle;
-use typed_trees::data::{DataDefinition, TypeParameterKind};
+use typed_trees::data::{DataDefinition, TypeParameter, TypeParameterKind};
 use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -118,18 +118,8 @@ impl DeclarationScopes {
             .type_reference_table
             .type_reference_handles(*arguments);
         let definition = unique_data_definition(program, *base_symbol)?;
-        let parameters = program.data_type_parameters(definition);
-        if parameters.len() != arguments.len()
-            || lifetime_arguments.len() != definition.lifetime_parameters.len()
-            || parameters.iter().any(|parameter| {
-                !parameter.symbol.is_valid() || !matches!(parameter.kind, TypeParameterKind::Type)
-            })
-            || arguments.iter().any(|argument| {
-                !program
-                    .type_reference_table
-                    .contains_type_reference(*argument)
-            })
-        {
+        let parameters = storage_application_parameters(program, definition, arguments)?;
+        if lifetime_arguments.len() != definition.lifetime_parameters.len() {
             return None;
         }
         let parent = scope;
@@ -196,11 +186,43 @@ pub(crate) fn unique_data_definition(
     definitions.next().is_none().then_some(definition)
 }
 
-/// Push one generic application's formal→actual bindings and return its data
-/// definition. Every parameter must be a runtime `Type` binder with a valid
-/// symbol and a supplied argument; anything else stays uninspectable, and no
-/// bindings are pushed. Callers record `bindings.len()` beforehand and
-/// truncate afterward so the entries cannot leak into a sibling walk.
+/// The original data telescope and supplied operands own storage substitution.
+/// Const/Value indices accompany Type operands; they are not themselves stored
+/// field types. Code and proof binders need their separate application owners.
+/// This reader installs an already checked tuple, never admits its bounds or
+/// proves that its substituted fields are reference-free.
+fn storage_application_parameters<'program>(
+    program: &'program dyn crate::CheckingInput,
+    definition: &'program DataDefinition,
+    arguments: &[TypeReferenceHandle],
+) -> Option<&'program [TypeParameter]> {
+    let parameters = program.data_type_parameters(definition);
+    if parameters.len() != arguments.len()
+        || parameters.iter().any(|parameter| {
+            !parameter.symbol.is_valid()
+                || program.symbols.get(parameter.symbol).parent != definition.symbol
+                || program.symbols.get(parameter.symbol).kind != symbols::SymbolKind::TypeParameter
+                || !matches!(
+                    parameter.kind,
+                    TypeParameterKind::Type
+                        | TypeParameterKind::Const { .. }
+                        | TypeParameterKind::Value { .. }
+                )
+        })
+        || arguments.iter().any(|argument| {
+            !program
+                .type_reference_table
+                .contains_type_reference(*argument)
+        })
+    {
+        return None;
+    }
+    Some(parameters)
+}
+
+/// Push one complete Type/Const/Value data application's original formal→actual
+/// bindings. Failure leaves the scope untouched. Callers record `bindings.len()`
+/// beforehand and truncate afterward so entries cannot leak into a sibling walk.
 pub(crate) fn push_generic_application_bindings<'program>(
     program: &'program dyn crate::CheckingInput,
     base_symbol: SymbolHandle,
@@ -208,14 +230,7 @@ pub(crate) fn push_generic_application_bindings<'program>(
     bindings: &mut TypeBindings,
 ) -> Option<&'program DataDefinition> {
     let definition = unique_data_definition(program, base_symbol)?;
-    let parameters = program.data_type_parameters(definition);
-    if parameters.len() != arguments.len()
-        || parameters.iter().any(|parameter| {
-            !parameter.symbol.is_valid() || !matches!(parameter.kind, TypeParameterKind::Type)
-        })
-    {
-        return None;
-    }
+    let parameters = storage_application_parameters(program, definition, arguments)?;
     // Resolve each actual through the bindings already in scope so a nested
     // application records the outer instantiation, not a formal name that
     // only the sibling walk could read.

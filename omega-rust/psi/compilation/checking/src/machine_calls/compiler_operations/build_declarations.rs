@@ -9,52 +9,78 @@ use super::exact_build_prelude_data;
 use language_semantics::declaration_selection::BuildOperation;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
+use typed_trees::references::StaticArgumentCall;
+
+/// The declaration category owned by one designated, non-executing operand.
+/// Each designated operand keeps its original Product declaration role.
+/// A callable requirement and a whole interface have different telescopes.
+pub use typed_trees::typed_trees::product_applications::ProductDeclarationKind;
+
+/// The category of one original operand of an already admitted Build operation.
+/// Tuple descriptions and closed provider/service descriptions share selection
+/// custody; forming a requirement tuple remains a separate admission duty.
+pub fn build_declaration_operand_kind(
+    operation: BuildOperation,
+    argument_index: usize,
+) -> Option<ProductDeclarationKind> {
+    match (operation, argument_index) {
+        (BuildOperation::AssumedBindingContract, 0 | 1) => {
+            Some(ProductDeclarationKind::BoundaryRequirement)
+        }
+        (BuildOperation::ProviderSelection, 0) | (BuildOperation::ServiceExclusion, 0) => {
+            Some(ProductDeclarationKind::ProviderSubject)
+        }
+        (BuildOperation::ProviderSelection, 1) => Some(ProductDeclarationKind::ProviderType),
+        _ => None,
+    }
+}
 
 pub fn is_build_declaration_selection(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
-    use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
-    let Some(call) = program.expression_table.call_node(expression) else {
-        return false;
-    };
-    matches!(
-        super::classify_expression_call_intrinsic(program, call),
-        Some(Intrinsic::BuildProviderSelection | Intrinsic::BuildServiceExclusion)
-    )
+    program
+        .expression_table
+        .call_node(expression)
+        .is_some_and(|call| {
+            build_operation_for_call(program, StaticArgumentCall::Expression(expression, call))
+                .and_then(|operation| build_declaration_operand_kind(operation, 0))
+                .is_some()
+        })
 }
 
-/// Rejoin a designated product operand only after exact operation admission.
-/// Provider slots admit boundary requirements and operator families; service
-/// exclusions admit only a boundary trait, never its implementation.
-pub fn resolve_build_declaration_operand(
+/// Consume the original selected declaration, never a normalized type graph or
+/// another resolution of its spelling. Both expression and statement finalizers
+/// use the same call/application coordinate. Ordinary calls retain their original
+/// operand symbol in the source application; Build descriptions use its Product
+/// payload owner. A missing Product selection never falls through to that symbol.
+pub fn resolve_static_argument_selection(
     program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-    argument_index: usize,
-    occurrence: source::SourceSpan,
+    call: StaticArgumentCall<'_>,
+    position: language_semantics::declaration_selection::StaticArgumentPosition,
 ) -> Option<SymbolHandle> {
-    if !is_build_declaration_selection(program, expression) {
-        return None;
-    }
-    let call = program.expression_table.call_node(expression)?;
-    let service = BuildOperation::from_call_target(call.target.as_str())
-        == Some(BuildOperation::ServiceExclusion);
-    let selected = resolve_product_operand(
-        program,
-        call.machine_arguments.get(argument_index)?,
-        occurrence,
-        service || argument_index == 0,
-    )?;
-    if service
-        && !program
-            .product_declarations()
-            .traits()
-            .iter()
-            .any(|definition| definition.symbol == selected && definition.is_boundary)
+    if let Some(operation) = build_operation_for_call(program, call)
+        && build_declaration_operand_kind(operation, position.argument_index).is_some()
     {
-        return None;
+        let operand =
+            program.product_declaration_operand(call.application(), position.argument_index)?;
+        if position.descendant_ordinal == 0 {
+            return operand
+                .declaration
+                .is_valid()
+                .then_some(operand.declaration);
+        }
+        let mut selections = operand
+            .owner
+            .product_static_argument_selections
+            .span_or_empty(operand.declaration_selections)
+            .iter()
+            .filter(|selection| selection.descendant_ordinal == position.descendant_ordinal);
+        let selected = selections.next()?.declaration;
+        return (selected.is_valid() && selections.next().is_none()).then_some(selected);
     }
-    Some(selected)
+    let argument = call.argument_at(program.typed_program(), position)?;
+    argument.symbol.is_valid().then_some(argument.symbol)
 }
 
 pub fn provider_selection_expressions(
@@ -146,33 +172,169 @@ fn exact_mutable_build_argument(
 
 /// Resolve an already classified product operand, never an ordinary static use.
 /// The collector of an executed selection independently rejoins the same path.
-pub fn resolve_product_operand(
+pub fn resolve_product_declaration(
     program: &dyn crate::CheckingInput,
     argument: &StaticMachineArgument,
     occurrence: source::SourceSpan,
-    subject: bool,
+    kind: ProductDeclarationKind,
 ) -> Option<SymbolHandle> {
+    if matches!(kind, ProductDeclarationKind::BoundaryRequirement) {
+        return super::resolve_product_requirement(program, argument, occurrence)
+            .map(|selection| selection.declaration);
+    }
     typed_trees::product_operand::resolve_product_operand(
         program.typed_program(),
         argument,
         occurrence,
-        subject,
+        matches!(kind, ProductDeclarationKind::ProviderSubject),
     )
 }
 
 /// Classify the exact compiler Build operation, not an ordinary same-named call.
+/// Statement and expression forms retain their existing admission boundaries.
+pub fn build_operation_for_call(
+    program: &dyn crate::CheckingInput,
+    call: StaticArgumentCall<'_>,
+) -> Option<BuildOperation> {
+    let (target, intrinsic) = match call {
+        StaticArgumentCall::Expression(_, call) => (
+            call.target.as_str(),
+            super::classify_expression_call_intrinsic(program, call),
+        ),
+        StaticArgumentCall::Statement(call) => (
+            call.target.as_str(),
+            super::classify_statement_call_intrinsic(program, call),
+        ),
+    };
+    let intrinsic = super::authored_call_intrinsic(program, call).or(intrinsic);
+    let operation = BuildOperation::from_call_target(target)?;
+    (intrinsic == Some(operation.intrinsic())).then_some(operation)
+}
+
 pub fn build_operation(
     program: &dyn crate::CheckingInput,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Option<language_semantics::declaration_selection::BuildOperation> {
-    let typed_trees::expression::ExpressionNode::Call(call) =
-        program.expression_table.expression(expression)
-    else {
+    expression: ExpressionHandle,
+) -> Option<BuildOperation> {
+    build_operation_for_call(
+        program,
+        StaticArgumentCall::Expression(expression, program.expression_table.call_node(expression)?),
+    )
+}
+
+use typed_trees::product_requirements::product_requirement_schema as requirement_schema;
+/// An exact interface view for ordinary static tuple formation. Trait-owner
+/// binders precede member binders; invocation lifetime families remain separate
+/// from the captured regions of a generic trait owner.
+pub use typed_trees::product_requirements::{
+    ProductDeclarationTelescope, product_requirement_application_declaration,
+};
+
+/// The exact designated Product role determines the original telescope.
+/// A boundary trait subject carries only its outer interface tuple; a callable
+/// requirement carries its outer and member tuple. Neither is executable here.
+pub fn product_application_declaration<'program>(
+    program: &'program typed_trees::TypedTrees,
+    application: &typed_trees::static_applications::StaticMachineApplication,
+    kind: ProductDeclarationKind,
+) -> Option<ProductDeclarationTelescope<'program>> {
+    match kind {
+        ProductDeclarationKind::BoundaryRequirement => {
+            product_requirement_application_declaration(program, application)
+        }
+        ProductDeclarationKind::ProviderSubject => {
+            let declaration =
+                program.trait_definition_by_symbol(application.binding_declaration)?;
+            if !declaration.is_boundary
+                || application.registration_operation != declaration.symbol
+                || application.selected_interface != declaration.symbol
+            {
+                return None;
+            }
+            Some(ProductDeclarationTelescope {
+                symbol: declaration.symbol,
+                name: &declaration.name,
+                parameters: program.trait_type_parameters(declaration).iter().collect(),
+                conformance_bounds: &declaration.conformance_bounds,
+                captured_lifetimes: &declaration.lifetime_parameters,
+                invocation_lifetimes: &[],
+            })
+        }
+        ProductDeclarationKind::ProviderType => None,
+    }
+}
+
+pub fn product_requirement_declaration(
+    program: &typed_trees::TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<ProductDeclarationTelescope<'_>> {
+    let declaration =
+        typed_trees::static_applications::StaticApplicationDeclaration::for_symbol(program, symbol)
+            .ok()?;
+    requirement_schema(program, symbol, SymbolHandle::invalid(), declaration)
+}
+
+pub fn product_requirement_selection_declaration(
+    program: &typed_trees::TypedTrees,
+    selection: super::ProductRequirementSelection,
+) -> Option<ProductDeclarationTelescope<'_>> {
+    let declaration =
+        typed_trees::static_applications::StaticApplicationDeclaration::for_selected_interface(
+            program,
+            selection.declaration,
+            selection.selected_interface,
+        )
+        .ok()?;
+    requirement_schema(
+        program,
+        selection.declaration,
+        selection.selected_interface,
+        declaration,
+    )
+}
+
+/// Closed declaration-only consumers retain their original absence semantics.
+/// Applied requirement consumers use the explicitly owned application row.
+pub fn resolve_product_operand(
+    program: &dyn crate::CheckingInput,
+    argument: &StaticMachineArgument,
+    occurrence: source::SourceSpan,
+    kind: ProductDeclarationKind,
+) -> Option<SymbolHandle> {
+    if argument.application.is_some() {
         return None;
-    };
-    let operation = language_semantics::declaration_selection::BuildOperation::from_call_target(
-        call.target.as_str(),
-    )?;
-    (super::classify_expression_call_intrinsic(program, call) == Some(operation.intrinsic()))
-        .then_some(operation)
+    }
+    if matches!(kind, ProductDeclarationKind::BoundaryRequirement) {
+        let selection = super::resolve_product_requirement(program, argument, occurrence)?;
+        let declaration =
+            product_requirement_selection_declaration(program.product_declarations(), selection)?;
+        if !declaration.parameters.is_empty()
+            || !declaration.conformance_bounds.is_empty()
+            || !declaration.captured_lifetimes.is_empty()
+        {
+            return None;
+        }
+        Some(selection.declaration)
+    } else {
+        resolve_product_declaration(program, argument, occurrence, kind)
+    }
+}
+
+/// The authored call occurrence keeps Product package authority even when a
+/// synthetic enclosing expression span follows receiver or statement lowering.
+pub fn build_declaration_expression_source_span(
+    program: &typed_trees::TypedTrees,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> source::SourceSpan {
+    program
+        .expression_table
+        .authored_selection_occurrences(expression)
+        .filter_map(|occurrence| program.authored_declaration_selections().get(occurrence))
+        .find(|selection| {
+            selection.kind()
+                == language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call
+        })
+        .map_or_else(
+            || program.expression_table.source_span(expression),
+            |selection| selection.source_span(),
+        )
 }

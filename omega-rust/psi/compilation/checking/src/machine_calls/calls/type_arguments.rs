@@ -172,7 +172,7 @@ pub(super) fn callable_type_arguments(
             // retained authored operand remains with static-call admission.
             continue;
         };
-        if !const_selection_matches(program, selected, actual) {
+        if !const_selection_matches(program, &parameter, selected, actual) {
             return None;
         }
     }
@@ -181,11 +181,31 @@ pub(super) fn callable_type_arguments(
 
 fn const_selection_matches(
     program: &dyn crate::CheckingInput,
+    parameter: &typed_trees::data::TypeParameter,
     selected: &StaticMachineArgument,
     actual: TypeReferenceHandle,
 ) -> bool {
-    if let Some(identity) = program.static_const_argument_identity(selected) {
-        return program.normalized_type_identity_text(actual) == identity;
+    let (TypeParameterKind::Const {
+        type_reference: carrier,
+    }
+    | TypeParameterKind::Value {
+        type_reference: carrier,
+    }) = parameter.kind
+    else {
+        return false;
+    };
+    if let Some(identity) = typed_trees::type_identity::declared_const_argument_identity(
+        program.typed_program(),
+        typed_trees::type_identity::IndexIdentityArgument::StaticArgument(selected),
+        carrier,
+        &[],
+    ) {
+        return typed_trees::type_identity::declared_const_argument_identity(
+            program.typed_program(),
+            typed_trees::type_identity::IndexIdentityArgument::TypeReference(actual),
+            carrier,
+            &[],
+        ) == Some(identity);
     }
     matches!(program.type_reference_table.type_reference(actual),
         TypeReferenceNode::Named { symbol, .. }

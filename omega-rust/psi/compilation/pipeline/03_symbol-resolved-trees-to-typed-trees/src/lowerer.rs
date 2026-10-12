@@ -408,6 +408,16 @@ impl Lowerer<'_> {
             // Build-context projection follows typing; no declaration view
             // exists in this freshly lowered source program.
             product_declaration_frontier: _,
+            product_declaration_operands: _,
+            product_static_argument_selections: _,
+            captured_static_lexical_scopes: _,
+            captured_static_value_carriers: _,
+            instantiated_static_applications: _,
+            instantiated_requirement_signatures: _,
+            // Public-header fact copies are produced during later preparation.
+            signature_contract_fact_copies: _,
+            requirement_interface_applications: _,
+            instantiated_requirement_realizations: _,
             excluded_authored_selection_occurrences,
             roots,
             tables,
@@ -425,6 +435,8 @@ impl Lowerer<'_> {
             wire_encode_obligations: _,
             wire_schema_plans: _,
             machine_specializations: _,
+            // Call-owned satisfaction projections are produced in preparation.
+            machine_conformance_applications: _,
             // Checking instantiates selector slots after specialization.
             dynamic_slots: _,
             // Family records are produced after all typed bodies settle.

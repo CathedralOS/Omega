@@ -1,0 +1,6 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "ordinary_where_renamed_symbolic_bool_relation_exit");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+    Build::select_provider<BooleanPolicy, BooleanProvider>(builder);
+    Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
+}

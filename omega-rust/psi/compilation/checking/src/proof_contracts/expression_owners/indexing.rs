@@ -241,14 +241,12 @@ pub(super) fn index_parameter_constraint_environments(
             }
         }
     }
-    for definition in program.traits() {
-        for signature in program.trait_machine_signatures(definition) {
-            index_telescope_parameters(
-                program,
-                program.state_signature_parameters(signature),
-                index,
-            );
-        }
+    for (_, signature) in program.public_trait_requirement_signatures() {
+        index_telescope_parameters(
+            program,
+            program.state_signature_parameters(signature),
+            index,
+        );
     }
     for operator in program.all_operators() {
         index_telescope_parameters(program, program.operator_parameters(operator), index);

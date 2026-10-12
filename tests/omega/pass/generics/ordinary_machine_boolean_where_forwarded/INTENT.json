@@ -1,0 +1,5 @@
+{
+  "status": "authored unexecuted source proposal",
+  "intent": "Symbolic Boolean source callerwhere must imply exact renamed callee predicate; no closure instance or integer-only proof donor.",
+  "diagnostic": "not predicted; root must inspect actual guard"
+}

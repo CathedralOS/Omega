@@ -30,7 +30,7 @@ pub(in crate::machine_calls::calls::write_frames) fn calls_expose_bindings(
     divergent_aliases: &[(String, Vec<FramePlaceOrigin>)],
 ) -> bool {
     caller_aliases::expression_any(program, expression, |expression| {
-        let Some(call) = program.expression_table.call_node(expression) else {
+        let Some(call) = program.expression_table.source_call_node(expression) else {
             return false;
         };
         program

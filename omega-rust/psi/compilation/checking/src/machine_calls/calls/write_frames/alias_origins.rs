@@ -260,6 +260,7 @@ pub(crate) fn stable_alias_initializer_origins(
             stored,
         )?,
         ExpressionNode::Call(call) => {
+            let call = program.expression_table.source_call(call)?;
             if call_is_transparent_mutable_slice_view(program, call) {
                 return stable_alias_initializer_origins(
                     program,
@@ -499,6 +500,7 @@ fn stable_alias_expression_origins(
             allow_isolated_local,
         )?,
         ExpressionNode::Call(call) => {
+            let call = program.expression_table.source_call(call)?;
             if call_is_transparent_mutable_slice_view(program, call) {
                 return stable_alias_expression_origins(
                     program,

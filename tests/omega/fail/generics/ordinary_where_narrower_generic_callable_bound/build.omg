@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "ordinary_where_narrower_generic_callable_bound");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+    Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
+}

@@ -146,6 +146,7 @@ pub enum NormalizedForeignCallMechanism {
 /// the exact supervisor-entry instruction and clobbers in this retained plan.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NormalizedSystemCallBinding {
+    pub direct_foreign_realization: Option<[u8; 32]>,
     pub target: target::TargetProfile,
     pub number: i64,
     pub requirement_identity: String,
@@ -201,6 +202,23 @@ impl NormalizedForeignCallBinding {
         }
     }
 
+    /// Exact direct-origin commitment when the mechanism was admitted for a
+    /// concrete declaration. Selected provider bindings retain `None`.
+    pub fn direct_foreign_realization(&self) -> Option<[u8; 32]> {
+        match &self.mechanism {
+            NormalizedForeignCallMechanism::Import {
+                same_stack_contribution,
+                ..
+            } => match same_stack_contribution.provider_plan_commitment() {
+                task_plans::SameStackExecutionCommitment::DirectForeign(commitment) => {
+                    Some(commitment)
+                }
+                task_plans::SameStackExecutionCommitment::SelectedProvider(_) => None,
+            },
+            NormalizedForeignCallMechanism::SystemCall(kernel) => kernel.direct_foreign_realization,
+        }
+    }
+
     /// Imports retain their ordinary calling policy. Kernel entries instead
     /// require the exact target ABI, including clobbers and supervisor entry;
     /// generic authored-plan validation alone permits weaker promises.
@@ -229,6 +247,10 @@ impl NormalizedForeignCallBinding {
                     result: call.result.as_ref().map(|result| result.shape),
                 };
                 binding.number >= 0
+                    && binding.provider_plan_commitment != [0; 32]
+                    && binding.direct_foreign_realization.is_none_or(|commitment| {
+                        commitment != [0; 32] && commitment == binding.provider_plan_commitment
+                    })
                     && !binding.requirement_identity.is_empty()
                     && binding.provider_plan_report_identity != 0
                     && calling_conventions::evaluate_call_plan(policy, &signature).as_ref()

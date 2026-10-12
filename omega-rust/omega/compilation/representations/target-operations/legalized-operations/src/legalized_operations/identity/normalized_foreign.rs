@@ -141,6 +141,10 @@ pub fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallB
                 bytes,
                 kernel.provider_plan_report_identity.to_le_bytes(),
             );
+            if let Some(commitment) = kernel.direct_foreign_realization {
+                bytes.extend_from_slice(&[0; 32]);
+                bytes.extend_from_slice(&commitment);
+            }
             bytes.extend_from_slice(&kernel.provider_plan_commitment);
             encode_string(bytes, &kernel.requirement_identity);
             encode_call_plan(bytes, &binding.boundary_entry_plan.call);
@@ -162,6 +166,9 @@ pub fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallB
         bytes,
         contribution.provider_plan_report_identity().to_le_bytes(),
     );
+    if contribution.provider_plan_commitment().origin_tag() != 0 {
+        bytes.extend_from_slice(&[0; 32]);
+    }
     bytes.extend_from_slice(&contribution.provider_plan_commitment().as_bytes());
     // The admitted contribution indexes into the module identity table; the
     // canonical encoding writes the index itself so encode and decode round-trip

@@ -1,7 +1,7 @@
 //! Constant evaluation: templates.
 use super::super::{
-    DataMember, Diagnostic, ExpressionNode, HashMap, HashSet, Identifier, Item, StatementNode,
-    SyntaxTrees, TypeConstraintNode, TypeParameterKind, TypeReferenceHandle, TypeReferenceNode,
+    DataMember, Diagnostic, ExpressionNode, HashMap, HashSet, Item, StatementNode, SyntaxTrees,
+    TypeConstraintNode, TypeParameterKind, TypeReferenceHandle, TypeReferenceNode,
 };
 use crate::preparation::generic_data::uses::{
     ConstructorFrontier, collect_expression_handles, collect_statement_expression_handles,
@@ -344,13 +344,10 @@ fn replace_uncaptured_const_names(
     }
 }
 
-/// Generic definitions remain in the tree after their concrete records are
-/// synthesized so the normal frontend can validate the template. A symbolic
-/// const expression cannot cross that boundary yet, so reduce each template
-/// expression to either its concrete value or one declared const-parameter
-/// dependency. The concrete clones already carry the fully evaluated value;
-/// this placeholder exists only to preserve the established generic type/kind
-/// checks on the source template.
+/// Generic definitions remain after their concrete records are synthesized.
+/// Preserve each template's original const graph while reducing closed values
+/// for syntax synthesis. A symbolic graph remains symbolic: a diagnostic
+/// dependency name cannot replace its issuing expression or selected policy.
 pub(in crate::preparation::generic_data) fn normalize_generic_template_const_expressions(
     syntax: &mut SyntaxTrees,
     const_values: &HashMap<String, i128>,
@@ -473,14 +470,11 @@ pub(in crate::preparation::generic_data) fn normalize_template_type_reference(
                         integer_types.get(index).copied().flatten(),
                         warnings,
                     )?;
-                    let name = match placeholder {
-                        EvaluatedConst::Concrete(value) => value.to_string(),
-                        EvaluatedConst::Symbolic(name) => name,
-                    };
-                    syntax.tables.type_references.replace_type_reference(
-                        argument,
-                        TypeReferenceNode::Named(Identifier::generated(name)),
-                    );
+                    if let EvaluatedConst::Concrete(value) = placeholder {
+                        super::replace_integer_argument(syntax, argument, value);
+                    }
+                    // A symbolic result is still the original expression;
+                    // diagnostic text cannot become its semantic operand.
                 } else {
                     normalize_template_type_reference(
                         syntax,
@@ -503,14 +497,9 @@ pub(in crate::preparation::generic_data) fn normalize_template_type_reference(
                 None,
                 warnings,
             )?;
-            let name = match placeholder {
-                EvaluatedConst::Concrete(value) => value.to_string(),
-                EvaluatedConst::Symbolic(name) => name,
-            };
-            syntax.tables.type_references.replace_type_reference(
-                type_reference,
-                TypeReferenceNode::Named(Identifier::generated(name)),
-            );
+            if let EvaluatedConst::Concrete(value) = placeholder {
+                super::replace_integer_argument(syntax, type_reference, value);
+            }
             Ok(())
         }
         TypeReferenceNode::DynamicTrait { .. }
@@ -805,59 +794,107 @@ fn collect_owned_type_reference_positions(
     positions
 }
 
-/// Type owners admitted for original-scope machine constant selection. Public
-/// exposure belongs only to the entry signature, never local/state storage.
-pub(in crate::preparation::generic_data) fn collect_machine_type_reference_positions(
+/// Original declaration type positions, including open generic owners. This
+/// inventory does not specialize templates: value selection must resolve each
+/// operand under its original owner, and free const binders stay unevaluated.
+pub(in crate::preparation::generic_data) fn collect_lexical_type_reference_positions(
     syntax: &SyntaxTrees,
 ) -> (Vec<TypeReferenceHandle>, Vec<TypeReferenceHandle>) {
     let mut positions = Vec::new();
     let mut public_positions = Vec::new();
-    for item in syntax.root_items() {
-        let Some(machine) = item.as_machine() else {
-            continue;
-        };
-        if !machine.type_parameters.is_empty() {
-            continue;
+    let mut retain = |reference: TypeReferenceHandle, public: bool| {
+        if !reference.is_valid() {
+            return;
         }
-        for (ordinal, state_handle) in syntax
-            .items
-            .state_handles(machine.states)
-            .iter()
-            .enumerate()
-        {
-            let state = syntax.items.state(*state_handle);
-            let start = positions.len();
-            collect_type_positions(syntax, state.return_type, &mut positions, true);
-            for parameter in syntax.items.state_parameters(state.parameters) {
-                collect_type_positions(
-                    syntax,
-                    syntax.items.state_parameter(*parameter).type_reference,
-                    &mut positions,
-                    true,
-                );
-            }
-            if ordinal == 0 && machine.is_public {
-                public_positions.extend_from_slice(&positions[start..]);
-            }
-            for statement in syntax.items.statements(state.statements) {
-                if let StatementNode::LocalData(local) = syntax.statements.statement(*statement) {
-                    collect_type_positions(syntax, local.type_reference, &mut positions, true);
+        let start = positions.len();
+        collect_type_positions(syntax, reference, &mut positions, true);
+        if public {
+            public_positions.extend_from_slice(&positions[start..]);
+        }
+    };
+    for item in syntax.root_items() {
+        match item {
+            Item::Data(definition) => {
+                for member in syntax.items.data_members(definition.members) {
+                    match member {
+                        DataMember::Field(field) => {
+                            retain(field.type_reference, definition.is_public)
+                        }
+                        DataMember::Variant(variant) => {
+                            for field in syntax.items.data_payload_fields(variant.payload) {
+                                retain(field.type_reference, definition.is_public);
+                            }
+                        }
+                        DataMember::Retired(_) => {}
+                    }
                 }
             }
-        }
-    }
-    let concrete_expressions = concrete_machine_expression_handles(syntax);
-    for (handle, expression) in syntax.expressions.iter_expressions() {
-        if concrete_expressions.contains(handle)
-            && let ExpressionNode::Cast(cast) = expression
-        {
-            collect_type_positions(syntax, cast.target_type, &mut positions, true);
-            for argument in syntax
-                .type_references
-                .type_reference_handles(cast.semantic_domain_arguments)
-            {
-                collect_type_positions(syntax, *argument, &mut positions, true);
+            Item::Const(definition) => retain(definition.type_reference, definition.is_public),
+            Item::Operator(operator) => {
+                retain(operator.return_type, operator.is_public);
+                for parameter in syntax.items.state_parameters(operator.parameters) {
+                    retain(
+                        syntax.items.state_parameter(*parameter).type_reference,
+                        operator.is_public,
+                    );
+                }
             }
+            Item::Domain(definition) => {
+                for operator in syntax.items.operators(definition.operators) {
+                    retain(operator.return_type, operator.is_public);
+                    for parameter in syntax.items.state_parameters(operator.parameters) {
+                        retain(
+                            syntax.items.state_parameter(*parameter).type_reference,
+                            operator.is_public,
+                        );
+                    }
+                }
+            }
+            Item::Trait(definition) => {
+                for signature in syntax.items.state_signatures(definition.machines) {
+                    let signature = syntax.items.state_signature(*signature);
+                    retain(signature.return_type, definition.is_public);
+                    for parameter in syntax.items.state_parameters(signature.parameters) {
+                        retain(
+                            syntax.items.state_parameter(*parameter).type_reference,
+                            definition.is_public,
+                        );
+                    }
+                    for statement in syntax.items.statements(signature.default_body) {
+                        for reference in crate::preparation::generic_data::statement_type_inputs(
+                            syntax, *statement,
+                        ) {
+                            retain(reference, false);
+                        }
+                    }
+                }
+            }
+            Item::Machine(machine) => {
+                for (ordinal, state) in syntax
+                    .items
+                    .state_handles(machine.states)
+                    .iter()
+                    .enumerate()
+                {
+                    let state = syntax.items.state(*state);
+                    let public = ordinal == 0 && machine.is_public;
+                    retain(state.return_type, public);
+                    for parameter in syntax.items.state_parameters(state.parameters) {
+                        retain(
+                            syntax.items.state_parameter(*parameter).type_reference,
+                            public,
+                        );
+                    }
+                    for statement in syntax.items.statements(state.statements) {
+                        for reference in crate::preparation::generic_data::statement_type_inputs(
+                            syntax, *statement,
+                        ) {
+                            retain(reference, false);
+                        }
+                    }
+                }
+            }
+            _ => {}
         }
     }
     (positions, public_positions)

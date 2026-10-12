@@ -45,7 +45,9 @@ pub(crate) struct PendingConstSelection {
 #[derive(Debug, Clone)]
 pub(crate) struct PendingConstArgumentSelection {
     pub(crate) origin: syntax_trees::types::ConstArgumentOrigin,
-    pub(crate) exposure: AuthoredDeclarationSelectionExposure,
+    /// Copied template arguments retain their original declaration custody,
+    /// but do not create another authored selection in the public fields.
+    pub(crate) authored_exposure: Option<AuthoredDeclarationSelectionExposure>,
     /// The selected declaration supplies the complete argument at this
     /// occurrence. Other retained origins are dependencies of its computation;
     /// their declared carriers do not become the receiving parameter's type.
@@ -125,6 +127,13 @@ pub(crate) struct Lowerer {
     pub(crate) derived_const_argument_origins: Vec<syntax_trees::types::ConstArgumentOrigin>,
     pub(crate) derived_const_argument_expressions: Vec<syntax_trees::expression::ExpressionHandle>,
     pub(crate) pending_const_argument_expressions: Vec<ExpressionHandle>,
+    /// Completed evaluator choices exist only while their original operand
+    /// lowers. Nested entrances inherit exact source edges, never display keys.
+    pub(crate) lowering_const_match_selections:
+        Vec<syntax_trees::types::ConstArgumentMatchSelection>,
+    /// One normalization entrance shares its authored graph with its value operand.
+    pub(crate) lowering_const_argument_expressions:
+        Vec<(syntax_trees::expression::ExpressionHandle, ExpressionHandle)>,
     pub(crate) derived_const_argument_builtin_operators: Vec<source::SourceSpan>,
     pub(crate) pending_const_selections: Vec<PendingConstSelection>,
     /// Newly authored initializer roots awaiting declaration-side resolution.
@@ -268,6 +277,8 @@ impl Lowerer {
             derived_const_argument_origins: Vec::new(),
             derived_const_argument_expressions: Vec::new(),
             pending_const_argument_expressions: Vec::new(),
+            lowering_const_argument_expressions: Vec::new(),
+            lowering_const_match_selections: Vec::new(),
             derived_const_argument_builtin_operators: Vec::new(),
             current_compiler_selection_partition: None,
             sources,

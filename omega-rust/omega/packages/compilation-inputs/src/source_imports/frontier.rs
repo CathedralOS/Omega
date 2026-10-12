@@ -17,6 +17,8 @@ pub(crate) struct SourceStorage {
     pub sources: SourceMap,
     pub syntax_trees: SyntaxTrees,
     pub resolved_imports: Vec<super::ResolvedSourceImport>,
+    unmanaged_capture: Option<super::UnmanagedSourceCapture>,
+    original_build_vocabulary: Option<std::sync::Arc<str>>,
     default_package_root: PathBuf,
     default_package_identity: Option<PackageKeyIdentity>,
     package_roots: Vec<RegisteredPackageRoot>,
@@ -37,7 +39,13 @@ impl SourceStorage {
     pub fn prepare(
         root_path: &Path,
         package_inputs: Option<&crate::PackageCompilationInputs>,
+        build_directory: Option<&Path>,
     ) -> Result<Self, Vec<Diagnostic>> {
+        // Capture the actual compiled vocabulary once at original preparation.
+        // Child assembly consumes these bytes rather than regenerating another
+        // input. This is not a language/default-Build semantics commitment.
+        let build_vocabulary: std::sync::Arc<str> =
+            build_declarations::build_prelude_source().into();
         match package_inputs {
             Some(package_inputs) => {
                 package_inputs.validate_for_compilation(root_path, &super::bundled_core_root()?)?;
@@ -54,6 +62,7 @@ impl SourceStorage {
                 for (identity, source_root) in package_inputs.packages() {
                     storage.register_reconciled_package_root(source_root.to_path_buf(), identity);
                 }
+                storage.original_build_vocabulary = Some(build_vocabulary);
                 // The authorized product dependency roster rides with the
                 // retained source map so later evaluator queries resolve
                 // `alias::path` under each query occurrence's own product scope.
@@ -62,25 +71,58 @@ impl SourceStorage {
                 storage
                     .sources
                     .retain_product_dependency_scope(package_inputs.dependencies());
+                storage.sources.retain_source_filesystem(
+                    storage.default_package_root.clone(),
+                    std::sync::Arc::new(storage.filesystem.clone()),
+                    None,
+                );
                 Ok(storage)
             }
             None => {
-                let root_package = root_path
-                    .parent()
-                    .map(Path::to_path_buf)
-                    .unwrap_or_else(|| PathBuf::from("."));
-                Ok(SourceStorage::for_compilation(
-                    root_package,
-                    super::bundled_omega_root()?,
-                ))
+                let capture = super::UnmanagedSourceCapture::prepare(
+                    root_path,
+                    &super::bundled_omega_root()?,
+                    build_directory,
+                    std::sync::Arc::clone(&build_vocabulary),
+                )?;
+                let mut storage = SourceStorage::for_compilation(
+                    capture.source_root().to_path_buf(),
+                    capture.toolchain_root().to_path_buf(),
+                    capture.filesystem().as_ref().clone(),
+                );
+                storage.sources.retain_source_filesystem(
+                    capture.source_root().to_path_buf(),
+                    std::sync::Arc::clone(capture.filesystem()),
+                    Some(capture.source_root_revision()),
+                );
+                storage.original_build_vocabulary = Some(build_vocabulary);
+                storage.unmanaged_capture = Some(capture);
+                Ok(storage)
             }
         }
     }
 
-    pub(crate) fn for_compilation(default_package_root: PathBuf, toolchain_root: PathBuf) -> Self {
+    pub(crate) fn unmanaged_source_capture(&self) -> Option<&super::UnmanagedSourceCapture> {
+        self.unmanaged_capture.as_ref()
+    }
+
+    pub(crate) fn original_build_vocabulary(&self) -> Option<&std::sync::Arc<str>> {
+        self.original_build_vocabulary.as_ref()
+    }
+
+    pub(crate) fn default_source_root(&self) -> &Path {
+        &self.default_package_root
+    }
+
+    pub(crate) fn for_compilation(
+        default_package_root: PathBuf,
+        toolchain_root: PathBuf,
+        filesystem: source::SourceFileSystem,
+    ) -> Self {
         Self {
-            default_package_root: normalize_directory(default_package_root),
-            toolchain_root: Some(normalize_directory(toolchain_root)),
+            default_package_root: normalize_directory(&filesystem, default_package_root),
+            toolchain_root: Some(normalize_directory(&filesystem, toolchain_root)),
+            filesystem,
             ..Self::default()
         }
     }
@@ -95,9 +137,9 @@ impl SourceStorage {
             default_package_root: filesystem
                 .canonicalize(&default_package_root)
                 .unwrap_or(default_package_root),
-            filesystem,
             default_package_identity: Some(default_package_identity),
-            toolchain_root: Some(normalize_directory(toolchain_root)),
+            toolchain_root: Some(normalize_directory(&filesystem, toolchain_root)),
+            filesystem,
             ..Self::default()
         }
     }
@@ -121,8 +163,8 @@ impl SourceStorage {
         contract_root: PathBuf,
     ) {
         self.toolchain_contract_roots.insert(
-            normalize_directory(path),
-            normalize_directory(contract_root),
+            normalize_directory(&self.filesystem, path),
+            normalize_directory(&self.filesystem, contract_root),
         );
     }
 
@@ -131,7 +173,7 @@ impl SourceStorage {
     /// file under it inherits the contract's toolchain custody rather than a
     /// package identity it cannot have.
     pub(crate) fn register_toolchain_contract_dir(&mut self, root: PathBuf) {
-        let root = normalize_directory(root);
+        let root = normalize_directory(&self.filesystem, root);
         if !self.toolchain_contract_dirs.contains(&root) {
             self.toolchain_contract_dirs.push(root);
             self.toolchain_contract_dirs
@@ -269,8 +311,8 @@ impl SourceStorage {
     }
 }
 
-fn normalize_directory(path: PathBuf) -> PathBuf {
-    path.canonicalize().unwrap_or(path)
+fn normalize_directory(filesystem: &source::SourceFileSystem, path: PathBuf) -> PathBuf {
+    filesystem.canonicalize(&path).unwrap_or(path)
 }
 
 /// Closed toolchain contract custody shared by source metadata, the package

@@ -61,10 +61,18 @@ pub(crate) fn collect_machine_proposals_for_callee(
             if const_index >= candidate.template.const_parameters.len() {
                 return Err(StaticArgumentOverflow);
             }
-            if let Some((handle, _, _)) = program
-                .type_reference_table
-                .named_references()
-                .find(|(_, symbol, name)| !symbol.is_valid() && *name == literal)
+            if let Some((handle, _, _)) =
+                program
+                    .type_reference_table
+                    .named_references()
+                    .find(|(handle, symbol, name)| {
+                        !symbol.is_valid()
+                            && *name == literal
+                            && program.type_reference_table.const_integer_meaning(*handle)
+                                == program
+                                    .typed_program()
+                                    .static_const_integer_meaning(selected)
+                    })
             {
                 const_proposals.push((callee.candidate_index, const_index, handle));
             }
@@ -256,6 +264,7 @@ pub(crate) fn contract_expression_handles(
 ) -> Vec<ExpressionHandle> {
     let mut handles = Vec::new();
     for machine in program.machines() {
+        collect_contract_facts(program, machine.where_facts, &mut handles);
         for contract in program.machine_contracts(machine) {
             collect_contract_facts(program, contract.facts, &mut handles);
         }

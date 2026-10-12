@@ -151,56 +151,6 @@ pub(crate) fn desugar_generic_data_instances_in(
         {
             continue;
         }
-        if attached_machines.contains_key(&declaration) {
-            // A CONTAINER (generic data with attached machines) monomorphizes
-            // ONLY when every method's own type parameters are covered by the
-            // data's parameter names (T-on-method matching T-on-data --
-            // decision: per-instance mono, instances always spelled). The
-            // instance clones each method with T substituted (Phase 2 slice
-            // 1), so `self.b.stored()` on a `Box<i32>` field resolves against
-            // a CONCRETE machine and the T-typed value call materializes
-            // (was the runtime silent-0). An uncovered method leaves the
-            // whole container for the type-check-only path, as before.
-            let data_parameters: Vec<(String, bool)> = syntax
-                .tables
-                .items
-                .type_parameters(definition.type_parameters)
-                .iter()
-                .map(|parameter| {
-                    (
-                        parameter.name.as_str().to_string(),
-                        matches!(parameter.kind, TypeParameterKind::Const { .. }),
-                    )
-                })
-                .collect();
-            let all_methods_covered = attached_machines[&declaration].iter().all(|&item_index| {
-                let Some(Item::Machine(machine)) = syntax.root_items().nth(item_index) else {
-                    return false;
-                };
-                // An empty body is an ordinary implementation, including a
-                // no-op Unit cleanup hook. Source admission owns missing-body
-                // and return obligations; body length cannot decide whether
-                // the carrier or its attached machines may specialize.
-                syntax
-                    .tables
-                    .items
-                    .type_parameters(machine.type_parameters)
-                    .iter()
-                    .all(|parameter| {
-                        // A runtime-capable value binder counts as
-                        // const-shaped here: it can only lawfully pair
-                        // with a data `const` binder (a static argument),
-                        // never with a data type binder.
-                        let method_is_const = parameter.kind.is_const_or_value();
-                        data_parameters.iter().any(|(name, data_is_const)| {
-                            name == parameter.name.as_str() && *data_is_const == method_is_const
-                        })
-                    })
-            });
-            if !all_methods_covered {
-                continue;
-            }
-        }
         let parameter_names = definition_parameters
             .iter()
             .map(|parameter| parameter.name.as_str().to_string())
@@ -818,9 +768,9 @@ fn synthesize_instance(
         else {
             continue;
         };
-        // The clone is CONCRETE: attached to the synthetic record,
-        // its type parameters cleared, its `Named(T)` type nodes
-        // substituted with the instance arguments. The machine NAME
+        // The carrier is concrete; only carrier-owned method binders are
+        // consumed. Independent member binders remain an ordinary telescope
+        // for the existing generic-call producer. The machine NAME
         // is the FULL parsed path ("Box::stored"), so the attached
         // segment is rewritten there too ("Box<i32>::stored") --
         // machine identity keys on the composed name.
@@ -856,7 +806,65 @@ fn synthesize_instance(
             })?,
         );
         clone.generic_data_template = machine.name.clone();
-        clone.type_parameters = HandleSpan::default();
+        let Some(template) = snapshot.root_item(instance.template).as_data() else {
+            return Ok(());
+        };
+        let data_parameters = snapshot
+            .tables
+            .items
+            .type_parameters(template.type_parameters);
+        let original_parameters = snapshot
+            .tables
+            .items
+            .type_parameters(machine.type_parameters);
+        let independent = original_parameters
+            .iter()
+            .map(|parameter| {
+                !data_parameters.iter().any(|owner| {
+                    owner.name == parameter.name
+                        && match (&owner.kind, &parameter.kind) {
+                            (TypeParameterKind::Type, TypeParameterKind::Type) => true,
+                            (
+                                TypeParameterKind::Const {
+                                    type_reference: owner,
+                                },
+                                TypeParameterKind::Const {
+                                    type_reference: member,
+                                },
+                            ) => {
+                                snapshot.tables.type_references.type_reference(*owner)
+                                    == snapshot.tables.type_references.type_reference(*member)
+                            }
+                            _ => false,
+                        }
+                })
+            })
+            .collect::<Vec<_>>();
+        let retained = syntax
+            .tables
+            .items
+            .type_parameters(clone.type_parameters)
+            .iter()
+            .zip(&independent)
+            .filter(|(_, independent)| **independent)
+            .map(|(parameter, _)| parameter.clone())
+            .collect::<Vec<_>>();
+        let mut first = arena::Handle::invalid();
+        for parameter in &retained {
+            let handle = syntax.tables.items.append_type_parameter(parameter.clone());
+            if !first.is_valid() {
+                first = handle;
+            }
+        }
+        clone.type_parameters = HandleSpan::from_parts_or_empty(first, retained.len() as u32);
+        // A local binder of a different category shadows a same-spelled data
+        // binder. Substitution must obey that telescope instead of capturing it.
+        let mut member_substitution = substitution.clone();
+        let mut member_const_expressions = const_expressions.clone();
+        for parameter in &retained {
+            member_substitution.remove(parameter.name.as_str());
+            member_const_expressions.remove(parameter.name.as_str());
+        }
         let runtime_captures = capture_machine_runtime_template_names(
             syntax,
             &clone,
@@ -871,16 +879,16 @@ fn synthesize_instance(
             // Runtime subjects must reach ordinary admission, not acquire a
             // template const value. The same type-copy law still applies.
             .filter(|(handle, name)| {
-                !const_expressions.contains_key(name)
+                !member_const_expressions.contains_key(name)
                     || !runtime_captures.captures_type_reference(*handle)
             });
-        substitute_copied_type_names(syntax, copied_types, &substitution);
+        substitute_copied_type_names(syntax, copied_types, &member_substitution);
         for (handle, element_type, name) in syntax
             .tables
             .type_references
             .const_parameter_array_nodes_from(type_watermark)
         {
-            let Some(length) = substitution.get(&name).and_then(|argument| {
+            let Some(length) = member_substitution.get(&name).and_then(|argument| {
                 match syntax.tables.type_references.type_reference(*argument) {
                     TypeReferenceNode::Named(value) => value.as_str().parse::<usize>().ok(),
                     _ => None,
@@ -899,7 +907,7 @@ fn synthesize_instance(
         replace_machine_const_expression_names_from(
             syntax,
             expression_watermark,
-            &const_expressions,
+            &member_const_expressions,
             &runtime_captures,
         );
         syntax.push_root_item(Item::Machine(clone));

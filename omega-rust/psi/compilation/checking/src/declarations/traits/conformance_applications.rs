@@ -29,7 +29,7 @@ pub fn validate_conformance_applications(
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     if let Err(failures) =
-        super::trait_implementation_arguments::validate_trait_implementation_arguments(program)
+        super::trait_application_arguments::validate_trait_application_arguments(program)
     {
         diagnostics.extend(failures);
     }
@@ -73,14 +73,16 @@ fn validate_call_arguments(
     } else {
         program
     };
-    validate_arguments(
-        declarations,
-        program,
-        call.lexical_owner(program.typed_program()),
-        call.arguments(program.typed_program()),
-        role,
-        diagnostics,
-    );
+    for (index, argument) in call.arguments(program.typed_program()).iter().enumerate() {
+        // Designated application tuples own their relocated namespace. Bare
+        // declaration siblings retain their operation's declaration role.
+        if program.product_declaration_application(call.application(), index).is_none() {
+            validate_arguments(
+                declarations, program, call.lexical_owner(program.typed_program()),
+                std::slice::from_ref(argument), role, diagnostics,
+            );
+        }
+    }
 }
 
 fn validate_arguments(
@@ -108,9 +110,11 @@ fn validate_arguments(
             if let Err(diagnostic) = close_conformance_application(program, argument) {
                 diagnostics.push(diagnostic);
             }
-            if let Err(diagnostic) =
-                validate_conformance_lifetime_arguments(lexical_program, argument, lexical_owner)
-            {
+            if let Err(diagnostic) = validate_conformance_lifetime_arguments(
+                lexical_program,
+                argument,
+                typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(lexical_owner),
+            ) {
                 diagnostics.push(diagnostic);
             }
         }
@@ -133,15 +137,23 @@ fn validate_arguments(
 pub(crate) fn validate_conformance_lifetime_arguments(
     program: &dyn crate::CheckingInput,
     selected: &StaticMachineArgument,
-    lexical_owner: SymbolHandle,
+    lexical_owner: typed_trees::type_identity::AppliedTypeIdentityOwner<'_>,
 ) -> Result<(), Diagnostic> {
+    let (region_program, region_owner) = match lexical_owner {
+        typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(symbol) => {
+            (program.typed_program(), symbol)
+        }
+        typed_trees::type_identity::AppliedTypeIdentityOwner::Captured(scope) => {
+            (scope.owner(), scope.symbol())
+        }
+    };
     let Some(application) = &selected.application else {
         return Ok(());
     };
     for lifetime in &application.lifetime_arguments {
         if typed_trees::type_identity::lifetime_parameter_identity(
-            program.typed_program(),
-            lexical_owner,
+            region_program,
+            region_owner,
             lifetime.as_str(),
         )
         .is_none()

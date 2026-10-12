@@ -44,6 +44,10 @@ pub(crate) fn for_each_type_reference(
         if !handle.is_valid() || !visited.insert(handle) {
             continue;
         }
+        let original = program.type_reference_table.data_application_origin(handle);
+        if original.is_valid() {
+            pending.push(original);
+        }
         let node = program.type_reference_table.type_reference(handle);
         if on_node(program, node) {
             return true;
@@ -73,7 +77,8 @@ pub(crate) fn for_each_type_reference(
             }
             TypeReferenceNode::FixedArray { element_type, .. } => pending.push(*element_type),
             TypeReferenceNode::Slice { element_type } => pending.push(*element_type),
-            TypeReferenceNode::Generic { arguments, .. } => pending.extend(
+            TypeReferenceNode::Generic { arguments, .. }
+            | TypeReferenceNode::DynamicTrait { arguments, .. } => pending.extend(
                 program
                     .type_reference_table
                     .type_reference_handles(*arguments),

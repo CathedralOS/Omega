@@ -69,6 +69,42 @@ pub(crate) fn selection_for_call(
     selection.explicit_argument_overflow =
         explicit_arguments == super::ExplicitArgumentCapacity::Exceeded;
     selection.lexical_owner = caller_machine.symbol;
+    let receiver = match site {
+        CallSite::Statement(handle) => program
+            .statement_table
+            .statement(handle)
+            .as_call()
+            .and_then(|call| {
+                validation::call_data_application_in_state(
+                    program,
+                    caller_state,
+                    scope_limit,
+                    call.target_symbol,
+                    call.authored_machine_application,
+                    program.statement_table.expression_handles(call.arguments),
+                )
+            }),
+        CallSite::Expression(handle) => {
+            program
+                .expression_table
+                .call_node(handle)
+                .and_then(|executed| {
+                    let call = program.expression_table.source_call(executed)?;
+                    validation::call_data_application_in_state(
+                        program,
+                        caller_state,
+                        scope_limit,
+                        executed.target_symbol,
+                        call.authored_machine_application,
+                        program.expression_table.expression_handles(call.arguments),
+                    )
+                })
+        }
+    };
+    if let Some(receiver) = receiver {
+        selection.receiving_data_parameter = receiver.parameter;
+        selection.enclosing_data_applications = receiver.application.enclosing_data_applications;
+    }
     Some(selection)
 }
 
@@ -87,6 +123,8 @@ pub(crate) fn selection_from_proposals(
     let mut selection = CallSelection {
         site,
         lexical_owner: SymbolHandle::invalid(),
+        enclosing_data_applications: Vec::new(),
+        receiving_data_parameter: SymbolHandle::invalid(),
         callee_symbol: callee.symbol,
         candidate_index: callee.candidate_index,
         caller_is_generic,
@@ -261,6 +299,7 @@ pub(crate) fn unique_complete_selections(
     program: &dyn ::validation::CheckingInput,
     selections: &[CallSelection],
     candidate_index: usize,
+    template: &crate::monomorphization::CandidateTemplate,
 ) -> Result<Vec<(SpecializationKey, Vec<usize>)>, diagnostics::Diagnostic> {
     let mut groups: Vec<(SpecializationKey, Vec<usize>)> = Vec::new();
     for (selection_index, selection) in selections.iter().enumerate() {
@@ -278,13 +317,9 @@ pub(crate) fn unique_complete_selections(
                     program.normalized_type_identity_text(binding.expect("complete selection"))
                 })
                 .collect(),
-            const_arguments: selection
-                .const_bindings
-                .iter()
-                .map(|binding| {
-                    program.normalized_type_identity_text(binding.expect("complete selection"))
-                })
-                .collect(),
+            const_arguments: crate::monomorphization::application_arguments::const_binding_identities(program, template,
+                &selection.type_bindings, &selection.const_bindings, &selection.runtime_value_bindings)
+                .ok_or_else(|| diagnostics::Diagnostic::error("const specialization tuple has no original declared carrier correspondence"))?,
             machine_arguments: selection
                 .machine_bindings
                 .iter()

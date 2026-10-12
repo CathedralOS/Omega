@@ -17,6 +17,9 @@ impl TerminalBoundaryApplicationDemands {
         terminal_psi: terminal_psi::TerminalPsiIdentity,
         mut rows: Vec<TerminalBoundaryApplicationDemand>,
     ) -> Result<Self, &'static str> {
+        for row in &rows {
+            row.application().validate_operator_application()?;
+        }
         rows.sort_by_key(|row| row.terminal_operation().get());
         if rows
             .windows(2)

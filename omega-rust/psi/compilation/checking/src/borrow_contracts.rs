@@ -354,6 +354,7 @@ pub fn resolve_applied_signature_view_return_source(
             substitution_scope_starts: scope_starts,
             application_scopes: &[],
             binders: &[],
+            lifetime_binding_declaration: SymbolHandle::invalid(),
             lifetime_bindings: &[],
             argument_owner,
             supplied_telescope: false,

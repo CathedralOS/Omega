@@ -10,6 +10,7 @@
 mod callable_shape;
 mod family_demands;
 mod selected_dependencies;
+mod selected_operands;
 pub(crate) use selected_dependencies::machine_selection_dependency_symbols;
 mod closed_types;
 mod type_selections;
@@ -179,6 +180,9 @@ pub(crate) fn form_static_machine_selections(
     let index = machine_state_index(program);
     for (handle, expression) in program.expression_table.iter_expressions() {
         if let ExpressionNode::Call(call) = expression {
+            let Some(call) = program.expression_table.source_call(call) else {
+                continue;
+            };
             // These occurrences belong to mathematical declaration elaboration,
             // whose kernel checks their level and term applications. A runtime
             // occurrence naming the same declaration is still checked here.
@@ -367,7 +371,7 @@ fn validate_call_selection(
         arguments,
         application: match site {
             ValidatedNominalMachineUseSite::Expression(handle) => {
-                program.expression_table.call_node(handle).map_or(
+                program.expression_table.source_call_node(handle).map_or(
                     typed_trees::static_applications::StaticMachineApplicationHandle::invalid(),
                     |call| call.authored_machine_application,
                 )
@@ -458,19 +462,13 @@ fn form_call_selection(
         return;
     }
 
-    // The build operations whose static operands name declarations, not
-    // machine requirements, carry no requirement calls to validate.
+    // Product-description operands are not executable machine selections.
+    // Exact namespace/activation and declaration authority are checked by the
+    // shared compiler-operation owner, never granted by this early bypass.
     if !target_symbol.is_valid()
-        && matches!(
-            BuildOperation::from_call_target(target_name),
-            Some(
-                BuildOperation::ProviderSelection
-                    | BuildOperation::BoundaryAcceptance
-                    | BuildOperation::WireCompatibilityRequest
-                    | BuildOperation::RepresentationSelection
-                    | BuildOperation::ServiceExclusion
-            )
-        )
+        && BuildOperation::from_call_target(target_name)
+            .and_then(BuildOperation::declaration_operand_counts)
+            .is_some()
     {
         return;
     }
@@ -520,21 +518,9 @@ fn form_call_selection(
         return;
     }
 
-    // Contextual closure retains a separate occurrence roster. The authored
-    // type operands above still fix this invocation; each selected instance
-    // retains its own complete tuple for ordinary bound and contract admission.
-    let selected_machines = if application.is_valid() {
-        program
-            .expression_table
-            .static_machine_application_selected_machines(application)
-    } else {
-        &[]
-    };
-    let machine_arguments = if selected_machines.is_empty() {
-        machine_selection_arguments(program, arguments).collect::<Vec<_>>()
-    } else {
-        selected_machines.iter().collect::<Vec<_>>()
-    };
+    // The original tuple fixes machine ordinals. Occurrence-owned closure is
+    // joined to each operand by the shared admission query below.
+    let machine_arguments = machine_selection_arguments(program, arguments).collect::<Vec<_>>();
     if machine_arguments.len() != requirements.len() {
         diagnostics.push(Diagnostic::error(format!(
             "generic call `{target_name}` requires {} static machine argument(s), got {}",
@@ -569,32 +555,27 @@ fn form_call_selection(
         requirements.into_iter().zip(machine_arguments).enumerate()
     {
         let rendered = selected.path.joined_path();
-        let requirement_signature = machine_parameter_signature(program, requirement);
-        if selected.application.is_some()
-            && program
-                .applied_machine_callable(
-                    application,
-                    static_machine_ordinal,
-                    selected.symbol,
-                    parameter.symbol,
-                    requirement_signature,
-                )
-                .is_none()
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "static machine argument `{rendered}` for `{}` is a nested machine application without a completely admitted callable tuple",
-                parameter.name
-            )));
-            continue;
-        }
+        let selected_symbol = match selected_operands::resolve(
+            program,
+            application,
+            static_machine_ordinal,
+            selected,
+            parameter,
+        ) {
+            Ok(symbol) => symbol,
+            Err(error) => {
+                diagnostics.push(error);
+                continue;
+            }
+        };
         // A recursive generic body may forward its own authored machine
         // parameter (`map<F>(tail)`). This is not a concrete selection yet,
         // but it is already governed by exactly this requirement; the
         // eventual external selection is validated at the concrete call edge.
-        if selected.symbol == parameter.symbol {
+        if selected_symbol == parameter.symbol {
             continue;
         }
-        if !selected.symbol.is_valid() {
+        if !selected_symbol.is_valid() {
             diagnostics.push(Diagnostic::error(format!(
                 "static machine argument `{rendered}` for `{}` does not resolve to a concrete machine",
                 parameter.name
@@ -607,7 +588,7 @@ fn form_call_selection(
             target_name,
             parameter,
             requirement,
-            selected.symbol,
+            selected_symbol,
             &rendered,
             &generic_types,
             &mut bindings,
@@ -615,14 +596,14 @@ fn form_call_selection(
         ) else {
             continue;
         };
-        let requirement = requirement_signature;
+        let requirement = machine_parameter_signature(program, requirement);
         validate_selected_callable_shape(
             program,
             index,
             target_name,
             parameter,
             requirement,
-            selected.symbol,
+            selected_symbol,
             application,
             static_machine_ordinal,
             &rendered,
@@ -635,10 +616,10 @@ fn form_call_selection(
         // otherwise discarded here and `build_call_operation` can never
         // recover what `Target` (or `T`, `Arguments`) instantiated to.
         let (selected_machine, selection_symbol) =
-            machine_and_state(program, index, selected.symbol)
+            machine_and_state(program, index, selected_symbol)
                 .map(|(machine, state)| (machine.symbol, state.symbol))
-                .unwrap_or((SymbolHandle::invalid(), selected.symbol));
-        if let Some((machine, _)) = machine_and_state(program, index, selected.symbol) {
+                .unwrap_or((SymbolHandle::invalid(), selected_symbol));
+        if let Some((machine, _)) = machine_and_state(program, index, selected_symbol) {
             selections
                 .pending_effects
                 .push(StaticMachineEffectObligation {
@@ -709,8 +690,94 @@ pub(crate) fn validate_data_machine_selection(
     generic_types: &[&TypeParameter],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    validate_selected_machine_operand(
+        program,
+        family_name,
+        parameter,
+        requirement,
+        selected_symbol,
+        typed_trees::static_applications::StaticMachineApplicationHandle::invalid(),
+        0,
+        selected_name,
+        generic_types,
+        &[],
+        diagnostics,
+    );
+}
+
+/// A descriptor tuple closes ordinary callable arguments through the same
+/// refinement judgment as data/call operands, seeded by its exact type binders.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn validate_static_machine_operand(
+    program: &dyn crate::CheckingInput,
+    family_name: &str,
+    parameter: &TypeParameter,
+    requirement: &MachineParameterContract,
+    selected: &StaticMachineArgument,
+    application: typed_trees::static_applications::StaticMachineApplicationHandle,
+    machine_ordinal: usize,
+    selected_name: &str,
+    generic_types: &[&TypeParameter],
+    expected: &[typed_trees::static_applications::StaticMachineBinding],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let selected_symbol = match selected_operands::resolve(
+        program,
+        application,
+        machine_ordinal,
+        selected,
+        parameter,
+    ) {
+        Ok(symbol) => symbol,
+        Err(error) => {
+            diagnostics.push(error);
+            return;
+        }
+    };
+    validate_selected_machine_operand(
+        program,
+        family_name,
+        parameter,
+        requirement,
+        selected_symbol,
+        application,
+        machine_ordinal,
+        selected_name,
+        generic_types,
+        expected,
+        diagnostics,
+    );
+}
+
+/// Judge an exact declaration or an admitted occurrence selection. Data-family
+/// declarations have no call occurrence; they retain universal refinement.
+#[allow(clippy::too_many_arguments)]
+fn validate_selected_machine_operand(
+    program: &dyn crate::CheckingInput,
+    family_name: &str,
+    parameter: &TypeParameter,
+    requirement: &MachineParameterContract,
+    selected_symbol: SymbolHandle,
+    application: typed_trees::static_applications::StaticMachineApplicationHandle,
+    machine_ordinal: usize,
+    selected_name: &str,
+    generic_types: &[&TypeParameter],
+    expected: &[typed_trees::static_applications::StaticMachineBinding],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     let index = machine_state_index(program);
-    let mut bindings = Vec::new();
+    let mut bindings = expected
+        .iter()
+        .filter_map(|binding| match &binding.value {
+            typed_trees::static_applications::StaticMachineBindingValue::Type(actual) => {
+                Some(type_refinement::TypeBinding {
+                    symbol: binding.parameter,
+                    actual: *actual,
+                })
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
     if validate_nominal_machine_selection(
         program,
         &index,
@@ -742,8 +809,8 @@ pub(crate) fn validate_data_machine_selection(
         parameter,
         requirement,
         selected_symbol,
-        typed_trees::static_applications::StaticMachineApplicationHandle::invalid(),
-        0,
+        application,
+        machine_ordinal,
         selected_name,
         generic_types,
         &mut bindings,

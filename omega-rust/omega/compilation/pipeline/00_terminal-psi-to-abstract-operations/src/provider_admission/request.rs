@@ -59,6 +59,9 @@ pub struct NativeCompilerBuiltinSettlement<'execution> {
     pub provider_plan: &'execution effects::provider_plan::ProviderPlan,
     pub boundary: semantic_vocabulary::BoundaryMachineId,
     pub execution: target_operations::CompilerBuiltinExecution,
+    /// The same original Calling recipe published with a hosted proposal.
+    /// Receiving catalog admission compares it; it never substitutes a default.
+    pub boundary_entry_plan: Option<&'execution calling_conventions::BoundaryEntryPlan>,
 }
 
 /// The inputs provider admission reads from one target realization: the
@@ -77,6 +80,8 @@ pub struct ProviderAdmissionRequest<'request, 'execution> {
     pub checked_adapters: &'request [crate::SelectedProviderAdapter],
     pub external_binding_rows: &'request [calling_conventions::ExternalBindingRow],
     pub settlements: &'request [NativeProviderSettlement<'execution>],
+    pub direct_foreign_settlements:
+        &'request [super::source_evaluated_bindings::PreparedDirectForeignBinding<'execution>],
     pub compiler_builtins: &'request [NativeCompilerBuiltinSettlement<'request>],
     pub native_callbacks: &'request [crate::AdmittedNativeCallbackArgument],
     pub terminal_authority_policy: &'request TerminalAuthorityPolicy,

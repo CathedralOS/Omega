@@ -316,6 +316,17 @@ fn collect_references(arena: &TermArena, term: TermHandle, out: &mut BTreeSet<u3
     }
 }
 
+/// Original declaration references in checked terms, without conversion or
+/// transitive expansion. Callers retain the same arena/signature owner; these
+/// local coordinates do not establish portable declaration identity or proof.
+pub fn term_declaration_references(arena: &TermArena, terms: &[TermHandle]) -> BTreeSet<u32> {
+    let mut references = BTreeSet::new();
+    for &term in terms {
+        collect_references(arena, term, &mut references);
+    }
+    references
+}
+
 /// The shared traversal: from the seed declaration indices, visit every
 /// declaration a constant can reach. Each visited declaration that is an
 /// assumption lands in the result; each visited declaration — definition
@@ -373,9 +384,5 @@ pub fn judgment_assumption_closure(
     signature: &Signature,
     terms: &[TermHandle],
 ) -> BTreeSet<u32> {
-    let mut seeds = BTreeSet::new();
-    for &term in terms {
-        collect_references(arena, term, &mut seeds);
-    }
-    closure_over(arena, signature, seeds)
+    closure_over(arena, signature, term_declaration_references(arena, terms))
 }

@@ -280,6 +280,8 @@ impl super::TypedTrees {
             .wrapping_add(self.wire_encode_obligations.revision())
             .wrapping_add(self.wire_schema_plans.len() as u64)
             .wrapping_add(self.machine_specializations.len() as u64)
+            .wrapping_add(self.machine_conformance_applications.revision())
+            .wrapping_add(self.instantiated_requirement_signatures.len() as u64)
             .wrapping_add(self.boundary_completion_declarations.revision())
             .wrapping_add(self.evidence_forwardings.len() as u64)
             .wrapping_add(self.proof_output_calls.len() as u64)

@@ -53,6 +53,7 @@ pub(crate) fn settle_selected_boundary_adapter_dispatch(
     checked: &CheckedTrees,
     calling_plans: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
     selected_plans: &effects::SelectedProviderPlanFacts,
+    selected_providers: &[provider_planning::SelectedProviderReviewProvenance],
 ) -> Result<Vec<checked_trees::CheckedBoundaryAdapterDispatch>, Vec<Diagnostic>> {
     // Review retains checked Build bodies, but this operation realizes only
     // Product execution. Build's admitted provider context is independent:
@@ -76,12 +77,14 @@ pub(crate) fn settle_selected_boundary_adapter_dispatch(
     let mut generic_requirements: Vec<GenericBoundaryRequirement> = Vec::new();
     let mut diagnostics = Vec::new();
     for plan in selected_plans.plans() {
-        for row in &plan.rows {
+        for (row_ordinal, row) in plan.rows.iter().enumerate() {
             match resolve_selected_adapter_row(
-                typed,
+                checked,
                 &product_roots,
                 plan,
                 row,
+                row_ordinal,
+                selected_providers,
                 selected_plans.specialized_requirement_rows(),
                 selected_plans.identities(),
             ) {

@@ -68,3 +68,13 @@ pub struct CheckedIntegerAssignmentDecision {
     pub minimum: numerics::bignum::BigInt,
     pub maximum: numerics::bignum::BigInt,
 }
+
+/// One original kernel acceptance tied to the obligation it discharged.
+/// Certificate-local declarations and premise indices keep their own owner
+/// inside `accepted`; they are not authored mathematical declaration indices.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedProofJudgment {
+    pub obligation: arena::Handle<ProofObligationFact>,
+    /// None is the arena's absence slot, never a synthetic kernel acceptance.
+    pub accepted: Option<proof_admission::AcceptedFact>,
+}

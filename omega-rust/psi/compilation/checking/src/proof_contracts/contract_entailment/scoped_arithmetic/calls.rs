@@ -370,7 +370,7 @@ impl<'program> ScopedCalls<'program> {
         &mut self,
         owner: SelectedCallContract<'program>,
         active: &mut Vec<SymbolHandle>,
-        complete: &mut Vec<SymbolHandle>,
+        complete: &mut Vec<SelectedCallContract<'program>>,
     ) -> Option<bool> {
         self.step()?;
         if active.len() >= 64 {
@@ -382,7 +382,10 @@ impl<'program> ScopedCalls<'program> {
         {
             return Some(false);
         }
-        if complete.contains(&symbol) {
+        if complete
+            .iter()
+            .any(|completed| completed.same_contract_view(&owner))
+        {
             return Some(true);
         }
         active.push(symbol);
@@ -411,7 +414,7 @@ impl<'program> ScopedCalls<'program> {
             children(self.program, node, |child| pending.push(child));
         }
         active.pop();
-        complete.push(symbol);
+        complete.push(owner);
         Some(true)
     }
 }

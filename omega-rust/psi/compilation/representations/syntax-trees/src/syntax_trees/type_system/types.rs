@@ -13,7 +13,9 @@ pub struct TypeReferenceTable {
     generic_application_origins: Arena<GenericApplicationOrigin>,
     const_argument_normalizations: Arena<RetainedConstArgumentNormalization>,
     const_argument_origins: Arena<ConstArgumentOrigin>,
+    const_argument_declarations: Arena<RetainedConstArgumentDeclaration>,
     const_argument_builtin_operators: Arena<source::SourceSpan>,
+    const_argument_match_selections: Arena<ConstArgumentMatchSelection>,
     integer_range_normalizations: Arena<RetainedIntegerRangeNormalization>,
     pending_const_arguments: Arena<PendingConstArgument>,
     supplied_operand_owners: Arena<SuppliedOperandOwner>,
@@ -52,6 +54,21 @@ struct RetainedIntegerRangeNormalization {
     value: IntegerRangeNormalization,
 }
 
+/// Original lexical declaration selection, independent of completed value or
+/// index eligibility. The receiving application later owns carrier substitution.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ConstArgumentDeclaration {
+    pub reference: source::SourceSpan,
+    pub declaration: source::SourceSpan,
+    pub initializer: source::SourceSpan,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+struct RetainedConstArgumentDeclaration {
+    argument: TypeReferenceHandle,
+    declaration: ConstArgumentDeclaration,
+}
+
 /// Exact source custody captured before a selected constant index operand
 /// becomes a canonical value. These coordinates join to the retained declaration;
 /// they are not exported semantic identity.
@@ -70,10 +87,23 @@ struct RetainedConstArgumentNormalization {
     normalization: ConstArgumentNormalization,
 }
 
+/// The evaluator's actual chosen edge in the original operand graph.
+/// The result encoding does not determine either coordinate.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ConstArgumentMatchSelection {
+    pub expression: crate::expression::ExpressionHandle,
+    pub selected: crate::expression::ExpressionHandle,
+    pub integer_meaning: language_core::expression_origin::ConstMatchIntegerMeaning,
+}
+
 /// One completed canonical result and the exact selected leaves it consumed.
 /// The selections retain authority custody, not canonical value identity.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ConstArgumentNormalization {
+    /// The issuing operand before canonical display replaces it. This graph
+    /// retains anonymous evaluation or a selected declaration, not a slot
+    /// policy reconstructed from the result encoding.
+    pub original_operand: TypeReferenceHandle,
     /// Exact authored structural expression before it becomes an atom. This
     /// carries constructor selections, independently of named-constant origins.
     pub authored_expression: crate::expression::ExpressionHandle,
@@ -81,6 +111,7 @@ pub struct ConstArgumentNormalization {
     pub canonical_result_encoding: String,
     pub selections: HandleSpan<ConstArgumentOrigin>,
     pub builtin_operators: HandleSpan<source::SourceSpan>,
+    pub selected_matches: HandleSpan<ConstArgumentMatchSelection>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -102,7 +133,9 @@ impl TypeReferenceTable {
             generic_application_origins: Arena::with_generation(generation),
             const_argument_normalizations: Arena::with_generation(generation),
             const_argument_origins: Arena::with_generation(generation),
+            const_argument_declarations: Arena::with_generation(generation),
             const_argument_builtin_operators: Arena::with_generation(generation),
+            const_argument_match_selections: Arena::with_generation(generation),
             integer_range_normalizations: Arena::with_generation(generation),
             pending_const_arguments: Arena::with_generation(generation),
             supplied_operand_owners: Arena::with_generation(generation),
@@ -120,8 +153,12 @@ impl TypeReferenceTable {
             .adopt(other.const_argument_normalizations);
         self.const_argument_origins
             .adopt(other.const_argument_origins);
+        self.const_argument_declarations
+            .adopt(other.const_argument_declarations);
         self.const_argument_builtin_operators
             .adopt(other.const_argument_builtin_operators);
+        self.const_argument_match_selections
+            .adopt(other.const_argument_match_selections);
         self.integer_range_normalizations
             .adopt(other.integer_range_normalizations);
         self.pending_const_arguments
@@ -137,7 +174,9 @@ impl TypeReferenceTable {
         self.generic_application_origins.begin_page(generation);
         self.const_argument_normalizations.begin_page(generation);
         self.const_argument_origins.begin_page(generation);
+        self.const_argument_declarations.begin_page(generation);
         self.const_argument_builtin_operators.begin_page(generation);
+        self.const_argument_match_selections.begin_page(generation);
         self.integer_range_normalizations.begin_page(generation);
         self.pending_const_arguments.begin_page(generation);
         self.supplied_operand_owners.begin_page(generation);
@@ -347,6 +386,37 @@ impl TypeReferenceTable {
         }
     }
 
+    pub fn const_argument_declaration(
+        &self,
+        argument: TypeReferenceHandle,
+    ) -> Option<&ConstArgumentDeclaration> {
+        if !argument.is_valid() {
+            return None;
+        }
+        self.const_argument_declarations
+            .iter()
+            .find_map(|(_, retained)| {
+                (retained.argument == argument).then_some(&retained.declaration)
+            })
+    }
+
+    pub fn retain_const_argument_declaration(
+        &mut self,
+        argument: TypeReferenceHandle,
+        declaration: ConstArgumentDeclaration,
+    ) {
+        assert!(argument.is_valid());
+        if let Some(previous) = self.const_argument_declaration(argument) {
+            assert_eq!(previous, &declaration);
+            return;
+        }
+        self.const_argument_declarations
+            .insert(RetainedConstArgumentDeclaration {
+                argument,
+                declaration,
+            });
+    }
+
     pub fn const_argument_normalization(
         &self,
         argument: TypeReferenceHandle,
@@ -373,7 +443,36 @@ impl TypeReferenceTable {
         origins: impl IntoIterator<Item = ConstArgumentOrigin>,
         builtin_operators: impl IntoIterator<Item = source::SourceSpan>,
     ) {
+        let declaration = self.const_argument_declaration(argument).cloned();
+        let original = self.insert(self.type_reference(argument).clone());
+        if let Some(declaration) = declaration {
+            self.retain_const_argument_declaration(original, declaration);
+        }
+        self.retain_const_argument_normalization_from_operand(
+            argument,
+            original,
+            reference,
+            canonical_result_encoding,
+            origins,
+            builtin_operators,
+        );
+    }
+
+    /// Copy a normalization with its exact issuing operand already relocated.
+    /// The original row is separate from the canonical display row, so repeated
+    /// lowering cannot bind an atom under another declaration's carrier.
+    pub fn retain_const_argument_normalization_from_operand(
+        &mut self,
+        argument: TypeReferenceHandle,
+        original_operand: TypeReferenceHandle,
+        reference: source::SourceSpan,
+        canonical_result_encoding: String,
+        origins: impl IntoIterator<Item = ConstArgumentOrigin>,
+        builtin_operators: impl IntoIterator<Item = source::SourceSpan>,
+    ) {
         assert!(argument.is_valid());
+        assert!(original_operand.is_valid());
+        assert!(argument != original_operand);
         assert!(self.const_argument_normalization(argument).is_none());
         let selections = self.const_argument_origins.insert_many(origins);
         let builtin_operators = self
@@ -383,13 +482,47 @@ impl TypeReferenceTable {
             .insert(RetainedConstArgumentNormalization {
                 argument,
                 normalization: ConstArgumentNormalization {
+                    original_operand,
                     authored_expression: crate::expression::ExpressionHandle::invalid(),
                     reference,
                     canonical_result_encoding,
                     selections,
                     builtin_operators,
+                    selected_matches: HandleSpan::empty(),
                 },
             });
+    }
+
+    pub fn const_argument_match_selections(
+        &self,
+        selections: HandleSpan<ConstArgumentMatchSelection>,
+    ) -> &[ConstArgumentMatchSelection] {
+        self.const_argument_match_selections
+            .span_or_empty(selections)
+    }
+
+    pub fn retain_const_argument_match_selections(
+        &mut self,
+        argument: TypeReferenceHandle,
+        selections: impl IntoIterator<Item = ConstArgumentMatchSelection>,
+    ) {
+        let handle = self
+            .const_argument_normalizations
+            .iter()
+            .find_map(|(handle, row)| (row.argument == argument).then_some(handle))
+            .expect("selected Match edges belong to a completed normalization");
+        assert!(
+            self.const_argument_normalizations
+                .get(handle)
+                .normalization
+                .selected_matches
+                .is_empty()
+        );
+        let selections = self.const_argument_match_selections.insert_many(selections);
+        self.const_argument_normalizations
+            .get_mut(handle)
+            .normalization
+            .selected_matches = selections;
     }
 
     pub fn retain_const_argument_expression(
@@ -650,6 +783,82 @@ impl TypeReferenceTable {
         type_reference: TypeReferenceNode,
     ) {
         *self.type_references.get_mut(handle) = type_reference;
+    }
+
+    /// Substitute an existing operand from this arena, including its issuing
+    /// normalization and application relationship. A display node alone is
+    /// not the complete type/const operand.
+    pub fn replace_type_reference_from(
+        &mut self,
+        destination: TypeReferenceHandle,
+        source: TypeReferenceHandle,
+    ) {
+        if destination == source {
+            return;
+        }
+        let node = self.type_reference(source).clone();
+        let normalization = self.const_argument_normalization(source).cloned();
+        let declaration = self.const_argument_declaration(source).cloned();
+        let application = self.generic_application_origin(source);
+        let pending = self.pending_const_arguments(source).collect::<Vec<_>>();
+        let ranges = match &node {
+            TypeReferenceNode::Constrained { constraints, .. } => (0..constraints.len())
+                .filter_map(|ordinal| {
+                    self.integer_range_normalization(source, ordinal)
+                        .cloned()
+                        .map(|value| (ordinal, value))
+                })
+                .collect::<Vec<_>>(),
+            _ => Vec::new(),
+        };
+        let retired = self
+            .const_argument_declarations
+            .iter()
+            .filter_map(|(handle, retained)| (retained.argument == destination).then_some(handle))
+            .collect::<Vec<_>>();
+        for handle in retired {
+            self.const_argument_declarations.get_mut(handle).argument =
+                TypeReferenceHandle::invalid();
+        }
+        self.replace_type_reference(destination, node);
+        if let Some(declaration) = declaration {
+            self.retain_const_argument_declaration(destination, declaration);
+        }
+        for original in pending {
+            self.retain_pending_const_argument(destination, original);
+        }
+        for (ordinal, value) in ranges {
+            self.retain_integer_range_normalization(destination, ordinal, value);
+        }
+        if let Some(normalization) = normalization {
+            let origins = self
+                .const_argument_origins(normalization.selections)
+                .to_vec();
+            let operators = self
+                .const_argument_builtin_operators(normalization.builtin_operators)
+                .to_vec();
+            self.retain_const_argument_normalization_from_operand(
+                destination,
+                normalization.original_operand,
+                normalization.reference,
+                normalization.canonical_result_encoding,
+                origins,
+                operators,
+            );
+            let selected_matches = self
+                .const_argument_match_selections(normalization.selected_matches)
+                .to_vec();
+            self.retain_const_argument_match_selections(destination, selected_matches);
+            if normalization.authored_expression.is_valid() {
+                self.retain_const_argument_expression(
+                    destination,
+                    normalization.authored_expression,
+                );
+            }
+        }
+        if application.is_valid() {
+            self.retain_generic_application_origin(destination, application);
+        }
     }
 
     pub fn type_reference_handles(

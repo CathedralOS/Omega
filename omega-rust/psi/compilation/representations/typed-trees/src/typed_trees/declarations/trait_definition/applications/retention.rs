@@ -23,6 +23,8 @@ pub struct TraitApplicationEnvironment {
     substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
     scope_starts: Vec<usize>,
     region_scopes: Vec<AppliedDeclarationRegionScope>,
+    captured_argument_owner:
+        Option<crate::typed_trees::product_applications::CapturedStaticLexicalScope>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -30,13 +32,31 @@ pub struct RetainedTraitScope {
     declaration: SymbolHandle,
     argument_owner: SymbolHandle,
     frames: HandleSpan<RetainedTraitApplicationFrame>,
+    captured_argument_owner:
+        arena::Handle<crate::typed_trees::product_applications::CapturedStaticLexicalScopeSlot>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RetainedTraitApplicationFrame {
     declaration: SymbolHandle,
     arguments: HandleSpan<CallableSubstitution>,
     lifetimes: HandleSpan<StaticMachineLifetimeBinding>,
+    role: crate::type_identity::AppliedTypeIdentityRegionRole,
+    binding_application: crate::static_applications::StaticMachineApplicationHandle,
+    binding_parameters: HandleSpan<SymbolHandle>,
+}
+
+impl Default for RetainedTraitApplicationFrame {
+    fn default() -> Self {
+        Self {
+            declaration: Default::default(),
+            arguments: Default::default(),
+            lifetimes: Default::default(),
+            role: crate::type_identity::AppliedTypeIdentityRegionRole::Supplied,
+            binding_application: Default::default(),
+            binding_parameters: Default::default(),
+        }
+    }
 }
 
 impl AppliedTraitScope<'_> {
@@ -47,6 +67,7 @@ impl AppliedTraitScope<'_> {
             substitutions: self.substitutions.clone(),
             scope_starts: self.substitution_scope_starts.clone(),
             region_scopes: self.region_scopes.clone(),
+            captured_argument_owner: self.captured_argument_owner.clone(),
         }
     }
 }
@@ -101,6 +122,7 @@ impl TraitApplicationEnvironment {
             substitutions: self.substitutions.clone(),
             substitution_scope_starts: self.scope_starts.clone(),
             region_scopes: self.region_scopes.clone(),
+            captured_argument_owner: self.captured_argument_owner.clone(),
         })
     }
 
@@ -135,19 +157,32 @@ impl TraitApplicationEnvironment {
                     .insert_many(region.lifetimes.iter().map(|(parameter, actual)| {
                         StaticMachineLifetimeBinding {
                             parameter: Identifier::generated(parameter),
-                            argument: Identifier::generated(actual),
+                            argument:
+                                crate::static_applications::StaticMachineLifetimeArgument::inferred(
+                                    actual.as_deref().map(Identifier::generated).as_ref(),
+                                ),
                         }
                     }));
             frames.push(RetainedTraitApplicationFrame {
                 declaration: region.declaration,
                 arguments,
                 lifetimes,
+                role: region.role,
+                binding_application: region.binding_application,
+                binding_parameters: program
+                    .trait_application_binding_parameters
+                    .insert_many(region.binding_parameters.iter().copied()),
             });
         }
         Ok(RetainedTraitScope {
             declaration: self.declaration,
             argument_owner: self.argument_owner,
             frames: program.trait_application_frames.insert_many(frames),
+            captured_argument_owner: self
+                .captured_argument_owner
+                .as_ref()
+                .map(|scope| program.retain_captured_static_lexical_scope(scope))
+                .unwrap_or_default(),
         })
     }
 }
@@ -199,10 +234,19 @@ impl RetainedTraitScope {
                     .map(|binding| {
                         (
                             binding.parameter.as_str().to_owned(),
-                            binding.argument.as_str().to_owned(),
+                            binding
+                                .argument
+                                .named()
+                                .map(|argument| argument.as_str().to_owned()),
                         )
                     })
                     .collect(),
+                role: frame.role,
+                binding_application: frame.binding_application,
+                binding_parameters: program
+                    .trait_application_binding_parameters
+                    .span_or_empty(frame.binding_parameters)
+                    .to_vec(),
             });
         }
         Some(AppliedTraitScope {
@@ -211,6 +255,15 @@ impl RetainedTraitScope {
             substitutions,
             substitution_scope_starts: scope_starts,
             region_scopes,
+            captured_argument_owner: if self.captured_argument_owner.is_valid() {
+                Some(
+                    program
+                        .captured_static_lexical_scope(self.captured_argument_owner)?
+                        .clone(),
+                )
+            } else {
+                None
+            },
         })
     }
 }

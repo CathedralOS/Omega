@@ -30,21 +30,29 @@ pub fn resolve_local_source(
     limits: LocalSourceLimits,
 ) -> Result<ResolvedLocalSource, SourceResolveError> {
     let limits = limits.compiler_bounded();
-    Ok(capture_local_source(root.as_ref(), limits, SourceTreePolicy::LocalPackage)?.normalized)
+    Ok(capture_local_source(
+        root.as_ref(),
+        limits,
+        SourceTreePolicy::LocalPackage(Default::default()),
+    )?
+    .normalized)
 }
 
 /// Acquire once, retaining the same bytes that produced source identity.
 /// No disk publication or later checkout comparison is needed: every consumer
 /// uses this closed inventory. Capture still rejects observed tree drift.
+/// The original compiler context supplies root-relative owned output extents;
+/// absent context retains the ordinary package reservations.
 pub fn capture_local_source_input(
     root: impl AsRef<Path>,
     limits: LocalSourceLimits,
+    policy: crate::LocalSourceCapturePolicy<'_>,
 ) -> Result<CapturedLocalSource, SourceResolveError> {
     let requested_root = root.as_ref().to_path_buf();
     let captured = capture_local_source(
         &requested_root,
         limits.compiler_bounded(),
-        SourceTreePolicy::LocalPackage,
+        SourceTreePolicy::LocalPackage(policy),
     )?;
     let mut entries = Vec::with_capacity(captured.entries.len());
     for entry in captured.entries {
@@ -71,6 +79,44 @@ pub fn capture_local_source_input(
         normalized: captured.normalized,
         tree: Arc::new(tree),
     })
+}
+
+/// Project a consuming root's local-source membership from original captured
+/// bytes. This never opens the host or rechecks capture drift: acquisition owns
+/// those observations. The same policy used by physical traversal owns omitted
+/// members, output ancestors and excluded link destinations in this scope.
+pub fn project_local_source_scope(
+    tree: &source::CapturedSourceTree,
+    policy: crate::LocalSourceCapturePolicy<'_>,
+) -> std::io::Result<Arc<source::CapturedSourceTree>> {
+    let mut entries = Vec::new();
+    for (path, node) in tree.entries() {
+        if policy.excludes_member(path) {
+            continue;
+        }
+        if matches!(node, source::CapturedSourceNode::Directory)
+            && policy.is_output_ancestor(path)
+            && !tree.entries().any(|(child, _)| {
+                child != path
+                    && child.starts_with(path)
+                    && !policy.excludes_member(child)
+                    && !policy.is_output_ancestor(child)
+            })
+        {
+            continue;
+        }
+        if matches!(node, source::CapturedSourceNode::Symlink { .. }) {
+            let target = tree.canonicalize(path)?;
+            if policy.excludes_member(&target) {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    "captured source link targets excluded consuming-root metadata or output",
+                ));
+            }
+        }
+        entries.push((path.to_path_buf(), node.clone()));
+    }
+    source::CapturedSourceTree::new(entries).map(Arc::new)
 }
 
 #[cfg(unix)]
@@ -162,10 +208,12 @@ pub fn resolve_local_source_snapshot_in_lane(
     let limits = limits.compiler_bounded();
     lane.verify_path_identity()?;
     let requested_root = root.as_ref().to_path_buf();
-    let result = capture_local_source(&requested_root, limits, SourceTreePolicy::LocalPackage)
-        .and_then(|captured| {
-            publish_local_snapshot_in_lane(requested_root, captured, lane, limits)
-        });
+    let result = capture_local_source(
+        &requested_root,
+        limits,
+        SourceTreePolicy::LocalPackage(Default::default()),
+    )
+    .and_then(|captured| publish_local_snapshot_in_lane(requested_root, captured, lane, limits));
     match lane.verify_path_identity() {
         Ok(()) => result,
         Err(error) => Err(error),

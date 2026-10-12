@@ -58,15 +58,13 @@ pub(crate) fn call_is_boundary(
                 .machine_states(machine)
                 .iter()
                 .any(|candidate| candidate.symbol == target_symbol)
-    }) || program.traits().iter().any(|definition| {
-        definition.is_boundary
-            && program
-                .trait_machine_signature_by_symbol(definition, requirement_symbol)
-                .is_some()
     }) || program
-        .operators()
-        .iter()
-        .any(|operator| operator.is_boundary && operator.symbol == target_symbol)
+        .trait_machine_signature(requirement_symbol)
+        .is_some_and(|(definition, _)| definition.is_boundary)
+        || program
+            .operators()
+            .iter()
+            .any(|operator| operator.is_boundary && operator.symbol == target_symbol)
         || validation::exact_external_leaf_boundary_requirement(program, target_symbol).is_some()
 }
 

@@ -63,22 +63,36 @@ impl TypedTrees {
                 _ => None,
             })
             .collect::<Vec<_>>();
-        let lifetimes = self
+        let lifetime_bindings = self
             .expression_table
             .static_machine_application_lifetimes(provider)
-            .iter()
-            .map(|binding| (binding.parameter.clone(), binding.argument.clone()))
-            .collect::<Vec<_>>();
-        if !lifetimes.is_empty()
-            && (lifetimes.len() != machine.lifetime_parameters.len()
+            .to_vec();
+        // No rows denotes a declaration-owned universal checking telescope;
+        // a supplied application retains its entire named/anonymous roster.
+        if !lifetime_bindings.is_empty()
+            && (lifetime_bindings.len() != machine.lifetime_parameters.len()
                 || machine
                     .lifetime_parameters
                     .iter()
-                    .zip(&lifetimes)
-                    .any(|(parameter, (supplied, _))| parameter != supplied))
+                    .zip(&lifetime_bindings)
+                    .any(|(parameter, supplied)| parameter != &supplied.parameter))
         {
             return Err("applied machine callable has an incomplete lifetime tuple");
         }
+        let lifetimes = lifetime_bindings
+            .iter()
+            .filter_map(|binding| {
+                binding
+                    .argument
+                    .named()
+                    .map(|argument| (binding.parameter.clone(), argument.clone()))
+            })
+            .collect::<Vec<_>>();
+        let elided_lifetimes = lifetime_bindings
+            .iter()
+            .filter(|binding| binding.argument.named().is_none())
+            .map(|binding| binding.parameter.clone())
+            .collect::<Vec<_>>();
         if self
             .machine_type_parameters(machine)
             .iter()
@@ -103,6 +117,9 @@ impl TypedTrees {
             symbol: selected,
             name: state.name.clone(),
             lifetime_parameters: machine.lifetime_parameters.clone(),
+            // Provider telescope is consumed by this complete application;
+            // predicates retain its source symbols for simultaneous substitution.
+            where_facts: machine.where_facts,
             parameters: state.parameters,
             return_type: state.return_type,
             contracts: machine.contracts,
@@ -121,6 +138,7 @@ impl TypedTrees {
             region_scope: application.binding_declaration,
             lifetime_declaration: selected,
             lifetimes,
+            elided_lifetimes,
             types: substitutions,
             static_arguments,
             ..CallableApplication::default()
@@ -129,10 +147,21 @@ impl TypedTrees {
         let source_required = required.clone();
         let caller_lifetimes = caller_lifetime_bindings
             .iter()
-            .map(|binding| (binding.parameter.clone(), binding.argument.clone()))
+            .filter_map(|binding| {
+                binding
+                    .argument
+                    .named()
+                    .map(|argument| (binding.parameter.clone(), argument.clone()))
+            })
+            .collect::<Vec<_>>();
+        let caller_elided_lifetimes = caller_lifetime_bindings
+            .iter()
+            .filter(|binding| binding.argument.named().is_none())
+            .map(|binding| binding.parameter.clone())
             .collect::<Vec<_>>();
         let required = CallableApplication {
             lifetimes: caller_lifetimes,
+            elided_lifetimes: caller_elided_lifetimes,
             types: caller_substitutions.to_vec(),
             ..CallableApplication::default()
         }

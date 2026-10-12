@@ -50,10 +50,13 @@ pub struct AssembledSyntax {
     pub build_scope_sources: HashSet<source::SourceId>,
 }
 
-/// Immutable physical source and parse frontier formed before exact target
+/// Immutable captured source and parse frontier formed before exact target
 /// generated sources or target-scoped imports join compilation.
 #[derive(Clone)]
 pub struct ImmutableSourceParseCheckpoint {
+    /// The original request's absolute routing coordinate. Capture may resolve
+    /// its parent to a different selected root; both belong to this one owner.
+    requested_root_path: PathBuf,
     root_path: PathBuf,
     source_storage: Arc<SourceStorage>,
     build_source_id: Option<source::SourceId>,
@@ -67,15 +70,43 @@ pub struct ImmutableSourceParseCheckpoint {
 }
 
 impl ImmutableSourceParseCheckpoint {
+    /// Original unmanaged input capture, produced before any parser or Build
+    /// execution. The same filesystem owner is retained in assembled sources.
+    pub fn unmanaged_source_capture(
+        &self,
+    ) -> Option<&crate::source_imports::UnmanagedSourceCapture> {
+        self.source_storage.unmanaged_source_capture()
+    }
+
+    /// Original compiler-supplied source input shared by prepared children.
+    /// The selected injection consumes this exact owner. It is one input of
+    /// anonymous provenance, not a completed language/default semantic record.
+    pub fn original_build_vocabulary(&self) -> Option<&Arc<str>> {
+        self.source_storage.original_build_vocabulary()
+    }
+
     pub fn root_path(&self) -> &Path {
         &self.root_path
     }
 
-    /// Prepare shared physical sources without admitting a child's target
+    /// Admit only coordinates recorded by original source preparation. Do not
+    /// reopen a host alias to decide whether a child owns this captured input.
+    pub fn admit_root(&self, root_path: &Path) -> Result<(), Vec<Diagnostic>> {
+        let requested = absolute_root_coordinate(root_path)?;
+        if requested != self.requested_root_path && requested != self.root_path {
+            return Err(vec![Diagnostic::error(
+                "checked child compilation root does not match its prepared source checkpoint",
+            )]);
+        }
+        Ok(())
+    }
+
+    /// Prepare shared source inputs without admitting a child's target
     /// attachments. Target-local generated bundles join later during assembly.
     pub fn prepare_from_sources(
         root_path: &Path,
         package_sources: Option<Arc<crate::PackageCompilationSourceInputs>>,
+        build_directory: Option<&Path>,
         timings: &mut CompileTimings,
     ) -> Result<Self, Vec<Diagnostic>> {
         let package_inputs = package_sources
@@ -87,16 +118,23 @@ impl ImmutableSourceParseCheckpoint {
                     .map(|error| Diagnostic::error(error.to_string()))
                     .collect::<Vec<_>>()
             })?;
-        Self::prepare(root_path, package_inputs.as_ref(), timings)
+        Self::prepare(root_path, package_inputs.as_ref(), build_directory, timings)
     }
 
     pub fn prepare(
         root_path: &Path,
         package_inputs: Option<&PackageCompilationInputs>,
+        build_directory: Option<&Path>,
         timings: &mut CompileTimings,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let mut source_storage = SourceStorage::prepare(root_path, package_inputs)?;
-        let project = ProjectSourceSelection::prepare(root_path, &source_storage.filesystem)?;
+        let requested_root_path = absolute_root_coordinate(root_path)?;
+        let mut source_storage =
+            SourceStorage::prepare(root_path, package_inputs, build_directory)?;
+        let root_path = source_storage
+            .unmanaged_source_capture()
+            .map(|capture| capture.selected_root().to_path_buf())
+            .unwrap_or_else(|| requested_root_path.clone());
+        let project = ProjectSourceSelection::prepare(&root_path, &source_storage.filesystem)?;
         let mut imports = ImportQueue::default();
         for (path, scope) in project.sources() {
             imports.seed(path.clone(), *scope);
@@ -104,7 +142,6 @@ impl ImmutableSourceParseCheckpoint {
         let package_imports = load_imports(
             &mut source_storage,
             &mut imports,
-            root_path,
             package_inputs,
             PackageImportPhase::TargetIndependent,
             timings,
@@ -112,6 +149,7 @@ impl ImmutableSourceParseCheckpoint {
         let build_source_id = project.build_source_id(&source_storage)?;
         let application = validate_selected_build_role(&source_storage, build_source_id)?;
         Ok(Self {
+            requested_root_path,
             root_path: root_path.to_path_buf(),
             source_storage: Arc::new(source_storage),
             build_source_id,
@@ -164,7 +202,6 @@ impl ImmutableSourceParseCheckpoint {
         load_imports(
             &mut source_storage,
             &mut imports,
-            &self.root_path,
             package_inputs,
             PackageImportPhase::ExactTarget(None),
             timings,
@@ -182,7 +219,6 @@ impl ImmutableSourceParseCheckpoint {
             load_imports(
                 &mut source_storage,
                 &mut imports,
-                &self.root_path,
                 package_inputs,
                 PackageImportPhase::ExactTarget(None),
                 timings,
@@ -190,13 +226,13 @@ impl ImmutableSourceParseCheckpoint {
         }
         let mut source_scoped_top_level_bindings = Vec::new();
         if let Some(prelude) =
-            crate::source_imports::prepare_build_prelude(&source_storage, self.build_source_id)
+            crate::source_imports::prepare_build_prelude(&source_storage, self.build_source_id)?
         {
             let parsed = SourceInput::Retained(
                 [LoadedSource {
                     source_id: SourceId(source_storage.next_source_id()),
                     path: PathBuf::from("<build-prelude>"),
-                    source: Arc::from(prelude.source.as_str()),
+                    source: prelude.source,
                     origin: Some(SourceOrigin::Toolchain),
                     scope: source::DependencyScope::Product,
                 }]
@@ -392,15 +428,32 @@ fn append_dependency_generated_sources_to_storage(
     Ok(retained)
 }
 
+/// Anchor a request without folding parent traversal through unknown aliases.
+/// The capture's selected coordinate is retained separately; host paths are
+/// never resolved again when a child joins this original checkpoint.
+fn absolute_root_coordinate(root_path: &Path) -> Result<PathBuf, Vec<Diagnostic>> {
+    if root_path.is_absolute() {
+        return Ok(root_path.to_path_buf());
+    }
+    std::env::current_dir()
+        .map(|directory| directory.join(root_path))
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "could not anchor compilation source root {}: {error}",
+                root_path.display()
+            ))]
+        })
+}
+
 fn load_imports(
     source_storage: &mut SourceStorage,
     imports: &mut ImportQueue,
-    root_path: &Path,
     package_inputs: Option<&PackageCompilationInputs>,
     phase: PackageImportPhase,
     timings: &mut CompileTimings,
 ) -> Result<Vec<PendingPackageImport>, Vec<Diagnostic>> {
     let mut retained_requests = Vec::new();
+    let default_source_root = source_storage.default_source_root().to_path_buf();
     while imports.has_pending() {
         let frontier = imports.take_frontier();
         let frontier = match package_inputs {
@@ -435,7 +488,8 @@ fn load_imports(
             None => discover_imports(
                 &parsed,
                 &source_storage.syntax_trees,
-                root_path,
+                &default_source_root,
+                &source_storage.filesystem,
                 &mut source_storage.resolved_imports,
             )?,
         };

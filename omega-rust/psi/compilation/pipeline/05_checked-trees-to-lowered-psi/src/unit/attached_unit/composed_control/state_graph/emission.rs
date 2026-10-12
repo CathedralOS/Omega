@@ -720,6 +720,46 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         blocks.iter(),
         &mut structural_places,
     )?;
+    // Inspect the complete place roster after draining result/temporary
+    // catalogs: a completed ingress may already have its actual declaration.
+    // Publishing before that drain duplicates the same PlaceId.
+    // Expression continuations may introduce structural ingress without an
+    // operation result. Its actual block/ordinal owns the place declaration,
+    // exactly as for authored and Unit-selected continuations.
+    for block in &blocks {
+        for parameter in &block.structural_parameters {
+            let declaration = StructuralPlaceDeclaration {
+                id: parameter.place,
+                kind: StructuralPlaceKind::BlockParameter {
+                    block: block.id,
+                    position: parameter.position,
+                },
+            };
+            if let Some(existing) = structural_places
+                .iter()
+                .find(|existing| existing.id == parameter.place)
+            {
+                // A signature home may remain an authenticated ingress alias;
+                // every freshly receiving block place owns its exact block and
+                // position. An operation result cannot donate that definition.
+                let signature_alias = matches!(existing.kind, StructuralPlaceKind::Parameter { position }
+                    if parameters.iter().any(|original| original.place == parameter.place
+                        && original.position == position
+                        && original.structural_type == parameter.structural_type
+                        && original.multiplicity == parameter.multiplicity
+                        && original.access == parameter.access
+                        && original.qualifications == parameter.qualifications
+                        && original.projected_qualifications == parameter.projected_qualifications));
+                if *existing != declaration && !signature_alias {
+                    return unsupported(
+                        "structural ingress conflicts with its existing place declaration",
+                    );
+                }
+            } else {
+                structural_places.push(declaration);
+            }
+        }
+    }
     structural_places.sort_by_key(|place| place.id);
     let attachment = plan
         .attachment_type_identity

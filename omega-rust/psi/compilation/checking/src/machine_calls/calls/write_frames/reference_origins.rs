@@ -335,7 +335,7 @@ pub(super) fn projected_carrier_reference_origins(
                 member_names.push(member.member.as_str());
                 root = member.receiver;
             }
-            ExpressionNode::Call(call) => break call,
+            ExpressionNode::Call(call) => break program.expression_table.source_call(call)?,
             _ => return None,
         }
     };

@@ -33,6 +33,7 @@ pub(crate) fn validate(
     typed: &TypedTrees,
     authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
     domain: &crate::build_time_evaluation::EvaluationDomain,
+    checking_admission: crate::BuildTimeCheckingAdmission<'_>,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut leaves = Vec::new();
     let mut replay_declarations = Vec::new();
@@ -121,6 +122,7 @@ pub(crate) fn validate(
                 destination,
                 authority.clone(),
                 retained_call || authored_call,
+                checking_admission,
             )
             .map_err(|reason| super::failure(reference, reason))?;
             continue;
@@ -247,7 +249,9 @@ pub(crate) fn validate(
     }
     let prepared = crate::PreparedBuildMachineProgram::prepare(&probe)?;
     let checked =
-        super::invocations::CheckedInitializers::prepare(&prepared, authority, &probe_symbols)?;
+        super::invocations::CheckedInitializers::prepare(
+            &prepared, authority, &probe_symbols, checking_admission,
+        )?;
     let program = checked.typed();
     for declaration in replay_declarations {
         let index = leaves
@@ -405,6 +409,7 @@ fn validate_anonymous_float(
     destination: PrimitiveType,
     authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
     has_calls: bool,
+    checking_admission: crate::BuildTimeCheckingAdmission<'_>,
 ) -> Result<(), String> {
     use crate::const_evaluation::const_generic_expressions::value::{ScalarValue, evaluate_scalar};
     use language_semantics::declaration_selection::{
@@ -473,7 +478,9 @@ fn validate_anonymous_float(
     let checked = has_calls
         .then(|| {
             let prepared = crate::PreparedBuildMachineProgram::prepare(&probe)?;
-            super::invocations::CheckedInitializers::prepare(&prepared, authority.clone(), &[owner])
+            super::invocations::CheckedInitializers::prepare(
+                &prepared, authority.clone(), &[owner], checking_admission,
+            )
         })
         .transpose()
         .map_err(|diagnostics| {

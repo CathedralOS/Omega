@@ -15,6 +15,7 @@ pub type ExpressionFrontier = PagedArenaFrontier<ExpressionNode>;
 pub struct ExpressionTable {
     expressions: Arena<ExpressionNode>,
     source_spans: Arena<SourceSpan>,
+    original_expressions: Arena<ExpressionHandle>,
     expression_handles: Arena<ExpressionHandle>,
     identifier_path_members: Arena<Identifier>,
     struct_fields: Arena<TableStructLiteralField>,
@@ -41,6 +42,7 @@ impl ExpressionTable {
         Self {
             expressions: Arena::with_generation(generation),
             source_spans: Arena::with_generation(generation),
+            original_expressions: Arena::with_generation(generation),
             expression_handles: Arena::with_generation(generation),
             identifier_path_members: Arena::with_generation(generation),
             struct_fields: Arena::with_generation(generation),
@@ -50,10 +52,41 @@ impl ExpressionTable {
 
     pub fn insert(&mut self, expression: ExpressionNode) -> ExpressionHandle {
         let handle = self.expressions.insert(expression);
+        self.original_expressions.append(handle);
         let source_span = self.source_spans.append(SourceSpan::default());
         debug_assert_eq!(source_span.arena_index(), handle.arena_index());
         debug_assert_eq!(source_span.generation(), handle.generation());
         handle
+    }
+
+    /// Establish the issuing graph for a private expression probe. The caller
+    /// keeps this input snapshot; later probe copies retain these exact births.
+    pub fn begin_expression_lowering_lineage(&mut self) {
+        for (expression, _) in self.expressions.iter() {
+            *self.original_expressions.get_mut(Handle::from_parts(
+                expression.arena_index(),
+                expression.generation(),
+            )) = expression;
+        }
+    }
+
+    /// Copies preserve the exact source birth within their retained syntax lineage.
+    pub fn original_expression(&self, expression: ExpressionHandle) -> ExpressionHandle {
+        *self.original_expressions.get(Handle::from_parts(
+            expression.arena_index(),
+            expression.generation(),
+        ))
+    }
+
+    pub(crate) fn retain_original_expression(
+        &mut self,
+        expression: ExpressionHandle,
+        original: ExpressionHandle,
+    ) {
+        *self.original_expressions.get_mut(Handle::from_parts(
+            expression.arena_index(),
+            expression.generation(),
+        )) = original;
     }
 
     pub fn source_span(&self, handle: ExpressionHandle) -> SourceSpan {
@@ -67,6 +100,7 @@ impl ExpressionTable {
     pub(crate) fn adopt(&mut self, other: Self) {
         self.expressions.adopt(other.expressions);
         self.source_spans.adopt(other.source_spans);
+        self.original_expressions.adopt(other.original_expressions);
         self.expression_handles.adopt(other.expression_handles);
         self.identifier_path_members
             .adopt(other.identifier_path_members);
@@ -77,6 +111,7 @@ impl ExpressionTable {
     pub(crate) fn begin_page(&mut self, generation: u32) {
         self.expressions.begin_page(generation);
         self.source_spans.begin_page(generation);
+        self.original_expressions.begin_page(generation);
         self.expression_handles.begin_page(generation);
         self.identifier_path_members.begin_page(generation);
         self.struct_fields.begin_page(generation);

@@ -4,7 +4,6 @@
 use crate::typed_trees::placed_plans::named_type_reference_through_shells;
 use crate::typed_trees::{
     PlacedFieldPlan, PlacedViewPlan, TypedTrees, static_const_argument_spelling,
-    static_const_identity_from_spelling,
 };
 use crate::{expression, name, types};
 
@@ -58,8 +57,79 @@ impl TypedTrees {
         &self,
         argument: &expression::StaticMachineArgument,
     ) -> Option<String> {
-        static_const_argument_spelling(self, argument)
-            .map(|spelling| static_const_identity_from_spelling(&spelling))
+        let spelling = static_const_argument_spelling(self, argument)?;
+        let meaning = self.static_const_integer_meaning(argument);
+        let value = if let Some(value) =
+            language_semantics::const_value::CanonicalConstValue::from_atom(&spelling)
+        {
+            value.identity()
+        } else if let crate::types::ConstIntegerMeaning::Typed { primitive, .. } = meaning {
+            language_semantics::const_value::CanonicalConstIdentity::integer(
+                primitive.name(),
+                spelling.parse().ok()?,
+            )
+        } else {
+            return spelling
+                .parse::<i128>()
+                .ok()
+                .map(crate::finite_family::integer_const_identity);
+        };
+        Some(format!(
+            "named({})",
+            crate::type_identity::canonical_const_identity_with_meaning(&value, meaning)
+        ))
+    }
+
+    /// One complete family tuple under the exact requirement's local telescope.
+    /// The original signature supplies each receiving slot; no standalone atom
+    /// or similarly shaped public declaration supplies its carrier.
+    pub fn signature_const_argument_identities(
+        &self,
+        signature: &crate::signature::StateSignature,
+        arguments: &[expression::StaticMachineArgument],
+    ) -> Option<Vec<String>> {
+        let parameters = self
+            .state_signature_type_parameters(signature)
+            .iter()
+            .filter_map(|parameter| match parameter.kind {
+                crate::data::TypeParameterKind::Const { type_reference }
+                | crate::data::TypeParameterKind::Value { type_reference } => Some(type_reference),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        if parameters.len() != arguments.len() {
+            return None;
+        }
+        parameters
+            .iter()
+            .zip(arguments)
+            .map(|(carrier, argument)| {
+                crate::type_identity::declared_const_argument_identity(
+                    self,
+                    crate::type_identity::IndexIdentityArgument::StaticArgument(argument),
+                    *carrier,
+                    &[],
+                )
+            })
+            .collect()
+    }
+
+    /// The checked dispatch already retains this exact public target. Rejoin
+    /// its unique signature, including owned headers, without selecting another
+    /// implementation or using an argument tuple to elect a declaration.
+    pub fn public_const_argument_identities(
+        &self,
+        target: symbols::SymbolHandle,
+        arguments: &[expression::StaticMachineArgument],
+    ) -> Option<Vec<String>> {
+        let mut signatures = self
+            .public_trait_requirement_signatures()
+            .filter(|(_, signature)| signature.symbol == target);
+        let (_, signature) = signatures.next()?;
+        if signatures.next().is_some() {
+            return None;
+        }
+        self.signature_const_argument_identities(signature, arguments)
     }
 
     pub fn placed_field_plan_for_type_reference(

@@ -13,7 +13,7 @@ use crate::proof_contracts::contract_entailment::citations::{
 use crate::proof_contracts::contract_entailment::is_arm_pattern_marker;
 use crate::proof_contracts::contract_entailment::self_induction::intake_available_self_induction_hypotheses;
 use crate::proof_contracts::contract_entailment::structural_judgment::{
-    StructuralJudge, StructuralJudgment, StructuralTerm,
+    StructuralJudge, StructuralTerm,
 };
 use crate::proof_contracts::contract_entailment::structural_terms::structural_term;
 use diagnostics::Diagnostic;
@@ -347,7 +347,28 @@ fn recognize_structural_state_leaves<'a>(
         requirement,
         established_guarantees,
         0,
+        judge.effect_epoch(),
     )
+}
+
+/// Retire every outer store at the same path cursor as the judgment ledger.
+/// Surviving facts advance their cursor only after applying those effects;
+/// freshly appended observations therefore never inherit earlier writes.
+#[allow(clippy::too_many_arguments)]
+fn retire_continuation(
+    judge: &StructuralJudge<'_>,
+    epoch: usize,
+    environment: &mut Vec<(String, StructuralTerm)>,
+    hypotheses: &mut Vec<(String, StructuralTerm)>,
+    equations: &mut Vec<(StructuralTerm, StructuralTerm)>,
+    pending: &mut Vec<PendingStructuralCitation>,
+    established: &mut CitationFacts,
+) {
+    environment.retain(|(name, value)| judge.binding_survives_effects(name, value, epoch));
+    hypotheses.retain(|(name, value)| judge.binding_survives_effects(name, value, epoch));
+    equations.retain(|(left, right)| judge.terms_survive_effects([left, right], epoch));
+    pending.retain(|(_, arguments)| judge.terms_survive_effects(arguments, epoch));
+    established.retain_available(judge, epoch);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -360,9 +381,9 @@ fn recognize_structural_state_leaves_from<'a>(
     states: &[typed_trees::state::State],
     state: &typed_trees::state::State,
     parameter_names: &[String],
-    environment: Vec<(String, StructuralTerm)>,
-    case_hypotheses: Vec<(String, StructuralTerm)>,
-    case_equations: Vec<(StructuralTerm, StructuralTerm)>,
+    mut environment: Vec<(String, StructuralTerm)>,
+    mut case_hypotheses: Vec<(String, StructuralTerm)>,
+    mut case_equations: Vec<(StructuralTerm, StructuralTerm)>,
     mut pending_citations: Vec<PendingStructuralCitation>,
     collect_citations: bool,
     path: &mut Vec<SymbolHandle>,
@@ -370,6 +391,7 @@ fn recognize_structural_state_leaves_from<'a>(
     requirement: &mut Option<&mut dyn StructuralPrefixVisitor>,
     mut established_guarantees: CitationFacts,
     start_index: usize,
+    context_epoch: usize,
 ) -> Option<Vec<StructuralCaseArm>> {
     if !state.symbol.is_valid() || (start_index == 0 && path.contains(&state.symbol)) {
         return None;
@@ -377,13 +399,23 @@ fn recognize_structural_state_leaves_from<'a>(
     if start_index == 0 {
         path.push(state.symbol);
     }
-    // Resuming after a completed statement retains the same branch facts.
-    // The outcome judge already owns them and its newly captured guarantees;
-    // re-intaking the entire branch here duplicates rewrites once per local.
-    // A state arrival still establishes its incoming refinements, and the
-    // requested premise visitor checks contradiction in its final context.
+    retire_continuation(
+        judge,
+        context_epoch,
+        &mut environment,
+        &mut case_hypotheses,
+        &mut case_equations,
+        &mut pending_citations,
+        &mut established_guarantees,
+    );
+    let mut context_epoch = judge.effect_epoch();
+    let mut scoped_judge = judge.clone();
+    scoped_judge.enter_observation_frame(state.symbol);
+    let judge = &scoped_judge;
+    // A resumed continuation retains its surviving path facts and captured
+    // guarantees. Only a state arrival intakes incoming refinements.
     let mut path_judge = if start_index == 0 {
-        structural_arm_judge(program, judge, &case_hypotheses, &case_equations)
+        structural_arm_judge(judge, &case_hypotheses, &case_equations)
     } else {
         judge.clone()
     };
@@ -428,17 +460,16 @@ fn recognize_structural_state_leaves_from<'a>(
             if judge.requires_value_preservation()
                 && let StatementNode::Call(call) = statement
             {
-                let frames = judge.frame_resolver()?;
-                let mut writes = Vec::new();
-                for frame in [
-                    frames.may_write_frame(machine, call),
-                    frames.statement_value_write_frame(machine, statement),
-                ] {
-                    writes.extend(frame.into_complete_paths()?);
-                }
-                citation_preserves_values = writes.is_empty();
-                judge.observe_storage_writes(state, &writes)?;
+                citation_preserves_values = judge.call_frames().is_some_and(|frames| {
+                    [
+                        frames.may_write_frame(machine, call),
+                        frames.statement_value_write_frame(machine, statement),
+                    ]
+                    .iter()
+                    .all(|frame| frame.complete_paths().is_some_and(<[String]>::is_empty))
+                });
             }
+            let mut produced_guarantees = CitationFacts::default();
             if requirement.is_some()
                 && citation_preserves_values
                 && !saw_transition
@@ -477,21 +508,73 @@ fn recognize_structural_state_leaves_from<'a>(
                     classification,
                     &case_hypotheses,
                     &case_equations,
-                    &mut established_guarantees,
+                    &established_guarantees,
+                    &mut produced_guarantees,
                     &target,
                     &arguments,
                 );
             }
+            if judge.has_runtime_body_values()
+                && let StatementNode::Call(call) = statement
+                && !program
+                    .machine(call.target_symbol)
+                    .or_else(|| program.machine_holding_state(call.target_symbol))
+                    .is_some_and(|callee| classification.is_proof_machine(program, callee))
+            {
+                // Statement citations have already captured their operands
+                // and established entry obligations. Their existing public
+                // tag producer refuses unsupported runtime operand graphs;
+                // effect retirement still owns both children and the callee.
+                let frames = judge.call_frames();
+                let children = frames
+                    .as_ref()
+                    .map_or_else(facts::NormalizedWriteFrame::opaque, |frames| {
+                        frames.statement_value_write_frame(machine, statement)
+                    });
+                let callee = frames
+                    .as_ref()
+                    .map_or_else(facts::NormalizedWriteFrame::opaque, |frames| {
+                        frames.may_write_frame(machine, call)
+                    });
+                judge.retire_call_effects(state, children);
+                judge.retire_call_effects(state, callee);
+                retire_continuation(
+                    judge,
+                    context_epoch,
+                    &mut environment,
+                    &mut case_hypotheses,
+                    &mut case_equations,
+                    &mut pending_citations,
+                    &mut established_guarantees,
+                );
+                produced_guarantees.retain_available(judge, context_epoch);
+                context_epoch = judge.effect_epoch();
+            }
+            established_guarantees.extend(produced_guarantees);
             match statement {
                 StatementNode::LocalData(local) if !saw_transition => {
-                    let outcomes = judge.normal_return_paths(
+                    let outcomes = judge.normal_return_paths_since(
                         local.initial_value,
                         &environment,
                         (machine, state, local.type_reference),
+                        context_epoch,
                     )?;
                     let mut leaves = Vec::new();
                     for outcome in outcomes {
+                        let mut environment = environment.clone();
+                        let mut case_hypotheses = case_hypotheses.clone();
+                        let mut case_equations = case_equations.clone();
                         let mut pending_citations = pending_citations.clone();
+                        let mut established_guarantees = established_guarantees.clone();
+                        retire_continuation(
+                            &outcome.judge,
+                            context_epoch,
+                            &mut environment,
+                            &mut case_hypotheses,
+                            &mut case_equations,
+                            &mut pending_citations,
+                            &mut established_guarantees,
+                        );
                         if collect_citations
                             && let Some((target, argument_handles)) =
                                 citation_call_in_statement(program, statement)
@@ -507,7 +590,6 @@ fn recognize_structural_state_leaves_from<'a>(
                                 &mut pending_citations,
                             )?;
                         }
-                        let mut environment = environment.clone();
                         environment.push((local.name.as_str().to_owned(), outcome.value));
                         leaves.extend(recognize_structural_state_leaves_from(
                             program,
@@ -528,6 +610,7 @@ fn recognize_structural_state_leaves_from<'a>(
                             requirement,
                             established_guarantees.clone(),
                             statement_index + 1,
+                            outcome.judge.effect_epoch(),
                         )?);
                     }
                     return Some(leaves);
@@ -549,10 +632,11 @@ fn recognize_structural_state_leaves_from<'a>(
                         )
                         .unwrap_or_default()
                     };
-                    let outcomes = judge.normal_return_paths(
+                    let outcomes = judge.normal_return_paths_since(
                         *expression,
                         &environment,
                         (machine, state, result_type),
+                        context_epoch,
                     )?;
                     let mut leaves = Vec::new();
                     for outcome in outcomes {
@@ -569,6 +653,7 @@ fn recognize_structural_state_leaves_from<'a>(
                                     case_equations.clone(),
                                     pending_citations.clone(),
                                     outcome.value,
+                                    context_epoch,
                                 ));
                             }
                         } else {
@@ -594,6 +679,7 @@ fn recognize_structural_state_leaves_from<'a>(
                                 requirement,
                                 established_guarantees.clone(),
                                 statement_index + 1,
+                                context_epoch,
                             )?);
                         }
                     }
@@ -616,7 +702,8 @@ fn recognize_structural_state_leaves_from<'a>(
                 StatementNode::Call(_)
                     if !saw_transition && judge.requires_value_preservation() =>
                 {
-                    // The shared effect step above retired affected storage.
+                    // The shared retirement above removed invalidated entry
+                    // observations before this continuation.
                 }
                 StatementNode::Call(call)
                     if !saw_transition
@@ -652,6 +739,7 @@ fn recognize_structural_state_leaves_from<'a>(
                 case_equations,
                 pending_citations,
                 StructuralTerm::Opaque("()".to_owned()),
+                context_epoch,
             )]);
         }
         // Arms test their guards in order. A later arm observes each earlier
@@ -691,8 +779,8 @@ fn recognize_structural_state_leaves_from<'a>(
                     ));
                     continue;
                 };
-                let guard_preserves_values = judge
-                    .frame_resolver()
+                let guard_preserves_values = incoming
+                    .call_frames()
                     .and_then(|frames| frames.expression_may_write_paths(machine, guard))
                     .is_some_and(|paths| paths.is_empty());
                 if incoming.requires_value_preservation() && !guard_preserves_values {
@@ -707,12 +795,8 @@ fn recognize_structural_state_leaves_from<'a>(
                     subject_expression,
                     None,
                 );
-                let observed = structural_arm_judge(
-                    program,
-                    &incoming,
-                    &case_hypotheses,
-                    &remaining_equations,
-                );
+                let observed =
+                    structural_arm_judge(&incoming, &case_hypotheses, &remaining_equations);
                 let subject_type = crate::expression_result_type_reference(
                     program,
                     machine,
@@ -720,10 +804,11 @@ fn recognize_structural_state_leaves_from<'a>(
                     subject_expression,
                 )
                 .unwrap_or_default();
-                for outcome in observed.normal_return_paths(
+                for mut outcome in observed.normal_return_paths_since(
                     subject_expression,
                     &environment,
                     (machine, state, subject_type),
+                    context_epoch,
                 )? {
                     let subject = outcome.value;
                     let mut branch_environment = environment.clone();
@@ -750,6 +835,15 @@ fn recognize_structural_state_leaves_from<'a>(
                         ));
                     }
                     next_remaining.push((outcome.judge.clone(), skipped_equations));
+                    if let StructuralTerm::Constructor { fields, .. } = &constructor {
+                        outcome.judge.retain_case_payload_observations(
+                            &subject,
+                            fields.iter().filter_map(|(_, value)| match value {
+                                StructuralTerm::Variable(name) => Some(name.clone()),
+                                _ => None,
+                            }),
+                        );
+                    }
                     match subject {
                         StructuralTerm::Variable(subject) => {
                             branch_hypotheses.push((subject, constructor.clone()));
@@ -800,17 +894,18 @@ fn recognize_structural_state_leaves_from<'a>(
                     continue;
                 }
                 let mut branch_judge =
-                    structural_arm_judge(program, judge, &branch_hypotheses, &branch_equations);
+                    structural_arm_judge(judge, &branch_hypotheses, &branch_equations);
                 let judge = &mut branch_judge;
                 match program.statement_table.transition_target(transition.target) {
                     TransitionTargetNode::Value(value) => {
                         if requirement.is_some() {
                             continue;
                         }
-                        for outcome in judge.normal_return_paths(
+                        for outcome in judge.normal_return_paths_since(
                             *value,
                             &branch_environment,
                             (machine, state, state.return_type),
+                            context_epoch,
                         )? {
                             leaves.push(finalize_structural_case_arm(
                                 program,
@@ -823,6 +918,7 @@ fn recognize_structural_state_leaves_from<'a>(
                                 branch_equations.clone(),
                                 pending_citations.clone(),
                                 outcome.value,
+                                context_epoch,
                             ));
                         }
                     }
@@ -850,10 +946,11 @@ fn recognize_structural_state_leaves_from<'a>(
                         {
                             let mut next = Vec::new();
                             for (target_environment, captured) in target_frames {
-                                for outcome in captured.normal_return_paths(
+                                for outcome in captured.normal_return_paths_since(
                                     *argument,
                                     &branch_environment,
                                     (machine, state, parameter.type_reference),
+                                    context_epoch,
                                 )? {
                                     let mut target_environment = target_environment.clone();
                                     target_environment
@@ -864,6 +961,20 @@ fn recognize_structural_state_leaves_from<'a>(
                             target_frames = next;
                         }
                         for (target_environment, captured) in target_frames {
+                            let mut source_environment = branch_environment.clone();
+                            let mut branch_hypotheses = branch_hypotheses.clone();
+                            let mut branch_equations = branch_equations.clone();
+                            let mut pending_citations = pending_citations.clone();
+                            let mut established_guarantees = established_guarantees.clone();
+                            retire_continuation(
+                                &captured,
+                                context_epoch,
+                                &mut source_environment,
+                                &mut branch_hypotheses,
+                                &mut branch_equations,
+                                &mut pending_citations,
+                                &mut established_guarantees,
+                            );
                             leaves.extend(recognize_structural_state_leaves(
                                 program,
                                 machine,
@@ -910,8 +1021,21 @@ fn finalize_structural_case_arm(
     case_equations: Vec<(StructuralTerm, StructuralTerm)>,
     pending_citations: Vec<PendingStructuralCitation>,
     value: StructuralTerm,
+    context_epoch: usize,
 ) -> StructuralCaseArm {
-    let mut arm_judge = structural_arm_judge(program, judge, &case_hypotheses, &case_equations);
+    let case_hypotheses = case_hypotheses
+        .into_iter()
+        .filter(|(name, value)| judge.binding_survives_effects(name, value, context_epoch))
+        .collect::<Vec<_>>();
+    let case_equations = case_equations
+        .into_iter()
+        .filter(|(left, right)| judge.terms_survive_effects([left, right], context_epoch))
+        .collect::<Vec<_>>();
+    let pending_citations = pending_citations
+        .into_iter()
+        .filter(|(_, arguments)| judge.terms_survive_effects(arguments, context_epoch))
+        .collect::<Vec<_>>();
+    let mut arm_judge = structural_arm_judge(judge, &case_hypotheses, &case_equations);
     let vacuous = arm_judge.hypotheses_contradictory;
 
     // The induction hypothesis is available before an authored citation only
@@ -967,7 +1091,6 @@ fn finalize_structural_case_arm(
 }
 
 pub(super) fn structural_arm_judge<'program>(
-    program: &dyn crate::CheckingInput,
     judge: &StructuralJudge<'program>,
     case_hypotheses: &[(String, StructuralTerm)],
     case_equations: &[(StructuralTerm, StructuralTerm)],
@@ -983,21 +1106,12 @@ pub(super) fn structural_arm_judge<'program>(
             constructor.clone(),
             0,
         );
-        std::sync::Arc::make_mut(&mut arm_judge.substitutions)
-            .insert(0, (subject.clone(), constructor.clone()));
+        arm_judge.intake_case_binding(subject.clone(), constructor.clone());
     }
-    // The supplied judge owns the exact invocation premises. Re-importing the
-    // enclosing machine's entry contract would donate stale facts to a named
-    // recurrent state whose same-spelled formals are distinct declarations.
-    let requires = judge.premise_facts().to_vec();
-    let vacuous = requires
-        .iter()
-        .any(|fact| matches!(arm_judge.judge(program, *fact), StructuralJudgment::Refuted));
-    for fact in &requires {
-        arm_judge.intake(program, *fact);
-        arm_judge.intake_preserved_predicate(*fact);
-    }
-    arm_judge.hypotheses_contradictory |= vacuous;
+    // Refined subjects change the indexes of existing produced equations.
+    // Reindex only surviving terms; source re-intake would resurrect premises
+    // retired by an earlier call's effects.
+    arm_judge.reindex_surviving_contributions();
     arm_judge
 }
 

@@ -1,0 +1,1 @@
+does not satisfy trait `OnceRegistrar` machine `execute`: expected return `i32`, got `u64`

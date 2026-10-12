@@ -42,23 +42,13 @@ pub(crate) fn build_crash_contract_capsules(
             program,
             program.trait_type_parameters(definition),
         ));
-        for declaration in program.trait_machine_signatures(definition) {
-            // Execution replaces an open requirement with its closed family.
-            // Package review still publishes the authored generic contract;
-            // concrete applications cannot donate that declaration's ceiling.
-            // Keep both coordinates, each derived from its own signature.
-            for signature in std::iter::once(declaration).chain(
-                program
-                    .requirement_machine_instances(declaration)
-                    .filter(|instance| instance.symbol != declaration.symbol),
-            ) {
-                signatures.extend(crate::proof::machine_parameter_evidence_signatures(
-                    program,
-                    program.state_signature_type_parameters(signature),
-                ));
-                signatures.push((definition.symbol, signature.symbol, signature));
-            }
-        }
+    }
+    for (definition, signature) in program.public_trait_requirement_signatures() {
+        signatures.extend(crate::proof::machine_parameter_evidence_signatures(
+            program,
+            program.state_signature_type_parameters(signature),
+        ));
+        signatures.push((definition.symbol, signature.symbol, signature));
     }
 
     let mut capsules = signatures

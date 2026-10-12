@@ -34,7 +34,7 @@ pub(super) fn derive_source_evaluated_mechanisms(
     plan: &abstract_operations::AbstractOperationPlan,
     selected_plans: &effects::SelectedProviderPlanFacts,
     external_binding_rows: &[calling_conventions::ExternalBindingRow],
-    native_callbacks: &[crate::AdmittedNativeCallbackArgument],
+    native_callbacks: &[(BoundaryMachineId, &crate::AdmittedNativeCallbackArgument)],
 ) -> Result<
     (
         Vec<AdmittedTerminalMechanism>,
@@ -97,30 +97,7 @@ pub(super) fn derive_source_evaluated_mechanisms(
                         rows.external_count,
                     ))]);
                 };
-                match rows.callbacks.as_slice() {
-                    [] => crate::provider_admission::normalized_foreign_terminal_mechanism(
-                        evaluated.locator(),
-                        boundary_entry_plan,
-                    ),
-                    [first, rest @ ..]
-                        if first.registrar_boundary_entry_plan == *boundary_entry_plan
-                            && rest.iter().all(|callback| {
-                                callback.registrar_boundary_entry_plan
-                                    == *boundary_entry_plan
-                                    && callback.registrar_context == first.registrar_context
-                            }) =>
-                    {
-                        crate::provider_admission::normalized_foreign_terminal_mechanism_with_callback_materializations(
-                            evaluated.locator(),
-                            boundary_entry_plan,
-                            &first.registrar_context,
-                        )
-                    }
-                    callbacks => Err(format!(
-                        "retained implementation contract rejoins {} exact native callbacks with no unique matching registrar plan",
-                        callbacks.len(),
-                    )),
-                }
+                import_terminal_mechanism(evaluated.locator(), boundary_entry_plan, &rows.callbacks)
                 .map_err(|error| {
                     vec![Diagnostic::error(format!(
                         "demanded normalized import `{requirement}` has an invalid admitted implementation contract: {error}"
@@ -194,7 +171,7 @@ fn join_import_coverage_rows<'input>(
     plan: &'input abstract_operations::AbstractOperationPlan,
     selected_plans: &'input effects::SelectedProviderPlanFacts,
     external_binding_rows: &'input [calling_conventions::ExternalBindingRow],
-    native_callbacks: &'input [AdmittedNativeCallbackArgument],
+    native_callbacks: &[(BoundaryMachineId, &'input AdmittedNativeCallbackArgument)],
 ) -> Result<BTreeMap<&'input str, ImportCoverageRows<'input>>, Vec<Diagnostic>> {
     let boundary_identities = plan
         .boundary_machines
@@ -207,29 +184,10 @@ fn join_import_coverage_rows<'input>(
         })
         .collect::<std::collections::BTreeMap<_, _>>();
     let mut demanded = BTreeMap::new();
-    // Only callbacks requested by this invocation need an occurrence join.
-    let mut callback_boundaries = native_callbacks
-        .iter()
-        .map(|callback| (callback.terminal_operation, None))
-        .collect::<BTreeMap<_, _>>();
     for operation in plan.operations() {
-        let (boundary, site) = match operation {
-            abstract_operations::AbstractOperation::BoundaryCall {
-                boundary,
-                psi_operation,
-                ..
-            } => (
-                boundary,
-                semantic_vocabulary::BoundaryInvocationSite::Operation(*psi_operation),
-            ),
-            abstract_operations::AbstractOperation::ExternalCompletion {
-                boundary,
-                psi_edge,
-                ..
-            } => (
-                boundary,
-                semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(*psi_edge),
-            ),
+        let boundary = match operation {
+            abstract_operations::AbstractOperation::BoundaryCall { boundary, .. } => boundary,
+            abstract_operations::AbstractOperation::ExternalCompletion { boundary, .. } => boundary,
             _ => continue,
         };
         let Some(requirement) = boundary_identities.get(boundary) else {
@@ -248,13 +206,6 @@ fn join_import_coverage_rows<'input>(
                 external_count: 0,
                 callbacks: Vec::new(),
             });
-        if let Some(matching) = site
-            .operation()
-            .and_then(|operation| callback_boundaries.get_mut(&operation))
-        {
-            let (count, _) = matching.get_or_insert((0usize, *boundary));
-            *count += 1;
-        }
     }
 
     if demanded.is_empty() && native_callbacks.is_empty() {
@@ -310,8 +261,84 @@ fn join_import_coverage_rows<'input>(
         }
     }
 
-    for callback in native_callbacks {
-        let matching = callback_boundaries
+    for (boundary, callback) in native_callbacks {
+        let requirement = boundary_identities.get(boundary).copied().ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "native callback operation {} cites absent boundary {:?}",
+                callback.terminal_operation.get(),
+                boundary,
+            ))]
+        })?;
+        if let Some(rows) = demanded.get_mut(requirement) {
+            rows.callbacks.push(*callback);
+        }
+    }
+
+    Ok(demanded)
+}
+
+/// Shared physical mechanism operation. Source selection and exact direct calls
+/// supply their own declaration/calling custody; private callback rows still
+/// require the same complete registrar context.
+pub(super) fn import_terminal_mechanism(
+    locator: &target::NormalizedForeignLocator,
+    entry: &calling_conventions::BoundaryEntryPlan,
+    callbacks: &[&AdmittedNativeCallbackArgument],
+) -> Result<effects::TerminalMechanismIdentity, String> {
+    match callbacks {
+                    [] => crate::provider_admission::normalized_foreign_terminal_mechanism(
+                        locator,
+                        entry,
+                    ),
+                    [first, rest @ ..]
+                        if first.registrar_boundary_entry_plan == *entry
+                            && rest.iter().all(|callback| {
+                                callback.registrar_boundary_entry_plan
+                                    == *entry
+                                    && callback.registrar_context == first.registrar_context
+                            }) =>
+                    {
+                        crate::provider_admission::normalized_foreign_terminal_mechanism_with_callback_materializations(
+                            locator,
+                            entry,
+                            &first.registrar_context,
+                        )
+                    }
+                    callbacks => Err(format!(
+                        "retained implementation contract rejoins {} exact native callbacks with no unique matching registrar plan",
+                        callbacks.len(),
+                    )),
+                }
+}
+
+/// Join requested private materializations to their exact source operations once
+/// for both selected and direct foreign mechanism production.
+pub(super) fn callback_boundaries<'input>(
+    plan: &abstract_operations::AbstractOperationPlan,
+    callbacks: &'input [AdmittedNativeCallbackArgument],
+) -> Result<Vec<(BoundaryMachineId, &'input AdmittedNativeCallbackArgument)>, Vec<Diagnostic>> {
+    if callbacks.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut occurrences = callbacks
+        .iter()
+        .map(|row| (row.terminal_operation, None))
+        .collect::<BTreeMap<_, _>>();
+    for operation in plan.operations() {
+        if let abstract_operations::AbstractOperation::BoundaryCall {
+            boundary,
+            psi_operation,
+            ..
+        } = operation
+            && let Some(matching) = occurrences.get_mut(psi_operation)
+        {
+            let (count, _) = matching.get_or_insert((0usize, *boundary));
+            *count += 1;
+        }
+    }
+    let mut joined = Vec::with_capacity(callbacks.len());
+    for callback in callbacks {
+        let matching = occurrences
             .get(&callback.terminal_operation)
             .copied()
             .flatten();
@@ -323,17 +350,7 @@ fn join_import_coverage_rows<'input>(
                 count,
             ))]);
         };
-        let requirement = boundary_identities.get(&boundary).copied().ok_or_else(|| {
-            vec![Diagnostic::error(format!(
-                "native callback operation {} cites absent boundary {:?}",
-                callback.terminal_operation.get(),
-                boundary,
-            ))]
-        })?;
-        if let Some(rows) = demanded.get_mut(requirement) {
-            rows.callbacks.push(callback);
-        }
+        joined.push((boundary, callback));
     }
-
-    Ok(demanded)
+    Ok(joined)
 }

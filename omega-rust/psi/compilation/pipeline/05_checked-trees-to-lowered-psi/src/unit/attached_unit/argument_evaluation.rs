@@ -597,6 +597,7 @@ impl Evaluation {
     pub(crate) fn selection_return_discards(
         &self,
         mut roots: Vec<(PlaceId, bool)>,
+        operations: &OperationBuffer,
     ) -> Result<Vec<PlaceId>, LoweringError> {
         for cleanup in &self.selection_cleanups {
             if cleanup.sources.is_empty() {
@@ -619,10 +620,29 @@ impl Evaluation {
             }
             let selected = roots
                 .iter()
-                .position(|(place, _)| *place == cleanup.selected)
-                .ok_or(LoweringError::Unsupported(
-                    "selected cleanup result is absent from its operation roster",
-                ))?;
+                .position(|(place, _)| *place == cleanup.selected);
+            if selected.is_none()
+                && !operations
+                    .structural_completions
+                    .iter()
+                    .any(|(parameter, _)| {
+                        parameter.place == cleanup.selected
+                            && parameter.access == StructuralAccess::Owned
+                            && self
+                                .structural_root_parameters()
+                                .any(|ingress| ingress == parameter)
+                    })
+            {
+                return unsupported(
+                    "selected cleanup result has no actual operation or block ingress",
+                );
+            }
+            // An anonymous selected result may transfer to its enclosing
+            // expression consumer without an authored operation roster row.
+            // Its actual block ingress authenticates completion, not disposal:
+            // keep the consumer's checked disposition unchanged and splice only
+            // the source residuals this receipt owns. Never manufacture a
+            // result-binding ordinal or add a selected-result death flag.
             let start = roots
                 .iter()
                 .position(|(place, _)| cleanup.sources.contains(place))
@@ -636,7 +656,7 @@ impl Evaluation {
                     "owned selection cleanup source is absent",
                 ))?
                 + 1;
-            if start <= selected
+            if selected.is_some_and(|selected| start <= selected)
                 || cleanup
                     .sources
                     .iter()
@@ -1417,12 +1437,53 @@ impl Evaluation {
                 cleanup_actions: Vec::new(),
             },
         });
+        let mut completed_selections = Vec::new();
         for index in scalar_state_emission_order(states, entry_index)? {
-            let state = &states[index];
+            let mut state = states[index].clone();
+            for parameter in &mut state.structural_parameters {
+                if let Some((_, reference)) = expansion
+                    .parameter_sources
+                    .iter()
+                    .find(|(place, _)| *place == parameter.place)
+                {
+                    parameter.qualifications =
+                        validation::structural_result_qualifications(&checked.typed, *reference)
+                            .map_err(LoweringError::Unsupported)?
+                            .into_iter()
+                            .map(|domain| {
+                                crate::terminal_identities::lookup_domain_id_for_carrier(
+                                    calls.domain_ids,
+                                    domain,
+                                    parameter.structural_type,
+                                )
+                            })
+                            .collect::<Result<Vec<_>, _>>()?;
+                    parameter.qualifications.sort_unstable();
+                    parameter.qualifications.dedup();
+                    parameter.projected_qualifications =
+                        crate::unit::attached_unit::parameters::lower_projected_qualifications(
+                            identities,
+                            &validation::structural_result_projected_qualifications(
+                                &checked.typed,
+                                *reference,
+                            )
+                            .map_err(LoweringError::Unsupported)?,
+                            calls.domain_ids,
+                            parameter.structural_type,
+                            &self.structural_types,
+                        )?;
+                }
+            }
+            for effect in &mut state.structural_effects {
+                if let crate::scalar_lowering::branch_states::prepared::LoweredScalarEffect::StructuralCompletion { parameter, .. } = effect
+                    && let Some(ingress) = state.structural_parameters.iter().find(|ingress| ingress.place == parameter.place) {
+                    *parameter = ingress.clone();
+                }
+            }
             emit_state(
                 identities,
                 checked,
-                state,
+                &state,
                 targets[index + 1],
                 &parameters[index + 1],
                 &self.erased_scalar_formals,
@@ -1439,6 +1500,76 @@ impl Evaluation {
                 calls,
                 &mut self.blocks,
             )?;
+            for (_, prepared) in expansion
+                .selections
+                .iter()
+                .filter(|(joined, _)| *joined == index)
+            {
+                let mut cleanup = prepared.clone();
+                // The shared Unit selection boundary admits plain affine
+                // source frontiers. Retain that same fence for expression
+                // continuations; a receiving type cannot donate missing claims
+                // or qualifications to an original source owner.
+                for source in &cleanup.sources {
+                    if let Some(parameter) = self
+                        .structural_root_parameters()
+                        .find(|parameter| parameter.place == *source)
+                    {
+                        if !parameter.is_unqualified_owned_affine() {
+                            return unsupported(
+                                "selection parameter source requires whole plain-affine custody",
+                            );
+                        }
+                    } else {
+                        let actual = operations
+                            .iter()
+                            .filter_map(|operation| operation.result.structural())
+                            .find(|result| result.place == *source)
+                            .ok_or(LoweringError::Unsupported(
+                                "selection source has no exact emitted frontier",
+                            ))?;
+                        if actual.multiplicity != StructuralMultiplicity::Affine
+                            || !actual.claims.is_empty()
+                            || !actual.qualifications.is_empty()
+                            || !actual.projected_qualifications.is_empty()
+                        {
+                            return unsupported(
+                                "selection source requires claim-free plain-affine transport",
+                            );
+                        }
+                    }
+                }
+                // Only operations emitted after this receiving continuation may
+                // observe the residual homes. Earlier arm operations still name
+                // their original owners, including unselected alternatives.
+                cleanup.next_operation = operations.next_identity;
+                completed_selections.push(cleanup);
+            }
+        }
+        // Conditional joins publish current custody only through their actual
+        // continuation. The source receipt still owns the eventual death edge.
+        for cleanup in completed_selections {
+            let residual_owners = cleanup
+                .remaining
+                .iter()
+                .filter_map(|(source, receiving)| {
+                    self.structural_value_owners
+                        .iter()
+                        .find(|owner| owner.value.place == *source)
+                        .map(|owner| {
+                            let mut residual = owner.clone();
+                            residual.symbol = symbols::SymbolHandle::invalid();
+                            residual.value.place = *receiving;
+                            residual
+                        })
+                })
+                .collect::<Vec<_>>();
+            self.structural_locals
+                .retain(|local| !cleanup.sources.contains(&local.argument.place));
+            self.structural_value_owners
+                .retain(|owner| !cleanup.sources.contains(&owner.value.place));
+            self.structural_value_owners.extend(residual_owners);
+            self.selection_cleanups.push(cleanup);
         }
         operations.length_observations.clear();
         let result = completion_parameters[source_types.len()..].to_vec();

@@ -189,6 +189,26 @@ def compare_records(base: list, head: list) -> dict:
             "fixtures": len(base_rows.keys() | head_rows.keys())}
 
 
+def native_execution_skipped(record: dict) -> bool:
+    """A successful foreign build whose runner has no physical native launcher.
+
+    The producer resolves both targets through TargetProfile before emitting
+    this disposition. It records the selected artifact target and physical host,
+    independently of the native leg's requested target. A refusal, incomplete
+    marker, same-target claim or contradictory execution facts cannot skip an
+    authored native oracle. Interpreter facts have independent meaning.
+    """
+    facts = record.get("facts", {})
+    selected = facts.get("native-target")
+    host = facts.get("native-host")
+    return (record["status"] == "built"
+            and record["tier"] in ("pass", "run")
+            and facts.get("native") == "skipped-target"
+            and bool(selected) and bool(host) and selected != host
+            and facts.get("interpreter") not in ("agrees", "disagrees")
+            and not any(key in facts for key in ("exit", "signal", "stdout", "stderr")))
+
+
 _ESCAPES = {"\\": "\\\\", "\n": "\\n", "\r": "\\r", "\t": "\\t"}
 _UNESCAPES = {"\\": "\\", "n": "\n", "r": "\r", "t": "\t"}
 

@@ -145,6 +145,21 @@ pub(super) fn data_application(
     {
         return None;
     }
+    // Per-use custody precedes the shared storage origin, whose layout tuple
+    // deliberately does not own this occurrence's region arguments.
+    let authored = program
+        .type_reference_table
+        .data_application_origin(reference);
+    if authored.is_valid() {
+        if authored == reference
+            || !program
+                .type_reference_table
+                .contains_type_reference(authored)
+        {
+            return None;
+        }
+        reference = authored;
+    }
     // Prepared nominal storage retains its authored application. Following it
     // does not infer missing operands from a similarly shaped declaration.
     if let TypeReferenceNode::Named { symbol, .. } =

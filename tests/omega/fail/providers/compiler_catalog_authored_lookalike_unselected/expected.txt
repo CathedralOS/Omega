@@ -1,0 +1,2 @@
+boundary operator `operator::F32::from_i32(named(name(i32)))->named(name(f32))`
+resolves to 0 selected ProviderPlans; expected exactly one

@@ -3,28 +3,31 @@
 //! CallingPolicy requirement row selects an invocation. Names are diagnostic
 //! payload; neither attached machine namespaces nor target defaults select code.
 
-use super::boundary_signatures::trait_type_bindings;
 use checked_trees::typed_trees::TypedTrees;
+use checked_trees::typed_trees::static_applications::{
+    StaticMachineBinding, StaticMachineBindingValue,
+};
 use checked_trees::typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-use layout::BoundaryTypeBinding;
 
-pub(crate) struct BoundaryPolicyInstance {
-    pub arguments: Vec<TypeReferenceHandle>,
-    pub argument_owner: symbols::SymbolHandle,
-    pub policy_argument: TypeReferenceHandle,
+pub(super) struct BoundaryPolicySourceApplication<'program> {
+    pub(super) arguments: Vec<TypeReferenceHandle>,
+    pub(super) policy: TypeReferenceHandle,
+    pub(super) lexical_owner: symbols::SymbolHandle,
+    pub(super) lifetime_arguments: Vec<&'program checked_trees::typed_trees::name::Identifier>,
 }
 
-pub(crate) fn boundary_policy_instances(
-    typed: &TypedTrees,
-    boundary: &checked_trees::typed_trees::trait_definition::TraitDefinition,
+pub(super) fn boundary_policy_instances<'program>(
+    typed: &'program TypedTrees,
+    boundary: &'program checked_trees::typed_trees::trait_definition::TraitDefinition,
     policy_argument: TypeReferenceHandle,
-) -> Result<Vec<BoundaryPolicyInstance>, String> {
+) -> Result<Vec<BoundaryPolicySourceApplication<'program>>, String> {
     let parameters = typed.trait_type_parameters(boundary);
-    if parameters.is_empty() {
-        return Ok(vec![BoundaryPolicyInstance {
+    if parameters.is_empty() && boundary.lifetime_parameters.is_empty() {
+        return Ok(vec![BoundaryPolicySourceApplication {
             arguments: Vec::new(),
-            argument_owner: boundary.symbol,
-            policy_argument,
+            policy: policy_argument,
+            lexical_owner: boundary.symbol,
+            lifetime_arguments: Vec::new(),
         }]);
     }
     let policy_parameter_index = named_parameter_index(typed, policy_argument, parameters);
@@ -35,8 +38,11 @@ pub(crate) fn boundary_policy_instances(
         .iter()
         .filter(|conformance| conformance.trait_symbol == boundary.symbol)
     {
-        // Every named implementation of the generic boundary trait is one
-        // concrete application; its trait arguments carry every data type.
+        // An open implementation telescope is not a closed ABI application.
+        // Its genuine instances enter through the produced-header inventory.
+        if !typed.conformance_type_parameters(conformance).is_empty() {
+            continue;
+        }
         let arguments = typed
             .type_reference_table
             .type_reference_handles(conformance.arguments)
@@ -53,15 +59,33 @@ pub(crate) fn boundary_policy_instances(
         let concrete_policy = policy_parameter_index.map_or(policy_argument, |parameter_index| {
             arguments[parameter_index]
         });
-        instances.push(BoundaryPolicyInstance {
+        if conformance.trait_lifetime_arguments.len() != boundary.lifetime_parameters.len() {
+            return Err(
+                "calling application lost its original trait lifetime correspondence".to_owned(),
+            );
+        }
+        let lifetime_arguments = conformance
+            .trait_lifetime_arguments
+            .iter()
+            .map(|ordinal| {
+                conformance
+                    .lifetime_parameters
+                    .get(*ordinal as usize)
+                    .ok_or_else(|| {
+                        "calling application lost its original lexical region".to_owned()
+                    })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        instances.push(BoundaryPolicySourceApplication {
             arguments,
-            argument_owner: conformance.symbol,
-            policy_argument: concrete_policy,
+            policy: concrete_policy,
+            lexical_owner: conformance.symbol,
+            lifetime_arguments,
         });
     }
 
-    // A generic declaration is not itself a callable ABI. With no concrete
-    // conformance there is no requirement identity to publish yet.
+    // The shared inventory also consumes genuine produced public headers;
+    // no source conformance is required to demand such a closed application.
     Ok(instances)
 }
 
@@ -87,41 +111,23 @@ fn named_parameter_index(
 /// row. A same-named attached machine is never an implementation selection.
 pub(crate) fn selected_policy_machine<'program>(
     typed: &'program TypedTrees,
-    boundary: &checked_trees::typed_trees::trait_definition::TraitDefinition,
-    boundary_arguments: &[TypeReferenceHandle],
     policy_argument: TypeReferenceHandle,
     calling_policy: &checked_trees::typed_trees::trait_definition::TraitDefinition,
+    bindings: &[StaticMachineBinding],
 ) -> Result<&'program checked_trees::typed_trees::machine::Machine, String> {
-    let bindings = trait_type_bindings(typed, boundary, boundary_arguments);
-    let selected = policy_static_argument(typed, policy_argument, &bindings)?;
-    // Settlement runs on the admitted program: the conformance application's
-    // arity, kind and carrier obligations already passed checking, so the
-    // realization join needs only the conformance's exact trait and rows.
-    let Some(conformance) = typed.conformance_by_symbol(selected.symbol) else {
-        return Err(format!(
-            "static argument `{}` does not name a package-scoped conformance",
-            selected.display_name()
-        ));
-    };
-    let trait_definition = typed
-        .trait_definition_by_symbol(conformance.trait_symbol)
-        .or_else(|| {
-            typed
-                .traits()
-                .iter()
-                .find(|definition| definition.name == conformance.trait_name)
-        })
+    let selected = policy_static_argument(typed, policy_argument, bindings)?;
+    // Source admission already judged this complete static application.
+    // Keep its original selection and consume the exact named map; Omega
+    // neither repeats binder admission nor chooses a same-spelled declaration.
+    let conformance = typed
+        .conformance_by_symbol(selected.symbol)
         .ok_or_else(|| {
             format!(
-                "conformance `{}` names unresolved trait `{}`",
-                conformance
-                    .alias
-                    .as_ref()
-                    .map_or("<unnamed-conformance>", |name| name.as_str()),
-                conformance.trait_name
+                "static argument `{}` does not name a package-scoped conformance",
+                selected.display_name()
             )
         })?;
-    if trait_definition.symbol != calling_policy.symbol || !conformance.arguments.is_empty() {
+    if conformance.trait_symbol != calling_policy.symbol || !conformance.arguments.is_empty() {
         return Err(
             "calling policy must explicitly select a complete CallingPolicy implementation"
                 .to_owned(),
@@ -166,20 +172,36 @@ pub(crate) fn selected_policy_machine<'program>(
     Ok(machine)
 }
 
-fn policy_static_argument(
+pub(super) fn policy_static_argument(
     typed: &TypedTrees,
     mut type_reference: TypeReferenceHandle,
-    bindings: &[BoundaryTypeBinding],
+    bindings: &[StaticMachineBinding],
 ) -> Result<checked_trees::typed_trees::expression::StaticMachineArgument, String> {
+    while let TypeReferenceNode::Constrained { base_type, .. } =
+        typed.type_reference_table.type_reference(type_reference)
+    {
+        type_reference = *base_type;
+    }
     if let Some(symbol) = typed
         .type_reference_table
         .type_reference(type_reference)
         .as_named_symbol()
-        && let Some(binding) = bindings.iter().find(|binding| {
-            binding.parameter_symbol.is_valid() && binding.parameter_symbol == symbol
-        })
+        && let Some(binding) = bindings
+            .iter()
+            .find(|binding| binding.parameter.is_valid() && binding.parameter == symbol)
     {
-        type_reference = binding.actual;
+        match &binding.value {
+            StaticMachineBindingValue::Type(actual) | StaticMachineBindingValue::Const(actual) => {
+                type_reference = *actual;
+            }
+            StaticMachineBindingValue::Conformance(actual)
+            | StaticMachineBindingValue::Machine(actual) => return Ok(actual.clone()),
+            StaticMachineBindingValue::RuntimeValue { .. } => {
+                return Err(
+                    "calling-policy selection cannot consume a runtime value subject".to_owned(),
+                );
+            }
+        }
     }
     while let TypeReferenceNode::Constrained { base_type, .. } =
         typed.type_reference_table.type_reference(type_reference)
@@ -250,13 +272,14 @@ fn policy_static_argument(
     }
     Ok(
         checked_trees::typed_trees::expression::StaticMachineArgument {
+            authored_position: None,
             type_reference: if matches!(
                 typed.symbols.get(symbol).kind,
-                symbols::SymbolKind::Conformance | symbols::SymbolKind::ConformanceParameter
+                symbols::SymbolKind::Data | symbols::SymbolKind::BuiltinType
             ) {
-                TypeReferenceHandle::invalid()
-            } else {
                 type_reference
+            } else {
+                TypeReferenceHandle::invalid()
             },
             path: Box::from([name]),
             application,
@@ -270,12 +293,17 @@ fn policy_static_argument(
 fn policy_argument_needs_substitution(
     typed: &TypedTrees,
     argument: TypeReferenceHandle,
-    bindings: &[BoundaryTypeBinding],
+    bindings: &[StaticMachineBinding],
 ) -> bool {
     match typed.type_reference_table.type_reference(argument) {
-        TypeReferenceNode::Named { symbol, .. } => bindings
-            .iter()
-            .any(|binding| binding.parameter_symbol == *symbol && binding.actual != argument),
+        TypeReferenceNode::Named { symbol, .. } => bindings.iter().any(|binding| {
+            binding.parameter == *symbol
+                && !matches!(
+                    &binding.value,
+                    StaticMachineBindingValue::Type(actual)
+                        | StaticMachineBindingValue::Const(actual) if *actual == argument
+                )
+        }),
         TypeReferenceNode::Generic { arguments, .. } => typed
             .type_reference_table
             .type_reference_handles(*arguments)

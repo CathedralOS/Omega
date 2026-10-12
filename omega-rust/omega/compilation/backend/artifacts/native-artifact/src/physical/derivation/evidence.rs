@@ -17,7 +17,7 @@ use crate::physical::derivation::hashing::{
     hash_relocation_origin, physical_evidence_gap_identity, sha256,
 };
 use crate::physical::derivation::hosted_builtins::{
-    derive_hosted_builtin_child, hosted_builtin_settlement,
+    HostedBuiltinOrigin, derive_hosted_builtin_child, hosted_builtin_settlement,
 };
 use crate::physical::derivation::internal_calls::{
     boundary_internal_call_exists, derive_boundary_internal_call_child,
@@ -71,6 +71,7 @@ pub(crate) fn derive_physical_evidence(
     selected_provider_plans: &[NativeSelectedProviderPlan],
     provider_executions: &[NativeProviderExecution],
     boundary_application_coverage: Option<&TerminalBoundaryApplicationCoverage>,
+    authority: Option<&effects::TerminalAuthorityClosureReviewReceipt>,
 ) -> Result<NativePhysicalEvidenceDerivation, &'static str> {
     if matches!(scope, NativePhysicalEvidenceScope::Unavailable) {
         return Ok(NativePhysicalEvidenceDerivation::Unavailable);
@@ -255,6 +256,66 @@ pub(crate) fn derive_physical_evidence(
                 },
             ));
         }
+        if let Some(foreign) = foreign
+            && let Some(commitment) = foreign.provider_execution.direct_foreign_realization
+        {
+            if installed.is_some() {
+                return Err("direct foreign occurrence also retained a selected settlement");
+            }
+            let direct = crate::native_artifact::provider_execution::direct_foreign_origin(
+                authority.ok_or("direct foreign physical custody lost its closure origin")?,
+                requirement,
+                commitment,
+            )?;
+            let Some(child) = derive_normalized_foreign_child(
+                occurrence,
+                projection.identity(),
+                requirement,
+                super::foreign_calls::ForeignExecutionOrigin::Direct(direct),
+                provider_executions,
+                target,
+                module,
+                object,
+                image,
+                final_image_symbol_digest,
+                foreign,
+                fragment_publication,
+            )?
+            else {
+                return Ok(blocked(
+                    NativePhysicalEvidenceGapSubject::UnsupportedNormalizedForeignCall {
+                        occurrence: *occurrence,
+                    },
+                ));
+            };
+            children.push(child);
+            continue;
+        }
+        if let Some(installed) = installed
+            && let Some(builtin) = hosted_builtin_settlement(&installed.settlement)
+            && let machine_code::BoundaryExecutionRecord::CompilerBuiltin(execution) =
+                installed.settlement.execution
+            && let Some(authority) = authority
+            && let Some(original) =
+                crate::native_artifact::provider_execution::direct_compiler_intrinsic_origin(
+                    authority,
+                    requirement,
+                    execution,
+                )?
+        {
+            children.push(derive_hosted_builtin_child(
+                builtin,
+                occurrence,
+                projection.identity(),
+                requirement,
+                HostedBuiltinOrigin::Direct(original),
+                target,
+                object,
+                image,
+                installed,
+            )?);
+            continue;
+        }
         let matching_plans = selected_provider_plans
             .iter()
             .filter(|plan| {
@@ -282,7 +343,7 @@ pub(crate) fn derive_physical_evidence(
                         occurrence,
                         projection.identity(),
                         requirement,
-                        selected_plan.plan_digest(),
+                        HostedBuiltinOrigin::Selected(selected_plan.plan_digest()),
                         target,
                         object,
                         image,
@@ -315,7 +376,7 @@ pub(crate) fn derive_physical_evidence(
                     occurrence,
                     projection.identity(),
                     requirement,
-                    selected_plan,
+                    super::foreign_calls::ForeignExecutionOrigin::Selected(selected_plan),
                     provider_executions,
                     target,
                     module,

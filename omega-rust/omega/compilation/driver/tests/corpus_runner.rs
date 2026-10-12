@@ -50,7 +50,9 @@
 //! another catalogued target instead; its products execute only where this
 //! host runs them, which today means `macos_x86_64` under Rosetta
 //! (`arch -x86_64`) on an Apple-silicon host. Other foreign targets are
-//! realized without executing. Their records gain `exit:<code>` (or `exit:timeout`,
+//! realized without executing and record `native:skipped-target` with the
+//! actual `native-target` and physical `native-host`. Executed records gain
+//! `exit:<code>` (or `exit:timeout`,
 //! `exit:signal` plus `signal:<number>`) and, beside an `expected_stdout.txt`, `stdout:match` or
 //! `stdout:differs`. An `expected_stderr.txt` likewise records `stderr:match`
 //! or `stderr:differs`; failed captures/oracle reads record `unavailable`.
@@ -1626,6 +1628,17 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
                         &fixture_dir,
                         sequence,
                     ));
+                } else if native_launcher(target).is_none()
+                    && let Ok(selected_target) =
+                        target::TargetProfile::from_canonical_target_name(target)
+                    && let Some(host) = target::TargetProfile::host_if_supported()
+                    && selected_target != host
+                {
+                    // A built foreign artifact is a realization result, not
+                    // a missing observation from an executable host program.
+                    facts.push("native:skipped-target".to_owned());
+                    facts.push(format!("native-target:{}", selected_target.target_name()));
+                    facts.push(format!("native-host:{}", host.target_name()));
                 }
             }
             let _ = fs::remove_dir_all(&build_dir);

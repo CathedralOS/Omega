@@ -28,7 +28,16 @@ use super::{
 use checked_trees::machine::{Machine, TraitConformance};
 
 mod named;
+mod requirements;
 mod selection_coordinates;
+
+pub(super) fn selection_boundary_roots(
+    checked: &CheckedTrees,
+    plans: UnitPlans<'_>,
+    roots: &[symbols::SymbolHandle],
+) -> Result<Vec<symbols::SymbolHandle>, LoweringError> {
+    requirements::selection_boundary_roots(checked, plans, roots)
+}
 
 /// Report the exact checked provider whose ordinary body is missing, including
 /// the checker-owned omission. Result shape must not hide that source frontier.
@@ -51,6 +60,7 @@ enum CatalogRequirement<'a> {
     Trait {
         definition: &'a checked_trees::trait_definition::TraitDefinition,
         signature: &'a checked_trees::signature::StateSignature,
+        application: Option<&'a typed_trees::static_applications::InstantiatedRequirementSignature>,
     },
     TopLevel(&'a checked_trees::machine::Machine),
     Operator(&'a typed_trees::operator::OperatorDefinition),
@@ -65,14 +75,15 @@ fn satisfies_requirement(
     machine: &Machine,
     conformance: &TraitConformance,
     requirement: CatalogRequirement<'_>,
-) -> bool {
+) -> Result<bool, LoweringError> {
     if conformance.external_binding.is_some() {
-        return false;
+        return Ok(false);
     }
     let requirement = match requirement {
         CatalogRequirement::Trait {
             definition,
             signature,
+            application,
         } => {
             if let Some(application) = checked
                 .typed
@@ -84,7 +95,7 @@ fn satisfies_requirement(
                         machine,
                         conformance,
                     );
-                return conformance.requirement_symbol == application.template
+                return Ok(conformance.requirement_symbol == application.template
                     && scope.is_some_and(|scope| {
                         checked
                             .typed
@@ -101,39 +112,40 @@ fn satisfies_requirement(
                                 && row.closed_requirement == signature.symbol
                                 && row.receiving_application
                                     == application.trait_application_identity
-                        });
+                        }));
             }
-            return conformance.symbol == definition.symbol
-                && if conformance.requirement_symbol.is_valid() {
-                    conformance.requirement_symbol == signature.symbol
-                } else {
-                    conformance
-                        .requirement
-                        .as_ref()
-                        .is_some_and(|name| name == &signature.name)
-                };
+            return match application {
+                Some(application) => requirements::satisfies_closed_requirement(
+                    checked,
+                    machine,
+                    conformance,
+                    application,
+                ),
+                None => Ok(conformance.symbol == definition.symbol
+                    && conformance.requirement_symbol == signature.symbol),
+            };
         }
         CatalogRequirement::Operator(operator) => {
             // The settled satisfaction edge is mandatory. Equal signatures
             // or names from another package cannot donate a candidate.
-            return conformance.requirement_symbol == operator.symbol
+            return Ok(conformance.requirement_symbol == operator.symbol
                 && typed_trees::operator::resolve_satisfied_boundary_operator_for_conformance(
                     &checked.typed,
                     machine,
                     conformance,
                 )
-                .is_some_and(|resolved| resolved.symbol == operator.symbol);
+                .is_some_and(|resolved| resolved.symbol == operator.symbol));
         }
         CatalogRequirement::TopLevel(requirement) => requirement,
     };
     if conformance.symbol == requirement.symbol
         && conformance.requirement_symbol == requirement.symbol
     {
-        return true;
+        return Ok(true);
     }
     // A conformance naming a generic template satisfies the closed instance
     // its specialization receipt selected.
-    checked
+    Ok(checked
         .facts
         .provider_closed_requirements
         .iter()
@@ -142,7 +154,7 @@ fn satisfies_requirement(
                 && row.selecting_declaration == machine.symbol
                 && row.template == conformance.symbol
                 && row.closed_requirement == requirement.symbol
-        })
+        }))
 }
 
 pub(super) fn checked_unit_provider_candidates(
@@ -172,35 +184,11 @@ pub(super) fn checked_unit_provider_candidates(
         );
     }
     // A runtime call demands its complete boundary-trait interface. Retain
-    // unused coordinates before candidate/body discovery so automatic unique
-    // selection has the same whole-plan semantics as an authored default.
+    // unused coordinates before candidate/body discovery so explicit/default
+    // selection and authentic catalog selection retain the same whole schema.
     // The checker still owns every concrete boundary plan; no open application
     // or missing method is synthesized from a provider body.
-    let demanded_traits = checked
-        .typed
-        .traits()
-        .iter()
-        .filter(|definition| {
-            definition.is_boundary
-                && checked
-                    .typed
-                    .trait_machine_instances(definition)
-                    .any(|signature| boundary_symbols.contains(&signature.symbol))
-        })
-        .collect::<Vec<_>>();
-    for definition in demanded_traits {
-        typed_trees::trait_definition::AppliedTraitScope::abstract_scope(definition).visit(
-            &checked.typed,
-            &mut |scope| {
-                boundary_symbols.extend(
-                    checked
-                        .typed
-                        .trait_machine_instances(scope.declaration)
-                        .map(|signature| signature.symbol),
-                );
-            },
-        );
-    }
+    requirements::retain_complete_interfaces(checked, plans, &mut boundary_symbols)?;
     boundary_symbols.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
     boundary_symbols.dedup();
     *retained_requirements = boundary_symbols.clone();
@@ -209,15 +197,9 @@ pub(super) fn checked_unit_provider_candidates(
         let boundary = unique_unit_boundary(plans, boundary_symbol)?;
         let exact_requirements = checked
             .typed
-            .traits()
-            .iter()
-            .filter(|definition| definition.is_boundary)
-            .flat_map(|definition| {
-                checked
-                    .typed
-                    .trait_machine_instances(definition)
-                    .filter(move |signature| signature.symbol == boundary_symbol)
-                    .map(move |signature| (definition, signature))
+            .public_trait_requirement_signatures()
+            .filter(|(definition, signature)| {
+                definition.is_boundary && signature.symbol == boundary_symbol
             })
             .collect::<Vec<_>>();
         // A boundary-trait requirement names its trait and signature; a
@@ -228,6 +210,7 @@ pub(super) fn checked_unit_provider_candidates(
             [(definition, signature)] => CatalogRequirement::Trait {
                 definition,
                 signature,
+                application: requirements::closed_requirement(checked, signature.symbol)?,
             },
             [] => match checked.typed.machines().iter().find(|machine| {
                 machine.symbol == boundary_symbol
@@ -251,30 +234,15 @@ pub(super) fn checked_unit_provider_candidates(
                 );
             }
         };
-        let requirement_identity = match requirement {
-            CatalogRequirement::Trait {
-                definition,
-                signature,
-            } => checked
-                .typed
-                .trait_requirement_callable_identity(definition, signature),
-            CatalogRequirement::TopLevel(requirement) => {
-                checked.typed.machine_callable_identity(requirement)
-            }
-            CatalogRequirement::Operator(operator) => checked
-                .typed
-                .boundary_operator_requirement_callable_identity(operator),
-        };
-        if !requirement_identity.is_valid() {
-            return unsupported("Unit boundary requirement has an empty overload identity");
-        }
+        let requirement_identity =
+            super::boundary_identity::checked_unit_boundary_identity(checked, boundary_symbol)?;
         for machine in checked.typed.machines().iter().filter(|machine| {
             machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
         }) {
             let mut providers = named::provider_identities(checked, machine, requirement)?;
             if machine.attached_data.is_some() {
                 for conformance in checked.typed.machine_trait_conformances(machine) {
-                    if satisfies_requirement(checked, machine, conformance, requirement) {
+                    if satisfies_requirement(checked, machine, conformance, requirement)? {
                         providers.push((
                             machine.attached_data_symbol,
                             checked.typed.attached_data_path(machine).ok_or(
@@ -463,11 +431,8 @@ pub(super) fn conformances(
                 receiving_region_arguments,
                 source_candidate_identity,
                 source_candidate_package_identity,
-                requirement_identity: identities.intern(
-                    &checked
-                        .typed
-                        .callable_identity_text(candidate.requirement_identity),
-                ),
+                requirement_identity: identities
+                    .intern(&candidate.requirement_identity.portable_identity(checked)?),
                 provider_identity,
                 provider_declaration: crate::machine_lowering::declarations::nominal(
                     identities,

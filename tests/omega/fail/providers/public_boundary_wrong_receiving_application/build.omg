@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "public_boundary_wrong_receiving_application");
+    Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
+}

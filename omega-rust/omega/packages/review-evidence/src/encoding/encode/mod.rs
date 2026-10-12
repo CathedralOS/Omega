@@ -18,6 +18,7 @@ mod selected_providers;
 mod terminal_permissions;
 mod values;
 
+pub(super) use policy_rows::assumed_bindings::encode_relationship;
 pub use policy_rows::restricted_build_request_acceptance_text;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

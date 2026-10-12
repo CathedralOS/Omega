@@ -27,7 +27,9 @@ mod terminal_authority_policy;
 mod terminal_authority_review;
 
 pub(crate) use callback_arguments::project_native_callback_arguments;
-pub use compiler_builtins::{CompilerIntrinsicPlanProvenance, TerminalCompilerBuiltinProposal};
+pub use compiler_builtins::{
+    CompilerIntrinsicPlanProvenance, TerminalCompilerBuiltinProposal, compiler_builtin_execution,
+};
 pub(crate) use compiler_builtins::{
     demanded_boundary_identities, derive_selected_intrinsic_settlement_proposals,
     prepare_retained_compiler_builtins,
@@ -35,8 +37,12 @@ pub(crate) use compiler_builtins::{
 pub use diagnostics::realization_error;
 
 pub(crate) use source_evaluated_bindings::PreparedSourceEvaluatedBindings;
-pub use source_evaluated_bindings::SourceEvaluatedImportSettlement;
-pub(crate) use source_evaluated_bindings::prepare_source_evaluated_bindings;
+pub use source_evaluated_bindings::{
+    PreparedDirectForeignBinding, SourceEvaluatedImportSettlement,
+};
+pub(crate) use source_evaluated_bindings::{
+    prepare_direct_foreign_bindings, prepare_source_evaluated_bindings,
+};
 
 pub use request::{NativeBoundaryRealization, NativeCompilerBuiltinSettlement};
 pub use request::{NativeProviderSettlement, ProviderAdmissionRequest};
@@ -59,6 +65,7 @@ use ::diagnostics::Diagnostic;
 use installation_evidence::ProviderExecutionEvidence;
 pub use model::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedNativeCallbackArgument,
+    AdmittedProviderBoundaryCorrespondence, AdmittedProviderBoundaryExecution,
 };
 
 pub struct AdmittedNativeProviders<'execution> {
@@ -134,6 +141,7 @@ pub(crate) fn admit_native_providers<'request>(
             request.profile,
             input.optimization_input(),
             request.selected_provider_plans,
+            request.direct_foreign_settlements,
             effective_policy,
             request.terminal_authority_permission_policy.as_ref(),
             &mechanisms,

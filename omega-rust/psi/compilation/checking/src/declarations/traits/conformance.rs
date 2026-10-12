@@ -59,8 +59,10 @@ pub use machine_conformance::{
     compose_forwarded_trait_arguments, resolve_closed_requirement_application,
     revalidate_top_level_requirement_realization,
 };
+pub use signature_matching::requirement_invocation_parameters;
 pub(crate) use signature_matching::{
-    authored_conformance_machine, validate_applied_trait_signature,
+    authored_conformance_machine, requirement_callable_correspondence,
+    validate_applied_trait_signature,
 };
 pub(crate) use trait_applications::validate_trait_application_obligations;
 

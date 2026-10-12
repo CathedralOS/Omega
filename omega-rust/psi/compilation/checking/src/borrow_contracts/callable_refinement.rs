@@ -22,6 +22,9 @@ pub struct CallableBorrowContract<'contract> {
     pub substitution_scope_starts: &'contract [usize],
     pub application_scopes: &'contract [AppliedTypeIdentityScope<'contract>],
     pub binders: &'contract [(SymbolHandle, String)],
+    /// Exact original declaration of supplied lifetime formals. ZII for a
+    /// purely declaration-owned universal contract with no supplied rows.
+    pub lifetime_binding_declaration: SymbolHandle,
     pub lifetime_bindings: &'contract [StaticMachineLifetimeBinding],
     pub argument_owner: SymbolHandle,
     pub supplied_telescope: bool,

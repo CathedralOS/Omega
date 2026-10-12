@@ -655,23 +655,33 @@ impl<'a> Elaborator<'a> {
                     }
                 })?;
         self.check_source_domains(&signature)?;
-        for (expression, term, domains, captures) in applications {
+        for applications::SourceApplication {
+            expression,
+            source_owner,
+            declaration,
+            term: original_term,
+            domains,
+            captures,
+        } in applications
+        {
+            let term = original_term;
             let context = domains.into_iter().fold(
                 Context::empty().with_signature(signature.clone()),
                 |context, domain| context.extend(domain),
             );
             let mut budget = Budget::new(DEFAULT_CONVERSION_STEPS);
-            proof_admission::infer_type(&mut self.arena, &context, term, &mut budget).map_err(
-                |error| {
-                    self.refuse(format!(
-                        "mathematical application `{}` fails checking: {error:?}",
-                        self.program.render_proof_expression(
-                            expression,
-                            typed_trees::proposition::ProofSubstitutions::None
-                        )
-                    ))
-                },
-            )?;
+            let result_type =
+                proof_admission::infer_type(&mut self.arena, &context, term, &mut budget).map_err(
+                    |error| {
+                        self.refuse(format!(
+                            "mathematical application `{}` fails checking: {error:?}",
+                            self.program.render_proof_expression(
+                                expression,
+                                typed_trees::proposition::ProofSubstitutions::None
+                            )
+                        ))
+                    },
+                )?;
             let term = normalization::normalize(&mut self.arena, &signature, term, &mut budget)
                 .map_err(|error| {
                     self.refuse(format!(
@@ -679,10 +689,19 @@ impl<'a> Elaborator<'a> {
                     ))
                 })?;
             let captures = self.prepared.captures.insert_many(captures);
+            let source_application = self.prepared.source_applications.append(
+                checked_trees::CheckedMathematicalApplication {
+                    expression,
+                    source_owner,
+                    declaration,
+                    term: original_term,
+                    result_type,
+                    captures,
+                },
+            );
             self.prepared.applications.append(PreparedApplication {
-                expression,
+                source_application,
                 term,
-                captures,
             });
         }
         self.retain_constant_meanings();

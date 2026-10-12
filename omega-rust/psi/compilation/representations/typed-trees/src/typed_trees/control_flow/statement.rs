@@ -411,7 +411,10 @@ impl StatementTable {
                     if call.authored_machine_application.is_valid() {
                         let application = expressions
                             .static_machine_application_mut(call.authored_machine_application);
-                        application.lexical_owner = remapped(application.lexical_owner, symbols);
+                        if !application.captured_lexical_scope.is_valid() {
+                            application.lexical_owner =
+                                remapped(application.lexical_owner, symbols);
+                        }
                         for argument in expressions.static_machine_application_arguments_mut(
                             call.authored_machine_application,
                         ) {

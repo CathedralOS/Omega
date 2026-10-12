@@ -9,22 +9,27 @@
 use symbols::SymbolHandle;
 use typed_trees::trait_definition::TraitDefinition;
 
-/// An authored boundary policy requires a callback ABI at realization, not a
-/// target plan during source checking. Join the resolved relationship rather
-/// than treating the presence of an evaluated native plan as source semantics.
+/// Shared typed declaration readers preserve the original interface owner.
 pub fn boundary_has_explicit_calling_policy(
     program: &dyn crate::CheckingInput,
     definition: &TraitDefinition,
 ) -> bool {
-    definition.is_boundary
-        && standard_calling_vocabularies(program)
-            .iter()
-            .any(|(calling, _)| {
-                program
-                    .trait_requirements(definition)
-                    .iter()
-                    .any(|requirement| requirement.symbol == calling.symbol)
-            })
+    typed_trees::calling_vocabulary::boundary_has_explicit_calling_policy(
+        program.typed_program(),
+        definition,
+    )
+}
+
+pub fn boundary_requirement_has_explicit_calling_policy(
+    program: &dyn crate::CheckingInput,
+    declaring_trait: SymbolHandle,
+    requirement: SymbolHandle,
+) -> bool {
+    typed_trees::calling_vocabulary::boundary_requirement_has_explicit_calling_policy(
+        program.typed_program(),
+        declaring_trait,
+        requirement,
+    )
 }
 
 /// Every standard calling vocabulary the program loads, paired per declaring

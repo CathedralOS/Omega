@@ -71,26 +71,46 @@ pub fn applied_lifetime_parameter_identity(
     name: &str,
     scopes: &[super::AppliedTypeIdentityScope<'_>],
 ) -> Option<LifetimeParameterIdentity> {
-    if let Some((ordinal, scope)) = scopes.iter().enumerate().next_back()
-        && let Some((_, argument)) = scope
-            .lifetimes
-            .iter()
-            .find(|(parameter, _)| parameter == name)
-    {
-        return applied_lifetime_parameter_identity(
-            program,
-            lexical_owner,
-            argument,
-            &scopes[..ordinal],
-        );
+    if let Some((ordinal, scope)) = scopes.iter().enumerate().next_back() {
+        match scope.region_role {
+            super::AppliedTypeIdentityRegionRole::Supplied => {
+                let (_, argument) = scope
+                    .lifetimes
+                    .iter()
+                    .find(|(parameter, _)| parameter == name)?;
+                return applied_lifetime_parameter_identity(
+                    program,
+                    lexical_owner,
+                    argument.as_deref()?,
+                    &scopes[..ordinal],
+                );
+            }
+            super::AppliedTypeIdentityRegionRole::Declaration => {
+                let region = lifetime_parameter_identity(program, scope.declaration, name)?;
+                if region.declaration != program.lifetime_declaration_owner(scope.declaration)
+                    && let Some(outer) =
+                        scopes[..ordinal].iter().rposition(|outer| {
+                            program
+                                .original_declaration_lifetime_parameter(outer.declaration, name)
+                                .zip(program.original_declaration_lifetime_parameter(
+                                    region.declaration,
+                                    name,
+                                ))
+                                .is_some_and(|(left, right)| left == right)
+                        })
+                {
+                    return applied_lifetime_parameter_identity(
+                        program,
+                        lexical_owner,
+                        name,
+                        &scopes[..=outer],
+                    );
+                }
+                return Some(region);
+            }
+        }
     }
-    lifetime_parameter_identity(
-        program,
-        scopes
-            .last()
-            .map_or(lexical_owner, |scope| scope.declaration),
-        name,
-    )
+    lifetime_parameter_identity(program, lexical_owner, name)
 }
 
 /// Find a region in the supplied lexical telescope, including captured outer

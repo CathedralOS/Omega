@@ -1,4 +1,7 @@
-use super::{TypeParameterScope, TypeReferenceOwner, type_reference_label, type_references_match};
+use super::{
+    DeclaredValueCarrier, TypeParameterScope, TypeReferenceOwner, declared_value_carriers_match,
+    type_reference_label,
+};
 use diagnostics::Diagnostic;
 use language_semantics::const_value::CanonicalConstValue;
 use std::collections::HashMap;
@@ -57,7 +60,9 @@ pub(crate) fn validate_indexed_qualification_arguments(
         &domain_name,
         arguments,
         TypeParameterScope {
-            lexical_owner: machine.symbol,
+            lexical_owner: typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(
+                machine.symbol,
+            ),
             type_parameters: program.machine_type_parameters(machine),
             lifetime_parameters: &machine.lifetime_parameters,
         },
@@ -483,7 +488,14 @@ fn validate_indexed_domain_argument_pack(
                 validate_open_index_expression(
                     program,
                     *expression,
-                    expected,
+                    DeclaredValueCarrier {
+                        program: program.typed_program(),
+                        type_reference: expected,
+                        lexical_owner:
+                            typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(
+                                parameter.symbol,
+                            ),
+                    },
                     scope,
                     domain_name,
                     owner,
@@ -534,11 +546,28 @@ fn validate_indexed_domain_argument_pack(
             continue;
         };
         let actual = const_binder_type_reference(binder);
-        if !type_references_match(program, actual, expected) {
+        let issuer = scope.issuing_program(program.typed_program());
+        if !scope
+            .value_carrier(program.typed_program(), binder)
+            .is_some_and(|carrier| {
+                declared_value_carriers_match(
+                    carrier,
+                    DeclaredValueCarrier {
+                        program: program.typed_program(),
+                        type_reference: expected,
+                        lexical_owner:
+                            typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(
+                                parameter.symbol,
+                            ),
+                    },
+                    typed_trees::type_identity::TypeIdentityQualification::Ordinary,
+                )
+            })
+        {
             diagnostics.push(Diagnostic::error(format!(
                 "{owner} forwards const binder `{}` of type `{}` into `{}`, which requires `{}`",
                 binder.name,
-                type_reference_label(program, actual),
+                type_reference_label(issuer, actual),
                 domain_name,
                 type_reference_label(program, expected)
             )));
@@ -560,7 +589,7 @@ fn const_binder_type_reference(binder: &typed_trees::data::TypeParameter) -> Typ
 fn validate_open_index_expression(
     program: &dyn crate::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
-    expected: TypeReferenceHandle,
+    expected: DeclaredValueCarrier<'_>,
     scope: TypeParameterScope<'_>,
     domain_name: &str,
     owner: &dyn fmt::Display,
@@ -575,7 +604,7 @@ fn validate_open_index_expression(
                 .name_path_members(path.members)
                 .joined_path();
             if let Some(value) = CanonicalConstValue::from_atom(&name) {
-                let expected_name = const_index_type_label(program, expected);
+                let expected_name = const_index_type_label(program, expected.type_reference);
                 if value.type_name != expected_name {
                     diagnostics.push(Diagnostic::error(format!(
                         "{owner} uses closed index atom of type `{}` in `{domain_name}`, whose expression requires `{expected_name}`",
@@ -585,10 +614,10 @@ fn validate_open_index_expression(
                 return;
             }
             if let Ok(value) = name.parse::<i128>() {
-                if !integer_const_fits_type(program, expected, value) {
+                if !integer_const_fits_type(program, expected.type_reference, value) {
                     diagnostics.push(Diagnostic::error(format!(
                         "{owner} uses integer index `{value}` outside the declared `{}` type in `{domain_name}`",
-                        const_index_type_label(program, expected)
+                        const_index_type_label(program, expected.type_reference)
                     )));
                 }
                 return;
@@ -613,12 +642,17 @@ fn validate_open_index_expression(
                 return;
             };
             let actual = const_binder_type_reference(binder);
-            if !type_references_match(program, actual, expected) {
+            let issuer = scope.issuing_program(program.typed_program());
+            if !scope.value_carrier(program.typed_program(), binder).is_some_and(|carrier| declared_value_carriers_match(
+                carrier,
+                expected,
+                typed_trees::type_identity::TypeIdentityQualification::Ordinary,
+            )) {
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} uses const binder `{}` of type `{}` in `{domain_name}`, whose index expression requires `{}`",
                     binder.name,
-                    type_reference_label(program, actual),
-                    type_reference_label(program, expected)
+                    type_reference_label(issuer, actual),
+                    type_reference_label(program, expected.type_reference)
                 )));
             }
         }
@@ -633,10 +667,10 @@ fn validate_open_index_expression(
                 )));
                 return;
             };
-            if !integer_const_fits_type(program, expected, value) {
+            if !integer_const_fits_type(program, expected.type_reference, value) {
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} uses integer index `{value}` outside the declared `{}` type in `{domain_name}`",
-                    const_index_type_label(program, expected)
+                    const_index_type_label(program, expected.type_reference)
                 )));
             }
         }

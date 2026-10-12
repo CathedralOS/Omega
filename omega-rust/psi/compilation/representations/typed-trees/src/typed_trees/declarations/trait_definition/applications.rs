@@ -13,6 +13,9 @@ use crate::type_identity::{
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use symbols::SymbolHandle;
 
+mod payload;
+pub use payload::AppliedTraitScopePayload;
+
 mod regions;
 use regions::AppliedDeclarationRegionScope;
 mod enclosing;
@@ -33,8 +36,14 @@ impl TypedTrees {
             .flat_map(|machine| {
                 self.machine_trait_conformances(machine)
                     .iter()
-                    .filter_map(move |edge| {
-                        AppliedTraitScope::from_machine_conformance(self, machine, edge)
+                    .enumerate()
+                    .flat_map(move |(ordinal, _)| {
+                        self.machine_conformance_sources(
+                            machine,
+                            machine.satisfies.handle_at(ordinal as u32),
+                        )
+                        .into_iter()
+                        .map(|source| source.scope)
                     })
             })
             .chain(
@@ -180,6 +189,8 @@ pub struct AppliedTraitScope<'program> {
     pub substitution_scope_starts: Vec<usize>,
     pub argument_owner: SymbolHandle,
     region_scopes: Vec<AppliedDeclarationRegionScope>,
+    captured_argument_owner:
+        Option<crate::typed_trees::product_applications::CapturedStaticLexicalScope>,
 }
 
 impl<'program> AppliedTraitScope<'program> {
@@ -248,11 +259,201 @@ impl<'program> AppliedTraitScope<'program> {
         )
     }
 
+    /// Symbols captured by this exact contract application, including compound
+    /// types and static expression DAGs. Source row projection and universal
+    /// callable matching use the same dependency owner and traversal.
+    pub fn application_parameter_symbols(&self, program: &TypedTrees) -> Vec<SymbolHandle> {
+        let mut captured = ApplicationReferences::default();
+        for (_, argument) in &self.substitutions {
+            crate::references::visit_type_reference(program, &mut captured, *argument);
+        }
+        captured.symbols
+    }
+
+    /// A source satisfaction owns a universal member family independently of
+    /// the invocation that happens to share its executable body. The original
+    /// edge graph is interpreted under that occurrence's complete bindings and
+    /// enclosing data scopes. Its region ordinals still name the source family.
+    pub fn from_completed_machine_conformance(
+        program: &'program TypedTrees,
+        family: &crate::machine::Machine,
+        conformance: &crate::machine::TraitConformance,
+        application: crate::static_applications::StaticMachineApplicationHandle,
+    ) -> Option<Self> {
+        if !program
+            .expression_table
+            .static_machine_application_is_valid(application)
+        {
+            return None;
+        }
+        let retained = program
+            .expression_table
+            .static_machine_application(application);
+        if retained.binding_declaration != family.symbol {
+            return None;
+        }
+        let declaration =
+            crate::static_applications::StaticApplicationDeclaration::for_application(
+                program, retained,
+            )
+            .ok()?;
+        let bindings = declaration.bind_arguments(program, application).ok()?;
+        let lifetimes = conformance
+            .trait_lifetime_arguments
+            .iter()
+            .map(|ordinal| {
+                family
+                    .lifetime_parameters
+                    .get(usize::try_from(*ordinal).ok()?)
+                    .cloned()
+            })
+            .collect::<Option<Vec<_>>>()?;
+        let mut scope = Self {
+            declaration: program.trait_definition_by_symbol(conformance.symbol)?,
+            substitutions: Vec::new(),
+            substitution_scope_starts: Vec::new(),
+            argument_owner: retained.lexical_owner,
+            captured_argument_owner: match retained.type_identity_owner(program)? {
+                crate::type_identity::AppliedTypeIdentityOwner::Declaration(_) => None,
+                crate::type_identity::AppliedTypeIdentityOwner::Captured(capture) => {
+                    Some(capture.clone())
+                }
+            },
+            region_scopes: Vec::new(),
+        };
+        for reference in program
+            .type_reference_table
+            .type_reference_handles(retained.enclosing_data_applications)
+        {
+            enclosing::append_data_application(program, *reference, &mut scope)?;
+        }
+        // A generic attached data declaration needs its actual receiving graph.
+        // A generated storage definition's tuple is not a source occurrence.
+        if let Some(data) = program.data_definition_by_symbol(family.attached_data_symbol) {
+            let original = data
+                .generic_instance
+                .and_then(|reference| {
+                    enclosing::data_application(program, reference)
+                        .map(|application| application.declaration)
+                })
+                .unwrap_or(data);
+            if (!program.data_type_parameters(original).is_empty()
+                || !original.lifetime_parameters.is_empty())
+                && !scope
+                    .region_scopes
+                    .iter()
+                    .any(|region| region.declaration == original.symbol)
+            {
+                return None;
+            }
+        }
+        scope
+            .substitution_scope_starts
+            .push(scope.substitutions.len());
+        // The exact explicit satisfaction application fixes contract coordinates,
+        // including compound/static arguments. Other member binders remain
+        // universal invocation coordinates; a sibling edge cannot capture them.
+        let mut contract_parameters = Self::from_machine_conformance(program, family, conformance)?
+            .application_parameter_symbols(program);
+        if program
+            .type_reference_table
+            .contains_type_reference(family.attached_data_application)
+            && let TypeReferenceNode::Generic { arguments, .. } = program
+                .type_reference_table
+                .type_reference(family.attached_data_application)
+        {
+            for argument in program
+                .type_reference_table
+                .type_reference_handles(*arguments)
+            {
+                if let TypeReferenceNode::Named { symbol, .. } =
+                    program.type_reference_table.type_reference(*argument)
+                    && !contract_parameters.contains(symbol)
+                {
+                    contract_parameters.push(*symbol);
+                }
+            }
+        }
+        scope
+            .substitutions
+            .extend(bindings.iter().filter_map(|binding| {
+                if !contract_parameters.contains(&binding.parameter) {
+                    return None;
+                }
+                use crate::static_applications::StaticMachineBindingValue;
+                match &binding.value {
+                    StaticMachineBindingValue::Type(reference)
+                    | StaticMachineBindingValue::Const(reference)
+                    | StaticMachineBindingValue::RuntimeValue {
+                        type_reference: reference,
+                        ..
+                    } => Some((binding.parameter, *reference)),
+                    _ => None,
+                }
+            }));
+        scope
+            .region_scopes
+            .push(AppliedDeclarationRegionScope::declaration(
+                family.symbol,
+                application,
+                contract_parameters,
+            ));
+        let arguments = program
+            .type_reference_table
+            .type_reference_handles(conformance.arguments);
+        let parameters = program.trait_type_parameters(scope.declaration);
+        if parameters.len() != arguments.len()
+            || scope.declaration.lifetime_parameters.len() != lifetimes.len()
+        {
+            return None;
+        }
+        scope
+            .substitution_scope_starts
+            .push(scope.substitutions.len());
+        scope.substitutions.extend(
+            parameters
+                .iter()
+                .zip(arguments)
+                .map(|(parameter, argument)| (parameter.symbol, *argument)),
+        );
+        scope.region_scopes.push(AppliedDeclarationRegionScope::new(
+            scope.declaration.symbol,
+            &scope.declaration.lifetime_parameters,
+            &lifetimes,
+        ));
+        Some(scope)
+    }
+
     pub fn new(
         program: &TypedTrees,
         declaration: &'program TraitDefinition,
         application: TraitApplicationArguments<'_>,
     ) -> Option<Self> {
+        Self::new_with_owner(
+            program,
+            declaration,
+            application,
+            crate::type_identity::AppliedTypeIdentityOwner::Declaration(application.lexical_owner),
+        )
+    }
+
+    /// The operand graph and its lexical region issuer have separate custody
+    /// when Build retains an original caller before relocating Product payloads.
+    pub fn new_with_owner(
+        program: &TypedTrees,
+        declaration: &'program TraitDefinition,
+        application: TraitApplicationArguments<'_>,
+        owner: crate::type_identity::AppliedTypeIdentityOwner<'_>,
+    ) -> Option<Self> {
+        let (owner_symbol, capture) = match owner {
+            crate::type_identity::AppliedTypeIdentityOwner::Declaration(symbol) => (symbol, None),
+            crate::type_identity::AppliedTypeIdentityOwner::Captured(capture) => {
+                (capture.symbol(), Some(capture.clone()))
+            }
+        };
+        if application.lexical_owner != owner_symbol {
+            return None;
+        }
         let parameters = program.trait_type_parameters(declaration);
         if parameters.len() != application.arguments.len()
             || declaration.lifetime_parameters.len() != application.lifetimes.len()
@@ -265,6 +466,7 @@ impl<'program> AppliedTraitScope<'program> {
             substitution_scope_starts: Vec::new(),
             argument_owner: application.lexical_owner,
             region_scopes: Vec::new(),
+            captured_argument_owner: capture,
         };
         for reference in application.enclosing_data_applications {
             enclosing::append_data_application(program, *reference, &mut scope)?;
@@ -286,6 +488,105 @@ impl<'program> AppliedTraitScope<'program> {
         Some(scope)
     }
 
+    /// Retained application bindings supply regions in original declaration
+    /// order. A captured caller keeps its frozen lexical issuer independently
+    /// of relocated operand handles in this program.
+    pub fn from_static_application(
+        program: &'program TypedTrees,
+        declaration: &'program TraitDefinition,
+        application: crate::static_applications::StaticMachineApplicationHandle,
+        arguments: &[TypeReferenceHandle],
+    ) -> Option<Self> {
+        let retained = program
+            .expression_table
+            .static_machine_application(application);
+        if retained.selected_interface.is_valid() {
+            if retained.selected_interface != declaration.symbol {
+                return None;
+            }
+        } else if program
+            .trait_machine_signature(retained.binding_declaration)?
+            .0
+            .symbol
+            != declaration.symbol
+        {
+            // An original directly declared member can predate selected-interface
+            // retention. Its declaration is the exact namespace, never a name
+            // search or a choice of inherited application.
+            return None;
+        }
+        let bindings = program
+            .expression_table
+            .static_machine_application_lifetimes(application);
+        let lifetimes = declaration
+            .lifetime_parameters
+            .iter()
+            .enumerate()
+            .map(|(ordinal, parameter)| {
+                let binding = bindings.get(ordinal)?;
+                (&binding.parameter == parameter)
+                    .then(|| binding.argument.named().cloned())
+                    .flatten()
+            })
+            .collect::<Option<Vec<_>>>()?;
+        Self::new_with_owner(
+            program,
+            declaration,
+            TraitApplicationArguments {
+                lexical_owner: retained.lexical_owner,
+                enclosing_data_applications: &[],
+                arguments,
+                lifetimes: &lifetimes,
+            },
+            retained.type_identity_owner(program)?,
+        )
+    }
+
+    pub(super) fn argument_identity_owner(
+        &self,
+    ) -> crate::type_identity::AppliedTypeIdentityOwner<'_> {
+        match &self.captured_argument_owner {
+            Some(capture) => crate::type_identity::AppliedTypeIdentityOwner::Captured(capture),
+            None => {
+                crate::type_identity::AppliedTypeIdentityOwner::Declaration(self.argument_owner)
+            }
+        }
+    }
+
+    /// Extend one exact declaring member's simultaneous telescope. Every start
+    /// has a matching region row, including an uninstantiated universal region
+    /// roster; operands still see only earlier telescopes.
+    pub fn extend_member(
+        &mut self,
+        program: &TypedTrees,
+        member: &crate::signature::StateSignature,
+        arguments: &[(SymbolHandle, TypeReferenceHandle)],
+        lifetimes: &[impl crate::static_applications::StaticLifetimeOperand],
+    ) -> Option<()> {
+        program.trait_machine_signature_by_symbol(self.declaration, member.symbol)?;
+        let parameters = program.state_signature_type_parameters(member);
+        if parameters.len() != arguments.len()
+            || parameters
+                .iter()
+                .zip(arguments)
+                .any(|(parameter, (symbol, _))| parameter.symbol != *symbol)
+        {
+            return None;
+        }
+        if !lifetimes.is_empty() && lifetimes.len() != member.lifetime_parameters.len() {
+            return None;
+        }
+        self.substitution_scope_starts
+            .push(self.substitutions.len());
+        self.substitutions.extend_from_slice(arguments);
+        self.region_scopes.push(AppliedDeclarationRegionScope::new(
+            member.symbol,
+            &member.lifetime_parameters,
+            lifetimes,
+        ));
+        Some(())
+    }
+
     /// An authored trait contract keeps its own parameters rigid and open.
     pub fn abstract_scope(declaration: &'program TraitDefinition) -> Self {
         Self {
@@ -293,10 +594,11 @@ impl<'program> AppliedTraitScope<'program> {
             substitutions: Vec::new(),
             substitution_scope_starts: vec![0],
             argument_owner: declaration.symbol,
+            captured_argument_owner: None,
             region_scopes: vec![AppliedDeclarationRegionScope::new(
                 declaration.symbol,
                 &declaration.lifetime_parameters,
-                &[],
+                &[] as &[Identifier],
             )],
         }
     }
@@ -424,14 +726,26 @@ impl<'program> AppliedTraitScope<'program> {
 
     /// Portable exact argument matching is unavailable when ordinary identity
     /// erases regions or the argument remains an uninstantiated binder.
-    pub fn region_free_parameter_identity(
+    pub fn region_free_parameter_identities(
         &self,
         program: &TypedTrees,
-        parameter: SymbolHandle,
         qualification: TypeIdentityQualification,
-    ) -> Option<NormalizedTypeIdentity> {
-        let (request, scopes) = self.parameter_identity_request(parameter, qualification)?;
-        program.region_free_scoped_type_identity(request, scopes)
+    ) -> Option<Vec<NormalizedTypeIdentity>> {
+        self.with_identity_scopes(program, |scopes| {
+            program
+                .trait_type_parameters(self.declaration)
+                .iter()
+                .map(|original| {
+                    self.parameter_application(original.symbol)?;
+                    crate::type_identity::region_free_static_parameter_identity(
+                        program,
+                        original,
+                        scopes,
+                        qualification,
+                    )
+                })
+                .collect()
+        })
     }
 
     fn parameter_identity_request(
@@ -489,6 +803,40 @@ impl<'program> AppliedTraitScope<'program> {
         if ambiguous { None } else { selected }
     }
 
+    /// Map the declaring trait's erased region slots into this original root
+    /// telescope. Source argument names are resolved only against the owning
+    /// declaration's binder roster; the result contains declaration ordinals.
+    /// Distinct inherited paths must agree, just as complete type applications
+    /// must agree in `declaring_scope`. Missing custody never selects a path.
+    pub fn declaring_lifetime_ordinals(
+        &self,
+        program: &TypedTrees,
+        declaration: SymbolHandle,
+    ) -> Option<Vec<u32>> {
+        let root = (0..self.declaration.lifetime_parameters.len())
+            .map(|ordinal| u32::try_from(ordinal).ok())
+            .collect::<Option<Vec<_>>>()?;
+        let mut selected = None;
+        let mut ambiguous = false;
+        visit_lifetime_applications(
+            program,
+            self.declaration,
+            &root,
+            &mut Vec::new(),
+            &mut |owner, ordinals| {
+                if owner != declaration {
+                    return;
+                }
+                if let Some(known) = &selected {
+                    ambiguous |= known != ordinals;
+                } else {
+                    selected = Some(ordinals.to_vec());
+                }
+            },
+        )?;
+        if ambiguous { None } else { selected }
+    }
+
     /// Visit each reachable application, including transparent refinement
     /// heads. An active-path guard prevents cycles without discarding a sibling
     /// path's different application of the same declaring trait.
@@ -537,8 +885,84 @@ impl<'program> AppliedTraitScope<'program> {
             let mut regions = self.region_scopes.clone();
             regions.append(&mut scope.region_scopes);
             scope.region_scopes = regions;
+            scope.captured_argument_owner = self.captured_argument_owner.clone();
             scope.visit_inherited(program, active, visit);
         }
         active.pop();
+    }
+}
+
+/// Each inherited region operand belongs to the current declaration, never
+/// to the receiving trait. Resolve that simultaneous telescope before walking
+/// another edge, preserving shared slots and distinct sibling applications.
+fn visit_lifetime_applications(
+    program: &TypedTrees,
+    declaration: &TraitDefinition,
+    ordinals: &[u32],
+    active: &mut Vec<SymbolHandle>,
+    visit: &mut impl FnMut(SymbolHandle, &[u32]),
+) -> Option<()> {
+    if active.contains(&declaration.symbol) {
+        return Some(());
+    }
+    if ordinals.len() != declaration.lifetime_parameters.len() {
+        return None;
+    }
+    active.push(declaration.symbol);
+    visit(declaration.symbol, ordinals);
+    for parent in program
+        .trait_requirements(declaration)
+        .iter()
+        .chain(declaration.refines.iter())
+    {
+        let inherited = program.trait_definition_by_symbol(parent.symbol)?;
+        if parent.lifetime_arguments.len() != inherited.lifetime_parameters.len() {
+            return None;
+        }
+        let inherited_ordinals = parent
+            .lifetime_arguments
+            .iter()
+            .map(|argument| {
+                declaration
+                    .lifetime_parameters
+                    .iter()
+                    .position(|parameter| parameter == argument)
+                    .and_then(|ordinal| ordinals.get(ordinal).copied())
+            })
+            .collect::<Option<Vec<_>>>()?;
+        visit_lifetime_applications(program, inherited, &inherited_ordinals, active, visit)?;
+    }
+    active.pop();
+    Some(())
+}
+
+#[derive(Default)]
+struct ApplicationReferences {
+    symbols: Vec<SymbolHandle>,
+    types: Vec<crate::types::TypeReferenceHandle>,
+    expressions: Vec<crate::expression::ExpressionHandle>,
+}
+
+impl Extend<SymbolHandle> for ApplicationReferences {
+    fn extend<References: IntoIterator<Item = SymbolHandle>>(&mut self, references: References) {
+        self.symbols.extend(references);
+    }
+}
+
+impl crate::references::TypedReferences for ApplicationReferences {
+    fn type_reference(&mut self, reference: crate::types::TypeReferenceHandle) -> bool {
+        if self.types.contains(&reference) {
+            return false;
+        }
+        self.types.push(reference);
+        true
+    }
+
+    fn expression(&mut self, expression: crate::expression::ExpressionHandle) -> bool {
+        if self.expressions.contains(&expression) {
+            return false;
+        }
+        self.expressions.push(expression);
+        true
     }
 }

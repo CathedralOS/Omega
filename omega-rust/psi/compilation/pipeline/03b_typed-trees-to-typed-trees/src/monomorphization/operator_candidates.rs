@@ -177,6 +177,18 @@ pub(crate) fn specialize_operator_candidates(
                     continue;
                 }
             };
+            let Some(const_identities) = super::application_arguments::const_binding_identities(
+                &source,
+                &candidate.template,
+                &candidate.type_bindings,
+                &candidate.const_bindings,
+                &candidate.runtime_value_bindings,
+            ) else {
+                diagnostics.push(Diagnostic::error(
+                    "operator const tuple has no original declared carrier correspondence",
+                ));
+                continue;
+            };
             let key = SpecializationKey {
                 type_arguments: candidate
                     .type_bindings
@@ -186,15 +198,7 @@ pub(crate) fn specialize_operator_candidates(
                             .normalized_type_identity_text(binding.expect("complete selected type"))
                     })
                     .collect(),
-                const_arguments: candidate
-                    .const_bindings
-                    .iter()
-                    .map(|binding| {
-                        source.normalized_type_identity_text(
-                            binding.expect("complete selected const"),
-                        )
-                    })
-                    .collect(),
+                const_arguments: const_identities,
                 machine_arguments: Vec::new(),
                 evidence_arguments: Vec::new(),
             };
@@ -223,12 +227,11 @@ pub(crate) fn specialize_operator_candidates(
             .expect("selected generic provider has a normalized template identity");
         let accepted_template_commitment = accepted_template_commitment(&source, machine_index);
 
-        for (ordinal, candidate) in candidates.iter().enumerate() {
+        for candidate in &candidates {
             match clone_specialized_machine(
                 Some(&source),
                 program,
                 candidate,
-                ordinal,
                 normalized_template_identity.clone(),
                 accepted_template_commitment.clone(),
             ) {
@@ -279,13 +282,26 @@ fn materialized_application(
                 .push(program.normalized_type_identity_text(*type_reference)),
             (
                 TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. },
-                ClosedOperatorApplicationArgument::Const { value, .. },
+                ClosedOperatorApplicationArgument::Const {
+                    value,
+                    declared_carrier,
+                    ..
+                },
             ) => {
-                let Some(reference) = const_identity_type_reference(program, value) else {
+                let Some(reference) =
+                    const_identity_type_reference(program, value, *declared_carrier)
+                else {
                     return false;
                 };
-                key.const_arguments
-                    .push(program.normalized_type_identity_text(reference));
+                let Some(identity) = typed_trees::type_identity::declared_const_argument_identity(
+                    program.typed_program(),
+                    typed_trees::type_identity::IndexIdentityArgument::TypeReference(reference),
+                    *declared_carrier,
+                    &[],
+                ) else {
+                    return false;
+                };
+                key.const_arguments.push(identity);
             }
             _ => return false,
         }
@@ -384,9 +400,15 @@ fn selected_operator_candidate_for_application<'template>(
             }
             (
                 TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. },
-                typed_trees::operator::ClosedOperatorApplicationArgument::Const { value, .. },
+                typed_trees::operator::ClosedOperatorApplicationArgument::Const {
+                    value,
+                    declared_carrier,
+                    ..
+                },
             ) => {
-                let Some(binding) = const_identity_type_reference(program, value) else {
+                let Some(binding) =
+                    const_identity_type_reference(program, value, *declared_carrier)
+                else {
                     return Err(Diagnostic::error(format!(
                         "generic operator candidate `{}` has a const application without a supported canonical integer carrier",
                         machine.name,
@@ -414,17 +436,48 @@ fn selected_operator_candidate_for_application<'template>(
 fn const_identity_type_reference(
     program: &dyn ::validation::CheckingInput,
     value: &language_semantics::const_value::CanonicalConstIdentity,
+    declared_carrier: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
-    let language_semantics::const_value::DecodedCanonicalConstValue::Integer { value, .. } =
+    let language_semantics::const_value::DecodedCanonicalConstValue::Integer { .. } =
         value.decode_encoding()?
     else {
         return None;
     };
-    let value = value.to_string();
+    // The closed operator application already owns the admitted receiving
+    // carrier. Rejoin a produced row under that same slot, preserving a typed
+    // row's policy and contextually landing only genuinely anonymous rows.
+    let primitive = program
+        .type_reference_table
+        .primitive_type(declared_carrier)?;
+    if !primitive.accepts_integer_literal() || value.type_name != primitive.name() {
+        return None;
+    }
+    let expected = format!(
+        "named({})",
+        typed_trees::type_identity::canonical_const_identity_with_meaning(
+            value,
+            typed_trees::types::ConstIntegerMeaning::Typed {
+                primitive,
+                arithmetic_domain: program
+                    .type_reference_table
+                    .arithmetic_domain(declared_carrier),
+            },
+        )
+    );
     program
         .type_reference_table
         .named_references()
-        .find(|(_, symbol, name)| !symbol.is_valid() && *name == value)
+        .find(|(handle, symbol, _)| {
+            !symbol.is_valid()
+                && typed_trees::type_identity::declared_const_argument_identity(
+                    program.typed_program(),
+                    typed_trees::type_identity::IndexIdentityArgument::TypeReference(*handle),
+                    declared_carrier,
+                    &[],
+                )
+                .as_ref()
+                    == Some(&expected)
+        })
         .map(|(handle, _, _)| handle)
 }
 

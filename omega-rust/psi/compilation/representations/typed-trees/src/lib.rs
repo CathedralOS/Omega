@@ -21,7 +21,7 @@ pub use typed_trees::control_flow::{machine, state, statement};
 pub use typed_trees::declaration_index;
 pub use typed_trees::declarations::{
     boundary_completions, calling_vocabulary, constant, data, domain, invocations, measure,
-    operator, product_operand, trait_definition, visibility, wire,
+    operator, product_operand, product_requirements, trait_definition, visibility, wire,
 };
 pub use typed_trees::evidence::{
     byte_predicates, dependent_ranges, mathematical, proof_only, proposition, ranking,

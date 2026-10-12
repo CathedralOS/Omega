@@ -815,7 +815,10 @@ fn scan_expression_calls_at_position(
             diagnostics,
         ),
         ExpressionNode::Call(call) => {
-            let call = call.clone();
+            let Some(call) = program.expression_table.source_call(call).cloned() else {
+                diagnostics.push(Diagnostic::error("call lost its original invocation payload"));
+                return;
+            };
             if executes
                 && call.exact_coercion_target.is_valid()
                 && let [operand] = program.expression_table.expression_handles(call.arguments)

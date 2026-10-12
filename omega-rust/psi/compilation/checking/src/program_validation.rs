@@ -107,9 +107,10 @@ pub struct ProgramValidationFacts {
     pub self_call_descents: Vec<crate::ValidatedSelfCallDescent>,
     /// For each checked-body machine whose contract entailment this pass
     /// judged, the postconditions it proved — the one judgment over bodies,
-    /// consumed by the stage-04 prover. Empty when the machine's entailment
-    /// raised a diagnostic or does not cover every exit.
-    pub proven_machine_contracts: Vec<(symbols::SymbolHandle, Vec<ExpressionHandle>)>,
+    /// consumed by the stage-04 prover. The retained decision has no accepted
+    /// entailment when diagnostics or uncovered exits decline it. Actual
+    /// prepared application reads travel with each positive source batch.
+    pub proven_machine_contracts: checked_trees::CheckedSourceContractEntailments,
 }
 
 /// Whether opaque property claims must be backed now or remain pending during
@@ -297,6 +298,14 @@ fn validate(
     if let Err(mut errors) = crate::static_bindings::validate_static_machine_bindings(program) {
         diagnostics.append(&mut errors);
     }
+    // Selection facts require an admitted tuple. Refining the rejected tuple
+    // again would repeat its source diagnostics without producing usable facts.
+    if diagnostics[formation_diagnostic_start..]
+        .iter()
+        .any(Diagnostic::is_error)
+    {
+        return Err(diagnostics);
+    }
     let mut formed_static_machine_selections =
         machine_parameters::form_static_machine_selections(program, &mut diagnostics);
     // A rejected authored application has no well-formed concrete body to
@@ -325,7 +334,7 @@ fn validate(
     // handle travels with it: downstream scopes shorten their program
     // borrow below what a fresh catalog could be built from.
     let mut bound_lookup = (program, None);
-    let mut proven_machine_contracts = Vec::new();
+    let mut proven_machine_contracts = checked_trees::CheckedSourceContractEntailments::default();
     for machine in program.machines() {
         let machine_diagnostic_mark = diagnostics.len();
         let machine_symbols = MachineSymbols::build(program, machine, &mut diagnostics);
@@ -346,26 +355,42 @@ fn validate(
         {
             let mut machine_diagnostics = Vec::new();
             let mut proven = Vec::new();
+            let mut normal_return_proven = Vec::new();
+            let judgment = crate::mathematical_applications::SourceContractJudgment::new(program);
             crate::proof_contracts::contract_entailment::validate_machine_contract_entailment(
-                program,
+                &judgment,
                 machine,
                 &mut machine_diagnostics,
                 &mut proven,
+                &mut normal_return_proven,
             );
             if machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
-                && !proven_machine_contracts
-                    .iter()
-                    .any(|(symbol, _)| *symbol == machine.symbol)
+                && !proven_machine_contracts.contains_machine(machine.symbol)
             {
-                let judged = if machine_diagnostics.is_empty()
+                let (judged, mathematical_reads) = if machine_diagnostics.is_empty()
+                    && !proven.is_empty()
                     && crate::proof_contracts::contract_entailment::entailment_covers_all_exits(
                         program, machine,
                     ) {
-                    proven
+                    match judgment.finish() {
+                        Ok(reads) => (proven, reads),
+                        Err(diagnostic) => {
+                            machine_diagnostics.push(diagnostic);
+                            (Vec::new(), Vec::new())
+                        }
+                    }
                 } else {
-                    Vec::new()
+                    (Vec::new(), Vec::new())
                 };
-                proven_machine_contracts.push((machine.symbol, judged));
+                // Only the same accepted original judgment can publish a
+                // normal-return guarantee; declined source decisions own none.
+                normal_return_proven.retain(|guarantee| judged.contains(guarantee));
+                proven_machine_contracts.record_decision(
+                    machine.symbol,
+                    judged,
+                    mathematical_reads,
+                    normal_return_proven,
+                );
             }
             diagnostics.append(&mut machine_diagnostics);
         }

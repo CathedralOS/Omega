@@ -127,6 +127,9 @@ pub struct GenericDataMachineOrigin {
     pub template_source: DiagnosticName,
     pub template: SymbolHandle,
     pub closed_owner: SymbolHandle,
+    /// Original source binders aligned with the independently retained member
+    /// telescope. Resolution authenticates source provenance before publishing.
+    pub member_parameters: HandleSpan<crate::data::TypeParameter>,
 }
 
 /// Compiler-owned derivation of one trait default instantiation, separate
@@ -161,6 +164,8 @@ pub struct MachineStorage {
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: HandleSpan<SignatureContract>,
+    /// Authored generic callable predicates, separate from structural equations.
+    pub where_facts: HandleSpan<crate::domain::ProofFact>,
     pub states: HandleSpan<Handle<State>>,
 }
 
@@ -296,6 +301,7 @@ pub(crate) fn test_machine(states: HandleSpan<Handle<State>>) -> Machine {
             suspends: false,
             blocks: false,
             contracts: HandleSpan::empty(),
+            where_facts: HandleSpan::empty(),
             states,
         },
     }

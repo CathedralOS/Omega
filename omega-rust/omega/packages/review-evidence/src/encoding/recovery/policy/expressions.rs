@@ -217,7 +217,8 @@ pub(in crate::encoding::recovery) fn evidence_term(
     Ok(PackageReviewContractEvidenceTerm {
         owner: nominal(reader)?,
         kind: super::tag!(reader => {
-            0 => PackageReviewContractKind::Requires,
+            2 => PackageReviewContractKind::Where,
+                0 => PackageReviewContractKind::Requires,
             1 => PackageReviewContractKind::Ensures,
         }),
         lane_position: reader.u32()?,

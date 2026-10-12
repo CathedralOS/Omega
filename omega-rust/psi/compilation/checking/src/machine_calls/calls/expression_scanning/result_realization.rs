@@ -282,21 +282,12 @@ fn initializer_target_is_admitted(
         Some(_) => return false,
         None => call.target_symbol,
     };
-    let mut requirements = program
-        .traits()
-        .iter()
-        .filter(|definition| definition.is_boundary)
-        .flat_map(|definition| {
-            program
-                .trait_machine_signatures(definition)
-                .iter()
-                .filter(move |signature| signature.symbol == requirement)
-                .map(move |signature| (definition, signature))
-        });
-    let Some((definition, signature)) = requirements.next() else {
+    let Some((definition, signature)) = program
+        .selected_trait_requirement_signature(requirement, call.authored_machine_application)
+    else {
         return false;
     };
-    if requirements.next().is_some()
+    if !definition.is_boundary
         || unit_type(program, signature.return_type)
         || (!allow_ordinary
             && program.primitive_type_reference(signature.return_type)
@@ -307,9 +298,7 @@ fn initializer_target_is_admitted(
     if selected_parameter.is_some() {
         return !call.receiver.is_valid();
     }
-    program.expression_table.expression_is_valid(call.receiver)
-        && matches!(program.expression_table.expression(call.receiver),
-            ExpressionNode::Name(path) if path.symbol == definition.symbol)
+    program.call_has_no_runtime_receiver_for_target(call)
 }
 
 fn unit_type(

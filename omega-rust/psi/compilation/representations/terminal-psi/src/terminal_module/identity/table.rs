@@ -31,12 +31,31 @@ impl TerminalIdentityIndex {
     }
 }
 
+/// The source declaration owns this distinction. Invocation formals may be
+/// instantiated by actual anonymous references; captured formals must retain
+/// their original named region correspondence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalLifetimeFormalRole {
+    Captured,
+    Invocation,
+}
+
+/// Complete original lifetime telescope for one nominal declaration. It is
+/// published with the issuing identity table and bound by the canonical module
+/// bytes, independently of any one application claiming a formal's role.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalLifetimeDeclaration {
+    pub declaration: TerminalIdentityIndex,
+    pub formals: Vec<TerminalLifetimeFormalRole>,
+}
+
 /// The deduplicated rendered identities the module's rows index into. Ordered
 /// by first use; the codec writes this section once and decoding checks its
 /// entries once.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalIdentityTable {
     entries: Vec<String>,
+    lifetime_declarations: Vec<TerminalLifetimeDeclaration>,
 }
 
 /// A fresh table carries only entry 0, the empty identity `ABSENT` renders as.
@@ -44,11 +63,52 @@ impl Default for TerminalIdentityTable {
     fn default() -> Self {
         Self {
             entries: vec![String::new()],
+            lifetime_declarations: Vec::new(),
         }
     }
 }
 
 impl TerminalIdentityTable {
+    pub fn lifetime_declarations(&self) -> &[TerminalLifetimeDeclaration] {
+        &self.lifetime_declarations
+    }
+
+    pub fn lifetime_formal_role(
+        &self,
+        declaration: TerminalIdentityIndex,
+        ordinal: u32,
+    ) -> Option<TerminalLifetimeFormalRole> {
+        let position = self
+            .lifetime_declarations
+            .binary_search_by_key(&declaration, |row| row.declaration)
+            .ok()?;
+        self.lifetime_declarations[position]
+            .formals
+            .get(usize::try_from(ordinal).ok()?)
+            .copied()
+    }
+
+    /// Foreign decoding admits the original declaration roster once. A row
+    /// cannot refer outside this issuer or redefine another row's telescope.
+    pub fn from_entries_and_lifetime_declarations(
+        entries: Vec<String>,
+        declarations: Vec<TerminalLifetimeDeclaration>,
+    ) -> Result<Self, &'static str> {
+        let table = Self {
+            entries,
+            lifetime_declarations: declarations,
+        };
+        for (position, row) in table.lifetime_declarations.iter().enumerate() {
+            table.required_text(row.declaration)?;
+            if position > 0
+                && table.lifetime_declarations[position - 1].declaration >= row.declaration
+            {
+                return Err("original lifetime declaration roster is duplicated or not canonical");
+            }
+        }
+        Ok(table)
+    }
+
     /// The table's stored rows, in index order.
     pub fn entries(&self) -> &[String] {
         &self.entries
@@ -71,6 +131,34 @@ impl TerminalIdentityTable {
         self.entries.get(index.0 as usize).map(String::as_str)
     }
 
+    /// Resolve a required identity in its issuing table. Absence, an unknown
+    /// index and an empty entry cannot participate in a content comparison.
+    pub fn required_text(&self, index: TerminalIdentityIndex) -> Result<&str, &'static str> {
+        if index.is_absent() {
+            return Err("required Terminal identity is absent");
+        }
+        let text = self
+            .text(index)
+            .ok_or("required Terminal identity is outside its issuing table")?;
+        if text.is_empty() {
+            return Err("required Terminal identity has empty content");
+        }
+        Ok(text)
+    }
+
+    /// Compare identities issued by independent modules. Table indices are
+    /// local coordinates; only their resolved content can join two artifacts.
+    pub fn identity_content_matches(
+        &self,
+        identity: TerminalIdentityIndex,
+        other: &Self,
+        other_identity: TerminalIdentityIndex,
+    ) -> Result<bool, &'static str> {
+        let content = self.required_text(identity)?;
+        let other_content = other.required_text(other_identity)?;
+        Ok(content == other_content)
+    }
+
     /// Construction resumed on an existing table: test fixtures and sealed
     /// rosters that must mint identities late take the rows back to a builder
     /// rather than reconstructing the deduplication map by hand.
@@ -83,6 +171,7 @@ impl TerminalIdentityTable {
             .collect();
         TerminalIdentityTableBuilder {
             entries: self.entries,
+            lifetime_declarations: self.lifetime_declarations,
             positions,
         }
     }
@@ -94,6 +183,7 @@ impl TerminalIdentityTable {
 #[derive(Debug)]
 pub struct TerminalIdentityTableBuilder {
     entries: Vec<String>,
+    lifetime_declarations: Vec<TerminalLifetimeDeclaration>,
     positions: std::collections::HashMap<String, u32>,
 }
 
@@ -103,12 +193,44 @@ impl Default for TerminalIdentityTableBuilder {
     fn default() -> Self {
         Self {
             entries: vec![String::new()],
+            lifetime_declarations: Vec::new(),
             positions: [(String::new(), 0)].into_iter().collect(),
         }
     }
 }
 
 impl TerminalIdentityTableBuilder {
+    /// Publish the original source telescope at the declaration's own identity.
+    /// Repeated source references reuse the identical roster; conflicting
+    /// declaration facts fail instead of donating a role from an application.
+    pub fn retain_lifetime_declaration(
+        &mut self,
+        declaration: TerminalIdentityIndex,
+        formals: Vec<TerminalLifetimeFormalRole>,
+    ) -> Result<(), &'static str> {
+        if declaration.is_absent() || self.text(declaration).is_none_or(str::is_empty) {
+            return Err("original lifetime declaration has no issuing nominal identity");
+        }
+        match self
+            .lifetime_declarations
+            .binary_search_by_key(&declaration, |row| row.declaration)
+        {
+            Ok(position) => {
+                if self.lifetime_declarations[position].formals != formals {
+                    return Err("original lifetime declaration has conflicting formal roles");
+                }
+            }
+            Err(position) => self.lifetime_declarations.insert(
+                position,
+                TerminalLifetimeDeclaration {
+                    declaration,
+                    formals,
+                },
+            ),
+        }
+        Ok(())
+    }
+
     /// The index `text` occupies in the finished table, interning it on first
     /// use.
     pub fn intern(&mut self, text: &str) -> TerminalIdentityIndex {
@@ -139,6 +261,7 @@ impl TerminalIdentityTableBuilder {
     pub fn snapshot(&self) -> TerminalIdentityTable {
         TerminalIdentityTable {
             entries: self.entries.clone(),
+            lifetime_declarations: self.lifetime_declarations.clone(),
         }
     }
 
@@ -147,6 +270,7 @@ impl TerminalIdentityTableBuilder {
     pub fn build(self) -> TerminalIdentityTable {
         TerminalIdentityTable {
             entries: self.entries,
+            lifetime_declarations: self.lifetime_declarations,
         }
     }
 }
@@ -156,6 +280,78 @@ impl TerminalIdentityTableBuilder {
 /// packages them.
 impl From<Vec<String>> for TerminalIdentityTable {
     fn from(entries: Vec<String>) -> Self {
-        Self { entries }
+        Self {
+            entries,
+            lifetime_declarations: Vec::new(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod content_comparison_tests {
+    use super::{TerminalIdentityIndex, TerminalIdentityTable, TerminalIdentityTableBuilder};
+
+    #[test]
+    fn equal_indices_do_not_match_different_content() {
+        let mut first = TerminalIdentityTableBuilder::default();
+        let first_identity = first.intern("first declaration");
+        let mut second = TerminalIdentityTableBuilder::default();
+        let second_identity = second.intern("second declaration");
+        assert_eq!(first_identity, second_identity);
+        assert_eq!(
+            first.build().identity_content_matches(
+                first_identity,
+                &second.build(),
+                second_identity,
+            ),
+            Ok(false)
+        );
+    }
+
+    #[test]
+    fn different_indices_match_the_same_content() {
+        let mut first = TerminalIdentityTableBuilder::default();
+        let first_identity = first.intern("same declaration");
+        let mut second = TerminalIdentityTableBuilder::default();
+        second.intern("unrelated declaration");
+        let second_identity = second.intern("same declaration");
+        assert_ne!(first_identity, second_identity);
+        assert_eq!(
+            first.build().identity_content_matches(
+                first_identity,
+                &second.build(),
+                second_identity,
+            ),
+            Ok(true)
+        );
+    }
+
+    #[test]
+    fn either_issuer_refuses_absent_missing_or_empty_content() {
+        let mut valid = TerminalIdentityTableBuilder::default();
+        let valid_identity = valid.intern("present declaration");
+        let valid = valid.build();
+        let malformed = TerminalIdentityTable::from(vec![String::new(), String::new()]);
+        for invalid_identity in [
+            TerminalIdentityIndex::ABSENT,
+            TerminalIdentityIndex(999),
+            TerminalIdentityIndex(1),
+        ] {
+            assert!(
+                malformed
+                    .identity_content_matches(invalid_identity, &valid, valid_identity)
+                    .is_err()
+            );
+            assert!(
+                valid
+                    .identity_content_matches(valid_identity, &malformed, invalid_identity)
+                    .is_err()
+            );
+            assert!(
+                malformed
+                    .identity_content_matches(invalid_identity, &malformed, invalid_identity)
+                    .is_err()
+            );
+        }
     }
 }

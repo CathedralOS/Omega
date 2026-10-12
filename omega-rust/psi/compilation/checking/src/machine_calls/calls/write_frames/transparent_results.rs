@@ -37,6 +37,7 @@ pub(crate) fn transparent_call_result_origins(
         &mut FrameInference,
     ) -> Option<Vec<FramePlaceOrigin>>,
 ) -> Option<Vec<FramePlaceOrigin>> {
+    let call = program.expression_table.source_call(call)?;
     let (callee_machine, callee_state) = machine_state_by_symbol(program, call.target_symbol)?;
     if call.receiver.is_valid() != callee_machine.attached_data.is_some() {
         return None;
@@ -152,6 +153,7 @@ pub(crate) fn transparent_place_expression_origins(
                 .collect()
         }
         ExpressionNode::Call(call) => {
+            let call = program.expression_table.source_call(call)?;
             if call_is_transparent_mutable_slice_view(program, call) {
                 transparent_place_expression_origins(program, call.receiver, symbols, inference)?
             } else {

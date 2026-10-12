@@ -716,7 +716,7 @@ pub(super) fn emit(
                 .map(|(_, place)| (place, false)),
         );
         let trivial_affine_discards = evaluation
-            .selection_return_discards(selection_roster)?
+            .selection_return_discards(selection_roster, &operations)?
             .into_iter()
             .map(Ok)
             .chain(local_discards)

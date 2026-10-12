@@ -125,11 +125,11 @@ fn named_requirement_use_fact(
     })
 }
 
-/// The authored token-bearing machine selected by a synthesized call.
-/// Specialization changes the executable entry while copies retain the same
-/// authored `Operator` occurrence. Its retained registration identifies the
-/// declaration all those copies selected, not any private executable instance.
-pub fn token_bound_machine_call_target(
+/// The authored token-bearing declaration selected by a synthesized call,
+/// including an exact public boundary requirement. Executable specialization
+/// preserves its original registration; the private instance is not a new
+/// authored operator occurrence.
+pub fn token_bound_call_target(
     program: &dyn crate::CheckingInput,
     call: &TableCallExpression,
 ) -> Option<SymbolHandle> {
@@ -146,6 +146,34 @@ pub fn token_bound_machine_call_target(
     } else {
         call.target_symbol
     };
-    let (machine, _) = crate::find_machine_head(program, target)?;
-    machine.spelling.is_some().then_some(machine.symbol)
+    crate::find_machine_head(program, target)
+        .filter(|(machine, _)| machine.spelling.is_some())
+        .map(|(machine, _)| machine.symbol)
+        .or_else(|| {
+            let (owner, signature) = program.trait_machine_signature(call.target_symbol)?;
+            if !owner.is_boundary || signature.spelling.is_none() {
+                return None;
+            }
+            if let Some((_, row)) =
+                program
+                    .instantiated_requirement_signatures
+                    .iter()
+                    .find(|(_, row)| {
+                        program.trait_machine_signatures.get(row.signature).symbol
+                            == signature.symbol
+                    })
+            {
+                (call.authored_machine_application.is_valid()
+                    && typed_trees::static_applications::static_application_identities_equal(
+                        program.typed_program(),
+                        call.authored_machine_application,
+                        program.typed_program(),
+                        row.binding_application,
+                    )
+                    .is_ok_and(|same| same))
+                .then_some(row.requirement_template)
+            } else {
+                Some(signature.symbol)
+            }
+        })
 }

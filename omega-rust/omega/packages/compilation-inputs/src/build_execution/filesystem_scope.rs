@@ -73,14 +73,10 @@ struct NamedBuildInput {
 /// Maximum declared required sealed outputs for one build occurrence.
 const REQUIRED_BUILD_OUTPUT_LIMIT: usize = 4_096;
 
-/// One spelling-independent key for root-overlap decisions. Two roots that
-/// collide on the host must share a key whichever spelling bound them: `..`
-/// and `.` components fold lexically, a relative spelling absolutizes
-/// against the current directory, and the longest existing prefix resolves
-/// through the host's canonical spelling so a symlinked ancestor names the
-/// same directory. A `..` that escapes the filesystem root keeps its
-/// original spelling — it cannot name a granted root anyway.
-fn overlap_key(path: &Path) -> PathBuf {
+/// Fold a routing path lexically without resolving aliases. Capture uses this
+/// coordinate alongside the existing fence key so an output alias and its target
+/// are both absent from the original input inventory.
+pub(crate) fn lexical_absolute(path: &Path) -> PathBuf {
     let absolute = if path.is_absolute() {
         path.to_path_buf()
     } else {
@@ -100,6 +96,20 @@ fn overlap_key(path: &Path) -> PathBuf {
             }
             other => folded.push(other.as_os_str()),
         }
+    }
+    folded
+}
+
+/// One spelling-independent key for root-overlap decisions. The longest
+/// existing prefix resolves through its host spelling, including symlinked
+/// ancestors of an output which has not been created yet.
+pub(crate) fn overlap_key(path: &Path) -> PathBuf {
+    let folded = lexical_absolute(path);
+    if folded
+        .components()
+        .any(|component| matches!(component, std::path::Component::ParentDir))
+    {
+        return folded;
     }
     // A not-yet-created tail cannot resolve; the longest existing prefix
     // still does, so a symlink inside an ancestor cannot alias past the
@@ -143,16 +153,11 @@ impl BuildMachineFilesystemScope {
         Ok(self.filesystem_access())
     }
 
-    pub(crate) fn for_root(
-        root_path: &Path,
+    pub(crate) fn for_source_root(
+        source_root: PathBuf,
         build_dir: PathBuf,
         sponsor: Option<BuildMachineFilesystemSponsor>,
     ) -> Self {
-        let source_root = root_path
-            .parent()
-            .filter(|parent| !parent.as_os_str().is_empty())
-            .map(Path::to_path_buf)
-            .unwrap_or_else(|| PathBuf::from("."));
         let admitted_build_dir_key = overlap_key(&build_dir);
         Self {
             source_root,

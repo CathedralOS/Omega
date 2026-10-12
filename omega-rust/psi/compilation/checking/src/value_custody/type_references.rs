@@ -41,8 +41,8 @@ mod open_index_expressions;
 use constraint_validation::validate_type_constraints_node;
 pub(crate) use generic_arguments::{
     const_argument_matches_parameter, const_integer_value_fits_primitive,
-    validate_const_binder_carriers, validate_exact_const_identity,
-    validate_exact_typed_structured_const_argument,
+    validate_const_application_argument, validate_const_binder_carriers,
+    validate_exact_const_identity, validate_exact_typed_structured_const_argument,
 };
 use generic_arguments::{
     machine_argument_name, validate_const_data_argument, validate_generic_argument_bounds,
@@ -50,7 +50,6 @@ use generic_arguments::{
 };
 pub use generic_arguments::{validate_closed_const_argument, validate_exact_const_value_encoding};
 pub(crate) use generic_arguments::{
-    validate_const_data_argument as validate_const_application_argument,
     validate_machine_data_argument as validate_machine_application_argument,
     validate_parameter_bounds,
 };
@@ -84,6 +83,7 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 pub enum StaticTypeArgumentOwner<'program> {
     Machine(&'program typed_trees::machine::Machine),
     Data(&'program typed_trees::data::DataDefinition),
+    Captured(&'program typed_trees::typed_trees::product_applications::CapturedStaticLexicalScope),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -306,6 +306,9 @@ impl fmt::Display for TypeReferenceOwner<'_> {
                     StaticTypeArgumentOwner::Data(data) => {
                         write!(formatter, "data `{}`", data.name)?;
                     }
+                    StaticTypeArgumentOwner::Captured(scope) => {
+                        write!(formatter, "captured declaration `{}`", scope.name())?;
+                    }
                 }
                 formatter.write_str(" static type argument")?;
                 *generic_depth
@@ -421,12 +424,19 @@ pub fn validate_static_type_argument(
         StaticTypeArgumentOwner::Machine(machine) => (
             program.machine_type_parameters(machine),
             machine.lifetime_parameters.as_ref(),
-            machine.symbol,
+            typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(machine.symbol),
         ),
         StaticTypeArgumentOwner::Data(data) => (
             program.data_type_parameters(data),
             data.lifetime_parameters.as_ref(),
-            data.symbol,
+            typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(data.symbol),
+        ),
+        StaticTypeArgumentOwner::Captured(scope) => (
+            // Only binder categories/properties and lexical regions enter type
+            // formation. Their payload handles stay in the original capture.
+            scope.type_parameters(),
+            scope.lifetime_parameters(),
+            typed_trees::type_identity::AppliedTypeIdentityOwner::Captured(scope),
         ),
     };
     validate_type_reference_handle(
@@ -493,7 +503,7 @@ fn validate_routed_service_carrier_placement(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     owner: TypeReferenceOwner<'_>,
-    lexical_owner: symbols::SymbolHandle,
+    lexical_owner: typed_trees::type_identity::AppliedTypeIdentityOwner<'_>,
     direct: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -642,7 +652,9 @@ pub(crate) fn validate_generic_instance_argument_bounds(
         base_name.as_str(),
         *arguments,
         TypeParameterScope {
-            lexical_owner: instance.symbol,
+            lexical_owner: typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(
+                instance.symbol,
+            ),
             type_parameters: &[],
             lifetime_parameters: &instance.lifetime_parameters,
         },
@@ -659,6 +671,23 @@ fn validate_type_reference_node(
     allow_bare_str: bool,
     type_parameter_scope: TypeParameterScope<'_>,
 ) {
+    let application = program
+        .type_reference_table
+        .data_application_origin(type_reference);
+    if application.is_valid() {
+        // Each use admits its own complete original tuple. A generated carrier
+        // may share storage, but its first tuple supplies no later use's width,
+        // policy, kind, evidence, machine, conformance or region obligations.
+        validate_type_reference_node(
+            program,
+            application,
+            symbols,
+            diagnostics,
+            owner,
+            allow_bare_str,
+            type_parameter_scope,
+        );
+    }
     // Generic-argument sites below validate every spelled argument under the
     // application owner's custody.
     let validate_generic_argument =
@@ -1047,14 +1076,37 @@ fn validate_type_reference_node(
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub(crate) struct TypeParameterScope<'program> {
-    pub(crate) lexical_owner: symbols::SymbolHandle,
+    // A captured scope's handles belong to its frozen issuer, not the current
+    // program. Identity consumers retain that owner alongside binder categories.
+    pub(crate) lexical_owner: typed_trees::type_identity::AppliedTypeIdentityOwner<'program>,
     pub(crate) type_parameters: &'program [TypeParameter],
     pub(crate) lifetime_parameters: &'program [typed_trees::name::Identifier],
 }
 
 impl<'program> TypeParameterScope<'program> {
+    /// Binder payloads stay in the frozen lexical issuer while Product actual
+    /// operands are relocated into the receiving program. Symbols may share a
+    /// source namespace; that does not make their type-table handles shared.
+    fn issuing_program<'input>(
+        &'input self,
+        current: &'input typed_trees::TypedTrees,
+    ) -> &'input typed_trees::TypedTrees {
+        match self.lexical_owner {
+            typed_trees::type_identity::AppliedTypeIdentityOwner::Captured(scope) => scope.owner(),
+            typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(_) => current,
+        }
+    }
+
+    fn value_carrier<'input>(
+        &'input self,
+        current: &'input typed_trees::TypedTrees,
+        parameter: &TypeParameter,
+    ) -> Option<DeclaredValueCarrier<'input>> {
+        declared_parameter_value_carrier(current, self.lexical_owner, parameter)
+    }
+
     fn contains(self, name: &str) -> bool {
         self.type_parameters
             .iter()
@@ -1119,21 +1171,126 @@ pub(crate) fn type_references_match(
     if !actual.is_valid() || !required.is_valid() {
         return actual.is_valid() == required.is_valid();
     }
-    // One handle renders one identity.
-    if actual == required {
-        return true;
+    if !program.type_reference_table.contains_type_reference(actual)
+        || !program
+            .type_reference_table
+            .contains_type_reference(required)
+    {
+        return false;
     }
+    actual == required
+        || program.normalized_type_identity(actual) == program.normalized_type_identity(required)
+}
 
-    program.normalized_type_identity(actual) == program.normalized_type_identity(required)
+/// One declared value carrier and the namespace that issued its payload.
+/// The lexical owner remains separate from its type-table issuer: Product
+/// relocation copies operands, while lexical captures retain source binders.
+#[derive(Clone, Copy)]
+pub(crate) struct DeclaredValueCarrier<'program> {
+    pub program: &'program typed_trees::TypedTrees,
+    pub type_reference: TypeReferenceHandle,
+    pub lexical_owner: typed_trees::type_identity::AppliedTypeIdentityOwner<'program>,
+}
+
+/// Forwarded binder classification remains in its original lexical roster.
+/// Captured carrier payloads enter the receiving issuer only through the
+/// complete retained copy, never through a same-numbered foreign type handle.
+pub(crate) fn declared_parameter_value_carrier<'program>(
+    current: &'program typed_trees::TypedTrees,
+    lexical_owner: typed_trees::type_identity::AppliedTypeIdentityOwner<'program>,
+    parameter: &TypeParameter,
+) -> Option<DeclaredValueCarrier<'program>> {
+    let original = match parameter.kind {
+        TypeParameterKind::Const { type_reference }
+        | TypeParameterKind::Value { type_reference } => type_reference,
+        _ => return None,
+    };
+    let type_reference = match lexical_owner {
+        typed_trees::type_identity::AppliedTypeIdentityOwner::Captured(scope) => {
+            current.captured_static_value_carrier(scope, parameter.symbol)?
+        }
+        typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(_) => original,
+    };
+    current
+        .type_reference_table
+        .contains_type_reference(type_reference)
+        .then_some(DeclaredValueCarrier {
+            program: current,
+            type_reference,
+            lexical_owner,
+        })
+}
+
+/// Compare complete carriers through the shared applied normalizer. Same-
+/// program callers retain their original nominal qualification; cross-program
+/// carriers require exact nominal custody and compare each issuer's contents.
+/// Regions retain their original lexical owners. Missing carriers or owners
+/// cannot compare equal through dummy rows, local identity IDs or path text.
+pub(crate) fn declared_value_carriers_match(
+    actual: DeclaredValueCarrier<'_>,
+    required: DeclaredValueCarrier<'_>,
+    qualification: typed_trees::type_identity::TypeIdentityQualification,
+) -> bool {
+    use typed_trees::type_identity::{ExactOwnerTypeIdentityRequest, applied_type_identity};
+
+    if !actual
+        .program
+        .type_reference_table
+        .contains_type_reference(actual.type_reference)
+        || !required
+            .program
+            .type_reference_table
+            .contains_type_reference(required.type_reference)
+    {
+        return false;
+    }
+    if std::ptr::eq(actual.program, required.program) {
+        let identity = |carrier: DeclaredValueCarrier<'_>| {
+            applied_type_identity(
+                carrier.program,
+                carrier.type_reference,
+                carrier.lexical_owner,
+                &[],
+                qualification,
+            )
+        };
+        let (Some(actual), Some(required)) = (identity(actual), identity(required)) else {
+            return false;
+        };
+        return actual == required;
+    }
+    let identity = |carrier: DeclaredValueCarrier<'_>| {
+        carrier
+            .program
+            .exact_owner_applied_type_identity(
+                ExactOwnerTypeIdentityRequest {
+                    type_reference: carrier.type_reference,
+                    binders: &[],
+                    substitutions: &[],
+                    exact_toolchain_sources: &[],
+                },
+                carrier.lexical_owner,
+            )
+            .and_then(|identity| carrier.program.type_identity_text(identity))
+    };
+    match (identity(actual), identity(required)) {
+        (Some(actual), Some(required)) => actual == required,
+        _ => false,
+    }
 }
 
 pub(crate) fn type_reference_label(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> String {
-    if type_reference.is_valid() {
+    if !type_reference.is_valid() {
+        "()".to_owned()
+    } else if program
+        .type_reference_table
+        .contains_type_reference(type_reference)
+    {
         program.display_type_reference_with_constraints(type_reference)
     } else {
-        "()".to_owned()
+        "<unavailable type>".to_owned()
     }
 }

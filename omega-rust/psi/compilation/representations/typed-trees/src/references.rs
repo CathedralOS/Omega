@@ -74,6 +74,34 @@ impl<'call> StaticArgumentCall<'call> {
         }
     }
 
+    /// An original preorder coordinate counts every static operand, including
+    /// literals without a declaration selection. Read the retained source tree;
+    /// folded payload children do not define source occurrence identity.
+    pub fn argument_at(
+        &self,
+        program: &'call TypedTrees,
+        position: language_semantics::declaration_selection::StaticArgumentPosition,
+    ) -> Option<&'call StaticMachineArgument> {
+        fn descendant(
+            argument: &StaticMachineArgument,
+            position: language_semantics::declaration_selection::StaticArgumentPosition,
+        ) -> Option<&StaticMachineArgument> {
+            if argument.authored_position == Some(position) {
+                return Some(argument);
+            }
+            argument.application.as_ref().and_then(|application| {
+                application
+                    .arguments
+                    .iter()
+                    .find_map(|child| descendant(child, position))
+            })
+        }
+        descendant(
+            self.arguments(program).get(position.argument_index)?,
+            position,
+        )
+    }
+
     /// Source operands survive executable specialization. The live static
     /// list is used only while no source application has been retained.
     pub fn arguments(&self, program: &'call TypedTrees) -> &'call [StaticMachineArgument] {
@@ -120,6 +148,24 @@ pub trait TypedReferences: Extend<SymbolHandle> {
         true
     }
     fn type_reference(&mut self, _: TypeReferenceHandle) -> bool {
+        true
+    }
+    /// Observe each complete application before its selected operands descend.
+    /// Sinks may stop a previously visited application without dropping its
+    /// already observed node, scope or binding payloads.
+    fn static_machine_application(
+        &mut self,
+        _: crate::static_applications::StaticMachineApplicationHandle,
+    ) -> bool {
+        true
+    }
+    /// Dependency readers include the derived checking views. Source-input
+    /// observers can omit those copies while retaining provider applications
+    /// and any exact signature graphs they actually consume as explicit roots.
+    fn applied_callable_signatures(
+        &mut self,
+        _: crate::static_applications::StaticMachineApplicationHandle,
+    ) -> bool {
         true
     }
     /// Expressions owned by type work, distinct from executable body roots.
@@ -610,13 +656,30 @@ pub fn visit_static_machine_bindings(
     retained: &mut impl TypedReferences,
     application: crate::static_applications::StaticMachineApplicationHandle,
 ) {
-    if !application.is_valid() {
+    if !application.is_valid() || !retained.static_machine_application(application) {
         return;
+    }
+    visit_symbol(
+        retained,
+        program
+            .expression_table
+            .static_machine_application(application)
+            .receiving_data_parameter,
+    );
+    for reference in program.type_reference_table.type_reference_handles(
+        program
+            .expression_table
+            .static_machine_application(application)
+            .enclosing_data_applications,
+    ) {
+        visit_type_reference(program, retained, *reference);
     }
     for applied in program.applied_machine_callables(application) {
         visit_static_machine_bindings(program, retained, applied.provider);
-        visit_signature(program, retained, applied.required);
-        visit_signature(program, retained, applied.selected);
+        if retained.applied_callable_signatures(application) {
+            visit_signature(program, retained, applied.required);
+            visit_signature(program, retained, applied.selected);
+        }
     }
     for selected in program
         .expression_table
@@ -628,23 +691,34 @@ pub fn visit_static_machine_bindings(
         .expression_table
         .static_machine_application_bindings(application)
     {
-        use crate::static_applications::StaticMachineBindingValue;
-        match &binding.value {
-            StaticMachineBindingValue::Type(reference)
-            | StaticMachineBindingValue::Const(reference) => {
-                visit_type_reference(program, retained, *reference)
-            }
-            StaticMachineBindingValue::RuntimeValue {
-                type_reference,
-                subject,
-            } => {
-                visit_type_reference(program, retained, *type_reference);
-                visit_symbol(retained, *subject);
-            }
-            StaticMachineBindingValue::Machine(argument)
-            | StaticMachineBindingValue::Conformance(argument) => {
-                visit_static_argument(program, retained, argument)
-            }
+        visit_static_machine_binding(program, retained, binding);
+    }
+}
+
+/// Visit an explicit binding payload independently of an application's roster.
+/// A proposal may still be joining its source and executable application rows;
+/// the supplied Type/Const/Machine/Conformance operands remain actual inputs.
+pub fn visit_static_machine_binding(
+    program: &TypedTrees,
+    retained: &mut impl TypedReferences,
+    binding: &crate::static_applications::StaticMachineBinding,
+) {
+    use crate::static_applications::StaticMachineBindingValue;
+    match &binding.value {
+        StaticMachineBindingValue::Type(reference)
+        | StaticMachineBindingValue::Const(reference) => {
+            visit_type_reference(program, retained, *reference)
+        }
+        StaticMachineBindingValue::RuntimeValue {
+            type_reference,
+            subject,
+        } => {
+            visit_type_reference(program, retained, *type_reference);
+            visit_symbol(retained, *subject);
+        }
+        StaticMachineBindingValue::Machine(argument)
+        | StaticMachineBindingValue::Conformance(argument) => {
+            visit_static_argument(program, retained, argument)
         }
     }
 }
@@ -781,6 +855,29 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         }
         for signature in program.trait_machine_signatures(definition) {
             visit_signature(program, retained, signature);
+        }
+    }
+
+    for (_, application) in program.instantiated_requirement_signatures.iter() {
+        let signature = program.trait_machine_signatures.get(application.signature);
+        if retained.declaration(signature.symbol) {
+            visit_signature(program, retained, signature);
+        }
+    }
+
+    for slot in &program.dynamic_slots {
+        if !retained.declaration(slot.symbol) {
+            continue;
+        }
+        visit_symbol(retained, slot.declaring_trait);
+        visit_symbol(retained, slot.requirement);
+        if let Some(signature) = program.dynamic_slot_requirement(slot) {
+            visit_signature(program, retained, signature);
+        }
+        visit_contract_fact_copies(program, retained, slot.contract_fact_copies);
+        for parameter in &slot.parameters {
+            visit_symbol(retained, parameter.symbol);
+            visit_type_reference(program, retained, parameter.type_reference);
         }
     }
 
@@ -999,6 +1096,29 @@ fn visit_signature(
     signature: &crate::signature::StateSignature,
 ) {
     retained.enter_lexical_scope(signature.symbol);
+    for (_, application) in program
+        .instantiated_requirement_signatures
+        .iter()
+        .filter(|(_, row)| {
+            program.trait_machine_signatures.get(row.signature).symbol == signature.symbol
+        })
+    {
+        visit_symbol(retained, application.declaring_trait);
+        visit_symbol(retained, application.selected_interface);
+        visit_symbol(retained, application.requirement_template);
+        visit_contract_fact_copies(program, retained, application.contract_fact_copies);
+        visit_static_machine_bindings(program, retained, application.binding_application);
+        visit_static_machine_bindings(program, retained, application.declaring_binding_application);
+        for interface in program
+            .requirement_interface_applications
+            .span_or_empty(application.interface_applications)
+        {
+            visit_symbol(retained, interface.interface);
+            if interface.binding_application.is_valid() {
+                visit_static_machine_bindings(program, retained, interface.binding_application);
+            }
+        }
+    }
     visit_type_parameters(program, retained, signature.type_parameters);
     visit_proof_facts(program, retained, signature.where_facts);
     for parameter in program
@@ -1028,6 +1148,24 @@ fn visit_signature(
     retained.leave_lexical_scope();
 }
 
+/// Copy custody keeps both original and applied fact graphs reachable under
+/// their own formal owners; pruning cannot replace either end of the join.
+fn visit_contract_fact_copies(
+    program: &TypedTrees,
+    retained: &mut impl TypedReferences,
+    copies: arena::HandleSpan<crate::signature::SignatureContractFactCopy>,
+) {
+    for copy in program.signature_contract_fact_copies.span_or_empty(copies) {
+        visit_symbol(retained, copy.declared_signature);
+        visit_symbol(retained, copy.applied_signature);
+        for fact in [copy.declared, copy.applied] {
+            if retained.proof_fact(fact) {
+                visit_proof_fact(program, retained, program.proof_facts.get(fact));
+            }
+        }
+    }
+}
+
 /// Retain machines referenced by one signature contract's proof facts.
 fn visit_contract(
     program: &TypedTrees,
@@ -1047,6 +1185,13 @@ pub fn visit_type_reference(
     if !type_reference.is_valid() || !retained.type_reference(type_reference) {
         return;
     }
+    visit_type_reference(
+        program,
+        retained,
+        program
+            .type_reference_table
+            .data_application_origin(type_reference),
+    );
     for origin in program
         .type_reference_table
         .constant_origins(type_reference)
@@ -1148,6 +1293,13 @@ pub fn visit_expression(
     if !expression.is_valid() || !retained.expression(expression) {
         return;
     }
+    visit_type_reference(
+        program,
+        retained,
+        program
+            .expression_table
+            .constructed_value_type_reference(expression),
+    );
     if let Some(operation) = program.expression_table.open_index_operation(expression) {
         visit_symbol(retained, operation.provider);
         visit_symbol(retained, operation.operator);
@@ -1273,6 +1425,13 @@ fn visit_call_expression(
     expression: ExpressionHandle,
     call: &TableCallExpression,
 ) {
+    if call.source_call.is_valid()
+        && let Some(original) = program.expression_table.source_call(call)
+    {
+        // Retain logical dependencies without creating another executable
+        // call occurrence. The selected body remains the target below.
+        visit_call_expression(program, retained, expression, original);
+    }
     visit_callable_symbol(program, retained, call.target_symbol);
     // Named operators can retain their complete call path before an exact
     // target is bound. Their declarations are dependencies even in contracts,
@@ -1467,6 +1626,22 @@ pub fn visit_machine(
             visit_closed_conformance(program, retained, application);
         }
     }
+    for application in program
+        .machine_conformance_applications
+        .span_or_empty(machine.conformance_applications)
+    {
+        if let Some(scope) = application.scope.bind(program) {
+            retained.enter_lexical_scope(scope.argument_owner);
+            visit_static_machine_bindings(program, retained, application.occurrence);
+            visit_static_machine_bindings(program, retained, application.application);
+            visit_symbol(retained, scope.declaration.symbol);
+            for (parameter, argument) in &scope.substitutions {
+                visit_symbol(retained, *parameter);
+                visit_type_reference(program, retained, *argument);
+            }
+            retained.enter_lexical_scope(machine.symbol);
+        }
+    }
     // Exact typed ranking-witness expressions are compiler custody for
     // termination evidence; they are machine-keyed rows so retention here is
     // conservative (reachable machines also produce their own edges).
@@ -1494,6 +1669,9 @@ pub fn visit_machine(
     }
     let from = machine.symbol;
     visit_type_parameters(program, retained, machine.type_parameters);
+    visit_proof_facts(program, retained, machine.where_facts);
+    visit_type_parameters(program, retained, machine.generic_data_member_parameters);
+    visit_symbol(retained, machine.generic_data_template);
     visit_type_reference(program, retained, machine.attached_data_application);
     for contract in program
         .tables

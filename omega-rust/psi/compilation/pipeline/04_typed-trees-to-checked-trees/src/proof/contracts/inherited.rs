@@ -11,7 +11,8 @@ fn signature_fact_total(
         .state_signature_contracts(signature)
         .iter()
         .map(|contract| contract.facts.len())
-        .sum()
+        .sum::<usize>()
+        + signature.where_facts.len()
 }
 
 pub(crate) fn estimated_contract_fact_capacity(program: &dyn ::validation::CheckingInput) -> usize {
@@ -30,7 +31,7 @@ pub(crate) fn estimated_contract_fact_capacity(program: &dyn ::validation::Check
                 .flat_map(|state| program.state_contracts(state))
                 .map(|contract| contract.facts.len())
                 .sum::<usize>();
-            machine_facts + state_facts
+            machine_facts + state_facts + machine.where_facts.len()
         })
         .chain(program.traits().iter().map(|trait_definition| {
             program
@@ -135,6 +136,7 @@ fn append_trait_contract_facts_for_machine(
                         return None;
                     }
                     let lane_position = match kind {
+                        ContractProofFactKind::Where => return None,
                         ContractProofFactKind::Requires => {
                             let position = requires_position;
                             requires_position += 1;
@@ -176,9 +178,19 @@ fn append_trait_contract_facts_for_machine(
                 });
                 contract_facts.append(ContractProofFact {
                     kind,
-                    owner: ContractProofFactOwner::MachineState {
-                        machine_symbol: target_machine_symbol,
-                        state_symbol: target_state_symbol,
+                    // An exact machine realization refines an invocation
+                    // contract: its guarantees remain owed at every normal
+                    // return, including returns from later named states. A
+                    // genuine state realization retains its own state scope.
+                    owner: if exact_direct_requirement {
+                        ContractProofFactOwner::Machine {
+                            machine_symbol: target_machine_symbol,
+                        }
+                    } else {
+                        ContractProofFactOwner::MachineState {
+                            machine_symbol: target_machine_symbol,
+                            state_symbol: target_state_symbol,
+                        }
                     },
                     fact,
                     evidence_term,

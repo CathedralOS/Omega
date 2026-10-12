@@ -173,7 +173,7 @@ pub(super) fn post_store_predicate_holds(
         .collect::<Vec<_>>();
     scoped_arithmetic_implication(
         program,
-        machine,
+        machine.symbol,
         &hypotheses,
         &ScopedArithmeticExpression {
             owner: place.definition.symbol,

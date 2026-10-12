@@ -400,12 +400,11 @@ impl<'program> CurrentScalarValues<'program> {
             0,
         ) {
             if let Some(proposition) = scoped(
-                machine,
-                state,
+                state.symbol,
                 expression,
                 &self.current,
-                &self.lengths,
                 program,
+                &|occurrence| state_occurrence(program, machine, state, &self.lengths, occurrence),
             ) {
                 self.hypotheses
                     .push(ScopedArithmeticHypothesis { proposition, holds });
@@ -431,12 +430,11 @@ impl<'program> CurrentScalarValues<'program> {
         )
         .then(|| {
             scoped(
-                machine,
-                state,
+                state.symbol,
                 expression,
                 &self.current,
-                &self.lengths,
                 program,
+                &|occurrence| state_occurrence(program, machine, state, &self.lengths, occurrence),
             )
         })
         .flatten()
@@ -472,23 +470,141 @@ impl<'program> CurrentScalarValues<'program> {
         )
         .then(|| {
             scoped(
-                self.machine,
-                self.state,
+                self.state.symbol,
                 expression,
                 &self.current,
-                &self.lengths,
                 self.program,
+                &|occurrence| {
+                    state_occurrence(
+                        self.program,
+                        self.machine,
+                        self.state,
+                        &self.lengths,
+                        occurrence,
+                    )
+                },
             )
         })
         .flatten()
     }
+    /// Bind an exit obligation in its original declaration telescope. The
+    /// selected contract supplies the formal correspondence; flow supplies
+    /// exact invocation origins. This does not import the guarantee as a
+    /// premise or evaluate the satisfying body a second time.
+    pub(crate) fn bind_exit_contract(
+        &self,
+        correspondence: &crate::semantic::facts::ContractParameterCorrespondence<'_>,
+        origins: &[checked_trees::FlowExitParameterOrigin],
+        contract: arena::Handle<typed_trees::domain::ProofFact>,
+        expression: ExpressionHandle,
+        returned: ExpressionHandle,
+    ) -> Option<ScopedArithmeticExpression> {
+        // Capture before rebinding declaration formals. Descriptor endpoints
+        // retain this state's actual roster and cannot read a foreign scope.
+        let returned_length = self.collection_length(returned, 0);
+        let returned_value = self.current(returned);
+        let parameters = correspondence.materialized_parameters();
+        let mut bindings = Vec::with_capacity(parameters.len());
+        let mut lengths = Vec::new();
+        for parameter in &parameters {
+            let actual = correspondence.actual_symbol(parameter.symbol)?;
+            let mut selected = origins.iter().filter(|origin| {
+                origin.contract == contract && origin.entry_parameter == parameter.symbol
+            });
+            let current = if let Some(origin) = selected.next() {
+                if !origin.state_parameter.is_valid()
+                    || selected.any(|other| other.state_parameter != origin.state_parameter)
+                {
+                    continue;
+                }
+                origin.state_parameter
+            } else if correspondence.actual_state == self.state.symbol && actual == parameter.symbol
+            {
+                // A state-owned clause already names this activation.
+                // A transported declaration formal needs its retained origin.
+                actual
+            } else {
+                continue;
+            };
+            bindings.push(Binding {
+                symbol: parameter.symbol,
+                name: parameter.name.to_string(),
+                value: self
+                    .current
+                    .iter()
+                    .find(|binding| binding.symbol == current)
+                    .and_then(|binding| binding.value.clone()),
+            });
+            if let Some(length) = self
+                .lengths
+                .iter()
+                .find(|length| length.subject == LengthSubject::Storage(current))
+            {
+                lengths.push(Length {
+                    subject: LengthSubject::Storage(parameter.symbol),
+                    name: parameter.name.to_string(),
+                    stable: true,
+                    type_reference: length.type_reference,
+                    value: length.value.clone(),
+                });
+            }
+        }
+        if let Some(value) = returned_length {
+            let entry = self.program.machine_states(self.machine).first()?;
+            lengths.push(Length {
+                subject: LengthSubject::Result(correspondence.declaration_owner),
+                name: String::new(),
+                stable: true,
+                type_reference: entry.return_type,
+                value: Some(value),
+            });
+        }
+        // Only transported occurrence values belong to this declaration
+        // telescope. The current state's frozen fields are not substitutions
+        // for a foreign formal, even when symbols or carrier shapes coincide.
+        let occurrence_value = |occurrence| {
+            length_occurrence(self.program, occurrence, &lengths)
+                .and_then(|length| length.value.clone())
+        };
+        let mut goal = (validation::has_builtin_parameter_bound_expression_meaning(
+            self.program,
+            correspondence.declaration_owner,
+            &parameters,
+            expression,
+        ) && admitted_operands(
+            self.program,
+            correspondence.declaration_owner,
+            expression,
+            &bindings,
+            &occurrence_value,
+            0,
+        ))
+        .then(|| {
+            scoped(
+                correspondence.declaration_owner,
+                expression,
+                &bindings,
+                self.program,
+                &occurrence_value,
+            )
+        })
+        .flatten()?;
+        if let Some(returned) = returned_value {
+            goal.bindings.push(ScopedArithmeticBinding {
+                binder: ScopedArithmeticBinder::Result,
+                value: ScopedArithmeticValue::Term(returned),
+            });
+        }
+        Some(goal)
+    }
+
     /// Simultaneous parameter substitution with independently retained actual
     /// snapshots. The caller owns selection and exact formal/actual roster
     /// identity; this owner checks arithmetic meaning before exposing a term.
     pub(crate) fn bind_parameters(
         &self,
-        callee: &Machine,
-        state: &State,
+        callee_owner: SymbolHandle,
+        body: Option<(&Machine, &State)>,
         expression: ExpressionHandle,
         parameters: &[typed_trees::signature::StateParameter],
         arguments: &[ExpressionHandle],
@@ -501,12 +617,16 @@ impl<'program> CurrentScalarValues<'program> {
         let mut lengths = Vec::new();
         for (parameter, argument) in parameters.iter().zip(arguments) {
             let Some(primitive) = exact_integer(self.program, parameter.type_reference) else {
-                if validation::state_reference_parameter_binding_is_stable(
-                    self.program,
-                    callee,
-                    state,
-                    parameter.symbol,
-                ) && let Some(value) = self.collection_length(*argument, 0)
+                let stable = body.map_or(!parameter.is_mutable, |(callee, state)| {
+                    validation::state_reference_parameter_binding_is_stable(
+                        self.program,
+                        callee,
+                        state,
+                        parameter.symbol,
+                    )
+                });
+                if stable
+                    && let Some(value) = self.collection_length(*argument, 0)
                     && fixed_length(self.program, parameter.type_reference, String::new).is_some()
                 {
                     lengths.push(Length {
@@ -532,27 +652,53 @@ impl<'program> CurrentScalarValues<'program> {
                 }),
             });
         }
-        if !admitted(
-            self.program,
-            callee,
-            state,
-            expression,
-            &formals,
-            &lengths,
-            0,
-        ) {
+        // A callee field requires an actual-place substitution. This query
+        // supplies only the exact lengths transported by the argument roster;
+        // recursive equality of declaration symbols cannot donate a field.
+        let occurrence_value = |occurrence| {
+            length_occurrence(self.program, occurrence, &lengths)
+                .and_then(|length| length.value.clone())
+        };
+        let builtin = if let Some((callee, state)) = body {
+            validation::has_builtin_bound_expression_meaning(
+                self.program,
+                callee,
+                Some(state),
+                expression,
+            )
+        } else {
+            // A bodyless signature's entry premises belong to its exact
+            // formal roster. No implementation or caller body supplies meaning.
+            validation::has_builtin_parameter_bound_expression_meaning(
+                self.program,
+                callee_owner,
+                parameters,
+                expression,
+            )
+        };
+        // Reserved result identity belongs to the callable declaration;
+        // arithmetic substitutions still belong to its exact entry scope.
+        let meaning_owner = body.map_or(callee_owner, |(callee, _)| callee.symbol);
+        if !builtin
+            || !admitted_operands(
+                self.program,
+                meaning_owner,
+                expression,
+                &formals,
+                &occurrence_value,
+                0,
+            )
+        {
             return None;
         }
-        let mut goal = scoped(callee, state, expression, &formals, &lengths, self.program)?;
+        let mut goal = scoped(
+            callee_owner,
+            expression,
+            &formals,
+            self.program,
+            &occurrence_value,
+        )?;
         for binding in &mut goal.bindings {
-            // A callee field needs an actual-place substitution, including on
-            // recursion. Its entry atom is never the caller's current field
-            // merely because the declaration and formal symbol are equal.
-            if let ScopedArithmeticBinder::Occurrence(occurrence) = binding.binder
-                && length_occurrence(self.program, occurrence, &lengths).is_none()
-            {
-                return None;
-            }
             if let Some(actual) = bindings
                 .iter()
                 .find(|actual| actual.binder == binding.binder)
@@ -586,7 +732,7 @@ impl<'program> CurrentScalarValues<'program> {
         machine: &Machine,
         goal: &ScopedArithmeticExpression,
     ) -> bool {
-        validation::scoped_arithmetic_implication(program, machine, &self.hypotheses, goal)
+        validation::scoped_arithmetic_implication(program, machine.symbol, &self.hypotheses, goal)
             == StrictArithmeticImplicationJudgment::Proven
     }
 }
@@ -654,30 +800,33 @@ fn length_occurrence<'lengths>(
     lengths: &'lengths [Length],
 ) -> Option<&'lengths Length> {
     let member = program.expression_table.member_node(expression)?;
-    let subject =
-        if let Some((owner, _)) = validation::reserved_result_owner(program, member.receiver) {
-            LengthSubject::Result(owner)
-        } else {
-            let name = program.expression_table.name_path_node(member.receiver)?;
-            if !name.symbol.is_valid()
-                || name.symbol != name.head_symbol
-                || program
-                    .expression_table
-                    .name_path_members(name.members)
-                    .len()
-                    != 1
-            {
-                return None;
-            }
-            LengthSubject::Storage(name.symbol)
-        };
+    let (subject, result_type) = if let Some((owner, reference)) =
+        validation::reserved_result_owner(program, member.receiver)
+    {
+        (LengthSubject::Result(owner), Some(reference))
+    } else {
+        let name = program.expression_table.name_path_node(member.receiver)?;
+        if !name.symbol.is_valid()
+            || name.symbol != name.head_symbol
+            || program
+                .expression_table
+                .name_path_members(name.members)
+                .len()
+                != 1
+        {
+            return None;
+        }
+        (LengthSubject::Storage(name.symbol), None)
+    };
     let length = lengths
         .iter()
         .find(|length| length.subject == subject && length.value.is_some())?;
     (validation::collection_operations::collection_measure_member(
         program,
         member,
-        validation::collection_operations::MeasureReceiver::Declared(length.type_reference),
+        validation::collection_operations::MeasureReceiver::Declared(
+            result_type.unwrap_or(length.type_reference),
+        ),
     ) == Some(language_semantics::declaration_selection::CollectionMeasure::Length))
     .then_some(length)
 }
@@ -732,6 +881,20 @@ fn field_occurrence(
     })
 }
 
+/// State-local occurrence values preserve that state's exact projection owner.
+/// Other scopes supply their own already-bound values to the shared walks.
+fn state_occurrence(
+    program: &dyn ::validation::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    lengths: &[Length],
+    expression: ExpressionHandle,
+) -> Option<ScopedArithmeticValue> {
+    length_occurrence(program, expression, lengths)
+        .and_then(|length| length.value.clone())
+        .or_else(|| field_occurrence(program, machine, state, expression))
+}
+
 fn admitted(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
@@ -741,22 +904,41 @@ fn admitted(
     lengths: &[Length],
     depth: usize,
 ) -> bool {
+    validation::has_builtin_bound_expression_meaning(program, machine, Some(state), expression)
+        && admitted_operands(
+            program,
+            machine.symbol,
+            expression,
+            bindings,
+            &|occurrence| state_occurrence(program, machine, state, lengths, occurrence),
+            depth,
+        )
+}
+
+/// Operand availability and arithmetic shape are independent of declaration
+/// operator selection. The issuing scope supplies every occurrence value;
+/// state and inherited contract scopes share this walk without sharing atoms.
+fn admitted_operands(
+    program: &dyn ::validation::CheckingInput,
+    owner: SymbolHandle,
+    expression: ExpressionHandle,
+    bindings: &[Binding],
+    occurrence_value: &dyn Fn(ExpressionHandle) -> Option<ScopedArithmeticValue>,
+    depth: usize,
+) -> bool {
     if depth >= 64 || !program.expression_table.expression_is_valid(expression) {
         return false;
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(_) => true,
-        ExpressionNode::Member(_) => {
-            length_occurrence(program, expression, lengths).is_some()
-                || field_occurrence(program, machine, state, expression).is_some()
-        }
+        ExpressionNode::Member(_) => occurrence_value(expression).is_some(),
         ExpressionNode::Name(name) => {
             (name.symbol == name.head_symbol
                 && bindings
                     .iter()
                     .any(|binding| binding.symbol == name.symbol && binding.value.is_some()))
                 || validation::reserved_result_owner(program, expression)
-                    .is_some_and(|(owner, _)| owner == machine.symbol)
+                    .is_some_and(|(declared, _)| declared == owner)
         }
         ExpressionNode::Binary(binary) => {
             matches!(
@@ -772,26 +954,19 @@ fn admitted(
                     | BinaryOperator::GreaterOrEqual
                     | BinaryOperator::And
                     | BinaryOperator::Or
-            ) && validation::has_builtin_binary_expression_meaning(
+            ) && admitted_operands(
                 program,
-                machine,
-                Some(state),
-                expression,
-            ) && admitted(
-                program,
-                machine,
-                state,
+                owner,
                 binary.left,
                 bindings,
-                lengths,
+                occurrence_value,
                 depth + 1,
-            ) && admitted(
+            ) && admitted_operands(
                 program,
-                machine,
-                state,
+                owner,
                 binary.right,
                 bindings,
-                lengths,
+                occurrence_value,
                 depth + 1,
             )
         }
@@ -800,12 +975,11 @@ fn admitted(
 }
 
 fn scoped(
-    machine: &Machine,
-    state: &State,
+    owner: SymbolHandle,
     expression: ExpressionHandle,
     bindings: &[Binding],
-    lengths: &[Length],
     program: &dyn ::validation::CheckingInput,
+    occurrence_value: &dyn Fn(ExpressionHandle) -> Option<ScopedArithmeticValue>,
 ) -> Option<ScopedArithmeticExpression> {
     let mut symbols = Vec::new();
     let mut projections = Vec::new();
@@ -826,9 +1000,7 @@ fn scoped(
             }
             ExpressionNode::Integer(_) => {}
             ExpressionNode::Member(_) => {
-                let value = length_occurrence(program, expression, lengths)
-                    .and_then(|length| length.value.clone())
-                    .or_else(|| field_occurrence(program, machine, state, expression))?;
+                let value = occurrence_value(expression)?;
                 projections.push(ScopedArithmeticBinding {
                     binder: ScopedArithmeticBinder::Occurrence(expression),
                     value,
@@ -856,7 +1028,7 @@ fn scoped(
     }
     selected.extend(projections);
     Some(ScopedArithmeticExpression {
-        owner: state.symbol,
+        owner,
         expression,
         bindings: selected,
     })

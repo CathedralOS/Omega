@@ -237,6 +237,37 @@ pub(super) fn receiving_parameters(
             selected = domain_symbol;
         }
     }
+    for (_, expression) in program.tables.bodies.expressions.iter_expressions() {
+        if let ExpressionNode::Cast(cast) = expression
+            && cast.semantic_domain_arguments == arguments
+        {
+            // The cast owns this child span. Its domain symbol is assigned
+            // during qualification lowering, so resolve the original path
+            // under the same source-aware domain name law as constraints.
+            let members = program
+                .tables
+                .bodies
+                .expressions
+                .name_path_members(cast.semantic_domain);
+            let first = members.first()?;
+            let name = members
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::");
+            let domain_symbol = program
+                .symbols
+                .find_top_level_by_name_and_kinds_from_source(
+                    &name,
+                    &[symbols::SymbolKind::Domain],
+                    first.source_span(),
+                )?;
+            if selected.is_valid() && selected != domain_symbol {
+                conflicting = true;
+            }
+            selected = domain_symbol;
+        }
+    }
     if conflicting || !selected.is_valid() {
         return None;
     }

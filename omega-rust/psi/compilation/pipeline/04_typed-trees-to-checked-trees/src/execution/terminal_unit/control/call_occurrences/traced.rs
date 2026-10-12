@@ -74,6 +74,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
     let mut consumed = Vec::new();
     let mut structural = Vec::<&checked_trees::FlowCallFact>::new();
     let mut outer = Vec::new();
+    trace.phase("outer calls: source machine owner");
     let owner = program.machine_by_symbol(machine)?;
     let expression_target =
         |expression, authored: &typed_trees::expression::TableCallExpression, statement_index| {
@@ -100,6 +101,11 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
         if erased_statement(statement) {
             continue;
         }
+        let statement_phase = |phase| {
+            trace.phase(phase);
+            trace.statement(u32::try_from(statement_index).ok());
+        };
+        statement_phase("outer calls: stored range dependencies");
         // A stored range is evaluated by its LocalBinding consumer. The
         // expression coordinate may also retain the same endpoint occurrence;
         // it is not another scheduled construction at this statement.
@@ -121,6 +127,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
         } else {
             typed_trees::expression::ExpressionHandle::invalid()
         };
+        statement_phase("outer calls: structural root ownership");
         for (_, root) in facts
             .values
             .structural_values
@@ -139,6 +146,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
             let mut pending = vec![root.root];
             let mut visited = Vec::new();
             while let Some(value) = pending.pop() {
+                statement_phase("outer calls: structural graph node");
                 let plans = &facts.values.structural_values;
                 if !plans.nodes.is_valid(value) || visited.contains(&value) {
                     return None;
@@ -147,6 +155,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                 let node = plans.nodes.get(value);
                 match node.kind {
                     checked_trees::CheckedStructuralValueKind::Call { source_call } => {
+                        statement_phase("outer calls: structural call occurrence");
                         if !facts.flow.control.calls.is_valid(source_call) {
                             return None;
                         }
@@ -207,6 +216,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                         ..
                     }
                     | checked_trees::CheckedStructuralValueKind::Place(ref source) => {
+                        statement_phase("outer calls: structural source dependencies");
                         collect_structural_argument_calls(
                             program,
                             facts,
@@ -227,6 +237,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                 }
             }
         }
+        statement_phase("outer calls: constructor operand dependencies");
         collect_constructor_calls(
             program,
             facts,
@@ -237,6 +248,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
             calls,
             &mut consumed,
         )?;
+        statement_phase("outer calls: selected scalar control dependencies");
         if control_prefix.is_some_and(|prefix| statement_index >= prefix) {
             for (_, root) in facts
                 .values
@@ -267,6 +279,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
             }
             continue;
         }
+        statement_phase("outer calls: scalar local dependencies");
         // A primitive local's initializer computation owns the calls it
         // evaluates, whether it binds an immutable local or initializes
         // mutable storage; only immutable locals take a binding ordinal.
@@ -303,6 +316,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                 )?;
             }
         }
+        statement_phase("outer calls: scalar return dependencies");
         if matches!(statement, StatementNode::Expression(_))
             && statement_index.checked_add(1)?
                 == program
@@ -329,6 +343,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                 &mut consumed,
             )?;
         }
+        statement_phase("outer calls: assignment dependencies");
         let Some(assignment) = statement.as_assignment() else {
             continue;
         };
@@ -351,6 +366,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
     // Structural owners (value-walk calls and the structural operands of
     // scheduled calls) claim their argument calls before each visit, so a call
     // nested in a structural operand is owned before preorder reaches it.
+    trace.phase("outer calls: source occurrence uniqueness");
     let mut occurrence_order = calls
         .iter()
         .filter(|call| !scalar_intrinsic(call) && !omitted(call))

@@ -1,0 +1,13 @@
+machine selected<const Count: u64>() -> u64
+where Count == 4
+{ transition { _ -> 4 } }
+machine invoke<machine Procedure>() -> u64
+where machine Procedure<const Mode: u64>() -> u64;
+{ Procedure<4>() }
+data Main {}
+machine Main::main(main: &mut Main) crashes Trap {
+    let result: u64 = invoke<selected>();
+    transition result == 4 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

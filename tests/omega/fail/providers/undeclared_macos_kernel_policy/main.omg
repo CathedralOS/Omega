@@ -1,0 +1,26 @@
+// Unexecuted generic kernel-entry proposal: the static Count does not
+// change runtime geometry, but each invocation owns a distinct public row.
+use omega::language::core::external_binding;
+
+boundary trait KernelProbe {
+    machine process_id<const Count: u64>() -> i32
+    where Count == 4 || Count == 8;
+}
+
+macos_arm64 machine process_id<const Count: u64>() -> i32
+satisfies KernelProbe::process_id via ForeignBinding::Syscall(39);
+ProbeProvider satisfies KernelProbe {
+    KernelProbe::process_id = process_id;
+}
+
+data Main {}
+machine Main::main(main: &mut Main) reaches KernelProbe crashes Trap {
+    let first: i32 = KernelProbe::process_id<4>();
+    let second: i32 = KernelProbe::process_id<8>();
+    transition first > 0 && first == second {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

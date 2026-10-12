@@ -39,18 +39,9 @@ pub(super) fn substitute_copied_type_names(
         let Some(argument) = substitution.get(&name) else {
             continue;
         };
-        let replacement = syntax.type_references.type_reference(*argument).clone();
         syntax
             .type_references
-            .replace_type_reference(handle, replacement);
-        // A closed argument's application remains structural identity, not
-        // merely the copied node's diagnostic spelling.
-        let application = syntax.type_references.generic_application_origin(*argument);
-        if application.is_valid() {
-            syntax
-                .type_references
-                .retain_generic_application_origin(handle, application);
-        }
+            .replace_type_reference_from(handle, *argument);
         syntax
             .type_references
             .retain_copied_operand_owner(*argument, handle);
@@ -355,18 +346,15 @@ fn substitute_case_fact_domain_argument(
                 return *substituted;
             }
             if let Some(scalar) = const_scalars.get(name.as_str()) {
-                // PDI2's closed-constant leaf is the literal name itself
-                // (`Domain<8>`, `Domain<true>`), so a `const` binder lands as
-                // that name.
-                let literal = match scalar {
-                    ConstScalarValue::Integer(value)
-                    | ConstScalarValue::DeclaredInteger { value, .. } => value.to_string(),
-                    ConstScalarValue::Boolean(value) => value.to_string(),
-                };
-                return syntax
-                    .tables
-                    .type_references
-                    .insert_named(Identifier::generated(literal));
+                // Integer scalar projections have no issuing argument or
+                // arithmetic-policy receipt. The actual operand map above
+                // owns substitution; bits alone cannot mint an anonymous row.
+                if let ConstScalarValue::Boolean(value) = scalar {
+                    return syntax
+                        .tables
+                        .type_references
+                        .insert_named(Identifier::generated(value.to_string()));
+                }
             }
             argument
         }
@@ -404,10 +392,13 @@ fn expression_mentions_in<V>(
 ) -> bool {
     match syntax.expressions.expression(expression) {
         ExpressionNode::Name(path) => {
-            let [member] = syntax.expressions.identifier_path_members(*path) else {
-                return false;
-            };
-            members.contains_key(member.as_str())
+            // A qualified use still reads its original lexical head; a
+            // parameter-headed path cannot borrow a global namespace donor.
+            syntax
+                .expressions
+                .identifier_path_members(*path)
+                .first()
+                .is_some_and(|member| members.contains_key(member.as_str()))
         }
         ExpressionNode::Binary(binary) => {
             expression_mentions_in(syntax, binary.left, members)
@@ -634,10 +625,49 @@ pub(crate) fn substitute_type_reference(
                         )
                         .and_then(EvaluatedConst::into_concrete)
                         {
-                            Ok(value) => syntax
-                                .tables
-                                .type_references
-                                .insert_named(Identifier::generated(value.to_string())),
+                            Ok(value) => {
+                                let mut actual_expressions = HashMap::new();
+                                let mut unavailable = HashMap::new();
+                                for (name, actual) in substitution {
+                                    let operand = syntax
+                                        .type_references
+                                        .const_argument_normalization(*actual)
+                                        .map_or(*actual, |row| row.original_operand);
+                                    if let TypeReferenceNode::ConstExpression(expression) =
+                                        syntax.type_references.type_reference(operand)
+                                    {
+                                        actual_expressions.insert(
+                                            name.clone(),
+                                            syntax.expressions.expression(*expression).clone(),
+                                        );
+                                    } else if const_bindings.contains_key(name) {
+                                        unavailable.insert(name.clone(), ());
+                                    }
+                                }
+                                if !unavailable.is_empty()
+                                    && expression_mentions_in(syntax, expression, &unavailable)
+                                {
+                                    // A value map is not a source carrier. Leave
+                                    // this argument for ordinary unresolved
+                                    // admission when its actual graph is absent.
+                                    argument
+                                } else {
+                                    let frontier = syntax.expressions.frontier();
+                                    let copied = syntax.copy_expression_from(snapshot, expression);
+                                    super::replace_const_expression_names_from(
+                                        syntax,
+                                        frontier,
+                                        &actual_expressions,
+                                    );
+                                    let argument = syntax
+                                        .type_references
+                                        .insert(TypeReferenceNode::ConstExpression(copied));
+                                    super::const_evaluation::replace_integer_argument(
+                                        syntax, argument, value,
+                                    );
+                                    argument
+                                }
+                            }
                             Err(_) => {
                                 warnings.truncate(warning_watermark);
                                 argument
@@ -941,8 +971,17 @@ pub(crate) fn type_reference_mentions_parameter(
     handle: TypeReferenceHandle,
     substitution: &HashMap<String, TypeReferenceHandle>,
 ) -> bool {
+    if substitution.is_empty() {
+        return false;
+    }
     match syntax.tables.type_references.type_reference(handle) {
-        TypeReferenceNode::Named(name) => substitution.contains_key(name.as_str()),
+        TypeReferenceNode::Named(name) => {
+            let head = name
+                .as_str()
+                .split_once("::")
+                .map_or(name.as_str(), |(head, _)| head);
+            substitution.contains_key(head)
+        }
         TypeReferenceNode::Generic {
             base_name,
             arguments,
@@ -983,14 +1022,26 @@ pub(crate) fn type_reference_mentions_parameter(
                     .constraints(*constraints)
                     .iter()
                     .any(|constraint| match constraint {
-                        TypeConstraintNode::Domain(domain) => syntax
-                            .tables
-                            .type_references
-                            .type_reference_handles(domain.arguments)
-                            .iter()
-                            .any(|&argument| {
-                                type_reference_mentions_parameter(syntax, argument, substitution)
-                            }),
+                        TypeConstraintNode::Domain(domain) => {
+                            let head = domain
+                                .name
+                                .as_str()
+                                .split_once("::")
+                                .map_or(domain.name.as_str(), |(head, _)| head);
+                            substitution.contains_key(head)
+                                || syntax
+                                    .tables
+                                    .type_references
+                                    .type_reference_handles(domain.arguments)
+                                    .iter()
+                                    .any(|&argument| {
+                                        type_reference_mentions_parameter(
+                                            syntax,
+                                            argument,
+                                            substitution,
+                                        )
+                                    })
+                        }
                         TypeConstraintNode::Range {
                             minimum, maximum, ..
                         } => {
@@ -1002,8 +1053,28 @@ pub(crate) fn type_reference_mentions_parameter(
                         }
                     })
         }
-        TypeReferenceNode::FixedArray { element_type, .. } => {
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } => {
             type_reference_mentions_parameter(syntax, *element_type, substitution)
+                || match length {
+                    syntax_trees::types::FixedArrayLength::Literal(_) => false,
+                    syntax_trees::types::FixedArrayLength::ConstParameter(name) => {
+                        let head = name
+                            .as_str()
+                            .split_once("::")
+                            .map_or(name.as_str(), |(head, _)| head);
+                        substitution.contains_key(head)
+                    }
+                    syntax_trees::types::FixedArrayLength::ConstCall(name) => {
+                        let head = name
+                            .as_str()
+                            .split_once("::")
+                            .map_or(name.as_str(), |(head, _)| head);
+                        substitution.contains_key(head)
+                    }
+                }
         }
         TypeReferenceNode::Slice { element_type } => {
             type_reference_mentions_parameter(syntax, *element_type, substitution)
@@ -1011,6 +1082,10 @@ pub(crate) fn type_reference_mentions_parameter(
         TypeReferenceNode::Reference { referee, .. } => {
             type_reference_mentions_parameter(syntax, *referee, substitution)
         }
+        TypeReferenceNode::ConstExpression(expression) => {
+            expression_mentions_parameter(syntax, *expression, substitution)
+        }
+        TypeReferenceNode::Unit => false,
         // Anything else: conservative -- possibly parameter-bearing, refuse
         // rather than share a wrong type.
         _ => true,

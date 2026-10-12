@@ -26,11 +26,8 @@ pub(crate) fn validate_family_provider_custody(
     plan: &NativeSelectedProviderPlan,
 ) -> Result<(), &'static str> {
     let Some(row) = plan.family_realization_rows().iter().find(|row| {
-        plan.family_realization_identities().text(row.head_identity) == Some(identity)
-            || plan
-                .family_realization_identities()
-                .text(row.member_identity)
-                == Some(identity)
+        plan.selection_identities().text(row.head_identity) == Some(identity)
+            || plan.selection_identities().text(row.member_identity) == Some(identity)
     }) else {
         return Ok(());
     };
@@ -40,24 +37,20 @@ pub(crate) fn validate_family_provider_custody(
         || !target::TargetProfile::from_canonical_target_name(&row.target)
             .is_ok_and(|profile| profile.native_realization() == Some(target))
         || !((row.head == boundary
-            && plan.family_realization_identities().text(row.head_identity) == Some(identity))
+            && plan.selection_identities().text(row.head_identity) == Some(identity))
             || (row.member == boundary
-                && plan
-                    .family_realization_identities()
-                    .text(row.member_identity)
-                    == Some(identity)))
+                && plan.selection_identities().text(row.member_identity) == Some(identity)))
     {
         return Err("physical family provider changed its artifact, target, or selected plan");
     }
     for (boundary, identity) in [
         (
             row.head,
-            plan.family_realization_identities().text(row.head_identity),
+            plan.selection_identities().text(row.head_identity),
         ),
         (
             row.member,
-            plan.family_realization_identities()
-                .text(row.member_identity),
+            plan.selection_identities().text(row.member_identity),
         ),
     ] {
         if !terminal_psi::find_boundary_machine(&module.boundary_machines, boundary)
@@ -95,7 +88,9 @@ pub(crate) fn rejoin_admitted_provider_execution(
     if execution_record.provider_plan_report_identity != selected_plan.report_identity() {
         return Err("installed D41 settlement names the wrong selected provider plan");
     }
-    let selected_requirement = selected_plan.selected_requirement_identity(requirement_identity);
+    let selected_requirement = selected_plan
+        .selected_requirement_identity(requirement_identity)
+        .ok_or("installed D41 settlement names an absent selected requirement")?;
     let matching_executions = provider_executions
         .iter()
         .filter(|execution| {

@@ -22,6 +22,7 @@ mod arrival_stability;
 mod assignment_stability;
 mod bounded_checks;
 mod certificate;
+mod decisions;
 mod dependent_bounds;
 mod derivation_cache;
 mod diagnostics;
@@ -34,6 +35,8 @@ mod requires_conditions;
 mod return_arrival;
 
 pub use certificate::CertificateVerdict;
+use decisions::ProofCheckRecorder;
+pub use decisions::{AcceptedProofJudgment, ProofPlanDecisions};
 pub use derivation_cache::{DerivationCacheReport, ProofDerivationCache};
 pub use integer_ranges::{AssignmentRangeContext, proved_assignment_integer_range_with_context};
 pub use measurement::ProofPlanMeasurements;
@@ -67,7 +70,7 @@ use diagnostics::Diagnostic;
 macro_rules! check_obligations {
     (
         $obligation:ident, $plan:ident, $ranges:ident, $seed:ident,
-        $diagnostics:ident, $measurements:ident, $consultation:ident;
+        $diagnostics:ident, $checking:ident, $consultation:ident;
         literal { $( $pat:pat => $body:block )* }
         ranged { $( $($rvariant:ident)|+ => $rfunc:ident ),* $(,)? }
         plain { $( $($variant:ident)|+ => $func:ident ),* $(,)? }
@@ -82,7 +85,7 @@ macro_rules! check_obligations {
                         &$ranges,
                         $seed,
                         &mut $diagnostics,
-                        $measurements,
+                        $checking,
                         $consultation.as_mut(),
                     );
                 }
@@ -94,7 +97,7 @@ macro_rules! check_obligations {
                         obligation,
                         $seed,
                         &mut $diagnostics,
-                        $measurements,
+                        $checking,
                         $consultation.as_mut(),
                     );
                 }
@@ -116,26 +119,26 @@ pub struct CheckedIntegerAssignment {
 
 pub fn check_proof_plan_with_decisions(
     proof_plan: &ProofPlan,
-) -> Result<Vec<CheckedIntegerAssignment>, Vec<Diagnostic>> {
-    let mut measurements = ProofPlanMeasurements::default();
-    check_proof_plan_inner(proof_plan, &mut measurements, None)
+) -> Result<ProofPlanDecisions, Vec<Diagnostic>> {
+    let mut checking = ProofCheckRecorder::default();
+    check_proof_plan_inner(proof_plan, &mut checking, None)
 }
 
 fn check_proof_plan_inner(
     proof_plan: &ProofPlan<'_>,
-    measurements: &mut ProofPlanMeasurements,
+    checking: &mut ProofCheckRecorder,
     mut derivation_cache: Option<&mut ProofDerivationCache>,
-) -> Result<Vec<CheckedIntegerAssignment>, Vec<Diagnostic>> {
+) -> Result<ProofPlanDecisions, Vec<Diagnostic>> {
     let started = std::time::Instant::now();
     let mut diagnostics = Vec::new();
     let range_context = AssignmentRangeContext::new(proof_plan);
-    let mut checked_assignments = Vec::new();
 
     for (index, (obligation_handle, obligation)) in proof_plan.obligations.iter().enumerate() {
         // Certificate identities are scoped to one leg's verification, so a
         // per-obligation nonzero seed keeps each package self-describing.
         let seed = index as u64 + 1;
-        measurements.record_obligation(obligation);
+        checking.obligation = obligation_handle;
+        checking.measurements.record_obligation(obligation);
         // BoundedValue and GuardedTransition are decided by other passes;
         // an undecided obligation is neither discharged nor diagnosed here.
         let decided_here = !matches!(
@@ -152,7 +155,7 @@ fn check_proof_plan_inner(
         };
         check_obligations!(
             obligation, proof_plan, range_context, seed,
-            diagnostics, measurements, consultation;
+            diagnostics, checking, consultation;
             literal {
                 ProofObligation::BoundedAssignment(obligation) => {
                     if let Some(range) = check_bounded_assignment(
@@ -161,10 +164,10 @@ fn check_proof_plan_inner(
                         &range_context,
                         seed,
                         &mut diagnostics,
-                        measurements,
+                        checking,
                         consultation.as_mut(),
                     ) {
-                        checked_assignments.push(CheckedIntegerAssignment {
+                        checking.decisions.integer_assignments.push(CheckedIntegerAssignment {
                             obligation: obligation_handle,
                             range,
                         });
@@ -182,16 +185,18 @@ fn check_proof_plan_inner(
             }
         );
         if decided_here {
-            measurements.record_outcome(diagnostics.len() != diagnostics_before);
+            checking
+                .measurements
+                .record_outcome(diagnostics.len() != diagnostics_before);
         }
     }
 
-    measurements.check_elapsed_microseconds =
+    checking.measurements.check_elapsed_microseconds =
         u64::try_from(started.elapsed().as_micros()).unwrap_or(u64::MAX);
-    measurements.emit_if_requested();
+    checking.measurements.emit_if_requested();
 
     if diagnostics.is_empty() {
-        Ok(checked_assignments)
+        Ok(std::mem::take(&mut checking.decisions))
     } else {
         Err(diagnostics)
     }

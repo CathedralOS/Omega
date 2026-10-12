@@ -287,6 +287,8 @@ def native_exit_failures(records: list[dict], corpus: Path, target: str) -> list
     UD2/SIGILL on Unix x86-64 (Linux and Intel macOS), or
     STATUS_ILLEGAL_INSTRUCTION on Windows.
     Segfaults, missing execution and timeouts are not successful traps.
+    An explicit successful off-host build disposition defers only the native
+    observation; it supplies no runtime result and does not exempt interpretation.
     """
     traps = {"macos_arm64": {"exit": "signal", "signal": "5"},
              "linux_arm64": {"exit": "signal", "signal": "5"},
@@ -316,6 +318,8 @@ def native_exit_failures(records: list[dict], corpus: Path, target: str) -> list
                 recordable=False))
             continue
         if corpus_records.migration_gap_route(record) in ("compile", "native"):
+            continue
+        if corpus_records.native_execution_skipped(record):
             continue
         facts = record.get("facts", {})
         matches = all(facts.get(key) == value for key, value in expected.items())
@@ -390,6 +394,8 @@ def execution_output_failures(records: list[dict], corpus: Path,
     failures = []
     for record in records:
         if corpus_records.migration_gap_route(record) in ("compile", engine):
+            continue
+        if engine == "native" and corpus_records.native_execution_skipped(record):
             continue
         facts = record.get("facts", {})
         completed = (facts.get(prefix + "exit") not in (None, "timeout", "unrunnable")

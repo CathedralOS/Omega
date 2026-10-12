@@ -23,7 +23,7 @@
 use validation::CallSite;
 use validation::call_site_argument_expressions;
 use validation::call_target_parameters;
-use validation::find_call_site;
+use validation::find_source_call_site as find_call_site;
 use validation::find_state_in_machine;
 
 use crate::semantic::facts::contract_fact_place;

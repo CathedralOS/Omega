@@ -7,6 +7,7 @@ impl TypeReferenceTable {
             TypeReferenceNode::Named { symbol, .. } => Some(symbol),
             _ => None,
         };
+        self.retain_const_integer_meaning(handle, ConstIntegerMeaning::Unavailable);
         self.renamed_row(handle, replaced_named);
     }
 
@@ -30,7 +31,10 @@ impl TypeReferenceTable {
             occurrence.arena_index(),
             occurrence.generation(),
         )) = owner;
+        let meaning = self.const_integer_meaning(replacement);
         self.substitute_node(occurrence, node);
+        self.retain_const_integer_meaning(occurrence, meaning);
+        self.retain_data_application_origin(occurrence, self.data_application_origin(replacement));
         Ok(())
     }
 

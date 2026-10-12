@@ -27,6 +27,7 @@ pub enum PackageReviewCallableSupply {
 pub enum PackageReviewContractKind {
     Requires,
     Ensures,
+    Where,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

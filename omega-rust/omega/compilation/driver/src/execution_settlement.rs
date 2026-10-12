@@ -115,18 +115,18 @@ fn select_checked_providers(
     let selected_native_target = selected_target_profile
         .map(target::TargetProfile::native_target)
         .unwrap_or_else(target::NativeTarget::host);
-    let mut boundary_calling_plan_realizations =
-        provider_planning::calling_policy_plans::compute_boundary_calling_plans(
-            typed,
-            selected_native_target,
-            &build_config.opaque_representation_selections,
-            package_inputs,
-        )?;
-    // Provider schemas and provenance commit to the complete calling
-    // application. Close target callback geometry before either captures it;
-    // otherwise nominal placements retain no private materialization and a
-    // later closure would invalidate the already-captured plan commitment.
-    // This consumes the shared source judgment, never another Psi check.
+    let mut boundary_calling_plan_realizations = Vec::new();
+    // Exact public headers already belong to the common checked source. Close
+    // their physical callback geometry before provider schemas retain it.
+    provider_planning::calling_policy_plans::extend_boundary_calling_plans(
+        typed,
+        &mut boundary_calling_plan_realizations,
+        selected_native_target,
+        &build_config.opaque_representation_selections,
+        package_inputs,
+    )?;
+    // This consumes the shared source judgment. Both the schema and provider
+    // provenance must retain the complete callback materialization commitment.
     if selected_target_profile.is_some() {
         provider_planning::calling_policy_plans::close_outbound_callback_materializations(
             typed,
@@ -259,9 +259,21 @@ pub(crate) fn install_selected_target(
         mut timings,
     } = selection;
     let settled = timed(&mut timings, EXECUTION_SETTLEMENT, |_| {
+        let assumed_binding_relationships =
+            provider_planning::assumed_binding_relationships::prepare_assumed_binding_relationships(
+                &checked.program,
+                &build.config.assumed_binding_registrations,
+                &selected_provider_provenance,
+                &settlement.boundary_calling_plan_realizations,
+                selected_target_profile.map(target::TargetProfile::native_target)
+                    .unwrap_or_else(target::NativeTarget::host),
+                &build.config.opaque_representation_selections,
+            )?;
         settle_selected_execution(
             checked,
             SelectedExecutionRequest {
+                direct_foreign_realizations: &settlement.direct_foreign_realizations,
+                assumed_binding_relationships,
                 calling_plans: &settlement.boundary_calling_plan_realizations,
                 selected_program_entry,
                 selected_target_profile,

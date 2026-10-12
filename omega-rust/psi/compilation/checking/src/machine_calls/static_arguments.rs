@@ -8,8 +8,9 @@
 
 use diagnostics::Diagnostic;
 use numerics::literals::LandedIntegerType;
+use std::borrow::Borrow;
 use symbols::{SymbolHandle, SymbolKind};
-use typed_trees::data::TypeParameterKind;
+use typed_trees::data::{TypeParameter, TypeParameterKind};
 use typed_trees::expression::{ExpressionNode, StaticMachineArgument};
 use typed_trees::references::StaticArgumentCall;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
@@ -23,10 +24,21 @@ pub fn validate_authored_static_arguments(
     let symbols = crate::TopLevelSymbols::build(program, &mut diagnostics);
     let scopes = requirement_predicates::CallScopes::build(program);
     for (handle, expression) in program.expression_table.iter_expressions() {
-        if let ExpressionNode::Call(call) = expression {
+        if let ExpressionNode::Call(_) = expression {
+            // Executable provider rewriting can retain a different application
+            // beside the original source occurrence. Static predicates and
+            // operand admission belong to that original complete tuple, just
+            // like Requires and argument consent. The physical call remains
+            // available through this same occurrence for applied header rejoin.
+            let Some(original) = program.expression_table.source_call_node(handle) else {
+                diagnostics.push(Diagnostic::error(
+                    "static predicate admission lost its original call occurrence",
+                ));
+                continue;
+            };
             validate_call(
                 program,
-                StaticArgumentCall::Expression(handle, call),
+                StaticArgumentCall::Expression(handle, original),
                 scopes.context(handle),
                 &symbols,
                 &mut diagnostics,
@@ -99,6 +111,30 @@ pub fn validate_authored_static_arguments(
             &mut diagnostics,
         );
     }
+    // Source-supply demands retain their issuing owner and original occurrence
+    // even when no executable call node exists. Predicate membership consumes
+    // that source owner, never the later clone's substituted truth or handles.
+    for (_, produced) in program.typed_program().instantiated_static_applications() {
+        let source = produced.demand.owner.as_ref();
+        if source
+            .machine_by_symbol(produced.demand.declaration)
+            .is_none()
+        {
+            continue;
+        }
+        let application = source
+            .expression_table
+            .static_machine_application(produced.demand.application);
+        requirement_predicates::validate_machine_predicate_application(
+            source,
+            produced.demand.application,
+            produced.demand.declaration,
+            application.lexical_owner,
+            None,
+            &[],
+            &mut diagnostics,
+        );
+    }
     if diagnostics.iter().any(Diagnostic::is_error) {
         Err(diagnostics)
     } else {
@@ -109,24 +145,80 @@ pub fn validate_authored_static_arguments(
 /// A static application names the authored callable telescope, whether its
 /// declaration owns a body or is a trait requirement signature. Executable
 /// instance identity cannot substitute for that source admission boundary.
-fn source_telescope(
-    program: &dyn crate::CheckingInput,
-    target: SymbolHandle,
-) -> Option<(&str, &[typed_trees::data::TypeParameter])> {
-    if let Some(machine) = program
+fn source_telescope<'program>(
+    program: &'program dyn crate::CheckingInput,
+    call: StaticArgumentCall<'_>,
+) -> Result<Option<(&'program str, Vec<&'program TypeParameter>)>, &'static str> {
+    let application = call.application();
+    if application.is_valid()
+        && !program
+            .expression_table
+            .static_machine_application_is_valid(application)
+    {
+        return Err("source static operands lost their original application");
+    }
+    let target = call.registration_operation(program);
+    let name = if let Some(machine) = program
         .machine_by_symbol(target)
         .or_else(|| program.machine_holding_state(target))
     {
-        return Some((
-            machine.name.as_str(),
-            program.machine_type_parameters(machine),
-        ));
+        machine.name.as_str()
+    } else if let Some((_, requirement)) = program.trait_machine_signature(target) {
+        requirement.name.as_str()
+    } else {
+        return Ok(None);
+    };
+    let original = application.is_valid().then(|| {
+        program
+            .expression_table
+            .static_machine_application(application)
+    });
+    let declaration =
+        typed_trees::static_applications::StaticApplicationDeclaration::for_selected_interface(
+            program.typed_program(),
+            target,
+            original.map_or(SymbolHandle::invalid(), |original| {
+                original.selected_interface
+            }),
+        )?;
+    if original.is_some_and(|original| {
+        original.binding_declaration.is_valid()
+            && original.binding_declaration != declaration.symbol()
+    }) {
+        return Err("source static operands lost their original receiving declaration");
     }
-    let (_, requirement) = program.trait_machine_signature(target)?;
-    Some((
-        requirement.name.as_str(),
-        program.state_signature_type_parameters(requirement),
-    ))
+    let slots = if original.is_some() {
+        program
+            .expression_table
+            .static_machine_application_argument_parameters(application)
+    } else {
+        &[]
+    };
+    if original.is_some_and(|original| original.argument_parameters.len() != slots.len()) {
+        return Err("source static operands lost their receiving slot storage");
+    }
+    if slots.is_empty() {
+        return Ok(Some((name, declaration.parameters().to_vec())));
+    }
+    if slots.len() != call.arguments(program).len() {
+        return Err("source static operands lost their complete receiving slot correspondence");
+    }
+    let mut parameters = Vec::with_capacity(slots.len());
+    let mut previous = None;
+    for slot in slots {
+        let (ordinal, parameter) = declaration
+            .parameters()
+            .iter()
+            .enumerate()
+            .find(|(_, parameter)| slot.is_valid() && parameter.symbol == *slot)
+            .ok_or("source static operand does not belong to its original receiving telescope")?;
+        if previous.is_some_and(|previous| previous >= ordinal) {
+            return Err("source static operands repeat or reorder an original receiving binder");
+        }
+        previous = Some(ordinal);
+        parameters.push(*parameter);
+    }
+    Ok(Some((name, parameters)))
 }
 
 fn validate_call(
@@ -142,18 +234,33 @@ fn validate_call(
         diagnostics.push(diagnostic);
         return;
     }
+    if call.application().is_valid()
+        && !program
+            .expression_table
+            .static_machine_application_is_valid(call.application())
+    {
+        diagnostics.push(Diagnostic::error(
+            "source static operands lost their original application",
+        ));
+        return;
+    }
     let arguments = call.arguments(program);
     requirement_predicates::validate(program, call, context, arguments, diagnostics);
     if arguments.is_empty() {
         return;
     }
-    if let Some((name, parameters)) =
-        source_telescope(program, call.registration_operation(program))
-        && !parameters.is_empty()
-        && let Err(error) = validate_arguments(program, name, parameters, arguments)
-    {
-        diagnostics.push(error);
+    match source_telescope(program, call) {
+        Ok(Some((name, parameters))) if !parameters.is_empty() => {
+            if let Err(error) = validate_argument_telescope(program, name, &parameters, arguments) {
+                diagnostics.push(error);
+            }
+        }
+        Err(reason) => diagnostics.push(Diagnostic::error(reason)),
+        _ => {}
     }
+    // Owned declaration operands are admitted against their relocated payload
+    // namespace by static_bindings. Reading them as Build type handles would
+    // judge the wrong arena and the wrong dependency role.
     let owner = call.lexical_owner(program);
     let caller = program
         .machine_by_symbol(owner)
@@ -163,10 +270,23 @@ fn validate_call(
                 .data_definition_by_symbol(owner)
                 .map(crate::StaticTypeArgumentOwner::Data)
         });
-    validate_types(program, caller, arguments, symbols, diagnostics);
+    for (index, argument) in arguments.iter().enumerate() {
+        if program
+            .product_declaration_application(call.application(), index)
+            .is_none()
+        {
+            validate_types(
+                program,
+                caller,
+                std::slice::from_ref(argument),
+                symbols,
+                diagnostics,
+            );
+        }
+    }
 }
 
-fn validate_types(
+pub fn validate_types(
     program: &dyn crate::CheckingInput,
     caller: Option<crate::StaticTypeArgumentOwner<'_>>,
     arguments: &[StaticMachineArgument],
@@ -279,11 +399,23 @@ fn validate_arguments(
     parameters: &[typed_trees::data::TypeParameter],
     arguments: &[StaticMachineArgument],
 ) -> Result<(), Diagnostic> {
+    validate_argument_telescope(program, name, parameters, arguments)
+}
+
+/// Authored slot category and const custody judgment shared by calls and
+/// non-executing declaration applications. The declaration owns the telescope.
+pub fn validate_argument_telescope<Parameter: Borrow<TypeParameter>>(
+    program: &dyn crate::CheckingInput,
+    name: &str,
+    parameters: &[Parameter],
+    arguments: &[StaticMachineArgument],
+) -> Result<(), Diagnostic> {
     let has_types = parameters
         .iter()
-        .any(|parameter| matches!(parameter.kind, TypeParameterKind::Type));
-    let const_parameters = parameters
+        .any(|parameter| matches!(parameter.borrow().kind, TypeParameterKind::Type));
+    let const_parameters: Vec<&TypeParameter> = parameters
         .iter()
+        .map(Borrow::borrow)
         .filter(|parameter| parameter.kind.is_const_or_value())
         .collect::<Vec<_>>();
     let mut const_index = 0;
@@ -300,7 +432,7 @@ fn validate_arguments(
         if argument.type_reference.is_valid() || (named_type && has_types) {
             if !parameters
                 .get(ordinal)
-                .is_some_and(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+                .is_some_and(|parameter| matches!(parameter.borrow().kind, TypeParameterKind::Type))
             {
                 return Err(Diagnostic::error(format!(
                     "machine `{}` static argument {} requires its declared binder kind, not a type argument",
@@ -438,6 +570,40 @@ fn validate_arguments(
                     landing.landed_type.name(),
                 )));
             }
+            if landing.domain != program.type_reference_table.arithmetic_domain(*required) {
+                return Err(Diagnostic::error(format!(
+                    "const parameter `{parameter_name}` of `{name}` cannot establish its declared arithmetic policy from the original const value"
+                )));
+            }
+        }
+        if let Some(spelling) = spelling(program, argument)
+            && let Some(value) =
+                language_semantics::const_value::CanonicalConstValue::from_atom(&spelling)
+            && matches!(
+                value.decode_encoding(),
+                Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer { .. })
+            )
+        {
+            let meaning_matches = match program
+                .typed_program()
+                .static_const_integer_meaning(argument)
+            {
+                typed_trees::types::ConstIntegerMeaning::Typed {
+                    primitive,
+                    arithmetic_domain,
+                } => {
+                    program.type_reference_table.primitive_type(*required) == Some(primitive)
+                        && program.type_reference_table.arithmetic_domain(*required)
+                            == arithmetic_domain
+                }
+                typed_trees::types::ConstIntegerMeaning::Anonymous => true,
+                typed_trees::types::ConstIntegerMeaning::Unavailable => false,
+            };
+            if !meaning_matches {
+                return Err(Diagnostic::error(format!(
+                    "const parameter `{parameter_name}` of `{name}` cannot establish its declared arithmetic policy from the original const value"
+                )));
+            }
         }
         // Public declaration identity is broader than proof-static atom identity.
         // Decode through the ordinary specialization reader even for unused
@@ -450,4 +616,133 @@ fn validate_arguments(
         }
     }
     Ok(())
+}
+
+/// Derive the complete explicitly supplied tuple without executing the selected
+/// declaration. Binding rows remain derivation data until immutable admission.
+pub fn derive_explicit_static_bindings(
+    program: &dyn crate::CheckingInput,
+    parameters: &[typed_trees::data::TypeParameter],
+    conformance_bounds: &[typed_trees::machine::GenericConformanceBound],
+    arguments: &[StaticMachineArgument],
+) -> Option<Vec<typed_trees::static_applications::StaticMachineBinding>> {
+    let bindings =
+        derive_explicit_static_binding_prefix(program, parameters, conformance_bounds, arguments)?;
+    let expected = parameters.len()
+        + conformance_bounds
+            .iter()
+            .filter(|bound| {
+                !parameters
+                    .iter()
+                    .any(|parameter| parameter.symbol == bound.binder)
+            })
+            .count();
+    (bindings.len() == expected).then_some(bindings)
+}
+
+/// Derive only supplied original operands, without filling omitted binders.
+/// Public-call inference can propose the missing operands from declared runtime
+/// carriers; the complete tuple still owes ordinary category and bound admission.
+pub fn derive_explicit_static_binding_prefix(
+    program: &dyn crate::CheckingInput,
+    parameters: &[typed_trees::data::TypeParameter],
+    conformance_bounds: &[typed_trees::machine::GenericConformanceBound],
+    arguments: &[StaticMachineArgument],
+) -> Option<Vec<typed_trees::static_applications::StaticMachineBinding>> {
+    use typed_trees::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
+    let evidence = conformance_bounds
+        .iter()
+        .filter(|bound| {
+            !parameters
+                .iter()
+                .any(|parameter| parameter.symbol == bound.binder)
+        })
+        .collect::<Vec<_>>();
+    if arguments.len() > parameters.len() + evidence.len() {
+        return None;
+    }
+    let mut bindings = Vec::with_capacity(arguments.len());
+    for (parameter, argument) in parameters.iter().zip(arguments) {
+        let named = || {
+            program
+                .type_reference_table
+                .find_named_type_reference(argument.symbol)
+        };
+        let value = match &parameter.kind {
+            TypeParameterKind::Type => {
+                let actual = if argument.type_reference.is_valid() {
+                    argument.type_reference
+                } else if argument.symbol.is_valid()
+                    && argument.application.is_none()
+                    && matches!(
+                        program.symbols.get(argument.symbol).kind,
+                        SymbolKind::BuiltinType | SymbolKind::Data | SymbolKind::TypeParameter
+                    )
+                {
+                    named()?
+                } else {
+                    return None;
+                };
+                StaticMachineBindingValue::Type(actual)
+            }
+            TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
+                let actual = if forwarded_type(program, argument).is_valid()
+                    && argument.application.is_none()
+                    && argument.evidence_projection.is_none()
+                {
+                    named()?
+                } else {
+                    let spelling = spelling(program, argument)?;
+                    program
+                        .type_reference_table
+                        .named_references()
+                        .find(|(_, symbol, name)| !symbol.is_valid() && *name == spelling)
+                        .map(|(handle, _, _)| handle)?
+                };
+                StaticMachineBindingValue::Const(actual)
+            }
+            TypeParameterKind::Machine { .. } => {
+                if !argument.symbol.is_valid()
+                    || !matches!(
+                        program.symbols.get(argument.symbol).kind,
+                        SymbolKind::State | SymbolKind::Machine | SymbolKind::MachineParameter
+                    )
+                {
+                    return None;
+                }
+                StaticMachineBindingValue::Machine(argument.clone())
+            }
+            TypeParameterKind::Implementation => {
+                if !argument.symbol.is_valid()
+                    || (program.conformance_by_symbol(argument.symbol).is_none()
+                        && program.symbols.get(argument.symbol).kind
+                            != SymbolKind::ConformanceParameter)
+                {
+                    return None;
+                }
+                StaticMachineBindingValue::Conformance(argument.clone())
+            }
+            TypeParameterKind::Proposition { .. } => return None,
+        };
+        bindings.push(StaticMachineBinding {
+            parameter: parameter.symbol,
+            value,
+        });
+    }
+    for (bound, argument) in evidence
+        .iter()
+        .zip(arguments.get(parameters.len()..).unwrap_or(&[]))
+    {
+        if !argument.symbol.is_valid()
+            || (program.conformance_by_symbol(argument.symbol).is_none()
+                && program.symbols.get(argument.symbol).kind != SymbolKind::ConformanceParameter)
+        {
+            return None;
+        }
+        bindings.push(StaticMachineBinding {
+            parameter: bound.binder,
+            value: StaticMachineBindingValue::Conformance(argument.clone()),
+        });
+    }
+    Some(bindings)
 }

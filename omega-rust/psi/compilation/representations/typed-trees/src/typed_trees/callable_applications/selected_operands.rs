@@ -54,28 +54,32 @@ impl TypedTrees {
                     ..StaticMachineArgument::default()
                 })
             }
-            TypeReferenceNode::ConstExpression(value) => match self
-                .expression_table
-                .expression(*value)
-            {
-                ExpressionNode::Name(path) => Ok(StaticMachineArgument {
-                    symbol: path.resolved_symbol().unwrap_or_default(),
-                    path: self
-                        .expression_table
-                        .name_path_members(path.members)
-                        .to_vec()
-                        .into_boxed_slice(),
-                    ..StaticMachineArgument::default()
-                }),
-                ExpressionNode::Boolean(value) => Ok(StaticMachineArgument {
-                    path: Box::from([crate::name::Identifier::generated(
-                        language_semantics::const_value::CanonicalConstValue::boolean(*value)
-                            .atom(),
-                    )]),
-                    ..StaticMachineArgument::default()
-                }),
-                _ => Err("static operand requires a retained declaration or evaluated const value"),
-            },
+            TypeReferenceNode::ConstExpression(value) => {
+                match self.expression_table.expression(*value) {
+                    ExpressionNode::Name(path) => Ok(StaticMachineArgument {
+                        symbol: path.resolved_symbol().unwrap_or_default(),
+                        path: self
+                            .expression_table
+                            .name_path_members(path.members)
+                            .to_vec()
+                            .into_boxed_slice(),
+                        ..StaticMachineArgument::default()
+                    }),
+                    ExpressionNode::Boolean(value) => Ok(StaticMachineArgument {
+                        path: Box::from([crate::name::Identifier::generated(
+                            language_semantics::const_value::CanonicalConstValue::boolean(*value)
+                                .atom(),
+                        )]),
+                        ..StaticMachineArgument::default()
+                    }),
+                    _ => Ok(StaticMachineArgument {
+                        // A compound const keeps its original value graph. Its
+                        // declaration-owned slot still admits the operand later.
+                        type_reference: reference,
+                        ..StaticMachineArgument::default()
+                    }),
+                }
+            }
             _ => Ok(StaticMachineArgument {
                 type_reference: reference,
                 ..StaticMachineArgument::default()
@@ -90,7 +94,6 @@ impl TypedTrees {
         &self,
         reference: types::TypeReferenceHandle,
     ) -> Option<numerics::literals::IntegerLiteral> {
-        use numerics::literals::{IntegerLiteral, IntegerRadix};
         match self.type_reference_table.type_reference(reference) {
             types::TypeReferenceNode::ConstExpression(value) => {
                 let expression::ExpressionNode::Integer(literal) =
@@ -100,22 +103,10 @@ impl TypedTrees {
                 };
                 Some(literal.clone())
             }
-            types::TypeReferenceNode::Named { symbol, name } if !symbol.is_valid() => {
-                let mut spelling = name.as_str();
-                let negative = spelling.starts_with('-');
-                if negative {
-                    spelling = &spelling[1..];
-                }
-                let (radix, digits) = if let Some(digits) = spelling.strip_prefix("0b") {
-                    (IntegerRadix::Binary, digits)
-                } else if let Some(digits) = spelling.strip_prefix("0o") {
-                    (IntegerRadix::Octal, digits)
-                } else if let Some(digits) = spelling.strip_prefix("0x") {
-                    (IntegerRadix::Hexadecimal, digits)
-                } else {
-                    (IntegerRadix::Decimal, spelling)
-                };
-                IntegerLiteral::from_parts(negative, radix, digits).ok()
+            types::TypeReferenceNode::Named { symbol, .. } if !symbol.is_valid() => {
+                crate::static_applications::static_const_literal_from_type_reference(
+                    self, reference,
+                )
             }
             _ => None,
         }

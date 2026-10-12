@@ -21,7 +21,10 @@ use symbols::SymbolHandle;
 pub(crate) struct TypeIdentityContext<'binders> {
     pub(crate) application_scopes: &'binders [super::AppliedTypeIdentityScope<'binders>],
     pub(crate) application_owner: SymbolHandle,
+    pub(crate) application_capture:
+        Option<&'binders crate::typed_trees::product_applications::CapturedStaticLexicalScope>,
     pub(crate) invalid_application: Option<&'binders Cell<bool>>,
+    pub(crate) missing_application_region_correspondence: Option<&'binders Cell<bool>>,
     pub(crate) encountered_regions: Option<&'binders Cell<bool>>,
     pub(crate) binders: &'binders [(SymbolHandle, String)],
     pub(crate) substitutions: &'binders [(SymbolHandle, TypeReferenceHandle)],
@@ -96,19 +99,117 @@ impl TypeIdentityContext<'_> {
     }
 
     pub(crate) fn lifetime(&self, program: &TypedTrees, name: &str) -> String {
-        // Invocation signatures own regions even when they have no executable
-        // Machine row. Captured regions retain their enclosing declaration's
-        // identity rather than acquiring the child's parameter ordinal.
-        if let Some(region) = super::applied_lifetime_parameter_identity(
-            program,
-            self.application_owner,
-            name,
-            self.application_scopes,
-        ) {
+        if let Some((ordinal, scope)) = self.application_scopes.iter().enumerate().next_back()
+            && scope.region_role == super::AppliedTypeIdentityRegionRole::Supplied
+            && let Some((_, argument)) = scope
+                .lifetimes
+                .iter()
+                .find(|(parameter, _)| parameter == name)
+        {
+            if let Some(argument) = argument.as_deref() {
+                return Self {
+                    application_scopes: &self.application_scopes[..ordinal],
+                    ..*self
+                }
+                .lifetime(program, argument);
+            }
+            let invocation_formal =
+                crate::static_applications::StaticApplicationDeclaration::for_symbol(
+                    program,
+                    scope.declaration,
+                )
+                .ok()
+                .is_some_and(|declaration| {
+                    let mut formals = declaration
+                        .lifetimes()
+                        .iter()
+                        .filter(|formal| formal.name.as_str() == name);
+                    let first = formals.next();
+                    first.is_some_and(|formal| formal.invocation) && formals.next().is_none()
+                });
+            if invocation_formal {
+                return "anonymous-invocation-region".to_owned();
+            }
+            if let Some(missing) = self.missing_application_region_correspondence {
+                missing.set(true);
+            }
+            return "missing-application-region-correspondence".to_owned();
+        }
+        if let Some((ordinal, scope)) = self.application_scopes.iter().enumerate().next_back()
+            && scope.region_role == super::AppliedTypeIdentityRegionRole::Declaration
+            && let Some(region) =
+                super::lifetime_parameter_identity(program, scope.declaration, name)
+            && region.declaration != program.lifetime_declaration_owner(scope.declaration)
+            && let Some(outer) = self.application_scopes[..ordinal]
+                .iter()
+                .rposition(|scope| {
+                    program
+                        .original_declaration_lifetime_parameter(scope.declaration, name)
+                        .zip(
+                            program
+                                .original_declaration_lifetime_parameter(region.declaration, name),
+                        )
+                        .is_some_and(|(left, right)| left == right)
+                })
+        {
+            return Self {
+                application_scopes: &self.application_scopes[..=outer],
+                ..*self
+            }
+            .lifetime(program, name);
+        }
+        // A source declaration carrier must substitute its original region
+        // formal before entering the caller's captured namespace. Unmapped
+        // declaration regions cannot acquire caller meaning by equal spelling.
+        if self.application_scopes.last().is_some_and(|scope| {
+            scope.region_role == super::AppliedTypeIdentityRegionRole::Supplied
+        }) && let Some(missing) = self.missing_application_region_correspondence
+        {
+            missing.set(true);
+            return "missing-application-region-correspondence".to_owned();
+        }
+        let owner = self
+            .application_scopes
+            .last()
+            .map_or(self.application_owner, |scope| scope.declaration);
+        let (region_program, region_owner, capture) = if self.application_scopes.is_empty()
+            && let Some(capture) = self.application_capture
+        {
+            (capture.owner(), capture.symbol(), Some(capture))
+        } else {
+            (program, program.lifetime_declaration_owner(owner), None)
+        };
+        if let Some(region) =
+            super::applied_lifetime_parameter_identity(region_program, region_owner, name, &[])
+        {
+            if self.missing_exact_nominal_owner.is_some() {
+                if let Some((original_declaration, original_ordinal)) =
+                    region_program.original_declaration_lifetime_parameter(region.declaration, name)
+                    && let Some(identity) = region_program
+                        .exact_owner_nominal_identity(
+                            original_declaration,
+                            self.exact_toolchain_sources,
+                        )
+                        .and_then(|identity| region_program.type_identity_text(identity))
+                {
+                    return compound(
+                        "region",
+                        [
+                            atom("owner", &identity),
+                            atom("ordinal", &original_ordinal.to_string()),
+                        ],
+                    );
+                }
+                if let Some(invalid) = self.missing_exact_nominal_owner {
+                    invalid.set(true);
+                }
+                return "missing-exact-region-owner".to_owned();
+            }
             if self.qualification == TypeIdentityQualification::PackageQualified {
                 if let Some(identity) =
                     super::lifetime_parameters::portable_lifetime_parameter_identity(
-                        program, region,
+                        region_program,
+                        region,
                     )
                 {
                     return identity;
@@ -117,6 +218,15 @@ impl TypeIdentityContext<'_> {
                     invalid.set(true);
                 }
                 return "unresolved-region".to_owned();
+            }
+            if let Some(capture) = capture {
+                return compound(
+                    "captured-region",
+                    [
+                        atom("owner", &capture.identity().to_string()),
+                        atom("ordinal", &region.ordinal.to_string()),
+                    ],
+                );
             }
             return compound(
                 "region",
@@ -180,6 +290,16 @@ impl TypeIdentityContext<'_> {
             .find(|(candidate, _)| *candidate == symbol)
         {
             return replacement.clone();
+        }
+        if symbol.is_valid()
+            && self.invalid_application.is_some()
+            && self.missing_exact_nominal_owner.is_some()
+            && program.symbols.get(symbol).kind == symbols::SymbolKind::TypeParameter
+        {
+            if let Some(invalid) = self.invalid_application {
+                invalid.set(true);
+            }
+            return "open-application-type-binder".to_owned();
         }
         // Open index expressions are parsed before their enclosing const
         // telescope is available, so a direct binder leaf can still carry an
@@ -282,6 +402,64 @@ fn generic_type_identity(
     )
 }
 
+/// Parameter roles come from the exact original declaration, independently of
+/// whether an operand graph was authored, substituted or copied into a result.
+fn generic_parameter(
+    program: &TypedTrees,
+    symbol: SymbolHandle,
+    ordinal: usize,
+) -> Option<&crate::data::TypeParameter> {
+    if let Some(declaration) = program.data_definition_by_symbol(symbol) {
+        program.data_type_parameters(declaration).get(ordinal)
+    } else if let Some(declaration) = program
+        .machine(symbol)
+        .or_else(|| program.machine_holding_state(symbol))
+    {
+        program.machine_type_parameters(declaration).get(ordinal)
+    } else if let Some(declaration) = program.conformance_by_symbol(symbol) {
+        program
+            .conformance_type_parameters(declaration)
+            .get(ordinal)
+    } else if let Some(declaration) = program.trait_definition_by_symbol(symbol) {
+        program.trait_type_parameters(declaration).get(ordinal)
+    } else if let Some(declaration) = program.domain_definition(symbol) {
+        program.domain_type_parameters(declaration).get(ordinal)
+    } else {
+        None
+    }
+}
+
+/// Authored and typed views use one declaration-role grammar. Const values
+/// land under their original slot, while type/callable/evidence operands keep
+/// the existing structural identity and exact lexical substitutions.
+fn generic_argument_identity(
+    program: &TypedTrees,
+    declaration: SymbolHandle,
+    ordinal: usize,
+    argument: super::IndexIdentityArgument<'_>,
+    context: &TypeIdentityContext<'_>,
+) -> String {
+    let parameter = generic_parameter(program, declaration, ordinal);
+    if let Some(parameter) = parameter
+        && let crate::data::TypeParameterKind::Const { type_reference }
+        | crate::data::TypeParameterKind::Value { type_reference } = &parameter.kind
+        && let Some(identity) =
+            substitution::declared_const_argument(program, argument, *type_reference, context)
+    {
+        return identity;
+    }
+    let argument = match argument {
+        super::IndexIdentityArgument::TypeArgument(reference)
+            if context.invalid_application.is_some()
+                && parameter.is_some_and(|parameter| parameter.kind.is_const_or_value()) =>
+        {
+            super::IndexIdentityArgument::TypeReference(reference)
+        }
+        argument => argument,
+    };
+    substitution::index_argument(program, argument, context)
+}
+
 /// A closed declaration retains its original static telescope. Region-only
 /// uses of that declaration supply their own regions, not the occurrence that
 /// happened to materialize it. Read that association without allocating a type
@@ -334,14 +512,6 @@ fn generic_reference_identity<'program>(
             )],
         );
     }
-    // The declaration's telescope owns argument roles for code selections as
-    // well as data applications. A const in a nested implementation must use
-    // the same index grammar before and after caller-side substitution.
-    let parameters = if context.invalid_application.is_some() {
-        application_parameters(program, symbol)
-    } else {
-        &[]
-    };
     generic_type_identity(
         program,
         symbol,
@@ -353,48 +523,16 @@ fn generic_reference_identity<'program>(
             .iter()
             .enumerate()
             .map(|(ordinal, argument)| {
-                let is_index = context.invalid_application.is_some()
-                    && parameters
-                        .get(ordinal)
-                        .is_some_and(|parameter| parameter.kind.is_const_or_value());
-                if is_index {
-                    substitution::index_argument(
-                        program,
-                        super::IndexIdentityArgument::TypeReference(*argument),
-                        context,
-                    )
-                } else {
-                    normalize_type_reference(program, *argument, context)
-                }
+                generic_argument_identity(
+                    program,
+                    symbol,
+                    ordinal,
+                    super::IndexIdentityArgument::TypeArgument(*argument),
+                    context,
+                )
             }),
         context,
     )
-}
-
-fn application_parameters(
-    program: &TypedTrees,
-    symbol: SymbolHandle,
-) -> &[crate::data::TypeParameter] {
-    use symbols::SymbolKind;
-    match program.symbols.get(symbol).kind {
-        SymbolKind::Data => program
-            .data_definition_by_symbol(symbol)
-            .map(|declaration| program.data_type_parameters(declaration)),
-        SymbolKind::Domain => crate::domain::domain_by_symbol(program, symbol)
-            .map(|declaration| program.domain_type_parameters(declaration)),
-        SymbolKind::Trait => program
-            .trait_definition_by_symbol(symbol)
-            .map(|declaration| program.trait_type_parameters(declaration)),
-        SymbolKind::Conformance => program
-            .conformance_by_symbol(symbol)
-            .map(|declaration| program.conformance_type_parameters(declaration)),
-        SymbolKind::Machine | SymbolKind::State => program
-            .machine_by_symbol(symbol)
-            .or_else(|| program.machine_holding_state(symbol))
-            .map(|declaration| program.machine_type_parameters(declaration)),
-        _ => None,
-    }
-    .unwrap_or_default()
 }
 
 /// A source static type application and a type-reference application denote
@@ -420,18 +558,25 @@ pub(super) fn static_type_argument_identity(
         return Some(substitution::index_argument(program, replacement, &outer));
     }
     if let Some(application) = &argument.application {
+        let argument_owner = argument.symbol;
         return Some(generic_type_identity(
             program,
             argument.symbol,
             "",
             &application.lifetime_arguments,
-            application.arguments.iter().map(|argument| {
-                substitution::index_argument(
-                    program,
-                    super::IndexIdentityArgument::StaticArgument(argument),
-                    context,
-                )
-            }),
+            application
+                .arguments
+                .iter()
+                .enumerate()
+                .map(|(ordinal, argument)| {
+                    generic_argument_identity(
+                        program,
+                        argument_owner,
+                        ordinal,
+                        super::IndexIdentityArgument::StaticArgument(argument),
+                        context,
+                    )
+                }),
             context,
         ));
     }
@@ -513,6 +658,12 @@ pub(crate) fn normalize_type_reference(
     } else {
         context
     };
+    let application = program
+        .type_reference_table
+        .data_application_origin(type_reference);
+    if application.is_valid() {
+        return normalize_type_reference(program, application, context);
+    }
     if let TypeReferenceNode::Named { symbol, .. } =
         program.type_reference_table.type_reference(type_reference)
         && let Some((argument, outer)) = context.applied_argument(*symbol)
@@ -634,19 +785,53 @@ pub(crate) fn normalize_type_reference(
                     .type_reference_table
                     .type_reference_handles(*arguments)
                     .iter()
-                    .map(|argument| normalize_type_reference(program, *argument, context)),
+                    .enumerate()
+                    .map(|(ordinal, argument)| {
+                        generic_argument_identity(
+                            program,
+                            *symbol,
+                            ordinal,
+                            super::IndexIdentityArgument::TypeArgument(*argument),
+                            context,
+                        )
+                    }),
             ),
         ),
-        TypeReferenceNode::Named { symbol, name } => compound(
-            "named",
-            [normalize_const_or_nominal_name(
-                program,
-                *symbol,
-                name.as_str(),
-                "name",
-                context,
-            )],
-        ),
+        TypeReferenceNode::Named { symbol, name } => {
+            let identity = if !symbol.is_valid()
+                && let Some(value) =
+                    language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
+            {
+                canonical_const_identity_with_meaning(
+                    &value.identity(),
+                    program
+                        .type_reference_table
+                        .const_integer_meaning(type_reference),
+                )
+            } else if !symbol.is_valid()
+                && let crate::types::ConstIntegerMeaning::Typed {
+                    primitive,
+                    arithmetic_domain,
+                } = program
+                    .type_reference_table
+                    .const_integer_meaning(type_reference)
+                && let Ok(value) = name.as_str().parse::<i128>()
+            {
+                canonical_const_identity_with_meaning(
+                    &language_semantics::const_value::CanonicalConstIdentity::integer(
+                        primitive.name(),
+                        value,
+                    ),
+                    crate::types::ConstIntegerMeaning::Typed {
+                        primitive,
+                        arithmetic_domain,
+                    },
+                )
+            } else {
+                normalize_const_or_nominal_name(program, *symbol, name.as_str(), "name", context)
+            };
+            compound("named", [identity])
+        }
         TypeReferenceNode::Unit => "unit".to_owned(),
     }
 }
@@ -884,17 +1069,43 @@ pub(crate) fn normalize_const_or_nominal_name(
         if let Some(value) =
             language_semantics::const_value::CanonicalConstValue::from_atom(spelling)
         {
-            return compound(
-                "canonical-const",
-                [
-                    atom("type", &value.type_name),
-                    atom("encoding", &value.encoding),
-                ],
-            );
+            return canonical_const_identity(&value.identity());
         }
         if let Ok(value) = spelling.parse::<i128>() {
             return atom("integer-const", &value.to_string());
         }
     }
     atom(nominal_tag, &context.name(program, symbol, spelling))
+}
+
+/// One display-independent const grammar serves stored canonical atoms and
+/// anonymous values landed by their independently resolved declaration slot.
+/// Value encoding and source integer meaning are independent custody. Integer
+/// policy participates in the same identity used by specialization and public
+/// applications; missing policy stays distinct from every known source policy.
+pub(super) fn canonical_const_identity(
+    value: &language_semantics::const_value::CanonicalConstIdentity,
+) -> String {
+    canonical_const_identity_with_meaning(value, crate::types::ConstIntegerMeaning::Unavailable)
+}
+
+/// Encode a canonical value with its independently retained integer meaning.
+/// This is vocabulary construction; it neither admits a source argument nor
+/// derives a missing carrier or policy from value bytes.
+pub fn canonical_const_identity_with_meaning(
+    value: &language_semantics::const_value::CanonicalConstIdentity,
+    meaning: crate::types::ConstIntegerMeaning,
+) -> String {
+    let mut parts = vec![
+        atom("type", &value.type_name),
+        atom("encoding", &value.encoding),
+    ];
+    if matches!(
+        value.decode_encoding(),
+        Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer { .. })
+    ) {
+        let meaning = meaning.identity_encoding();
+        parts.push(atom("integer-meaning", &meaning));
+    }
+    compound("canonical-const", parts)
 }

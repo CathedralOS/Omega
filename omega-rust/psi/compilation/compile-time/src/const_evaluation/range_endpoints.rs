@@ -234,9 +234,25 @@ pub fn evaluate_const_range_endpoints(
         SelectedBuildTimeOperators {
             operators: &[],
             provider_bodies: &[],
+            admission: Default::default(),
         },
         &EvaluationDomain::all(),
     )
+}
+
+pub(crate) fn source_constant_demands(
+    typed: &TypedTrees,
+    domain: &EvaluationDomain,
+    demands: &mut crate::source_constants::SourceConstantDemands,
+) -> Result<(), Vec<Diagnostic>> {
+    let plan = endpoint_plan(typed, domain)?;
+    for root in plan.roots {
+        demands.expression(root.expression);
+    }
+    for call in plan.calls {
+        demands.machine(call.machine);
+    }
+    Ok(())
 }
 
 /// Whether any still-authored endpoint call's reachable machine closure holds
@@ -273,10 +289,7 @@ pub(crate) fn pending_endpoint_calls_need_operator_selection(
 #[derive(Clone, Copy)]
 pub(super) struct EndpointCallee {
     pub(super) instance: symbols::SymbolHandle,
-    pub(super) static_application: bool,
 }
-
-impl EndpointCallee {}
 
 /// Resolve the executable callee in the prepared tree. A static application
 /// must have been rewritten there to its concrete instance; a call that still
@@ -289,7 +302,6 @@ pub(super) fn resolve_endpoint_callee(
     if !endpoint.static_application {
         return Ok(EndpointCallee {
             instance: endpoint.machine,
-            static_application: false,
         });
     }
     let Some(call) = execution.expression_table.call_node(endpoint.expression) else {
@@ -331,7 +343,6 @@ pub(super) fn resolve_endpoint_callee(
         })?;
     Ok(EndpointCallee {
         instance: instance.symbol,
-        static_application: true,
     })
 }
 
@@ -372,6 +383,7 @@ pub(crate) fn evaluate_selected_range_endpoints(
     let crate::SelectedBuildTimeOperators {
         operators,
         provider_bodies,
+        admission,
     } = selected;
     // Folds published by earlier rounds, with their authored originals and
     // whether the deferral path had marked them. A round that ends in
@@ -404,6 +416,7 @@ pub(crate) fn evaluate_selected_range_endpoints(
             selection_authority.clone(),
             operators,
             provider_bodies,
+            admission,
             &mut warnings,
             domain,
         ) {
@@ -468,6 +481,7 @@ fn evaluate_round(
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     operators: &[crate::SelectedBuildTimeBinaryOperator],
     provider_bodies: &[crate::SelectedBuildTimeProviderBody],
+    admission: crate::BuildTimeCheckingAdmission<'_>,
     warnings: &mut Vec<Diagnostic>,
     domain: &EvaluationDomain,
 ) -> Result<Round, Vec<Diagnostic>> {
@@ -475,12 +489,15 @@ fn evaluate_round(
     // Rebinding only the template after preparation would leave its cloned
     // body with an unselected operator. Both steps remain private, and the
     // existing provider validator checks the original occurrence first.
+    let checking_admission = admission;
     let (prepared, admission) = crate::const_evaluation::prepared_admission(
         typed,
         provider_bodies,
         operators,
         selection_authority.clone(),
         domain,
+        &plan.calls.iter().map(|call| call.machine).collect::<Vec<_>>(),
+        admission,
     )?;
     let execution = prepared.typed();
 
@@ -491,11 +508,12 @@ fn evaluate_round(
     let mut originals = Vec::new();
     for endpoint in &plan.roots {
         let result = evaluate_endpoint(
-            typed,
             execution,
             &admission,
             endpoint,
             selection_authority.as_deref(),
+            selection_authority.as_ref(),
+            checking_admission,
             warnings,
         );
         match result {
@@ -539,11 +557,12 @@ fn evaluate_round(
 }
 
 fn evaluate_endpoint(
-    typed: &TypedTrees,
     execution: &TypedTrees,
     admission: &BuildTimeAdmissionPlan,
     endpoint: &EndpointRoot,
     selection_authority: Option<&dyn crate::BuildTimeSelectionAuthority>,
+    selection_authority_owner: Option<&std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
+    checking_admission: crate::BuildTimeCheckingAdmission<'_>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<ExpressionNode, String> {
     crate::machine_execution::admission::require_closed_expression_custody(
@@ -552,10 +571,11 @@ fn evaluate_endpoint(
         selection_authority,
     )?;
     let invocation = arguments::Invocation {
-        working: typed,
         execution,
         admission,
         authority: selection_authority,
+        authority_owner: selection_authority_owner,
+        checking_admission,
     };
     let (literal, additions) =
         crate::const_evaluation::const_generic_expressions::value::evaluate_integer_endpoint(
@@ -665,7 +685,7 @@ pub(super) fn selected_endpoint_machine(
     let call = typed.expression_table.call_node(expression)?;
     if !call.evidence_arguments.is_empty()
         || call.static_machine_parameter.is_valid()
-        || !call.selects_only_nominal_route()
+        || !call.executes_nominal_route()
     {
         return None;
     }

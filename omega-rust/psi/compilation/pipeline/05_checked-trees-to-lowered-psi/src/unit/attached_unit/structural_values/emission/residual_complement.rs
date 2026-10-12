@@ -97,7 +97,7 @@ pub(super) fn is_empty(
 }
 
 /// The residual discards `moved_paths` leave in a root of type `root_type`.
-pub(super) fn complement(
+pub(crate) fn complement(
     types: &[CheckedUnitStructuralTypePlan],
     source: &CheckedUnitStructuralArgumentSourcePlan,
     root_type: typed_trees::type_identity::TypeIdentityId,

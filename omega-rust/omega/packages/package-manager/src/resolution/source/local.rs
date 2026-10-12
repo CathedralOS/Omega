@@ -22,7 +22,11 @@ pub(crate) fn capture_external_local_project_source(
     context: ExternalSourceContext,
 ) -> Result<super::PackageSourceCustody, ResolvePackageSourceError> {
     let limits = limits.compiler_bounded();
-    let captured = package_source::local::operations::capture_local_source_input(root, limits)?;
+    let captured = package_source::local::operations::capture_local_source_input(
+        root,
+        limits,
+        Default::default(),
+    )?;
     let canonical_path = captured.canonical_live_root().to_str().ok_or_else(|| {
         package_source::IdentityError::UnsupportedNonUtf8Path(
             captured.canonical_live_root().to_path_buf(),

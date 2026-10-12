@@ -19,13 +19,15 @@ use calling_conventions::{
     nominal_callback_native_parameter_id,
 };
 use checked_trees::typed_trees::TypedTrees;
+use checked_trees::typed_trees::typed_trees::calls::PublicTraitRequirementSignature;
 use checked_trees::typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use layout::{BoundaryTypeBinding, BoundaryValueLayout, substitute_boundary_type_reference};
 use representation_planning::OpaqueRepresentationSelection;
 use target::NativeTarget;
 
 pub(crate) struct BoundarySignatureInstance<'a> {
-    pub(crate) signature: &'a checked_trees::typed_trees::signature::StateSignature,
+    pub(crate) declaring_trait: symbols::SymbolHandle,
+    pub(crate) public_signature: PublicTraitRequirementSignature<'a>,
     pub(crate) requirement_identity: String,
     pub(crate) bindings: Vec<BoundaryTypeBinding>,
 }
@@ -308,7 +310,6 @@ pub(crate) fn call_signature_from_top_level_requirement(
 ) -> Result<MaterializedBoundarySignature, String> {
     if requirement.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement
         || requirement.body_is_present
-        || !requirement.lifetime_parameters.is_empty()
         || !typed.machine_type_parameters(requirement).is_empty()
     {
         return Err(
@@ -443,9 +444,9 @@ pub(crate) fn collect_boundary_signatures<'a>(
     arguments: &[TypeReferenceHandle],
     visited: &mut Vec<symbols::SymbolHandle>,
     signatures: &mut Vec<BoundarySignatureInstance<'a>>,
-) {
+) -> Result<(), String> {
     if visited.contains(&definition.symbol) {
-        return;
+        return Ok(());
     }
     visited.push(definition.symbol);
     let bindings = trait_type_bindings(typed, definition, arguments);
@@ -461,7 +462,7 @@ pub(crate) fn collect_boundary_signatures<'a>(
                 .iter()
                 .map(|argument| substitute_boundary_type_reference(typed, *argument, &bindings))
                 .collect::<Vec<_>>();
-            collect_boundary_signatures(typed, parent, &parent_arguments, visited, signatures);
+            collect_boundary_signatures(typed, parent, &parent_arguments, visited, signatures)?;
         }
     }
     for signature in typed.trait_machine_signatures(definition) {
@@ -471,14 +472,25 @@ pub(crate) fn collect_boundary_signatures<'a>(
             .iter()
             .any(|candidate| candidate.requirement_identity == requirement_identity)
         {
+            let public_signature = typed
+                .public_trait_requirement_signature(signature.symbol)
+                .filter(|selected| {
+                    selected.owner.symbol == definition.symbol
+                        && std::ptr::eq(selected.signature, signature)
+                })
+                .ok_or_else(|| {
+                    "Calling signature lost its original public declaration".to_owned()
+                })?;
             signatures.push(BoundarySignatureInstance {
-                signature,
+                declaring_trait: definition.symbol,
+                public_signature,
                 requirement_identity,
                 bindings: bindings.clone(),
             });
         }
     }
     visited.pop();
+    Ok(())
 }
 
 pub(crate) fn trait_type_bindings(
@@ -500,12 +512,17 @@ pub(crate) fn trait_type_bindings(
 
 pub(crate) fn call_signature_from_typed(
     typed: &TypedTrees,
-    signature: &checked_trees::typed_trees::signature::StateSignature,
+    public_signature: PublicTraitRequirementSignature<'_>,
     bindings: &[BoundaryTypeBinding],
     owner_requirement_identity: &str,
     native_target: NativeTarget,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
 ) -> Result<MaterializedBoundarySignature, String> {
+    // Produced executable headers consume their generic axes. Native callback
+    // binders and destinations remain declarations of the original requirement;
+    // runtime value layout comes from that same projection's applied header.
+    let signature = public_signature.signature;
+    let declaration = public_signature.declaration;
     let mut values = BoundaryValueLayout::new(
         typed,
         native_target,
@@ -515,7 +532,7 @@ pub(crate) fn call_signature_from_typed(
     let mut parameters = Vec::new();
     let mut callback_binders = Vec::new();
     let mut static_machine_ordinal = 0u32;
-    for parameter in typed.state_signature_type_parameters(signature) {
+    for parameter in typed.state_signature_type_parameters(declaration) {
         let checked_trees::typed_trees::data::TypeParameterKind::Machine { contract } =
             &parameter.kind
         else {
@@ -566,7 +583,7 @@ pub(crate) fn call_signature_from_typed(
         .collect::<Vec<_>>();
     let total_native_parameters = runtime_parameters
         .len()
-        .checked_add(signature.native_callback_parameters.len())
+        .checked_add(declaration.native_callback_parameters.len())
         .ok_or_else(|| "boundary native parameter telescope length overflow".to_owned())?;
     if total_native_parameters > PARAMETER_CAPACITY {
         return Err(format!(
@@ -574,7 +591,7 @@ pub(crate) fn call_signature_from_typed(
         ));
     }
     let mut direct_callback_parameters = Vec::new();
-    for direct in &signature.native_callback_parameters {
+    for direct in &declaration.native_callback_parameters {
         let native_ordinal = usize::try_from(direct.native_ordinal)
             .map_err(|_| "native callback parameter ordinal exceeds usize".to_owned())?;
         if native_ordinal >= total_native_parameters {
@@ -598,7 +615,7 @@ pub(crate) fn call_signature_from_typed(
             ));
         }
         let Some(machine_parameter) = typed
-            .state_signature_type_parameters(signature)
+            .state_signature_type_parameters(declaration)
             .iter()
             .find(|parameter| parameter.name.as_str() == direct.binder.as_str())
         else {

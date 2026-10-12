@@ -181,11 +181,11 @@ fn prove(
     let arithmetic_hypotheses = roster_premise_facts(&facts.semantic, contexts)
         .filter_map(|fact| match fact.payload {
             facts::FactPayload::ContractBooleanExpression {
-                kind: facts::ContractFactKind::Requires,
+                kind,
                 expression,
                 instantiated,
                 ..
-            } if !instantiated.is_valid() => Some((expression, true)),
+            } if kind.is_body_assumption() && !instantiated.is_valid() => Some((expression, true)),
             facts::FactPayload::BooleanValue { expression, value } => Some((expression, value)),
             _ => None,
         })
@@ -295,11 +295,11 @@ fn prove(
             // This adapter only consumes declaration-shaped caller facts.
             match fact.payload {
                 facts::FactPayload::ContractBooleanExpression {
-                    kind: facts::ContractFactKind::Requires,
+                    kind,
                     expression,
                     instantiated,
                     ..
-                } if !instantiated.is_valid() => Some(expression),
+                } if kind.is_body_assumption() && !instantiated.is_valid() => Some(expression),
                 facts::FactPayload::BooleanValue {
                     expression,
                     value: true,

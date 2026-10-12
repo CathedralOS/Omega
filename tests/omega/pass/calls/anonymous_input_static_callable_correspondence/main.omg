@@ -1,0 +1,18 @@
+machine inspect<'borrow>(value: &'borrow u64) -> bool {
+    value == 42u64
+}
+
+machine apply<'input, machine Procedure>(value: &'input u64) -> bool
+where machine Procedure(value: &'input u64) -> bool;
+{ Procedure(value) }
+
+machine main() crashes Trap {
+    let value: u64 = 42u64;
+    let result: bool = apply<inspect>(&value);
+    transition result {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

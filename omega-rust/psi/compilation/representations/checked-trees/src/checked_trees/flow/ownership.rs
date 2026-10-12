@@ -164,6 +164,26 @@ impl super::FlowOwnershipFacts {
         Some(roots)
     }
 
+    /// A value occurrence owns its conditional source roster independently of
+    /// other operands in the same statement. No sibling selection can donate it.
+    pub fn owned_selection_for_expression(
+        &self,
+        state: SymbolHandle,
+        statement_ordinal: u32,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> Option<(
+        arena::Handle<FlowOwnedSelectionReceipt>,
+        &FlowOwnedSelectionReceipt,
+    )> {
+        let mut matches = self.owned_selections.iter().filter(|(_, receipt)| {
+            receipt.state == state
+                && receipt.statement_ordinal == statement_ordinal
+                && receipt.expression == expression
+        });
+        let receipt = matches.next()?;
+        matches.next().is_none().then_some(receipt)
+    }
+
     pub fn owned_selection_at(
         &self,
         state: SymbolHandle,

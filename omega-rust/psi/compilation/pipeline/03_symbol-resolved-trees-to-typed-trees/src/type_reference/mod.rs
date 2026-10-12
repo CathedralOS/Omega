@@ -9,6 +9,11 @@
 //! statement lowering uses it, and `table` implements it. Both routes lower constraints through `constraints`, record authored
 //! declaration selections through `retain_type_reference_selection`, and
 //! retain computed result carriers through `computed_results`.
+//! Generated carrier uses additionally retain their own complete original data
+//! application even when authored exposure is absent. Storage sharing is a
+//! result correspondence; checking still admits every use's actual tuple, and
+//! semantic identity/member views consume this occurrence rather than the
+//! first application that happened to construct the shared declaration.
 //! `retain_static_path_selection` and `retain_path_selection` record the same
 //! selections for path spellings that are not type references.
 //!
@@ -119,25 +124,17 @@ pub(super) fn retain_type_reference_selection(
         Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure>,
     >,
     kind: language_semantics::declaration_selection::AuthoredDeclarationSelectionKind,
-) -> Result<(), Diagnostic> {
-    let Some(exposure) = exposure.into() else {
-        return Ok(());
-    };
+) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
+    let exposure = exposure.into();
     if !name.is_source_backed()
         || !symbol.is_valid()
         || resolved::types::PrimitiveType::from_name(name.as_str()).is_some()
     {
-        return Ok(());
+        return Ok(typed::types::TypeReferenceHandle::invalid());
     }
-    if let Some(application) = generic_origins::application(source_trees, None, name, symbol)? {
-        lower_type_reference_handle_with_context(
-            source_trees,
-            typed_trees,
-            application,
-            Some(exposure),
-        )?;
-        return Ok(());
-    }
+    let Some(exposure) = exposure else {
+        return Ok(typed::types::TypeReferenceHandle::invalid());
+    };
     if matches!(
         source_trees.symbols.get(symbol).kind,
         symbols::SymbolKind::Parameter
@@ -148,7 +145,7 @@ pub(super) fn retain_type_reference_selection(
             | symbols::SymbolKind::PropositionMachineParameter
             | symbols::SymbolKind::Local
     ) {
-        return Ok(());
+        return Ok(typed::types::TypeReferenceHandle::invalid());
     }
     typed_trees
         .record_resolved_authored_declaration_selection_once(
@@ -157,13 +154,42 @@ pub(super) fn retain_type_reference_selection(
             kind,
             symbol,
         )
-        .map(|_| ())
+        .map(|_| typed::types::TypeReferenceHandle::invalid())
         .map_err(|error| {
             Diagnostic::error(format!(
                 "failed to retain authored type-reference selection: {error:?}"
             ))
             .with_source_span(name.source_span())
         })
+}
+
+/// Retain the exact application row carried by this resolved occurrence.
+fn retain_type_reference_application(
+    source_trees: &resolved::SymbolResolvedTrees,
+    typed_trees: &mut typed::TypedTrees,
+    name: &resolved::name::DiagnosticName,
+    symbol: symbols::SymbolHandle,
+    origin: arena::Handle<resolved::types::GenericApplicationOrigin>,
+    exposure: Option<
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    >,
+) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
+    if let Some(application) = generic_origins::application(source_trees, name, symbol, origin)? {
+        return lower_type_reference_handle_with_context(
+            source_trees,
+            typed_trees,
+            application,
+            exposure,
+        );
+    }
+    retain_type_reference_selection(
+        source_trees,
+        typed_trees,
+        name,
+        symbol,
+        exposure,
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
+    )
 }
 
 /// The `DynamicTrait` node shared by the direct and table-backed type
@@ -202,24 +228,32 @@ pub(super) fn lower_named_type_reference(
     typed_trees: &mut typed::TypedTrees,
     symbol: symbols::SymbolHandle,
     name: &resolved::name::DiagnosticName,
+    origin: arena::Handle<resolved::types::GenericApplicationOrigin>,
     exposure: Option<
         language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
     >,
 ) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
-    retain_type_reference_selection(
+    let application = retain_type_reference_application(
         source_trees,
         typed_trees,
         name,
         symbol,
+        origin,
         exposure,
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
     )?;
-    Ok(typed_trees
-        .type_reference_table
-        .insert(typed::types::TypeReferenceNode::Named {
-            symbol,
-            name: crate::lowerer::name::lower_name(name),
-        }))
+    let reference =
+        typed_trees
+            .type_reference_table
+            .insert(typed::types::TypeReferenceNode::Named {
+                symbol,
+                name: crate::lowerer::name::lower_name(name),
+            });
+    if application.is_valid() {
+        typed_trees
+            .type_reference_table
+            .retain_data_application_origin(reference, application);
+    }
+    Ok(reference)
 }
 
 pub(crate) fn retain_static_path_selection(

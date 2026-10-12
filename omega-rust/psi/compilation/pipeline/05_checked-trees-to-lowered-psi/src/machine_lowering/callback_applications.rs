@@ -39,7 +39,31 @@ pub(super) fn retain(
         else {
             continue;
         };
-        let key = source_key(site, occurrence.source_target);
+        // A closed requirement call has its own executable declaration, while
+        // its static application still owns the original registrar telescope.
+        // Nominal admission records that telescope's declaration. Rejoin it
+        // through this occurrence's checked application, never by callable
+        // spelling or by another specialization's argument tuple.
+        let call = checked
+            .facts
+            .flow
+            .control
+            .call_at(
+                occurrence.source_state,
+                occurrence.statement_index,
+                occurrence.call_ordinal,
+            )
+            .ok_or("callback source occurrence lost its checked call")?;
+        let registration_operation = if call.authored_application.is_valid() {
+            checked
+                .typed
+                .expression_table
+                .static_machine_application(call.authored_application)
+                .registration_operation
+        } else {
+            occurrence.source_target
+        };
+        let key = source_key(site, registration_operation);
         let first = requested.partition_point(|(candidate, _, _)| *candidate < key);
         for (_, _, registrar) in requested[first..]
             .iter_mut()

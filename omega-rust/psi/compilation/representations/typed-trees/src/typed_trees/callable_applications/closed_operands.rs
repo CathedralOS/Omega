@@ -3,6 +3,7 @@
 //! application, including phantom parameters. Region-erasing ordinary identity
 //! never establishes that an application is closed or exact.
 
+use crate::type_identity::AppliedTypeIdentityOwner;
 use crate::{TypedTrees, types};
 use symbols::SymbolHandle;
 
@@ -92,16 +93,22 @@ impl TypedTrees {
         &self,
         arguments: &[types::TypeReferenceHandle],
     ) -> Result<(), &'static str> {
-        self.require_application_operand_bindings(arguments, SymbolHandle::invalid(), false, None)
+        self.require_application_operand_bindings(
+            arguments,
+            AppliedTypeIdentityOwner::Declaration(SymbolHandle::invalid()),
+            false,
+            None,
+        )
     }
 
-    /// Formal declaration well-formedness is not concrete closure. Only type
-    /// binders from the supplying lexical chain may remain symbolic; runtime
-    /// values and foreign declaration binders still cannot become operands.
+    /// Formal declaration well-formedness is not concrete closure. Only Type
+    /// and Const binders from the supplying lexical chain may remain symbolic;
+    /// captures keep their original issuer, while runtime values and foreign
+    /// declaration binders still cannot become operands.
     pub fn require_declared_application_operands(
         &self,
         arguments: &[types::TypeReferenceHandle],
-        lexical_owner: SymbolHandle,
+        lexical_owner: AppliedTypeIdentityOwner<'_>,
     ) -> Result<(), &'static str> {
         self.require_application_operand_bindings(arguments, lexical_owner, true, None)
     }
@@ -114,7 +121,12 @@ impl TypedTrees {
         arguments: &[types::TypeReferenceHandle],
         scope: &crate::trait_definition::AppliedTraitScope<'_>,
     ) -> Result<(), &'static str> {
-        self.require_application_operand_bindings(arguments, scope.argument_owner, false, None)
+        self.require_application_operand_bindings(
+            arguments,
+            scope.argument_identity_owner(),
+            false,
+            None,
+        )
     }
 
     /// Close trait actuals in their supplying prefixes. A raw caller actual
@@ -130,7 +142,7 @@ impl TypedTrees {
                 .ok_or("closed requirement omits a declaring trait operand")?;
             self.require_application_operand_bindings(
                 &[actual],
-                scope.argument_owner,
+                scope.argument_identity_owner(),
                 false,
                 Some((scope, preceding_frames)),
             )?;
@@ -141,7 +153,7 @@ impl TypedTrees {
     fn require_application_operand_bindings(
         &self,
         arguments: &[types::TypeReferenceHandle],
-        lexical_owner: SymbolHandle,
+        lexical_owner: AppliedTypeIdentityOwner<'_>,
         allow_declared_binders: bool,
         scope: Option<(&crate::trait_definition::AppliedTraitScope<'_>, usize)>,
     ) -> Result<(), &'static str> {
@@ -172,8 +184,33 @@ impl TypedTrees {
             .iter()
             .filter(|symbol| symbol.is_valid())
             .any(|symbol| {
+                if !matches!(
+                    self.symbols.get(*symbol).kind,
+                    symbols::SymbolKind::TypeParameter
+                        | symbols::SymbolKind::MachineParameter
+                        | symbols::SymbolKind::ConformanceParameter
+                        | symbols::SymbolKind::PropositionParameter
+                        | symbols::SymbolKind::PropositionMachineParameter
+                        | symbols::SymbolKind::Local
+                        | symbols::SymbolKind::Parameter
+                ) {
+                    return false;
+                }
+                let (issuing_program, declaration) = match lexical_owner {
+                    AppliedTypeIdentityOwner::Declaration(declaration) => (self, declaration),
+                    AppliedTypeIdentityOwner::Captured(capture) => {
+                        // Operand payloads are Product-owned, but a surviving
+                        // lexical binder still belongs to the frozen issuer.
+                        // Authenticate that source coordinate before reading
+                        // its category or parents in the original namespace.
+                        if !self.retains_source_declaration_symbol(capture.owner(), *symbol) {
+                            return true;
+                        }
+                        (capture.owner(), capture.symbol())
+                    }
+                };
                 if allow_declared_binders
-                    && self
+                    && issuing_program
                         .data_type_parameter_by_symbol(*symbol)
                         .is_some_and(|parameter| {
                             matches!(
@@ -183,25 +220,16 @@ impl TypedTrees {
                             )
                         })
                 {
-                    let parent = self.symbols.get(*symbol).parent;
-                    let mut owner = lexical_owner;
+                    let parent = issuing_program.symbols.get(*symbol).parent;
+                    let mut owner = declaration;
                     while owner.is_valid() {
                         if parent == owner {
                             return false;
                         }
-                        owner = self.symbols.get(owner).parent;
+                        owner = issuing_program.symbols.get(owner).parent;
                     }
                 }
-                matches!(
-                    self.symbols.get(*symbol).kind,
-                    symbols::SymbolKind::TypeParameter
-                        | symbols::SymbolKind::MachineParameter
-                        | symbols::SymbolKind::ConformanceParameter
-                        | symbols::SymbolKind::PropositionParameter
-                        | symbols::SymbolKind::PropositionMachineParameter
-                        | symbols::SymbolKind::Local
-                        | symbols::SymbolKind::Parameter
-                )
+                true
             })
         {
             return Err("open operands do not close a requirement instance");
@@ -226,12 +254,15 @@ impl TypedTrees {
                         crate::type_identity::applied_type_identity(
                             self,
                             argument,
-                            scope.argument_owner,
+                            scope.argument_identity_owner(),
                             &frames[..preceding_frames],
                         )
                     })
                     .is_some()
-            } else if lexical_owner.is_valid() {
+            } else if match lexical_owner {
+                AppliedTypeIdentityOwner::Declaration(symbol) => symbol.is_valid(),
+                AppliedTypeIdentityOwner::Captured(_) => true,
+            } {
                 crate::type_identity::applied_type_identity(self, argument, lexical_owner, &[])
                     .is_some()
             } else {

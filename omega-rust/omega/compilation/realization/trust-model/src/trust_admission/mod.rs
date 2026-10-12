@@ -36,6 +36,7 @@ enum TrustAdmissionSubject {
     ProviderPlan,
     MachineTemplate,
     MachineContract,
+    AssumedBindingRelationship,
 }
 
 impl TrustAdmissionSubject {
@@ -44,6 +45,7 @@ impl TrustAdmissionSubject {
             Self::ProviderPlan => b"provider-plan",
             Self::MachineTemplate => b"machine-template",
             Self::MachineContract => b"machine-contract",
+            Self::AssumedBindingRelationship => b"assumed-binding-relationship",
         }
     }
 }
@@ -135,6 +137,21 @@ impl TrustAdmission {
 
     pub fn commitment(&self) -> &str {
         &self.commitment
+    }
+
+    pub(crate) fn for_assumed_binding_relationship(
+        commitment: String,
+        relationship: crate::AssumedBindingRelationshipDigest,
+    ) -> Self {
+        Self {
+            digest: trust_admission_digest(
+                TrustAdmissionSubject::AssumedBindingRelationship,
+                &commitment,
+                &relationship.as_bytes(),
+            ),
+            commitment,
+            report_identity: None,
+        }
     }
 
     pub const fn digest(&self) -> TrustAdmissionDigest {

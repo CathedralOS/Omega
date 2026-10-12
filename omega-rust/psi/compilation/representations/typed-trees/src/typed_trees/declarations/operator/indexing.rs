@@ -1,14 +1,12 @@
 //! Collection-view matching belongs only to indexed syntax, not ordinary calls.
 
 use super::{
-    OperatorConstBinding, OperatorSpelling, SpelledOperator, TypeReferenceHandle,
-    TypeReferenceNode, TypedTrees, resolve_spelling,
+    OperatorSpelling, SpelledOperator, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
+    resolve_spelling,
 };
-use crate::data::TypeParameter;
 use crate::typed_trees::declarations::operator::spellings::{
     OperandType, operator_matches_operands_with_indexed_collection,
 };
-use crate::typed_trees::declarations::operator::type_matching::type_reference_matches;
 use symbols::SymbolHandle;
 /// Resolve `[]` / `[..]` with an implicit shared collection view in the first
 /// operand. Element bindings and every other operand use the ordinary matcher;
@@ -110,32 +108,32 @@ pub(super) fn shared_collection_elements(
 /// Indexed syntax borrows the collection according to its first parameter.
 /// Match referents here; the ownership checker validates the actual place's
 /// access and availability. Owned parameters retain ordinary operand matching.
-pub(super) fn borrowed_collection_match(
+pub(super) fn indexed_collection_operand_types(
     program: &TypedTrees,
     actual: TypeReferenceHandle,
     expected: TypeReferenceHandle,
-    type_parameters: &[TypeParameter],
-    bindings: &mut Vec<(SymbolHandle, TypeReferenceHandle)>,
-    const_bindings: &mut Vec<OperatorConstBinding>,
-) -> bool {
+) -> Option<(TypeReferenceHandle, TypeReferenceHandle)> {
+    if let Some(elements) = shared_collection_elements(program, actual, expected) {
+        return Some(elements);
+    }
     let Some(expected) = unconstrained_type_reference(program, expected) else {
-        return false;
+        return None;
     };
     let TypeReferenceNode::Reference {
         referee, access, ..
     } = program.type_reference_table.type_reference(expected)
     else {
-        return false;
+        return None;
     };
     if !matches!(
         access,
         language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable
     ) {
-        return false;
+        return None;
     }
     let expected = *referee;
     let Some(actual) = unconstrained_type_reference(program, actual) else {
-        return false;
+        return None;
     };
     let actual = match program.type_reference_table.type_reference(actual) {
         TypeReferenceNode::Reference {
@@ -146,24 +144,16 @@ pub(super) fn borrowed_collection_match(
             if *actual_access != *access
                 && *actual_access != language_core::ReferenceAccess::Mutable
             {
-                return false;
+                return None;
             }
             let Some(referee) = unconstrained_type_reference(program, *referee) else {
-                return false;
+                return None;
             };
             referee
         }
         _ => actual,
     };
-    type_reference_matches(
-        program,
-        actual,
-        expected,
-        None,
-        type_parameters,
-        bindings,
-        const_bindings,
-    )
+    Some((actual, expected))
 }
 
 /// The first non-`Constrained` node on a type's base chain. Normal trees

@@ -6,6 +6,11 @@
 //! using the partially built program: it can lack its carrier or an authored
 //! operator which vetoes builtin arithmetic. Final replay uses original operands,
 //! not the syntax producer's interval observations or its synthetic names.
+//! Closed Const slots may compare completed result correspondence to retain
+//! shared storage after original operands replace display atoms. This is not
+//! application admission: the typing entrance retains each full original tuple
+//! and the shared checker checks it before publishing a checked program. Other
+//! slots and noninteger result encodings keep their exact original comparison.
 use super::{Diagnostic, resolved, typed};
 use arena::{Handle, HandleSpan};
 use resolved::types::{FixedArrayLength, TypeConstraint, TypeReference};
@@ -31,11 +36,7 @@ pub(crate) fn validate_range_arguments(
     // One private replay copy retains complete operator meaning without adding
     // duplicate operands or warning occurrences to the published typed program.
     let mut replay = typed.clone();
-    let mut definitions = source
-        .data_definitions
-        .iter()
-        .inspect(|_| {})
-        .collect::<Vec<_>>();
+    let mut definitions = source.data_definitions.iter().collect::<Vec<_>>();
     definitions.sort_by_key(|definition| symbol_key(definition.symbol));
     let mut origins = Vec::new();
     let mut malformed_origin = false;
@@ -68,28 +69,27 @@ pub(crate) fn validate_range_arguments(
             .iter()
             .next()
         {
-            match source.child_type_reference(origin.instance) {
-                TypeReference::Named { name, .. } => return Err(mismatch(name)),
-                TypeReference::Generic(value) => return Err(mismatch(&value.base_name)),
-                _ => {}
+            if source
+                .tables
+                .declarations
+                .child_type_references
+                .is_valid(origin.instance)
+            {
+                match source.child_type_reference(origin.instance) {
+                    TypeReference::Named { name, .. } => return Err(mismatch(name)),
+                    TypeReference::Generic(value) => return Err(mismatch(&value.base_name)),
+                    _ => {}
+                }
             }
         }
         return Err(Diagnostic::error(
             "generated instance lost its retained type",
         ));
     }
-    // Visit use groups in first-occurrence order, then their members in roster
-    // order, as the old whole-roster lookup did on its first visit to each use.
-    // A malformed roster suffix must not preempt an earlier member's error.
-    let mut uses = origins.iter().collect::<Vec<_>>();
-    uses.sort_by_key(|(name, symbol, _)| use_key(name, *symbol));
+    // Each row owns one use, even when copies share diagnostic spans and
+    // generated storage. Replay only against that storage's declaration;
+    // another occurrence's tuple supplies no premise for this one.
     for (name, symbol, origin) in &origins {
-        let first = uses.partition_point(|(other_name, other_symbol, _)| {
-            use_key(other_name, *other_symbol) < use_key(name, *symbol)
-        });
-        if !std::ptr::eq(uses[first].2, *origin) {
-            continue;
-        }
         let definition_start = definitions
             .partition_point(|definition| symbol_key(definition.symbol) < symbol_key(*symbol));
         let definition = definitions
@@ -102,25 +102,10 @@ pub(crate) fn validate_range_arguments(
         {
             return Err(mismatch(name));
         }
-        let mut previous = None;
-        for (_, _, member) in uses[first..]
-            .iter()
-            .take_while(|(other_name, other_symbol, _)| {
-                use_key(other_name, *other_symbol) == use_key(name, *symbol)
-            })
-        {
-            previous = Some(validate_origin(
-                source,
-                Some(&mut replay),
-                name,
-                member,
-                definition,
-                previous,
-            )?);
-        }
-        if malformed_origin {
-            return Err(mismatch(name));
-        }
+        validate_origin(source, Some(&mut replay), name, origin, definition)?;
+    }
+    if malformed_origin {
+        return Err(mismatch(origins.last().expect("nonempty valid prefix").0));
     }
     Ok(())
 }
@@ -129,207 +114,60 @@ fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {
     (symbol.arena_index(), symbol.generation())
 }
 
-fn use_key(
-    name: &resolved::name::DiagnosticName,
-    symbol: SymbolHandle,
-) -> ((u32, u32), usize, usize, usize) {
-    let span = name.source_span();
-    (
-        symbol_key(symbol),
-        span.source_id.0,
-        span.span.start,
-        span.span.end,
-    )
-}
-
-/// One whole-source index behind the per-type-reference origin lookup.
-/// `application` is called once per lowered named/generic reference and used
-/// to rescan the whole origin roster and definition table per call; both
-/// scans only ever match one symbol, so bucket them once per source program.
-/// The index is owned by the resolved trees (`with_generic_origin_index` on
-/// `SymbolResolvedTrees`): the arena revisions inside the slot mark exactly
-/// when its source tables changed — a recycled program can never serve a
-/// replacement its roster.
-use symbol_resolved_trees::lookup_indexes::GenericOriginIndex;
-
-fn with_generic_origin_index<R>(
-    source: &resolved::SymbolResolvedTrees,
-    run: impl FnOnce(&GenericOriginIndex) -> R,
-) -> R {
-    source.with_generic_origin_index(
-        |index| {
-            let origins = &source.tables.types.generic_application_origins;
-            let references = &source.tables.declarations.child_type_references;
-            for (handle, origin) in origins.iter() {
-                let instance_symbol = if references.is_valid(origin.instance)
-                    && references.is_valid(origin.application)
-                {
-                    match references.get(origin.instance) {
-                        TypeReference::Named { symbol, .. } => *symbol,
-                        TypeReference::Generic(value) => value.base_symbol,
-                        _ => {
-                            index.malformed = true;
-                            break;
-                        }
-                    }
-                } else {
-                    index.malformed = true;
-                    break;
-                };
-                index
-                    .origins_by_symbol
-                    .entry(instance_symbol)
-                    .or_default()
-                    .push(handle);
-            }
-            for (position, definition) in source.data_definitions.iter().enumerate() {
-                index
-                    .definitions_by_symbol
-                    .entry(definition.symbol)
-                    .or_default()
-                    .push(position);
-            }
-        },
-        run,
-    )
-}
-
+/// Resolve the occurrence-owned row. Diagnostic names locate errors only;
+/// neither generated symbols nor source spans select a later use's tuple.
 pub(super) fn application<'source>(
     source: &'source resolved::SymbolResolvedTrees,
-    mut typed: Option<&mut typed::TypedTrees>,
     name: &resolved::name::DiagnosticName,
     symbol: SymbolHandle,
+    origin: Handle<resolved::types::GenericApplicationOrigin>,
 ) -> Result<Option<&'source TypeReference>, Diagnostic> {
-    if with_generic_origin_index(source, |index| index.malformed) {
-        return application_scanned(source, typed, name, symbol);
+    let mut definitions = source
+        .data_definitions
+        .iter()
+        .filter(|definition| definition.symbol == symbol);
+    let definition = definitions.next();
+    if definitions.next().is_some() {
+        return Err(mismatch(name));
     }
-    let mut selected = None;
-    let mut selected_definition = None;
-    for handle in with_generic_origin_index(source, |index| {
-        index
-            .origins_by_symbol
-            .get(&symbol)
-            .cloned()
-            .unwrap_or_default()
-    }) {
-        let origin = source.tables.types.generic_application_origins.get(handle);
-        let references = &source.tables.declarations.child_type_references;
-        let instance = references.get(origin.instance);
-        if !instance_identity_matches(instance, symbol, name)? {
-            continue;
-        }
-        let definition = match selected_definition {
-            Some(definition) => definition,
-            None => {
-                let bucket = with_generic_origin_index(source, |index| {
-                    index
-                        .definitions_by_symbol
-                        .get(&symbol)
-                        .cloned()
-                        .unwrap_or_default()
-                });
-                let definition = bucket
-                    .first()
-                    .map(|position| &source.data_definitions[*position])
-                    .ok_or_else(|| mismatch(name))?;
-                if bucket.len() > 1 {
-                    return Err(mismatch(name));
-                }
-                definition
-            }
+    if !origin.is_valid() {
+        return if definition.is_some_and(|definition| definition.generic_instance.is_some()) {
+            Err(mismatch(name))
+        } else {
+            Ok(None)
         };
-        selected = Some(validate_origin(
-            source,
-            typed.as_deref_mut(),
-            name,
-            origin,
-            definition,
-            selected,
-        )?);
-        selected_definition = Some(definition);
     }
-    if selected.is_none()
-        && with_generic_origin_index(source, |index| {
-            index
-                .definitions_by_symbol
-                .get(&symbol)
-                .is_some_and(|bucket| {
-                    bucket.iter().any(|position| {
-                        source.data_definitions[*position]
-                            .generic_instance
-                            .is_some()
-                    })
-                })
-        })
+    if !source
+        .tables
+        .types
+        .generic_application_origins
+        .is_valid(origin)
     {
         return Err(mismatch(name));
     }
-    Ok(selected)
-}
-
-/// The original roster traversal, retained for programs whose origin rows
-/// hold a malformed handle: the indexed path must never reorder where that
-/// mismatch surfaces.
-fn application_scanned<'source>(
-    source: &'source resolved::SymbolResolvedTrees,
-    mut typed: Option<&mut typed::TypedTrees>,
-    name: &resolved::name::DiagnosticName,
-    symbol: SymbolHandle,
-) -> Result<Option<&'source TypeReference>, Diagnostic> {
-    let mut selected = None;
-    let mut selected_definition = None;
-    for (_, origin) in source.tables.types.generic_application_origins.iter() {
-        let references = &source.tables.declarations.child_type_references;
-        if !references.is_valid(origin.instance) || !references.is_valid(origin.application) {
-            return Err(mismatch(name));
-        }
-        let instance = references.get(origin.instance);
-        if !instance_identity_matches(instance, symbol, name)? {
-            continue;
-        }
-        let definition = match selected_definition {
-            Some(definition) => definition,
-            None => {
-                let mut definitions = source
-                    .data_definitions
-                    .iter()
-                    .inspect(|_| {})
-                    .filter(|data| data.symbol == symbol);
-                let definition = definitions.next().ok_or_else(|| mismatch(name))?;
-                if definitions.next().is_some() {
-                    return Err(mismatch(name));
-                }
-                definition
-            }
-        };
-        selected = Some(validate_origin(
-            source,
-            typed.as_deref_mut(),
-            name,
-            origin,
-            definition,
-            selected,
-        )?);
-        selected_definition = Some(definition);
-    }
-    if selected.is_none()
-        && source
-            .data_definitions
-            .iter()
-            .any(|definition| definition.symbol == symbol && definition.generic_instance.is_some())
-    {
+    let origin = source.tables.types.generic_application_origins.get(origin);
+    let references = &source.tables.declarations.child_type_references;
+    if !references.is_valid(origin.instance) || !references.is_valid(origin.application) {
         return Err(mismatch(name));
     }
-    Ok(selected)
+    let actual_symbol = match references.get(origin.instance) {
+        TypeReference::Named { symbol, .. } => *symbol,
+        TypeReference::Generic(application) => application.base_symbol,
+        _ => return Err(mismatch(name)),
+    };
+    if actual_symbol != symbol {
+        return Err(mismatch(name));
+    }
+    let definition = definition.ok_or_else(|| mismatch(name))?;
+    validate_origin(source, None, name, origin, definition).map(Some)
 }
 
 fn validate_origin<'source>(
     source: &'source resolved::SymbolResolvedTrees,
-    mut typed: Option<&mut typed::TypedTrees>,
+    typed: Option<&mut typed::TypedTrees>,
     name: &resolved::name::DiagnosticName,
     origin: &resolved::types::GenericApplicationOrigin,
     definition: &'source resolved::data::DataDefinition,
-    selected: Option<&TypeReference>,
 ) -> Result<&'source TypeReference, Diagnostic> {
     let references = &source.tables.declarations.child_type_references;
     let lifetimes = match references.get(origin.instance) {
@@ -354,44 +192,22 @@ fn validate_origin<'source>(
     };
     let mut equality = Equality {
         source,
-        typed: typed.as_deref_mut(),
+        typed,
         active: Vec::new(),
         canonical_lifetimes: &definition.lifetime_parameters,
         actual_lifetimes: &arguments.lifetime_arguments,
     };
     if source.symbols.get(arguments.base_symbol).kind != SymbolKind::Data
         || arguments.base_symbol != shared.base_symbol
-        || !equality.arguments(arguments.arguments, shared.arguments)
-        || selected.is_some_and(|previous| {
-            let mut exact = Equality {
-                source,
-                typed,
-                active: Vec::new(),
-                canonical_lifetimes: &[],
-                actual_lifetimes: &[],
-            };
-            !exact.reference(previous, application)
-        })
+        || !equality.application_arguments(
+            arguments.base_symbol,
+            arguments.arguments,
+            shared.arguments,
+        )
     {
         return Err(mismatch(name));
     }
     Ok(application)
-}
-
-/// The instance's (symbol, source-span) identity against the origin's
-/// expected `symbol`/`name`: `Ok(false)` is the scan's skip signal, other
-/// reference shapes are a shape mismatch.
-fn instance_identity_matches(
-    instance: &TypeReference,
-    symbol: SymbolHandle,
-    name: &resolved::name::DiagnosticName,
-) -> Result<bool, Diagnostic> {
-    let (instance_symbol, instance_name) = match instance {
-        TypeReference::Named { symbol, name, .. } => (*symbol, name),
-        TypeReference::Generic(value) => (value.base_symbol, &value.base_name),
-        _ => return Err(mismatch(name)),
-    };
-    Ok(instance_symbol == symbol && instance_name.source_span() == name.source_span())
 }
 
 fn mismatch(name: &resolved::name::DiagnosticName) -> Diagnostic {
@@ -410,6 +226,87 @@ struct Equality<'source, 'typed> {
 }
 
 impl Equality<'_, '_> {
+    fn application_arguments(
+        &mut self,
+        declaration: SymbolHandle,
+        left: HandleSpan<TypeReference>,
+        right: HandleSpan<TypeReference>,
+    ) -> bool {
+        let arena = &self.source.tables.declarations.child_type_references;
+        if left.count() != right.count()
+            || arena.span(left).is_none()
+            || arena.span(right).is_none()
+        {
+            return false;
+        }
+        let source = self.source;
+        let mut definitions = source
+            .data_definitions
+            .iter()
+            .filter(|definition| definition.symbol == declaration);
+        let Some(definition) = definitions.next() else {
+            return self.arguments(left, right);
+        };
+        if definitions.next().is_some() {
+            return false;
+        }
+        let parameters = source.data_type_parameters(definition.type_parameters);
+        if parameters.len() != left.len() {
+            // Non-telescope applications retain the original exact graph
+            // comparison. No Const slot exists to supply result correspondence.
+            return self.arguments(left, right);
+        }
+        parameters
+            .iter()
+            .zip(left.handles())
+            .zip(right.handles())
+            .all(|((parameter, left), right)| {
+                self.child(left, right)
+                    || matches!(
+                        parameter.kind,
+                        resolved::data::TypeParameterKind::Const { .. }
+                    ) && self.normalized_const_results_match(left, right)
+            })
+    }
+
+    /// Storage sharing never supplies admission for the later use. Its complete
+    /// original application is retained on the typed occurrence and checked at
+    /// the same declaration telescope before carrier identity is consumed.
+    fn normalized_const_results_match(
+        &self,
+        left: Handle<TypeReference>,
+        right: Handle<TypeReference>,
+    ) -> bool {
+        let result = |argument| {
+            let mut rows = self
+                .source
+                .tables
+                .types
+                .normalized_const_arguments
+                .iter()
+                .filter_map(|(_, row)| (row.argument == argument).then_some(row));
+            let row = rows.next()?;
+            if rows.next().is_some() {
+                return None;
+            }
+            Some(row.canonical_result_encoding.as_str())
+        };
+        let (Some(left), Some(right)) = (result(left), result(right)) else {
+            return false;
+        };
+        use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+        let left_value = CanonicalConstValue::new("", left, "");
+        let right_value = CanonicalConstValue::new("", right, "");
+        match (left_value.decode_encoding(), right_value.decode_encoding()) {
+            (
+                Some(DecodedCanonicalConstValue::Integer { value: left, .. }),
+                Some(DecodedCanonicalConstValue::Integer { value: right, .. }),
+            ) => left == right,
+            (Some(_), Some(_)) => left == right,
+            _ => false,
+        }
+    }
+
     fn arguments(
         &mut self,
         left: HandleSpan<TypeReference>,
@@ -502,7 +399,7 @@ impl Equality<'_, '_> {
                         .iter()
                         .zip(&right.lifetime_arguments)
                         .all(|(left, right)| self.lifetime(left, right))
-                    && self.arguments(left.arguments, right.arguments)
+                    && self.application_arguments(left.base_symbol, left.arguments, right.arguments)
             }
             (TypeReference::Constrained(left), TypeReference::Constrained(right)) => {
                 let constraints = &self.source.tables.types.constraints;
@@ -599,12 +496,14 @@ impl Equality<'_, '_> {
         let expressions = &self.source.tables.bodies.expressions;
         let typed = self.typed.as_deref_mut()?;
         let minimum = crate::expressions::expression::lower_expression_handle_from_table(
+            self.source,
             expressions,
             typed,
             minimum,
         )
         .ok()?;
         let maximum = crate::expressions::expression::lower_expression_handle_from_table(
+            self.source,
             expressions,
             typed,
             maximum,

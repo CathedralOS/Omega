@@ -1,7 +1,6 @@
 //! Boundary fields, exact traits, receiver shapes and adapter calls.
 
 use crate::boundary_dispatch::adapter_rows::{AdapterRow, GenericBoundaryRequirement};
-use crate::boundary_dispatch::signature_families::call_argument_const_identity;
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 
@@ -152,12 +151,9 @@ fn field_owns_target(
                 .machine_states(machine)
                 .first()
                 .is_some_and(|entry| entry.symbol == target_symbol)
-    }) || typed.traits().iter().any(|definition| {
-        definition.symbol == requirement_family
-            && typed
-                .trait_machine_signature_by_symbol(definition, target_symbol)
-                .is_some()
-    })
+    }) || typed
+        .trait_machine_signature(target_symbol)
+        .is_some_and(|(definition, _)| definition.symbol == requirement_family)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -215,10 +211,7 @@ pub(crate) fn resolve_adapter_call<'adapter>(
         .iter()
         .any(|adapter| !adapter.family_tuple.is_empty())
     {
-        let call_tuple = machine_arguments
-            .iter()
-            .map(|argument| call_argument_const_identity(typed, argument))
-            .collect::<Option<Vec<_>>>();
+        let call_tuple = typed.public_const_argument_identities(target_symbol, machine_arguments);
         let Some(call_tuple) = call_tuple else {
             return Err(Diagnostic::error(format!(
                 "boundary call `{target_name}` supplies a static argument that is not a closed const value; a finite-family call must select one declared tuple",

@@ -143,7 +143,13 @@ fn captured_contract_proven(
         program.proof_facts.get(contract.fact)
         && (super::super::current_values::proves_call(program, state, call, *required, frames)
             || super::super::entailment::structural_call_requirement(
-                program, facts, state, call, *required, frames,
+                program,
+                facts,
+                state,
+                call,
+                contract.fact,
+                *required,
+                frames,
             ))
     {
         return true;

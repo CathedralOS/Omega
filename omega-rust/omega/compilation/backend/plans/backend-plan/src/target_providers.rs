@@ -30,6 +30,13 @@ pub struct TerminalTargetProviderSelection {
 pub struct TerminalTargetProviderPlan {
     pub plan: effects::provider_plan::ProviderPlan,
     pub provider_declaration: Option<String>,
+    /// Concrete applications issued from the selected original source row.
+    /// Direct complete originals retain an identity application; unused open
+    /// members remain in `plan` without invented executable coordinates.
+    pub checked_applications: Vec<effects::SelectedRequirementSpecialization>,
+    /// Issuing owner of every application identity above. Neither artifact
+    /// identity indices nor original ProviderPlan indices belong to this table.
+    pub checked_application_identities: terminal_psi::TerminalIdentityTable,
 }
 
 impl TerminalTargetProviderSelection {

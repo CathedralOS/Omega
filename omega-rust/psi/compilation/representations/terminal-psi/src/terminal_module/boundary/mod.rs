@@ -10,7 +10,9 @@ mod services;
 
 pub use applications::{
     BoundaryApplication, BoundaryApplicationArgument, BoundaryApplicationCandidate,
-    BoundaryOperatorRequirement, BoundaryTypeIdentity, TerminalBoundaryApplicationDemand,
+    BoundaryApplicationLifetimeBinding, BoundaryDeclarationArgumentKind, BoundaryLifetimeArgument,
+    BoundaryLifetimeParameter, BoundaryOperatorRequirement, BoundaryTypeIdentity,
+    MAX_BOUNDARY_APPLICATION_DEPTH, TerminalBoundaryApplicationDemand,
 };
 pub use conformances::{
     ClosedConformanceApplication, ClosedConformanceApplicationCommitment,

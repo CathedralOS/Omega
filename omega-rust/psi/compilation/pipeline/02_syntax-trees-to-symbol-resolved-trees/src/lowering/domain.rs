@@ -204,20 +204,7 @@ fn lower_membership_domain_arguments(
     if arguments.is_empty() {
         return Ok(arena::HandleSpan::empty());
     }
-    let selection_start = lowerer.pending_const_argument_selections.len();
-    let lowered = crate::lowering::type_reference::lower_child_type_references(
-        lowerer,
-        syntax_trees,
-        arguments,
-    )?;
-    crate::lowering::type_reference::retain_const_argument_slots(
-        lowerer,
-        syntax_trees,
-        arguments,
-        lowered,
-        selection_start,
-    );
-    Ok(lowered)
+    crate::lowering::type_reference::lower_child_type_references(lowerer, syntax_trees, arguments)
 }
 
 pub(crate) fn lower_proof_facts(

@@ -10,6 +10,12 @@ use crate::{CheckedFactCallProjection, CheckedIntrinsicCallFact, CheckedPlacedVi
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckFacts {
+    /// Directional source judgments for the exact executed Product pairs.
+    /// This classification supplies no consent or complete closure receipt.
+    pub assumed_binding_contracts: crate::CheckedAssumedBindingContracts,
+    /// Canonical public signatures and source-linked conservation plans issued
+    /// at the original source-checking window, never rebuilt by realization.
+    pub public_contract_sources: crate::CheckedPublicContractSources,
     /// Portable specialization identities derived from checked machine contracts.
     pub specialization_identities: crate::CheckedSpecializationIdentities,
     /// One identity row per admission-claim template machine, including

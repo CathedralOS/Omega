@@ -82,6 +82,7 @@ pub(crate) fn project_callable_contracts(
     project_contracts(
         compilation,
         compilation.machine_contracts(machine),
+        machine.where_facts,
         &context,
         binders,
     )
@@ -96,6 +97,7 @@ pub(crate) fn project_trait_requirement_contracts(
     project_contracts(
         compilation,
         compilation.state_signature_contracts(requirement),
+        requirement.where_facts,
         context,
         binders,
     )
@@ -104,6 +106,7 @@ pub(crate) fn project_trait_requirement_contracts(
 pub(crate) fn project_contracts(
     compilation: &PackageReviewInput<'_>,
     contracts: &[typed_trees::signature::SignatureContract],
+    where_facts: arena::HandleSpan<typed_trees::domain::ProofFact>,
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
 ) -> Result<Vec<PackageReviewCallableContract>, Vec<Diagnostic>> {
@@ -118,7 +121,7 @@ pub(crate) fn project_contracts(
                 "contract review requires package-aware checked compilation",
             )]
         })?;
-    let mut projected = Vec::new();
+    let mut spans = Vec::new();
     for contract in contracts {
         let (kind, guarded_symbols, result_case) = match contract.kind {
             SignatureContractKind::Requires => (PackageReviewContractKind::Requires, None, None),
@@ -136,13 +139,32 @@ pub(crate) fn project_contracts(
             ),
             SignatureContractKind::Crashes { .. } => continue,
         };
-        if contract.facts.is_empty() {
+        spans.push((
+            kind,
+            guarded_symbols,
+            result_case,
+            contract.binding.as_ref(),
+            contract.facts,
+        ));
+    }
+    if !where_facts.is_empty() {
+        spans.push((
+            PackageReviewContractKind::Where,
+            None,
+            None,
+            None,
+            where_facts,
+        ));
+    }
+    let mut projected = Vec::new();
+    for (kind, guarded_symbols, result_case, binding, facts) in spans {
+        if facts.is_empty() {
             return Err(vec![Diagnostic::error(format!(
                 "reviewed {} `{}` has an empty public {:?} contract",
                 context.subject_kind, context.subject_name, kind
             ))]);
         }
-        for fact_handle in contract.facts.handles() {
+        for fact_handle in facts.handles() {
             let fact = match compilation.proof_facts.get(fact_handle) {
                 ProofFact::Expression(expression) => {
                     PackageReviewContractFact::Expression(project_contract_expression(
@@ -208,12 +230,12 @@ pub(crate) fn project_contracts(
                     fact_handle,
                     result_data,
                     result_case,
-                    contract.binding.as_ref(),
+                    binding,
                 )?;
                 validate_checked_contract_evidence_components(
                     compilation,
                     context,
-                    contract.binding.as_ref(),
+                    binding,
                     checked_trees::ContractProofFactOwner::Machine {
                         machine_symbol: checked.machine_symbol,
                     },
@@ -223,23 +245,16 @@ pub(crate) fn project_contracts(
                 )?
             } else {
                 let checked = checked_contract_fact(compilation, context, fact_handle, kind)?;
-                validate_checked_contract_evidence(
-                    compilation,
-                    context,
-                    contract.binding.as_ref(),
-                    checked,
-                    &fact,
-                )?
+                validate_checked_contract_evidence(compilation, context, binding, checked, &fact)?
             };
             projected.push(PackageReviewCallableContract {
                 kind,
                 result_case: result_case.clone(),
                 binding: match kind {
-                    PackageReviewContractKind::Ensures => contract
-                        .binding
-                        .as_ref()
-                        .map(|binding| binding.as_str().to_owned()),
-                    PackageReviewContractKind::Requires => None,
+                    PackageReviewContractKind::Ensures => {
+                        binding.map(|binding| binding.as_str().to_owned())
+                    }
+                    PackageReviewContractKind::Requires | PackageReviewContractKind::Where => None,
                 },
                 evidence_lane_position,
                 fact,

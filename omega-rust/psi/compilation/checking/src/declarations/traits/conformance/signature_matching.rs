@@ -13,6 +13,8 @@
 mod borrow_refinement;
 mod callable_parameters;
 mod region_application;
+pub(crate) use callable_parameters::requirement_callable_correspondence;
+pub use callable_parameters::requirement_invocation_parameters;
 
 use crate::value_custody::type_references::{type_reference_label, type_references_match};
 use diagnostics::Diagnostic;
@@ -147,34 +149,9 @@ pub(crate) fn authored_conformance_machine<'program>(
     program: &'program dyn crate::CheckingInput,
     machine: &'program Machine,
 ) -> Result<&'program Machine, Diagnostic> {
-    if !program.machine_type_parameters(machine).is_empty()
-        || program.machine_trait_conformances(machine).is_empty()
-    {
-        return Ok(machine);
-    }
-    let mut applications = program
-        .machine_specializations
-        .iter()
-        .filter(|application| application.instance == machine.symbol);
-    let Some(application) = applications.next() else {
-        return Ok(machine);
-    };
-    let template = program.machines().iter().find(|template| {
-        template.symbol == application.template
-            && template.symbol != machine.symbol
-            && template.type_parameters == application.template_parameters
-            && !program.machine_type_parameters(template).is_empty()
-            && program.machine_trait_conformances(template)
-                == program.machine_trait_conformances(machine)
-    });
-    template
-        .filter(|_| applications.next().is_none())
-        .ok_or_else(|| {
-            Diagnostic::error(format!(
-                "machine `{}` generic satisfaction lost its exact original family and application",
-                machine.name,
-            ))
-        })
+    program
+        .typed_program()
+        .authored_conformance_machine(machine)
 }
 
 pub(crate) fn validate_applied_trait_signature(
@@ -184,6 +161,7 @@ pub(crate) fn validate_applied_trait_signature(
     state: &State,
     application: &AppliedTraitScope<'_>,
     requirement: &StateSignature,
+    requirement_family: &StateSignature,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let trait_definition = application.declaration;
@@ -201,28 +179,25 @@ pub(crate) fn validate_applied_trait_signature(
     // axes in that same environment rather than mixing concrete parameters
     // with an open application. Ordinary checking still judges each concrete
     // body, and its operational ceiling is checked below.
-    let callable_machine = match authored_conformance_machine(program, machine) {
-        Ok(owner) => owner,
+    let correspondence = match requirement_callable_correspondence(
+        program,
+        machine,
+        state,
+        application,
+        requirement_family,
+    ) {
+        Ok(correspondence) => correspondence,
         Err(diagnostic) => {
             diagnostics.push(diagnostic);
             return;
         }
     };
-    let callable_state = if callable_machine.symbol == machine.symbol {
-        state
-    } else {
-        let Some(source_state) =
-            typed_trees::state::state_position(program.machine_states(machine), state.symbol)
-                .and_then(|ordinal| program.machine_states(callable_machine).get(ordinal))
-        else {
-            diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` generic satisfaction lost its exact original family and application",
-                machine.name,
-            )));
-            return;
-        };
-        source_state
-    };
+    let callable_machine = correspondence.machine;
+    let callable_state = correspondence.state;
+    // The closed header remains the exact operational contract of this body.
+    // Universal signature axes use both original families under the same scope.
+    let executable_requirement = requirement;
+    let requirement = correspondence.requirement;
     let actual_parameters =
         authored_satisfier_parameters(program, callable_machine, callable_state);
     let required_parameters = program.state_signature_parameters(requirement);
@@ -245,31 +220,12 @@ pub(crate) fn validate_applied_trait_signature(
     // The ordinary value/result comparisons below still read the declaration
     // under AppliedTraitScope, so their positional bindings must continue to
     // name its original locals. Mixing those two symbol rosters loses scope.
-    let applied_type_parameters = if requirement.type_parameters.is_empty() {
-        program.state_signature_type_parameters(requirement)
-    } else {
-        let Some(prepared) = program
-            .typed_program()
-            .applied_callable_signature(application, requirement.symbol)
-        else {
-            diagnostics.push(Diagnostic::error(format!(
-                "trait requirement `{}::{}` has no prepared callable telescope for its exact application",
-                trait_definition.name, requirement.name
-            )));
-            return;
-        };
-        program.state_signature_type_parameters(prepared)
-    };
+    let applied_type_parameters =
+        program.state_signature_type_parameters(correspondence.applied_requirement);
     // Fixed application arguments and an inline implementation's environment
     // are not fresh invocation binders. All remaining binders still undergo
     // ordinary universal kind, property and contract refinement below.
-    let actual_type_parameters = callable_parameters::invocation_parameters(
-        program,
-        machine,
-        callable_machine,
-        trait_definition.symbol,
-        requirement.symbol,
-    );
+    let actual_type_parameters = correspondence.invocation_parameters;
     let indexed_law_telescope_groups = indexed_law_callable_telescope_groups(
         program,
         trait_definition,
@@ -320,11 +276,11 @@ pub(crate) fn validate_applied_trait_signature(
         return;
     }
     let mut required_generic_types = trait_type_parameters.to_vec();
+    // Compound arguments may name const/value callable binders; their occurrences
+    // must use the same exact positional substitution as type binders.
     required_generic_types.extend(
-        requirement_type_parameters
-            .iter()
-            .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
-            .cloned(),
+        super::type_parameter_binding_pairs(requirement_type_parameters, &actual_type_parameters)
+            .map(|(required, _)| required.clone()),
     );
     let applied_generic_types = applied_type_parameters
         .iter()
@@ -485,9 +441,44 @@ pub(crate) fn validate_applied_trait_signature(
         machine,
         state,
         trait_definition.name.as_str(),
-        requirement,
+        executable_requirement,
         diagnostics,
     );
+
+    if !callable_machine.where_facts.is_empty() {
+        use crate::proof_contracts::contract_entailment::{
+            StrictArithmeticImplicationJudgment, callable_where_refinement_judgment,
+        };
+        let declaration =
+            typed_trees::static_applications::StaticApplicationDeclaration::for_symbol(
+                program.typed_program(),
+                callable_machine.symbol,
+            );
+        let judgment = declaration
+            .ok()
+            .filter(|_| applied_type_parameters.len() == actual_type_parameters.len())
+            .map(|declaration| {
+                let binder_correspondence = applied_type_parameters
+                    .iter()
+                    .zip(actual_type_parameters.iter())
+                    .map(|(required, actual)| (required.symbol, actual.symbol))
+                    .collect::<Vec<_>>();
+                callable_where_refinement_judgment(
+                    program,
+                    callable_machine.symbol,
+                    declaration.parameters(),
+                    actual_parameters,
+                    callable_machine.where_facts,
+                    correspondence.applied_requirement,
+                    &binder_correspondence,
+                )
+            });
+        if judgment != Some(StrictArithmeticImplicationJudgment::Proven) {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` declared where facts are not entailed by the complete public requirement `{}::{}`", callable_machine.name, trait_definition.name, requirement.name,
+            )));
+        }
+    }
 }
 
 fn validate_trait_effect_ceiling(

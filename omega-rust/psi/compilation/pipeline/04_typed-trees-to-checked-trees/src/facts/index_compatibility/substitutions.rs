@@ -396,11 +396,13 @@ pub(super) fn substituted_expression_matches_index_argument(
         program,
         IndexIdentityArgument::Expression(expression),
         &fact_bindings,
+        typed_trees::type_identity::TypeIdentityQualification::Ordinary,
     );
     let index_identity = normalized_index_identity(
         program,
         IndexIdentityArgument::TypeReference(argument),
         &index_bindings,
+        typed_trees::type_identity::TypeIdentityQualification::Ordinary,
     );
     fact_identity
         .zip(index_identity)

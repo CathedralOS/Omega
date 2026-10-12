@@ -8,15 +8,17 @@
 //! even inside one package; replay must use the same projection as derivation.
 
 mod applied_receivers;
+pub(crate) use applied_receivers::{receiver_identity, selection_matches_schema};
 
 use crate::ProviderPlanningContext;
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
+pub(crate) use applied_receivers::source_receiver_matches_schema;
 use checked_trees::typed_trees::trait_definition::{
     AppliedTraitScope, AppliedTypeReference, TraitApplicationArguments,
 };
 use effects::provider_plan::{
-    ProviderIdentityTable, ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceMethod,
-    ServiceProgressEstablishmentRoute, ServiceProgressEstablishmentRouteKind,
+    ProviderIdentityId, ProviderIdentityTable, ServiceEntryAuthorityFlow, ServiceEntryClaim,
+    ServiceMethod, ServiceProgressEstablishmentRoute, ServiceProgressEstablishmentRouteKind,
     ServiceProgressPremise, ServiceProgressSubject, ServiceResultClaim, ServiceSchema,
 };
 
@@ -351,6 +353,12 @@ fn collect_service_methods(
     identities: &mut ProviderIdentityTable,
 ) {
     let trait_definition = scope.declaration;
+    // Ordinary inherited declarations contribute contracts to source checking,
+    // not methods to the selected boundary service schema. Applied receiver
+    // traversal already owns the complete parent scopes and their custody.
+    if !trait_definition.is_boundary {
+        return;
+    }
     for signature in program.trait_machine_signatures(trait_definition) {
         let requirement_identity = identities
             .intern(&program.trait_requirement_callable_identity_text(trait_definition, signature));
@@ -365,56 +373,147 @@ fn collect_service_methods(
                 && application.boundary_arguments == boundary_arguments
                 && application.requirement_machine == signature.symbol
         });
-        methods.push(ServiceMethod {
-            completion:
-                checked_trees::typed_trees::boundary_completions::boundary_requirement_completion(
-                    program,
-                    signature.symbol,
-                ),
-            name: signature.name.as_str().to_owned(),
-            requirement_owner: program.trait_declaration_path(trait_definition),
-            requirement_owner_package_identity: program
-                .symbols
-                .symbol_package_identity(trait_definition.symbol),
+        methods.push(method_from_signature(
+            program,
+            scope,
+            signature,
+            signature.symbol,
             requirement_identity,
-            parameter_count: program.state_signature_parameters(signature).iter().count(),
-            parameter_type_identities: program
-                .state_signature_parameters(signature)
-                .iter()
-                .map(|parameter| {
-                    identities.intern(
-                        &program
-                            .type_identity_text(
-                                scope.type_identity(program, parameter.type_reference),
-                            )
-                            .unwrap_or_default(),
-                    )
-                })
-                .collect(),
-            entry_claims: service_entry_claims(program, scope, signature, identities),
-            has_result: signature.return_type.is_valid(),
-            result_type_identity: signature
-                .return_type
-                .is_valid()
-                .then(|| {
-                    identities.intern(
-                        &program
-                            .type_identity_text(scope.type_identity(program, signature.return_type))
-                            .unwrap_or_default(),
-                    )
-                })
-                .unwrap_or_default(),
-            result_claims: service_result_claims(program, scope, signature, identities),
-            service_reach: service_reach_names(program, trait_definition, signature),
-            synchronous_invocations: synchronous_invocation_names(program, signature),
-            may_suspend: signature.suspends,
-            may_block: signature.blocks,
-            terminates_guarantee: signature.termination_guarantee.promises_termination(),
-            termination_premises: service_progress_premises(program, signature, identities),
-            calling_plan_report_fingerprint: calling_plan
-                .map(|identity| identity.report_fingerprint),
-            calling_plan_commitment: calling_plan.map(|identity| identity.commitment),
-        });
+            calling_plan,
+            identities,
+        ));
+    }
+}
+
+/// Project one authentic public requirement, including an owned applied
+/// header, retaining its schema's issuing identity table. The generated
+/// symbol is local custody; the authored requirement
+/// supplies the declaration identity. Static tuple identity stays separately
+/// retained by the application owner rather than becoming a new overload.
+pub(crate) fn from_typed_requirement(
+    context: ProviderPlanningContext<'_>,
+    symbol: symbols::SymbolHandle,
+) -> Option<ServiceSchema> {
+    let program = context.typed;
+    let (definition, signature) = program.trait_machine_signature(symbol)?;
+    if !definition.is_boundary
+        || !context.contains(definition.symbol)
+        || !context.contains(signature.symbol)
+    {
+        return None;
+    }
+    let authored = if let Some(authored) =
+        program.trait_machine_signature_by_symbol(definition, symbol)
+    {
+        authored
+    } else {
+        let mut records = program
+            .instantiated_requirement_signatures
+            .iter()
+            .filter(|(_, row)| {
+                row.declaring_trait == definition.symbol
+                    && program.trait_machine_signatures.get(row.signature).symbol == symbol
+            });
+        let (_, row) = records.next()?;
+        if records.next().is_some() || !row.binding_application.is_valid() {
+            return None;
+        }
+        program.trait_machine_signature_by_symbol(definition, row.requirement_template)?
+    };
+    let identity = program.trait_requirement_callable_identity_text(definition, authored);
+    let mut identities = ProviderIdentityTable::default();
+    let requirement_identity = identities.intern(&identity);
+    let method = method_from_signature(
+        program,
+        &AppliedTraitScope::abstract_scope(definition),
+        signature,
+        authored.symbol,
+        requirement_identity,
+        None,
+        &mut identities,
+    );
+    Some(ServiceSchema {
+        trait_name: identities.intern(&program.trait_declaration_path(definition)),
+        trait_package_identity: program.symbols.symbol_package_identity(definition.symbol),
+        identities,
+        // This projection commits to one requirement, not a complete trait
+        // roster. It cannot license inherited whole-provider selection.
+        receiver_applications: Vec::new(),
+        methods: vec![method],
+    })
+}
+
+/// Every public axis derives from the retained declaration graph. Calling
+/// applications remain optional separately validated target input; a selected
+/// implementation or a same-shaped signature cannot contribute public facts.
+/// Applied headers own their payloads and completion; domain establishment
+/// routes still name the authenticated authored requirement declaration.
+fn method_from_signature(
+    program: &checked_trees::typed_trees::TypedTrees,
+    scope: &AppliedTraitScope<'_>,
+    signature: &checked_trees::typed_trees::signature::StateSignature,
+    authored_requirement: symbols::SymbolHandle,
+    requirement_identity: ProviderIdentityId,
+    calling_plan: Option<&BoundaryCallingPlanRealization>,
+    identities: &mut ProviderIdentityTable,
+) -> ServiceMethod {
+    let trait_definition = scope.declaration;
+    ServiceMethod {
+        completion:
+            checked_trees::typed_trees::boundary_completions::boundary_requirement_completion(
+                program,
+                signature.symbol,
+            ),
+        name: signature.name.as_str().to_owned(),
+        requirement_owner: program.trait_declaration_path(trait_definition),
+        requirement_owner_package_identity: program
+            .symbols
+            .symbol_package_identity(trait_definition.symbol),
+        requirement_identity,
+        parameter_count: program.state_signature_parameters(signature).iter().count(),
+        parameter_type_identities: program
+            .state_signature_parameters(signature)
+            .iter()
+            .map(|parameter| {
+                identities.intern(
+                    &program
+                        .type_identity_text(scope.type_identity(program, parameter.type_reference))
+                        .unwrap_or_default(),
+                )
+            })
+            .collect(),
+        entry_claims: service_entry_claims(
+            program,
+            scope,
+            signature,
+            authored_requirement,
+            identities,
+        ),
+        has_result: signature.return_type.is_valid(),
+        result_type_identity: if signature.return_type.is_valid() {
+            identities.intern(
+                &program
+                    .type_identity_text(scope.type_identity(program, signature.return_type))
+                    .unwrap_or_default(),
+            )
+        } else {
+            Default::default()
+        },
+        result_claims: service_result_claims(
+            program,
+            scope,
+            signature,
+            authored_requirement,
+            identities,
+        ),
+        service_reach: service_reach_names(program, trait_definition, signature),
+        synchronous_invocations: synchronous_invocation_names(program, signature),
+        may_suspend: signature.suspends,
+        may_block: signature.blocks,
+        terminates_guarantee: signature.termination_guarantee.promises_termination(),
+        termination_premises: service_progress_premises(program, signature, identities),
+        calling_plan_report_fingerprint: calling_plan.map(|identity| identity.report_fingerprint),
+        calling_plan_commitment: calling_plan.map(|identity| identity.commitment),
     }
 }
 
@@ -541,6 +640,7 @@ fn service_entry_claims(
     program: &checked_trees::typed_trees::TypedTrees,
     scope: &AppliedTraitScope<'_>,
     signature: &checked_trees::typed_trees::signature::StateSignature,
+    authored_requirement: symbols::SymbolHandle,
     identities: &mut ProviderIdentityTable,
 ) -> Vec<ServiceEntryClaim> {
     let mut claims = Vec::new();
@@ -558,7 +658,7 @@ fn service_entry_claims(
             reference,
             parameter_index,
             scope.declaration.symbol,
-            signature.symbol,
+            authored_requirement,
             identities,
             &mut claims,
         );
@@ -585,6 +685,7 @@ fn service_result_claims(
     program: &checked_trees::typed_trees::TypedTrees,
     scope: &AppliedTraitScope<'_>,
     signature: &checked_trees::typed_trees::signature::StateSignature,
+    authored_requirement: symbols::SymbolHandle,
     identities: &mut ProviderIdentityTable,
 ) -> Vec<ServiceResultClaim> {
     let reference = scope.type_reference(program, signature.return_type);
@@ -598,7 +699,7 @@ fn service_result_claims(
         program,
         reference,
         scope.declaration.symbol,
-        signature.symbol,
+        authored_requirement,
         identities,
         &mut claims,
     );

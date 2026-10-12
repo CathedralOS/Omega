@@ -174,6 +174,7 @@ pub(crate) fn finalize_const_argument_selections(
     pending: &[crate::resolution::lowerer::PendingConstArgumentSelection],
     slots: &[crate::resolution::lowerer::PendingConstArgumentSlot],
 ) -> Result<(), Diagnostic> {
+    let mut selected_integer_arguments = Vec::new();
     for (selection_ordinal, selection) in pending.iter().enumerate() {
         let origin = &selection.origin;
         let mut declarations = program.const_declarations.iter().filter(|declaration| {
@@ -266,6 +267,37 @@ pub(crate) fn finalize_const_argument_selections(
                     .with_source_span(origin.reference));
                 }
             }
+            if selection.is_argument_value
+                && origin.evaluated_value.encoding().is_some_and(|encoding| {
+                    matches!(
+                        language_semantics::const_value::CanonicalConstValue::new("", encoding, "")
+                            .decode_encoding(),
+                        Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer { .. })
+                    )
+                })
+                && let symbol_resolved_trees::types::TypeReference::Named { symbol, .. } = argument
+            {
+                if symbol.is_valid() && *symbol != declaration.symbol {
+                    return Err(Diagnostic::error(
+                        "selected integer argument differs from its original declaration",
+                    )
+                    .with_source_span(origin.reference));
+                }
+                // Integer lowering keeps the original operand instead of its
+                // canonical display. The authenticated whole-argument slot
+                // supplies that operand's declaration, not a destination type
+                // or a declaration chosen from equal value bytes.
+                let argument = slot.arguments.handle_at(slot.ordinal as u32);
+                if selected_integer_arguments.iter().any(|(retained, selected)| {
+                    *retained == argument && *selected != declaration.symbol
+                }) {
+                    return Err(Diagnostic::error(
+                        "integer argument has conflicting selected declarations",
+                    )
+                    .with_source_span(origin.reference));
+                }
+                selected_integer_arguments.push((argument, declaration.symbol));
+            }
             matched = true;
         }
         if requires_nominal_slot && !matched {
@@ -275,14 +307,32 @@ pub(crate) fn finalize_const_argument_selections(
             .with_source_span(origin.reference));
         }
         let selected = declaration.symbol;
-        program
-            .record_resolved_authored_declaration_selection(
-                origin.reference,
-                selection.exposure,
-                AuthoredDeclarationSelectionKind::StaticPathSegment,
-                selected,
-            )
-            .map_err(const_selection_record_diagnostic)?;
+        if let Some(exposure) = selection.authored_exposure {
+            program
+                .record_resolved_authored_declaration_selection(
+                    origin.reference,
+                    exposure,
+                    AuthoredDeclarationSelectionKind::StaticPathSegment,
+                    selected,
+                )
+                .map_err(const_selection_record_diagnostic)?;
+        }
+    }
+    for (argument, selected) in selected_integer_arguments {
+        let symbol_resolved_trees::types::TypeReference::Named { symbol, .. } = program
+            .tables
+            .declarations
+            .child_type_references
+            .get_mut(argument)
+        else {
+            unreachable!("retained selected integer argument is a named operand");
+        };
+        if symbol.is_valid() && *symbol != selected {
+            return Err(Diagnostic::error(
+                "integer argument has conflicting selected declarations",
+            ));
+        }
+        *symbol = selected;
     }
     Ok(())
 }

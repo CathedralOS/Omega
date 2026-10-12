@@ -1,0 +1,21 @@
+data Carrier<Payload> { value: Payload; }
+data Main { value: u64; }
+machine make(value: u64) -> Carrier<u64> { Carrier { value: value } }
+machine make_other(value: u64) -> Carrier<u64> { Carrier { value: value } }
+machine Carrier::choose<Payload, const Count: u64>(carrier: &Carrier<Payload>, witness: &[u8; Count]) -> u64
+where Count == 4 || Count == 8 {
+    transition { _ -> Count }
+}
+machine Main::main(main: &mut Main) crashes Trap {
+    let four: [u8; 4] = [0, 0, 0, 0];
+    let eight: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
+    let literal: u64 = Carrier::choose(&Carrier { value: main.value }, &four);
+    let returned: u64 = Carrier::choose(&make(main.value), &eight);
+    let matched: u64 = Carrier::choose(&(match main.value == 0 {
+        true -> make(main.value),
+        _ -> make_other(main.value),
+    }), &four);
+    transition literal == 4 && returned == 8 && matched == 4 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

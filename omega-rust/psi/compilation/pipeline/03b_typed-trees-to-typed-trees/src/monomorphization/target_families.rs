@@ -11,10 +11,9 @@ pub(super) fn clone_specialization(
     source: Option<&dyn CheckingInput>,
     program: &mut TypedTrees,
     candidate: &Candidate,
-    ordinal: usize,
     template_identity: String,
     template_commitment: Option<String>,
-) -> Result<Vec<(SymbolHandle, SymbolHandle)>, Vec<Diagnostic>> {
+) -> Result<super::body_cloning::SpecializedMachine, Vec<Diagnostic>> {
     let input = source.unwrap_or(program);
     let template = candidate.template.template_symbol;
     let mut families = input.target_machine_families.iter().filter(|family| {
@@ -40,7 +39,6 @@ pub(super) fn clone_specialization(
             source,
             program,
             candidate,
-            ordinal,
             template_identity,
             template_commitment,
         );
@@ -107,12 +105,12 @@ pub(super) fn clone_specialization(
     }
 
     let mut instances = Vec::with_capacity(plans.len());
-    let mut requested_states = None;
+    let mut requested_specialization = None;
     for (symbol, concrete, identity, commitment) in plans {
         let existing =
             super::saved_calls::candidate_instance(source.unwrap_or(program), program, &concrete)
                 .map(|instance| instance.instance);
-        let states = if let Some(instance) = existing {
+        let specialization = if let Some(instance) = existing {
             let machine = program
                 .machine_by_symbol(instance)
                 .ok_or_else(|| failure("retained specialization has no machine declaration"))?;
@@ -120,41 +118,24 @@ pub(super) fn clone_specialization(
             if states.len() != concrete.template.state_symbols.len() {
                 return Err(failure("retained specialization changes its state roster"));
             }
-            concrete
-                .template
-                .state_symbols
-                .iter()
-                .copied()
-                .zip(states.iter().map(|state| state.symbol))
-                .collect()
-        } else {
-            let instance_ordinal = if symbol == template {
-                ordinal
-            } else {
-                program
-                    .machine_specializations
+            super::body_cloning::SpecializedMachine {
+                instance,
+                state_symbols: concrete
+                    .template
+                    .state_symbols
                     .iter()
-                    .filter(|instance| instance.template == symbol)
-                    .count()
-            };
+                    .copied()
+                    .zip(states.iter().map(|state| state.symbol))
+                    .collect(),
+            }
+        } else {
             super::body_cloning::clone_single_specialized_machine(
-                source,
-                program,
-                &concrete,
-                instance_ordinal,
-                identity,
-                commitment,
+                source, program, &concrete, identity, commitment,
             )?
         };
-        let instance =
-            super::saved_calls::candidate_instance(source.unwrap_or(program), program, &concrete)
-                .ok_or_else(|| {
-                    failure("closed target family application has no retained specialization")
-                })?
-                .instance;
-        instances.push((symbol, instance));
+        instances.push((symbol, specialization.instance));
         if symbol == template {
-            requested_states = Some(states);
+            requested_specialization = Some(specialization);
         }
     }
     let closed_symbol = |symbol| {
@@ -188,7 +169,7 @@ pub(super) fn clone_specialization(
     } else {
         program.target_machine_families.push(family);
     }
-    requested_states
+    requested_specialization
         .ok_or_else(|| failure("closed target family omitted the requested declaration"))
 }
 

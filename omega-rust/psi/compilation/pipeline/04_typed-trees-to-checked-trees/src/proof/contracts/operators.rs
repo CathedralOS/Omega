@@ -54,6 +54,7 @@ fn append_contract_operator_use(
         let target = match kind {
             ContractProofFactKind::Requires => &mut requires,
             ContractProofFactKind::Ensures => &mut ensures,
+            ContractProofFactKind::Where => continue,
         };
 
         for fact in fact_handles(contract.facts) {

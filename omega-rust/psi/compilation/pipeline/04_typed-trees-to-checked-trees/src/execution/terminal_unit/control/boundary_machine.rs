@@ -248,52 +248,102 @@ pub(crate) fn build_static_boundary_requirements(
     shapes: &mut ShapeCollector<'_>,
 ) -> Vec<CheckedBoundaryMachinePlan> {
     let mut plans = Vec::new();
-    for definition in program
-        .traits()
-        .iter()
-        .filter(|definition| definition.is_boundary)
+    for (definition, signature) in program
+        .public_trait_requirement_signatures()
+        .filter(|(definition, _)| definition.is_boundary)
     {
-        for signature in program.trait_machine_instances(definition) {
-            // The declaration's outer telescope remains authored and open.
-            // Prepared instances retain its exact application and substituted
-            // formals; publish those instances without admitting the open head
-            // or inferring arguments from a selected provider's ABI.
-            if !program.trait_type_parameters(definition).is_empty()
-                && !program
-                    .closed_requirement_application(signature.symbol)
-                    .is_some_and(|application| application.declaring_trait == definition.symbol)
+        let Some(selected) = program.public_trait_requirement_signature(signature.symbol) else {
+            continue;
+        };
+        // An owned header carries the complete original source application.
+        // The authored trait telescope remains open; its source instance
+        // owns runtime formals and contracts without rewriting that roster.
+        let mut headers =
+            program
+                .instantiated_requirement_signatures
+                .iter()
+                .filter(|(_, header)| {
+                    program
+                        .trait_machine_signatures
+                        .get(header.signature)
+                        .symbol
+                        == signature.symbol
+                });
+        let original_application = if let Some((_, header)) = headers.next() {
+            if headers.next().is_some() || header.declaring_trait != definition.symbol {
+                continue;
+            }
+            let Ok(application) = typed_trees::static_applications::StaticApplicationView::new(
+                program.typed_program(),
+                header.binding_application,
+            ) else {
+                continue;
+            };
+            let Some(selected_interface) =
+                program.trait_definition_by_symbol(header.selected_interface)
+            else {
+                continue;
+            };
+            if application.declaration().symbol() != header.requirement_template
+                || !program
+                    .state_signature_type_parameters(signature)
+                    .is_empty()
+                || usize::try_from(header.captured_lifetime_count).ok()
+                    != Some(selected_interface.lifetime_parameters.len())
+                || application.lifetimes().len()
+                    != selected_interface.lifetime_parameters.len()
+                        + signature.lifetime_parameters.len()
             {
                 continue;
             }
-            let type_parameters = program.state_signature_type_parameters(signature);
-            // A `machine` binder without an ABI `native callback` entry takes
-            // its destination from a target-owned private slot. Psi retains
-            // the source callback entry; the target calling policy supplies
-            // and checks its placement in Omega.
-            let nominal_use_backs_binder =
-                |ordinal: usize, parameter: &typed_trees::data::TypeParameter| {
-                    let typed_trees::data::TypeParameterKind::Machine {
-                        contract:
-                            typed_trees::data::MachineParameterContract::Nominal {
-                                trait_definition,
-                                requirement,
-                                ..
-                            },
-                    } = parameter.kind
-                    else {
-                        return false;
-                    };
-                    facts.nominal_machine_uses.uses.iter().any(|nominal_use| {
-                        nominal_use.registration_operation == signature.symbol
-                            && usize::try_from(nominal_use.static_machine_ordinal).ok()
-                                == Some(ordinal)
-                            && nominal_use.satisfaction_trait == trait_definition
-                            && nominal_use.satisfaction_requirement == requirement
-                            && nominal_use.callback_entry.is_some()
-                    })
+            Some(application)
+        } else if selected.application.is_valid() {
+            // The common public projection authenticates the finite-family
+            // signature against its original template and exact retained tuple.
+            let Ok(application) = typed_trees::static_applications::StaticApplicationView::new(
+                program.typed_program(),
+                selected.application,
+            ) else {
+                continue;
+            };
+            if application.declaration().symbol() != selected.declaration.symbol {
+                continue;
+            }
+            Some(application)
+        } else {
+            if !program.trait_type_parameters(definition).is_empty() {
+                continue;
+            }
+            None
+        };
+        let type_parameters = program.state_signature_type_parameters(signature);
+        // A `machine` binder without an ABI `native callback` entry takes
+        // its destination from a target-owned private slot. Psi retains
+        // the source callback entry; the target calling policy supplies
+        // and checks its placement in Omega.
+        let nominal_use_backs_binder =
+            |ordinal: usize, parameter: &typed_trees::data::TypeParameter| {
+                let typed_trees::data::TypeParameterKind::Machine {
+                    contract:
+                        typed_trees::data::MachineParameterContract::Nominal {
+                            trait_definition,
+                            requirement,
+                            ..
+                        },
+                } = parameter.kind
+                else {
+                    return false;
                 };
-            let callback_telescope = signature.native_callback_parameters.len()
-                <= type_parameters.len()
+                facts.nominal_machine_uses.uses.iter().any(|nominal_use| {
+                    nominal_use.registration_operation == signature.symbol
+                        && usize::try_from(nominal_use.static_machine_ordinal).ok() == Some(ordinal)
+                        && nominal_use.satisfaction_trait == trait_definition
+                        && nominal_use.satisfaction_requirement == requirement
+                        && nominal_use.callback_entry.is_some()
+                })
+            };
+        let callback_telescope =
+            signature.native_callback_parameters.len() <= type_parameters.len()
                 && type_parameters
                     .iter()
                     .enumerate()
@@ -314,18 +364,19 @@ pub(crate) fn build_static_boundary_requirements(
                             None => nominal_use_backs_binder(ordinal, parameter),
                         }
                     });
-            // Authored contracts were checked against the selected public
-            // signature before executable planning. Publication retains that
-            // exact contract commitment; it does not require every predicate
-            // to be representable as a parameter qualification. Suspension and
-            // blocking stay independent demands even when a provider is inline.
-            // A generic telescope the callback path cannot reach is still
-            // planned when every checked call naming this requirement retains
-            // a specialization resolving the whole telescope: each `Type`
-            // binder's derived actual substitutes the formals below, and each
-            // `machine` binder's selected entry is already-admitted provider
-            // evidence this pass replays rather than re-derives.
-            let substitutions = if type_parameters.is_empty() || callback_telescope {
+        // Authored contracts were checked against the selected public
+        // signature before executable planning. Publication retains that
+        // exact contract commitment; it does not require every predicate
+        // to be representable as a parameter qualification. Suspension and
+        // blocking stay independent demands even when a provider is inline.
+        // A generic telescope the callback path cannot reach is still
+        // planned when every checked call naming this requirement retains
+        // a specialization resolving the whole telescope: each `Type`
+        // binder's derived actual substitutes the formals below, and each
+        // `machine` binder's selected entry is already-admitted provider
+        // evidence this pass replays rather than re-derives.
+        let substitutions =
+            if original_application.is_some() || type_parameters.is_empty() || callback_telescope {
                 Vec::new()
             } else {
                 let Some(substitutions) =
@@ -335,89 +386,88 @@ pub(crate) fn build_static_boundary_requirements(
                 };
                 substitutions
             };
-            let Some(result) =
-                boundary_result_plan(program, shapes, signature.return_type, &[], &substitutions)
-                    .and_then(|result| {
-                        fold_authorized_result_domains(
-                            program,
-                            shapes,
-                            definition.symbol,
-                            signature,
-                            signature.return_type,
-                            &[],
-                            result,
-                        )
-                    })
-            else {
-                continue;
-            };
-            let Some((structural_parameters, scalar_parameters)) = boundary_parameters(
-                program,
-                shapes,
-                program.state_signature_parameters(signature).iter(),
-                &substitutions,
-            ) else {
-                continue;
-            };
-            let Some(capsule) = facts
-                .contract_plans
-                .crash_capsule(definition.symbol, signature.symbol)
-            else {
-                continue;
-            };
-            // A contract cannot depend on callers or selected provider reach.
-            // The checking owner projected the declaration once, including its
-            // nominal service and invocation promises, even when never called.
-            let Some((_, published_reach)) = boundary_signature_reaches
-                .iter()
-                .find(|(requirement, _)| *requirement == signature.symbol)
-            else {
-                continue;
-            };
-            let service_reach = language_semantics::ServiceReachSummary {
-                direct: *published_reach,
-                transitive: *published_reach,
-            };
-            let domain_requirements = structural_parameters
-                .iter()
-                .enumerate()
-                .flat_map(|(argument_index, parameter)| {
-                    parameter.qualifications.iter().map(move |domain| {
-                        CheckedUnitStructuralDomainRequirementPlan {
-                            argument_index: u32::try_from(argument_index)
-                                .expect("structural parameter count already fits source positions"),
-                            domain: *domain,
-                        }
-                    })
+        let Some(result) =
+            boundary_result_plan(program, shapes, signature.return_type, &[], &substitutions)
+                .and_then(|result| {
+                    fold_authorized_result_domains(
+                        program,
+                        shapes,
+                        definition.symbol,
+                        signature,
+                        signature.return_type,
+                        &[],
+                        result,
+                    )
                 })
-                .collect();
-            plans.push(CheckedBoundaryMachinePlan {
-                machine: signature.symbol,
-                kind: semantic_vocabulary::BoundaryRequirementKind::Trait,
-                state: signature.symbol,
-                contract_owner: definition.symbol,
-                attachment_type_identity: None,
-                structural_parameters,
-                scalar_parameters,
-                result,
-                domain_requirements,
-                // Source checking owns these authored contracts. This declaration
-                // retains their exact commitment without publishing scalar
-                // consequences that the requirement projection did not derive.
-                // Parameter and result qualifications keep their own carriers.
-                scalar_ensures: Vec::new(),
-                scalar_requires: Vec::new(),
-                contract_report_fingerprint: capsule.target_contract_report_fingerprint(),
-                contract_commitment: capsule.target_contract_commitment(),
-                contract_service_reach: language_semantics::ServiceReachPlan {
-                    interface: language_semantics::ServiceReachInterface::PublishedCeiling(
-                        *published_reach,
-                    ),
-                    checked_inferred: *published_reach,
-                },
-                service_reach,
-            });
-        }
+        else {
+            continue;
+        };
+        let Some((structural_parameters, scalar_parameters)) = boundary_parameters(
+            program,
+            shapes,
+            program.state_signature_parameters(signature).iter(),
+            &substitutions,
+        ) else {
+            continue;
+        };
+        let Some(capsule) = facts
+            .contract_plans
+            .crash_capsule(definition.symbol, signature.symbol)
+        else {
+            continue;
+        };
+        // A contract cannot depend on callers or selected provider reach.
+        // The checking owner projected the declaration once, including its
+        // nominal service and invocation promises, even when never called.
+        let Some((_, published_reach)) = boundary_signature_reaches
+            .iter()
+            .find(|(requirement, _)| *requirement == signature.symbol)
+        else {
+            continue;
+        };
+        let service_reach = language_semantics::ServiceReachSummary {
+            direct: *published_reach,
+            transitive: *published_reach,
+        };
+        let domain_requirements = structural_parameters
+            .iter()
+            .enumerate()
+            .flat_map(|(argument_index, parameter)| {
+                parameter.qualifications.iter().map(move |domain| {
+                    CheckedUnitStructuralDomainRequirementPlan {
+                        argument_index: u32::try_from(argument_index)
+                            .expect("structural parameter count already fits source positions"),
+                        domain: *domain,
+                    }
+                })
+            })
+            .collect();
+        plans.push(CheckedBoundaryMachinePlan {
+            machine: signature.symbol,
+            kind: semantic_vocabulary::BoundaryRequirementKind::Trait,
+            state: signature.symbol,
+            contract_owner: definition.symbol,
+            attachment_type_identity: None,
+            structural_parameters,
+            scalar_parameters,
+            result,
+            domain_requirements,
+            // Source checking owns these authored contracts. This declaration
+            // retains their exact commitment without publishing scalar
+            // consequences that the requirement projection did not derive.
+            // Parameter and result qualifications keep their own carriers.
+            scalar_ensures: Vec::new(),
+            scalar_requires: Vec::new(),
+            contract_report_fingerprint: capsule.target_contract_report_fingerprint(),
+            contract_commitment: capsule.target_contract_commitment(),
+            contract_service_reach: language_semantics::ServiceReachPlan {
+                interface: language_semantics::ServiceReachInterface::PublishedCeiling(
+                    *published_reach,
+                ),
+                checked_inferred: *published_reach,
+            },
+            service_reach,
+        });
     }
     for operator in program
         .operators()

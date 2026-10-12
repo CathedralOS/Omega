@@ -21,6 +21,21 @@ pub(crate) fn lower_type_reference_handle(
     syntax_trees: &SyntaxTrees,
     type_reference: syntax::types::TypeReferenceHandle,
 ) -> Result<TypeReference, Diagnostic> {
+    let prior = lowerer.lowering_const_argument_expressions.len();
+    let prior_matches = lowerer.lowering_const_match_selections.len();
+    let result = lower_type_reference_with_const_arguments(lowerer, syntax_trees, type_reference);
+    lowerer.lowering_const_argument_expressions.truncate(prior);
+    lowerer
+        .lowering_const_match_selections
+        .truncate(prior_matches);
+    result
+}
+
+fn lower_type_reference_with_const_arguments(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    type_reference: syntax::types::TypeReferenceHandle,
+) -> Result<TypeReference, Diagnostic> {
     lowerer.encountered_pending_type_arguments.extend(
         syntax_trees
             .type_references
@@ -44,23 +59,41 @@ pub(crate) fn lower_type_reference_handle(
             normalization,
         )?;
         crate::constant::validate_normalized_expression(syntax_trees, normalization)?;
+        lowerer.lowering_const_match_selections.extend_from_slice(
+            syntax_trees
+                .type_references
+                .const_argument_match_selections(normalization.selected_matches),
+        );
         if normalization.authored_expression.is_valid()
             && !lowerer
                 .derived_const_argument_expressions
                 .contains(&normalization.authored_expression)
         {
-            let expression = lower_expression_into_table(
-                lowerer,
-                syntax_trees,
-                normalization.authored_expression,
-            )?;
-            lowerer.pending_const_argument_expressions.push(expression);
+            if !lowerer
+                .lowering_const_argument_expressions
+                .iter()
+                .any(|(source, _)| *source == normalization.authored_expression)
+            {
+                let expression = lower_expression_into_table(
+                    lowerer,
+                    syntax_trees,
+                    normalization.authored_expression,
+                )?;
+                lowerer
+                    .lowering_const_argument_expressions
+                    .push((normalization.authored_expression, expression));
+                lowerer.pending_const_argument_expressions.push(expression);
+            }
         }
         for origin in syntax_trees
             .type_references
             .const_argument_origins(normalization.selections)
         {
-            if !lowerer.derived_const_argument_origins.contains(origin) {
+            let authored_exposure = if lowerer.derived_const_argument_origins.contains(origin) {
+                // Copying a template argument preserves its selected operand,
+                // without publishing another authored public occurrence.
+                None
+            } else {
                 // Transitive declaration implementation does not become a new
                 // public index occurrence merely because its value is copied.
                 let authored_here =
@@ -72,19 +105,20 @@ pub(crate) fn lower_type_reference_handle(
                 } else {
                     language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
                 };
-                lowerer.pending_const_argument_selections.push(
-                    crate::resolution::lowerer::PendingConstArgumentSelection {
-                        origin: origin.clone(),
-                        exposure,
-                        // Exact occurrence custody distinguishes selection of
-                        // the whole argument from leaves used to compute it.
-                        // An initializer's record dependency may produce a
-                        // scalar projection without supplying that record to
-                        // the scalar binder. Equal payloads establish no link.
-                        is_argument_value: origin.reference == normalization.reference,
-                    },
-                );
-            }
+                Some(exposure)
+            };
+            lowerer.pending_const_argument_selections.push(
+                crate::resolution::lowerer::PendingConstArgumentSelection {
+                    origin: origin.clone(),
+                    authored_exposure,
+                    // Exact occurrence custody distinguishes selection of
+                    // the whole argument from leaves used to compute it.
+                    // An initializer's record dependency may produce a
+                    // scalar projection without supplying that record to
+                    // the scalar binder. Equal payloads establish no link.
+                    is_argument_value: origin.reference == normalization.reference,
+                },
+            );
         }
         for reference in syntax_trees
             .type_references
@@ -138,7 +172,7 @@ pub(crate) fn lower_type_reference_handle(
                 })?;
         }
     }
-    let lowered = lower_type_reference_node(lowerer, syntax_trees, type_reference)?;
+    let mut lowered = lower_type_reference_node(lowerer, syntax_trees, type_reference)?;
     let origin = syntax_trees
         .type_references
         .generic_application_origin(type_reference);
@@ -156,7 +190,7 @@ pub(crate) fn lower_type_reference_handle(
             .declarations
             .child_type_references
             .insert(application);
-        lowerer
+        let origin = lowerer
             .symbol_resolved_trees
             .tables
             .types
@@ -165,6 +199,17 @@ pub(crate) fn lower_type_reference_handle(
                 instance,
                 application,
             });
+        match &mut lowered {
+            TypeReference::Named {
+                application_origin, ..
+            } => *application_origin = origin,
+            TypeReference::Generic(application) => application.application_origin = origin,
+            _ => {
+                return Err(Diagnostic::error(
+                    "generated application lost its occurrence payload",
+                ));
+            }
+        }
     }
     Ok(lowered)
 }
@@ -194,6 +239,25 @@ fn lower_type_reference_node(
     syntax_trees: &SyntaxTrees,
     type_reference: syntax::types::TypeReferenceHandle,
 ) -> Result<TypeReference, Diagnostic> {
+    if let Some(normalization) = syntax_trees
+        .type_references
+        .const_argument_normalization(type_reference)
+        && matches!(
+            language_semantics::const_value::CanonicalConstValue::new(
+                "",
+                &normalization.canonical_result_encoding,
+                "",
+            )
+            .decode_encoding(),
+            Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer { .. })
+        )
+    {
+        // Integer value bytes do not carry arithmetic policy. Lower the
+        // original operand to produce that meaning from its own graph/carrier.
+        // Other completed value categories retain their canonical payload and
+        // existing exact selected-declaration/receiving-slot custody above.
+        return lower_type_reference_handle(lowerer, syntax_trees, normalization.original_operand);
+    }
     let mut lowered = match syntax_trees.type_references.type_reference(type_reference) {
         syntax::types::TypeReferenceNode::Reference {
             referee,
@@ -246,18 +310,11 @@ fn lower_type_reference_node(
                 *arguments,
                 lowerer.constant_selection.as_ref(),
             )?;
-            let selection_start = lowerer.pending_const_argument_selections.len();
             let lowered_arguments = lower_child_type_references(lowerer, syntax_trees, *arguments)?;
-            retain_const_argument_slots(
-                lowerer,
-                syntax_trees,
-                *arguments,
-                lowered_arguments,
-                selection_start,
-            );
             Ok(TypeReference::Generic(GenericTypeReference {
                 storage: GenericTypeReferenceStorage {
                     supplied_operand_owner: Default::default(),
+                    application_origin: arena::Handle::invalid(),
                     base_symbol: SymbolHandle::invalid(),
                     base_name: crate::lowering::name::lower_name(base_name),
                     lifetime_arguments: lifetime_arguments
@@ -269,8 +326,17 @@ fn lower_type_reference_node(
             }))
         }
         syntax::types::TypeReferenceNode::ConstExpression(expression) => {
-            let expression = lower_expression_into_table(lowerer, syntax_trees, *expression)?;
-            Ok(TypeReference::ConstExpression(expression))
+            let lowered = if let Some((_, lowered)) = lowerer
+                .lowering_const_argument_expressions
+                .iter()
+                .rev()
+                .find(|(source, _)| source == expression)
+            {
+                *lowered
+            } else {
+                lower_expression_into_table(lowerer, syntax_trees, *expression)?
+            };
+            Ok(TypeReference::ConstExpression(lowered))
         }
         syntax::types::TypeReferenceNode::DynamicTrait {
             trait_name,
@@ -283,6 +349,7 @@ fn lower_type_reference_node(
         }),
         syntax::types::TypeReferenceNode::Named(name) => Ok(TypeReference::Named {
             supplied_operand_owner: Default::default(),
+            application_origin: arena::Handle::invalid(),
             symbol: SymbolHandle::invalid(),
             name: crate::lowering::name::lower_name(name),
         }),
@@ -338,6 +405,7 @@ pub(crate) fn lower_child_type_references(
     // open span therefore interleaves the next argument's children with the
     // span, and the arena refuses the discontiguous append. Lower every
     // argument first, then place the finished run as one contiguous block.
+    let selection_start = lowerer.pending_const_argument_selections.len();
     let mut lowered = Vec::with_capacity(arguments.len());
 
     for argument in syntax_trees
@@ -351,12 +419,14 @@ pub(crate) fn lower_child_type_references(
         )?);
     }
 
-    Ok(lowerer
+    let lowered = lowerer
         .symbol_resolved_trees
         .tables
         .declarations
         .child_type_references
-        .insert_many(lowered))
+        .insert_many(lowered);
+    retain_const_argument_slots(lowerer, syntax_trees, arguments, lowered, selection_start);
+    Ok(lowered)
 }
 
 pub(crate) fn lower_type_constraint_handles(
@@ -395,15 +465,7 @@ fn lower_type_constraint_handle(
             crate::lowering::name::lower_name(name),
         )),
         syntax::types::TypeConstraintNode::Domain(domain) => {
-            let selection_start = lowerer.pending_const_argument_selections.len();
             let arguments = lower_child_type_references(lowerer, syntax_trees, domain.arguments)?;
-            retain_const_argument_slots(
-                lowerer,
-                syntax_trees,
-                domain.arguments,
-                arguments,
-                selection_start,
-            );
             Ok(TypeConstraint::Domain(
                 symbol_resolved_trees::types::DomainConstraint {
                     name: crate::lowering::name::lower_name(&domain.name),
@@ -430,21 +492,23 @@ fn lower_type_constraint_handle(
     }
 }
 
-// Both ordinary data applications and indexed domain constraints own their
-// exact argument spans. Carry that relationship privately through resolution;
+// Every static application owns its exact argument span, including indexed
+// domain arguments at casts and membership facts. Carry that relationship
+// through resolution;
 // source names and equal encoded atoms cannot reconstruct a receiving slot.
-pub(super) fn retain_const_argument_slots(
+fn retain_const_argument_slots(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     arguments: HandleSpan<syntax::types::TypeReferenceHandle>,
     lowered_arguments: HandleSpan<TypeReference>,
     selection_start: usize,
 ) {
-    for (ordinal, argument) in syntax_trees
+    for ((ordinal, argument), lowered_argument) in syntax_trees
         .type_references
         .type_reference_handles(arguments)
         .iter()
         .enumerate()
+        .zip(lowered_arguments.handles())
     {
         let Some(normalization) = syntax_trees
             .type_references
@@ -452,7 +516,16 @@ pub(super) fn retain_const_argument_slots(
         else {
             continue;
         };
-        // The actual Generic owns this immutable child span. Nested
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .types
+            .normalized_const_arguments
+            .insert(symbol_resolved_trees::types::NormalizedConstArgument {
+                argument: lowered_argument,
+                canonical_result_encoding: normalization.canonical_result_encoding.clone(),
+            });
+        // The actual application owns this immutable child span. Nested
         // applications carry their own spans; equal value encodings
         // never establish which parent parameter received a value.
         for selected in syntax_trees

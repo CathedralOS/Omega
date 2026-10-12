@@ -35,7 +35,7 @@ pub enum CompileResolvedPackageReviewsError {
     },
     BuildStagingCleanup {
         path: PathBuf,
-        error: io::Error,
+        error: std::sync::Arc<io::Error>,
         prior: Option<String>,
     },
     SourceCustody {
@@ -312,4 +312,11 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
     }
 }
 
-impl std::error::Error for CompileResolvedPackageReviewsError {}
+impl std::error::Error for CompileResolvedPackageReviewsError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::BuildStagingCleanup { error, .. } => Some(error.as_ref()),
+            _ => None,
+        }
+    }
+}

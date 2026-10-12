@@ -55,7 +55,7 @@ pub(in crate::machine_calls::calls) fn call_returns_unit(
     machine: &Machine,
     expression: ExpressionHandle,
 ) -> bool {
-    let Some(call) = program.expression_table.call_node(expression) else {
+    let Some(call) = program.expression_table.source_call_node(expression) else {
         return false;
     };
     if admitted_build_declaration_call(program, expression) {
@@ -86,17 +86,11 @@ pub(in crate::machine_calls::calls) fn call_returns_unit(
         Some(_) => return false,
         None => call.target_symbol,
     };
-    let mut results = program
-        .traits()
-        .iter()
-        .filter(|definition| definition.is_boundary)
-        .flat_map(|definition| program.trait_machine_instances(definition))
-        .filter(|signature| signature.symbol == requirement)
-        .map(|signature| signature.return_type);
-    results
-        .next()
-        .is_some_and(|result| unit_type(program, result))
-        && results.next().is_none()
+    program
+        .selected_trait_requirement_signature(requirement, call.authored_machine_application)
+        .is_some_and(|(definition, signature)| {
+            definition.is_boundary && unit_type(program, signature.return_type)
+        })
 }
 
 /// The checker establishes the Build namespace and explicit argument before validation;
@@ -106,39 +100,16 @@ pub(super) fn admitted_build_declaration_call(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
-    use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic;
     let Some(call) = program.expression_table.call_node(expression) else {
         return false;
     };
-    let (intrinsic, static_count, value_count) =
-        match BuildOperation::from_call_target(call.target.as_str()) {
-            Some(BuildOperation::ProviderSelection) => (
-                AuthoredDeclarationSelectionIntrinsic::BuildProviderSelection,
-                2..=2,
-                1..=2,
-            ),
-            Some(BuildOperation::ServiceExclusion) => (
-                AuthoredDeclarationSelectionIntrinsic::BuildServiceExclusion,
-                1..=1,
-                1..=1,
-            ),
-            Some(BuildOperation::BoundaryAcceptance) => (
-                AuthoredDeclarationSelectionIntrinsic::BuildBoundaryAcceptance,
-                1..=1,
-                1..=1,
-            ),
-            Some(BuildOperation::RepresentationSelection) => (
-                AuthoredDeclarationSelectionIntrinsic::BuildRepresentationSelection,
-                2..=2,
-                1..=1,
-            ),
-            Some(BuildOperation::WireCompatibilityRequest) => (
-                AuthoredDeclarationSelectionIntrinsic::BuildWireCompatibilityRequest,
-                5..=usize::MAX,
-                1..=1,
-            ),
-            _ => return false,
-        };
+    let Some(operation) = BuildOperation::from_call_target(call.target.as_str()) else {
+        return false;
+    };
+    let Some((static_count, value_count)) = operation.declaration_operand_counts() else {
+        return false;
+    };
+    let intrinsic = operation.intrinsic();
     if call.target_symbol.is_valid()
         || !call.receiver.is_valid()
         || !static_count.contains(&call.machine_arguments.len())

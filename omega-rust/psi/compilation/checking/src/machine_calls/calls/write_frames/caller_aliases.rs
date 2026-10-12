@@ -1087,6 +1087,7 @@ pub(super) fn expression_any(
             ExpressionNode::Unary(unary) => pending.push(unary.operand),
             ExpressionNode::Cast(cast) => pending.push(cast.value),
             ExpressionNode::Call(call) => {
+                let Some(call) = program.expression_table.source_call(call) else { return true; };
                 pending.push(call.receiver);
                 pending.extend(program.expression_table.expression_handles(call.arguments));
             }

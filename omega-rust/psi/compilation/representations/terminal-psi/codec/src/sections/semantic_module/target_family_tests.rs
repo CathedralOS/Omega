@@ -10,8 +10,7 @@ use terminal_psi::{
     TerminalModule, Terminator,
 };
 
-#[test]
-fn target_family_round_trip_preserves_exact_tags_callables_and_supplies() {
+fn module_with_unit_entry() -> TerminalModule {
     let machine = MachineId::new(1).unwrap();
     let block = BlockId::new(1).unwrap();
     let mut module = TerminalModule::for_entry(machine);
@@ -54,6 +53,13 @@ fn target_family_round_trip_preserves_exact_tags_callables_and_supplies() {
         }],
         contract: terminal_psi::MachineContract::empty(ContractId::new(1).unwrap()),
     });
+    module
+}
+
+#[test]
+fn target_family_round_trip_preserves_exact_tags_callables_and_supplies() {
+    let machine = MachineId::new(1).unwrap();
+    let mut module = module_with_unit_entry();
     let mut members = vec![TargetMachineFamilyMember {
         target: "freestanding_custom".into(),
         callable: TargetMachineCallable::Machine(machine),
@@ -128,7 +134,7 @@ fn target_family_round_trip_preserves_exact_tags_callables_and_supplies() {
 
 #[test]
 fn target_family_wire_rejects_duplicate_tags_and_missing_callables() {
-    let machine = TargetMachineCallable::Machine(MachineId::new(1).unwrap());
+    let machine = TargetMachineCallable::Machine(MachineId::new(2).unwrap());
     let boundary = TargetMachineCallable::Boundary(BoundaryMachineId::new(1).unwrap());
     for (case, members, expected_error) in [
         (
@@ -170,7 +176,8 @@ fn target_family_wire_rejects_duplicate_tags_and_missing_callables() {
             ),
         ),
     ] {
-        let mut module = TerminalModule::for_entry(MachineId::new(1).unwrap());
+        // The malformed family must reach its own check after a valid entry.
+        let mut module = module_with_unit_entry();
         module.target_machine_families.push(TargetMachineFamily {
             canonical: members[0].callable,
             head_contract: [1; 32],

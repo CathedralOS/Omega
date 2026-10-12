@@ -374,22 +374,43 @@ impl SyntaxCopy<'_> {
                 }
             }
         }
+        if let Some(declaration) = other.type_references.const_argument_declaration(handle) {
+            self.type_references
+                .retain_const_argument_declaration(copied, declaration.clone());
+        }
         if let Some(normalization) = other.type_references.const_argument_normalization(handle) {
-            self.type_references.retain_const_argument_normalization(
-                copied,
-                normalization.reference,
-                normalization.canonical_result_encoding.clone(),
-                other
-                    .type_references
-                    .const_argument_origins(normalization.selections)
-                    .iter()
-                    .cloned(),
-                other
-                    .type_references
-                    .const_argument_builtin_operators(normalization.builtin_operators)
-                    .iter()
-                    .copied(),
-            );
+            let original = self.copy_type_reference_handle(other, normalization.original_operand);
+            self.type_references
+                .retain_const_argument_normalization_from_operand(
+                    copied,
+                    original,
+                    normalization.reference,
+                    normalization.canonical_result_encoding.clone(),
+                    other
+                        .type_references
+                        .const_argument_origins(normalization.selections)
+                        .iter()
+                        .cloned(),
+                    other
+                        .type_references
+                        .const_argument_builtin_operators(normalization.builtin_operators)
+                        .iter()
+                        .copied(),
+                );
+        }
+        if let Some(normalization) = other.type_references.const_argument_normalization(handle) {
+            let selections = other
+                .type_references
+                .const_argument_match_selections(normalization.selected_matches)
+                .iter()
+                .map(|selection| crate::types::ConstArgumentMatchSelection {
+                    expression: self.copy_expression_handle(other, selection.expression),
+                    selected: self.copy_expression_handle(other, selection.selected),
+                    integer_meaning: selection.integer_meaning,
+                })
+                .collect::<Vec<_>>();
+            self.type_references
+                .retain_const_argument_match_selections(copied, selections);
         }
         if let Some(normalization) = other.type_references.const_argument_normalization(handle)
             && normalization.authored_expression.is_valid()
@@ -599,6 +620,8 @@ impl SyntaxCopy<'_> {
         let source_span = other.expressions.source_span(handle);
         let copied = self.expressions.insert(expression);
         self.expressions.set_source_span(copied, source_span);
+        self.expressions
+            .retain_original_expression(copied, other.expressions.original_expression(handle));
         if self.expression_copies.len() <= source_position {
             self.expression_copies.resize(
                 source_position + 1,

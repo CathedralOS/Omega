@@ -79,6 +79,276 @@ impl TypedTrees {
             .find(|application| application.signature.symbol == instance)
     }
 
+    /// Rejoin a finite signature's declaration-scoped tuple to a complete
+    /// source invocation. The signature keeps invocation lifetimes universal;
+    /// those caller loans and an inherited presentation do not belong to the
+    /// synthetic tuple. They remain in the original complete application view.
+    pub fn closed_requirement_application_matches_call(
+        &self,
+        instance: SymbolHandle,
+        application: static_applications::StaticMachineApplicationHandle,
+    ) -> bool {
+        use crate::type_identity::{
+            AppliedTypeIdentityOwner, AppliedTypeIdentityScope, IndexIdentityArgument,
+            TypeIdentityQualification, applied_static_parameter_identity,
+        };
+        if !self
+            .expression_table
+            .static_machine_application_is_valid(application)
+        {
+            return false;
+        }
+        let mut instances = self
+            .closed_requirement_applications()
+            .filter(|row| row.signature.symbol == instance);
+        let Some(closed) = instances.next() else {
+            return false;
+        };
+        if instances.next().is_some()
+            || !self
+                .expression_table
+                .static_machine_application_is_valid(closed.application)
+        {
+            return false;
+        }
+        let Ok(actual) = static_applications::StaticApplicationView::new(self, application) else {
+            return false;
+        };
+        if actual.declaration().symbol() != closed.template
+            || actual.application().registration_operation != closed.template
+        {
+            return false;
+        }
+        let Some((owner, signature)) = self.trait_machine_signature(closed.template) else {
+            return false;
+        };
+        if owner.symbol != closed.declaring_trait || !owner.lifetime_parameters.is_empty() {
+            return false;
+        }
+        let selected = if actual.application().selected_interface.is_valid() {
+            actual.application().selected_interface
+        } else {
+            owner.symbol
+        };
+        let Some(selected) = self.trait_definition_by_symbol(selected) else {
+            return false;
+        };
+        if !selected.lifetime_parameters.is_empty() {
+            return false;
+        }
+        let parameters = self.trait_type_parameters(owner);
+        let local_parameters = self.state_signature_type_parameters(signature);
+        if parameters.len() != closed.trait_arguments.len()
+            || local_parameters.len() != closed.local_arguments.len()
+            || owner.conformance_bounds.iter().any(|bound| {
+                !parameters
+                    .iter()
+                    .any(|parameter| parameter.symbol == bound.binder)
+            })
+        {
+            return false;
+        }
+        let Some(lexical_owner) = actual.application().type_identity_owner(self) else {
+            return false;
+        };
+        let actual_arguments = actual
+            .bindings()
+            .iter()
+            .map(|binding| {
+                let argument = match &binding.value {
+                    static_applications::StaticMachineBindingValue::Type(reference) => {
+                        IndexIdentityArgument::TypeArgument(*reference)
+                    }
+                    static_applications::StaticMachineBindingValue::Const(reference) => {
+                        IndexIdentityArgument::TypeReference(*reference)
+                    }
+                    static_applications::StaticMachineBindingValue::Machine(argument)
+                    | static_applications::StaticMachineBindingValue::Conformance(argument) => {
+                        IndexIdentityArgument::StaticArgument(argument)
+                    }
+                    static_applications::StaticMachineBindingValue::RuntimeValue { .. } => {
+                        return None;
+                    }
+                };
+                Some((binding.parameter, argument))
+            })
+            .collect::<Option<Vec<_>>>();
+        let Some(actual_arguments) = actual_arguments else {
+            return false;
+        };
+        let lifetimes = actual
+            .lifetimes()
+            .iter()
+            .map(|(formal, binding)| (formal.name.to_string(), binding.argument.scope_argument()))
+            .collect::<Vec<_>>();
+        let expected_arguments = parameters
+            .iter()
+            .zip(closed.trait_arguments)
+            .map(|(parameter, reference)| {
+                let argument = if matches!(parameter.kind, data::TypeParameterKind::Type) {
+                    IndexIdentityArgument::TypeArgument(*reference)
+                } else {
+                    IndexIdentityArgument::TypeReference(*reference)
+                };
+                (parameter.symbol, argument)
+            })
+            .collect::<Vec<_>>();
+        let expected_scopes = [AppliedTypeIdentityScope {
+            region_role: crate::type_identity::AppliedTypeIdentityRegionRole::Supplied,
+            declaration: owner.symbol,
+            arguments: &expected_arguments,
+            lifetimes: &[],
+        }];
+        let expected_local_arguments = local_parameters
+            .iter()
+            .zip(closed.local_arguments)
+            .map(|(parameter, reference)| {
+                let argument = if matches!(parameter.kind, data::TypeParameterKind::Type) {
+                    IndexIdentityArgument::TypeArgument(*reference)
+                } else {
+                    IndexIdentityArgument::TypeReference(*reference)
+                };
+                (parameter.symbol, argument)
+            })
+            .collect::<Vec<_>>();
+        let expected_local_scopes = [
+            expected_scopes[0],
+            AppliedTypeIdentityScope {
+                region_role: crate::type_identity::AppliedTypeIdentityRegionRole::Supplied,
+                declaration: closed.template,
+                arguments: &expected_local_arguments,
+                lifetimes: &[],
+            },
+        ];
+        let expected_owner = AppliedTypeIdentityOwner::Declaration(closed.template);
+        let expected_outer = parameters
+            .iter()
+            .zip(closed.trait_arguments)
+            .map(|(parameter, reference)| {
+                let argument = if matches!(parameter.kind, data::TypeParameterKind::Type) {
+                    IndexIdentityArgument::TypeArgument(*reference)
+                } else {
+                    IndexIdentityArgument::TypeReference(*reference)
+                };
+                applied_static_parameter_identity(
+                    self,
+                    parameter,
+                    argument,
+                    expected_owner,
+                    &expected_scopes,
+                    TypeIdentityQualification::Ordinary,
+                )
+            })
+            .collect::<Option<Vec<_>>>();
+        let expected_local = local_parameters
+            .iter()
+            .zip(closed.local_arguments)
+            .map(|(parameter, reference)| {
+                let argument = if matches!(parameter.kind, data::TypeParameterKind::Type) {
+                    IndexIdentityArgument::TypeArgument(*reference)
+                } else {
+                    IndexIdentityArgument::TypeReference(*reference)
+                };
+                applied_static_parameter_identity(
+                    self,
+                    parameter,
+                    argument,
+                    expected_owner,
+                    &expected_local_scopes,
+                    TypeIdentityQualification::Ordinary,
+                )
+            })
+            .collect::<Option<Vec<_>>>();
+        let (Some(expected_outer), Some(expected_local)) = (expected_outer, expected_local) else {
+            return false;
+        };
+        let mut found = false;
+        let mut agrees = true;
+        crate::trait_definition::AppliedTraitScope::abstract_scope(selected).visit(
+            self,
+            &mut |scope| {
+                if scope.declaration.symbol != owner.symbol {
+                    return;
+                }
+                found = true;
+                // Keep every original parent telescope simultaneous. No parent
+                // operand is interpreted in the telescope it is replacing.
+                let groups = scope
+                    .substitution_scope_starts
+                    .iter()
+                    .enumerate()
+                    .map(|(ordinal, start)| {
+                        let end = scope
+                            .substitution_scope_starts
+                            .get(ordinal + 1)
+                            .copied()
+                            .unwrap_or(scope.substitutions.len());
+                        scope.substitutions[*start..end]
+                            .iter()
+                            .map(|(parameter, reference)| {
+                                let parameter = self.data_type_parameter_by_symbol(*parameter)?;
+                                let argument =
+                                    if matches!(parameter.kind, data::TypeParameterKind::Type) {
+                                        IndexIdentityArgument::TypeArgument(*reference)
+                                    } else {
+                                        IndexIdentityArgument::TypeReference(*reference)
+                                    };
+                                Some((parameter.symbol, argument))
+                            })
+                            .collect::<Option<Vec<_>>>()
+                    })
+                    .collect::<Option<Vec<_>>>();
+                let Some(groups) = groups else {
+                    agrees = false;
+                    return;
+                };
+                let mut scopes = vec![AppliedTypeIdentityScope {
+                    region_role: crate::type_identity::AppliedTypeIdentityRegionRole::Supplied,
+                    declaration: closed.template,
+                    arguments: &actual_arguments,
+                    lifetimes: &lifetimes,
+                }];
+                for group in &groups {
+                    let Some((parameter, _)) = group.first() else {
+                        continue;
+                    };
+                    let declaration = self.symbols.get(*parameter).parent;
+                    if self
+                        .trait_definition_by_symbol(declaration)
+                        .is_none_or(|owner| !owner.lifetime_parameters.is_empty())
+                    {
+                        agrees = false;
+                        return;
+                    }
+                    scopes.push(AppliedTypeIdentityScope {
+                        region_role: crate::type_identity::AppliedTypeIdentityRegionRole::Supplied,
+                        declaration,
+                        arguments: group,
+                        lifetimes: &[],
+                    });
+                }
+                for (parameter, expected) in parameters
+                    .iter()
+                    .zip(&expected_outer)
+                    .chain(local_parameters.iter().zip(&expected_local))
+                {
+                    let identity = applied_static_parameter_identity(
+                        self,
+                        parameter,
+                        IndexIdentityArgument::Subject(parameter.symbol),
+                        lexical_owner,
+                        &scopes,
+                        TypeIdentityQualification::Ordinary,
+                    );
+                    if identity.as_ref() != Some(expected) {
+                        agrees = false;
+                    }
+                }
+            },
+        );
+        found && agrees
+    }
+
     /// Whether a checked satisfaction/map scope selects this closed requirement's
     /// exact declaring application. Inherited paths must agree; an equal local
     /// tuple cannot substitute another trait application or phantom argument.
@@ -89,7 +359,7 @@ impl TypedTrees {
         scope: &crate::trait_definition::AppliedTraitScope<'program>,
     ) -> bool {
         let Some(application) = self.closed_requirement_application(requirement) else {
-            return false;
+            return self.owned_requirement_application_matches_scope(requirement, scope);
         };
         let Some(declaration) = self.trait_definition_by_symbol(application.declaring_trait) else {
             return false;
@@ -98,6 +368,253 @@ impl TypedTrees {
             .declaring_scope(self, declaration.symbol)
             .and_then(|actual| actual.application_identity(self))
             == Some(application.trait_application_identity)
+    }
+
+    /// Compare a produced public header's original selected-interface telescope
+    /// with an independently retained provider scope. The method application remains in
+    /// the header identity; only its exact outer tuple selects a provider schema.
+    /// The shared full application key retains supplying scopes and regions;
+    /// erased or missing operands cannot license a correspondence.
+    fn owned_requirement_application_matches_scope(
+        &self,
+        requirement: SymbolHandle,
+        scope: &crate::trait_definition::AppliedTraitScope<'_>,
+    ) -> bool {
+        use crate::type_identity::{
+            AppliedTypeIdentityScope, IndexIdentityArgument, TypeIdentityQualification,
+            applied_lifetime_identity, applied_static_parameter_identity,
+            local_trait_application_identity,
+        };
+        let mut headers = self
+            .instantiated_requirement_signatures
+            .iter()
+            .filter(|(_, row)| {
+                self.trait_machine_signatures.get(row.signature).symbol == requirement
+            });
+        let Some((_, header)) = headers.next() else {
+            return false;
+        };
+        if headers.next().is_some() {
+            return false;
+        }
+        let Some((declaration, original)) =
+            self.trait_machine_signature(header.requirement_template)
+        else {
+            return false;
+        };
+        let Some(selected) = self
+            .selected_public_trait_requirement_signature(requirement, header.binding_application)
+        else {
+            return false;
+        };
+        if selected.declaration.symbol != original.symbol
+            || selected.owner.symbol != declaration.symbol
+            || header.declaring_trait != declaration.symbol
+        {
+            return false;
+        }
+        let interface = scope.declaration;
+        if interface.conformance_bounds.iter().any(|bound| {
+            !self
+                .trait_type_parameters(interface)
+                .iter()
+                .any(|parameter| parameter.symbol == bound.binder)
+        }) || static_applications::requirement_provider_application_identity(
+            self,
+            requirement,
+            interface.symbol,
+        )
+        .is_err()
+        {
+            return false;
+        }
+        let Some(roster) = self
+            .requirement_interface_applications
+            .span(header.interface_applications)
+        else {
+            return false;
+        };
+        let mut rows = roster
+            .iter()
+            .filter(|row| row.interface == interface.symbol);
+        let Some(row) = rows.next() else {
+            return false;
+        };
+        if rows.next().is_some() {
+            return false;
+        }
+        let Ok(application) =
+            static_applications::StaticApplicationView::new(self, row.binding_application)
+        else {
+            return false;
+        };
+        if application.declaration().symbol() != original.symbol {
+            return false;
+        }
+        let Some(owner) = application.application().type_identity_owner(self) else {
+            return false;
+        };
+        let Some(arguments) = application
+            .bindings()
+            .iter()
+            .filter(|binding| {
+                self.trait_type_parameters(interface)
+                    .iter()
+                    .any(|parameter| parameter.symbol == binding.parameter)
+                    || interface
+                        .conformance_bounds
+                        .iter()
+                        .any(|bound| bound.binder == binding.parameter)
+            })
+            .map(|binding| {
+                let value = match &binding.value {
+                    static_applications::StaticMachineBindingValue::Type(reference) => {
+                        IndexIdentityArgument::TypeArgument(*reference)
+                    }
+                    static_applications::StaticMachineBindingValue::Const(reference) => {
+                        IndexIdentityArgument::TypeReference(*reference)
+                    }
+                    static_applications::StaticMachineBindingValue::Machine(argument)
+                    | static_applications::StaticMachineBindingValue::Conformance(argument) => {
+                        IndexIdentityArgument::StaticArgument(argument)
+                    }
+                    static_applications::StaticMachineBindingValue::RuntimeValue { .. } => {
+                        return None;
+                    }
+                };
+                Some((binding.parameter, value))
+            })
+            .collect::<Option<Vec<_>>>()
+        else {
+            return false;
+        };
+        let Some(captured) = application
+            .lifetimes()
+            .get(..interface.lifetime_parameters.len())
+        else {
+            return false;
+        };
+        if captured
+            .iter()
+            .zip(&interface.lifetime_parameters)
+            .any(|((formal, _), parameter)| formal.name != parameter)
+        {
+            return false;
+        }
+        let lifetimes = captured
+            .iter()
+            .map(|(formal, binding)| (formal.name.to_string(), binding.argument.scope_argument()))
+            .collect::<Vec<_>>();
+        let scopes = [AppliedTypeIdentityScope {
+            region_role: crate::type_identity::AppliedTypeIdentityRegionRole::Supplied,
+            declaration: interface.symbol,
+            arguments: &arguments,
+            lifetimes: &lifetimes,
+        }];
+        let Some(expected) = self
+            .trait_type_parameters(interface)
+            .iter()
+            .map(|parameter| {
+                applied_static_parameter_identity(
+                    self,
+                    parameter,
+                    IndexIdentityArgument::Subject(parameter.symbol),
+                    owner,
+                    &scopes,
+                    TypeIdentityQualification::Ordinary,
+                )
+            })
+            .collect::<Option<Vec<_>>>()
+        else {
+            return false;
+        };
+        let Some(regions) = interface
+            .lifetime_parameters
+            .iter()
+            .map(|parameter| applied_lifetime_identity(self, parameter.as_str(), owner, &scopes))
+            .collect::<Option<Vec<_>>>()
+        else {
+            return false;
+        };
+        let Some(expected) =
+            local_trait_application_identity(self, interface.symbol, &expected, &regions)
+        else {
+            return false;
+        };
+        scope.application_identity(self) == Some(expected)
+    }
+
+    /// Join a selected public call to its genuine runtime receiver.
+    /// The finite producer retains its declaring scope; an owned public header
+    /// retains complete reachable interface applications. Receiver regions and
+    /// operand categories come from the original type payload and lexical owner,
+    /// never from a declaration-only scope or the copied runtime ABI signature.
+    pub fn requirement_application_matches_receiver<'program>(
+        &'program self,
+        requirement: SymbolHandle,
+        call_application: static_applications::StaticMachineApplicationHandle,
+        scope: &crate::trait_definition::AppliedTraitScope<'program>,
+        receiver: types::TypeReferenceHandle,
+        lexical_owner: crate::type_identity::AppliedTypeIdentityOwner<'_>,
+    ) -> bool {
+        let Some(selected) =
+            self.selected_public_trait_requirement_signature(requirement, call_application)
+        else {
+            return false;
+        };
+        if let Some(application) = self.closed_requirement_application(requirement) {
+            // Finite tuples intentionally have no erased region payload. Do
+            // not let ordinary scope equality erase a region-bearing receiver.
+            let Some(actual) = scope.declaring_scope(self, application.declaring_trait) else {
+                return false;
+            };
+            if !scope.declaration.lifetime_parameters.is_empty()
+                || !actual.declaration.lifetime_parameters.is_empty()
+                || actual
+                    .region_free_parameter_identities(
+                        self,
+                        crate::type_identity::TypeIdentityQualification::Ordinary,
+                    )
+                    .is_none()
+            {
+                return false;
+            }
+            return self.requirement_application_matches_scope(requirement, scope);
+        }
+        let Some(executable) = self.public_trait_requirement_signature(requirement) else {
+            return false;
+        };
+        if scope.declaring_scope(self, selected.owner.symbol).is_none() {
+            return false;
+        }
+        let expected = if executable.application.is_valid() {
+            // Produced headers keep their exact inherited interface roster.
+            // The call tuple authenticated above cannot borrow another header.
+            static_applications::requirement_provider_application_identity(
+                self,
+                requirement,
+                scope.declaration.symbol,
+            )
+        } else {
+            // A complete logical contract can precede body specialization.
+            // Its own original call, not a fabricated executable header,
+            // supplies the complete selected-interface tuple and regions.
+            static_applications::requirement_call_interface_identity(
+                self,
+                requirement,
+                call_application,
+                scope.declaration.symbol,
+            )
+        };
+        let Ok(expected) = expected else {
+            return false;
+        };
+        let Ok(actual) =
+            static_applications::trait_type_application_identity(self, receiver, lexical_owner)
+        else {
+            return false;
+        };
+        actual == expected
     }
 
     /// Join a finite requirement coordinate to the exact realization receipt.
@@ -163,7 +680,8 @@ impl TypedTrees {
         }
         let source = self
             .expression_table
-            .static_machine_application(application);
+            .static_machine_application(application)
+            .clone();
         if source.registration_operation != template || source.binding_declaration != template {
             return Err("closed requirement application names a different declaration");
         }
@@ -251,19 +769,19 @@ impl TypedTrees {
                                     let existing_owner = self
                                         .expression_table
                                         .static_machine_application(existing.application)
-                                        .lexical_owner;
-                                    crate::type_identity::applied_type_identity(
-                                        self,
-                                        *left,
-                                        existing_owner,
-                                        &[],
-                                    )
-                                    .zip(crate::type_identity::applied_type_identity(
-                                        self,
-                                        *right,
-                                        lexical_owner,
-                                        &[],
-                                    ))
+                                        .type_identity_owner(self);
+                                    existing_owner.and_then(|owner| {
+                                        crate::type_identity::applied_type_identity(
+                                            self, *left, owner, &[],
+                                            crate::type_identity::TypeIdentityQualification::Ordinary,
+                                        )
+                                    })
+                                    .zip(source.type_identity_owner(self).and_then(|owner| {
+                                        crate::type_identity::applied_type_identity(
+                                            self, *right, owner, &[],
+                                            crate::type_identity::TypeIdentityQualification::Ordinary,
+                                        )
+                                    }))
                                     .is_some_and(|(left, right)| left == right)
                                 }
                                 (left, right) => left == right,
