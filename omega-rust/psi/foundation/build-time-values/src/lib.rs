@@ -140,3 +140,26 @@ impl BuildTimeValue {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::BuildTimeValue;
+
+    #[test]
+    fn retained_nested_floating_content_preserves_zero_sign_and_nan_payload() {
+        let retained = |bits| BuildTimeValue::Struct {
+            type_name: "Snapshot".into(),
+            fields: vec![(
+                "samples".into(),
+                BuildTimeValue::Array(vec![BuildTimeValue::Float(f64::from_bits(bits))]),
+            )],
+        };
+        let nan = retained(0x7ff8_0000_0000_0042);
+        assert!(nan.has_same_representation(&nan.clone()));
+        assert!(!nan.has_same_representation(&retained(0x7ff8_0000_0000_0043)));
+        assert!(!retained(0).has_same_representation(&retained(1_u64 << 63)));
+        // Ordinary floating comparison still has Omega's numeric semantics.
+        assert_eq!(BuildTimeValue::Float(0.0), BuildTimeValue::Float(-0.0));
+        assert_ne!(nan, nan.clone());
+    }
+}
