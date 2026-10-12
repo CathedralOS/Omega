@@ -966,8 +966,11 @@ impl StateGraphEmission<'_, '_> {
         // Operand evaluation establishes the outgoing values before the exact
         // selected source exit determines the remaining owned dispositions.
         // Keep action kinds and their checked order through private staging.
-        let exit =
-            super::super::cleanup::coordinate(state, edge.statement_ordinal as usize, false)?;
+        let exit = super::super::cleanup::coordinate(
+            state,
+            edge.statement_ordinal as usize,
+            edge.is_continuation,
+        )?;
         let mut cleanup_regions = super::super::cleanup::for_exit_regions(
             identities,
             self.claims.published(),
@@ -983,34 +986,63 @@ impl StateGraphEmission<'_, '_> {
         // The issued source preservation must cover the cleanup actually emitted,
         // including selected nominal deaths added by the shared selection owner.
         // Missing associations keep the ordinary final-path obligation undecided.
+        let cleanup_coverage = cleanup_regions.iter().all(|region| {
+            if !matches!(
+                region.action,
+                terminal_psi::TerminalAffineCleanupAction::InvokeNominal(_)
+            ) {
+                return true;
+            }
+            if !region.storage_effect.is_valid() {
+                return false;
+            }
+            let effect = checked
+                .facts
+                .contextual_cleanup
+                .hook_effects
+                .get(region.storage_effect);
+            let disposition = checked
+                .facts
+                .contextual_cleanup
+                .dispositions
+                .get(effect.disposition);
+            disposition.machine == owner
+                && disposition.state == state.state
+                && disposition.exit == exit
+        });
         for renewal in &mut ingress_renewals {
-            let covered = cleanup_regions.iter().all(|region| {
-                if !matches!(
-                    region.action,
-                    terminal_psi::TerminalAffineCleanupAction::InvokeNominal(_)
-                ) {
-                    return true;
-                }
-                if !region.storage_effect.is_valid() {
-                    return false;
-                }
-                let effect = checked
-                    .facts
-                    .contextual_cleanup
-                    .hook_effects
-                    .get(region.storage_effect);
-                let disposition = checked
-                    .facts
-                    .contextual_cleanup
-                    .dispositions
-                    .get(effect.disposition);
-                disposition.machine == owner
-                    && disposition.state == state.state
-                    && disposition.exit == renewal.source_exit
-            });
-            if !covered {
+            if !cleanup_coverage {
                 renewal.preserved_bounds.clear();
             }
+        }
+        let has_nominal_cleanup = cleanup_regions.iter().any(|region| {
+            matches!(
+                region.action,
+                terminal_psi::TerminalAffineCleanupAction::InvokeNominal(_),
+            )
+        });
+        let mut preservation_rows =
+            checked
+                .facts
+                .call_exit_preservations
+                .iter()
+                .filter(|(_, row)| {
+                    row.machine == owner
+                        && row.exit == exit
+                        && row.target_state == edge.target_state
+                });
+        let preservation = preservation_rows.next().map(|(_, row)| row);
+        let preservation = if preservation_rows.next().is_none() {
+            preservation
+        } else {
+            None
+        };
+        // The original verdict is an observation before cleanup. Only an
+        // exact source-issued preservation, covering every actual emitted
+        // nominal hook, can authorize the final receiver's clause afterward.
+        if has_nominal_cleanup {
+            arrival_decided &=
+                cleanup_coverage && preservation.is_some_and(|row| row.requires_preserved);
         }
 
         // Proof-only actuals never evaluate: each checked erased row
@@ -1059,6 +1091,45 @@ impl StateGraphEmission<'_, '_> {
                 })
             })
             .collect::<Result<Vec<_>, LoweringError>>()?;
+        if has_nominal_cleanup {
+            // Erased structural terms are not evaluated runtime snapshots.
+            // Relocating a copied descriptor cannot preserve a read of bytes
+            // changed by cleanup. Unsupported observations refuse transport;
+            // leaving Requires undecided alone would not fix argument meaning.
+            for (plan, term) in edge.erased_arguments.iter().zip(&erased_arguments) {
+                if super::loan_arrivals::erased_scalar_observes_storage(term)
+                    && !(cleanup_coverage
+                        && preservation.is_some_and(|row| {
+                            checked
+                                .facts
+                                .erased_exit_observations
+                                .span_or_empty(row.erased_observations)
+                                .iter()
+                                .any(|observation| {
+                                    observation.argument_ordinal == plan.argument_ordinal
+                                        && observation.preserved
+                                })
+                        }))
+                {
+                    return unsupported("cleanup does not preserve an erased argument observation");
+                }
+            }
+            for (source, term) in edge
+                .erased_proof_arguments
+                .iter()
+                .zip(&erased_proof_arguments)
+            {
+                if super::loan_arrivals::erased_proof_observes_storage(term)
+                    && !(cleanup_coverage && preservation.is_some_and(|row|
+                        checked.facts.erased_exit_observations.span_or_empty(row.erased_observations).iter()
+                            .any(|observation| observation.expression == source.expression
+                                && matches!(source.role, checked_trees::CheckedProofTermRole::TransitionArgument { argument_ordinal }
+                                    if argument_ordinal == observation.argument_ordinal)
+                                && observation.preserved))) {
+                    return unsupported("cleanup does not preserve an erased proof argument observation");
+                }
+            }
+        }
         // The arriving rank strictly decreases unless the rank judgment
         // proves this edge only preserves it.
         let mut arriving_comparison = if plan.preserving_rank_edges.iter().any(|weak| {

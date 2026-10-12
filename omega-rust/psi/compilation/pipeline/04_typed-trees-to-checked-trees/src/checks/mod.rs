@@ -57,6 +57,8 @@ mod crashes;
 pub(crate) use cleanup_admission::validate_selected_cleanup_guarantees;
 
 // Operator resolution, indexed access bounds, and machine termination.
+mod call_exit_preservation;
+mod cleanup_preservation;
 mod index_preservation;
 mod indexed_writes;
 mod operators;
@@ -218,6 +220,7 @@ pub(crate) fn check_checked_facts_recording(
         Err(mut range_diagnostics) => diagnostics.append(&mut range_diagnostics),
     }
     index_preservation::record(program, facts);
+    call_exit_preservation::record(program, facts, call_frames.as_ref());
     indexed_writes::record(program, facts);
     indexed_writes::record_assignment_indexes(program, facts);
 
