@@ -337,6 +337,19 @@ impl<'selection> LengthJobs<'selection> {
 
         inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
     ) -> Result<Option<usize>, Vec<Diagnostic>> {
+        if std::env::var_os("OMEGA_SOURCE_CONSTANT_INPUT_TRACE").is_some() {
+            let (phase, operator_rows) = match &self.providers {
+                LengthProviderSelection::Pending => ("pending", 0),
+                LengthProviderSelection::Independent => ("independent", 0),
+                LengthProviderSelection::Selected(rows) => ("selected", rows.len()),
+            };
+            eprintln!(
+                "CONST LENGTH phase={phase} root={machine:?} name={} operators={operator_rows} provider_roots={:?} active={}",
+                typed.symbols.name(machine),
+                self.provider_dependencies,
+                self.active.len()
+            );
+        }
         let mut roots = self.provider_dependencies.clone();
         roots.push(machine);
         let domain = EvaluationDomain::all().demanded_roots(typed, &roots);
