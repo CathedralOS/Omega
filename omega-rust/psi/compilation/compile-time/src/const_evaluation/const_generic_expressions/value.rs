@@ -62,7 +62,7 @@ use typed_trees::{
     expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator},
     machine::Machine,
     state::State,
-    types::PrimitiveType,
+    types::{ConstIntegerMeaning, PrimitiveType},
 };
 
 mod context;
@@ -267,6 +267,7 @@ pub(crate) fn evaluate_scalar_with_correspondence(
         calls,
         inputs,
     )
+    .map(|(value, _, selected, warnings)| (value, selected, warnings))
 }
 
 fn evaluate_scalar_in(
@@ -288,7 +289,7 @@ fn evaluate_scalar_in(
         calls,
         inputs,
     )
-    .map(|(value, _, warnings)| (value, warnings))
+    .map(|(value, _, _, warnings)| (value, warnings))
 }
 
 fn evaluate_scalar_with_correspondence_in(
@@ -300,7 +301,15 @@ fn evaluate_scalar_with_correspondence_in(
     calls: Option<&dyn ConstantCalls>,
 
     inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
-) -> Result<(ScalarValue, Vec<SelectedMatchResult>, Vec<Diagnostic>), String> {
+) -> Result<
+    (
+        ScalarValue,
+        ConstIntegerMeaning,
+        Vec<SelectedMatchResult>,
+        Vec<Diagnostic>,
+    ),
+    String,
+> {
     let (value, selected_arms, selected_results, mut warnings) =
         evaluate_expression_with_correspondence(
             program,
@@ -313,6 +322,10 @@ fn evaluate_scalar_with_correspondence_in(
             calls,
             inputs,
         )?;
+    // Final destination landing does not turn a genuinely anonymous source
+    // expression into evidence of an earlier typed arithmetic policy. Typed
+    // calls/casts/Match joins have already produced Landed values here.
+    let anonymous_result = matches!(value, Value::Anonymous(_));
     let value = match value {
         Value::Anonymous(expression)
             if matches!(destination, PrimitiveType::F32 | PrimitiveType::F64) =>
@@ -336,7 +349,12 @@ fn evaluate_scalar_with_correspondence_in(
                     bits: exact.to_f64().to_bits(),
                 },
             };
-            return Ok((value, selected_results, warnings));
+            return Ok((
+                value,
+                ConstIntegerMeaning::Unavailable,
+                selected_results,
+                warnings,
+            ));
         }
         Value::Anonymous(expression) => land_anonymous(
             program,
@@ -351,6 +369,7 @@ fn evaluate_scalar_with_correspondence_in(
     if let Value::Float(format, bits) = value {
         return Ok((
             ScalarValue::Float { format, bits },
+            ConstIntegerMeaning::Unavailable,
             selected_results,
             warnings,
         ));
@@ -358,6 +377,7 @@ fn evaluate_scalar_with_correspondence_in(
     if let Value::UndeterminedNaN(format) = value {
         return Ok((
             ScalarValue::UndeterminedNaN(format),
+            ConstIntegerMeaning::Unavailable,
             selected_results,
             warnings,
         ));
@@ -365,11 +385,12 @@ fn evaluate_scalar_with_correspondence_in(
     if let Value::Boolean(value) = value {
         return Ok((
             ScalarValue::Index(CanonicalConstValue::boolean(value)),
+            ConstIntegerMeaning::Unavailable,
             selected_results,
             warnings,
         ));
     }
-    let Value::Landed(carrier, value, _) = value else {
+    let Value::Landed(carrier, value, arithmetic_domain) = value else {
         return Err("constant expression has no integer landing".into());
     };
     let value = match value {
@@ -384,6 +405,17 @@ fn evaluate_scalar_with_correspondence_in(
             identity.encoding,
             value.to_string(),
         )),
+        // This is the evaluator's landed output, not the receiving binder's
+        // desired policy. Calls inherit their declared result policy; a cast
+        // or arithmetic operation changes it only through ordinary evaluation.
+        if anonymous_result {
+            ConstIntegerMeaning::Anonymous
+        } else {
+            ConstIntegerMeaning::Typed {
+                primitive: PrimitiveType::from_landed_integer(carrier),
+                arithmetic_domain,
+            }
+        },
         selected_results,
         warnings,
     ))
@@ -1846,8 +1878,8 @@ pub(crate) fn evaluate_closed_const_argument(
     calls: &dyn ConstantCalls,
 
     inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
-) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String> {
-    let (value, warnings) = evaluate_scalar_in(
+) -> Result<(CanonicalConstValue, ConstIntegerMeaning, Vec<Diagnostic>), String> {
+    let (value, meaning, _, warnings) = evaluate_scalar_with_correspondence_in(
         program,
         EvaluationContext::Closed,
         expression,
@@ -1857,7 +1889,7 @@ pub(crate) fn evaluate_closed_const_argument(
         inputs,
     )?;
     match value {
-        ScalarValue::Index(canonical) => Ok((canonical, warnings)),
+        ScalarValue::Index(canonical) => Ok((canonical, meaning, warnings)),
         ScalarValue::Float { .. } | ScalarValue::UndeterminedNaN(_) => {
             Err("const application needs an exact integer or Boolean carrier".into())
         }
