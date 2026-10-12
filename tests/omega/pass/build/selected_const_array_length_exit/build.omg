@@ -11,14 +11,19 @@ machine inspect_build(subject: &Optional<BuildToken>) -> u64 {
     }
 }
 
-data CheckedMath {}
-boundary requirement CheckedMath::offset_zero(value: i32) -> i32;
+pub boundary trait CheckedMath {
+    machine offset_zero(value: i32) -> i32;
+}
 
 data CheckedMathProvider {}
 machine CheckedMathProvider::offset_zero_impl(input: i32) -> i32
 satisfies CheckedMath::offset_zero
 {
     transition { _ -> input }
+}
+
+CheckedMathMap satisfies CheckedMath {
+    offset_zero = CheckedMathProvider::offset_zero_impl;
 }
 
 machine named_slot_count() -> i32 {
@@ -127,4 +132,11 @@ machine choose(builder: &mut Build, correct: bool) {
     state bad(builder: &mut Build) {
         _ = BuildProduct::entry(&builder.product, "incorrect_build_constant", "macos_arm64::ProgramEntry");
     }
+}
+
+// This declaration belongs to the Build context before the activation's
+// storage constants execute. It selects the named map, not its data namespace.
+data CheckedMathDefaults {}
+machine CheckedMathDefaults::provider_defaults(defaults: &mut CheckedMathDefaults) {
+    CheckedMathDefaults::select_provider<CheckedMath, CheckedMathMap>(defaults);
 }
