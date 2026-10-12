@@ -26,6 +26,7 @@ pub use frontier::SourceFile;
 pub(crate) use frontier::{
     SourceStorage, ToolchainContractCustody, validate_package_source_frontier,
 };
+pub(crate) use generated::GeneratedSourceLineage;
 pub(crate) use generated::{DependencyGeneratedSource, admit_dependency_generated_sources};
 pub use generated::{GeneratedSourceExtension, admit_generated_extension};
 pub(crate) use import_queue::ImportQueue;

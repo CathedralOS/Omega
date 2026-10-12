@@ -39,7 +39,7 @@ pub(crate) fn evaluate_build_and_continue(
     } = child;
     let TypedCompilationFrontier {
         mut source,
-        build_source_id,
+        selected_build_source,
         source_file_count,
         generated_source_custody,
         base_sources,
@@ -55,9 +55,8 @@ pub(crate) fn evaluate_build_and_continue(
         build_evaluation::BuildEvaluationRequest {
             pure_build_compilation,
             root_path,
-            typed: build_input.typed,
-            pre_checks: build_input.pre_checks,
-            build_source_id,
+            source_input: build_input,
+            selected_build_source,
             sources: &base_sources,
             package_inputs,
             generated_source_custody: &generated_source_custody,
@@ -81,16 +80,15 @@ pub(crate) fn evaluate_build_and_continue(
         },
         timings,
     )?;
-    let sources = BuildSourceCustody {
+    let sources = BuildSourceCustody::new(
         source_file_count,
         build_execution_profile,
         generated_source_custody,
         base_source_consumption_commitment,
-    };
+    );
     let admission = BuildAdmission {
         application,
-        selected_build_machine_identity: computed_build_config
-            .selected_machine_identity(source.typed())?,
+        selected_build_machine_identity: computed_build_config.selected_machine_identity(),
         restricted_build_requests,
     };
     Ok((
@@ -136,7 +134,7 @@ pub(super) fn lower_typed_frontier(
         execution,
         &build_scope_sources,
     );
-    let build_source_id = syntax.build_source_id;
+    let selected_build_source = syntax.selected_build_source.clone();
     let source = psi_compiler::SourceCompilationRequest {
         syntax: syntax.syntax_trees,
         sources: syntax.sources,
@@ -148,7 +146,7 @@ pub(super) fn lower_typed_frontier(
     .prepare(&mut terminal_production::PsiStageTimings::new(timings))?;
     Ok(TypedCompilationFrontier {
         source,
-        build_source_id,
+        selected_build_source,
         source_file_count,
         generated_source_custody,
         base_sources,

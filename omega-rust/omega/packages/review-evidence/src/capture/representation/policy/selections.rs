@@ -16,7 +16,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 pub(crate) fn rederive_selections(
     compilation: &PackageReviewInput<'_>,
 ) -> Result<Vec<OpaqueRepresentationSelection>, Vec<Diagnostic>> {
-    let selected = compilation.custody.build().selected_build_machine_symbol;
+    let selected = compilation.custody.build().selected_build_machine_symbol();
     if let Some(symbol) = selected {
         let machines = compilation
             .machines()

@@ -16,16 +16,14 @@ use package_compilation::{
 };
 use std::path::Path;
 use std::sync::Arc;
-use typed_trees::TypedTrees;
 
 /// Inputs to one activation. Source assembly and typing have already finished;
 /// this operation neither discovers source nor compiles generated continuations.
 pub struct BuildEvaluationRequest<'request> {
     pub pure_build_compilation: Option<&'request PureBuildCompilation>,
     pub root_path: &'request Path,
-    pub typed: &'request mut TypedTrees,
-    pub pre_checks: &'request mut Vec<build_time_evaluation::PreCheckEvaluation>,
-    pub build_source_id: Option<source::SourceId>,
+    pub source_input: psi_compiler::BuildSourceInput<'request>,
+    pub selected_build_source: Option<package_compilation::source_assembly::SelectedBuildSource>,
     pub sources: &'request source::SourceMap,
     pub package_inputs: Option<&'request PackageCompilationInputs>,
     pub generated_source_custody:
@@ -67,9 +65,8 @@ pub fn evaluate_build(
     let BuildEvaluationRequest {
         pure_build_compilation,
         root_path,
-        typed,
-        pre_checks,
-        build_source_id,
+        mut source_input,
+        selected_build_source,
         sources,
         package_inputs,
         generated_source_custody,
@@ -86,8 +83,7 @@ pub fn evaluate_build(
     // Source-owned entry selection requires no interpreter or host resources.
     // A package without an entry has nothing to admit or execute: its ordinary
     // declarations are checked by the final product pass, just once.
-    let selected_machine =
-        select_build_machine(typed, build_source_id)?.map(|machine| machine.symbol);
+    let selected_machine = select_build_machine(&source_input, selected_build_source.as_ref())?;
     if selected_machine.is_none() && artifact_only {
         return Err(vec![Diagnostic::error(
             "an artifact-only application requires a build machine that completes at least one required output",
@@ -105,7 +101,7 @@ pub fn evaluate_build(
     let base_source_consumption_commitment = package_inputs
         .map(|packages| {
             package_compilation::derive_package_compilation_subject(
-                typed.symbols.source_files(),
+                source_input.typed().symbols.source_files(),
                 packages,
                 generated_source_custody,
             )
@@ -120,7 +116,7 @@ pub fn evaluate_build(
                     optimization_core::OptimizationReportRequest::Suppressed,
                 evaluation_usage: None,
                 observation_summary: None,
-                selected_build_machine_symbol: None,
+                executed_build_root: None,
                 generated_sources: Vec::new(),
             }),
             restricted_build_requests: Vec::new(),
@@ -132,9 +128,8 @@ pub fn evaluate_build(
     // Package authority adds to that semantic floor; standalone source cannot
     // bypass it. Admission below consumes this exact checked program.
     let (prepared, retained_check) = crate::admission::checking::prepare_checked_build(
-        typed,
-        pre_checks,
-        selected_machine,
+        &mut source_input,
+        selected_machine.symbol(),
         package_inputs,
         execution_profile,
         timings,

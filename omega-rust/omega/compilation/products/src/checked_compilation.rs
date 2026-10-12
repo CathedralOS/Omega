@@ -115,6 +115,12 @@ impl CheckedCompilation {
             &mut execution.settled.assumed_binding_relationships,
             &sources,
         );
+        provider_planning::assumed_binding_relationships::retain_assumed_binding_root_scopes(
+            &mut execution.settled.assumed_binding_relationships,
+            &sources,
+            execution.build.executed_build_root.as_ref(),
+            execution.settled.selected_target_profile,
+        );
         Self {
             execution,
             sources,

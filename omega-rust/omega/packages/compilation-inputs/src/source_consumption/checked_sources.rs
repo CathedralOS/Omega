@@ -12,6 +12,7 @@ use diagnostics::Diagnostic;
 /// These are continuation inputs, not evidence of a final checked closure.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildSourceCustody {
+    source_extensions: Vec<crate::source_imports::GeneratedSourceLineage>,
     pub source_file_count: usize,
     pub build_execution_profile: Option<target::TargetProfile>,
     pub generated_source_custody: Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
@@ -39,6 +40,30 @@ enum CheckedSourceSubject {
     CapturedRoot(ConsumedSourceProjection),
 }
 
+/// Original declaration coordinates in the already sealed source roster.
+/// A valid source range identifies bytes, not a semantic kind, checked body,
+/// executed Build root or admission. Those associations stay with the caller.
+#[derive(Debug, Clone, Copy)]
+pub struct ConsumedDeclarationSource<'custody> {
+    unit: &'custody super::ConsumedSourceUnit,
+    start: u64,
+    end: u64,
+}
+
+impl<'custody> ConsumedDeclarationSource<'custody> {
+    pub const fn unit(self) -> &'custody super::ConsumedSourceUnit {
+        self.unit
+    }
+
+    pub const fn start(self) -> u64 {
+        self.start
+    }
+
+    pub const fn end(self) -> u64 {
+        self.end
+    }
+}
+
 // Owner pointer joins stay local; canonical source equality keeps its original
 // fields and does not acquire host paths or pointer addresses as identity.
 impl PartialEq for CheckedSourceCustody {
@@ -52,6 +77,23 @@ impl PartialEq for CheckedSourceCustody {
 impl Eq for CheckedSourceCustody {}
 
 impl BuildSourceCustody {
+    /// Original frontend metadata starts with no generated continuation. Only
+    /// admitted generated-source production can append a lineage association.
+    pub fn new(
+        source_file_count: usize,
+        build_execution_profile: Option<target::TargetProfile>,
+        generated_source_custody: Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
+        base_source_consumption_commitment: Option<PackageSourceConsumptionCommitment>,
+    ) -> Self {
+        Self {
+            source_extensions: Vec::new(),
+            source_file_count,
+            build_execution_profile,
+            generated_source_custody,
+            base_source_consumption_commitment,
+        }
+    }
+
     /// Seal a completed Build's generated handoff against its retained typed
     /// continuation. This establishes source and staged-output custody only;
     /// it does not claim the dependency's product has passed final checking.
@@ -112,6 +154,16 @@ impl BuildSourceCustody {
             Some(package_inputs.root()),
             generated_sources,
         )?;
+        let lineage = extension.lineage();
+        if self
+            .source_extensions
+            .last()
+            .is_some_and(|previous| !previous.continues_to(base_sources))
+        {
+            return Err(vec![Diagnostic::error(
+                "generated-source admission lost its exact preceding source frontier",
+            )]);
+        }
         let source_file_count = self
             .source_file_count
             .checked_add(extension.custody().len())
@@ -123,6 +175,7 @@ impl BuildSourceCustody {
         self.generated_source_custody
             .extend(extension.custody().iter().cloned());
         self.source_file_count = source_file_count;
+        self.source_extensions.push(lineage);
         Ok(Some((extension, package_inputs)))
     }
 
@@ -135,6 +188,21 @@ impl BuildSourceCustody {
         program: &CheckedTrees,
         package_inputs: Option<&PackageCompilationInputs>,
     ) -> Result<CheckedSourceCustody, Vec<Diagnostic>> {
+        if !self.source_extensions.is_empty() {
+            let mut continuation = program.symbols.retained_source_map().ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "generated-source seal lost its final immutable source owner",
+                )]
+            })?;
+            for extension in self.source_extensions.iter().rev() {
+                if !extension.continues_to(continuation) {
+                    return Err(vec![Diagnostic::error(
+                        "generated-source seal does not consume its produced source continuation",
+                    )]);
+                }
+                continuation = extension.base();
+            }
+        }
         let source_subject = match package_inputs {
             Some(inputs) => Some(CheckedSourceSubject::Package(
                 derive_package_compilation_subject(
@@ -194,6 +262,13 @@ impl CheckedSourceCustody {
         }
     }
 
+    /// The actual package compilation occurrence, independently of each
+    /// consumed file's Product or Build import scope. Captured roots have no
+    /// package occurrence and do not acquire one through source ownership.
+    pub const fn package_purpose(&self) -> Option<build_declarations::DependencyPurpose> {
+        self.package_purpose
+    }
+
     /// Exact source-path-free dependency closure consumed by a package-aware
     /// compilation. Standalone compilation has no package closure.
     pub const fn dependency_closure(&self) -> Option<&crate::PackageDependencyClosure> {
@@ -227,6 +302,62 @@ impl CheckedSourceCustody {
             (Some(owner), Some(candidate)) => std::sync::Arc::ptr_eq(owner, candidate),
             _ => false,
         }
+    }
+
+    /// Join a retained declaration symbol to its original consumed source.
+    /// Product pruning may remove its machine row while preserving immutable
+    /// symbol provenance. An original Build owner may precede the producer's
+    /// admitted generated-source continuation; that exact lineage is retained
+    /// independently. This query neither searches by name nor rereads bytes.
+    pub fn declaration_source(
+        &self,
+        symbols: &symbols::SymbolTable,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<ConsumedDeclarationSource<'_>> {
+        if !symbol.is_valid() || !self.owns_original_sources(symbols) {
+            return None;
+        }
+        let span = symbols.symbol_provenance_source_span(symbol)?;
+        let file = symbols.source_file(span)?;
+        let unit = self.consumed_unit_for_source(span.source_id)?;
+        if span.span.start >= span.span.end
+            || span.span.end > file.source.len()
+            || !file.source.is_char_boundary(span.span.start)
+            || !file.source.is_char_boundary(span.span.end)
+            || unit.package() != file.package_identity
+        {
+            return None;
+        }
+        Some(ConsumedDeclarationSource {
+            unit,
+            start: u64::try_from(span.span.start).ok()?,
+            end: u64::try_from(span.span.end).ok()?,
+        })
+    }
+
+    /// Join an original executed owner through only the generated-source
+    /// continuations this seal consumed. Direct ownership remains strict;
+    /// equal source bytes or matching source-id prefixes provide no authority.
+    pub fn owns_original_sources(&self, symbols: &symbols::SymbolTable) -> bool {
+        let (Some(final_owner), Some(original)) =
+            (self.source_owner.as_ref(), symbols.retained_source_map())
+        else {
+            return false;
+        };
+        if std::sync::Arc::ptr_eq(final_owner, original) {
+            return true;
+        }
+        let mut continuation = final_owner;
+        for extension in self.build.source_extensions.iter().rev() {
+            if !extension.continues_to(continuation) {
+                return false;
+            }
+            if std::sync::Arc::ptr_eq(extension.base(), original) {
+                return true;
+            }
+            continuation = extension.base();
+        }
+        false
     }
 
     /// Original seal-owned source association for either exact package custody

@@ -30,8 +30,63 @@ pub struct SourceContinuation {
 /// The mutable inputs an independently admitted Build evaluator consumes.
 /// Its generated declarations remain in this continuation's typing arena.
 pub struct BuildSourceInput<'source> {
-    pub typed: &'source mut typed_trees::TypedTrees,
-    pub pre_checks: &'source mut Vec<PreCheckEvaluation>,
+    typed: &'source mut typed_trees::TypedTrees,
+    pre_checks: &'source mut Vec<PreCheckEvaluation>,
+    identity: BuildSourceInputIdentity,
+}
+
+/// Association of one actual continuation borrow, not a cache namespace.
+/// Only SourceContinuation produces it alongside its real mutable owner.
+#[derive(Clone)]
+pub struct BuildSourceInputIdentity(Arc<BuildSourceInputOwner>);
+struct BuildSourceInputOwner {
+    _private: u8,
+}
+impl PartialEq for BuildSourceInputIdentity {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+impl Eq for BuildSourceInputIdentity {}
+impl std::fmt::Debug for BuildSourceInputIdentity {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("BuildSourceInputIdentity(..)")
+    }
+}
+
+/// Produced from the actual continuation input after its ordinary constant
+/// settlement. There is no separate program/identity tuple constructor.
+pub struct BuildSourceProjection {
+    pub(crate) projection: validation::execution_projection::BuildProgramProjection,
+    pub(crate) identity: BuildSourceInputIdentity,
+}
+impl BuildSourceProjection {
+    pub fn program(&self) -> &typed_trees::TypedTrees {
+        self.projection.program()
+    }
+}
+impl BuildSourceInput<'_> {
+    pub fn typed(&self) -> &typed_trees::TypedTrees {
+        self.typed
+    }
+    pub fn identity(&self) -> &BuildSourceInputIdentity {
+        &self.identity
+    }
+    /// Existing trusted Build preparation mutates this continuation in place.
+    /// This capability does not attest immutable pre-settlement body bytes;
+    /// only the final ordinary check publishes the immutable checked owner.
+    pub fn parts_mut(&mut self) -> (&mut typed_trees::TypedTrees, &mut Vec<PreCheckEvaluation>) {
+        (self.typed, self.pre_checks)
+    }
+    pub fn project(
+        &self,
+        entry: symbols::SymbolHandle,
+    ) -> Result<BuildSourceProjection, Vec<Diagnostic>> {
+        Ok(BuildSourceProjection {
+            projection: validation::execution_projection::project_build_program(self.typed, entry)?,
+            identity: self.identity.clone(),
+        })
+    }
 }
 
 /// Authored bodies are complete; generated sources may extend this exact base.
@@ -146,6 +201,7 @@ impl SourceContinuation {
         BuildSourceInput {
             typed: self.typing.typed_mut(),
             pre_checks: &mut self.pending_pre_checks,
+            identity: BuildSourceInputIdentity(Arc::new(BuildSourceInputOwner { _private: 0 })),
         }
     }
 

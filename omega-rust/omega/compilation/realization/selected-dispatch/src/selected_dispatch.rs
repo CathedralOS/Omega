@@ -82,7 +82,7 @@ pub fn settle_selected_comparison_execution(
     selected_provider_provenance: &[provider_planning::SelectedProviderReviewProvenance],
     selected_target_profile: Option<target::TargetProfile>,
 ) -> Result<(), Vec<Diagnostic>> {
-    let executions = float_comparisons::selected_executions(
+    let executions = derive_selected_comparison_execution(
         checked,
         scope,
         selected_provider_provenance,
@@ -90,4 +90,20 @@ pub fn settle_selected_comparison_execution(
     )?;
     float_comparisons::replace_executions(checked, executions);
     Ok(())
+}
+
+/// Produce the same selected comparison rows for a private owned execution
+/// program; the caller installs only these facts without rewriting declarations.
+pub fn derive_selected_comparison_execution(
+    checked: &CheckedTrees,
+    scope: source::DependencyScope,
+    selected_provider_provenance: &[provider_planning::SelectedProviderReviewProvenance],
+    selected_target_profile: Option<target::TargetProfile>,
+) -> Result<Vec<checked_trees::CheckedSelectedFloatComparisonExecution>, Vec<Diagnostic>> {
+    float_comparisons::selected_executions(
+        checked,
+        scope,
+        selected_provider_provenance,
+        selected_target_profile,
+    )
 }
