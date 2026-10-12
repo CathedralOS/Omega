@@ -88,7 +88,7 @@ pub fn callable_where_judgment(
     {
         return Unknown;
     }
-    let (caller_bindings, caller_booleans, mut prior_hypotheses) =
+    let (caller_bindings, caller_booleans, mut prior_hypotheses, caller_parameters) =
         immutable_caller_requires(program, lexical_owner, caller_state);
     prior_hypotheses.extend_from_slice(hypotheses);
     let mut integer_bindings = Vec::new();
@@ -157,6 +157,7 @@ pub fn callable_where_judgment(
         integer_bindings,
         boolean_bindings,
         hypothesis_booleans: caller_booleans,
+        hypothesis_parameters: &caller_parameters,
     };
     let mut judgment = Proven;
     for fact in program.proof_facts.span_or_empty(where_facts) {
@@ -281,6 +282,7 @@ pub fn callable_where_refinement_judgment(
         integer_bindings: bindings,
         boolean_bindings,
         hypothesis_booleans: required_booleans,
+        hypothesis_parameters: program.state_signature_parameters(required),
     };
     let mut judgment = Proven;
     for fact in program.proof_facts.span_or_empty(where_facts) {
@@ -317,20 +319,22 @@ fn immutable_caller_requires(
     Vec<ScopedArithmeticBinding>,
     Vec<(SymbolHandle, BooleanValue)>,
     Vec<ScopedArithmeticHypothesis>,
+    Vec<typed_trees::signature::StateParameter>,
 ) {
     let Some(machine) = program.machine_by_symbol(owner) else {
-        return (Vec::new(), Vec::new(), Vec::new());
+        return (Vec::new(), Vec::new(), Vec::new(), Vec::new());
     };
     let mut symbols = Vec::new();
     let mut bindings = Vec::new();
     let mut booleans = Vec::new();
+    let mut runtime_parameters = Vec::new();
     let Ok(declaration) =
         typed_trees::static_applications::StaticApplicationDeclaration::for_symbol(
             program.typed_program(),
             machine.symbol,
         )
     else {
-        return (Vec::new(), Vec::new(), Vec::new());
+        return (Vec::new(), Vec::new(), Vec::new(), Vec::new());
     };
     for parameter in declaration.parameters() {
         let TypeParameterKind::Const { type_reference } = parameter.kind else {
@@ -380,6 +384,7 @@ fn immutable_caller_requires(
                 continue;
             };
             symbols.push(parameter.symbol);
+            runtime_parameters.push(parameter.clone());
             if primitive == typed_trees::types::PrimitiveType::Bool {
                 booleans.push((parameter.symbol, BooleanValue::Symbol(parameter.symbol)));
                 continue;
@@ -419,7 +424,7 @@ fn immutable_caller_requires(
             holds: true,
         })
         .collect();
-    (bindings, booleans, hypotheses)
+    (bindings, booleans, hypotheses, runtime_parameters)
 }
 
 fn immutable_fact(
@@ -542,6 +547,9 @@ struct StaticFacts<'program> {
     // Hypotheses retain the caller/public scope independently from this
     // invocation goal, including recursive calls to the same declaration.
     hypothesis_booleans: Vec<(SymbolHandle, BooleanValue)>,
+    // Equality meaning needs the exact declaring data parameters independently
+    // from goal bindings. Runtime subjects cannot borrow a static binder type.
+    hypothesis_parameters: &'program [typed_trees::signature::StateParameter],
 }
 
 impl StaticFacts<'_> {
@@ -620,13 +628,17 @@ impl StaticFacts<'_> {
         if let Some(BooleanValue::Known(value)) = self.boolean_value(expression) {
             return if value { Proven } else { Refuted };
         }
-        if let Some((symbol, holds)) =
-            self.boolean_literal(expression, self.declaration, &self.boolean_bindings)
-        {
+        if let Some((symbol, holds)) = self.boolean_literal(
+            expression,
+            self.declaration,
+            self.runtime_parameters,
+            &self.boolean_bindings,
+        ) {
             for hypothesis in self.hypotheses {
                 if let Some((prior, mut prior_holds)) = self.boolean_literal(
                     hypothesis.proposition.expression,
                     hypothesis.proposition.owner,
+                    self.hypothesis_parameters,
                     &self.hypothesis_booleans,
                 ) && prior.same_proposition(symbol)
                 {
@@ -654,10 +666,16 @@ impl StaticFacts<'_> {
             match binary.operator {
                 BinaryOperator::And => {
                     if let (Some(left), Some(right)) = (
-                        self.boolean_literal(binary.left, self.declaration, &self.boolean_bindings),
+                        self.boolean_literal(
+                            binary.left,
+                            self.declaration,
+                            self.runtime_parameters,
+                            &self.boolean_bindings,
+                        ),
                         self.boolean_literal(
                             binary.right,
                             self.declaration,
+                            self.runtime_parameters,
                             &self.boolean_bindings,
                         ),
                     ) && left.0.same_proposition(right.0)
@@ -672,10 +690,16 @@ impl StaticFacts<'_> {
                 }
                 BinaryOperator::Or => {
                     if let (Some(left), Some(right)) = (
-                        self.boolean_literal(binary.left, self.declaration, &self.boolean_bindings),
+                        self.boolean_literal(
+                            binary.left,
+                            self.declaration,
+                            self.runtime_parameters,
+                            &self.boolean_bindings,
+                        ),
                         self.boolean_literal(
                             binary.right,
                             self.declaration,
+                            self.runtime_parameters,
                             &self.boolean_bindings,
                         ),
                     ) && left.0.same_proposition(right.0)
@@ -735,6 +759,7 @@ impl StaticFacts<'_> {
         &self,
         expression: ExpressionHandle,
         owner: SymbolHandle,
+        parameters: &[typed_trees::signature::StateParameter],
         bindings: &[(SymbolHandle, BooleanValue)],
     ) -> Option<(BooleanProposition, bool)> {
         if let Some(BooleanValue::Symbol(symbol)) = self.boolean_value_in(expression, bindings) {
@@ -743,7 +768,8 @@ impl StaticFacts<'_> {
         if let Some(unary) = self.program.expression_table.unary_node(expression)
             && unary.operator == UnaryOperator::LogicalNot
         {
-            let (symbol, holds) = self.boolean_literal(unary.operand, owner, bindings)?;
+            let (symbol, holds) =
+                self.boolean_literal(unary.operand, owner, parameters, bindings)?;
             return Some((symbol, !holds));
         }
         let binary = self.program.expression_table.binary_node(expression)?;
@@ -753,7 +779,7 @@ impl StaticFacts<'_> {
         ) || !super::structural_terms::has_identity_equality_meaning(
             self.program,
             owner,
-            &[],
+            parameters,
             expression,
         ) {
             return None;
