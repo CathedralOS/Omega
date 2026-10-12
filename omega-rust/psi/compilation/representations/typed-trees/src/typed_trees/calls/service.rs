@@ -77,15 +77,28 @@ impl ServiceCarrierContract {
     pub fn require_declared_operands(
         self,
         program: &TypedTrees,
-        lexical_owner: SymbolHandle,
+        lexical_owner: crate::type_identity::AppliedTypeIdentityOwner<'_>,
     ) -> Result<(), &'static str> {
-        program.require_declared_application_operands(
-            self.arguments(program),
-            crate::type_identity::AppliedTypeIdentityOwner::Declaration(lexical_owner),
-        )?;
-        let scope = self
-            .application(program, lexical_owner, &[])
-            .ok_or("service declaration lost its complete application telescope")?;
+        program.require_declared_application_operands(self.arguments(program), lexical_owner)?;
+        let symbol = match lexical_owner {
+            crate::type_identity::AppliedTypeIdentityOwner::Declaration(symbol) => symbol,
+            crate::type_identity::AppliedTypeIdentityOwner::Captured(capture) => capture.symbol(),
+        };
+        let declaration = program
+            .trait_definition_by_symbol(self.requirement)
+            .ok_or("service declaration lost its original requirement")?;
+        let scope = crate::trait_definition::AppliedTraitScope::new_with_owner(
+            program,
+            declaration,
+            crate::trait_definition::TraitApplicationArguments {
+                lexical_owner: symbol,
+                enclosing_data_applications: &[],
+                arguments: self.arguments(program),
+                lifetimes: self.lifetimes(program),
+            },
+            lexical_owner,
+        )
+        .ok_or("service declaration lost its complete application telescope")?;
         scope
             .application_identity(program)
             .ok_or("service declaration lost its supplying region telescope")?;
