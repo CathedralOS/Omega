@@ -125,9 +125,24 @@ fn byte_identical_content_does_not_cross_local_origins() {
         )
         .is_err()
     );
+    // Spell the traversal literally rather than through `Path::join`: `join`
+    // preserves the `/` inside its argument, and inside a verbatim (`\\?\`)
+    // Windows root `/` is an ordinary filename character, so `../source`
+    // parses as a single Normal component. No ParentDir reaches the
+    // canonical-origin gate and the misspelled origin misses the cache key
+    // instead of erring. The platform separator keeps `..` a real parent
+    // component on both hosts.
+    let traversal = {
+        let mut spelling = other.as_os_str().to_os_string();
+        spelling.push(std::path::MAIN_SEPARATOR_STR);
+        spelling.push("..");
+        spelling.push(std::path::MAIN_SEPARATOR_STR);
+        spelling.push("source");
+        PathBuf::from(spelling)
+    };
     assert!(
         recover_cached_local_source_in_lane(
-            &other.join("../source"),
+            &traversal,
             &expected,
             storage.external_local_sources(),
             LocalSourceLimits::default()
