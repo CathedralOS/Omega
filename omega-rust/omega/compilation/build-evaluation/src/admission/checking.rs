@@ -45,10 +45,10 @@ pub(crate) fn prepare_checked_build(
     let projection = input.project(entry)?;
     let mut pending = Vec::new();
     {
-        let (typed, pre_checks) = input.parts_mut();
+        let (typed, pre_checks, constant_inputs) = input.parts_mut();
         for continuation in pre_checks.iter() {
             let continuation = continuation.project(typed, projection.program())?;
-            if let Some(continuation) = continuation.evaluate_or_defer(typed, &mut Vec::new())? {
+            if let Some(continuation) = continuation.evaluate_or_defer(typed, constant_inputs)? {
                 pending.push(continuation);
             }
         }
@@ -158,7 +158,7 @@ pub(crate) fn prepare_checked_build(
     let prepared = prepared.with_selected_comparison_executions(executions);
     // Only successful Build admission discharges this continuation's Build
     // work. Product keeps its exact complement, not a second full evaluation.
-    let (typed, pre_checks) = input.parts_mut();
+    let (typed, pre_checks, _) = input.parts_mut();
     *pre_checks = pre_checks
         .iter()
         .map(|continuation| continuation.exclude_projection(typed, prepared.typed()))
