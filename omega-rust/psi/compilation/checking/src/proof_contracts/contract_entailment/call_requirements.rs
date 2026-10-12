@@ -683,30 +683,81 @@ fn intake_state_induction(
     {
         return;
     }
-    let TransitionTargetNode::Value(value) =
-        program.statement_table.transition_target(transition.target)
-    else {
-        return;
-    };
     let Some(entry) = program.machine_states(machine).first() else {
         return;
     };
-    let Some(value) = immutable_value_origin(program, state, position, *value) else {
-        return;
-    };
-    let Some(call) = program.expression_table.call_node(value) else {
-        return;
-    };
-    if !crate::machine_calls::calls::proof_call_has_structural_descent(program, machine, call) {
-        return;
-    }
-    let Some(value) = judge.callee_term_in_scope(
-        Some((machine, state, state.return_type)),
-        value,
-        environment,
-        0,
-    ) else {
-        return;
+    let value = match program.statement_table.transition_target(transition.target) {
+        TransitionTargetNode::Value(value) => {
+            let Some(value) = immutable_value_origin(program, state, position, *value) else {
+                return;
+            };
+            let Some(call) = program.expression_table.call_node(value) else {
+                return;
+            };
+            if call.target_symbol != entry.symbol
+                || call.receiver.is_valid()
+                || !crate::machine_calls::calls::proof_entry_call_has_structural_descent(
+                    program,
+                    machine,
+                    call.target_symbol,
+                    program.expression_table.expression_handles(call.arguments),
+                )
+            {
+                return;
+            }
+            let Some(value) = judge.callee_term_in_scope(
+                Some((machine, state, state.return_type)),
+                value,
+                environment,
+                0,
+            ) else {
+                return;
+            };
+            value
+        }
+        TransitionTargetNode::Named {
+            path,
+            arguments,
+            evidence_arguments,
+            ..
+        } => {
+            let arguments = program.statement_table.expression_handles(*arguments);
+            if !evidence_arguments.is_empty()
+                || !crate::machine_calls::calls::proof_entry_call_has_structural_descent(
+                    program,
+                    machine,
+                    path.symbol,
+                    arguments,
+                )
+            {
+                return;
+            }
+            // This is a mathematical hypothesis at the current prefix, not
+            // an execution of the future transfer. Use only the current
+            // environment and the same citation-independent structural descent.
+            let Some(arguments) = arguments
+                .iter()
+                .map(|argument| {
+                    judge.callee_term_in_scope(
+                        Some((machine, state, state.return_type)),
+                        *argument,
+                        environment,
+                        0,
+                    )
+                })
+                .collect::<Option<Vec<_>>>()
+            else {
+                return;
+            };
+            StructuralTerm::Application {
+                result_type: entry.return_type,
+                target: entry.symbol,
+                selections: Vec::new(),
+                machine: machine.name.as_str().to_owned(),
+                arguments,
+            }
+        }
+        TransitionTargetNode::Terminal => return,
     };
     let parameters = program
         .state_parameters(entry)

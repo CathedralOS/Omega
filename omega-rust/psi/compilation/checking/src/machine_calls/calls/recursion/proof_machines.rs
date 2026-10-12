@@ -133,15 +133,16 @@ fn expression_names_measure(
 /// cited decrease and contract normalization: an earlier call may use the
 /// resulting IH to establish its own premises, so its guarantees cannot also
 /// be the reason that induction is licensed.
-pub(crate) fn proof_call_has_structural_descent(
+pub(crate) fn proof_entry_call_has_structural_descent(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
-    call: &typed_trees::expression::TableCallExpression,
+    target: symbols::SymbolHandle,
+    arguments: &[ExpressionHandle],
 ) -> bool {
     let Some(entry) = program.machine_states(machine).first() else {
         return false;
     };
-    if call.target_symbol != entry.symbol || call.receiver.is_valid() {
+    if target != entry.symbol && target != machine.symbol {
         return false;
     }
     let Some(subjects) = typed_trees::ranking::resolve_machine_witness_subjects(program, machine)
@@ -163,7 +164,6 @@ pub(crate) fn proof_call_has_structural_descent(
     else {
         return false;
     };
-    let arguments = program.expression_table.expression_handles(call.arguments);
     if arguments.len() != parameters.len() {
         return false;
     }
