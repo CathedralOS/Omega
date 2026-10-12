@@ -1,0 +1,20 @@
+// `< (` begins ordinary comparison speculation, never a static call.
+// Typed scalar and nested reference/array operands share the static grammar.
+machine accept<Kind>(value: Kind) -> bool { true }
+machine literal<const Tag: u8>() -> u8 { Tag }
+
+machine probe<'view>(value: &'view [u8; 2]) -> bool {
+    accept<&'view [u8; 2]>(value) && literal<7u8>() == 7u8
+}
+
+machine main() crashes Trap {
+    let left: u64 = 2;
+    let right: u64 = 3;
+    let value: [u8; 2] = [5, 9];
+    transition left < (right + 1) && probe(&value) {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
