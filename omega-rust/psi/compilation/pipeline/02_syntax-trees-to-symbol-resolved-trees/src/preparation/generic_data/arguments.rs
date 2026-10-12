@@ -56,6 +56,7 @@ pub(super) fn complete_argument_tuple(
         template,
         base_name,
         supplied,
+        supplied,
         const_values,
         selection,
         warnings,

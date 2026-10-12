@@ -635,6 +635,7 @@ pub(crate) fn complete_equation_arguments(
     base_info: EquationTemplate<'_>,
     base_name: &Identifier,
     supplied: &[TypeReferenceHandle],
+    original_supplied: &[TypeReferenceHandle],
     const_values: &HashMap<String, i128>,
     selection: Option<&declaration_selection::ConstantSelection>,
     warnings: &mut Vec<Diagnostic>,
@@ -645,6 +646,7 @@ pub(crate) fn complete_equation_arguments(
             base_info,
             base_name,
             supplied,
+            original_supplied,
             const_values,
             selection,
         );
@@ -712,6 +714,8 @@ struct Solver<'a, 's> {
     const_values: &'a HashMap<String, i128>,
     selection: Option<&'a declaration_selection::ConstantSelection<'s>>,
     supplied_count: usize,
+    /// Exact source operands, distinct from value-only matching scratch.
+    original_supplied: Vec<TypeReferenceHandle>,
     bindings: Vec<Option<Binding>>,
     settled: Vec<bool>,
 }
@@ -722,6 +726,7 @@ impl<'a, 's> Solver<'a, 's> {
         base_info: EquationTemplate<'a>,
         base_name: &'a Identifier,
         supplied: &[TypeReferenceHandle],
+        original_supplied: &[TypeReferenceHandle],
         const_values: &'a HashMap<String, i128>,
         selection: Option<&'a declaration_selection::ConstantSelection<'s>>,
     ) -> Self {
@@ -754,6 +759,7 @@ impl<'a, 's> Solver<'a, 's> {
             const_values,
             selection,
             supplied_count: supplied.len(),
+            original_supplied: original_supplied.to_vec(),
             bindings,
             settled: vec![false; base_info.type_equations.len()],
         }
