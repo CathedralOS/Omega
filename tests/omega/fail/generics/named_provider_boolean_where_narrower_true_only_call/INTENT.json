@@ -1,0 +1,8 @@
+{
+  "status": "unexecuted source-only counterinvalid",
+  "original_fixture": "tests/omega/fail/generics/ordinary_provider_boolean_where_narrower",
+  "intent": "Named Provider promises Service complete Boolean invocation family Selected true or false; realization echo permits Actual true only. Only true is explicitly invoked here, so original false source-call membership cannot be credited as universal provider refinement. Full original family still owes complete public contract.",
+  "expected": "reject intended complete-family or universal Where refinement; no diagnostic fragment predicted",
+  "preserved": "original Service predicate, provider map, generic echo predicate/shape, named default selection and authored true call",
+  "qualification_boundary": "A generated complete-family false application may reject before final named conformance refinement; report actual producing occurrence and do not present that as observed execution of universal symbolic guard."
+}
