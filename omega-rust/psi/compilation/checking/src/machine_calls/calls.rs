@@ -512,6 +512,18 @@ pub(crate) fn validate_call_arguments(
         let slot_context = format!("argument `{}` for state `{argument_scope}`", parameter.name);
 
         if !type_matches(*argument, parameter.type_reference) {
+            if std::env::var_os("OMEGA_MAIN21_SCOPE_TRACE").is_some() {
+                let actual = current_state.and_then(|state| {
+                    crate::expression_result_type_reference(
+                        program,
+                        current_machine,
+                        state,
+                        *argument,
+                    )
+                });
+                eprintln!("main21-argument machine={} expression={argument:?} actual={actual:?} display={:?} expected={:?} scope={argument_scope}", current_machine.name, actual.map(|reference| program.display_type_reference_with_constraints(reference)), parameter.type_reference);
+            }
+
             diagnostics.push(Diagnostic::error(format!(
                 "argument `{}` for state `{}` expects `{}`, got `{}`",
                 parameter.name,
