@@ -589,24 +589,6 @@ pub(super) fn prepare_public_contract(
                 })
         })
         .collect::<Result<Vec<_>, _>>()?;
-    if std::env::var_os("OMEGA_MAIN21_SCOPE_TRACE").is_some() {
-        let row = program
-            .expression_table
-            .static_machine_application(application);
-        eprintln!(
-            "main21-public-scope requirement={requirement:?} selected={selected_interface:?} application={application:?} lexical={:?} captured={:?} formal_regions={:?} regions={:?} arguments={arguments:?}",
-            row.lexical_owner,
-            row.type_identity_owner(program).map(|owner| match owner {
-                typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(symbol) => symbol,
-                typed_trees::type_identity::AppliedTypeIdentityOwner::Captured(capture) =>
-                    capture.symbol(),
-            }),
-            selected.lifetime_parameters,
-            program
-                .expression_table
-                .static_machine_application_lifetimes(application)
-        );
-    }
     let root =
         AppliedTraitScope::from_static_application(program, selected, application, &arguments)
             .ok_or_else(|| Diagnostic::error("public result lost its complete selected scope"))?;

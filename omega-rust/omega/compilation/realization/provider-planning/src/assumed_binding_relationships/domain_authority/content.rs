@@ -41,35 +41,6 @@ pub fn retain_assumed_binding_domain_authority(
 ) {
     for relationship in relationships {
         relationship.domain_authority_content = capture(relationship, custody);
-        if std::env::var_os("OMEGA_DOMAIN_AUTHORITY_TRACE").is_some() {
-            eprintln!(
-                "TRACE_DOMAIN_AUTHORITY_COMPONENT required={:?} supplied={:?} owns_sources={} revisions={} applications={} demands={} content={:?}",
-                relationship.required().symbol,
-                relationship.supplied().symbol,
-                custody.owns_sources(&relationship.declaration_owner().symbols),
-                relationship.declaration_revisions().is_some(),
-                relationship.application_content().is_some(),
-                relationship.domain_demands().len(),
-                relationship
-                    .domain_authority_content
-                    .map(|content| content.digest()),
-            );
-            for (ordinal, demand) in relationship.domain_demands().iter().enumerate() {
-                let symbols = &relationship.declaration_owner().symbols;
-                eprintln!(
-                    "TRACE_DOMAIN_AUTHORITY_DEMAND ordinal={ordinal} side={:?} subject={:?} source={:?} kind={:?} domain={:?} domain_package={:?} domain_origin={:?} authorization={:?} routes={:?}",
-                    demand.side(),
-                    demand.subject(),
-                    demand.source(),
-                    demand.kind(),
-                    demand.domain(),
-                    symbols.symbol_package_identity(demand.domain()),
-                    symbols.symbol_source_origin(demand.domain()),
-                    demand.authorization(),
-                    relationship.domain_establishment_routes(ordinal),
-                );
-            }
-        }
     }
 }
 

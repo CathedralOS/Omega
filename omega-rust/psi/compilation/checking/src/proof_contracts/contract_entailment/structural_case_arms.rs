@@ -1039,17 +1039,6 @@ fn recognize_structural_state_leaves_from<'a>(
         Some(leaves)
     })();
 
-    if result.is_none() && super::struct_trace() {
-        eprintln!(
-            "STRUCT state-leaf unavailable machine={} state={} start={} citations={} runtime={} environment={:?}",
-            machine.name,
-            state.name,
-            start_index,
-            collect_citations,
-            judge.has_runtime_body_values(),
-            environment
-        );
-    }
     if start_index == 0 {
         path.pop();
     }

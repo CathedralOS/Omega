@@ -676,23 +676,6 @@ fn complete_arguments(
                     completed.push(argument);
                     continue;
                 }
-                if std::env::var_os("OMEGA_CONST_EQUATION_ORIGIN_TRACE").is_some() {
-                    eprintln!(
-                        "const-equation-origin missing target={} parameter={} position={} supplied={} reference={:?}",
-                        declaration.name.as_str(),
-                        parameter.name.as_str(),
-                        position,
-                        supplied.len(),
-                        syntax.type_references.type_reference(reference),
-                    );
-                    for (ordinal, original) in original_arguments.iter().enumerate() {
-                        eprintln!(
-                            "const-equation-origin original slot={} reference={:?}",
-                            ordinal,
-                            syntax.type_references.type_reference(*original),
-                        );
-                    }
-                }
                 return Err(Diagnostic::error(
                     "machine equation recovered an integer value without an original const operand",
                 ));
