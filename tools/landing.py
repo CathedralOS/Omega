@@ -51,11 +51,13 @@ now = coordination.now
 utc = coordination.utc
 emit = coordination.emit
 
-def pause(attempt, base, cap):
+def pause(attempt, base, cap, deadline=None):
     """Jittered exponential backoff: the ceiling doubles per attempt, the
     sleep lands in its upper half, and `cap` bounds the wait."""
     delay = min(cap, base * 2 ** (attempt - 1))
-    time.sleep(random.uniform(delay / 2, delay))
+    duration = random.uniform(delay / 2, delay)
+    remaining = coordination.remaining_seconds(deadline)
+    time.sleep(min(duration, remaining) if remaining is not None else duration)
 
 def ticket_id(value):
     if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{32}", value):
@@ -376,17 +378,20 @@ def receipt_failure(repository, candidate, affected, workspaces=None):
     return None
 
 class Landing:
-    def __init__(self, repository, remote):
+    def __init__(self, repository, remote, deadline=None):
+        # Setup belongs to the same bounded operation as acquisition. Once the
+        # head is observed, its original absolute expiry further narrows it.
+        self.deadline = deadline
         self.repository = Path(repository).resolve()
-        self.push_url = coordination.push_url(self.repository, remote)
+        self.push_url = coordination.push_url(self.repository, remote, deadline=self.deadline)
 
     def git(self, *arguments, input_text="", allow_failure=False):
         return coordination.git(self.repository, *arguments, input_text=input_text,
-                                allow_failure=allow_failure)
+                                allow_failure=allow_failure, deadline=getattr(self, "deadline", None))
 
     def references(self):
         references = coordination.remote_refs(self.repository, self.push_url,
-                                              MAIN_REF, CLAIM_REF)
+                                              MAIN_REF, CLAIM_REF, deadline=getattr(self, "deadline", None))
         if MAIN_REF not in references:
             raise LandingError("Remote main does not exist.")
         return references
@@ -404,17 +409,20 @@ class Landing:
         # large claims cache can exhaust memory before the landing lease starts.
         if not self.git("cat-file", "-e", version, allow_failure=True).returncode:
             coordination.remember_object(self.repository, self.push_url,
-                                         reference, version)
+                                         reference, version, deadline=getattr(self, "deadline", None))
             return
         try:
-            coordination.fetch_object(self.repository, self.push_url, version)
+            coordination.fetch_object(self.repository, self.push_url, version,
+                                      deadline=getattr(self, "deadline", None))
+        except coordination.CoordinationTimeout:
+            raise
         except LandingError:
             pass
         else:
             if not self.git("cat-file", "-e", version,
                             allow_failure=True).returncode:
                 coordination.remember_object(self.repository, self.push_url,
-                                             reference, version)
+                                             reference, version, deadline=getattr(self, "deadline", None))
                 return
         self.git("fetch", "--no-tags", "--no-write-fetch-head",
                  self.push_url, reference)
@@ -423,7 +431,7 @@ class Landing:
                                f"fetching {reference}; inspect the remote "
                                "object store before retrying.")
         coordination.remember_object(self.repository, self.push_url,
-                                     reference, version)
+                                     reference, version, deadline=getattr(self, "deadline", None))
 
     def snapshot(self):
         references = self.references()
@@ -497,7 +505,8 @@ class Landing:
             raise LandingError("Checkpoint tracked and untracked changes before enqueueing, reserving, or publishing.")
 
     def queue_object(self, record, parent):
-        return coordination.commit_record(self.repository, record, parent)
+        return coordination.commit_record(self.repository, record, parent,
+                                          deadline=getattr(self, "deadline", None))
 
     def remote_versions(self):
         """Current remote values of the coordination refs, retrying short
@@ -510,6 +519,8 @@ class Landing:
         while True:
             try:
                 return self.references()
+            except coordination.CoordinationTimeout:
+                raise
             except LandingError as error:
                 attempts += 1
                 if attempts >= PROBE_ATTEMPTS:
@@ -517,7 +528,8 @@ class Landing:
                         "Cannot read the coordination refs to confirm a push "
                         "outcome; the result is uncertain. Inspect status "
                         "before retrying.") from error
-                time.sleep(PROBE_BACKOFF_SECONDS)
+                pause(1, PROBE_BACKOFF_SECONDS, PROBE_BACKOFF_SECONDS,
+                      getattr(self, "deadline", None))
 
     def publish(self, expected, updated, candidate=None, base=None):
         """Push `updated` onto CLAIM_REF leased on `expected`.
@@ -543,7 +555,7 @@ class Landing:
         while True:
             mutation = coordination.push_atomic(
                 self.repository, self.push_url, refspecs,
-                lease=(CLAIM_REF, expected))
+                lease=(CLAIM_REF, expected), deadline=getattr(self, "deadline", None))
             if not mutation.returncode:
                 return True
             after = self.remote_versions()
@@ -563,7 +575,7 @@ class Landing:
                     "unchanged; outcome uncertain. Inspect status and main "
                     f"before retrying. {mutation.stderr} {mutation.stdout}")
             pause(failures, PUSH_FAILURE_BACKOFF_BASE,
-                  PUSH_FAILURE_BACKOFF_CAP)
+                  PUSH_FAILURE_BACKOFF_CAP, getattr(self, "deadline", None))
 
     def record_provenance(self, candidate, lines):
         """Attach `lines` to `candidate` on PROVENANCE_REF; returns what happened.
@@ -581,9 +593,10 @@ class Landing:
         for attempt in range(1, PUSH_FAILURE_LIMIT + 1):
             try:
                 remote = coordination.remote_refs(self.repository, self.push_url,
-                                                  PROVENANCE_REF).get(PROVENANCE_REF, "")
+                                                  PROVENANCE_REF, deadline=getattr(self, "deadline", None)).get(PROVENANCE_REF, "")
                 if remote:
-                    coordination.fetch_object(self.repository, self.push_url, remote)
+                    coordination.fetch_object(self.repository, self.push_url, remote,
+                                              deadline=getattr(self, "deadline", None))
                     self.git("update-ref", scratch, remote)
                 else:
                     self.git("update-ref", "-d", scratch, allow_failure=True)
@@ -592,15 +605,24 @@ class Landing:
                 updated = self.git("rev-parse", scratch).stdout
                 pushed = coordination.push_atomic(self.repository, self.push_url,
                                                   [f"{updated}:{PROVENANCE_REF}"],
-                                                  lease=(PROVENANCE_REF, remote))
+                                                  lease=(PROVENANCE_REF, remote), deadline=getattr(self, "deadline", None))
                 if not pushed.returncode:
                     return "recorded"
                 failure = (pushed.stderr or pushed.stdout).strip()
             except LandingError as error:
                 failure = str(error)
             finally:
-                self.git("update-ref", "-d", scratch, allow_failure=True)
-            pause(attempt, PUSH_FAILURE_BACKOFF_BASE, PUSH_FAILURE_BACKOFF_CAP)
+                try:
+                    self.git("update-ref", "-d", scratch, allow_failure=True)
+                except LandingError:
+                    # Main is already published. An expired advisory budget may
+                    # leave a uniquely named local scratch ref, never undo success.
+                    pass
+            try:
+                pause(attempt, PUSH_FAILURE_BACKOFF_BASE, PUSH_FAILURE_BACKOFF_CAP,
+                      getattr(self, "deadline", None))
+            except coordination.CoordinationTimeout:
+                break
         return f"not recorded: {failure[-300:]}"
 
     def back_off_after_collision(self, collisions):
@@ -609,7 +631,8 @@ class Landing:
             raise LandingError(
                 "Update kept losing push races to concurrent writers; "
                 "inspect status and main before retrying.")
-        pause(collisions, COLLISION_BACKOFF_BASE, COLLISION_BACKOFF_CAP)
+        pause(collisions, COLLISION_BACKOFF_BASE, COLLISION_BACKOFF_CAP,
+              getattr(self, "deadline", None))
 
     def legacy_release(self, options, snapshot):
         if options.command not in ("release", "recover") or options.claim != snapshot["version"]:
@@ -711,6 +734,30 @@ class Landing:
         updated = self.queue_object(record, snapshot["version"])
         return self.publish(snapshot["version"], updated)
 
+    def bound_to_lease(self, record):
+        """A claim fetch/push may consume time, but never renews the head."""
+        remaining = (utc(record["head_expires_utc"]) - datetime.now(timezone.utc)).total_seconds()
+        if remaining <= 0:
+            raise LandingError("The three-minute head lease expired. Rejoin with a new ticket.")
+        lease_deadline = time.monotonic() + remaining
+        self.deadline = min(getattr(self, "deadline", None) or lease_deadline, lease_deadline)
+
+    def emit_reservation(self, result):
+        # Git success proves a mutation happened, not that its reservation is
+        # still active after a slow fetch/push. Reobserve persisted ownership;
+        # concurrent arrivals may change the queue tip without changing the head.
+        observed = self.snapshot()["record"]
+        expected = {"ticket": result["claim"], "base": result["base"]}
+        if (observed.get("active") != expected
+                or not observed["entries"]
+                or observed["entries"][0]["ticket"] != result["claim"]
+                or observed["head_expires_utc"] != result["expires_utc"]):
+            raise LandingError("The reservation changed during acquisition. Inspect status before retrying.")
+        if expired(observed):
+            raise LandingError("The three-minute head lease expired before response. Rejoin.")
+        coordination.remaining_seconds(getattr(self, "deadline", None))
+        emit(result)
+
     def coordinate(self, options):
         deadline = time.monotonic() + options.wait_seconds
         collisions = 0
@@ -719,11 +766,14 @@ class Landing:
         while True:
             try:
                 snapshot = self.snapshot()
+            except coordination.CoordinationTimeout:
+                raise
             except LandingError:
                 snapshot_failures += 1
                 if snapshot_failures >= SNAPSHOT_ATTEMPTS:
                     raise
-                pause(snapshot_failures, PROBE_BACKOFF_SECONDS, 1.0)
+                pause(snapshot_failures, PROBE_BACKOFF_SECONDS, 1.0,
+                      getattr(self, "deadline", None))
                 continue
             snapshot_failures = 0
             record = snapshot["record"]
@@ -767,6 +817,8 @@ class Landing:
                     promote_head(record)
                 result = {"state": "queued", "ticket": options.ticket, "position": len(entries)}
             elif options.command == "claim":
+                if entries and entries[0]["ticket"] == options.ticket:
+                    self.bound_to_lease(record)
                 self.clean_head()
                 if not any(entry["ticket"] == options.ticket for entry in entries):
                     raise LandingError("Ticket is no longer queued. Do not reuse a removed ticket.")
@@ -780,7 +832,7 @@ class Landing:
                     continue
                 if active:
                     self.fetch_version(active["base"], MAIN_REF)
-                    emit({"state": "reserved", "claim": options.ticket, "base": active["base"], "owner": entries[0]["owner"],
+                    self.emit_reservation({"state": "reserved", "claim": options.ticket, "base": active["base"], "owner": entries[0]["owner"],
                           "expires_utc": record["head_expires_utc"]})
                     return 0
                 record["active"] = {"ticket": options.ticket, "base": snapshot["main"]}
@@ -802,6 +854,7 @@ class Landing:
                 if not active or active["ticket"] != options.claim:
                     raise LandingError("The supplied claim is no longer active. Nothing was changed.")
                 if options.command == "publish":
+                    self.bound_to_lease(record)
                     self.publication_check(options, snapshot)
                     owner = next((entry["owner"] for entry in entries if entry["ticket"] == options.claim), "")
                     result = {"state": "published", "candidate": options.candidate, "released_claim": options.claim}
@@ -811,9 +864,13 @@ class Landing:
                 record["active"] = None
                 promote_head(record)
 
+            if options.command == "claim" and expired(record):
+                raise LandingError("The three-minute head lease expired before reservation. Rejoin.")
             updated = self.queue_object(record, snapshot["version"])
             candidate = None
             base = None
+            if options.command == "claim" and expired(record):
+                raise LandingError("The three-minute head lease expired before reservation push. Rejoin.")
             if options.command == "publish":
                 candidate = options.candidate
                 base = snapshot["main"]
@@ -823,6 +880,9 @@ class Landing:
                     raise LandingError("The three-minute head lease expired before push. Rejoin.")
             if self.publish(snapshot["version"], updated, candidate, base):
                 if options.command == "publish":
+                    # Main is confirmed landed. Notes are a separately bounded
+                    # advisory operation, independent of the consumed head lease.
+                    self.deadline = time.monotonic() + LEASE_SECONDS
                     provenance = options.provenance or os.environ.get("OMEGA_PROVENANCE", "")
                     if not re.search(r"\bmodel=\S", provenance):
                         # Advisory only: a landing is never refused over missing provenance.
@@ -832,7 +892,10 @@ class Landing:
                     result["provenance"] = self.record_provenance(options.candidate, [
                         f"owner: {owner}", *([f"provenance: {provenance}"] if provenance.strip() else []),
                         f"ticket: {options.claim}", f"published_utc: {now()}"])
-                emit(result)
+                if options.command == "claim":
+                    self.emit_reservation(result)
+                else:
+                    emit(result)
                 return 0
             # Retry only metadata contention. Revalidate the active ticket and
             # reapply to the latest queue, preserving concurrent arrivals.
@@ -880,7 +943,8 @@ def main(arguments=None):
                 raise LandingError("verify requires --base <full-sha> — the integration base the claim reserved.")
             object_id(options.base, "Base")
             return verify(options.repository, options.base)
-        return Landing(options.repository, options.remote).coordinate(options)
+        operation_deadline = time.monotonic() + LEASE_SECONDS + options.wait_seconds
+        return Landing(options.repository, options.remote, operation_deadline).coordinate(options)
     except (LandingError, OSError) as error:
         identity = f" Ticket={options.ticket} Claim={options.claim}" if options else ""
         print(f"landing: {error}{identity}", file=sys.stderr)

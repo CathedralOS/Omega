@@ -2,6 +2,8 @@
 """Local Git protocol tests; no GitHub access or non-standard Python packages."""
 
 import json
+import copy
+from types import SimpleNamespace
 from datetime import datetime, timedelta, timezone
 import contextlib
 import importlib.util
@@ -50,6 +52,150 @@ class DeadlineTests(unittest.TestCase):
             self.assertTrue(module.expired(record))
 
 
+class AcquisitionTests(unittest.TestCase):
+    """Deterministic clocks and persisted records; never contact the live queue."""
+    def setUp(self):
+        self.module = load_landing()
+        self.expiry = datetime(2026, 10, 12, tzinfo=timezone.utc)
+        self.instant = self.expiry - timedelta(seconds=20)
+        case = self
+        class Clock(datetime):
+            @classmethod
+            def now(cls, timezone_value=None):
+                return case.instant
+        for patcher in (mock.patch.object(self.module, "datetime", Clock),
+                        mock.patch.object(self.module.time, "monotonic", side_effect=lambda: self.instant.timestamp())):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.ticket, self.base = "a" * 32, "b" * 40
+        self.persisted = {"version": "c" * 40, "main": self.base, "record": {
+            "protocol": "omega-landing-v3", "entries": [{"ticket": self.ticket, "owner": "test"}],
+            "active": {"ticket": self.ticket, "base": self.base},
+            "head_promoted_utc": (self.expiry - timedelta(seconds=180)).isoformat(),
+            "head_expires_utc": self.expiry.isoformat()}}
+        self.client = object.__new__(self.module.Landing)
+        self.client.snapshot = mock.Mock(side_effect=lambda: copy.deepcopy(self.persisted))
+        self.client.clean_head = mock.Mock()
+        self.client.fetch_version = mock.Mock()
+        self.client.queue_object = mock.Mock(return_value="d" * 40)
+        self.client.publish = mock.Mock(return_value=True)
+        self.options = SimpleNamespace(command="claim", ticket=self.ticket, wait_seconds=0)
+        self.responses = []
+        emitter = mock.patch.object(self.module, "emit", side_effect=self.responses.append)
+        emitter.start()
+        self.addCleanup(emitter.stop)
+
+    def claim(self):
+        return self.client.coordinate(self.options)
+
+    def expire(self, *arguments):
+        self.instant = self.expiry
+
+    def test_existing_fetch_and_final_observation_cannot_cross_expiry(self):
+        for boundary in ("fetch", "observation"):
+            with self.subTest(boundary=boundary):
+                self.instant = self.expiry - timedelta(seconds=20)
+                self.client.deadline = None
+                self.responses.clear()
+                self.client.fetch_version.side_effect = self.expire if boundary == "fetch" else None
+                def observe():
+                    if boundary == "observation" and self.client.fetch_version.called:
+                        self.expire()
+                    return copy.deepcopy(self.persisted)
+                self.client.fetch_version.reset_mock()
+                self.client.snapshot.side_effect = observe
+                with self.assertRaises(self.module.LandingError):
+                    self.claim()
+                self.assertEqual(self.responses, [])
+
+    def test_new_claim_expiring_during_preparation_does_not_push(self):
+        self.persisted["record"]["active"] = None
+        self.client.clean_head.side_effect = self.expire
+        with self.assertRaises(self.module.LandingError):
+            self.claim()
+        self.client.publish.assert_not_called()
+        self.client.queue_object.assert_not_called()
+        self.assertEqual(self.responses, [])
+
+    def test_push_crossing_expiry_cannot_report_new_reservation(self):
+        self.persisted["record"]["active"] = None
+        def publish(*arguments):
+            self.persisted["record"]["active"] = {"ticket": self.ticket, "base": self.base}
+            self.expire()
+            return True
+        self.client.publish.side_effect = publish
+        with self.assertRaises(self.module.LandingError):
+            self.claim()
+        self.assertEqual(self.responses, [])
+
+    def test_changed_persisted_base_is_refused(self):
+        self.client.fetch_version.side_effect = lambda *arguments: self.persisted["record"]["active"].update(base="e" * 40)
+        with self.assertRaises(self.module.LandingError):
+            self.claim()
+        self.assertEqual(self.responses, [])
+
+    def test_unchanged_head_accepts_tail_arrival_and_preserves_expiry(self):
+        def append(*arguments):
+            self.persisted["record"]["entries"].append({"ticket": "f" * 32, "owner": "tail"})
+            self.persisted["version"] = "e" * 40
+        self.client.fetch_version.side_effect = append
+        self.assertEqual(self.claim(), 0)
+        self.assertEqual(self.responses[0]["base"], self.base)
+        self.assertEqual(self.responses[0]["expires_utc"], self.expiry.isoformat())
+        self.client.publish.assert_not_called()
+
+    def test_setup_receives_budget_before_remote_discovery(self):
+        with mock.patch.object(self.module.coordination, "push_url", return_value="remote") as discover:
+            self.module.Landing("repository", "origin", deadline=123)
+        self.assertEqual(discover.call_args.kwargs["deadline"], 123)
+
+    def test_timed_out_fetch_is_not_retried_by_ref(self):
+        client = object.__new__(self.module.Landing)
+        client.repository, client.push_url, client.deadline = Path("repository"), "remote", 123
+        client.git = mock.Mock(return_value=subprocess.CompletedProcess([], 1))
+        with mock.patch.object(self.module.coordination, "fetch_object", side_effect=self.module.coordination.CoordinationTimeout("expired")) as fetch:
+            with self.assertRaises(self.module.coordination.CoordinationTimeout):
+                client.fetch_version(self.base)
+        self.assertEqual(client.git.call_count, 1)
+        self.assertEqual(fetch.call_args.kwargs["deadline"], 123)
+
+    def test_confirmed_publication_starts_separate_notes_budget(self):
+        self.options.command = "publish"
+        self.options.claim = self.ticket
+        self.options.base = self.base
+        self.options.candidate = "e" * 40
+        self.options.provenance = "model=test"
+        self.client.publication_check = mock.Mock()
+        def push(*arguments):
+            self.expire()
+            return True
+        self.client.publish.side_effect = push
+        def notes(*arguments):
+            self.assertEqual(self.client.deadline, self.instant.timestamp() + self.module.LEASE_SECONDS)
+            return "not recorded: notes unavailable"
+        self.client.record_provenance = mock.Mock(side_effect=notes)
+        self.assertEqual(self.client.coordinate(self.options), 0)
+        self.assertEqual(self.responses[0]["state"], "published")
+        self.assertTrue(self.responses[0]["provenance"].startswith("not recorded:"))
+
+    def test_provenance_deadline_cannot_turn_landed_main_into_failure(self):
+        client = object.__new__(self.module.Landing)
+        client.repository, client.push_url = Path("repository"), "remote"
+        client.deadline = self.instant.timestamp() - 1
+        with mock.patch.object(self.module.coordination, "remote_refs", return_value={}):
+            result = client.record_provenance(self.base, ["owner: test"])
+        self.assertTrue(result.startswith("not recorded:"))
+
+    def test_push_timeout_stays_uncertain_and_is_not_retried(self):
+        client = object.__new__(self.module.Landing)
+        client.repository, client.push_url, client.deadline = Path("repository"), "remote", 123
+        with mock.patch.object(self.module.coordination, "push_atomic", side_effect=self.module.coordination.CoordinationTimeout("remote mutation may have landed")) as push:
+            with self.assertRaisesRegex(self.module.coordination.CoordinationTimeout, "may have landed"):
+                client.publish("c" * 40, "d" * 40)
+        self.assertEqual(push.call_count, 1)
+        self.assertEqual(push.call_args.kwargs["deadline"], 123)
+
+
 class FetchCacheTests(unittest.TestCase):
     def test_existing_tip_is_not_refetched_and_remains_reachable(self):
         module = load_landing()
@@ -63,7 +209,7 @@ class FetchCacheTests(unittest.TestCase):
             landing.fetch_version(identity)
         fetch.assert_not_called()
         landing.git.assert_called_once_with("cat-file", "-e", identity, allow_failure=True)
-        remember.assert_called_once_with(landing.repository, "remote", module.CLAIM_REF, identity)
+        remember.assert_called_once_with(landing.repository, "remote", module.CLAIM_REF, identity, deadline=None)
 
 
 class LandingTests(unittest.TestCase):

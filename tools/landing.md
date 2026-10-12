@@ -56,6 +56,12 @@ the local wait later or cancel. Other errors exit 1. `--poll-seconds` controls t
 wait interval (default 10); waiting runs in the local Python process, not in an
 AI polling loop or hosted scheduler.
 
+Setup and Git operations share a bounded command budget; acquiring the head
+further bounds them to its original expiry. Before returning a reservation, the
+client reobserves its persisted ticket, exact base and expiry, then checks the
+clock again. A slow fetch or push may finish without a usable reservation.
+Inspect status after a timeout: a remote mutation may already have landed.
+
 The next waiter claims when it reaches the head; queue position alone does not
 authorize integration. A waiting ticket can resume later, but an absent head
 loses its turn at expiry. The next coordinating client atomically removes the
