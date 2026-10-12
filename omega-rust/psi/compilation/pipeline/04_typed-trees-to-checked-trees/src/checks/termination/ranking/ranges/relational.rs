@@ -217,6 +217,9 @@ fn admit_complete(
     // The entry obligation is independent of every edge's guards. In
     // particular, an acyclic body cannot pass vacuously through an empty SCC.
     if !validation::prove_ranking_range_entry(program, machine, root, range, measure) {
+        if std::env::var_os("OMEGA_RANK_ARRIVAL_TRACE").is_some() {
+            eprintln!("rank-arrival entry failed {}", machine.name);
+        }
         return None;
     }
     // The judgment reads only these entry formals' arrival values; every
