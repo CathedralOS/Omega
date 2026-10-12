@@ -1,0 +1,9 @@
+use left::values;
+use right::values;
+
+machine accept(value: left::values::Token) {}
+data Main {}
+machine Main::main() {
+    let value: right::values::Token = right::values::Token { flag: true };
+    accept(value);
+}
