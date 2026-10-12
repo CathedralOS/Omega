@@ -339,12 +339,18 @@ fn evaluate_application_group(
             for warning in &evaluated.warnings {
                 eprintln!("{warning}");
             }
+            let result_atom = evaluated.value.atom();
             syntax.type_references.retain_const_argument_normalization(
                 *argument,
                 reference,
                 evaluated.value.encoding.clone(),
                 evaluated.origins,
                 evaluated.operators,
+            );
+            syntax.type_references.retain_const_argument_result(
+                *argument,
+                result_atom,
+                evaluated.integer_meaning.source_meaning(),
             );
             syntax
                 .type_references

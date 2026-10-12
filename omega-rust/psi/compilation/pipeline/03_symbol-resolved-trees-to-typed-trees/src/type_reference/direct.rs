@@ -15,10 +15,10 @@ pub(super) fn lower_type_reference_handle_with_context(
 ) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
     let result: Result<_, Diagnostic> = match type_reference {
         resolved::types::TypeReference::Reference(reference) => {
-            let referee = lower_type_reference_handle_with_context(
+            let referee = super::lower_child_type_reference_with_exposure(
                 source_trees,
                 typed_trees,
-                source_trees.child_type_reference(reference.referee),
+                reference.referee,
                 exposure,
             )?;
             Ok(typed_trees.type_reference_table.insert(
@@ -33,10 +33,10 @@ pub(super) fn lower_type_reference_handle_with_context(
             ))
         }
         resolved::types::TypeReference::Constrained(constrained) => {
-            let base_type = lower_type_reference_handle_with_context(
+            let base_type = super::lower_child_type_reference_with_exposure(
                 source_trees,
                 typed_trees,
-                source_trees.child_type_reference(constrained.base_type),
+                constrained.base_type,
                 exposure,
             )?;
             let constraints = lower_type_constraint_node_span_with_context(
@@ -53,10 +53,10 @@ pub(super) fn lower_type_reference_handle_with_context(
             ))
         }
         resolved::types::TypeReference::FixedArray(fixed_array) => {
-            let element_type = lower_type_reference_handle_with_context(
+            let element_type = super::lower_child_type_reference_with_exposure(
                 source_trees,
                 typed_trees,
-                source_trees.child_type_reference(fixed_array.element_type),
+                fixed_array.element_type,
                 exposure,
             )?;
             lower_fixed_array_type(
@@ -68,10 +68,10 @@ pub(super) fn lower_type_reference_handle_with_context(
             )
         }
         resolved::types::TypeReference::Slice(slice) => {
-            let element_type = lower_type_reference_handle_with_context(
+            let element_type = super::lower_child_type_reference_with_exposure(
                 source_trees,
                 typed_trees,
-                source_trees.child_type_reference(slice.element_type),
+                slice.element_type,
                 exposure,
             )?;
             Ok(typed_trees
@@ -81,10 +81,10 @@ pub(super) fn lower_type_reference_handle_with_context(
         resolved::types::TypeReference::Generic(generic) => {
             // Nested applications publish child spans into this same arena.
             // Finish recursion before inserting the parent's contiguous roster.
-            let source_arguments = source_trees.child_type_references(generic.arguments);
-            let mut lowered_arguments = Vec::with_capacity(source_arguments.len());
+            let source_arguments = generic.arguments.handles();
+            let mut lowered_arguments = Vec::new();
             for argument in source_arguments {
-                let argument = lower_type_reference_handle_with_context(
+                let argument = super::lower_child_type_reference_with_exposure(
                     source_trees,
                     typed_trees,
                     argument,
@@ -143,10 +143,10 @@ pub(super) fn lower_type_reference_handle_with_context(
         } => {
             // Arguments publish child spans into the same arena; finish their
             // recursion before inserting this node's contiguous roster.
-            let source_arguments = source_trees.child_type_references(*arguments);
-            let mut lowered_arguments = Vec::with_capacity(source_arguments.len());
+            let source_arguments = arguments.handles();
+            let mut lowered_arguments = Vec::new();
             for argument in source_arguments {
-                lowered_arguments.push(lower_type_reference_handle_with_context(
+                lowered_arguments.push(super::lower_child_type_reference_with_exposure(
                     source_trees,
                     typed_trees,
                     argument,

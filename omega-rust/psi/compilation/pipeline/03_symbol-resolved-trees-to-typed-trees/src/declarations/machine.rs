@@ -270,12 +270,9 @@ fn lower_machine_contents(
             language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
         )?;
         let mut arguments = arena::HandleSpan::empty();
-        for argument in lowerer
-            .source_trees
-            .child_type_references(conformance.arguments)
-        {
+        for argument in conformance.arguments.handles() {
             let argument =
-                crate::type_reference::lower_type_reference_into_table(lowerer, argument)?;
+                crate::type_reference::lower_child_type_reference_into_table(lowerer, argument)?;
             lowerer
                 .typed_trees
                 .type_reference_table
@@ -338,8 +335,10 @@ fn lower_machine_contents(
 
     for bound in &machine.conformance_bounds {
         let mut arguments = Vec::new();
-        for argument in lowerer.source_trees.child_type_references(bound.arguments) {
-            arguments.push(lower_type_reference_into_table(lowerer, argument)?);
+        for argument in bound.arguments.handles() {
+            arguments.push(
+                crate::type_reference::lower_child_type_reference_into_table(lowerer, argument)?,
+            );
         }
         typed_machine
             .conformance_bounds

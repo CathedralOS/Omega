@@ -124,6 +124,9 @@ impl TypeReferenceTable {
             copied.generation(),
         )) = source.operand_lifetime_owner(type_reference);
         self.retain_const_integer_meaning(copied, source.const_integer_meaning(type_reference));
+        if let Some(value) = source.completed_const_result(type_reference) {
+            self.retain_completed_const_result(copied, Some(value.clone()));
+        }
         let application = source.data_application_origin(type_reference);
         if application.is_valid() {
             let application =

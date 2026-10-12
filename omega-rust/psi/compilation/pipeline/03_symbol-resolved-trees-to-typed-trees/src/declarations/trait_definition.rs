@@ -31,10 +31,10 @@ pub(crate) fn lower_trait_definition(
 
     for bound in &trait_definition.conformance_bounds {
         let mut arguments = Vec::new();
-        for argument in lowerer.source_trees.child_type_references(bound.arguments) {
-            arguments.push(crate::type_reference::lower_type_reference_into_table(
-                lowerer, argument,
-            )?);
+        for argument in bound.arguments.handles() {
+            arguments.push(
+                crate::type_reference::lower_child_type_reference_into_table(lowerer, argument)?,
+            );
         }
         typed_trait
             .conformance_bounds
@@ -60,13 +60,9 @@ pub(crate) fn lower_trait_definition(
             language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
         )?;
         let mut arguments = arena::HandleSpan::empty();
-        let source_arguments = lowerer
-            .source_trees
-            .child_type_references(requirement.arguments)
-            .to_vec();
-        for argument in &source_arguments {
+        for argument in requirement.arguments.handles() {
             let argument =
-                crate::type_reference::lower_type_reference_into_table(lowerer, argument)?;
+                crate::type_reference::lower_child_type_reference_into_table(lowerer, argument)?;
             lowerer
                 .typed_trees
                 .type_reference_table
@@ -116,9 +112,9 @@ pub(crate) fn lower_trait_definition(
             language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
         )?;
         let mut base_arguments = arena::HandleSpan::empty();
-        for argument in lowerer.source_trees.child_type_references(base.arguments) {
+        for argument in base.arguments.handles() {
             let argument =
-                crate::type_reference::lower_type_reference_into_table(lowerer, argument)?;
+                crate::type_reference::lower_child_type_reference_into_table(lowerer, argument)?;
             lowerer
                 .typed_trees
                 .type_reference_table

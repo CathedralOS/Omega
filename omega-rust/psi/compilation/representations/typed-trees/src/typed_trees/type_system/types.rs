@@ -36,6 +36,41 @@ pub enum ConstIntegerMeaning {
 }
 
 impl ConstIntegerMeaning {
+    pub fn from_source_meaning(
+        meaning: language_core::expression_origin::ConstMatchIntegerMeaning,
+    ) -> Self {
+        use language_core::expression_origin::ConstMatchIntegerMeaning;
+        match meaning {
+            ConstMatchIntegerMeaning::Anonymous => Self::Anonymous,
+            ConstMatchIntegerMeaning::Typed {
+                primitive,
+                arithmetic_domain,
+            } => Self::Typed {
+                primitive: PrimitiveType::from_landed_integer(primitive),
+                arithmetic_domain,
+            },
+            ConstMatchIntegerMeaning::Unavailable => Self::Unavailable,
+        }
+    }
+
+    pub fn source_meaning(self) -> language_core::expression_origin::ConstMatchIntegerMeaning {
+        use language_core::expression_origin::ConstMatchIntegerMeaning;
+        match self {
+            Self::Anonymous => ConstMatchIntegerMeaning::Anonymous,
+            Self::Typed {
+                primitive,
+                arithmetic_domain,
+            } => primitive.landed_landing().map_or(
+                ConstMatchIntegerMeaning::Unavailable,
+                |primitive| ConstMatchIntegerMeaning::Typed {
+                    primitive,
+                    arithmetic_domain,
+                },
+            ),
+            Self::Unavailable => ConstMatchIntegerMeaning::Unavailable,
+        }
+    }
+
     pub fn identity_encoding(self) -> String {
         match self {
             Self::Unavailable => "unavailable".to_owned(),
@@ -98,6 +133,7 @@ pub struct TypeReferenceTable {
     /// copying into a private declaration. Zero means ordinary lexical lookup.
     operand_lifetime_owners: Arena<SymbolHandle>,
     const_integer_meanings: Arena<ConstIntegerMeaning>,
+    completed_const_results: Arena<Option<language_semantics::const_value::CanonicalConstValue>>,
     /// Each generated carrier use retains its own original full application.
     /// Shared storage never donates the first use's argument admission.
     data_application_origins: Arena<TypeReferenceHandle>,
@@ -116,6 +152,7 @@ impl std::fmt::Debug for TypeReferenceTable {
             .field("constant_origins", &self.constant_origins)
             .field("operand_lifetime_owners", &self.operand_lifetime_owners)
             .field("const_integer_meanings", &self.const_integer_meanings)
+            .field("completed_const_results", &self.completed_const_results)
             .field("data_application_origins", &self.data_application_origins)
             .finish()
     }
@@ -147,6 +184,7 @@ impl TypeReferenceTable {
             constant_origins,
             operand_lifetime_owners,
             const_integer_meanings,
+            completed_const_results,
             data_application_origins,
             named_rows: _,
         } = base;
@@ -172,6 +210,9 @@ impl TypeReferenceTable {
             const_integer_meanings,
             &self.const_integer_meanings,
         ) && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+            completed_const_results,
+            &self.completed_const_results,
+        ) && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
             data_application_origins,
             &self.data_application_origins,
         )
@@ -186,6 +227,7 @@ impl TypeReferenceTable {
             constant_origins: Arena::new(),
             operand_lifetime_owners: Arena::new(),
             const_integer_meanings: Arena::new(),
+            completed_const_results: Arena::new(),
             data_application_origins: Arena::new(),
             named_rows: NamedRowIndex::default(),
         }
@@ -202,6 +244,7 @@ impl TypeReferenceTable {
             .wrapping_add(self.constant_origin_spans.revision())
             .wrapping_add(self.operand_lifetime_owners.revision())
             .wrapping_add(self.const_integer_meanings.revision())
+            .wrapping_add(self.completed_const_results.revision())
             .wrapping_add(self.data_application_origins.revision())
     }
 
@@ -216,6 +259,9 @@ impl TypeReferenceTable {
         let meaning = self
             .const_integer_meanings
             .insert(ConstIntegerMeaning::Unavailable);
+        let completed = self.completed_const_results.insert(None);
+        debug_assert_eq!(handle.arena_index(), completed.arena_index());
+        debug_assert_eq!(handle.generation(), completed.generation());
         let application = self
             .data_application_origins
             .insert(TypeReferenceHandle::invalid());
@@ -266,6 +312,34 @@ impl TypeReferenceTable {
             reference.arena_index(),
             reference.generation(),
         )) = application;
+    }
+
+    /// Successful source normalization, keyed by the exact operand occurrence.
+    /// This is a value observation, never checking or execution admission.
+    pub fn completed_const_result(
+        &self,
+        reference: TypeReferenceHandle,
+    ) -> Option<&language_semantics::const_value::CanonicalConstValue> {
+        if !self.contains_type_reference(reference) {
+            return None;
+        }
+        self.completed_const_results
+            .get(Handle::from_parts(
+                reference.arena_index(),
+                reference.generation(),
+            ))
+            .as_ref()
+    }
+
+    pub fn retain_completed_const_result(
+        &mut self,
+        reference: TypeReferenceHandle,
+        value: Option<language_semantics::const_value::CanonicalConstValue>,
+    ) {
+        *self.completed_const_results.get_mut(Handle::from_parts(
+            reference.arena_index(),
+            reference.generation(),
+        )) = value;
     }
 
     pub fn const_integer_meaning(&self, reference: TypeReferenceHandle) -> ConstIntegerMeaning {
