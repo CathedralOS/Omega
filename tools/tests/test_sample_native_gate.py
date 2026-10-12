@@ -273,6 +273,29 @@ class TimingTests(unittest.TestCase):
         self.assertEqual(summary["sample_seconds"], 11.0)
 
 
+class NestedGroupTests(unittest.TestCase):
+    """A package and the projects nested in its source tree never run
+    concurrently; unrelated samples still form separate groups."""
+
+    def test_nested_projects_share_their_outermost_ancestors_group(self):
+        samples = [
+            "samples/cli/lab/controls/invalid",
+            "samples/cli/lab",
+            "samples/cli/lab/evidence/deep/repro",
+            "samples/cli/lab-variant",
+            "samples/cli/other",
+        ]
+        self.assertEqual(gate.nested_groups(samples), [
+            ["samples/cli/lab", "samples/cli/lab/controls/invalid",
+             "samples/cli/lab/evidence/deep/repro"],
+            ["samples/cli/lab-variant"],
+            ["samples/cli/other"],
+        ])
+
+    def test_unrelated_siblings_stay_parallel(self):
+        self.assertEqual(len(gate.nested_groups(["samples/a", "samples/b", "samples/c"])), 3)
+
+
 class RunHistoryTests(unittest.TestCase):
     def test_each_run_writes_a_dated_record(self):
         with tempfile.TemporaryDirectory() as directory:

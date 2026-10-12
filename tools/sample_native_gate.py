@@ -93,6 +93,23 @@ def discover(root, filters=()):
             for project in discover_projects(Path(root), ROOT, tuple(filters)) if project.role != "library"]
 
 
+def nested_groups(samples):
+    """Samples grouped under their outermost selected ancestor, in order.
+
+    A nested project (a sample's `controls/` or `evidence/` subproject)
+    writes its `build/` inside the enclosing package's source tree. Measured
+    concurrently with that package, the write lands between the parent's
+    review and its run, and the parent fails with "source identity changed"
+    or a missing program-entry acceptance that no compiler defect caused.
+    Each group runs in one worker; separate groups still run in parallel.
+    """
+    groups = {}
+    for sample in sorted(samples):
+        root = next((key for key in groups if sample.startswith(key + "/")), sample)
+        groups.setdefault(root, []).append(sample)
+    return list(groups.values())
+
+
 def oracle(sample, entry=None):
     text = Path(entry or os.path.join(sample, "main.omg")).read_text(encoding="utf-8", errors="ignore")
     exit_match = EXPECT_EXIT.search(text)
@@ -447,12 +464,13 @@ def main():
 
     wall_start = time.monotonic()
     with ThreadPoolExecutor(max_workers=arguments.jobs) as pool:
-        results = list(
-            pool.map(
-                lambda s: timed_measure(arguments.cli, s, arguments.target, arguments.timeout),
-                samples,
-            )
+        grouped = pool.map(
+            lambda group: [timed_measure(arguments.cli, s, arguments.target, arguments.timeout)
+                           for s in group],
+            nested_groups(samples),
         )
+        results = sorted((result for group in grouped for result in group),
+                         key=lambda result: result["sample"])
     wall_seconds = time.monotonic() - wall_start
 
     buckets = {}
