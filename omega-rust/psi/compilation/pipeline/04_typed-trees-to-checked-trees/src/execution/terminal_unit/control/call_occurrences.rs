@@ -28,6 +28,45 @@ mod traced;
 pub(in crate::execution::terminal_unit) use collecting::call_owns_statement_computations;
 pub(in crate::execution::terminal_unit) use traced::outer_calls_before_traced;
 
+/// The same checked occurrence owns a successor, never a returning operation.
+/// Lookup follows its arena handle and exact physical relation, not a name.
+pub(super) fn checked_tail_call<'facts>(
+    program: &dyn ::validation::CheckingInput,
+    facts: &'facts CheckFacts,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    call: &checked_trees::FlowCallFact,
+) -> Option<&'facts checked_trees::FlowTailTransferFact> {
+    let owner = program.machine_by_symbol(machine)?;
+    let mut rows = facts
+        .flow
+        .control
+        .tail_transfers
+        .iter()
+        .filter_map(|(_, row)| {
+            (row.machine_symbol == machine
+                && row.state_symbol == state.symbol
+                && row.statement_index == call.statement_index
+                && facts.flow.control.calls.is_valid(row.call)
+                && std::ptr::eq(facts.flow.control.calls.get(row.call), call))
+            .then_some(row)
+        });
+    let row = rows.next()?;
+    if rows.next().is_some() {
+        return None;
+    }
+    let jump = crate::execution::tail_transfers::tail(
+        program,
+        &facts.flow,
+        owner,
+        state,
+        call.statement_index,
+        row.transition_target,
+    )?;
+    let selected = jump.tail?;
+    std::ptr::eq(row, selected).then_some(row)
+}
+
 pub(in crate::execution::terminal_unit) fn terminal_named_call(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,

@@ -15,6 +15,12 @@ impl Execution<'_, '_, '_> {
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
         constraints: &mut HandleSpan<FlowConstraintRef>,
     ) {
+        if let TransitionTargetNode::Value(expression) =
+            self.program.statement_table.transition_target(target)
+            && self.tail_transfer(*expression, target, contexts, constraints)
+        {
+            return;
+        }
         let mut returned_value = arena::Handle::invalid();
         let mut operands = Vec::new();
         let mut captured_operands = Vec::new();

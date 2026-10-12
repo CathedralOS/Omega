@@ -171,6 +171,14 @@ pub(super) fn append_statement_calls<'plans>(
             stored_value = execution.context.control.operands.append(evaluated.capture);
         }
         StatementNode::Expression(expression) => {
+            if execution.tail_transfer(
+                *expression,
+                TransitionTargetHandle::invalid(),
+                contexts,
+                constraints,
+            ) {
+                return (stored_value, execution.write_prefix());
+            }
             if state.return_type.is_valid()
                 && statement_index + 1
                     == program
@@ -359,16 +367,33 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         captured_operands: &[checked_trees::FlowOperandFact],
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
         constraints: &mut HandleSpan<FlowConstraintRef>,
-    ) {
+    ) -> Option<Handle<FlowCallFact>> {
         let Some(invocation) = self
             .invocations
             .iter_mut()
             .find(|invocation| !invocation.visited && invocation.site == site)
         else {
-            return;
+            return None;
         };
         invocation.visited = true;
         let borrowed_call = invocation.call;
+        Some(self.invoke_captured(
+            borrowed_call,
+            site,
+            captured_operands,
+            contexts,
+            constraints,
+        ))
+    }
+
+    fn invoke_captured(
+        &mut self,
+        borrowed_call: &'a BorrowCallFact,
+        site: InvocationSite,
+        captured_operands: &[checked_trees::FlowOperandFact],
+        contexts: &mut HandleSpan<FlowSemanticContextRef>,
+        constraints: &mut HandleSpan<FlowConstraintRef>,
+    ) -> Handle<FlowCallFact> {
         let writes = super::call_phases::call_storage_writes(
             self.program,
             self.borrow,
@@ -414,7 +439,115 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         self.context
             .control
             .calls
-            .append_to_span(self.state_calls, call);
+            .append_to_span(self.state_calls, call)
+    }
+
+    /// Publish the existing source invocation and its saved actuals, while
+    /// leaving the next activation at the operand-time frontier. The callee's
+    /// return guarantees remain on its source call row; a backedge must not
+    /// assume that future completion before running its entry body.
+    fn tail_transfer(
+        &mut self,
+        expression: ExpressionHandle,
+        transition_target: TransitionTargetHandle,
+        contexts: &mut HandleSpan<FlowSemanticContextRef>,
+        constraints: &mut HandleSpan<FlowConstraintRef>,
+    ) -> bool {
+        let Some(call) = validation::current_entry_tail_call(
+            self.program,
+            self.machine,
+            self.state,
+            self.statement_index,
+            expression,
+        )
+        .cloned() else {
+            return false;
+        };
+        // Decide eligibility before evaluating any operand. An absent call
+        // inventory cannot cause a first evaluation followed by a fallback.
+        let Some(entry) = self.program.machine_states(self.machine).first() else {
+            return false;
+        };
+        let Some(invocation) = self.invocations.iter_mut().find(|invocation| {
+            !invocation.visited
+                && invocation.site == InvocationSite::Expression(expression)
+                && invocation.call.target_symbol == entry.symbol
+        }) else {
+            return false;
+        };
+        // Reserve this exact occurrence before visiting children. Publication
+        // uses the reserved row directly, so no failed late lookup can evaluate
+        // the same operands again on an ordinary-call fallback.
+        invocation.visited = true;
+        let borrowed_call = invocation.call;
+        let mut captured = Vec::new();
+        if call.receiver.is_valid() {
+            captured.push(
+                self.evaluated_operand(call.receiver, contexts, constraints)
+                    .capture,
+            );
+        }
+        for (ordinal, argument) in self
+            .program
+            .expression_table
+            .expression_handles(call.arguments)
+            .iter()
+            .enumerate()
+        {
+            let destination =
+                self.invocation_parameter_type(InvocationSite::Expression(expression), ordinal);
+            captured.push(
+                self.evaluated_operand_as(*argument, destination, contexts, constraints)
+                    .capture,
+            );
+        }
+        let before_contexts = *contexts;
+        let before_constraints = *constraints;
+        let before_writes = self.write_prefix();
+        let call_handle = self.invoke_captured(
+            borrowed_call,
+            InvocationSite::Expression(expression),
+            &captured,
+            contexts,
+            constraints,
+        );
+        // Captures belong to the one invocation above. Only a namespace
+        // receiver is eligible here; its non-runtime capture is not a slot.
+        let call_fact = self.context.control.calls.get(call_handle);
+        let mut operands = call_fact.operands;
+        if call.receiver.is_valid() {
+            operands = if let Some(first_argument) = operands.handles().nth(1) {
+                HandleSpan::from_parts(first_argument, operands.count() - 1)
+            } else {
+                HandleSpan::empty()
+            };
+        }
+        self.context
+            .control
+            .tail_transfers
+            .append(checked_trees::FlowTailTransferFact {
+                machine_symbol: self.machine.symbol,
+                state_symbol: self.state.symbol,
+                statement_index: self.statement_index,
+                transition_target,
+                expression,
+                target_state: self.program.machine_states(self.machine)[0].symbol,
+                call: call_handle,
+                operands,
+            });
+        *contexts = before_contexts;
+        *constraints = before_constraints;
+        self.restore_write_prefix(before_writes);
+        super::exits::append_outgoing_state_fact(
+            self.context,
+            self.machine.symbol,
+            self.state.symbol,
+            self.statement_index,
+            transition_target,
+            *constraints,
+            Handle::invalid(),
+        );
+        true
     }
 
     pub(super) fn expression(

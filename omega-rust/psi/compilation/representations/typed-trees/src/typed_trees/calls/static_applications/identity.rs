@@ -1147,3 +1147,146 @@ fn lexical_region<LifetimeArgument: super::StaticLifetimeOperand>(
             )
         })
 }
+
+/// Whether an original application selects this same callable family instance.
+/// This is an identity query, not application, region or loan admission. Tail
+/// transfer keeps all of those source judgments and checks its state arrival.
+pub fn machine_application_selects_current_instance(
+    owner: &TypedTrees,
+    instance: &crate::machine::Machine,
+    handle: StaticMachineApplicationHandle,
+) -> bool {
+    use super::{StaticApplicationDeclaration, StaticMachineBindingValue};
+    let mut specializations = owner
+        .machine_specializations
+        .iter()
+        .filter(|specialization| specialization.instance == instance.symbol);
+    if let Some(specialization) = specializations.next() {
+        if specializations.next().is_some() {
+            return false;
+        }
+        let Some(template) = owner.machine_by_symbol(specialization.template) else {
+            return false;
+        };
+        if !original_entry_application(owner, template, handle) {
+            return false;
+        }
+        let Some(receipt) = owner
+            .expression_table
+            .static_machine_application_is_valid(specialization.binding_application)
+            .then(|| {
+                owner
+                    .expression_table
+                    .static_machine_application(specialization.binding_application)
+            })
+        else {
+            return false;
+        };
+        if !StaticApplicationDeclaration::for_selected_interface(
+            owner,
+            receipt.registration_operation,
+            receipt.selected_interface,
+        )
+        .is_ok_and(|declaration| declaration.symbol() == template.symbol)
+        {
+            return false;
+        }
+        return machine_family_application_identity_text(owner, template, instance, handle)
+            .ok()
+            .zip(
+                machine_family_application_identity_text(
+                    owner,
+                    template,
+                    instance,
+                    specialization.binding_application,
+                )
+                .ok(),
+            )
+            .is_some_and(|(actual, selected)| actual == selected);
+    }
+    let Ok(declaration) = StaticApplicationDeclaration::for_symbol(owner, instance.symbol) else {
+        return false;
+    };
+    if !handle.is_valid() {
+        return declaration.parameters().is_empty() && declaration.conformance_bounds().is_empty();
+    }
+    if !original_entry_application(owner, instance, handle) {
+        return false;
+    }
+    let application = owner.expression_table.static_machine_application(handle);
+    let Ok(source) = StaticApplicationDeclaration::for_application(owner, application) else {
+        return false;
+    };
+    if source.symbol() != instance.symbol {
+        return false;
+    }
+    let Ok(bindings) = source.bind_arguments(owner, handle) else {
+        return false;
+    };
+    // Applying an own formal is not the same symbolic equation as forwarding
+    // that formal. Do not discard nested argument/region/projection geometry
+    // merely because an inferred binding also contains its bare symbol.
+    if owner
+        .expression_table
+        .static_machine_application_arguments(handle)
+        .iter()
+        .any(|argument| {
+            source
+                .binders()
+                .any(|parameter| parameter == argument.symbol)
+                && (argument.application.is_some()
+                    || argument.const_literal.is_some()
+                    || argument.evidence_projection.is_some())
+        })
+    {
+        return false;
+    }
+    // An open template has no closed instance key. Exact forwarding of its
+    // own formal coordinates preserves the existing instance; an expression
+    // or another declaration's same-spelled binder does not establish that.
+    bindings.iter().all(|binding| match &binding.value {
+        StaticMachineBindingValue::Type(reference)
+        | StaticMachineBindingValue::Const(reference) => {
+            if !owner.type_reference_table.contains_type_reference(*reference) { return false; }
+            match owner.type_reference_table.type_reference(*reference) {
+                crate::types::TypeReferenceNode::Named { symbol, .. } => *symbol == binding.parameter,
+                crate::types::TypeReferenceNode::ConstExpression(expression) => {
+                    matches!(owner.expression_table.expression(*expression),
+                        crate::expression::ExpressionNode::Name(name) if name.symbol == binding.parameter)
+                }
+                _ => false,
+            }
+        }
+        StaticMachineBindingValue::RuntimeValue { subject, .. } => *subject == binding.parameter,
+        StaticMachineBindingValue::Machine(argument)
+        | StaticMachineBindingValue::Conformance(argument) => {
+            argument.symbol == binding.parameter && argument.application.is_none()
+                && argument.const_literal.is_none() && argument.evidence_projection.is_none()
+                && (!argument.type_reference.is_valid()
+                    || matches!(owner.type_reference_table.type_reference(argument.type_reference),
+                        crate::types::TypeReferenceNode::Named { symbol, .. } if *symbol == binding.parameter))
+        }
+    })
+}
+
+/// The retained source operation must actually denote this family's entry.
+/// A whole family's tuple cannot redirect a call to another original state or
+/// requirement merely because its binding declaration names the same machine.
+fn original_entry_application(
+    owner: &TypedTrees,
+    template: &crate::machine::Machine,
+    handle: StaticMachineApplicationHandle,
+) -> bool {
+    if !owner
+        .expression_table
+        .static_machine_application_is_valid(handle)
+    {
+        return false;
+    }
+    let application = owner.expression_table.static_machine_application(handle);
+    application.registration_operation == template.symbol
+        || owner
+            .machine_states(template)
+            .first()
+            .is_some_and(|entry| application.registration_operation == entry.symbol)
+}

@@ -162,15 +162,28 @@ pub(in crate::execution::terminal_unit) fn fused_target_index(
 /// they stay in the statement sequence with their call occurrences in order.
 /// A body with neither completes after its last statement.
 pub(in crate::execution::terminal_unit) fn terminator_statement_index(
-    statements: &[StatementNode],
+    program: &dyn ::validation::CheckingInput,
+    flow: &checked_trees::FlowFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     result: &checked_trees::CheckedControlResultPlan,
 ) -> usize {
+    let statements = program.statement_table.statements(state.statement_nodes);
     statements
         .iter()
         .enumerate()
         .position(|(statement_index, statement)| {
             matches!(statement, StatementNode::Transition(_))
-                || (*result != checked_trees::CheckedControlResultPlan::Unit
+                || ((*result != checked_trees::CheckedControlResultPlan::Unit
+                    || crate::execution::tail_transfers::tail(
+                        program,
+                        flow,
+                        machine,
+                        state,
+                        statement_index,
+                        Default::default(),
+                    )
+                    .is_some())
                     && statement_index + 1 == statements.len()
                     && matches!(statement, StatementNode::Expression(_)))
         })

@@ -481,6 +481,9 @@ pub(super) fn collect_argument_calls(
     if arguments.len() != formals.len() {
         return None;
     }
+    let owner = program.machine_by_symbol(machine)?;
+    let source = program.state_in_machine(owner, state)?;
+    let tail = super::checked_tail_call(program, facts, machine, source, call);
     let mut structural_ordinal = 0u32;
     let mut structural_arguments = Vec::new();
     for (argument, parameter) in arguments.iter().zip(formals.iter()) {
@@ -550,6 +553,40 @@ pub(super) fn collect_argument_calls(
                 expression,
             } if call_ordinal as usize == call.call_ordinal => {
                 let argument = *structural_arguments.get(argument_ordinal as usize)?;
+                let place = validation::canonical_place_from_expression_in_state(
+                    program,
+                    state,
+                    call.statement_index,
+                    argument,
+                )?;
+                if !place.segments.iter().any(|segment| {
+                    matches!(segment, facts::PlaceSegment::Index { expression: source }
+                        if *source == expression)
+                }) || !plans.nodes.is_valid(root.root)
+                {
+                    return None;
+                }
+                let primitive = plans.nodes.get(root.root).primitive_type;
+                if !primitive.is_fixed_integer() {
+                    return None;
+                }
+                (expression, primitive)
+            }
+            CheckedScalarExpressionRole::TransitionArgument { argument_ordinal }
+                if tail.is_some() =>
+            {
+                let argument = *arguments.get(argument_ordinal as usize)?;
+                let formal = parameters.get(argument_ordinal as usize)?;
+                (
+                    argument,
+                    program.primitive_type_reference(formal.type_reference)?,
+                )
+            }
+            CheckedScalarExpressionRole::TransitionSelector {
+                argument_ordinal,
+                expression,
+            } if tail.is_some() => {
+                let argument = *arguments.get(argument_ordinal as usize)?;
                 let place = validation::canonical_place_from_expression_in_state(
                     program,
                     state,

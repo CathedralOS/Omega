@@ -281,6 +281,19 @@ fn state_equation<'program>(
                 // A non-final expression is a discarded statement and never a
                 // result route.
                 StatementNode::Expression(result) if index + 1 == statements.len() => {
+                    if let Some(transfer) = super::transition_topology::expression_state_transfer(
+                        program, machine, state, index, *result,
+                    ) {
+                        merge_state_transfer(
+                            program,
+                            transfer,
+                            index,
+                            expected_result,
+                            &mut edges,
+                            prefixes.get(index).and_then(Option::as_ref),
+                        )?;
+                        continue;
+                    }
                     merge_result(
                         *result,
                         statement,
@@ -297,6 +310,21 @@ fn state_equation<'program>(
                     for edge in transition.targets() {
                         match program.statement_table.transition_target(edge) {
                             TransitionTargetNode::Value(result) => {
+                                if let Some(transfer) =
+                                    super::transition_topology::expression_state_transfer(
+                                        program, machine, state, index, *result,
+                                    )
+                                {
+                                    merge_state_transfer(
+                                        program,
+                                        transfer,
+                                        index,
+                                        expected_result,
+                                        &mut edges,
+                                        prefixes.get(index).and_then(Option::as_ref),
+                                    )?;
+                                    continue;
+                                }
                                 merge_result(
                                     *result,
                                     statement,
@@ -702,13 +730,17 @@ fn merge_named_edge<'program>(
     }
     let context = boundary_prefix?;
     if !call_target.is_valid() {
-        edges.push(state_equations::Edge {
-            target: target_state,
-            statement_index: boundary_index,
-            arguments: edge_arguments,
-            prefix: context.clone(),
-        });
-        return Some(());
+        return merge_state_transfer(
+            program,
+            super::transition_topology::StateTransfer {
+                target: target_state,
+                arguments,
+            },
+            boundary_index,
+            expected_result,
+            edges,
+            Some(context),
+        );
     }
     let mut target_relative = state_result_origins(
         program,
@@ -735,6 +767,35 @@ fn merge_named_edge<'program>(
         inference,
         include_shared,
     )
+}
+
+/// Preserve an internal transfer as one equation edge. Only direct normal
+/// results seed the relation; a backedge cannot fabricate a returned origin.
+fn merge_state_transfer<'program>(
+    program: &'program dyn crate::CheckingInput,
+    transfer: super::transition_topology::StateTransfer<'program>,
+    statement_index: usize,
+    expected_result: TypeReferenceHandle,
+    edges: &mut Vec<state_equations::Edge<'program>>,
+    prefix: Option<&CollectedStatementPrefix>,
+) -> Option<()> {
+    if program.state_parameters(transfer.target).len() != transfer.arguments.len()
+        || (transfer.target.return_type.is_valid()
+            && !super::isolation::aggregate_storage_types_match(
+                program,
+                transfer.target.return_type,
+                expected_result,
+            ))
+    {
+        return None;
+    }
+    edges.push(state_equations::Edge {
+        target: transfer.target,
+        statement_index,
+        arguments: transfer.arguments,
+        prefix: prefix?.clone(),
+    });
+    Some(())
 }
 
 /// Substitute a retained target relation at its exact captured source boundary.

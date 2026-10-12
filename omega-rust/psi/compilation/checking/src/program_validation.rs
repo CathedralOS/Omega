@@ -629,6 +629,7 @@ fn validate(
                         program,
                         machine,
                         state,
+                        statement_index,
                         statement,
                         &mut diagnostics,
                     );

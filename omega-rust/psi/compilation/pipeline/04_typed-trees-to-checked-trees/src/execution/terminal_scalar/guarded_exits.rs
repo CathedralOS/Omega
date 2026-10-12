@@ -6,6 +6,7 @@ use checked_trees::{CheckedScalarGuardedExit, CheckedScalarGuardedTail};
 
 pub(super) fn build(
     program: &dyn ::validation::CheckingInput,
+    flow: &checked_trees::FlowFacts,
     expressions: &checked_trees::CheckedScalarExpressionPlans,
     computations: &checked_trees::CheckedScalarComputationPlans,
 ) -> (
@@ -16,7 +17,8 @@ pub(super) fn build(
     let mut tails = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            if let Some((arms, fallback)) = tail(program, machine, state, expressions, computations)
+            if let Some((arms, fallback)) =
+                tail(program, machine, state, flow, expressions, computations)
             {
                 let mut retained = arena::HandleSpan::empty();
                 for arm in arms {
@@ -272,6 +274,7 @@ fn tail(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
+    flow: &checked_trees::FlowFacts,
     expressions: &checked_trees::CheckedScalarExpressionPlans,
     computations: &checked_trees::CheckedScalarComputationPlans,
 ) -> Option<(
@@ -302,10 +305,34 @@ fn tail(
         }
         let Some(transition) = statement.as_transition() else {
             if matches!(statement, StatementNode::Expression(_)) && !arms.is_empty() {
-                fallback = Some(CheckedScalarBranchDestination::Return {
-                    statement_ordinal: ordinal,
-                    is_continuation: false,
-                });
+                fallback = Some(
+                    if let Some(tail) = crate::execution::tail_transfers::tail(
+                        program,
+                        flow,
+                        machine,
+                        state,
+                        ordinal as usize,
+                        Default::default(),
+                    ) {
+                        CheckedScalarBranchDestination::Jump(
+                            checked_trees::CheckedStructuralControlSuccessorPlan::new(
+                                ordinal,
+                                tail.symbol,
+                                false,
+                                Vec::new(),
+                                Vec::new(),
+                                Vec::new(),
+                                Vec::new(),
+                                Vec::new(),
+                            ),
+                        )
+                    } else {
+                        CheckedScalarBranchDestination::Return {
+                            statement_ordinal: ordinal,
+                            is_continuation: false,
+                        }
+                    },
+                );
                 continue;
             }
             return None;
@@ -313,7 +340,8 @@ fn tail(
         if transition.continuation.is_valid() {
             return None;
         }
-        let destination = checked_branch_destination(program, machine, ordinal, transition, false)?;
+        let destination =
+            checked_branch_destination(program, flow, machine, state, ordinal, transition, false)?;
         match transition.guard {
             TransitionGuardNode::Always if !arms.is_empty() => fallback = Some(destination),
             TransitionGuardNode::When(guard) => {

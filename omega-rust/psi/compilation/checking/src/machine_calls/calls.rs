@@ -66,7 +66,7 @@ use generic_bounds::{
 };
 pub(crate) use inline_assembly::validate_asm_value_destination;
 use inline_assembly::{register_read_mnemonic, user_asm_contract, validate_asm_operand_constraint};
-pub use recursion::ValidatedSelfCallDescent;
+pub use recursion::{ValidatedSelfCallDescent, current_entry_tail_call, source_tail_call};
 pub(crate) use recursion::{
     proof_call_has_structural_descent, validate_proof_machine_recursion,
     validate_self_recursive_call_positions,
@@ -75,7 +75,7 @@ use result_use::validate_result_use;
 pub use write_frames::CallFrameTables;
 use write_frames::boundary_trait_call_signature;
 pub(crate) use write_frames::machine_state_by_symbol;
-pub(crate) use write_frames::named_state_transition_subgraph_is_acyclic;
+pub(crate) use write_frames::state_transfer_subgraph_is_acyclic;
 pub use write_frames::{
     AssignmentWriteTarget, CallFrameResolver, CallWriteOrigins, LocalWriteOrigin, LocalWriteSource,
     RecastSource, ScalarStorageCoordinate, assignment_stored_value_type, frame_coordinate_path,
@@ -735,6 +735,6 @@ pub use receiver_topology::{
 mod occurrences;
 pub use occurrences::{
     CallSite, call_is_unconditional, call_site_argument_expressions, call_site_evidence_arguments,
-    collect_call_sites_in_statement, find_call_site, find_call_site_in_state, find_source_call_site,
-    transition_call_target,
+    collect_call_sites_in_statement, find_call_site, find_call_site_in_state,
+    find_source_call_site, transition_call_target,
 };

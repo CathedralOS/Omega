@@ -14,8 +14,7 @@ use crate::machine_calls::calls::write_frames::caller_aliases::{
     CallOriginContext, CallerWriteSite,
 };
 use crate::machine_calls::calls::write_frames::demand::{
-    collect_expression_call_written_paths, statement_value_expression_roots,
-    syntactic_call_written_paths,
+    collect_expression_call_written_paths, syntactic_call_written_paths,
 };
 use crate::machine_calls::calls::write_frames::inference::FrameInference;
 use crate::machine_calls::calls::write_frames::isolation::type_is_caller_isolated_local;
@@ -40,8 +39,7 @@ use crate::machine_calls::calls::write_frames::transition_equations::{
     CycleFrameEquation, append_cycle_frame_edge, transition_state_reaches,
 };
 use crate::machine_calls::calls::write_frames::transition_topology::{
-    named_state_transition_subgraph_is_acyclic, named_transition_preserves_state_namespace,
-    named_transition_target_state,
+    state_transfer_subgraph_is_acyclic, transfer_preserves_state_namespace,
 };
 use crate::machine_calls::calls::write_frames::type_capabilities::type_may_carry_write;
 use crate::machine_calls::calls::write_frames::{stored_origins, wire_codecs};
@@ -49,7 +47,7 @@ use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 
-/// Solve complete may-write equations for a named transition graph.
+/// Solve complete may-write equations for the checked state-transfer graph.
 ///
 /// Edges substitute each target storage root through the actual argument's
 /// proven origins. Roots may be introduced, dropped, or shared; a may-write
@@ -64,12 +62,12 @@ pub(crate) fn summarize_state_written_paths_for_cycles<'program>(
     symbols: &TopLevelSymbols<'program>,
     outer_inference: &FrameInference,
 ) -> Option<Vec<String>> {
-    // The equations below take their edges from the same top-level named
-    // transitions the topology walk follows, so a state whose reachable named
+    // The equations below take their edges from the same state transfers
+    // the topology walk follows, so a state whose reachable transfer
     // subgraph is acyclic can never set `has_transition_cycle`. Answer its
     // `None` before building an equation, and every nested call summary
     // inside one, for each reachable state.
-    if named_state_transition_subgraph_is_acyclic(program, machine, entry) {
+    if state_transfer_subgraph_is_acyclic(program, machine, entry) {
         return None;
     }
     let mut diagnostics = Vec::new();
@@ -222,7 +220,10 @@ fn build_cycle_frame_equation<'program>(
         inference.active_states.push(state.symbol);
     }
 
-    for statement in program.statement_table.statements(state.statement_nodes) {
+    for (statement_index, statement) in program
+        .statement_table
+        .indexed_statements(state.statement_nodes)
+    {
         let declared_local_alias_origin = match statement {
             StatementNode::LocalData(local)
                 if type_may_carry_write(program, local.type_reference)
@@ -280,7 +281,13 @@ fn build_cycle_frame_equation<'program>(
         ) {
             return None;
         }
-        for expression in statement_value_expression_roots(program, statement) {
+        for expression in super::transition_topology::frame_operand_expression_roots(
+            program,
+            machine,
+            state,
+            statement_index,
+            statement,
+        ) {
             if expression_reborrows_unresolved_reference_binding(
                 program,
                 machine,
@@ -318,9 +325,18 @@ fn build_cycle_frame_equation<'program>(
             }
         }
         match statement {
-            StatementNode::RootBinding(_)
-            | StatementNode::AssemblyFact(_)
-            | StatementNode::Expression(_) => {}
+            StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => {}
+            StatementNode::Expression(expression) => {
+                if let Some(transfer) = super::transition_topology::expression_state_transfer(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    *expression,
+                ) {
+                    append_cycle_frame_edge(transfer, &mut edges);
+                }
+            }
             StatementNode::Assignment(assignment) => {
                 let replacement = stored_origins::assignment_origins(
                     program,
@@ -507,7 +523,20 @@ fn build_cycle_frame_equation<'program>(
                         }
                         continue;
                     }
-                    append_cycle_frame_edge(program, machine, state, target, &mut edges)?;
+                    if let Some(transfer) = super::transition_topology::transition_state_transfer(
+                        program,
+                        machine,
+                        state,
+                        statement_index,
+                        target,
+                    ) {
+                        append_cycle_frame_edge(transfer, &mut edges);
+                    } else if matches!(
+                        program.statement_table.transition_target(target),
+                        TransitionTargetNode::Named { .. }
+                    ) {
+                        return None;
+                    }
                 }
             }
             StatementNode::LocalData(local) => {
@@ -571,6 +600,7 @@ pub(crate) fn summarize_transition_target_written_paths(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     source_state: &State,
+    statement_index: usize,
     target: typed_trees::statement::TransitionTargetHandle,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
@@ -593,80 +623,107 @@ pub(crate) fn summarize_transition_target_written_paths(
             origins,
         );
     }
+    if let Some(transfer) = super::transition_topology::transition_state_transfer(
+        program,
+        machine,
+        source_state,
+        statement_index,
+        target,
+    ) {
+        return summarize_state_transfer_written_paths(
+            program,
+            machine,
+            source_state,
+            transfer,
+            symbols,
+            inference,
+            source_locals,
+            require_complete,
+            origins,
+            machine_symbols,
+        );
+    }
     match program.statement_table.transition_target(target) {
-        TransitionTargetNode::Terminal => Some(Vec::new()),
-        TransitionTargetNode::Value(_) => Some(Vec::new()),
-        TransitionTargetNode::Named { arguments, .. } => {
-            let arguments = program.statement_table.expression_handles(*arguments);
-            let target_state =
-                named_transition_target_state(program, machine, source_state, target)?;
-            if inference.active_states.contains(&target_state.symbol) {
-                // Named topology can be acyclic while ordinary calls return
-                // to an active named state. Only a contextual prefix may
-                // truncate that edge; a reusable summary must cover the body.
-                if require_complete {
-                    return None;
-                }
-                return named_transition_preserves_state_namespace(
-                    program,
-                    source_state,
-                    target_state,
-                    arguments,
-                )
-                .then(Vec::new);
+        TransitionTargetNode::Terminal | TransitionTargetNode::Value(_) => Some(Vec::new()),
+        TransitionTargetNode::Named { .. } => None,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn summarize_state_transfer_written_paths(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    source_state: &State,
+    transfer: super::transition_topology::StateTransfer<'_>,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+    source_locals: &[String],
+    require_complete: bool,
+    origins: &CallOriginContext<'_>,
+    machine_symbols: &MachineSymbols<'_>,
+) -> Option<Vec<String>> {
+    let target_state = transfer.target;
+    let arguments = transfer.arguments;
+    if inference.active_states.contains(&target_state.symbol) {
+        // State-transfer topology can be acyclic while ordinary calls return
+        // to an active named state. Only a contextual prefix may
+        // truncate that edge; a reusable summary must cover the body.
+        if require_complete {
+            return None;
+        }
+        return transfer_preserves_state_namespace(program, source_state, target_state, arguments)
+            .then(Vec::new);
+    }
+    inference.active_states.push(target_state.symbol);
+    let summarize = if require_complete {
+        summarize_complete_state_written_paths
+    } else {
+        summarize_state_written_paths
+    };
+    let target_writes = summarize(program, machine, target_state, symbols, inference);
+    inference.active_states.pop();
+    let target_writes = target_writes?;
+    let parameters = program.state_parameters(target_state);
+    // State transfer substitutes the same finite candidate sets
+    // call frames already carry: an actual bound to a divergent
+    // referent set instantiates each proven route into the source
+    // namespace rather than sinking the whole frame. An unproven
+    // divergent actual still fails closed.
+    let argument_types = parameters
+        .iter()
+        .map(|parameter| parameter.type_reference)
+        .collect::<Vec<_>>();
+    let argument_origins = origins.argument_origins(
+        program,
+        machine,
+        machine_symbols,
+        symbols,
+        inference,
+        arguments,
+        &argument_types,
+    )?;
+    let mut instantiated = Vec::new();
+    for relative in target_writes {
+        for path in instantiate_written_path_for_origins(
+            program,
+            machine,
+            &relative,
+            Some(&FramePlaceOrigin {
+                path: "self".to_owned(),
+                precision: FramePathPrecision::Exact,
+                source: Default::default(),
+            }),
+            parameters,
+            arguments,
+            source_locals,
+            symbols,
+            inference,
+            Some(&argument_origins),
+        )? {
+            if !instantiated.contains(&path) {
+                instantiated.push(path);
             }
-            inference.active_states.push(target_state.symbol);
-            let summarize = if require_complete {
-                summarize_complete_state_written_paths
-            } else {
-                summarize_state_written_paths
-            };
-            let target_writes = summarize(program, machine, target_state, symbols, inference);
-            inference.active_states.pop();
-            let target_writes = target_writes?;
-            let parameters = program.state_parameters(target_state);
-            // Named-state transfer substitutes the same finite candidate sets
-            // call frames already carry: an actual bound to a divergent
-            // referent set instantiates each proven route into the source
-            // namespace rather than sinking the whole frame. An unproven
-            // divergent actual still fails closed.
-            let argument_types = parameters
-                .iter()
-                .map(|parameter| parameter.type_reference)
-                .collect::<Vec<_>>();
-            let argument_origins = origins.argument_origins(
-                program,
-                machine,
-                machine_symbols,
-                symbols,
-                inference,
-                arguments,
-                &argument_types,
-            )?;
-            let mut instantiated = Vec::new();
-            for relative in target_writes {
-                for path in instantiate_written_path_for_origins(
-                    program,
-                    machine,
-                    &relative,
-                    Some(&FramePlaceOrigin {
-                        path: "self".to_owned(),
-                        precision: FramePathPrecision::Exact,
-                        source: Default::default(),
-                    }),
-                    parameters,
-                    arguments,
-                    source_locals,
-                    symbols,
-                    inference,
-                    Some(&argument_origins),
-                )? {
-                    if !instantiated.contains(&path) {
-                        instantiated.push(path);
-                    }
-                }
-            }
-            Some(instantiated)
         }
     }
+    Some(instantiated)
 }
