@@ -22,7 +22,9 @@ mod enclosing;
 mod retention;
 mod source_fields;
 pub(crate) use retention::RetainedTraitApplicationFrame;
-pub use retention::{RetainedTraitScope, TraitApplicationEnvironment};
+pub use retention::{
+    RetainedTraitScope, TraitApplicationEnvironment, TraitApplicationPayloadCopier,
+};
 
 impl TypedTrees {
     /// Source-owned application roots shared by logical signature preparation

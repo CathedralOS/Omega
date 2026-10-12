@@ -72,7 +72,42 @@ impl AppliedTraitScope<'_> {
     }
 }
 
+/// Relocate only owned graph/application payloads. Declaration coordinates,
+/// simultaneous boundaries and captured namespaces remain with the original
+/// environment. The copier supplies the actual source and destination owners.
+pub trait TraitApplicationPayloadCopier {
+    type Error;
+
+    fn type_reference(
+        &mut self,
+        reference: TypeReferenceHandle,
+    ) -> Result<TypeReferenceHandle, Self::Error>;
+
+    fn static_machine_application(
+        &mut self,
+        application: crate::static_applications::StaticMachineApplicationHandle,
+    ) -> Result<crate::static_applications::StaticMachineApplicationHandle, Self::Error>;
+}
+
 impl TraitApplicationEnvironment {
+    /// Copy original payloads before a mutable consumer reads their handles.
+    /// The original binder roster, frame roles and captured source identity are
+    /// preserved; equal names or values never create a replacement frame.
+    pub fn copy_payloads<Copier: TraitApplicationPayloadCopier>(
+        &self,
+        copier: &mut Copier,
+    ) -> Result<Self, Copier::Error> {
+        let mut copied = self.clone();
+        for (_, actual) in &mut copied.substitutions {
+            *actual = copier.type_reference(*actual)?;
+        }
+        for frame in &mut copied.region_scopes {
+            frame.binding_application =
+                copier.static_machine_application(frame.binding_application)?;
+        }
+        Ok(copied)
+    }
+
     /// Resolve an operand before the simultaneous frame whose binder it
     /// replaces. Already-owned operands retain their own lexical prefix.
     pub(crate) fn lifetime_identity(

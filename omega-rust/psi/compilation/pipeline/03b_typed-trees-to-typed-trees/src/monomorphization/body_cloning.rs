@@ -914,20 +914,32 @@ fn copy_call_type_payloads(
     let mut arguments = call.machine_arguments;
     let application = call.authored_machine_application;
     if application.is_valid() {
-        let mut authored_arguments = program
-            .expression_table
-            .static_machine_application_arguments(application)
-            .to_vec();
-        copy_static_argument_type_payloads(source, program, &mut authored_arguments, symbols);
-        program
-            .expression_table
-            .static_machine_application_arguments_mut(application)
-            .clone_from_slice(&authored_arguments);
-        copy_application_binding_type_payloads(source, program, application, symbols)?;
+        copy_static_machine_application_payloads(source, program, application, symbols)?;
     }
     copy_static_argument_type_payloads(source, program, &mut arguments, symbols);
     call.machine_arguments = arguments;
     Ok(call)
+}
+
+/// Complete a copied application under its actual source payload owner.
+/// Call graphs and nonexecuting trait frames share the same argument, capture,
+/// enclosing application and binding copier; neither creates a new invocation.
+pub(super) fn copy_static_machine_application_payloads(
+    source: Option<&dyn ::validation::CheckingInput>,
+    program: &mut TypedTrees,
+    application: typed_trees::static_applications::StaticMachineApplicationHandle,
+    symbols: &[(SymbolHandle, SymbolHandle)],
+) -> Result<(), Diagnostic> {
+    let mut arguments = program
+        .expression_table
+        .static_machine_application_arguments(application)
+        .to_vec();
+    copy_static_argument_type_payloads(source, program, &mut arguments, symbols);
+    program
+        .expression_table
+        .static_machine_application_arguments_mut(application)
+        .clone_from_slice(&arguments);
+    copy_application_binding_type_payloads(source, program, application, symbols)
 }
 
 fn copy_application_binding_type_payloads(

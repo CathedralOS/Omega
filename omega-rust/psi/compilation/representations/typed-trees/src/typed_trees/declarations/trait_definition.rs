@@ -7,7 +7,7 @@ mod applications;
 pub(crate) use applications::RetainedTraitApplicationFrame;
 pub use applications::{
     AppliedTraitScope, AppliedTraitScopePayload, AppliedTypeReference, RetainedTraitScope,
-    TraitApplicationArguments, TraitApplicationEnvironment,
+    TraitApplicationArguments, TraitApplicationEnvironment, TraitApplicationPayloadCopier,
 };
 
 use crate::name::Identifier;

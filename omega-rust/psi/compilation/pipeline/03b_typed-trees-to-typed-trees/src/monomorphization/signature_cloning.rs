@@ -160,8 +160,15 @@ fn copy_signature_payload(
     // Canonical actuals are produced before the copied header work domain.
     // Their children belong to supplying prefixes and cannot be revisited as
     // occurrences of the receiving telescope during the later substitutions.
+    let environment = scope
+        .environment()
+        .copy_payloads(&mut SourceApplicationPayloads {
+            source,
+            program,
+            applications: Vec::new(),
+        })?;
     let applied_substitutions = program
-        .materialize_trait_application_substitutions(&scope.environment())
+        .materialize_trait_application_substitutions(&environment)
         .map_err(Diagnostic::error)?;
     if applied_substitutions.len() != scope.substitutions.len()
         || applied_substitutions
@@ -316,8 +323,15 @@ pub(super) fn copy_scoped_type_reference(
     reference: TypeReferenceHandle,
     scope: &AppliedTraitScope<'_>,
 ) -> Result<TypeReferenceHandle, Diagnostic> {
+    let environment = scope
+        .environment()
+        .copy_payloads(&mut SourceApplicationPayloads {
+            source,
+            program,
+            applications: Vec::new(),
+        })?;
     let applied_substitutions = program
-        .materialize_trait_application_substitutions(&scope.environment())
+        .materialize_trait_application_substitutions(&environment)
         .map_err(Diagnostic::error)?;
     if applied_substitutions.len() != scope.substitutions.len()
         || applied_substitutions
@@ -350,6 +364,64 @@ pub(super) fn copy_scoped_type_reference(
         ));
     }
     Ok(copied)
+}
+
+/// A demanded scope can contain graphs appended to its immutable source
+/// cohort after the destination was cloned. Relocate those actual payloads
+/// through the ordinary copier before the shared application reads them.
+struct SourceApplicationPayloads<'source, 'destination> {
+    source: &'source dyn validation::CheckingInput,
+    program: &'destination mut TypedTrees,
+    applications: Vec<(
+        typed_trees::static_applications::StaticMachineApplicationHandle,
+        typed_trees::static_applications::StaticMachineApplicationHandle,
+    )>,
+}
+
+impl typed_trees::trait_definition::TraitApplicationPayloadCopier
+    for SourceApplicationPayloads<'_, '_>
+{
+    type Error = Diagnostic;
+
+    fn type_reference(
+        &mut self,
+        reference: TypeReferenceHandle,
+    ) -> Result<TypeReferenceHandle, Diagnostic> {
+        super::body_cloning::copy_type_reference_payloads(
+            Some(self.source),
+            self.program,
+            reference,
+            &[],
+        )
+    }
+
+    fn static_machine_application(
+        &mut self,
+        application: typed_trees::static_applications::StaticMachineApplicationHandle,
+    ) -> Result<typed_trees::static_applications::StaticMachineApplicationHandle, Diagnostic> {
+        if !application.is_valid() {
+            return Ok(application);
+        }
+        if let Some((_, copied)) = self
+            .applications
+            .iter()
+            .find(|(original, _)| *original == application)
+        {
+            return Ok(*copied);
+        }
+        let copied = self
+            .program
+            .expression_table
+            .copy_static_machine_application_from(&self.source.expression_table, application);
+        super::body_cloning::copy_static_machine_application_payloads(
+            Some(self.source),
+            self.program,
+            copied,
+            &[],
+        )?;
+        self.applications.push((application, copied));
+        Ok(copied)
+    }
 }
 
 /// The copied header alone owns receiving occurrences. Each occurrence is
