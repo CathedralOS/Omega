@@ -8,6 +8,7 @@ impl TypeReferenceTable {
             _ => None,
         };
         self.retain_const_integer_meaning(handle, ConstIntegerMeaning::Unavailable);
+        self.retain_completed_const_result(handle, None);
         self.renamed_row(handle, replaced_named);
     }
 
@@ -32,8 +33,10 @@ impl TypeReferenceTable {
             occurrence.generation(),
         )) = owner;
         let meaning = self.const_integer_meaning(replacement);
+        let completed = self.completed_const_result(replacement).cloned();
         self.substitute_node(occurrence, node);
         self.retain_const_integer_meaning(occurrence, meaning);
+        self.retain_completed_const_result(occurrence, completed);
         self.retain_data_application_origin(occurrence, self.data_application_origin(replacement));
         Ok(())
     }

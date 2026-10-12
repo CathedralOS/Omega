@@ -155,15 +155,10 @@ fn lower_membership_domain_arguments(
     if membership.domain_arguments.is_empty() {
         return Ok(HandleSpan::empty());
     }
-    let source_arguments = lowerer
-        .source_trees
-        .child_type_references(membership.domain_arguments)
-        .to_vec();
-    let mut arguments = Vec::with_capacity(source_arguments.len());
-    for argument in &source_arguments {
-        arguments.push(crate::type_reference::lower_type_reference_into_table(
-            lowerer, argument,
-        )?);
+    let mut arguments = Vec::new();
+    for argument in membership.domain_arguments.handles() {
+        arguments
+            .push(crate::type_reference::lower_child_type_reference_into_table(lowerer, argument)?);
     }
     if let Some(domain) = lowerer
         .typed_trees

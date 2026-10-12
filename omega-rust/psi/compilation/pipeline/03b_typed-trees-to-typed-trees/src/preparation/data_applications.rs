@@ -456,9 +456,16 @@ fn closed_type(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
                 }
                 pending.extend(arguments.iter().copied());
             }
-            TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::DynamicTrait { .. } => {
-                return false;
+            TypeReferenceNode::ConstExpression(_) => {
+                if program
+                    .type_reference_table
+                    .completed_const_result(reference)
+                    .is_none()
+                {
+                    return false;
+                }
             }
+            TypeReferenceNode::DynamicTrait { .. } => return false,
             TypeReferenceNode::Unit => {}
         }
     }

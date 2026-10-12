@@ -133,6 +133,31 @@ fn declared_const_value(
                     *symbol
                 }
                 TypeReferenceNode::ConstExpression(expression) => {
+                    if let Some(value) = program
+                        .type_reference_table
+                        .completed_const_result(reference)
+                    {
+                        let meaning = program
+                            .type_reference_table
+                            .const_integer_meaning(reference);
+                        if meaning == ConstIntegerMeaning::Anonymous {
+                            let DecodedCanonicalConstValue::Integer { value: integer, .. } =
+                                value.decode_encoding()?
+                            else {
+                                return None;
+                            };
+                            return land_declared_integer(
+                                integer,
+                                None,
+                                declared_primitive,
+                                meaning,
+                            );
+                        }
+                        return Some(DeclaredConstValue {
+                            identity: value.identity(),
+                            meaning,
+                        });
+                    }
                     return declared_const_value(
                         program,
                         IndexIdentityArgument::Expression(*expression),
@@ -603,7 +628,24 @@ fn index_reference(
             index_name(program, *symbol, name.as_str(), context)
         }
         TypeReferenceNode::ConstExpression(expression) => {
-            normalize_index_expression(program, *expression, context)
+            if let Some(value) = program
+                .type_reference_table
+                .completed_const_result(reference)
+            {
+                compound(
+                    "named",
+                    [
+                        super::identity_context::canonical_const_identity_with_meaning(
+                            &value.identity(),
+                            program
+                                .type_reference_table
+                                .const_integer_meaning(reference),
+                        ),
+                    ],
+                )
+            } else {
+                normalize_index_expression(program, *expression, context)
+            }
         }
         _ => normalize_type_reference(program, reference, context),
     }

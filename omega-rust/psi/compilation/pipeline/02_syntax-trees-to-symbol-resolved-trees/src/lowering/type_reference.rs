@@ -533,6 +533,8 @@ fn retain_const_argument_slots(
             .insert(symbol_resolved_trees::types::NormalizedConstArgument {
                 argument: lowered_argument,
                 canonical_result_encoding: normalization.canonical_result_encoding.clone(),
+                canonical_result_atom: normalization.canonical_result_atom.clone(),
+                integer_meaning: normalization.integer_meaning,
             });
         // Retain the actual child relation. Generic receivers keep their own
         // spans; standalone original operands do not invent a receiving

@@ -107,6 +107,7 @@ struct TypeInput {
     constants: Vec<TypeConstantOrigin>,
     lifetime_owner: SymbolHandle,
     integer_meaning: ConstIntegerMeaning,
+    completed_const_result: Option<language_semantics::const_value::CanonicalConstIdentity>,
     constraints: Vec<TypeConstraintNode>,
 }
 
@@ -264,6 +265,9 @@ pub(super) fn inputs(
                     .to_vec(),
                 lifetime_owner: table.operand_lifetime_owner(reference),
                 integer_meaning: table.const_integer_meaning(reference),
+                completed_const_result: table
+                    .completed_const_result(reference)
+                    .map(|value| value.identity()),
                 constraints: match table.type_reference(reference) {
                     TypeReferenceNode::Constrained { constraints, .. } => {
                         table.constraints(*constraints).to_vec()

@@ -407,6 +407,11 @@ impl SyntaxCopy<'_> {
                 );
         }
         if let Some(normalization) = other.type_references.const_argument_normalization(handle) {
+            self.type_references.retain_const_argument_result(
+                copied,
+                normalization.canonical_result_atom.clone(),
+                normalization.integer_meaning,
+            );
             let expressions = other
                 .type_references
                 .const_argument_operator_expressions(normalization.operator_expressions)

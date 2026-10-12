@@ -272,6 +272,15 @@ impl CallableApplication {
         program
             .type_reference_table
             .retain_const_integer_meaning(applied, meaning);
+        if let Some(value) = program
+            .type_reference_table
+            .completed_const_result(original)
+            .cloned()
+        {
+            program
+                .type_reference_table
+                .retain_completed_const_result(applied, Some(value));
+        }
         Ok(applied)
     }
 

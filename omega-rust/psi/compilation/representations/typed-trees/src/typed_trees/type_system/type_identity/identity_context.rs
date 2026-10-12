@@ -770,10 +770,27 @@ pub(crate) fn normalize_type_reference(
             *arguments,
             context,
         ),
-        TypeReferenceNode::ConstExpression(expression) => compound(
-            "index-expression",
-            [normalize_index_expression(program, *expression, context)],
-        ),
+        TypeReferenceNode::ConstExpression(expression) => {
+            if let Some(value) = program
+                .type_reference_table
+                .completed_const_result(type_reference)
+            {
+                compound(
+                    "named",
+                    [canonical_const_identity_with_meaning(
+                        &value.identity(),
+                        program
+                            .type_reference_table
+                            .const_integer_meaning(type_reference),
+                    )],
+                )
+            } else {
+                compound(
+                    "index-expression",
+                    [normalize_index_expression(program, *expression, context)],
+                )
+            }
+        }
         TypeReferenceNode::DynamicTrait {
             symbol,
             name,

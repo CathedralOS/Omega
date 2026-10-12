@@ -292,6 +292,21 @@ pub(super) fn validate_const_data_argument(
     type_parameter_scope: TypeParameterScope<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    if let Some(value) = program
+        .type_reference_table
+        .completed_const_result(argument)
+    {
+        validate_canonical_const_argument(
+            program,
+            base_name,
+            parameter,
+            parameter_type,
+            &value,
+            program.type_reference_table.const_integer_meaning(argument),
+            diagnostics,
+        );
+        return;
+    }
     let primitive = const_carrier_primitive(program, parameter_type);
     let is_integer_parameter = primitive.is_some_and(PrimitiveType::accepts_integer_literal);
     if let TypeReferenceNode::ConstExpression(root) =
