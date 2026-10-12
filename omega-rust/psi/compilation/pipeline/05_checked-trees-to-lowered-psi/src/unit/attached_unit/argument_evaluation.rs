@@ -621,6 +621,12 @@ impl Evaluation {
             let selected = roots
                 .iter()
                 .position(|(place, _)| *place == cleanup.selected);
+            // The shared operation buffer publishes completion only from an
+            // actual structural join ingress. A branch inherits this receipt
+            // and its selection cleanup while completed blocks stay with the
+            // parent Evaluation; its local block roster cannot authenticate a
+            // parent-owned join. Read the producer's exact place/access here,
+            // independently of the consumer's checked disposal below.
             if selected.is_none()
                 && !operations
                     .structural_completions
@@ -628,9 +634,6 @@ impl Evaluation {
                     .any(|(parameter, _)| {
                         parameter.place == cleanup.selected
                             && parameter.access == StructuralAccess::Owned
-                            && self
-                                .structural_root_parameters()
-                                .any(|ingress| ingress == parameter)
                     })
             {
                 return unsupported(
