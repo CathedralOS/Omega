@@ -105,7 +105,10 @@ impl TypedTrees {
                     .iter()
                     .zip(application.lifetimes)
                     .map(|(parameter, actual)| {
-                        (parameter.as_str().to_owned(), actual.as_str().to_owned())
+                        (
+                            parameter.as_str().to_owned(),
+                            Some(actual.as_str().to_owned()),
+                        )
                     })
                     .collect::<Vec<_>>()
             })
@@ -116,6 +119,7 @@ impl TypedTrees {
             .zip(&lifetimes)
             .map(|((application, arguments), lifetimes)| {
                 crate::type_identity::AppliedTypeIdentityScope {
+                    region_role: crate::type_identity::AppliedTypeIdentityRegionRole::Supplied,
                     declaration: application.declaration.symbol,
                     arguments,
                     lifetimes,
