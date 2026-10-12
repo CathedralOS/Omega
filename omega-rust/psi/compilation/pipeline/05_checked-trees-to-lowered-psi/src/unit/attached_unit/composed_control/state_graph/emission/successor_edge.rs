@@ -69,6 +69,12 @@ impl StateGraphEmission<'_, '_> {
             next_edge,
             edge_blocks,
         } = emitted;
+        // The source rank belongs to the dominating state's frame. Its
+        // observation can be a parameter of an earlier body continuation,
+        // whose declarations remain with the parent when this edge branches.
+        let source_rank_declaration = current_rank
+            .map(|rank| evaluation.completed_scalar_declaration(rank, values, operations))
+            .transpose()?;
         let current_parameters = evaluation.current_parameters(state_parameters);
         let state_parameters = current_parameters.as_ref();
         operations.length_observations.clone_from(inherited_lengths);
@@ -1204,6 +1210,11 @@ impl StateGraphEmission<'_, '_> {
         // actuals, rank observations and evaluated selectors have their own
         // emitted declarations. Retain those exact results before any cleanup
         // continuation remaps the frame. Erased source formals remain erased.
+        if let Some(declaration) = source_rank_declaration
+            && !edge_values.iter().any(|value| value.id == declaration.id)
+        {
+            edge_values.push(declaration);
+        }
         let mut completed = arguments.clone();
         completed.extend(current_rank);
         completed.extend(arriving_rank);
