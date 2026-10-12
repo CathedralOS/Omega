@@ -164,11 +164,11 @@ pub(crate) fn descriptor_source_geometry(
     path: &[StructuralPathSegment],
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<ReferenceSourceGeometry> {
-    reference_source_geometry_with_leaf_shape(root, path, declarations, |field| {
+    reference_source_geometry_with_leaf_type(root, path, declarations, |field| {
         field
             .byte_sequence_carrier()
             .map(|carrier| {
-                StructuralTypeShape::ByteSequence(match carrier {
+                StructuralFieldType::ByteSequence(match carrier {
                     terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => {
                         terminal_psi::ByteSequenceCarrier::BorrowedView { access: None }
                     }
@@ -181,7 +181,7 @@ pub(crate) fn descriptor_source_geometry(
                     owned => owned,
                 })
             })
-            .or_else(|| field.canonical_leaf_shape())
+            .or_else(|| field.canonical_leaf_type())
     })
 }
 
@@ -190,11 +190,11 @@ pub(crate) fn reference_source_geometry(
     path: &[StructuralPathSegment],
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<ReferenceSourceGeometry> {
-    reference_source_geometry_with_leaf_shape(
+    reference_source_geometry_with_leaf_type(
         root,
         path,
         declarations,
-        StructuralFieldType::canonical_leaf_shape,
+        StructuralFieldType::canonical_leaf_type,
     )
 }
 
@@ -205,22 +205,22 @@ pub(crate) fn leaf_copy_geometry(
     path: &[StructuralPathSegment],
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<ReferenceSourceGeometry> {
-    reference_source_geometry_with_leaf_shape(
+    reference_source_geometry_with_leaf_type(
         root,
         path,
         declarations,
-        StructuralFieldType::leaf_copy_shape,
+        StructuralFieldType::leaf_copy_type,
     )
 }
 
-fn reference_source_geometry_with_leaf_shape(
+fn reference_source_geometry_with_leaf_type(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
     declarations: &[StructuralTypeDeclaration],
-    leaf_shape: fn(&StructuralFieldType) -> Option<StructuralTypeShape>,
+    leaf_type: fn(&StructuralFieldType) -> Option<StructuralFieldType>,
 ) -> Option<ReferenceSourceGeometry> {
-    reference_geometry(root, path, declarations, leaf_shape, |root, path| {
-        runtime_projection_with_leaf_shape(root, path, declarations, leaf_shape)
+    reference_geometry(root, path, declarations, leaf_type, |root, path| {
+        runtime_projection_with_leaf_type(root, path, declarations, leaf_type)
     })
 }
 
@@ -231,13 +231,13 @@ fn reference_geometry(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
     declarations: &[StructuralTypeDeclaration],
-    leaf_shape: fn(&StructuralFieldType) -> Option<StructuralTypeShape>,
+    leaf_type: fn(&StructuralFieldType) -> Option<StructuralFieldType>,
     endpoint: impl Fn(
         StructuralTypeId,
         &[StructuralPathSegment],
     ) -> Option<(StructuralTypeId, u32, Vec<RuntimeElement>)>,
 ) -> Option<ReferenceSourceGeometry> {
-    let regions = storage_projection_regions(root, path, declarations, leaf_shape)?;
+    let regions = storage_projection_regions(root, path, declarations, leaf_type)?;
     let (selected, byte_offset, leaf_elements) =
         endpoint(regions.root, &path[regions.segment_start..])?;
     let mut elements = regions.elements;
@@ -267,7 +267,7 @@ fn storage_projection_regions(
     mut root: StructuralTypeId,
     path: &[StructuralPathSegment],
     declarations: &[StructuralTypeDeclaration],
-    leaf_shape: fn(&StructuralFieldType) -> Option<StructuralTypeShape>,
+    leaf_type: fn(&StructuralFieldType) -> Option<StructuralFieldType>,
 ) -> Option<StorageProjectionRegions> {
     let mut segment_start = 0;
     let mut elements = Vec::new();
@@ -285,11 +285,11 @@ fn storage_projection_regions(
         ) {
             continue;
         }
-        let selected = runtime_projection_with_leaf_shape(
+        let selected = runtime_projection_with_leaf_type(
             root,
             &path[segment_start..position],
             declarations,
-            leaf_shape,
+            leaf_type,
         );
         let Some((carrier, byte_offset, region_elements)) = selected else {
             if *segment == StructuralPathSegment::Referent {
@@ -402,7 +402,7 @@ pub(crate) fn atomic_field_geometry(
         root,
         path,
         declarations,
-        StructuralFieldType::canonical_leaf_shape,
+        StructuralFieldType::canonical_leaf_type,
     )?;
     if !regions.readable || !regions.elements.is_empty() {
         return None;
@@ -503,7 +503,7 @@ fn primitive_access_geometry(
         root,
         path,
         declarations,
-        StructuralFieldType::canonical_leaf_shape,
+        StructuralFieldType::canonical_leaf_type,
     )?;
     let (byte_offset, byte_size, leaf_elements) = endpoint(
         regions.root,
@@ -1802,7 +1802,7 @@ pub(crate) fn reference_projection(
         initial_root,
         initial_path,
         declarations,
-        StructuralFieldType::canonical_leaf_shape,
+        StructuralFieldType::canonical_leaf_type,
         |root, path| runtime_borrowed_projection(root, path, access, declarations),
     )?;
     Some(ReferenceProjection {
@@ -1819,21 +1819,21 @@ pub(crate) fn project(
     path: &[StructuralPathSegment],
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<(StructuralTypeId, u32)> {
-    project_with_leaf_shape(
+    project_with_leaf_type(
         root,
         path,
         declarations,
-        StructuralFieldType::canonical_leaf_shape,
+        StructuralFieldType::canonical_leaf_type,
     )
 }
 
-fn borrowed_leaf_shape(
+fn borrowed_leaf_type(
     access: terminal_psi::StructuralAccess,
-) -> fn(&StructuralFieldType) -> Option<StructuralTypeShape> {
+) -> fn(&StructuralFieldType) -> Option<StructuralFieldType> {
     if access == terminal_psi::StructuralAccess::SharedBorrow {
-        StructuralFieldType::shared_observation_shape
+        StructuralFieldType::shared_observation_type
     } else {
-        StructuralFieldType::canonical_leaf_shape
+        StructuralFieldType::canonical_leaf_type
     }
 }
 
@@ -1844,25 +1844,25 @@ pub(crate) fn leaf_copy_projection(
     path: &[StructuralPathSegment],
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<(StructuralTypeId, u32)> {
-    project_with_leaf_shape(
+    project_with_leaf_type(
         root,
         path,
         declarations,
-        StructuralFieldType::leaf_copy_shape,
+        StructuralFieldType::leaf_copy_type,
     )
 }
 
-fn project_with_leaf_shape(
+fn project_with_leaf_type(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
     declarations: &[StructuralTypeDeclaration],
-    leaf_shape: fn(&StructuralFieldType) -> Option<StructuralTypeShape>,
+    leaf_type: fn(&StructuralFieldType) -> Option<StructuralFieldType>,
 ) -> Option<(StructuralTypeId, u32)> {
     project_inner(
         root,
         path.iter().map(Projection::from),
         declarations,
-        leaf_shape,
+        leaf_type,
     )
     .and_then(|(selected, offset, elements)| elements.is_empty().then_some((selected, offset)))
 }
@@ -1896,7 +1896,7 @@ fn project_inner<'a>(
     root: StructuralTypeId,
     path: impl Iterator<Item = Projection>,
     declarations: &[StructuralTypeDeclaration],
-    leaf_shape: fn(&StructuralFieldType) -> Option<StructuralTypeShape>,
+    leaf_type: fn(&StructuralFieldType) -> Option<StructuralFieldType>,
 ) -> Option<(StructuralTypeId, u32, Vec<RuntimeElement>)> {
     let mut carrier = root;
     let mut offset = 0_u32;
@@ -1971,13 +1971,7 @@ fn project_inner<'a>(
                 let (position, field) = terminal_psi::live_field_entry(fields, name)?;
                 let nested = match &field.field_type {
                     StructuralFieldType::Structural(nested) => *nested,
-                    leaf => {
-                        let shape = leaf_shape(leaf)?;
-                        declarations
-                            .iter()
-                            .find(|declaration| declaration.shape == shape)?
-                            .id
-                    }
+                    leaf => leaf_type(leaf)?.leaf_declaration(declarations.iter())?.id,
                 };
                 let field_offset = case_layout(carrier, declarations)?
                     .common_fields
@@ -2005,13 +1999,7 @@ fn project_inner<'a>(
                     if field.identity == name {
                         let nested = match &field.field_type {
                             StructuralFieldType::Structural(nested) => *nested,
-                            leaf => {
-                                let shape = leaf_shape(leaf)?;
-                                declarations
-                                    .iter()
-                                    .find(|declaration| declaration.shape == shape)
-                                    .map(|declaration| declaration.id)?
-                            }
+                            leaf => leaf_type(leaf)?.leaf_declaration(declarations.iter())?.id,
                         };
                         found = Some((
                             nested,
@@ -2048,11 +2036,11 @@ pub(crate) fn runtime_projection(
     path: &[StructuralPathSegment],
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<(StructuralTypeId, u32, Vec<RuntimeElement>)> {
-    runtime_projection_with_leaf_shape(
+    runtime_projection_with_leaf_type(
         root,
         path,
         declarations,
-        StructuralFieldType::canonical_leaf_shape,
+        StructuralFieldType::canonical_leaf_type,
     )
 }
 
@@ -2065,7 +2053,7 @@ pub(crate) fn runtime_borrowed_projection(
     access: terminal_psi::StructuralAccess,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<(StructuralTypeId, u32, Vec<RuntimeElement>)> {
-    runtime_projection_with_leaf_shape(root, path, declarations, borrowed_leaf_shape(access))
+    runtime_projection_with_leaf_type(root, path, declarations, borrowed_leaf_type(access))
 }
 
 /// The referent a declared `Reference` shape names, when `reference` resolves
@@ -2089,19 +2077,19 @@ pub(crate) fn runtime_leaf_copy_projection(
     path: &[StructuralPathSegment],
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<(StructuralTypeId, u32, Vec<RuntimeElement>)> {
-    runtime_projection_with_leaf_shape(
+    runtime_projection_with_leaf_type(
         root,
         path,
         declarations,
-        StructuralFieldType::leaf_copy_shape,
+        StructuralFieldType::leaf_copy_type,
     )
 }
 
-fn runtime_projection_with_leaf_shape(
+fn runtime_projection_with_leaf_type(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
     declarations: &[StructuralTypeDeclaration],
-    leaf_shape: fn(&StructuralFieldType) -> Option<StructuralTypeShape>,
+    leaf_type: fn(&StructuralFieldType) -> Option<StructuralFieldType>,
 ) -> Option<(StructuralTypeId, u32, Vec<RuntimeElement>)> {
     if !path.is_empty()
         && matches!(
@@ -2122,7 +2110,7 @@ fn runtime_projection_with_leaf_shape(
         root,
         path.iter().map(Projection::from),
         declarations,
-        leaf_shape,
+        leaf_type,
     )
 }
 

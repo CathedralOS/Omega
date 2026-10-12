@@ -809,14 +809,14 @@ impl TerminalExecution<'_> {
         path: &[StructuralPathSegment],
         access: StructuralAccess,
     ) -> Result<(TerminalStructuralValue, Option<AggregateViewTip>), TerminalInterpretError> {
-        self.resolve_live_projection_with_leaf_shape(
+        self.resolve_live_projection_with_leaf_type(
             place,
             path,
             access,
             if access == StructuralAccess::SharedBorrow {
-                terminal_psi::StructuralFieldType::shared_observation_shape
+                terminal_psi::StructuralFieldType::shared_observation_type
             } else {
-                terminal_psi::StructuralFieldType::canonical_leaf_shape
+                terminal_psi::StructuralFieldType::canonical_leaf_type
             },
         )
         .map(|projection| (projection.value, projection.view_tip))
@@ -836,21 +836,23 @@ impl TerminalExecution<'_> {
         ),
         TerminalInterpretError,
     > {
-        self.resolve_live_projection_with_leaf_shape(
+        self.resolve_live_projection_with_leaf_type(
             place,
             path,
             StructuralAccess::SharedBorrow,
-            terminal_psi::StructuralFieldType::leaf_copy_shape,
+            terminal_psi::StructuralFieldType::leaf_copy_type,
         )
         .map(|projection| (projection.value, projection.endpoint_field))
     }
 
-    fn resolve_live_projection_with_leaf_shape(
+    fn resolve_live_projection_with_leaf_type(
         &self,
         place: PlaceId,
         path: &[StructuralPathSegment],
         access: StructuralAccess,
-        leaf_shape: fn(&terminal_psi::StructuralFieldType) -> Option<StructuralTypeShape>,
+        leaf_type: fn(
+            &terminal_psi::StructuralFieldType,
+        ) -> Option<terminal_psi::StructuralFieldType>,
     ) -> Result<ResolvedStructuralProjection, TerminalInterpretError> {
         let owner = self.structural_values.get(&place).ok_or_else(malformed)?;
         if path.contains(&StructuralPathSegment::Referent) {
@@ -859,7 +861,7 @@ impl TerminalExecution<'_> {
                 return Err(malformed());
             }
         }
-        self.resolve_reference_view_path_with_leaf_shape(owner, path, access, leaf_shape)?
+        self.resolve_reference_view_path_with_leaf_type(owner, path, access, leaf_type)?
             .ok_or_else(malformed)
     }
 
@@ -886,25 +888,27 @@ impl TerminalExecution<'_> {
         access: StructuralAccess,
     ) -> Result<Option<(TerminalStructuralValue, Option<AggregateViewTip>)>, TerminalInterpretError>
     {
-        self.resolve_reference_view_path_with_leaf_shape(
+        self.resolve_reference_view_path_with_leaf_type(
             owner,
             path,
             access,
             if access == StructuralAccess::SharedBorrow {
-                terminal_psi::StructuralFieldType::shared_observation_shape
+                terminal_psi::StructuralFieldType::shared_observation_type
             } else {
-                terminal_psi::StructuralFieldType::canonical_leaf_shape
+                terminal_psi::StructuralFieldType::canonical_leaf_type
             },
         )
         .map(|selected| selected.map(|projection| (projection.value, projection.view_tip)))
     }
 
-    fn resolve_reference_view_path_with_leaf_shape(
+    fn resolve_reference_view_path_with_leaf_type(
         &self,
         owner: &TerminalStructuralValue,
         path: &[StructuralPathSegment],
         access: StructuralAccess,
-        leaf_shape: fn(&terminal_psi::StructuralFieldType) -> Option<StructuralTypeShape>,
+        leaf_type: fn(
+            &terminal_psi::StructuralFieldType,
+        ) -> Option<terminal_psi::StructuralFieldType>,
     ) -> Result<Option<ResolvedStructuralProjection>, TerminalInterpretError> {
         let types = self.program.structural_types();
         let mut value = owner.clone();
@@ -968,7 +972,7 @@ impl TerminalExecution<'_> {
                 .flatten();
             value = if boundary.is_none() {
                 crate::custody::project_structural_value_with_leaf(
-                    &types, &value, prefix, leaf_shape,
+                    &types, &value, prefix, leaf_type,
                 )?
             } else if access == StructuralAccess::SharedBorrow {
                 crate::custody::project_shared_structural_observation(&types, &value, prefix)?

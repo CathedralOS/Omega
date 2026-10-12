@@ -21,7 +21,57 @@ use typed_trees::statement::StatementNode;
 use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::TypeReferenceHandle;
 
+mod operand_captures;
+mod reference_observations;
 mod region_application;
+pub(super) use reference_observations::materialize as materialize_reference_observations;
+
+#[derive(Clone, Copy)]
+struct InferredUpdate {
+    owner: SymbolHandle,
+    body: arena::HandleSpan<StatementNode>,
+    offset: usize,
+    type_reference: TypeReferenceHandle,
+}
+
+/// Commit inferred results only after operand contexts agree on their stored
+/// values. Raw call results (including applied regions and bounds) participate
+/// together, so one adapted range endpoint cannot alter the other's selection.
+fn apply_updates(program: &mut TypedTrees, mut updates: Vec<InferredUpdate>) -> Vec<SymbolHandle> {
+    operand_captures::adapt(program, &mut updates);
+    let mut changed_owners = Vec::new();
+    for update in updates {
+        let Some(local) =
+            program.statement_table.statements(update.body)[update.offset].as_local_data()
+        else {
+            continue;
+        };
+        if local.type_reference == update.type_reference
+            || typed_trees::type_identity::applied_type_identity(
+                program,
+                local.type_reference,
+                update.owner,
+                &[],
+            )
+            .zip(typed_trees::type_identity::applied_type_identity(
+                program,
+                update.type_reference,
+                update.owner,
+                &[],
+            ))
+            .is_some_and(|(previous, current)| previous == current)
+        {
+            continue;
+        }
+        if let StatementNode::LocalData(local) =
+            &mut program.statement_table.statements_mut(update.body)[update.offset]
+        {
+            local.type_reference = update.type_reference;
+            changed_owners.push(update.owner);
+        }
+    }
+    changed_owners
+}
 
 pub(super) fn refresh_generic_call_results(
     program: &mut TypedTrees,
@@ -61,6 +111,7 @@ pub(super) fn refresh_generic_call_results(
                         state.statement_nodes,
                         offset,
                         local.type_reference,
+                        local.is_operand_capture,
                         callee.return_type,
                         selection.clone(),
                     ));
@@ -68,8 +119,8 @@ pub(super) fn refresh_generic_call_results(
             }
         }
     }
-    let mut changed_owners = Vec::new();
-    for (body, offset, previous_type, return_type, selection) in updates {
+    let mut inferred_updates = Vec::new();
+    for (body, offset, previous_type, is_operand_capture, return_type, selection) in updates {
         let candidate = super::candidate_for_selection(
             program,
             &candidates[selection.candidate_index],
@@ -115,11 +166,12 @@ pub(super) fn refresh_generic_call_results(
             .collect::<Vec<_>>();
         // The package-qualified identity traverses range expressions under
         // substitution; the ordinary display-oriented range identity does not.
-        if program.package_qualified_type_identity(previous_type)
-            == program.type_identity(TypeIdentityRequest {
-                substitutions: &substitutions,
-                ..TypeIdentityRequest::package_qualified(return_type)
-            })
+        if !is_operand_capture
+            && program.package_qualified_type_identity(previous_type)
+                == program.type_identity(TypeIdentityRequest {
+                    substitutions: &substitutions,
+                    ..TypeIdentityRequest::package_qualified(return_type)
+                })
         {
             continue;
         }
@@ -176,13 +228,14 @@ pub(super) fn refresh_generic_call_results(
             None, program, &candidate, type_start,
         )
         .map_err(|error| vec![error])?;
-        if let StatementNode::LocalData(local) =
-            &mut program.statement_table.statements_mut(body)[offset]
-        {
-            local.type_reference = selected_return;
-            changed_owners.push(selection.lexical_owner);
-        }
+        inferred_updates.push(InferredUpdate {
+            owner: selection.lexical_owner,
+            body,
+            offset,
+            type_reference: selected_return,
+        });
     }
+    let changed_owners = apply_updates(program, inferred_updates);
     if !changed_owners.is_empty() {
         // Open result substitution is also a graph producer. Settle its owned
         // constraints before another selection reads the newly inferred type.
@@ -237,12 +290,13 @@ pub(super) fn refresh(
                 continue;
             }
             let Some(call) = program.expression_table.call_node(local.initial_value) else {
-                if !matches!(
+                let needs_inference = matches!(
                     program
                         .type_reference_table
                         .type_reference(local.type_reference),
                     typed_trees::types::TypeReferenceNode::Unit
-                ) {
+                );
+                if !local.is_operand_capture && !needs_inference {
                     continue;
                 }
                 if let Some(return_type) = validation::expression_result_type_reference(
@@ -251,6 +305,15 @@ pub(super) fn refresh(
                     state,
                     local.initial_value,
                 ) {
+                    // Computed selector inference can carry a proved range
+                    // richer than the expression's carrier. Only reference
+                    // operands need renewed contextual storage adaptation;
+                    // settled non-call scalar types retain their metadata.
+                    if !needs_inference
+                        && validation::reference_shell(program, return_type).is_none()
+                    {
+                        continue;
+                    }
                     updates.push((
                         owner,
                         body,
@@ -286,48 +349,45 @@ pub(super) fn refresh(
             }
         }
     }
-    let mut changed_owners = Vec::new();
+    let mut inferred_updates = Vec::new();
     for (owner, body, offset, target, arguments, return_type, lifetimes) in updates {
-        let return_type = if lifetimes.is_empty() {
-            return_type
-        } else {
-            // Inferred destinations live in the caller, not in the selected
-            // executable's declaration telescope. Regions use the same deep
-            // simultaneous application as all other signature payloads.
-            program
-                .apply_callable_result_type(return_type, &lifetimes, target)
-                .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?
-        };
-        let return_type =
-            substitute_runtime_bound_result_bounds(program, target, &arguments, return_type);
-        let Some(local) = program.statement_table.statements(body)[offset].as_local_data() else {
-            continue;
-        };
-        if local.type_reference == return_type
-            || typed_trees::type_identity::applied_type_identity(
-                program,
-                local.type_reference,
-                owner,
-                &[],
-            )
-            .zip(typed_trees::type_identity::applied_type_identity(
-                program,
-                return_type,
-                owner,
-                &[],
-            ))
-            .is_some_and(|(previous, current)| previous == current)
-        {
-            continue;
-        }
-        if let StatementNode::LocalData(local) =
-            &mut program.statement_table.statements_mut(body)[offset]
-        {
-            local.type_reference = return_type;
-            changed_owners.push(owner);
-        }
+        let return_type = apply_result_type(program, target, &arguments, return_type, &lifetimes)?;
+        inferred_updates.push(InferredUpdate {
+            owner,
+            body,
+            offset,
+            type_reference: return_type,
+        });
     }
-    Ok(changed_owners)
+    Ok(apply_updates(program, inferred_updates))
+}
+
+/// Result storage belongs to the caller's occurrence, never the callee's
+/// declaration telescope. Inference and explicit reference observations share
+/// this region and runtime-bound application before installing a local type.
+fn apply_result_type(
+    program: &mut TypedTrees,
+    target: SymbolHandle,
+    arguments: &[ExpressionHandle],
+    return_type: TypeReferenceHandle,
+    lifetimes: &[(
+        typed_trees::name::Identifier,
+        Option<typed_trees::name::Identifier>,
+    )],
+) -> Result<TypeReferenceHandle, Vec<diagnostics::Diagnostic>> {
+    let return_type = if lifetimes.is_empty() {
+        return_type
+    } else {
+        program
+            .apply_callable_result_type(return_type, lifetimes, target)
+            .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?
+    };
+    Ok(substitute_runtime_bound_result_bounds(
+        program,
+        target,
+        arguments,
+        return_type,
+    ))
 }
 
 /// A specialized callee's result range can name the realized trailing

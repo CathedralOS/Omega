@@ -285,6 +285,7 @@ impl StatementTable {
                             .unwrap_or_else(crate::expression::ExpressionHandle::invalid),
                         is_mutable: local.is_mutable,
                         type_is_inferred: local.type_is_inferred,
+                        is_operand_capture: local.is_operand_capture,
                         relevance: local.relevance,
                     })
                 }
@@ -836,6 +837,10 @@ pub struct TableLocalData {
     /// Retained even while an untyped generated binding awaits inference.
     /// Specialization may refresh it; an authored annotation remains fixed.
     pub type_is_inferred: bool,
+    /// Normalization captured an operand. Materialization joins its exact symbol
+    /// use to the live consumer before choosing value or reference storage;
+    /// this is still an ordinary value binding for checking and execution.
+    pub is_operand_capture: bool,
     /// Authored `[erased]` on the binding occurrence -- see the parameter twin.
     pub relevance: language_core::BindingRelevance,
 }
@@ -850,6 +855,7 @@ impl Default for TableLocalData {
             initial_value: crate::expression::ExpressionHandle::invalid(),
             is_mutable: false,
             type_is_inferred: false,
+            is_operand_capture: false,
             relevance: language_core::BindingRelevance::Relevant,
         }
     }

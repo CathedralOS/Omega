@@ -191,6 +191,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         // Provider clones may restore old inferred types even when this round
         // discovers no further ordinary specialization.
         changed_owners.extend(result_locals::refresh(program)?);
+        changed_owners.extend(result_locals::materialize_reference_observations(program)?);
         materialize_static_argument_types(program);
         changed_owners.extend(contextual_calls::close(program)?);
         crate::constructed_results::retain_constructed_result_types(program);
@@ -272,6 +273,13 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         }
         if !diagnostics.is_empty() {
             return Err(diagnostics);
+        }
+        let observations = result_locals::materialize_reference_observations(program)?;
+        if !observations.is_empty() {
+            changed_owners.extend(observations);
+            // Recollect statement handles after inserting completed reference
+            // results; a previous selection names the old statement span.
+            continue;
         }
         if !applied_any {
             // Fixed point: no later specialization round can still land a

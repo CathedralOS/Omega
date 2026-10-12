@@ -43,7 +43,7 @@ pub use spellings::{
     OperandType, arithmetic_operator_spelling, binary_operator_spelling,
     comparison_operator_spelling, declared_domain_constraints,
     has_builtin_spelled_expression_meaning, resolve_spelling, resolve_spelling_for_operand_types,
-    resolve_spelling_for_operands,
+    resolve_spelling_for_operands, scalar_operand_read_type,
 };
 pub use trait_operators::{
     BoundTraitOperatorMeaning, SelectedTraitOperatorMeaning, bound_trait_operator_meanings,

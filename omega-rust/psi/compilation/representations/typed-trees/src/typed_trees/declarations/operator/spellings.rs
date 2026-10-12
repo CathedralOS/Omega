@@ -329,9 +329,10 @@ pub(crate) fn operator_matches_operands_with_indexed_collection(
 /// A readable primitive referent supplies its scalar value to a scalar
 /// formal, just as the ordinary expression reader does. Reference formals
 /// retain the reference itself; generic and structural formals never acquire
-/// an implicit dereference. This changes candidate input types only: source
-/// checking and lowering still retain the actual storage observation.
-fn scalar_operand_read_type(
+/// an implicit dereference. Both candidate matching and generated operand
+/// storage use this adaptation. Checking and lowering retain the actual
+/// storage observation at the capture point.
+pub fn scalar_operand_read_type(
     program: &TypedTrees,
     actual: TypeReferenceHandle,
     expected: TypeReferenceHandle,

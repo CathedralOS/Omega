@@ -4229,15 +4229,16 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   - runtime domain-qualified byte-field replacement with encoding evidence;
   - computed IEEE store/readback (through **FLOAT-PROVIDERS**; the mutable
     controls stop in caller guard planning);
-  - a scalar selector read through `&mut u64` is captured as a reference alias:
-    `cells[position] = reset(&mut position, incoming)` rejects the later write
-    while `__hoist_14` remains borrowed. Capture the indexing operation's required
-    operand value while preserving declared operator access. Local affine
-    backing still needs the complete state and cleanup route.
+  - local affine backing needs the complete state and cleanup route.
 
   Preserve `borrow/runtime_write_only_{indexed_record,captured_record,sum}_copy_exit`
   (0): whole-value installation, untouched neighbors, copied sources and
   captured selectors, with child-before-parent reference retirement.
+  Keep `borrow/runtime_write_only_aggregate_selector_snapshot_exit` and
+  `operators/runtime_generic_reference_selector_snapshot_exit` (0): capture
+  scalar indices before later writes, including observations of returned
+  references. Declared index operators retain their reference operands;
+  bounded referents retain their store restrictions.
 
   Coordinate sequencing with **STATE-LOCAL-VALUE-FRONTIER**, reference identity
   with **STRUCTURAL-BORROW-IDENTITY**, mutable dynamic dispatch with

@@ -582,11 +582,9 @@ fn runtime_path(
                 let child = match &selected.field_type {
                     terminal_psi::StructuralFieldType::Structural(child) => *child,
                     leaf => {
-                        let shape = leaf.canonical_leaf_shape()?;
-                        types
-                            .iter()
-                            .find(|declaration| declaration.shape == shape)
-                            .map(|declaration| declaration.id)?
+                        leaf.canonical_leaf_type()?
+                            .leaf_declaration(types.iter())?
+                            .id
                     }
                 };
                 runtime_path.push(terminal_psi::StructuralPathSegment::Field(

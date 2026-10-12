@@ -4,7 +4,7 @@ use crate::execution::terminal_unit::ScalarCalleeClosure;
 use crate::execution::terminal_unit::control::statement_sequence;
 
 use crate::execution::terminal_unit::calls::{
-    build_affine_array_construction_prefix, entry_claims, free_structural_scalar_signature,
+    build_affine_array_construction_prefix, entry_claims, free_structural_scalar_signature_traced,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::control::call_occurrences;
@@ -146,7 +146,7 @@ pub(crate) fn build_checked_machine_residual_parts(
     let statements = program.statement_table.statements(state.statement_nodes);
     let binders = machine_binders(program, machine);
     let (mut structural_parameters, scalar_parameters) =
-        free_structural_scalar_signature(program, shapes, state, &binders)?;
+        free_structural_scalar_signature_traced(program, shapes, state, &binders, trace)?;
     trace.phase("signature: parameter storage");
     let parameter_storage =
         parameter_storage_plans(program, shapes, state, &binders, &scalar_parameters)?;

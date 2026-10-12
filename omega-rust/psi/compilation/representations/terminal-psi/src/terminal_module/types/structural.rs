@@ -419,6 +419,55 @@ impl StructuralFieldType {
         }
     }
 
+    /// The complete leaf contract of an exact storage projection. A bounded
+    /// scalar may name a standalone referent only with its declaration predicate
+    /// intact; choosing a declaration by physical shape would erase that bound.
+    /// Atomic cells and inline byte descriptors retain their separate protocols.
+    pub fn canonical_leaf_type(&self) -> Option<Self> {
+        match self {
+            Self::BoundedInteger(_) | Self::RefinedScalar(_) => Some(self.clone()),
+            _ => self.canonical_leaf_shape().and_then(Self::from_leaf_shape),
+        }
+    }
+
+    pub fn shared_observation_type(&self) -> Option<Self> {
+        self.shared_observation_shape()
+            .and_then(Self::from_leaf_shape)
+    }
+
+    pub fn leaf_copy_type(&self) -> Option<Self> {
+        self.leaf_copy_shape().and_then(Self::from_leaf_shape)
+    }
+
+    fn from_leaf_shape(shape: StructuralTypeShape) -> Option<Self> {
+        match shape {
+            StructuralTypeShape::PrimitiveScalar(scalar) => Some(Self::Scalar(scalar)),
+            StructuralTypeShape::ByteSequence(carrier) => Some(Self::ByteSequence(carrier)),
+            _ => None,
+        }
+    }
+
+    /// Resolve a complete leaf contract against one unique retained declaration.
+    /// Equal carrier widths never substitute a plain scalar or another range.
+    pub fn leaf_declaration<'a>(
+        &self,
+        declarations: impl Iterator<Item = &'a StructuralTypeDeclaration>,
+    ) -> Option<&'a StructuralTypeDeclaration> {
+        let (shape, restriction) = match self {
+            Self::BoundedInteger(_) | Self::RefinedScalar(_) => (
+                StructuralTypeShape::PrimitiveScalar(self.scalar_type()?),
+                Some(self),
+            ),
+            Self::ByteSequence(carrier) => (StructuralTypeShape::ByteSequence(*carrier), None),
+            _ => (self.canonical_leaf_shape()?, None),
+        };
+        let mut matching = declarations.filter(|declaration| {
+            declaration.shape == shape && declaration.scalar_restriction.as_ref() == restriction
+        });
+        let declaration = matching.next()?;
+        matching.next().is_none().then_some(declaration)
+    }
+
     /// The carrier a shared observation of the original field presents.
     /// Restrictions stay on the owning field: this grants neither a standalone
     /// owned leaf nor write access. Atomic fields retain their separate access

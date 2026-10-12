@@ -13,6 +13,7 @@ use crate::execution::terminal_unit::{SymbolHandle, TypeReferenceNode};
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ArgumentPresentation {
     SameIdentity,
+    SharedScalarObservation,
     ByteSequence,
     FixedArraySlice,
 }
@@ -44,6 +45,18 @@ pub(crate) fn classify(
         return Some(ArgumentPresentation::SameIdentity);
     }
     let formal = substituted_formal_type(program, parameter_type, substitutions);
+    // A shared scalar formal observes the field's carrier without owning its
+    // receiving predicate. Keep the exact storage type for mutable/write-only
+    // loans; only an unrestricted shared formal may forget a value restriction.
+    if let Some(reference) = validation::reference_shell(program, formal)
+        && reference.access == language_core::ReferenceAccess::Shared
+        && validation::is_plain_scalar_storage(program, reference.referee)
+        && let Some(primitive) = program.primitive_type_reference(projected_type)
+        && program.primitive_type_reference(reference.referee) == Some(primitive)
+        && base_type_identity(program, formal, &[], substitutions) == Some(target_identity)
+    {
+        return Some(ArgumentPresentation::SharedScalarObservation);
+    }
     if super::boundary_admission::fixed_array_slice_view_is_admitted(
         program,
         projected_type,

@@ -33,12 +33,12 @@ use terminal_psi::{
 /// referent, and keeps `canonical_leaf_shape`'s refusal. Field predicates
 /// bind to the field, never to this shape; the consuming loan's verification
 /// still proves that they imply the borrower's declared domains.
-pub fn loaned_field_shape(field: &StructuralFieldType) -> Option<StructuralTypeShape> {
+pub fn loaned_field_type(field: &StructuralFieldType) -> Option<StructuralFieldType> {
     match field.byte_sequence_carrier() {
         Some(carrier @ ByteSequenceCarrier::BoundedOwned { .. }) => {
-            Some(StructuralTypeShape::ByteSequence(carrier))
+            Some(StructuralFieldType::ByteSequence(carrier))
         }
-        _ => field.canonical_leaf_shape(),
+        _ => field.canonical_leaf_type(),
     }
 }
 

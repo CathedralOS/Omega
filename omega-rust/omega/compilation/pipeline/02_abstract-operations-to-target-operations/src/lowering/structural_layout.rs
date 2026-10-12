@@ -734,7 +734,7 @@ pub(super) fn resolve_structural_field_path(
         declarations,
         cache,
         active,
-        StructuralFieldType::canonical_leaf_shape,
+        StructuralFieldType::canonical_leaf_type,
     )
     .map(|(selected, shape, offset, _)| (selected, shape, offset))
 }
@@ -745,7 +745,7 @@ fn field_path(
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
-    leaf_shape: fn(&StructuralFieldType) -> Option<StructuralTypeShape>,
+    leaf_type: fn(&StructuralFieldType) -> Option<StructuralFieldType>,
 ) -> Result<(StructuralTypeId, ValueShape, u32, Option<u64>), LoweringError> {
     let root_type = structural_type;
     let mut total_offset = 0_u32;
@@ -815,12 +815,11 @@ fn field_path(
                 let field_type = match &field.field_type {
                     StructuralFieldType::Structural(nested) => *nested,
                     leaf => {
-                        let shape = leaf_shape(leaf);
-                        let field_type = match (shape, leaf.byte_sequence_carrier()) {
-                            (Some(shape), _) => declarations
-                                .iter()
-                                .find(|(_, declaration)| declaration.shape == shape)
-                                .map(|(id, _)| *id),
+                        let contract = leaf_type(leaf);
+                        let field_type = match (contract, leaf.byte_sequence_carrier()) {
+                            (Some(contract), _) => contract
+                                .leaf_declaration(declarations.values().copied())
+                                .map(|declaration| declaration.id),
                             // A byte-carrier field names its collection by
                             // the carrier itself; the canonical leaf shape
                             // cannot spell it.
@@ -1081,7 +1080,7 @@ pub(super) fn resolve_structural_projection_path(
         declarations,
         cache,
         active,
-        StructuralFieldType::canonical_leaf_shape,
+        StructuralFieldType::canonical_leaf_type,
     )
 }
 
@@ -1091,7 +1090,7 @@ fn projection_path(
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
-    leaf_shape: fn(&StructuralFieldType) -> Option<StructuralTypeShape>,
+    leaf_type: fn(&StructuralFieldType) -> Option<StructuralFieldType>,
 ) -> Result<(StructuralTypeId, ValueShape, u32), LoweringError> {
     let (selected, shape, offset, indices) = storage_projection_path(
         structural_type,
@@ -1099,7 +1098,7 @@ fn projection_path(
         declarations,
         cache,
         active,
-        leaf_shape,
+        leaf_type,
     )?;
     if !indices.is_empty() {
         return Err(LoweringError::UnsupportedStructuralReference(
@@ -1117,7 +1116,7 @@ fn storage_projection_path(
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
-    leaf_shape: fn(&StructuralFieldType) -> Option<StructuralTypeShape>,
+    leaf_type: fn(&StructuralFieldType) -> Option<StructuralFieldType>,
 ) -> Result<RuntimeProjection, LoweringError> {
     let root_type = structural_type;
     let mut total_offset = 0_u32;
@@ -1171,7 +1170,7 @@ fn storage_projection_path(
                     declarations,
                     cache,
                     active,
-                    leaf_shape,
+                    leaf_type,
                 )?;
                 repeated_stride = stride;
                 (selected, shape, offset)
@@ -1253,7 +1252,7 @@ pub(super) fn runtime_descriptor_projection(
     path: &[StructuralPathSegment],
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<RuntimeProjection, LoweringError> {
-    runtime_projection_with_leaf_shape(
+    runtime_projection_with_leaf_type(
         root,
         path,
         declarations,
@@ -1263,7 +1262,7 @@ pub(super) fn runtime_descriptor_projection(
             field
                 .byte_sequence_carrier()
                 .map(|carrier| {
-                    StructuralTypeShape::ByteSequence(match carrier {
+                    StructuralFieldType::ByteSequence(match carrier {
                         terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => {
                             terminal_psi::ByteSequenceCarrier::BorrowedView { access: None }
                         }
@@ -1276,7 +1275,7 @@ pub(super) fn runtime_descriptor_projection(
                         owned => owned,
                     })
                 })
-                .or_else(|| field.canonical_leaf_shape())
+                .or_else(|| field.canonical_leaf_type())
         },
     )
 }
@@ -1296,13 +1295,13 @@ pub(super) fn runtime_projection(
     ),
     LoweringError,
 > {
-    runtime_projection_with_leaf_shape(
+    runtime_projection_with_leaf_type(
         structural_type,
         path,
         declarations,
         cache,
         active,
-        StructuralFieldType::canonical_leaf_shape,
+        StructuralFieldType::canonical_leaf_type,
     )
 }
 
@@ -1324,13 +1323,13 @@ pub(super) fn runtime_leaf_copy_projection(
         .ok_or(LoweringError::UnsupportedStructuralReference(
             structural_type,
         ))?;
-    let (selected, shape, byte_offset, leaf_indices) = runtime_projection_with_leaf_shape(
+    let (selected, shape, byte_offset, leaf_indices) = runtime_projection_with_leaf_type(
         regions.root,
         regions.path,
         declarations,
         cache,
         active,
-        StructuralFieldType::leaf_copy_shape,
+        StructuralFieldType::leaf_copy_type,
     )?;
     let indices = regions
         .pointer_slots
@@ -1352,27 +1351,27 @@ pub(super) fn runtime_borrowed_projection(
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
 ) -> Result<RuntimeProjection, LoweringError> {
-    runtime_projection_with_leaf_shape(
+    runtime_projection_with_leaf_type(
         structural_type,
         path,
         declarations,
         cache,
         active,
         if access == StructuralAccess::SharedBorrow {
-            StructuralFieldType::shared_observation_shape
+            StructuralFieldType::shared_observation_type
         } else {
-            StructuralFieldType::canonical_leaf_shape
+            StructuralFieldType::canonical_leaf_type
         },
     )
 }
 
-fn runtime_projection_with_leaf_shape(
+fn runtime_projection_with_leaf_type(
     structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
-    leaf_shape: fn(&StructuralFieldType) -> Option<StructuralTypeShape>,
+    leaf_type: fn(&StructuralFieldType) -> Option<StructuralFieldType>,
 ) -> Result<RuntimeProjection, LoweringError> {
     // Byte carriers have primitive leaves rather than an element type handle.
     // Resolve the same endpoint used by primitive reads/stores, then rejoin its
@@ -1408,7 +1407,7 @@ fn runtime_projection_with_leaf_shape(
         declarations,
         cache,
         active,
-        leaf_shape,
+        leaf_type,
     )
 }
 

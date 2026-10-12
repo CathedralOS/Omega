@@ -125,6 +125,8 @@ pub struct LocalDataStorage {
     pub is_mutable: bool,
     /// No authored type annotation; typing must infer this generated binding.
     pub type_is_inferred: bool,
+    /// A generated operand snapshot; its consumer determines value versus reference capture.
+    pub is_operand_capture: bool,
     /// Authored `[erased]` on the binding occurrence -- see the syntax twin.
     pub relevance: language_core::BindingRelevance,
 }
@@ -540,6 +542,7 @@ impl StatementTable {
                     initial_value,
                     is_mutable: local_data.is_mutable,
                     type_is_inferred: local_data.type_is_inferred,
+                    is_operand_capture: local_data.is_operand_capture,
                     relevance: local_data.relevance,
                 }))
             }
@@ -755,6 +758,8 @@ pub struct TableLocalData {
     pub is_mutable: bool,
     /// Retained inference origin, independent of the binding's name.
     pub type_is_inferred: bool,
+    /// A generated operand snapshot; its consumer determines value versus reference capture.
+    pub is_operand_capture: bool,
     /// Authored `[erased]` on the binding occurrence -- see the syntax twin.
     pub relevance: language_core::BindingRelevance,
 }

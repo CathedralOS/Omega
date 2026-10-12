@@ -19,8 +19,8 @@ use semantic_vocabulary::{
     StructuralTypeId, ValueId,
 };
 use terminal_psi::{
-    OperationKind, StructuralAccess, StructuralArgument, StructuralPathSegment,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
+    OperationKind, StructuralAccess, StructuralArgument, StructuralFieldType,
+    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
 };
 
 /// An immutable selector whose unique SSA producer is an integer constant.
@@ -292,7 +292,14 @@ fn canonical_projection_type<'a>(
                 if matching.next().is_some() || field.relevance.is_erased() {
                     return None;
                 }
-                let child = field.field_type.as_structural()?;
+                let child = match &field.field_type {
+                    StructuralFieldType::Structural(child) => *child,
+                    leaf => {
+                        leaf.canonical_leaf_type()?
+                            .leaf_declaration(types.clone())?
+                            .id
+                    }
+                };
                 if let Some(storage) = storage.as_mut() {
                     storage.push(StructuralPathSegment::Field(field.identity.clone()));
                 }

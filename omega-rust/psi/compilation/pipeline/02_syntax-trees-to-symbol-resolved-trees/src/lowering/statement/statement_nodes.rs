@@ -278,6 +278,7 @@ pub(crate) fn lower_statement_node(
                         initial_value: call,
                         is_mutable: false,
                         type_is_inferred: true,
+                        is_operand_capture: false,
                         relevance: language_core::BindingRelevance::Relevant,
                     },
                 }));

@@ -306,6 +306,7 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
                 initial_value: expression,
                 is_mutable: false,
                 type_is_inferred: true,
+                is_operand_capture: false,
                 relevance: language_core::BindingRelevance::Relevant,
             });
     }

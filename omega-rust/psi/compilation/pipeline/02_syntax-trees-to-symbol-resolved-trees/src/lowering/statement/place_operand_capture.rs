@@ -17,7 +17,7 @@
 //! scalar carrier.
 
 use super::value_call_hoisting::expression_contains;
-use crate::lowering::statement::hoist_temps::hoist_into_temp;
+use crate::lowering::statement::hoist_temps::{hoist_into_temp, hoist_operand_into_temp};
 use crate::lowering::statement::statement_nodes::set_expression;
 use crate::resolution::lowerer::Lowerer;
 use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -177,7 +177,7 @@ fn capture_selector(
         // Even a plain scalar place is a value snapshot here: a later operand
         // may write that place after this selector has evaluated.
         _ if capture || operand_may_write(lowerer, selector) => {
-            hoist_into_temp(lowerer, selector, hoisted)
+            hoist_operand_into_temp(lowerer, selector, hoisted)
         }
         _ => selector,
     }

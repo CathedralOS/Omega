@@ -300,11 +300,28 @@ impl SymbolTable {
             || sources != &base.sources
             || source_scoped_top_level_bindings != &base.source_scoped_top_level_bindings
             || root != &base.root
-            || supplemental_children != &base.supplemental_children
             || module_symbols != &base.module_symbols
             || source_module_index != &base.source_module_index
         {
             return false;
+        }
+        // Late generated locals extend an existing lexical scope through the
+        // supplemental index. Retain its exact old prefix; only newly allocated
+        // children with the same parent may follow it. The loop below verifies
+        // every new child's derivation origin independently.
+        for (parent, _) in symbols.nodes().iter() {
+            let mut children = supplemental_children.children(parent);
+            if base
+                .supplemental_children
+                .children(parent)
+                .any(|retained| children.next() != Some(retained))
+                || children.any(|child| {
+                    child.arena_index() as usize <= base.symbols.len()
+                        || symbols.get(child).parent != parent
+                })
+            {
+                return false;
+            }
         }
         for (handle, symbol) in symbols.nodes().iter().skip(base.symbols.len()) {
             // Origins precede their products, so this also rejects cycles and
@@ -321,20 +338,28 @@ impl SymbolTable {
                 return false;
             }
             if symbol.parent.is_valid() {
-                let siblings = symbols.get(symbol.parent).children;
                 if symbol.parent.generation() != handle.generation()
-                    || symbol.parent.arena_index() as usize <= base.symbols.len()
                     || symbol.parent.arena_index() >= handle.arena_index()
-                    || siblings.start().generation() != handle.generation()
-                    || handle
-                        .arena_index()
-                        .checked_sub(siblings.start().arena_index())
-                        .is_none_or(|offset| offset >= siblings.count())
                 {
                     return false;
                 }
+                let siblings = symbols.get(symbol.parent).children;
+                let in_primary = siblings.start().generation() == handle.generation()
+                    && handle
+                        .arena_index()
+                        .checked_sub(siblings.start().arena_index())
+                        .is_some_and(|offset| offset < siblings.count());
+                // Primary membership remains constant time for large cloned
+                // scopes. Only late supplemental locals need an index walk.
+                let supplemental_count = supplemental_children
+                    .children(symbol.parent)
+                    .filter(|&child| child == handle)
+                    .count();
+                if usize::from(in_primary) + supplemental_count != 1 {
+                    return false;
+                }
             }
-            let Some(mut children) = symbols.child_handles(handle) else {
+            let Some(mut children) = self.child_handles(handle) else {
                 return false;
             };
             if children.any(|child| {
@@ -360,10 +385,44 @@ impl SymbolTable {
         parent: SymbolHandle,
         children: impl IntoIterator<Item = (SymbolKind, SymbolNameRef<'name>)>,
     ) -> HandleSpan<Symbol> {
+        self.append_children_from(
+            parent,
+            children
+                .into_iter()
+                .map(|(kind, name)| (SymbolHandle::invalid(), kind, name)),
+        )
+    }
+
+    /// Append generated locals to an existing lexical scope while preserving
+    /// both its frozen child span and each new child's derivation origin.
+    pub fn append_generated_children_from<'name>(
+        &mut self,
+        parent: SymbolHandle,
+        children: impl IntoIterator<Item = (SymbolHandle, SymbolKind, &'name str)>,
+    ) -> HandleSpan<Symbol> {
+        let children = children.into_iter().collect::<Vec<_>>();
+        assert!(
+            children.iter().all(|(origin, _, _)| origin.is_valid()
+                && self.symbols.get(*origin).kind != SymbolKind::Unknown),
+            "compiler-generated symbols require existing derivation origins"
+        );
+        self.append_children_from(
+            parent,
+            children
+                .into_iter()
+                .map(|(origin, kind, name)| (origin, kind, SymbolNameRef::Borrowed(name))),
+        )
+    }
+
+    fn append_children_from<'name>(
+        &mut self,
+        parent: SymbolHandle,
+        children: impl IntoIterator<Item = (SymbolHandle, SymbolKind, SymbolNameRef<'name>)>,
+    ) -> HandleSpan<Symbol> {
         // Validate the full generational handle before indexing its dense slot.
         let _ = self.get(parent);
         let mut appended = HandleSpan::empty();
-        for (kind, name) in children {
+        for (generated_from, kind, name) in children {
             let name = self.names.insert(SymbolName::from_ref_with_sources(
                 name,
                 self.sources.as_deref(),
@@ -375,7 +434,7 @@ impl SymbolTable {
                     children: HandleSpan::empty(),
                     kind,
                     name,
-                    generated_from: SymbolHandle::invalid(),
+                    generated_from,
                 },
             );
             appended.push_contiguous(child);

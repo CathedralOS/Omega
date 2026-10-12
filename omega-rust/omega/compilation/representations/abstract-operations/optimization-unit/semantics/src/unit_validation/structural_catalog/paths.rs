@@ -50,7 +50,7 @@ pub(crate) fn resolve_structural_path(
         |identity| types.get(&identity).copied(),
         structural_type,
         path,
-        terminal_psi::StructuralFieldType::canonical_leaf_shape,
+        terminal_psi::StructuralFieldType::canonical_leaf_type,
     )
 }
 
@@ -93,7 +93,7 @@ pub(crate) fn resolve_leaf_copy_path(
         |identity| types.get(&identity).copied(),
         structural_type,
         path,
-        terminal_psi::StructuralFieldType::leaf_copy_shape,
+        terminal_psi::StructuralFieldType::leaf_copy_type,
     )
 }
 
@@ -103,7 +103,7 @@ pub(crate) fn resolve_leaf_copy_path(
 /// or cross a Reference carrier; callers must replay that crossing separately.
 ///
 /// Borrowed names rebind onto this geometry, so a field ends at the storage a
-/// loan of it addresses (`owner_loans::loaned_field_shape`).
+/// loan of it addresses (`owner_loans::loaned_field_type`).
 pub(crate) fn structural_projection_type<'types>(
     declarations: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
     structural_type: StructuralTypeId,
@@ -118,7 +118,7 @@ pub(crate) fn structural_projection_type<'types>(
         },
         structural_type,
         path,
-        abstract_operations::control_flow::owner_loans::loaned_field_shape,
+        abstract_operations::control_flow::owner_loans::loaned_field_type,
     )
     .or_else(|| {
         // An inline byte element has no structural child declaration. Its
@@ -133,9 +133,7 @@ fn resolve_path<'types>(
     declaration: impl Fn(StructuralTypeId) -> Option<&'types terminal_psi::StructuralTypeDeclaration>,
     mut structural_type: StructuralTypeId,
     path: &[terminal_psi::StructuralPathSegment],
-    field_shape: fn(
-        &terminal_psi::StructuralFieldType,
-    ) -> Option<terminal_psi::StructuralTypeShape>,
+    field_type: fn(&terminal_psi::StructuralFieldType) -> Option<terminal_psi::StructuralFieldType>,
 ) -> Option<StructuralTypeId> {
     declaration(structural_type)?;
     let mut payload_fields = None;
@@ -176,13 +174,7 @@ fn resolve_path<'types>(
                 let field = terminal_psi::live_field_by_identity(fields, *identity)?;
                 match &field.field_type {
                     terminal_psi::StructuralFieldType::Structural(next) => *next,
-                    leaf => {
-                        let shape = field_shape(leaf)?;
-                        declarations
-                            .clone()
-                            .find(|declaration| declaration.shape == shape)?
-                            .id
-                    }
+                    leaf => field_type(leaf)?.leaf_declaration(declarations.clone())?.id,
                 }
             }
             (

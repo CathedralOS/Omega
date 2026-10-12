@@ -46,6 +46,7 @@ pub(crate) fn lower_local_declaration(
             initial_value: symbol_resolved_trees::expression::ExpressionHandle::invalid(),
             is_mutable: local.is_mutable,
             type_is_inferred: !local.type_reference.is_valid(),
+            is_operand_capture: false,
             relevance: local.relevance,
         },
     })

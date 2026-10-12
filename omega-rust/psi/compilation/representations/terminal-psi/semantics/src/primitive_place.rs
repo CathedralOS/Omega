@@ -189,12 +189,10 @@ pub fn shared_primitive_projection_declaration<'a>(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
-    if let Some(declaration) = runtime_structural_path_tip(declarations.clone(), root, path)
-        && matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(_))
-    {
-        return Some(declaration.id);
-    }
-    let scalar = walk_primitive_projection(
+    // A whole declared scalar keeps its exact type. An inline field presents
+    // its observation carrier instead: the existence of a bounded declaration
+    // elsewhere must not change a plain shared call's contract.
+    let tip = walk_primitive_projection(
         declarations.clone(),
         root,
         path,
@@ -203,8 +201,13 @@ pub fn shared_primitive_projection_declaration<'a>(
             _ => None,
         },
         |_| {},
-    )?
-    .primitive_scalar()?;
+    )?;
+    if let ProjectionTip::Declared(declaration) = tip
+        && matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(_))
+    {
+        return Some(declaration.id);
+    }
+    let scalar = tip.primitive_scalar()?;
     let mut matching = declarations.filter(|declaration| {
         declaration.shape == StructuralTypeShape::PrimitiveScalar(scalar)
             && declaration.scalar_restriction.is_none()
@@ -346,9 +349,9 @@ pub fn canonical_static_projection<'a>(
 }
 
 /// Where a primitive projection walk lands.
-pub enum Position {
+pub enum Position<Scalar = ScalarType> {
     Declared(StructuralTypeId),
-    ScalarField(ScalarType),
+    ScalarField(Scalar),
     ByteElement,
 }
 
@@ -361,9 +364,12 @@ pub fn runtime_structural_path_tip<'a>(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<&'a StructuralTypeDeclaration> {
-    match walk_primitive_projection(declarations, root, path, plain_scalar_field, |_| {})? {
+    match walk_primitive_projection(declarations.clone(), root, path, plain_scalar_field, |_| {})? {
         ProjectionTip::Declared(tip) => Some(tip),
-        ProjectionTip::ScalarField(_) | ProjectionTip::ByteElement => None,
+        ProjectionTip::ScalarField(field, _) => {
+            field.canonical_leaf_type()?.leaf_declaration(declarations)
+        }
+        ProjectionTip::ByteElement => None,
     }
 }
 
@@ -473,7 +479,7 @@ pub fn stored_descriptor_paths<'a>(
 /// carrier's element — the u8 scalar that rides no declared identity.
 enum ProjectionTip<'a> {
     Declared(&'a StructuralTypeDeclaration),
-    ScalarField(ScalarType),
+    ScalarField(&'a StructuralFieldType, Option<ScalarType>),
     ByteElement,
 }
 
@@ -526,7 +532,7 @@ fn same_byte_backing(field: ByteSequenceCarrier, declared: ByteSequenceCarrier) 
 impl ProjectionTip<'_> {
     fn primitive_scalar(&self) -> Option<ScalarType> {
         match self {
-            Self::ScalarField(scalar) => Some(*scalar),
+            Self::ScalarField(_, scalar) => *scalar,
             Self::Declared(declaration) => match declaration.shape {
                 StructuralTypeShape::PrimitiveScalar(scalar) => Some(scalar),
                 _ => None,
@@ -601,7 +607,10 @@ fn walk_primitive_projection<'a>(
                         Some(carrier) => Position::Declared(
                             byte_carrier_field_declaration(declarations.clone(), carrier)?.id,
                         ),
-                        None => Position::ScalarField(scalar_field(&field.field_type)?),
+                        None => Position::ScalarField((
+                            &field.field_type,
+                            scalar_field(&field.field_type),
+                        )),
                     },
                 }
             }
@@ -649,7 +658,7 @@ fn walk_primitive_projection<'a>(
     }
     match position {
         Position::Declared(root) => unique(root).map(ProjectionTip::Declared),
-        Position::ScalarField(scalar) => Some(ProjectionTip::ScalarField(scalar)),
+        Position::ScalarField((field, scalar)) => Some(ProjectionTip::ScalarField(field, scalar)),
         Position::ByteElement => Some(ProjectionTip::ByteElement),
     }
 }

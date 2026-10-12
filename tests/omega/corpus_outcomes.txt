@@ -6184,3 +6184,13 @@ fail/layouts/schema_identity_payload_predicate rejected 35ms expected @ec089e4c2
 	plan-laid value type `Contiguous<Payload>`: error: supplied policy arguments failed value establishment: [Diagnostic { severity: Error, message: "data `Identity` case `Some` literal violates the case constraint: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)", exceeded_provision: None, source_span: None, resolved_location: None }]
 pass/layouts/schema_field_at_declared_size checked 3484ms @ec089e4c2b1b
 pass/layouts/schema_identity_payload_within_predicate checked 1780ms @ec089e4c2b1b
+
+fail/borrow/bounded_reference_cannot_lend_unrestricted_mutable rejected 959ms expected @a9c11ff574b9+wt
+	argument `position` for state `entry` expects `&mut u64`, got `named value`
+fail/borrow/bounded_reference_store_preserves_range rejected 947ms expected @a9c11ff574b9+wt
+	cannot prove assignment value `2` satisfies bounded target `position` in `reset.entry`; expected 0..=1
+pass/borrow/runtime_write_only_aggregate_selector_snapshot_exit checked 5105ms check-target:macos_arm64 @a9c11ff574b9+wt
+pass/borrows/runtime_bounded_and_shared_field_loans_exit checked 5029ms check-target:macos_arm64 @a9c11ff574b9+wt
+pass/borrows/runtime_reference_call_scalar_snapshot_exit checked 5051ms check-target:macos_arm64 @a9c11ff574b9+wt
+pass/operators/runtime_declared_reference_index_capture_exit checked 4355ms check-target:macos_arm64 @a9c11ff574b9+wt
+pass/operators/runtime_generic_reference_selector_snapshot_exit checked 4337ms check-target:macos_arm64 @a9c11ff574b9+wt

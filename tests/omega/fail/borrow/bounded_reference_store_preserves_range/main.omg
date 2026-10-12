@@ -1,0 +1,22 @@
+// A specialized reference result supplies one scalar selector snapshot.
+data Main { values: [i64; 2]; position: u64 [0..=1]; }
+machine identity<'input, T>(position: &'input T) -> &'input T { position }
+machine reset(position: &mut u64 [0..=1]) -> i64 {
+    position = 2;
+    -17
+}
+machine replace(values: &write [i64; 2], position: &mut u64 [0..=1]) {
+    values[identity(&position)] = reset(&mut position);
+}
+machine Main::main(main: &mut Main) crashes Trap {
+    main.values[0] = 85;
+    main.values[1] = 29;
+    main.position = 1;
+    replace(&write main.values, &mut main.position);
+    transition main.position == 0 && main.values[0] == 85 && main.values[1] == -17 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

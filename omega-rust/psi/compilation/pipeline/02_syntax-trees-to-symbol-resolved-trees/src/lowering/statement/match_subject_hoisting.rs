@@ -87,6 +87,7 @@ pub(crate) fn hoist_membership_match_subject(
         hoisted,
         TypeReference::Unit,
         Some(subject_key),
+        false,
         |lowerer, _| borrow_membership_subject(lowerer, membership.value),
     );
 
@@ -206,6 +207,7 @@ pub(crate) fn hoist_comparison_match_subject(
         hoisted,
         declared_bool,
         Some(subject_key),
+        false,
         |lowerer, hoisted| {
             hoist_operand_indexed_reads(lowerer, outer.left, hoisted, OperandHoisting::Computation);
             outer.left

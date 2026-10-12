@@ -166,6 +166,7 @@ pub(super) fn retain_backing_contents(
             initial_value: expression,
             is_mutable: false,
             type_is_inferred: false,
+            is_operand_capture: false,
             relevance: language_core::BindingRelevance::Relevant,
         };
         let contents = borrow_carrying_data_loans(
@@ -225,6 +226,7 @@ pub(super) fn returned_value_loans(
         initial_value: ExpressionHandle::invalid(),
         is_mutable: false,
         type_is_inferred: false,
+        is_operand_capture: false,
         relevance: language_core::BindingRelevance::Relevant,
     };
     let expression = match statement {
@@ -420,6 +422,7 @@ fn assignment_borrow_loans(
         initial_value: assignment.value,
         is_mutable: true,
         type_is_inferred: false,
+        is_operand_capture: false,
         relevance: language_core::BindingRelevance::Relevant,
     };
 

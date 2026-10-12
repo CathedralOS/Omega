@@ -505,10 +505,8 @@ fn leaf_type(
         current = match &field.field_type {
             StructuralFieldType::Structural(child) => *child,
             leaf => {
-                let shape = leaf.canonical_leaf_shape()?;
-                types
-                    .iter()
-                    .find(|declaration| declaration.shape == shape)?
+                leaf.canonical_leaf_type()?
+                    .leaf_declaration(types.iter())?
                     .id
             }
         };

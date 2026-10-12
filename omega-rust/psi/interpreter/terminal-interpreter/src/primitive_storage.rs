@@ -1141,7 +1141,14 @@ impl TerminalExecution<'_> {
         let shape = if shared_view {
             field.field_type.shared_observation_shape()
         } else {
-            field.field_type.canonical_leaf_shape()
+            let selected = field
+                .field_type
+                .leaf_declaration(self.program.structural_types().values())
+                .ok_or_else(malformed)?;
+            if selected.id != view.structural_type {
+                return Err(malformed());
+            }
+            Some(selected.shape.clone())
         };
         let Some(terminal_psi::StructuralTypeShape::PrimitiveScalar(stored_type)) = shape else {
             return Err(malformed());

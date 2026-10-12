@@ -150,6 +150,7 @@ pub(crate) fn hoist_scalar_value_call_comparison(
         hoisted,
         TypeReference::Unit,
         Some(subject_key),
+        false,
         |_, _| call_side,
     );
     let rewritten = TableBinaryExpression {

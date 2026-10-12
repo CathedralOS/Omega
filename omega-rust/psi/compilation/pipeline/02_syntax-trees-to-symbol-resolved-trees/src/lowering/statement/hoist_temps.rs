@@ -23,7 +23,27 @@ pub(crate) fn hoist_into_temp(
     initial: ExpressionHandle,
     hoisted: &mut Vec<Statement>,
 ) -> ExpressionHandle {
-    mint_hoist_temp(lowerer, hoisted, TypeReference::Unit, None, |_, _| initial)
+    mint_hoist_temp(
+        lowerer,
+        hoisted,
+        TypeReference::Unit,
+        None,
+        false,
+        |_, _| initial,
+    )
+}
+
+/// Capture an operand whose consumer determines whether a primitive reference
+/// supplies its value. Resolution cannot select the operator yet; retain this
+/// origin on the local rather than guessing from its initializer's spelling.
+pub(crate) fn hoist_operand_into_temp(
+    lowerer: &mut Lowerer,
+    initial: ExpressionHandle,
+    hoisted: &mut Vec<Statement>,
+) -> ExpressionHandle {
+    mint_hoist_temp(lowerer, hoisted, TypeReference::Unit, None, true, |_, _| {
+        initial
+    })
 }
 
 /// Returns a fresh `Name` referencing a hoist temp, first emitting
@@ -42,6 +62,7 @@ pub(crate) fn mint_hoist_temp(
     hoisted: &mut Vec<Statement>,
     declared: TypeReference,
     shared_subject: Option<syntax_trees::expression::ExpressionHandle>,
+    is_operand_capture: bool,
     initial: impl FnOnce(&mut Lowerer, &mut Vec<Statement>) -> ExpressionHandle,
 ) -> ExpressionHandle {
     let shared_temp = shared_subject.and_then(|subject| lowerer.match_subject_temp(subject));
@@ -77,6 +98,7 @@ pub(crate) fn mint_hoist_temp(
                     initial_value,
                     is_mutable: false,
                     type_is_inferred,
+                    is_operand_capture,
                     relevance: language_core::BindingRelevance::Relevant,
                 },
             }));

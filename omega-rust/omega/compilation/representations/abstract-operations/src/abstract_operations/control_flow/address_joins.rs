@@ -146,7 +146,7 @@ pub fn borrowed_referent_type<'a>(
 /// `root` through record or selected-case fields and in-bounds fixed indexes.
 /// An element view contributes its own live extent as the index bound. A leaf
 /// field resolves to the catalog's unique standalone declaration of the
-/// storage a loan of it addresses (`owner_loans::loaned_field_shape`): a
+/// storage a loan of it addresses (`owner_loans::loaned_field_type`): a
 /// scalar's canonical shape, the same identity a borrowed `&u64` parameter
 /// declares, or a bounded byte owner's carrier. Erased fields, duplicate
 /// identities and every other segment fail closed.
@@ -225,14 +225,8 @@ pub fn referent_type<'a>(
                             .clone()
                             .filter(|declaration| declaration.id == *child),
                     )?,
-                    leaf => {
-                        let shape = super::owner_loans::loaned_field_shape(leaf)?;
-                        unique(
-                            &mut declarations
-                                .clone()
-                                .filter(|declaration| declaration.shape == shape),
-                        )?
-                    }
+                    leaf => super::owner_loans::loaned_field_type(leaf)?
+                        .leaf_declaration(declarations.clone())?,
                 }
             }
             (

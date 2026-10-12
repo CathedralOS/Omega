@@ -1026,7 +1026,7 @@ pub(crate) fn resolve_structural_path_type(
         structural_types,
         root,
         path,
-        terminal_psi::StructuralFieldType::canonical_leaf_shape,
+        terminal_psi::StructuralFieldType::canonical_leaf_type,
     )
 }
 
@@ -1034,25 +1034,40 @@ fn resolve_structural_path_type_with_leaf(
     structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
-    leaf_shape: fn(&terminal_psi::StructuralFieldType) -> Option<StructuralTypeShape>,
+    leaf_type: fn(&terminal_psi::StructuralFieldType) -> Option<terminal_psi::StructuralFieldType>,
 ) -> Result<StructuralTypeId, TerminalInterpretError> {
-    if let Some(declaration) =
-        terminal_semantics::runtime_structural_path_tip(structural_types.values(), root, path)
+    // An inline leaf uses the consuming operation's complete contract before
+    // consulting standalone storage identities. A plain shared observation
+    // must stay plain even when this catalog also retains an exact bounded
+    // referent for a separate exclusive loan of the same field.
+    if let Some(field) = inline_structural_field(structural_types, root, path)
+        && !matches!(
+            field.field_type,
+            terminal_psi::StructuralFieldType::Structural(_)
+        )
     {
-        return Ok(declaration.id);
+        let declaration = if let Some(leaf) = leaf_type(&field.field_type) {
+            leaf.leaf_declaration(structural_types.values())
+        } else {
+            // An owned byte field names its backing independently of inline
+            // scalar admission. View descriptors do not name that backing.
+            field
+                .field_type
+                .byte_sequence_carrier()
+                .and_then(|carrier| {
+                    terminal_semantics::byte_carrier_field_declaration(
+                        structural_types.values(),
+                        carrier,
+                    )
+                })
+        };
+        return declaration
+            .map(|declaration| declaration.id)
+            .ok_or(TerminalInterpretError::AffineProjectionNotRepresentable);
     }
-    // Inline scalar/byte fields have no structural child ID in the catalog.
-    // The interpreter's argument representation uses their existing canonical
-    // carrier declaration. Keep that endpoint conversion here: shared path
-    // geometry must not erase bounded-field observation or store obligations.
-    let invalid = || TerminalInterpretError::AffineProjectionNotRepresentable;
-    let field = inline_structural_field(structural_types, root, path).ok_or_else(invalid)?;
-    let shape = leaf_shape(&field.field_type).ok_or_else(invalid)?;
-    structural_types
-        .values()
-        .find(|declaration| declaration.shape == shape)
+    terminal_semantics::runtime_structural_path_tip(structural_types.values(), root, path)
         .map(|declaration| declaration.id)
-        .ok_or_else(invalid)
+        .ok_or(TerminalInterpretError::AffineProjectionNotRepresentable)
 }
 
 /// Resolve an inline field endpoint without manufacturing a standalone type.
@@ -1179,7 +1194,7 @@ pub(crate) fn project_structural_value(
         structural_types,
         root,
         path,
-        terminal_psi::StructuralFieldType::canonical_leaf_shape,
+        terminal_psi::StructuralFieldType::canonical_leaf_type,
     )
 }
 
@@ -1195,7 +1210,7 @@ pub(crate) fn project_shared_structural_observation(
         structural_types,
         root,
         path,
-        terminal_psi::StructuralFieldType::shared_observation_shape,
+        terminal_psi::StructuralFieldType::shared_observation_type,
     )
 }
 
@@ -1205,14 +1220,14 @@ pub(crate) fn project_structural_value_with_leaf(
     structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     root: &TerminalStructuralValue,
     path: &[StructuralPathSegment],
-    leaf_shape: fn(&terminal_psi::StructuralFieldType) -> Option<StructuralTypeShape>,
+    leaf_type: fn(&terminal_psi::StructuralFieldType) -> Option<terminal_psi::StructuralFieldType>,
 ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
     let mut value = root.clone();
     value.structural_type = resolve_structural_path_type_with_leaf(
         structural_types,
         root.structural_type,
         path,
-        leaf_shape,
+        leaf_type,
     )?;
     (value.qualifications, value.projected_qualifications) =
         terminal_psi::StructuralPathQualification::select(

@@ -508,11 +508,9 @@ pub(super) fn leaf_type(
         current = match &field.field_type {
             StructuralFieldType::Structural(child) => *child,
             leaf => {
-                let shape = leaf.canonical_leaf_shape()?;
-                *types
-                    .iter()
-                    .find(|(_, declaration)| declaration.shape == shape)
-                    .map(|(id, _)| id)?
+                leaf.canonical_leaf_type()?
+                    .leaf_declaration(types.values().copied())?
+                    .id
             }
         };
     }

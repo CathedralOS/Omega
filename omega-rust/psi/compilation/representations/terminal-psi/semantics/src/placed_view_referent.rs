@@ -98,11 +98,8 @@ fn resolve_referent_place(
                 match &field.field_type {
                     StructuralFieldType::Structural(next) => *next,
                     leaf => {
-                        let shape = leaf.canonical_leaf_shape()?;
-                        module
-                            .structural_types
-                            .iter()
-                            .find(|declaration| declaration.shape == shape)?
+                        leaf.canonical_leaf_type()?
+                            .leaf_declaration(module.structural_types.iter())?
                             .id
                     }
                 }
