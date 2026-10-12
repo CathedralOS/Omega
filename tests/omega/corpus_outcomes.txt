@@ -5997,7 +5997,7 @@ pass/termination/natural_call_variable_step checked 1751ms @a9ae30e1c334+wt
 pass/termination/proof_non_tail_joint_machine_cycle_compile checked 1547ms @a9ae30e1c334+wt
 pass/termination/quotient_endpoint_call_component checked 1728ms @a9ae30e1c334+wt
 pass/termination/rank_arrival_captured_record_fields_exit checked 10901ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/termination/rank_arrival_fresh_nested_owner checked 1878ms @a9ae30e1c334+wt
+pass/termination/rank_arrival_fresh_nested_owner checked 4536ms check-target:macos_arm64 @40ca79be5457
 pass/termination/rank_arrival_same_carrier_fields_exit checked 10987ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/termination/rank_arrival_unobserved_array_extent_compile checked 1881ms @a9ae30e1c334+wt
 pass/termination/rank_endpoint_borrows_recovery checked 11205ms check-target:macos_arm64 @a9ae30e1c334+wt
