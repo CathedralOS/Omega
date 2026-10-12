@@ -75,7 +75,6 @@ use result_use::validate_result_use;
 pub use write_frames::CallFrameTables;
 use write_frames::boundary_trait_call_signature;
 pub(crate) use write_frames::machine_state_by_symbol;
-pub(crate) use write_frames::state_transfer_subgraph_is_acyclic;
 pub use write_frames::{
     AssignmentWriteTarget, CallFrameResolver, CallWriteOrigins, LocalWriteOrigin, LocalWriteSource,
     RecastSource, ScalarStorageCoordinate, assignment_stored_value_type, frame_coordinate_path,
@@ -85,6 +84,9 @@ pub(crate) use write_frames::{CallFrameCaches, InvocationReferenceSubject};
 pub(crate) use write_frames::{
     boundary_trait_signature, expression_has_calls, free_machine_entry_state,
     statement_value_expression_roots,
+};
+pub(crate) use write_frames::{
+    state_transfer_subgraph_is_acyclic, state_transfer_subgraph_is_acyclic_before_entry_calls,
 };
 
 /// What every statement-call check reads: the program, the call, the

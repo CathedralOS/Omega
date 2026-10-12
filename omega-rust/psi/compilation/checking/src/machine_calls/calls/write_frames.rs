@@ -75,7 +75,9 @@ pub use place_paths::ScalarStorageCoordinate;
 pub use place_paths::frame_coordinate_path;
 pub use reference_subjects::assignment_stored_value_type;
 pub use stored_calls::StoredReferenceEffect;
-pub(crate) use transition_topology::state_transfer_subgraph_is_acyclic;
+pub(crate) use transition_topology::{
+    state_transfer_subgraph_is_acyclic, state_transfer_subgraph_is_acyclic_before_entry_calls,
+};
 
 use super::receiver_member_chain;
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
