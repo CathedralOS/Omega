@@ -92,7 +92,7 @@ pub(super) fn record(
                     let proof = facts
                         .values
                         .proof_terms
-                        .term_at(
+                        .located_term_at(
                             state.symbol,
                             statement_index,
                             checked_trees::CheckedProofTermRole::TransitionArgument {

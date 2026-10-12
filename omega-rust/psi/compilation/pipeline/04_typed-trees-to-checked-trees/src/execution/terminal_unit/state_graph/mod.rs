@@ -270,7 +270,7 @@ pub(super) fn build_traced(
             trace.phase("state graph: state signature: arrival predicate lowering unavailable");
             return None;
         };
-        let requires = predicates
+        let requires: Vec<_> = predicates
             .into_iter()
             .map(|predicate| {
                 Some(checked_trees::ClosedScalarContractValue::Predicate(
