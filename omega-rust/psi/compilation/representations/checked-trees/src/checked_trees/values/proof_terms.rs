@@ -128,6 +128,18 @@ impl CheckedProofTerms {
         statement_ordinal: u32,
         role: CheckedProofTermRole,
     ) -> Option<&CheckedProofTerm> {
+        self.located_term_at(state, statement_ordinal, role)
+            .map(|located| &located.term)
+    }
+
+    /// Keep the original occurrence when a consumer must join its expression
+    /// as well as its checked term. Duplicate coordinates remain ambiguous.
+    pub fn located_term_at(
+        &self,
+        state: SymbolHandle,
+        statement_ordinal: u32,
+        role: CheckedProofTermRole,
+    ) -> Option<&CheckedLocatedProofTerm> {
         let mut matches = self.terms.iter().filter(|term| {
             term.state == state && term.statement_ordinal == statement_ordinal && term.role == role
         });
@@ -135,6 +147,6 @@ impl CheckedProofTerms {
         if matches.next().is_some() {
             return None;
         }
-        Some(&term.term)
+        Some(term)
     }
 }
