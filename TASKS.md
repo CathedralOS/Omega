@@ -3378,12 +3378,14 @@ of a check the same flow already performed, not the check itself.
   checking-side substitution;
   borrowed array payload observations retain their indexed scalar endpoints.
   Qualify case-qualified descriptor storage without granting permissions to
-  inactive payloads; retain the growing `Chain` and mixed-case controls in
+  inactive payloads; retain the growing `Chain`, nested constructors and mixed-case
+  controls in
   `runtime_case_qualified_reference_storage_exit`, including independent custody
-  auditing. On macOS ARM64, extending that witness with a `ChainHolder` record
-  whose field contains `Chain<'storage, i32>` still loses the constructed local
-  at stage 04's structural call binding. A named `&view[0]` from a local byte
+  auditing. On macOS ARM64, a named `&view[0]` from a local byte
   slice separately fails Terminal lowering's direct-root reborrow identity.
+  The native audit of `runtime_linear_constructor_instances_exit` also rejects
+  its nominal-cleanup `ReturnUnit` as an unaccounted operation on macOS ARM64,
+  including the retained `12b7f1b5bcd` producer; retain its exit-zero oracle.
   Carry these compositions through execution, without restoring native
   permission replay. Include qualified descriptor replacement and detached-copy
   content observations; local observations cannot acquire entry provenance.

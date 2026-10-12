@@ -402,7 +402,14 @@ impl TypedTrees {
         if authored == instance.symbol {
             return Some(instance);
         }
-        let origin = instance.generic_instance?;
+        // An occurrence-specific field view may apply regions to an already
+        // specialized nominal carrier. Its generic_instance then names that
+        // carrier, not the authored template. Constructor provenance belongs
+        // to the nominal declaration; field types still come from this exact
+        // occurrence's prepared view. Reopening the region-erased origin as a
+        // closed application would demand lifetime operands it does not own.
+        let nominal = self.unique_data_definition_by_symbol(instance.symbol)?;
+        let origin = nominal.generic_instance?;
         if !self.type_reference_table.contains_type_reference(origin) {
             return None;
         }
@@ -411,8 +418,9 @@ impl TypedTrees {
         else {
             return None;
         };
-        (*base_symbol == authored && self.closed_data_definition(origin)?.symbol == instance.symbol)
-            .then_some(instance)
+        (*base_symbol == authored
+            && self.normalized_type_identity(origin) == self.normalized_type_identity(reference))
+        .then_some(instance)
     }
 
     /// Select a constructor child through the exact closed declaration's

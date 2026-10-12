@@ -5,6 +5,8 @@ data Chain<'next, Element> {
     case End(value: Element);
     case More(target: &'next Chain<'next, [Element; 2]>);
 }
+data ChainHolder<'next> { node: Chain<'next, i32>; }
+machine byte_value(value: &u8) -> u8 { value }
 
 machine read_pair<'storage, 'borrow>(node: &'borrow Chain<'storage, [i32; 2]>) -> i32 {
     transition node {
@@ -25,10 +27,17 @@ machine inspect_active<'storage>(inner: &'storage Chain<'storage, [i32; 2]>) -> 
     read(&node)
 }
 
-machine exercise<'storage>(source: &'storage Cell) -> bool {
+machine exercise<'storage>(source: &'storage Cell, bytes: &[u8; 4]) -> bool {
     let ordinary: Chain<'storage, i32> = Chain::End { value: source.value };
     let inner: Chain<'storage, [i32; 2]> = Chain::End { value: [29, 31] };
+    let holder: ChainHolder<'storage> = ChainHolder {
+        node: Chain::End { value: 37 }
+    };
+    // The selected field and byte-view backing do not depend on unrelated
+    // growing pointee layouts; both borrow their actual finite projections.
+    let first: u8 = byte_value(&bytes[0]);
     read(&ordinary) == 17 && inspect_active(&inner) == 29
+        && read(&holder.node) == 37 && first == 71
 }
 
 // Identically named payload fields stay in distinct case namespaces, even
@@ -193,7 +202,8 @@ machine exercise_exclusive() -> bool {
 machine main() crashes Trap {
     let seed: Cell = Cell { value: 17 };
     let other: Cell = Cell { value: 19 };
-    transition exercise(&seed) && exercise_selections(&seed, &other) && exercise_exclusive() {
+    let bytes: [u8; 4] = [71, 97, 116, 101];
+    transition exercise(&seed, &bytes) && exercise_selections(&seed, &other) && exercise_exclusive() {
         true -> passed()
         false -> failed()
     }
