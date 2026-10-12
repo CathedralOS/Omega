@@ -50,6 +50,22 @@ class DeadlineTests(unittest.TestCase):
             self.assertTrue(module.expired(record))
 
 
+class FetchCacheTests(unittest.TestCase):
+    def test_existing_tip_is_not_refetched_and_remains_reachable(self):
+        module = load_landing()
+        landing = object.__new__(module.Landing)
+        landing.repository = Path("repository")
+        landing.push_url = "remote"
+        landing.git = mock.Mock(return_value=subprocess.CompletedProcess([], 0))
+        identity = "a" * 40
+        with mock.patch.object(module.coordination, "fetch_object") as fetch, \
+                mock.patch.object(module.coordination, "remember_object") as remember:
+            landing.fetch_version(identity)
+        fetch.assert_not_called()
+        landing.git.assert_called_once_with("cat-file", "-e", identity, allow_failure=True)
+        remember.assert_called_once_with(landing.repository, "remote", module.CLAIM_REF, identity)
+
+
 class LandingTests(unittest.TestCase):
     def setUp(self):
         (self.root, self.remote, self.a,

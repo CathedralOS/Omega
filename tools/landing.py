@@ -399,6 +399,13 @@ class Landing:
         the same chained history. Verified with cat-file so a silently
         incomplete fetch does not surface as a parse failure.
         """
+        # Queue mutations already created their tip locally. Refetching that
+        # immutable object needlessly negotiates every reachable history; a
+        # large claims cache can exhaust memory before the landing lease starts.
+        if not self.git("cat-file", "-e", version, allow_failure=True).returncode:
+            coordination.remember_object(self.repository, self.push_url,
+                                         reference, version)
+            return
         try:
             coordination.fetch_object(self.repository, self.push_url, version)
         except LandingError:
@@ -406,6 +413,8 @@ class Landing:
         else:
             if not self.git("cat-file", "-e", version,
                             allow_failure=True).returncode:
+                coordination.remember_object(self.repository, self.push_url,
+                                             reference, version)
                 return
         self.git("fetch", "--no-tags", "--no-write-fetch-head",
                  self.push_url, reference)
@@ -413,6 +422,8 @@ class Landing:
             raise LandingError(f"Remote tip {version} is still missing after "
                                f"fetching {reference}; inspect the remote "
                                "object store before retrying.")
+        coordination.remember_object(self.repository, self.push_url,
+                                     reference, version)
 
     def snapshot(self):
         references = self.references()
