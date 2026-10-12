@@ -1,0 +1,29 @@
+// The second actual snapshots the old field before the fourth increments it.
+// The whole tail call is not a second runtime invocation.
+data Counter { value: u64 in Wrapping; }
+data Main { value: u64; }
+machine advance(counter: &mut Counter) -> u64 in Wrapping {
+    counter.value = counter.value + 1;
+    counter.value
+}
+machine countdown<const Flag: bool>(remaining: u64, copied: u64 in Wrapping,
+    counter: &mut Counter, latest: u64 in Wrapping) -> u64 in Wrapping
+where Flag == true
+terminates by remaining -> Nat::Descending;
+{
+    transition remaining > 0 {
+        true -> (countdown<true>(remaining - 1, counter.value, counter, advance(counter)))
+        false -> copied
+    }
+}
+machine Main::main(main: &mut Main) crashes Trap {
+    let mut counter: Counter;
+    counter.value = 0;
+    let result: u64 in Wrapping = countdown<true>(3, 0, &mut counter, 0);
+    transition result == 2 && counter.value == 3 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

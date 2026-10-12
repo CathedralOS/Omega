@@ -1,0 +1,24 @@
+// Each recursive invocation supplies true to the original Where predicate.
+// The complete static tuple must survive tail-call normalization.
+// The recursive tail edge strictly decreases remaining under remaining>0.
+data Main { value: u64; }
+
+machine countdown<const Flag: bool>(remaining: u64) -> u64
+where Flag == true
+terminates by remaining -> Nat::Descending;
+{
+    transition remaining == 0 {
+        true -> (7)
+    }
+    countdown<true>(remaining - 1)
+}
+
+machine Main::main(main: &mut Main) crashes Trap {
+    let result: u64 = countdown<true>(2);
+    transition result == 7 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
