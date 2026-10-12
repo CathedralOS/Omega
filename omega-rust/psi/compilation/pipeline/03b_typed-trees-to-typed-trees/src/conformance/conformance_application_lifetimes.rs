@@ -906,6 +906,13 @@ fn visit_lifetime_bindings_in_scope(
     {
         return;
     }
+    // Storage preparation can replace either side of the correspondence with
+    // a nominal carrier. Its per-use source application owns the region tuple;
+    // the layout declaration deliberately erases it. Expand through the same
+    // source projection used for places, without supplying a foreign telescope.
+    let Some((required, _)) = program.project_enclosing_data_type_reference(required, &[]) else {
+        return;
+    };
     let Some((actual, actual_scope)) = actual_scope.resolve(program, actual) else {
         return;
     };
