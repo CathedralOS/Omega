@@ -88,7 +88,46 @@ pub(super) fn selection_boundary_roots(
     let mut boundaries = Vec::new();
     for &symbol in roots {
         let Some((definition, _)) = checked.typed.trait_machine_signature(symbol) else {
-            retain_boundary(plans, symbol, &mut boundaries)?;
+            if let Some(requirement) = checked.typed.machine(symbol) {
+                if requirement.supply_mode
+                    != language_semantics::MachineSupplyMode::TopLevelRequirement
+                {
+                    return unsupported("selected boundary root is not a requirement declaration");
+                }
+                // Selection owns the original generic family. Only genuinely
+                // closed originals and preparation-owned actual applications
+                // have executable boundary plans; an unused open template does
+                // not acquire a tuple from its selected provider body.
+                if !requirement.has_specialization_parameters() {
+                    retain_boundary(plans, symbol, &mut boundaries)?;
+                }
+                for receipt in checked
+                    .typed
+                    .machine_specializations
+                    .iter()
+                    .filter(|receipt| receipt.template == symbol)
+                {
+                    let Some(instance) = checked.typed.machine(receipt.instance) else {
+                        return unsupported(
+                            "selected boundary application lost its checked requirement",
+                        );
+                    };
+                    if !receipt.binding_application.is_valid()
+                        || !exact_specialization(&checked.typed, symbol, receipt.instance)
+                        || instance.supply_mode
+                            != language_semantics::MachineSupplyMode::TopLevelRequirement
+                        || instance.has_specialization_parameters()
+                    {
+                        return unsupported(
+                            "selected boundary application lost its exact complete source tuple",
+                        );
+                    }
+                    retain_boundary(plans, receipt.instance, &mut boundaries)?;
+                }
+            } else {
+                // Legacy operator declarations retain their own checked plan.
+                retain_boundary(plans, symbol, &mut boundaries)?;
+            }
             continue;
         };
         if !definition.is_boundary {
