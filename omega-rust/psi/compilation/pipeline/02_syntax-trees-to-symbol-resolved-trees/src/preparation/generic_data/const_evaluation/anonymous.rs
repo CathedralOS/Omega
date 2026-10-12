@@ -16,6 +16,27 @@ pub(crate) struct AnonymousNumericValue {
     fractional: Option<(ExpressionHandle, BigRational)>,
 }
 
+/// Invocation-owned observation produced by exact anonymous evaluation.
+/// Canonical encoding excludes it; successful publication owns its warning.
+pub(super) struct AnonymousIntegerLanding {
+    pub(super) integer: i128,
+    fractional: Option<(ExpressionHandle, BigRational)>,
+}
+
+impl AnonymousIntegerLanding {
+    pub(super) fn has_fractional_intermediate(&self) -> bool {
+        self.fractional.is_some()
+    }
+
+    pub(super) fn warning(&self, syntax: &SyntaxTrees) -> Option<Diagnostic> {
+        let (origin, fractional_value) = self.fractional.as_ref()?;
+        Some(Diagnostic::warning(format!(
+            "anonymous arithmetic preserves the exact fractional intermediate `{fractional_value}` before landing as integer `{}`; type an operand if typed integer division was intended",
+            self.integer,
+        )).with_source_span(syntax.expressions.source_span(*origin)))
+    }
+}
+
 /// Named values and prior landings stay with the declared integer evaluator.
 /// Wholly anonymous arithmetic needs no declaration selection: it denotes an
 /// exact rational (wiki/spec/language/numeric_values.md), and operator
@@ -110,23 +131,36 @@ impl AnonymousNumericValue {
         syntax: &SyntaxTrees,
         warnings: &mut Vec<Diagnostic>,
     ) -> Result<i128, String> {
-        let value = self.value;
-        let integer = value.to_integer_exact().ok_or_else(|| format!(
-        "exact anonymous value `{value}` cannot land in an integer const argument; type an operand if typed integer division was intended"
-    ))?;
-        let value = integer
+        let landing = self.into_integer_landing()?;
+        if let Some(warning) = landing.warning(syntax) {
+            warnings.push(warning);
+        }
+        Ok(landing.integer)
+    }
+
+    pub(super) fn into_integer_landing(self) -> Result<AnonymousIntegerLanding, String> {
+        let integer = self.integer_value()?;
+        Ok(AnonymousIntegerLanding {
+            integer,
+            fractional: self.fractional,
+        })
+    }
+
+    /// Observe the same exact integer landing for identity queries which do
+    /// not publish diagnostics. Keep fractional-origin custody in this value;
+    /// the ordinary evaluation consumer reports it through `into_integer`.
+    pub(super) fn integer_value(&self) -> Result<i128, String> {
+        let integer = self.value.to_integer_exact().ok_or_else(|| format!(
+            "exact anonymous value `{}` cannot land in an integer const argument; type an operand if typed integer division was intended",
+            self.value,
+        ))?;
+        integer
             .to_i64()
             .map(i128::from)
             .or_else(|| integer.to_u64().map(i128::from))
             .ok_or_else(|| {
                 "integer const argument exceeds the signed/unsigned 64-bit envelope".to_owned()
-            })?;
-        if let Some((origin, fractional_value)) = self.fractional {
-            warnings.push(Diagnostic::warning(format!(
-            "anonymous arithmetic preserves the exact fractional intermediate `{fractional_value}` before landing as integer `{integer}`; type an operand if typed integer division was intended"
-        )).with_source_span(syntax.expressions.source_span(origin)));
-        }
-        Ok(value)
+            })
     }
 
     pub(super) fn binary(
