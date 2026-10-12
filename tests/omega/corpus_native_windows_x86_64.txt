@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 24, "jobs": "2", "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 8, "jobs": null, "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 302ms @0484de104502
 pass/arithmetic/anonymous_rational_integer_landing checked 306ms @0484de104502
 pass/arithmetic/bounded_assignment checked 323ms @0484de104502
@@ -131,6 +131,8 @@ pass/calls/runtime_measured_tail_recursion_exit built 1498ms exit:70 @0484de1045
 pass/calls/runtime_mut_ref_forward_exit rejected 1095ms @0484de104502
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: jump successor: parameter transfer` (state 0, statement 0)
 pass/calls/runtime_mutable_call_before_transition_args_exit built 3362ms exit:70 @f493df928d32+wt
+pass/calls/runtime_mutable_call_empty_input_exit built 9468ms exit:72 @da842c101400+wt
+pass/calls/runtime_mutable_call_short_input_exit built 9591ms exit:72 @da842c101400+wt
 pass/calls/runtime_mutable_local_parameter_write_exit rejected 1107ms @0484de104502
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: caller structural result` (state 0, statement 2)
 pass/calls/runtime_nested_case_argument_exit built 4397ms exit:70 @0484de104502
@@ -598,10 +600,13 @@ pass/generics/runtime_value_generic_subject_exit built 1279ms @7fc7a3a06d34
 pass/host/console_exit_process_exit built 3182ms exit:70 stdout:match @a23a13432354+wt
 pass/host/process_exit_i32_status_mapped built 955ms @0484de104502
 pass/host/process_exit_i32_status_ordered built 4071ms exit:70 stdout:match @a23a13432354+wt
+pass/host/runtime_console_bounded_line_cr_midline_exit built 9373ms exit:14 stdout:match @da842c101400+wt
+pass/host/runtime_console_bounded_line_eof_repeat_exit built 9446ms exit:21 @da842c101400+wt
 pass/host/runtime_console_bounded_line_exit built 3258ms exit:20 @f493df928d32+wt
 pass/host/runtime_console_bounded_line_full_exit built 3184ms exit:34 stdout:match @f493df928d32+wt
 pass/host/runtime_console_bounded_line_lf_exit built 3283ms exit:13 stdout:match @f493df928d32+wt
 pass/host/runtime_console_bounded_line_middle_window_exit built 3156ms exit:70 stdout:match @f493df928d32+wt
+pass/host/runtime_console_bounded_line_nul_crlf_exit built 9527ms exit:14 stdout:match @da842c101400+wt
 pass/host/runtime_console_bounded_line_partial_eof_exit built 3310ms exit:22 stdout:match @f493df928d32+wt
 pass/host/runtime_console_byte_echo_exit rejected 1169ms @7fc7a3a06d34
 	selected compiler intrinsic `<selected target>::ConsoleNativeProvider::satisfies::Console` for Terminal boundary `named-callable(path(Console::read_byte),parameters(),result-dispatch())` has no closed native catalog identity
