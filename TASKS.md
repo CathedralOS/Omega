@@ -1304,6 +1304,13 @@ defines the complete product bar.
   NUL and CR bytes move raw with byte-exact stdout (no text conversion);
   a failed host read (write-only stdin) traps via `crashes Trap`
   (STATUS_ILLEGAL_INSTRUCTION), never surfaces `LineReadResult::Invalid`.
+  Those edge behaviors are now pinned by landed pinned-input fixtures
+  `host/runtime_console_bounded_line_nul_crlf_exit` (NUL+CRLF raw),
+  `host/runtime_console_bounded_line_cr_midline_exit` (CR mid-line is data),
+  `host/runtime_console_bounded_line_eof_repeat_exit` (repeat read past
+  EndOfInput stays EndOfInput), `calls/runtime_mutable_call_short_input_exit`
+  (2-byte read → exit 72) and `calls/runtime_mutable_call_empty_input_exit`
+  (empty stdin → exit 72), witnessed exits 14/21/72 native and interpreted.
   Remaining: the Loader's ordinary `omega run --both` route is blocked behind
   std package admission — the ordinary review raises 285 pending decisions
   (141 callable, 141 external_supply, dangerous_capability grants `filesystem`
