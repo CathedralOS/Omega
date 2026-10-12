@@ -1291,14 +1291,25 @@ defines the complete product bar.
 
   Qualify native input/output and CLI comparison on Windows; macOS can build
   these images but cannot execute them. Owners: std's selected Windows Console
-  providers and **TERMINAL-RUNTIME-DRIVERS**. Exercise the actual CRT descriptor
-  initialization and mode against the raw-byte contract, including NUL and CR;
-  text-mode conversion cannot count as preserving authored bytes. Distinguish
-  EOF, transient empty pipe reads and failures without treating every
-  successful zero-byte read as EOF. Complete ordinary package review before
-  claiming the Loader's `omega run --both` acceptance; pending admission is not
-  an execution result. Keep the exact selected imports and checked wrappers;
-  provider spelling or matching signature grants no host behavior.
+  providers and **TERMINAL-RUNTIME-DRIVERS**. Keep the exact selected imports
+  and checked wrappers; provider spelling or matching signature grants no host
+  behavior.
+
+  Frontier (w1 witness at fetched main 44e66b7): the MSVCRT binary-mode repair
+  (63ba05a4, `_setmode` per read/write) is landed and the corpus gate
+  acceptance is freshly witnessed on Windows — Loader exit 70 native and
+  interpreted, bounded-line exits 20/13/34/22/70 with byte-exact stdout.
+  Edge exercise on built natives: authored four bytes exit 70; empty/short
+  input takes the authored failure exit 72 (EOF distinct from failure);
+  NUL and CR bytes move raw with byte-exact stdout (no text conversion);
+  a failed host read (write-only stdin) traps via `crashes Trap`
+  (STATUS_ILLEGAL_INSTRUCTION), never surfaces `LineReadResult::Invalid`.
+  Remaining: the Loader's ordinary `omega run --both` route is blocked behind
+  std package admission — the ordinary review raises 285 pending decisions
+  (141 callable, 141 external_supply, dangerous_capability grants `filesystem`
+  via FilesystemHost and `process` via Console, 1 terminal_permission), all
+  audit-recommended; completing that review is an owner/coordinator admission
+  decision, not an execution result.
 
   Acceptance: `python tools/corpus_gate.py --both --filter
   calls/runtime_mutable_call_before_transition_args_exit,host/runtime_console_bounded_line`
