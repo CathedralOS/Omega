@@ -19,7 +19,7 @@ use super::{
 use arena::Handle;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
-use numerics::literals::{IntegerLiteral, IntegerRadix};
+use numerics::literals::IntegerLiteral;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::JoinedPath;
 use syntax_trees::{
@@ -511,6 +511,8 @@ fn complete_arguments(
         Some(selection),
         &mut warnings,
     )?;
+    let integer_operands = tuple.integer_operands;
+    let tuple = tuple.references;
     for warning in warnings {
         eprintln!("{warning}");
     }
@@ -522,7 +524,12 @@ fn complete_arguments(
             argument.application = None;
         }
     }
-    for (reference, parameter) in tuple.into_iter().zip(parameters).skip(supplied.len()) {
+    for (position, (reference, parameter)) in tuple
+        .into_iter()
+        .zip(parameters)
+        .enumerate()
+        .skip(supplied.len())
+    {
         let mut argument = StaticMachineArgument {
             type_reference: TypeReferenceHandle::invalid(),
             path: Box::default(),
@@ -533,6 +540,13 @@ fn complete_arguments(
         match parameter.kind {
             TypeParameterKind::Type => argument.type_reference = reference,
             TypeParameterKind::Const { .. } => {
+                if integer_operands[position].is_valid() {
+                    completed.push(original_integer_argument(
+                        syntax,
+                        integer_operands[position],
+                    )?);
+                    continue;
+                }
                 let Some(value) = syntax.type_references.type_reference(reference).as_named()
                 else {
                     return Err(Diagnostic::error(
@@ -548,20 +562,58 @@ fn complete_arguments(
                     completed.push(argument);
                     continue;
                 }
-                argument.const_literal = Some(
-                    IntegerLiteral::from_parts(
-                        text.starts_with('-'),
-                        IntegerRadix::Decimal,
-                        text.trim_start_matches('-'),
-                    )
-                    .map_err(Diagnostic::error)?,
-                );
+                return Err(Diagnostic::error(
+                    "machine equation recovered an integer value without an original const operand",
+                ));
             }
             _ => unreachable!("parameter kinds were admitted above"),
         }
         completed.push(argument);
     }
     Ok(completed.into_boxed_slice())
+}
+
+/// Reuse the exact source operand lanes accepted by ordinary const admission.
+/// Unsupported issuing graphs cannot become anonymous decimal literals.
+fn original_integer_argument(
+    syntax: &SyntaxTrees,
+    reference: TypeReferenceHandle,
+) -> Result<StaticMachineArgument, Diagnostic> {
+    let original = syntax
+        .type_references
+        .const_argument_normalization(reference)
+        .map_or(reference, |normalization| normalization.original_operand);
+    let mut argument = StaticMachineArgument {
+        type_reference: TypeReferenceHandle::invalid(),
+        path: Box::default(),
+        application: None,
+        const_literal: None,
+        evidence_projection: None,
+    };
+    match syntax.type_references.type_reference(original) {
+        TypeReferenceNode::ConstExpression(expression) => {
+            let ExpressionNode::Integer(literal) = syntax.expressions.expression(*expression)
+            else {
+                return Err(Diagnostic::error(
+                    "machine equation recovered an original const graph without a retained scalar operand",
+                ));
+            };
+            argument.const_literal = Some(literal.clone());
+        }
+        TypeReferenceNode::Named(name) => {
+            argument.path = vec![syntax_trees::identifier::Identifier::new(
+                name.as_str(),
+                name.source_span(),
+            )]
+            .into_boxed_slice();
+        }
+        _ => {
+            return Err(Diagnostic::error(
+                "machine equation lost its original integer operand",
+            ));
+        }
+    }
+    Ok(argument)
 }
 
 /// Expose an authored scalar const's value to equation matching without
