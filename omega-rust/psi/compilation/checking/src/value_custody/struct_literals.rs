@@ -34,6 +34,7 @@ mod window_elements;
 
 pub(crate) use window_elements::validate_array_window_elements;
 
+pub use construction_bounds::case_predicates_admit_zero;
 use construction_bounds::{validate_literal_case_constraints, validate_literal_default_domain};
 use field_obligations::enforce_construction_field_obligations;
 pub use field_obligations::selected_construction_field_type;

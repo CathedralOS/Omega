@@ -805,13 +805,12 @@ fn zero_valid_first_case(
             .then_some(variant)
         })
     });
-    // A case carrying its own `where` facts must construct through its
-    // constructor; zero bytes alone cannot prove them.
-    if variant.is_some_and(|variant| {
-        !checked
-            .proof_facts
-            .span_or_empty(variant.where_facts)
-            .is_empty()
+    // Zero selects this exact first case. Clause presence is not a refusal,
+    // and an ungated declaration is not evidence that its payload predicates
+    // hold. Rejoin the source case and use the constructor's zero valuation;
+    // the Terminal field walk below separately checks stored representation.
+    if !source.zip(variant).is_some_and(|(source, variant)| {
+        validation::case_predicates_admit_zero(&checked.typed, source, variant)
     }) {
         return false;
     }

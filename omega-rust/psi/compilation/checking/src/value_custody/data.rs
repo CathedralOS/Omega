@@ -481,6 +481,9 @@ fn data_requires_establishment_inner(
         }
         DataMember::Variant(_) => false,
     });
+    // The zero tag selects only the first case. A clause that is satisfiable
+    // for some payload still needs establishment when its actual zero payload
+    // does not prove it; the syntax-stage flag is not a positive certificate.
     let zero_case_gated = members
         .iter()
         .find_map(|member| match member {
@@ -488,9 +491,10 @@ fn data_requires_establishment_inner(
             DataMember::Field(_) => None,
         })
         .is_some_and(|variant| {
-            program.data_payload_fields(variant).iter().any(|field| {
-                type_requires_establishment_inner(program, field.type_reference, index)
-            })
+            !super::struct_literals::case_predicates_admit_zero(program, definition, variant)
+                || program.data_payload_fields(variant).iter().any(|field| {
+                    type_requires_establishment_inner(program, field.type_reference, index)
+                })
         });
 
     index.seen.pop();

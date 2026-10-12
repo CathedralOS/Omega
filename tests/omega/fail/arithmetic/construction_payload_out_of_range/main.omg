@@ -1,9 +1,8 @@
-// FAIL canary: constructing a range-refined payload field with an out-of-range
-// literal is rejected -- the bound a destructure arm trusts must hold at every
-// construction site (fact-catalog soundness). 9999 is outside [0..=15].
+// A selected case's bounds must hold at every construction before a match
+// may publish them. The literal 9999 violates Found's zero-through-15 facts.
 use omega_language_std::console;
 use omega::language::core::binding;
-data Slot { case Found(index: i32 [0..=15]); case Full; }
+data Slot { case Found(index: i32) where index >= 0 && index <= 15; case Full; }
 data Main { console: Binding<Console>; }
 machine Main::run(main: &mut Main, s: Slot) {
     transition s { Slot::Found { index } -> done(main, index) Slot::Full -> stop(main) }

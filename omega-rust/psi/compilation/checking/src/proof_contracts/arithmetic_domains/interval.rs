@@ -41,14 +41,14 @@ impl Interval {
         self.low == Some(0) && self.high == Some(0)
     }
 
-    pub(super) fn add(self, other: Self) -> Self {
+    pub(crate) fn add(self, other: Self) -> Self {
         Self {
             low: pair(self.low, other.low, i64::checked_add),
             high: pair(self.high, other.high, i64::checked_add),
         }
     }
 
-    pub(super) fn subtract(self, other: Self) -> Self {
+    pub(crate) fn subtract(self, other: Self) -> Self {
         // [a,b] - [c,d] = [a-d, b-c]
         Self {
             low: pair(self.low, other.high, i64::checked_sub),
@@ -56,7 +56,7 @@ impl Interval {
         }
     }
 
-    pub(super) fn multiply(self, other: Self) -> Self {
+    pub(crate) fn multiply(self, other: Self) -> Self {
         // Zero annihilates every integer, including values beyond this
         // lattice's finite endpoints. This bounds only the product: callers
         // must still establish both operands' own formation obligations.
@@ -220,56 +220,6 @@ impl Interval {
         Self {
             low: Some(first.min(second).min(third).min(fourth)),
             high: Some(first.max(second).max(third).max(fourth)),
-        }
-    }
-
-    /// Saturating `a + b`: an overflowing end saturates rather than dropping
-    /// to unbounded. A saturated endpoint is still a sound (weaker) bound —
-    /// construction-fold clients keep the extra information.
-    pub fn saturating_add(self, other: Self) -> Self {
-        Self {
-            low: self
-                .low
-                .zip(other.low)
-                .map(|(left, right)| left.saturating_add(right)),
-            high: self
-                .high
-                .zip(other.high)
-                .map(|(left, right)| left.saturating_add(right)),
-        }
-    }
-
-    /// Saturating `a - b`: `[a,b] - [c,d]` over the crossed ends.
-    pub fn saturating_subtract(self, other: Self) -> Self {
-        Self {
-            low: self
-                .low
-                .zip(other.high)
-                .map(|(left, right)| left.saturating_sub(right)),
-            high: self
-                .high
-                .zip(other.low)
-                .map(|(left, right)| left.saturating_sub(right)),
-        }
-    }
-
-    /// Saturating `a * b` over the four endpoint products. Requires every
-    /// end finite — an unbounded operand's product claims no finite corner,
-    /// and this flavor does not guess zero-annihilation.
-    pub fn saturating_multiply(self, other: Self) -> Self {
-        let (Some(a), Some(b), Some(c), Some(d)) = (self.low, self.high, other.low, other.high)
-        else {
-            return Interval::UNBOUNDED;
-        };
-        let products = [
-            a.saturating_mul(c),
-            a.saturating_mul(d),
-            b.saturating_mul(c),
-            b.saturating_mul(d),
-        ];
-        Self {
-            low: products.iter().min().copied(),
-            high: products.iter().max().copied(),
         }
     }
 

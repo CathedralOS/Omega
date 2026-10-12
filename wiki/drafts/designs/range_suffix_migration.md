@@ -331,3 +331,21 @@ The shared extraction does not alter target ABI choices or turn a flow bound
 into shape identity. The console witnesses exercise the selected macOS ARM64
 entry policy as well; this is not a claim of matching-host execution for the
 other entry products.
+
+## Audited brightness command bounds
+
+The [controller's declaration inventory](../../../samples/cli/basics/brightness_control/README.md#historical-declaration-inventory)
+reconciles four declarations at `c8eaaebde25`: two active-case payload bounds,
+the containing brightness field predicate, and the apply-state requirement.
+The related invalid constructor at `97ebeb57d89` keeps its fifth declaration's
+case bound and the deliberately invalid literal 9999. No nominal interval
+domain is introduced. The three dispatch arms and authored controller output
+are unchanged; native and Terminal execution each observe 65.
+
+First-case zero provisioning uses the constructor's predicate judgment for
+the exact zero payload, rather than rejecting every case clause or granting
+an unchecked default. A later empty case cannot establish an invalid first
+case. The regression also separates resolved field identities from same-named
+module constants and carries an applied generic command through parameters,
+results and ordinary local storage. Mathematical contract arithmetic never
+saturates to fit the checker's finite interval endpoints.

@@ -1,18 +1,8 @@
-// A display-brightness controller driven by BOUNDED commands -- the systems-code
-// pattern the sum-payload-range narrowing exists for. Each command carries a
-// payload refined with a declared range (a brightness level is 0..=100, a dim
-// step is 0..=10), and the dispatch flows that payload straight into the
-// same-bounded setter WITHOUT re-annotation:
-//   * `SetLevel { level } -> apply(level)` -- the bounded payload `level` proves
-//     it fits `apply`'s `target: [0..=100]` because the matching case arm proves
-//     the command IS `SetLevel` (the DIRECT pass-through narrowing).
-//   * `Dim { amount } -> apply(amount * 10)` -- `amount: [0..=10]` narrows the
-//     arithmetic so `amount * 10` proves EXACT within [0..=100] (no overflow, no
-//     annotation) -- the arithmetic-use narrowing.
-//   * `Off -> apply(0)` -- a literal in range.
-// The store `main.brightness = target` is a proof-carrying bounded write. Every
-// arm targets `apply`, whose single bounded parameter is discharged three
-// different ways, so the whole controller is proven with no manual range casts.
+// A brightness controller whose command cases publish ordinary predicates.
+// Matching SetLevel supplies its level bounds; matching Dim supplies the
+// amount bounds used by exact multiplication. Off supplies a literal zero.
+// All three arms owe the same apply-state requirement, and its field write
+// restores Main's brightness predicate without a range cast or nominal domain.
 //
 // main issues `SetLevel { level: 65 }`, so the controller settles at 65.
 // Expected exit: 65.
@@ -21,14 +11,14 @@ use omega_language_std::console;
 use omega::language::core::binding;
 
 data Command {
-    case SetLevel(level: i32 [0..=100]);
-    case Dim(amount: i32 [0..=10]);
+    case SetLevel(level: i32) where level >= 0 && level <= 100;
+    case Dim(amount: i32) where amount >= 0 && amount <= 10;
     case Off;
 }
 
-data Main {
+data Main where brightness >= 0 && brightness <= 100 {
     console: Binding<Console>;
-    brightness: i32 [0..=100];
+    brightness: i32;
     command: Command;
 }
 
@@ -43,7 +33,9 @@ machine Main::main(main: &mut Main) reaches Console {
         Command::Off                -> apply(main, 0)
     }
 
-    state apply(main: &mut Main, target: i32 [0..=100]) {
+    state apply(main: &mut Main, target: i32)
+    requires target >= 0 && target <= 100;
+    {
         main.brightness = target;
         transition { _ -> report(main) }
     }

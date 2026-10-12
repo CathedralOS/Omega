@@ -1,6 +1,11 @@
+//! Constructor predicates consume the exact field valuation and declared scope.
+//! Source literals supply their observed operands; entry zero provisioning
+//! supplies primitive zeros and leaves unsupported aggregate facts unknown.
+//! Both use one predicate fold, so a clause cannot become either a blanket
+//! refusal or a qualification granted without establishing its facts.
+
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::CollectionMeasure;
-use std::collections::BTreeSet;
 use symbols::JoinedPath;
 use typed_trees::data::DataDefinition;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
@@ -116,11 +121,12 @@ fn value_bounds(
 
 /// Fold a `where` fact over the field-value intervals. Comparisons yield a
 /// TRI-STATE truth encoded as bounds ([1,1] true / [0,0] false / [0,1]
-/// unknown) so `&&`/`||` compose; arithmetic uses saturating interval ops.
+/// unknown) so `&&`/`||` compose. Arithmetic drops unrepresentable interval
+/// endpoints: saturating a mathematical expression would invent a proof.
 pub(super) fn bounds_fold(
     program: &dyn crate::CheckingInput,
-    valuation: &[(&str, Bounds)],
-    declared: &BTreeSet<&str>,
+    valuation: &[(symbols::SymbolHandle, Bounds)],
+    declared: &[symbols::SymbolHandle],
     expression: ExpressionHandle,
 ) -> Truth {
     let bounds = bounds_eval(program, valuation, declared, expression);
@@ -131,36 +137,80 @@ pub(super) fn bounds_fold(
     }
 }
 
+/// Judge the active case's predicates at the actual zero field valuation.
+/// Entry provisioning uses the same constructor fold, not the presence of a
+/// clause or the conservative zero-gate flag as a positive certificate.
+/// Only declared primitive fields have a scalar zero; aggregate observations,
+/// membership and proof applications require their own evidence and decline.
+pub fn case_predicates_admit_zero(
+    program: &dyn crate::CheckingInput,
+    definition: &DataDefinition,
+    variant: &typed_trees::data::DataVariant,
+) -> bool {
+    let common = program
+        .data_members(definition)
+        .iter()
+        .filter_map(|member| match member {
+            typed_trees::data::DataMember::Field(field) => Some(field),
+            typed_trees::data::DataMember::Variant(_) => None,
+        });
+    let fields = common.chain(program.data_payload_fields(variant));
+    let mut declared = Vec::new();
+    let mut valuation = Vec::new();
+    for field in fields {
+        declared.push(field.symbol);
+        let bounds = if program
+            .primitive_type_reference(field.type_reference)
+            .is_some_and(|primitive| {
+                primitive.is_fixed_integer() || primitive == typed_trees::types::PrimitiveType::Bool
+            }) {
+            Bounds::point(0)
+        } else {
+            Bounds::UNKNOWN
+        };
+        valuation.push((field.symbol, bounds));
+    }
+    program
+        .proof_facts
+        .span_or_empty(variant.where_facts)
+        .iter()
+        .all(|fact| {
+            fact.as_expression().is_some_and(|expression| {
+                matches!(
+                    bounds_fold(program, &valuation, &declared, *expression),
+                    Truth::True
+                )
+            })
+        })
+}
+
 fn bounds_eval(
     program: &dyn crate::CheckingInput,
-    valuation: &[(&str, Bounds)],
-    declared: &BTreeSet<&str>,
+    valuation: &[(symbols::SymbolHandle, Bounds)],
+    declared: &[symbols::SymbolHandle],
     expression: ExpressionHandle,
 ) -> Bounds {
     use typed_trees::expression::BinaryOperator;
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
-            let Some(last) = program
-                .expression_table
-                .name_path_members(path.members)
-                .last()
-            else {
+            if !path.symbol.is_valid() {
                 return Bounds::UNKNOWN;
-            };
+            }
             valuation
                 .iter()
-                .find(|(name, _)| *name == last.as_str())
+                .find(|(symbol, _)| *symbol == path.symbol)
                 .map(|(_, bounds)| *bounds)
                 // Omitted declared fields read the ZII zero at construction;
                 // a name bound to nothing in scope is unprovable, not zero.
                 .unwrap_or_else(|| {
-                    if declared.contains(last.as_str()) {
+                    if declared.contains(&path.symbol) {
                         Bounds::point(0)
                     } else {
                         Bounds::UNKNOWN
                     }
                 })
         }
+        ExpressionNode::Boolean(value) => Bounds::point(i64::from(*value)),
         ExpressionNode::Integer(value) => value
             .text()
             .parse::<i64>()
@@ -170,27 +220,22 @@ fn bounds_eval(
             if CollectionMeasure::from_authored_spelling(member.member.as_str()).is_some() =>
         {
             let measure = match program.expression_table.expression(member.receiver) {
-                ExpressionNode::Name(path) => program
-                    .expression_table
-                    .name_path_members(path.members)
-                    .last()
-                    .and_then(|name| {
-                        match valuation.iter().find(|(field, _)| *field == name.as_str()) {
-                            Some((_, bounds)) => {
-                                match CollectionMeasure::from_authored_spelling(
-                                    member.member.as_str(),
-                                ) {
-                                    Some(CollectionMeasure::Length) => bounds.length,
-                                    Some(CollectionMeasure::Capacity) => bounds.capacity,
-                                    None => None,
-                                }
+                ExpressionNode::Name(path) if path.symbol.is_valid() => {
+                    match valuation.iter().find(|(field, _)| *field == path.symbol) {
+                        Some((_, bounds)) => {
+                            match CollectionMeasure::from_authored_spelling(member.member.as_str())
+                            {
+                                Some(CollectionMeasure::Length) => bounds.length,
+                                Some(CollectionMeasure::Capacity) => bounds.capacity,
+                                None => None,
                             }
-                            // An omitted declared sequence field has the
-                            // ZII empty value; a receiver outside the scope
-                            // has no measure at all.
-                            None => declared.contains(name.as_str()).then_some(0),
                         }
-                    }),
+                        // An omitted declared sequence field has the
+                        // ZII empty value; a receiver outside the scope
+                        // has no measure at all.
+                        None => declared.contains(&path.symbol).then_some(0),
+                    }
+                }
                 _ => None,
             };
             measure.map(Bounds::point).unwrap_or(Bounds::UNKNOWN)
@@ -200,15 +245,15 @@ fn bounds_eval(
             let right = bounds_eval(program, valuation, declared, binary.right);
             match binary.operator {
                 BinaryOperator::Add => Bounds {
-                    interval: left.interval.saturating_add(right.interval),
+                    interval: left.interval.add(right.interval),
                     ..Bounds::UNKNOWN
                 },
                 BinaryOperator::Subtract => Bounds {
-                    interval: left.interval.saturating_subtract(right.interval),
+                    interval: left.interval.subtract(right.interval),
                     ..Bounds::UNKNOWN
                 },
                 BinaryOperator::Multiply => Bounds {
-                    interval: left.interval.saturating_multiply(right.interval),
+                    interval: left.interval.multiply(right.interval),
                     ..Bounds::UNKNOWN
                 },
                 BinaryOperator::LessOrEqual => tri(compare(left, right, |a, b| a <= b)),
@@ -316,7 +361,7 @@ pub(super) fn validate_literal_default_domain(
     }
     // A type-wide fact may read only the data's common fields; case payloads
     // are indexed by the active case and are never in scope here.
-    let declared = common_field_names(program, data_definition);
+    let declared = common_field_symbols(program, data_definition);
     fold_literal_facts(
         program,
         machine,
@@ -352,12 +397,12 @@ pub(super) fn validate_literal_case_constraints(
     // data's common fields. A sibling case's payload -- or a name bound to
     // nothing at all -- is not a field the literal can supply and must not
     // silently read the ZII zero.
-    let mut declared = common_field_names(program, data_definition);
+    let mut declared = common_field_symbols(program, data_definition);
     declared.extend(
         program
             .data_payload_fields(variant)
             .iter()
-            .map(|field| field.name.as_str()),
+            .map(|field| field.symbol),
     );
     let mut out_of_scope = Vec::new();
     for fact in program.proof_facts.span_or_empty(variant.where_facts) {
@@ -389,16 +434,16 @@ pub(super) fn validate_literal_case_constraints(
     );
 }
 
-/// The names of `data`'s common (non-case) fields.
-fn common_field_names<'a>(
-    program: &'a dyn crate::CheckingInput,
-    data_definition: &'a DataDefinition,
-) -> BTreeSet<&'a str> {
+/// The identities of `data`'s common (non-case) fields.
+fn common_field_symbols(
+    program: &dyn crate::CheckingInput,
+    data_definition: &DataDefinition,
+) -> Vec<symbols::SymbolHandle> {
     program
         .data_members(data_definition)
         .iter()
         .filter_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) => Some(field.name.as_str()),
+            typed_trees::data::DataMember::Field(field) => Some(field.symbol),
             typed_trees::data::DataMember::Variant(_) => None,
         })
         .collect()
@@ -410,7 +455,7 @@ fn common_field_names<'a>(
 /// field valuation. Other leaf kinds carry no field name.
 fn collect_out_of_scope_leaf_names(
     program: &dyn crate::CheckingInput,
-    declared: &BTreeSet<&str>,
+    declared: &[symbols::SymbolHandle],
     expression: ExpressionHandle,
     out_of_scope: &mut Vec<String>,
 ) {
@@ -420,7 +465,7 @@ fn collect_out_of_scope_leaf_names(
                 .expression_table
                 .name_path_members(path.members)
                 .last()
-                && !declared.contains(last.as_str())
+                && !declared.contains(&path.symbol)
                 && !out_of_scope.iter().any(|name| name == last.as_str())
             {
                 out_of_scope.push(last.as_str().to_owned());
@@ -451,17 +496,17 @@ fn fold_literal_facts(
     state: &State,
     literal: &TableStructLiteral,
     facts: arena::HandleSpan<typed_trees::domain::ProofFact>,
-    declared: &BTreeSet<&str>,
+    declared: &[symbols::SymbolHandle],
     subject: &str,
     fact_label: &str,
     fact_adjective: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     // Snapshot each field at its own source observation, including operand effects.
-    let mut valuation: Vec<(&str, Bounds)> = Vec::new();
+    let mut valuation = Vec::new();
     for field in program.expression_table.struct_fields(literal.fields) {
         let value = value_bounds(program, machine, state, field.value);
-        valuation.push((field.name.as_str(), value));
+        valuation.push((field.field_symbol, value));
     }
     for fact in program.proof_facts.span_or_empty(facts) {
         match fact {

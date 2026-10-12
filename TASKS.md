@@ -1680,6 +1680,11 @@ defines the complete product bar.
   (field bounds retain their default predicates without conserving replaced
   endpoints or hiding call requirements; unrelated fixed arrays and captured
   projected byte carriers remain ordinary data, not additional rank subjects),
+  `pass/dependent/zero_case_predicate_entry_exit` and
+  `fail/dependent/case_where_zero_{payload_requires_establishment,wide_arithmetic_not_saturated}`
+  (first-case zero establishment proves its actual predicates, never a later
+  case or a saturated mathematical expression; preserve command facts through
+  locals, parameters, results and matched writes),
   `pass/termination/rank_range_{declared_step_copies,call_declared_step_copy}`.
 
   The 16 recursive filesystem parameter suffixes remain unmigrated. Their
