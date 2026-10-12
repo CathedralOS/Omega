@@ -542,6 +542,121 @@ impl<'program> AppliedTraitScope<'program> {
         )
     }
 
+    /// Borrow a complete selected interface from its original binding payload.
+    /// Static declaration operands stay in the retained binding frame; this
+    /// query creates no type nodes or caller operands to stand in for them.
+    pub fn from_binding_application(
+        program: &'program TypedTrees,
+        declaration: &'program TraitDefinition,
+        application: crate::static_applications::StaticMachineApplicationHandle,
+    ) -> Option<Self> {
+        use crate::static_applications::{StaticApplicationView, StaticMachineBindingValue};
+        let view = StaticApplicationView::new(program, application).ok()?;
+        let retained = view.application();
+        let selected = if retained.selected_interface.is_valid() {
+            retained.selected_interface
+        } else {
+            program
+                .trait_machine_signature(retained.binding_declaration)?
+                .0
+                .symbol
+        };
+        if selected != declaration.symbol {
+            return None;
+        }
+        let capture = match retained.type_identity_owner(program)? {
+            crate::type_identity::AppliedTypeIdentityOwner::Declaration(owner) => {
+                if owner != retained.lexical_owner {
+                    return None;
+                }
+                None
+            }
+            crate::type_identity::AppliedTypeIdentityOwner::Captured(capture) => {
+                if capture.symbol() != retained.lexical_owner {
+                    return None;
+                }
+                Some(capture.clone())
+            }
+        };
+        let mut scope = Self {
+            declaration,
+            substitutions: Vec::new(),
+            substitution_scope_starts: Vec::new(),
+            argument_owner: retained.lexical_owner,
+            captured_argument_owner: capture,
+            region_scopes: Vec::new(),
+        };
+        for reference in program
+            .type_reference_table
+            .type_reference_handles(retained.enclosing_data_applications)
+        {
+            enclosing::append_data_application(program, *reference, &mut scope)?;
+        }
+        scope
+            .substitution_scope_starts
+            .push(scope.substitutions.len());
+        let mut parameters = program
+            .trait_type_parameters(declaration)
+            .iter()
+            .map(|parameter| parameter.symbol)
+            .collect::<Vec<_>>();
+        for bound in &declaration.conformance_bounds {
+            if !parameters.contains(&bound.binder) {
+                parameters.push(bound.binder);
+            }
+        }
+        for parameter in &parameters {
+            let mut rows = view
+                .bindings()
+                .iter()
+                .filter(|binding| binding.parameter == *parameter);
+            let binding = rows.next()?;
+            if rows.next().is_some() {
+                return None;
+            }
+            match &binding.value {
+                StaticMachineBindingValue::Type(reference)
+                | StaticMachineBindingValue::Const(reference) => {
+                    if !program
+                        .type_reference_table
+                        .contains_type_reference(*reference)
+                    {
+                        return None;
+                    }
+                    scope.substitutions.push((*parameter, *reference));
+                }
+                StaticMachineBindingValue::Machine(_)
+                | StaticMachineBindingValue::Conformance(_) => {}
+                // This scope compares static interface tuples. A runtime subject
+                // needs its own index correspondence, not its carrier alone.
+                StaticMachineBindingValue::RuntimeValue { .. } => return None,
+            }
+        }
+        let captured = view
+            .lifetimes()
+            .get(..declaration.lifetime_parameters.len())?;
+        if captured
+            .iter()
+            .zip(&declaration.lifetime_parameters)
+            .any(|((formal, _), parameter)| formal.name != parameter)
+        {
+            return None;
+        }
+        scope.region_scopes.push(AppliedDeclarationRegionScope {
+            declaration: declaration.symbol,
+            lifetimes: captured
+                .iter()
+                .map(|(formal, binding)| {
+                    (formal.name.to_string(), binding.argument.scope_argument())
+                })
+                .collect(),
+            role: crate::type_identity::AppliedTypeIdentityRegionRole::Supplied,
+            binding_application: application,
+            binding_parameters: parameters,
+        });
+        Some(scope)
+    }
+
     pub(crate) fn argument_identity_owner(
         &self,
     ) -> crate::type_identity::AppliedTypeIdentityOwner<'_> {
