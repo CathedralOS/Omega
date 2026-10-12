@@ -1,0 +1,5 @@
+{
+  "behavior": "A complete generic requirement application retains its explicitly selected Linux ARM64 syscall policy through provider realization.",
+  "expectation": "Both distinct Count tuples return the same positive process ID; native exit 0 on Linux ARM64.",
+  "qualification": "Check and realization on any compiler host; native execution requires Linux ARM64. No Terminal syscall behavior is promised."
+}
