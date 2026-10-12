@@ -86,7 +86,7 @@ pub(super) fn closed_generic_member_symbol(
     // Reopening that origin can select another prepared field namespace even
     // when the receiver already retains the exact closed member selection.
     let selected = program
-        .closed_data_projected_field(reference, retained, member_name, case_name)
+        .applied_data_projected_field(reference, retained, member_name, case_name)
         .map(|field| field.symbol);
     Some(selected.unwrap_or_else(SymbolHandle::invalid))
 }
