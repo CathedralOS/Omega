@@ -14,7 +14,6 @@ use crate::lowering::statement::place_operand_capture::{
 };
 use crate::lowering::statement::value_call_hoisting::{
     hoist_scalar_value_call_comparison, hoist_terminal_value_machine_call,
-    is_scalar_return_computation,
 };
 use crate::resolution::lowerer::Lowerer;
 use arena::HandleSpan;
@@ -386,16 +385,13 @@ pub(crate) fn lower_statement_node(
                 &mut hoisted,
                 unconditional,
             )?;
-            // Free scalar return calls keep their exact destination for checked
-            // computation lowering. Other unconditional calls retain the older
-            // let-bound route. A guarded arm's calls are not moved at all:
+            // Shared terminal-call normalization preserves checked scalar return
+            // computations in both trailing expressions and transition arms.
+            // Other unconditional calls retain the let-bound route. A guarded arm's calls are not moved at all:
             // they stay at their authored evaluation point inside the arm,
             // where the arm evaluates them left to right only when it is
             // selected, and checking reads each result there.
-            if unconditional
-                && let TransitionTarget::Value(expression) = target
-                && !is_scalar_return_computation(lowerer, expression)
-            {
+            if unconditional && let TransitionTarget::Value(expression) = target {
                 let rewritten =
                     hoist_terminal_value_machine_call(lowerer, expression, &mut hoisted);
                 if rewritten != expression {
