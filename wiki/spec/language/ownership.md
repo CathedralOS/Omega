@@ -255,6 +255,13 @@ contracts covering eventual discharge.
 
 ## Construction and disposal order
 
+Assignment follows the [destination-first schedule](expressions.md#evaluation-schedule):
+capture the destination, evaluate the replacement, then replace there under the
+ordinary ownership rules. Any displaced-value cleanup and installation name
+that same captured place, even when the right-hand side changes its selector.
+Capturing does not itself dispose of or move the old value, and does not waive
+the loans or backing-lifetime obligations that keep the destination valid.
+
 Independent roots clean up in reverse declaration order, so later locals precede
 earlier by-value parameters. The nominal whole-value hook precedes structural
 field cleanup; only the active sum payload is present. Borrow and ownership

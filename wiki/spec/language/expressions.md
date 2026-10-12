@@ -13,6 +13,7 @@ language behavior, not the current compiler's supported expression shapes.
 | `left && right` | Left; right only when left is true. |
 | `left || right` | Left; right only when left is false. |
 | Index | Collection, then index. |
+| Assignment `place = value` | Capture the destination place, then evaluate the value, then replace at the captured place. |
 | Range | Present start, then present end. |
 | Fixed-array literal | Increasing element index. |
 | Record or case literal | Authored field-expression order. |
@@ -71,9 +72,22 @@ queries late native code regions. Static arguments select types or exact machine
 applications without introducing runtime type objects or first-class machines.
 
 Assignment requires writable storage, compatible value type, and the applicable
-[invariant-window obligations](dependent_values.md#invariant-windows). It
-evaluates the right-hand side before invalidating and replacing destination
-facts. A block introduces local scope and cleanup edges, not a new machine or
+[invariant-window obligations](dependent_values.md#invariant-windows). It first
+evaluates the destination's collections and selectors in their ordinary order,
+once, capturing the exact storage location. It then evaluates the right-hand
+side and replaces the value at that captured location. Changing a selector or
+reference binding during the right-hand side does not redirect the pending
+store; no destination expression is reevaluated for cleanup or installation.
+Place validity and bounds are established when the destination is captured.
+Ordinary loan and ownership rules must keep that backing valid through the
+store; capturing a place does not permit the right-hand side to invalidate it.
+Capturing identifies storage, not a read or move of its old value.
+
+Right-hand-side effects still invalidate the facts they overlap as they occur.
+After evaluating the value, the store invalidates and replaces facts about the
+captured destination, as specified by
+[mutation and subject identity](state_contracts.md#mutation-and-subject-identity).
+A block introduces local scope and cleanup edges, not a new machine or
 state. A terminal value completes the invocation. A call-shaped arm resolving
 to a local state is an internal transfer; one resolving to a machine is a
 [terminal call](state_contracts.md#terminal-calls-in-transition-arms), with

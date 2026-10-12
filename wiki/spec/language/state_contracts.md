@@ -78,9 +78,14 @@ apply in a terminal arm as at any other suspending call.
 
 ## Mutation and subject identity
 
-Facts apply to their exact subjects and program points. Assignments first evaluate
-the right-hand side and its effects, capture transferable evidence, then invalidate
-overlapping destination facts and establish the new value. Uninitialized storage
+Facts apply to their exact subjects and program points. Assignments first
+[capture their destination place](expressions.md#evaluation-schedule), including
+its selectors and bounds at that program point. They then evaluate the
+right-hand side and its effects, capture transferable evidence, and finally
+invalidate overlapping destination facts and establish the new value at the
+captured place. Right-hand-side mutations invalidate their own overlapping facts
+when they occur; the captured selector is not a fact that the selector's live
+binding still has its earlier value. Uninitialized storage
 has no assumed zero. Copies transport facts about the captured value, not source
 expressions to be reevaluated after mutation.
 

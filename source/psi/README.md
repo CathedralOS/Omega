@@ -433,7 +433,12 @@ record to a place holding the fields known of it
 references carry typing's `Read` adaptation; a reference passed as a
 reference keeps its live storage identity. Assignment currently evaluates
 its value before its target and captures that value before an effectful
-selector; `store-evaluation-order` in `OWNER_QUESTIONS.md` remains open.
+selector. This is an implementation gap against the settled
+[destination-first schedule](../../wiki/spec/language/expressions.md#evaluation-schedule):
+checking and ownership must capture the destination before evaluating the
+value, retaining that location through replacement. The product-compiler
+checking item in [TASKS.md](../../TASKS.md) owns the repair and its
+selector-mutation controls.
 Subject evaluation that writes storage cannot grant facts by replaying its
 syntax over the changed storage; its case binders still start from their
 declared types.

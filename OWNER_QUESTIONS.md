@@ -452,46 +452,7 @@ native image must record which optional ISA features its code needs.
 3. **Extend the replay as the board states,** as an off-path verifier the
    corpus runner calls for x86 FMA images.
 
-### Q8 - Does a store evaluate its target place before its value?
-
-Named decision: `store-evaluation-order`.
-
-**Customer:** the Omega-written checker, which must check a store's target
-index where the store actually reads it, and both compilers, which must
-agree on which element a store replaces. Three runtime pass fixtures write
-`tokens[index] = replacement(&mut index);`, where the value writes the
-target's own selector, and expect element zero replaced and element one
-intact ("Capture the element before the RHS changes its selector"):
-`tests/omega/pass/ownership/{runtime_captured_replacement_selector_exit,runtime_captured_construction_selector_exit,runtime_selective_constructed_owner_custody_exit}`.
-The Rust reference captures the place first. The product checker
-evaluates the value first and so checks `tokens[index]` after the call
-forgot `index`, rejecting all three as an index out of bounds; its
-ownership walk orders the store the same way.
-
-**Existing rules:** [the evaluation schedule](wiki/spec/language/expressions.md#evaluation-schedule)
-orders calls, operators, `&&`/`||`, indexes ("Collection, then index"),
-ranges, literals and dispatch, and says "Every evaluated child runs exactly
-once", but has no row for a store `place = value`.
-[Construction and disposal](wiki/spec/language/ownership.md#construction-and-disposal-order)
-orders cleanup and partial construction, not the store's own operands.
-[State contracts](wiki/spec/language/state_contracts.md#mutation-and-subject-identity)
-says writes invalidate overlapping facts, which presumes an order without
-stating it.
-
-**Decision needed:**
-
-1. **Recommended: the place, then the value.** A store evaluates its target
-   place's collections and selectors in the place's own order, then its
-   value, then replaces the captured element (its old value's cleanup names
-   that element). The fixtures and the reference stand; both checkers
-   evaluate the target first.
-2. **The value, then the place.** The selector is read after the value ran,
-   so the fixtures replace element one and their expectations change.
-3. **Neither: reject a store whose value may write its target's
-   selectors.** No order is observable; the fixtures are rewritten to
-   capture the index explicitly.
-
-### Q9 - How does a Build select its core-only discovery entry?
+### Q8 - How does a Build select its core-only discovery entry?
 
 Named decision: `build-discovery-entry-phase`.
 
@@ -554,7 +515,7 @@ Until answered, only the discovery/default-source phase subfrontier of
 contracts, accounting, immutable resolution and retained identity/evidence joins
 remain implementation work.
 
-### Q10 - What access does an unadorned collection range produce?
+### Q9 - What access does an unadorned collection range produce?
 
 Named decision: `bare-range-reference-access`.
 

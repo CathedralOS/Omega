@@ -2009,7 +2009,7 @@ then independent claimed restoration slices -> final closure.
   **BUILD-EVALUATES-ONCE**, pre-effect admission and all-target authored rows;
   do not retain a feature/fixture-specific Build evaluator.
   Discovery/default-source phase selection is **OWNER-BLOCKED** on
-  [build-discovery-entry-phase](OWNER_QUESTIONS.md#q9---how-does-a-build-select-its-core-only-discovery-entry):
+  [build-discovery-entry-phase](OWNER_QUESTIONS.md#q8---how-does-a-build-select-its-core-only-discovery-entry):
   the same free Build entry mixes discovery with work needing the resolved
   graph, with no defined entry/phase boundary. This blocks that subfrontier
   only; Terminal/mutable-slot/accounting and immutable resolver joins remain
@@ -5387,7 +5387,7 @@ wait for Cathedral's instruction coverage. The interpreter is
   - Default builds and anonymous owners
     ([spec](wiki/spec/build/declarations.md#default-builds-and-anonymous-owner-identity)):
     The interpreted discovery/default-source prerequisite references
-    [build-discovery-entry-phase](OWNER_QUESTIONS.md#q9---how-does-a-build-select-its-core-only-discovery-entry);
+    [build-discovery-entry-phase](OWNER_QUESTIONS.md#q8---how-does-a-build-select-its-core-only-discovery-entry);
     other owner/identity/resolution joins remain engineering.
     `omega-rust/omega/packages/compilation-inputs/src/source_imports/frontier.rs`
     leaves loose roots without package identity. Derive the versioned anonymous
@@ -6649,10 +6649,16 @@ construction stays on `TASKS_BOOTSTRAP.md`.
     current root-based transfer conservatively retains sibling loans. The open
     `executable-numeric-builtins` question governs `clamp` and the related numeric
     functions and the bounds subsequent narrowing conversions require.
-    The `store-evaluation-order` question governs when checking and ownership
-    capture a store's target selectors; preserve its three
-    `tests/omega/pass/ownership/` selector/replacement controls until the
-    decision is implemented consistently in both compilers.
+    Implement [destination-first stores](wiki/spec/language/expressions.md#evaluation-schedule)
+    in checking and ownership: capture collections, selectors and bounds once
+    before RHS effects, then use that same place for displaced-value cleanup,
+    installation and fact replacement. The product currently walks RHS first;
+    preserve the Rust reference's place-first behavior. Acceptance: both
+    compilers execute `pass/ownership/runtime_captured_replacement_selector_exit`,
+    `runtime_captured_construction_selector_exit` and
+    `runtime_selective_constructed_owner_custody_exit` with their authored
+    results; selector changes must not redirect stores or preserve stale
+    live-selector facts, and invalidating the captured backing must reject.
   - Bundled-library and entry closure: remeasure the first actual refusal in
     each source set rather than retaining the old parse/resolve totals.
     **TOP-LEVEL-BOUNDARY-REQUIREMENTS** owns the remaining retired boundary

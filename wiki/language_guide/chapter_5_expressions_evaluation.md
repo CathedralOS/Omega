@@ -58,6 +58,28 @@ applicable [invariant window](chapter_11_invariant_windows.md)
 must close with the required facts; assignment does not preserve facts about
 the old contents automatically.
 
+The destination is selected **before** the right-hand side runs:
+
+```omega
+machine replacement(index: &mut u64) -> u64 {
+    index = 1;
+    19
+}
+
+machine example() crashes Trap {
+    let mut values: [u64; 2] = [11, 7];
+    let mut index: u64 = 0;
+    values[index] = replacement(&mut index);
+    // values is [19, 7]; index is 1.
+}
+```
+
+The assignment captures element zero, calls `replacement`, then stores `19`
+in that captured element. It does not read `index` again to choose a different
+destination. This also applies to cleanup of a displaced owned value. The
+right-hand side may change the selector, but must not invalidate the captured
+backing under the ordinary ownership and borrowing rules.
+
 ## Calls
 
 ```omega
