@@ -13,7 +13,8 @@ mod values;
 
 pub(super) use arguments::{
     EvaluatedConst, const_integer_type, evaluate_const_argument_expression,
-    generic_const_integer_types, prepare_closed_application,
+    evaluate_const_argument_expression_with_operators, generic_const_integer_types,
+    prepare_closed_application,
 };
 pub(super) use domains::{
     canonicalize_closed_domain_indices, domain_index_parameters, integer_literal_value,
@@ -72,6 +73,20 @@ pub(super) fn replace_integer_argument(
     argument: syntax_trees::types::TypeReferenceHandle,
     value: i128,
 ) {
+    replace_integer_argument_with_operators(syntax, argument, value, [])
+}
+
+pub(super) fn replace_integer_argument_with_operators(
+    syntax: &mut SyntaxTrees,
+    argument: syntax_trees::types::TypeReferenceHandle,
+    value: i128,
+    builtin_operators: impl IntoIterator<
+        Item = (
+            syntax_trees::expression::ExpressionHandle,
+            source::SourceSpan,
+        ),
+    >,
+) {
     let reference = match syntax.type_references.type_reference(argument) {
         syntax_trees::types::TypeReferenceNode::Named(name) => name.source_span(),
         syntax_trees::types::TypeReferenceNode::ConstExpression(expression) => {
@@ -81,13 +96,15 @@ pub(super) fn replace_integer_argument(
     };
     let encoding =
         language_semantics::const_value::CanonicalConstIdentity::integer("integer", value).encoding;
-    syntax.type_references.retain_const_argument_normalization(
-        argument,
-        reference,
-        encoding,
-        [],
-        [],
-    );
+    syntax
+        .type_references
+        .retain_const_argument_normalization_with_operator_expressions(
+            argument,
+            reference,
+            encoding,
+            [],
+            builtin_operators,
+        );
     if let syntax_trees::types::TypeReferenceNode::ConstExpression(expression) =
         syntax.type_references.type_reference(argument)
     {

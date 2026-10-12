@@ -10,7 +10,6 @@ use crate::preparation::generic_data::canonicalize_const_definition;
 use crate::preparation::generic_data::canonicalize_selected_const_definition;
 use crate::preparation::generic_data::collect_data_type_reference_positions;
 use crate::preparation::generic_data::const_integer_type;
-use crate::preparation::generic_data::evaluate_const_argument_expression;
 use crate::preparation::generic_data::syntax_type_identity;
 use crate::preparation::generic_data::validate_const_index_type;
 use crate::preparation::generic_data::validate_syntax_integer_range;
@@ -496,7 +495,8 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_applicati
                 }
                 let destination =
                     syntax_type_identity(syntax, *parameter_type).map_err(Diagnostic::error)?;
-                let value = evaluate_const_argument_expression(
+                let mut builtin_operators = Vec::new();
+                let value = super::arguments::evaluate_const_argument_expression_with_operators(
                     syntax,
                     expression,
                     const_values,
@@ -504,6 +504,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_applicati
                     &HashSet::new(),
                     const_integer_type(syntax, *parameter_type),
                     warnings,
+                    &mut builtin_operators,
                 )
                 .and_then(EvaluatedConst::into_concrete)
                 .map_err(|reason| {
@@ -517,7 +518,12 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_applicati
                         syntax_type_identity(syntax, *parameter_type).map_err(Diagnostic::error)?;
                     validate_syntax_integer_range(&required, value).map_err(Diagnostic::error)?;
                 }
-                super::replace_integer_argument(syntax, argument, value);
+                super::replace_integer_argument_with_operators(
+                    syntax,
+                    argument,
+                    value,
+                    builtin_operators,
+                );
             }
             _ => {
                 return Err(Diagnostic::error(format!(

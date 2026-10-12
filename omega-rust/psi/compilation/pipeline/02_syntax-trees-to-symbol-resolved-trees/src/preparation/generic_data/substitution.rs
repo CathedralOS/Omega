@@ -3,7 +3,6 @@ use crate::preparation::declaration_selection;
 use crate::preparation::generic_data::ClosedArgumentIdentity;
 use crate::preparation::generic_data::ConstScalarValue;
 use crate::preparation::generic_data::EvaluatedConst;
-use crate::preparation::generic_data::evaluate_const_argument_expression;
 use crate::preparation::generic_data::generic_const_integer_types;
 use crate::preparation::generic_data::selected_data_item;
 use arena::Handle;
@@ -614,7 +613,8 @@ pub(crate) fn substitute_type_reference(
                     }
                     TypeReferenceNode::ConstExpression(expression) => {
                         let warning_watermark = warnings.len();
-                        match evaluate_const_argument_expression(
+                        let mut builtin_operators = Vec::new();
+                        match super::const_evaluation::evaluate_const_argument_expression_with_operators(
                             syntax,
                             expression,
                             const_values,
@@ -622,6 +622,7 @@ pub(crate) fn substitute_type_reference(
                             &HashSet::new(),
                             integer_types.get(index).copied().flatten(),
                             warnings,
+                            &mut builtin_operators,
                         )
                         .and_then(EvaluatedConst::into_concrete)
                         {
@@ -662,8 +663,8 @@ pub(crate) fn substitute_type_reference(
                                     let argument = syntax
                                         .type_references
                                         .insert(TypeReferenceNode::ConstExpression(copied));
-                                    super::const_evaluation::replace_integer_argument(
-                                        syntax, argument, value,
+                                    super::const_evaluation::replace_integer_argument_with_operators(
+                                        syntax, argument, value, builtin_operators,
                                     );
                                     argument
                                 }
