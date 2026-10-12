@@ -311,6 +311,12 @@ pub(super) fn provider_application(
         })
         .map(|(_, region)| region)
         .collect::<Vec<_>>();
+    if std::env::var_os("OMEGA_MAIN21_SCOPE_TRACE").is_some() {
+        eprintln!(
+            "main21-provider-regions provider={} named={named_conformance:?} requirement={requirement:?} original={:?} captured={provider_lifetimes:?} remaining={remaining_regions:?} invocation={invocation_regions:?} caller={lifetimes:?}",
+            provider.name, provider.lifetime_parameters
+        );
+    }
     if remaining_regions.len() != invocation_regions.len() {
         return Err(Diagnostic::error(
             "declared trait provider changes the universal invocation lifetime family",
