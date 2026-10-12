@@ -9,7 +9,7 @@ use crate::proof_contracts::arithmetic_domains::range_constraints::range_constra
 use crate::proof_contracts::arithmetic_domains::value_environment::ValueEnvironment;
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
-use typed_trees::expression::ExpressionHandle;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
@@ -57,6 +57,69 @@ pub(crate) fn record_unsigned_literal_assignment(
     {
         environment.mark_known_u64(path, value);
     }
+}
+
+/// Capture the completed IEEE value before destination invalidation. Literals,
+/// live copies and selected public result guarantees share one enclosure query.
+/// A receiving predicate never supplies bounds, and a later write cannot
+/// reinterpret this detached value as the source's new contents.
+pub(crate) fn capture_float_assignment(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: Option<&State>,
+    environment: &ValueEnvironment,
+    destination: Option<PrimitiveType>,
+    value: ExpressionHandle,
+) -> Option<super::FloatSourceBounds> {
+    let Some(destination @ (PrimitiveType::F32 | PrimitiveType::F64)) = destination else {
+        return None;
+    };
+    if let ExpressionNode::Float(literal) = program.expression_table.expression(value) {
+        let format = match destination {
+            PrimitiveType::F32 => numerics::literals::FloatFormat::F32,
+            _ => numerics::literals::FloatFormat::F64,
+        };
+        if literal.landing().is_some_and(|retained| retained != format) {
+            return None;
+        }
+        let value = literal.with_landing(format).landed_f64();
+        return (!value.is_nan()).then_some(super::FloatSourceBounds {
+            primitive: destination,
+            minimum: value,
+            maximum: value,
+        });
+    }
+    super::float_source_bounds(program, environment, value, &|expression| {
+        state
+            .and_then(|state| {
+                crate::expression_result_type_reference(program, machine, state, expression)
+            })
+            .or_else(|| {
+                crate::value_custody::places::declared_place_type_raw(
+                    program, machine, state, expression,
+                )
+            })
+    })
+    .filter(|bounds| bounds.primitive == destination)
+}
+
+/// Publish an already captured value only after retiring old destination facts.
+pub(crate) fn record_float_assignment(
+    environment: &mut ValueEnvironment,
+    path: Option<String>,
+    captured: Option<super::FloatSourceBounds>,
+) {
+    let (Some(path), Some(captured)) = (path, captured) else {
+        return;
+    };
+    environment.narrow_float(
+        path.clone(),
+        super::value_environment::FloatInterval {
+            low: Some(captured.minimum),
+            high: Some(captured.maximum),
+        },
+    );
+    environment.mark_non_nan(path);
 }
 
 /// The declared `[a..=b]` range of a place's type, ONLY when that range is

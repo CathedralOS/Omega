@@ -143,15 +143,30 @@ impl ExitScalars<'_, '_> {
         if !self.return_expression_is_stable(returned) {
             return None;
         }
-        // These bounds hold at every evaluation. Entry operands use only their
-        // immutable declared ranges, while result bounds belong to this live
-        // state's exact return occurrence, never another state's same-spelled name.
-        let result_bounds = validation::immutable_integer_expression_bounds(
+        // Standing bounds describe every legal observation, including copied
+        // constructor children. The occurrence owner can additionally bound
+        // this exact evaluated return (for example a numeric conversion).
+        // Intersect their independent evidence; neither rereads an initializer
+        // or borrows another state's same-spelled parameter.
+        let standing = validation::immutable_integer_expression_bounds(
             self.program,
             self.machine,
             state,
             result_expression,
-        )?;
+        );
+        let observed = validation::occurrence_integer_expression_bounds(
+            self.program,
+            self.machine.symbol,
+            state.symbol,
+            self.exit.statement_index,
+            result_expression,
+        );
+        let result_bounds = match (standing, observed) {
+            (Some(standing), Some(observed)) => {
+                (standing.0.max(observed.0), standing.1.min(observed.1))
+            }
+            (standing, observed) => standing.or(observed)?,
+        };
         let argument_bounds = validation::immutable_integer_expression_bounds(
             self.program,
             self.machine,

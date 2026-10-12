@@ -1,0 +1,2 @@
+cannot prove requires contract for call accept from stale
+cannot prove requires contract for call accept from wrong_value

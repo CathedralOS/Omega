@@ -1,6 +1,6 @@
-//! Owned structural moves preserve exact existing qualifications. This is
-//! separate from copied predicates: no declaration, equal carrier geometry,
-//! or matching label creates an authority fact. Call facts remain provisional
+//! Owned value transfers preserve existing qualifications and IEEE predicates.
+//! No declaration, equal carrier geometry, or matching label creates a fact.
+//! Reference copies do not copy referent predicates. Call facts remain provisional
 //! until the call/custody checker validates their exact producing invocation.
 
 use arena::HandleSpan;
@@ -41,15 +41,25 @@ pub(super) fn append_owned_qualification_transfer(
     }
     let candidates = crate::flow::active_context_facts(contexts, semantic, active);
     for fact in candidates {
-        let Some((_, domain, domain_symbol, semantic_domain)) = fact.payload.domain_membership()
-        else {
+        let payload = if let Some((_, domain, domain_symbol, semantic_domain)) =
+            fact.payload.domain_membership()
+        {
+            if !semantic_domain.is_valid()
+                && validation::field_domains::domain_requires_provenance(program, domain_symbol)
+            {
+                continue;
+            }
+            FactPayload::DomainMembership {
+                value: typed_trees::expression::ExpressionHandle::invalid(),
+                domain,
+                domain_symbol,
+                semantic_domain,
+            }
+        } else if matches!(fact.payload, FactPayload::FloatPredicate { .. }) {
+            fact.payload
+        } else {
             continue;
         };
-        if !semantic_domain.is_valid()
-            && validation::field_domains::domain_requires_provenance(program, domain_symbol)
-        {
-            continue;
-        }
         let Some(place) = fact.place.as_place() else {
             continue;
         };
@@ -105,9 +115,23 @@ pub(super) fn append_owned_qualification_transfer(
                 prior.evidence == fact.evidence
                     && matches!(prior.place, FactPlace::Place(prior_place)
                     if semantic.places_equal(prior_place, place))
-                    && matches!(prior.payload, FactPayload::DomainMembership {
-                    domain_symbol: prior_domain, semantic_domain: prior_identity, ..
-                } if prior_domain == domain_symbol && prior_identity == semantic_domain)
+                    && match (prior.payload, payload) {
+                        (
+                            FactPayload::FloatPredicate { predicate: left },
+                            FactPayload::FloatPredicate { predicate: right },
+                        ) => left == right,
+                        (prior, transferred) => prior
+                            .domain_membership()
+                            .zip(transferred.domain_membership())
+                            .is_some_and(
+                                |(
+                                    (_, _, left_symbol, left_identity),
+                                    (_, _, right_symbol, right_identity),
+                                )| {
+                                    left_symbol == right_symbol && left_identity == right_identity
+                                },
+                            ),
+                    }
             })
         {
             continue;
@@ -117,12 +141,7 @@ pub(super) fn append_owned_qualification_transfer(
             point,
             origin: FactOrigin::StatementTransfer,
             evidence: fact.evidence,
-            payload: FactPayload::DomainMembership {
-                value: typed_trees::expression::ExpressionHandle::invalid(),
-                domain,
-                domain_symbol,
-                semantic_domain,
-            },
+            payload,
         });
         semantic.append_ref(references, transferred);
     }

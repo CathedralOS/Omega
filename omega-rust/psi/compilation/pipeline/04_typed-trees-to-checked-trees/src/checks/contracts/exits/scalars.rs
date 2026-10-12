@@ -51,6 +51,20 @@ pub(super) fn proves<'program>(
         contract,
         call_frames,
     };
+    // IEEE predicates consume landed enclosures, not the integer-only scalar
+    // evaluator. The shared judgment checks the selected comparison meaning
+    // and binds only this exit's exact reserved result occurrence.
+    if evaluator.state().is_some_and(|state| {
+        validation::float_return_postcondition(
+            program,
+            machine,
+            state,
+            exit_return_expression(program, exit),
+            expression,
+        ) == Some(true)
+    }) {
+        return true;
+    }
     // A missing checked operator row is not builtin authority. Rejoin the
     // declaration meaning before either symbolic or concrete comparison.
     if !has_builtin_operators(program, &facts.operators, expression)

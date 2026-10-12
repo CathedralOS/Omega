@@ -1,4 +1,6 @@
-//! Ordered float source enclosures from declared results and live place facts.
+//! Ordered IEEE source enclosures from selected result contracts, numeric
+//! operations and live place facts. Parameter, local, field and call-result
+//! arrangements share that evidence path; receiving predicates supply none.
 //! Exact coercions require integrality; named conversions may truncate. Both
 //! consume the same source evidence without replaying operand syntax.
 
@@ -15,8 +17,9 @@ use typed_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 
-/// The float value of a literal operand (through a `Mutable` wrapper), read at
-/// its landed format, or `None` when the operand is not a plain float literal.
+/// A closed IEEE operand, preserving its landed format through exact casts
+/// and sealed numeric conversions. Ordinary callees and live storage have no
+/// closed value here; their guarantees and observation epochs stay separate.
 pub(crate) fn float_literal_value(
     program: &dyn crate::CheckingInput,
     value: ExpressionHandle,
@@ -24,6 +27,44 @@ pub(crate) fn float_literal_value(
     let node = program.expression_table.peeled_expression(value);
     match node {
         ExpressionNode::Float(literal) => Some(literal.landed_f64()),
+        ExpressionNode::Cast(cast) => {
+            if cast.form.is_recast() {
+                return None;
+            }
+            let value = float_literal_value(program, cast.value)?;
+            let target = program.primitive_type_reference(cast.target_type)?;
+            let format = match target {
+                PrimitiveType::F32 => numerics::float_semantics::FloatFormat::BINARY32,
+                PrimitiveType::F64 => numerics::float_semantics::FloatFormat::BINARY64,
+                _ => return None,
+            };
+            let meaning = numerics::float_semantics::FloatMeaning::from_f64(value);
+            let converted = numerics::float_semantics::FloatSemantics::convert(format, &meaning);
+            (converted == meaning).then_some(converted.to_f64())
+        }
+        ExpressionNode::Call(call) => {
+            let operator = typed_trees::operator::resolve_named_expression_call(program, call)?;
+            let (source, target) = crate::numeric_float_conversion_contract(program, operator)?;
+            if !matches!(source, PrimitiveType::F32 | PrimitiveType::F64) {
+                return None;
+            }
+            let [operand] = program.expression_table.expression_handles(call.arguments) else {
+                return None;
+            };
+            let value = float_literal_value(program, *operand)?;
+            let format = match target {
+                PrimitiveType::F32 => numerics::float_semantics::FloatFormat::BINARY32,
+                PrimitiveType::F64 => numerics::float_semantics::FloatFormat::BINARY64,
+                _ => return None,
+            };
+            Some(
+                numerics::float_semantics::FloatSemantics::convert(
+                    format,
+                    &numerics::float_semantics::FloatMeaning::from_f64(value),
+                )
+                .to_f64(),
+            )
+        }
         _ => None,
     }
 }
@@ -99,10 +140,22 @@ pub(crate) fn float_source_bounds(
         .filter(|primitive| matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64))?;
     let declared =
         reference.and_then(|reference| float_range_constraint_interval(program, reference));
+    let guaranteed = program
+        .expression_table
+        .call_node(value)
+        .filter(|call| call.selects_only_nominal_route())
+        .and_then(|call| {
+            crate::machine_calls::calls::callee_entry_contract(program, call.target_symbol)
+        })
+        .and_then(|callee| super::float_contracts::normal_return_interval(program, &callee));
+    let declared = match (declared, guaranteed) {
+        (Some(left), Some(right)) => Some(left.intersect(right)),
+        (left, right) => left.or(right),
+    };
     let (flow, non_nan) = place_path(program, value)
         .map(|path| environment.float_fact(&path))
         .unwrap_or((FloatInterval::UNBOUNDED, false));
-    let converted = selected_numeric_conversion_bounds(program, environment, value, result_type);
+    let converted = numeric_conversion_bounds(program, environment, value, result_type);
     let range = if let Some(value) = float_literal_value(program, value) {
         if value.is_nan() {
             return None;
@@ -127,16 +180,27 @@ pub(crate) fn float_source_bounds(
     })
 }
 
-/// A selected sealed numeric guarantee bounds the completed result. Integer
+/// A selected numeric guarantee bounds the completed result. Integer
 /// inputs use the selected kernel's full-carrier image; float inputs transport
 /// their live ordered enclosure. Both conversions are monotone, and neither
 /// destination annotations nor receiving predicates supply source bounds.
-fn selected_numeric_conversion_bounds(
+fn numeric_conversion_bounds(
     program: &dyn crate::CheckingInput,
     environment: &ValueEnvironment,
     expression: ExpressionHandle,
     result_type: &dyn Fn(ExpressionHandle) -> Option<TypeReferenceHandle>,
 ) -> Option<FloatInterval> {
+    if let Some(cast) = program.expression_table.cast_node(expression) {
+        if cast.form.is_recast() {
+            return None;
+        }
+        let target = program.primitive_type_reference(cast.target_type)?;
+        let bounds = float_source_bounds(program, environment, cast.value, result_type)?;
+        // This computes the output enclosure, not Exact admission. The
+        // authored cast must separately prove unchanged source denotation;
+        // a rounded output enclosure cannot discharge that obligation.
+        return converted_float_interval(&bounds, target);
+    }
     let call = program.expression_table.call_node(expression)?;
     let operator = typed_trees::operator::resolve_named_expression_call(program, call)?;
     let (source, target) = crate::numeric_float_conversion_contract(program, operator)?;
@@ -163,10 +227,17 @@ fn selected_numeric_conversion_bounds(
     if bounds.primitive != source {
         return None;
     }
-    let format = if target == PrimitiveType::F32 {
-        numerics::float_semantics::FloatFormat::BINARY32
-    } else {
-        numerics::float_semantics::FloatFormat::BINARY64
+    converted_float_interval(&bounds, target)
+}
+
+fn converted_float_interval(
+    bounds: &FloatSourceBounds,
+    target: PrimitiveType,
+) -> Option<FloatInterval> {
+    let format = match target {
+        PrimitiveType::F32 => numerics::float_semantics::FloatFormat::BINARY32,
+        PrimitiveType::F64 => numerics::float_semantics::FloatFormat::BINARY64,
+        _ => return None,
     };
     let convert = |value| {
         numerics::float_semantics::FloatSemantics::convert(
@@ -212,7 +283,9 @@ pub(crate) fn float_range_constraint_interval(
             let mut range = float_range_constraint_interval(program, *base_type);
             for constraint in program.type_reference_table.constraints(*constraints) {
                 if let TypeConstraintNode::Range {
-                    minimum, maximum, ..
+                    minimum,
+                    maximum,
+                    end_inclusive,
                 } = constraint
                 {
                     let read = |expression| match crate::closed_float_range_endpoint(
@@ -227,7 +300,11 @@ pub(crate) fn float_range_constraint_interval(
                     };
                     let additional = FloatInterval {
                         low: Some(read(*minimum)?),
-                        high: Some(read(*maximum)?),
+                        high: Some(if *end_inclusive {
+                            read(*maximum)?
+                        } else {
+                            adjacent(read(*maximum)?, primitive, false)
+                        }),
                     };
                     range = Some(range.map_or(additional, |range| range.intersect(additional)));
                 }
@@ -242,6 +319,7 @@ pub(crate) fn float_bound_from(
     operator: BinaryOperator,
     literal: f64,
     name_on_left: bool,
+    primitive: PrimitiveType,
 ) -> Option<FloatInterval> {
     let operator = if name_on_left {
         operator
@@ -262,18 +340,43 @@ pub(crate) fn float_bound_from(
             low: Some(literal),
             high: Some(literal),
         },
-        // Treat strict bounds as inclusive at the same endpoint. This is a
-        // conservative widening and avoids target-format nextafter logic.
-        BinaryOperator::Less | BinaryOperator::LessOrEqual => FloatInterval {
+        BinaryOperator::Less => FloatInterval {
+            low: None,
+            high: Some(adjacent(literal, primitive, false)),
+        },
+        BinaryOperator::LessOrEqual => FloatInterval {
             low: None,
             high: Some(literal),
         },
-        BinaryOperator::Greater | BinaryOperator::GreaterOrEqual => FloatInterval {
+        BinaryOperator::Greater => FloatInterval {
+            low: Some(adjacent(literal, primitive, true)),
+            high: None,
+        },
+        BinaryOperator::GreaterOrEqual => FloatInterval {
             low: Some(literal),
             high: None,
         },
         _ => return None,
     })
+}
+
+/// IEEE intervals are discrete in their declared format. An exclusive bound
+/// uses its neighboring encoding, never an integer predecessor or epsilon.
+fn adjacent(value: f64, primitive: PrimitiveType, upward: bool) -> f64 {
+    if primitive == PrimitiveType::F32 {
+        let value = value as f32;
+        f64::from(if upward {
+            value.next_up()
+        } else {
+            value.next_down()
+        })
+    } else {
+        if upward {
+            value.next_up()
+        } else {
+            value.next_down()
+        }
+    }
 }
 
 /// Record a positively established IEEE comparison. The caller owns selected
@@ -311,12 +414,11 @@ pub(super) fn record_float_comparison_bounds(
     if let Some((place_expression, literal, name_on_left)) = float_sides
         && literal.is_finite()
         && let Some(handle) = place_type(place_expression)
-        && matches!(
-            program.primitive_type_reference(handle),
-            Some(PrimitiveType::F32 | PrimitiveType::F64)
-        )
+        && let Some(primitive @ (PrimitiveType::F32 | PrimitiveType::F64)) =
+            program.primitive_type_reference(handle)
         && let Some(name) = place_path(program, place_expression)
-        && let Some(mut interval) = float_bound_from(comparison.operator, literal, name_on_left)
+        && let Some(mut interval) =
+            float_bound_from(comparison.operator, literal, name_on_left, primitive)
     {
         if let Some(declared) = float_range_constraint_interval(program, handle) {
             interval = interval.intersect(declared);

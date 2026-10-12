@@ -1672,6 +1672,11 @@ defines the complete product bar.
   (first-case zero establishment proves its actual predicates, never a later
   case or a saturated mathematical expression; preserve command facts through
   locals, parameters, results and matched writes),
+  `pass/float/runtime_{exact_format_narrowing,exact_integer_coercion,format_conversion_result_bounds,result_predicate_custody}_exit`
+  and `fail/float/{exact_format_conversion_requires_denotation,exact_integer_coercion_requires_denotation,format_conversion_exclusive_upper,parameter_guarantee_does_not_bound_result,result_predicate_stale_or_wrong_value,unbounded_result_does_not_prove_guarantee}`
+  (selected IEEE result predicates survive local, field, state and saved-copy
+  transport; neither receiving bounds, stale storage nor parameter-only
+  guarantees authorize Exact conversion or stricter rounded results),
   `pass/termination/rank_range_{declared_step_copies,call_declared_step_copy}`.
 
   The 16 recursive filesystem parameter suffixes remain unmigrated. Their
@@ -3665,13 +3670,13 @@ deletions, which the commit lists.
   constrains rounded named-conversion result guarantees and strict IEEE ranges.
   `float/format_conversion_{requires_result_proof,exclusive_upper,lookalike}`
   must reject overflow, unknown NaN, rounded excluded ends and spelling lookalikes.
-  `float/runtime_exact_format_narrowing_exit` (native/checked 0) constrains
+  `float/runtime_exact_format_narrowing_exit` (native/Terminal 0) constrains
   declaration-backed unchanged-denotation proofs and retained IEEE endpoints;
   `float/exact_format_conversion_requires_denotation` must reject lossy literals,
   unknown or finite-only operands, non-singleton windows and receiving-type premises.
   `float/runtime_exact_integer_coercion_exit` (0 in both engines) constrains
-  unchanged-denotation coercions, live IEEE equality facts, enforced result/entry
-  ranges and integer bounds from selected named-conversion guarantees;
+  unchanged-denotation coercions, live IEEE equality facts, ordinary result/entry
+  predicates and integer bounds from selected named-conversion guarantees;
   `float/exact_integer_coercion_requires_denotation` and
   `float/integer_conversion_lookalike` must reject fractional values, NaN,
   overflow, integer-ended fractional intervals, stale writes and spelling lookalikes.

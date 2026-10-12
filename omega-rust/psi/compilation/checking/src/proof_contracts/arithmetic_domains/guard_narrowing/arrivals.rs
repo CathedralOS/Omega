@@ -415,6 +415,12 @@ fn condition_belongs_to_state(
             condition_belongs_to_state(program, machine, state, binary.left, frames)
                 && condition_belongs_to_state(program, machine, state, binary.right, frames)
         }
+        // A carrier conversion does not change the operand's lexical owner.
+        // Its meaning and formation remain obligations of the bound reader;
+        // scope admission alone grants no converted value or qualification.
+        ExpressionNode::Cast(cast) => {
+            condition_belongs_to_state(program, machine, state, cast.value, frames)
+        }
         ExpressionNode::Unary(unary) => {
             condition_belongs_to_state(program, machine, state, unary.operand, frames)
         }
@@ -942,6 +948,14 @@ impl ArrivalWalk<'_, '_> {
                 }
                 StatementNode::LocalData(local) => {
                     self.expression(source, local.initial_value, environment);
+                    let copied_float = super::super::capture_float_assignment(
+                        self.program,
+                        self.machine,
+                        Some(source),
+                        environment,
+                        self.program.primitive_type_reference(local.type_reference),
+                        local.initial_value,
+                    );
                     let mut value = self.evaluated_value(source, local.initial_value, environment);
                     let path = local.name.as_str().to_owned();
                     value.copied.capture_local_relations(
@@ -954,6 +968,11 @@ impl ArrivalWalk<'_, '_> {
                     environment.invalidate_written_paths(std::slice::from_ref(&path));
                     environment.set(path.clone(), value.interval);
                     value.copied.record(environment, Some(path.clone()));
+                    super::super::record_float_assignment(
+                        environment,
+                        Some(path.clone()),
+                        copied_float,
+                    );
                     super::boolean_values::record_boolean_local(
                         self.program,
                         self.machine,
@@ -972,6 +991,26 @@ impl ArrivalWalk<'_, '_> {
                 StatementNode::Assignment(assignment) => {
                     self.expression(source, assignment.target, environment);
                     self.expression(source, assignment.value, environment);
+                    let copied_float = super::super::capture_float_assignment(
+                        self.program,
+                        self.machine,
+                        Some(source),
+                        environment,
+                        declared_place_type_raw(
+                            self.program,
+                            self.machine,
+                            Some(source),
+                            assignment.target,
+                        )
+                        .map(|reference| {
+                            crate::value_custody::places::assignment_value_type(
+                                self.program,
+                                reference,
+                            )
+                        })
+                        .and_then(|reference| self.program.primitive_type_reference(reference)),
+                        assignment.value,
+                    );
                     let value = self.evaluated_value(source, assignment.value, environment);
                     let written = self.frames.and_then(|frames| {
                         frames
@@ -1020,6 +1059,11 @@ impl ArrivalWalk<'_, '_> {
                             }),
                         );
                         value.copied.record(environment, path.clone());
+                        super::super::record_float_assignment(
+                            environment,
+                            path.clone(),
+                            copied_float,
+                        );
                         let primitive = reference
                             .and_then(|reference| self.program.primitive_type_reference(reference));
                         super::boolean_values::record_boolean_assignment(

@@ -1,1 +1,2 @@
-bounded return type in `exclusive.entry`
+cannot prove ensures contract for exit from exclusive
+result >= 0.0 && result < 1.0

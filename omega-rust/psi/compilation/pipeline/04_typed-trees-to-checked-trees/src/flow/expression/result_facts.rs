@@ -68,6 +68,9 @@ impl Execution<'_, '_, '_> {
             reference,
             &mut predicates,
         );
+        if let Some(call) = self.program.expression_table.call_node(expression) {
+            validation::normal_return_float_predicates(self.program, call, &mut predicates);
+        }
         let integer_bounds = self
             .program
             .expression_table

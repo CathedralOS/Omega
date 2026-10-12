@@ -65,6 +65,8 @@ pub use proof_contracts::arithmetic_domains::domain_intervals::{
     closed_interval_from_comparison, declared_domain_predicate_bounds,
     exact_declared_domain_carrier_interval, exact_declared_domain_interval,
 };
+pub use proof_contracts::arithmetic_domains::float_return_postcondition;
+pub use proof_contracts::arithmetic_domains::normal_return_float_predicates;
 pub use proof_contracts::arithmetic_domains::plain_exact_widening_cast;
 pub use proof_contracts::arithmetic_domains::{Interval, WideInterval};
 pub use proof_contracts::collection_predicates::{length_member, premises_prove_expression};
@@ -335,6 +337,7 @@ pub use proof_contracts::arithmetic_domains::enforced_integer_type_bounds;
 pub use proof_contracts::arithmetic_domains::immutable_integer_expression_bounds;
 pub use proof_contracts::arithmetic_domains::integer_widen_is_total;
 pub use proof_contracts::arithmetic_domains::normal_return_integer_bounds;
+pub use proof_contracts::arithmetic_domains::occurrence_integer_expression_bounds;
 pub use proof_contracts::arithmetic_domains::occurrence_integer_expression_fits_range;
 pub use proof_contracts::arithmetic_domains::state_parameter_integer_interval;
 pub use proof_contracts::arithmetic_domains::validate_ordered_requirement_call_totality;

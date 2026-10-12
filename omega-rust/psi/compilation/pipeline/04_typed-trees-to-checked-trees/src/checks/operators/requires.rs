@@ -56,7 +56,6 @@ use crate::labels::{
     context_proves_boolean_label, instantiate_operator_contract_expression_label, symbol_name,
 };
 
-mod float_bounds;
 mod invocation;
 pub(crate) use invocation::InvocationContexts;
 
@@ -616,8 +615,14 @@ fn contexts_prove_boolean_expression(
             operand_labels,
             expression,
         ) || instantiated_leaf_is_closed_true(program, operators, parameters, operands, expression)
-            || float_bounds::contexts_prove_comparison(
-                program, semantic, operators, contexts, parameters, operands, expression,
+            || crate::checks::float_implications::contexts_prove_comparison(
+                program,
+                semantic,
+                operators,
+                &contexts.for_expressions(program, parameters, [expression]),
+                parameters,
+                operands,
+                expression,
             )
             || contexts_prove_case_membership(
                 program, semantic, contexts, parameters, operands, expression,
@@ -1124,7 +1129,7 @@ fn closed_exact_float(scalar: &ClosedScalar, format: FloatFormat) -> Option<Exac
 /// the target (such as `Float::equal`) — before its literal atoms may be
 /// evaluated. A checked or boundary-operator selection keeps the label/fact
 /// path: its meaning is not inferred from the spelling here.
-fn closed_operators_are_builtin(
+pub(crate) fn closed_operators_are_builtin(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     expression: ExpressionHandle,

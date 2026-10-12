@@ -137,7 +137,7 @@ pub(super) fn propagate_statement_transfers(
                 program,
                 semantic,
                 build,
-                *active_contexts,
+                assignment_source_contexts,
                 source_place,
                 target_place,
                 destination_type,

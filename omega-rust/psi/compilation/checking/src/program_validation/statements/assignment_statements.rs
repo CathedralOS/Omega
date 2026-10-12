@@ -344,6 +344,14 @@ pub(super) fn validate<'a, 'p>(
     );
     // Analyze the RHS against pre-store facts, then invalidate every
     // spelling of the storage before recording the new target value.
+    let copied_float = arithmetic_domains::capture_float_assignment(
+        program,
+        machine,
+        current_state,
+        value_environment,
+        assignment_target_primitive,
+        assignment.value,
+    );
     if let Some(written) = direct_written {
         value_environment.invalidate_assignment_paths(
             program,
@@ -383,12 +391,10 @@ pub(super) fn validate<'a, 'p>(
             assignment_target_primitive,
             assignment.value,
         );
-        arithmetic_domains::record_float_literal_assignment(
-            program,
+        arithmetic_domains::record_float_assignment(
             value_environment,
             arithmetic_domains::place_path(program, assignment.target),
-            assignment_target_primitive,
-            assignment.value,
+            copied_float,
         );
     }
 }

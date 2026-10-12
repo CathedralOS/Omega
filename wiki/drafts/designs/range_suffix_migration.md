@@ -113,6 +113,26 @@ than silently ignoring it. `layouts/access_plan_inaccessible_seed` and
 `layouts/placed_view_source_access_compile` exercise the public construction
 route and repeated replacement; they do not claim a hosted runtime entry.
 
+## Audited IEEE conversion contracts
+
+The 29 historical scalar positions in the three IEEE conversion customers and
+their paired refusals retain their authored operations and values. Twenty
+positive positions become ordinary `requires`/`ensures` or bare receiving
+locals; eight invalid declarations and one invalid cast target retain the
+independent Exact or strict-output obligation. Their complete inventories are
+beside the [exact-format](../../../tests/omega/pass/float/runtime_exact_format_narrowing_exit/README.md#historical-scalar-positions),
+[integer](../../../tests/omega/pass/float/runtime_exact_integer_coercion_exit/README.md#historical-scalar-positions)
+and [rounding](../../../tests/omega/pass/float/runtime_format_conversion_result_bounds_exit/README.md#historical-scalar-positions)
+witnesses, at revisions `1d445c0646f`, `615a7f1dd29` and `42fbfe08b15`.
+No interval-only nominal domains replace these clauses. The binary32 endpoint
+`0.1f32` widens explicitly in its binary64 requirement, preserving its landed
+value rather than substituting binary64 decimal 0.1.
+
+Public result predicates travel through captured values and exact normal
+returns. `float/runtime_result_predicate_custody_exit` covers local/state,
+constructor-field and saved-copy transport. Stale values, unrelated operands,
+parameter-only guarantees and unbounded tail results cannot grant bounds.
+
 ## Audited time fields and initializer facts
 
 All 16 scalar suffixes in `source/library/std/time.omg` at `c1303f89d4`

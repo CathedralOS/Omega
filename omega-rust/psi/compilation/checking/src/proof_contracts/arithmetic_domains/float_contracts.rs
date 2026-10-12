@@ -1,0 +1,288 @@
+//! Ordinary IEEE contracts describe normal results, not result-type identity.
+//! Projection reads the selected declaration and its reserved result binding;
+//! it never evaluates a callee body or rereads mutable actuals. Exit checking
+//! independently proves each guarantee from the actual returned occurrence.
+//! Both consume the same landed source enclosure and selected comparison
+//! meaning. An unknown enclosure supplies no proof, and a receiving predicate
+//! never supplies evidence about the input of an Exact conversion.
+
+use super::float_arithmetic::{
+    FloatSourceBounds, float_bound_from, float_literal_value, float_source_bounds,
+};
+use super::value_environment::FloatInterval;
+use crate::machine_calls::calls::CalleeContract;
+use typed_trees::expression::{BinaryOperator, ExpressionHandle};
+use typed_trees::signature::SignatureContractKind;
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
+
+/// Publish a selected call's normal IEEE bounds on its completed occurrence.
+/// The source declaration owes these guarantees at every exit; no receiving
+/// annotation or private callee-body inference contributes a predicate here.
+pub fn normal_return_float_predicates(
+    program: &dyn crate::CheckingInput,
+    call: &typed_trees::expression::TableCallExpression,
+    predicates: &mut Vec<facts::FloatPredicate>,
+) {
+    if !call.selects_only_nominal_route() {
+        return;
+    }
+    let Some(callee) =
+        crate::machine_calls::calls::callee_entry_contract(program, call.target_symbol)
+    else {
+        return;
+    };
+    let Some(interval) = normal_return_interval(program, &callee) else {
+        return;
+    };
+    let format = match program.primitive_type_reference(callee.return_type) {
+        Some(PrimitiveType::F32) => numerics::literals::FloatFormat::F32,
+        Some(PrimitiveType::F64) => numerics::literals::FloatFormat::F64,
+        _ => return,
+    };
+    if let (Some(minimum), Some(maximum)) = (interval.low, interval.high)
+        && minimum == maximum
+        && let Some(predicate) = facts::FloatPredicate::comparison(
+            format,
+            BinaryOperator::Equal,
+            &numerics::bignum::ExactFloat::from_f64(minimum),
+        )
+    {
+        predicates.push(predicate);
+        return;
+    }
+    for (operator, bound) in [
+        (BinaryOperator::GreaterOrEqual, interval.low),
+        (BinaryOperator::LessOrEqual, interval.high),
+    ] {
+        if let Some(predicate) = bound.and_then(|bound| {
+            facts::FloatPredicate::comparison(
+                format,
+                operator,
+                &numerics::bignum::ExactFloat::from_f64(bound),
+            )
+        }) {
+            predicates.push(predicate);
+        }
+    }
+}
+
+pub(super) fn normal_return_interval(
+    program: &dyn crate::CheckingInput,
+    callee: &CalleeContract<'_>,
+) -> Option<FloatInterval> {
+    let primitive = program.primitive_type_reference(callee.return_type)?;
+    if !matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64) {
+        return None;
+    }
+    let interval = program
+        .contract_expressions(callee.contracts.iter(), SignatureContractKind::Ensures)
+        .fold(FloatInterval::UNBOUNDED, |interval, expression| {
+            interval.intersect(project(program, callee, expression, primitive))
+        });
+    (interval != FloatInterval::UNBOUNDED).then_some(interval)
+}
+
+fn project(
+    program: &dyn crate::CheckingInput,
+    callee: &CalleeContract<'_>,
+    expression: ExpressionHandle,
+    primitive: PrimitiveType,
+) -> FloatInterval {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
+        return FloatInterval::UNBOUNDED;
+    };
+    if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
+        let left = project(program, callee, binary.left, primitive);
+        let right = project(program, callee, binary.right, primitive);
+        return if binary.operator == BinaryOperator::And {
+            left.intersect(right)
+        } else {
+            left.union(right)
+        };
+    }
+    let result = |expression| {
+        crate::reserved_result_owner(program, expression).is_some_and(|(owner, reference)| {
+            owner == callee.callable && reference == callee.return_type
+        })
+    };
+    let (other, result_on_left) = if result(binary.left) {
+        (binary.right, true)
+    } else if result(binary.right) {
+        (binary.left, false)
+    } else {
+        return FloatInterval::UNBOUNDED;
+    };
+    let other_type = crate::parameter_expression_result_type_reference(
+        program,
+        callee.callable,
+        callee.parameters,
+        other,
+    );
+    let operand_types = if result_on_left {
+        [Some(callee.return_type), other_type]
+    } else {
+        [other_type, Some(callee.return_type)]
+    };
+    if !comparison_meaning(
+        program,
+        callee.callable,
+        expression,
+        binary.operator,
+        &operand_types,
+    ) {
+        return FloatInterval::UNBOUNDED;
+    }
+    float_literal_value(program, other)
+        .and_then(|literal| float_bound_from(binary.operator, literal, result_on_left, primitive))
+        .unwrap_or(FloatInterval::UNBOUNDED)
+}
+
+fn comparison_meaning(
+    program: &dyn crate::CheckingInput,
+    owner: symbols::SymbolHandle,
+    expression: ExpressionHandle,
+    operator: BinaryOperator,
+    operand_types: &[Option<TypeReferenceHandle>],
+) -> bool {
+    crate::has_builtin_or_sealed_float_comparison_meaning(
+        program,
+        owner,
+        expression,
+        operator,
+        operand_types,
+    )
+}
+
+/// Prove an IEEE postcondition using the returned value at its own observation.
+/// Only the exact owner's reserved result is substituted; parameter names in
+/// another state cannot become the current state's same-spelled values.
+pub fn float_return_postcondition(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    returned: ExpressionHandle,
+    condition: ExpressionHandle,
+) -> Option<bool> {
+    // Domain selection precedes observation construction. Non-IEEE goals use
+    // their existing proof owners; do not rebuild a state prefix merely to
+    // discover afterward that an integer or structural goal is not ours.
+    if !has_float_comparison(program, machine, state, condition) {
+        return None;
+    }
+    let environment =
+        super::occurrence_value_environment(program, machine.symbol, state.symbol, returned)?;
+    let is_result = |expression| {
+        crate::reserved_result_owner(program, expression)
+            .is_some_and(|(owner, _)| owner == machine.symbol || owner == state.symbol)
+    };
+    let actual = |expression| {
+        if is_result(expression) {
+            returned
+        } else {
+            expression
+        }
+    };
+    let result_type = |expression| {
+        crate::expression_result_type_reference(program, machine, state, actual(expression))
+    };
+    let source_bounds =
+        |expression| float_source_bounds(program, &environment, actual(expression), &result_type);
+    predicate(
+        program,
+        machine.symbol,
+        condition,
+        &source_bounds,
+        &result_type,
+    )
+}
+
+fn has_float_comparison(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+) -> bool {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
+        return false;
+    };
+    if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
+        return has_float_comparison(program, machine, state, binary.left)
+            || has_float_comparison(program, machine, state, binary.right);
+    }
+    [binary.left, binary.right].into_iter().any(|operand| {
+        crate::reserved_result_owner(program, operand)
+            .map(|(_, reference)| reference)
+            .or_else(|| crate::expression_result_type_reference(program, machine, state, operand))
+            .and_then(|reference| program.primitive_type_reference(reference))
+            .is_some_and(|primitive| matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64))
+    })
+}
+
+fn predicate(
+    program: &dyn crate::CheckingInput,
+    owner: symbols::SymbolHandle,
+    expression: ExpressionHandle,
+    source_bounds: &dyn Fn(ExpressionHandle) -> Option<FloatSourceBounds>,
+    result_type: &dyn Fn(ExpressionHandle) -> Option<TypeReferenceHandle>,
+) -> Option<bool> {
+    let binary = program.expression_table.binary_node(expression)?;
+    if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
+        let left = predicate(program, owner, binary.left, source_bounds, result_type);
+        let right = predicate(program, owner, binary.right, source_bounds, result_type);
+        return match (left, right, binary.operator) {
+            (Some(false), _, BinaryOperator::And) | (_, Some(false), BinaryOperator::And) => {
+                Some(false)
+            }
+            (Some(true), Some(true), BinaryOperator::And) => Some(true),
+            (Some(true), _, BinaryOperator::Or) | (_, Some(true), BinaryOperator::Or) => Some(true),
+            (Some(false), Some(false), BinaryOperator::Or) => Some(false),
+            _ => None,
+        };
+    }
+    // Comparison authority belongs to the authored operands, including their
+    // qualifications. Substitution supplies values, not a different overload.
+    let authored_type = |operand| {
+        crate::reserved_result_owner(program, operand)
+            .map(|(_, reference)| reference)
+            .or_else(|| result_type(operand))
+    };
+    let operand_types = [authored_type(binary.left), authored_type(binary.right)];
+    let reference = operand_types[0].or(operand_types[1])?;
+    let primitive = program.primitive_type_reference(reference)?;
+    if !matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
+        || !comparison_meaning(program, owner, expression, binary.operator, &operand_types)
+    {
+        return None;
+    }
+    let left = source_bounds(binary.left)?;
+    let right = source_bounds(binary.right)?;
+    if left.primitive != right.primitive {
+        return None;
+    }
+    compare(binary.operator, &left, &right)
+}
+
+fn compare(
+    operator: BinaryOperator,
+    left: &FloatSourceBounds,
+    right: &FloatSourceBounds,
+) -> Option<bool> {
+    use BinaryOperator::*;
+    let same_point = left.minimum == left.maximum
+        && right.minimum == right.maximum
+        && left.minimum == right.minimum;
+    let disjoint = left.maximum < right.minimum || right.maximum < left.minimum;
+    match operator {
+        Equal if same_point => Some(true),
+        Equal if disjoint => Some(false),
+        NotEqual if disjoint => Some(true),
+        NotEqual if same_point => Some(false),
+        Less if left.maximum < right.minimum => Some(true),
+        Less if left.minimum >= right.maximum => Some(false),
+        LessOrEqual if left.maximum <= right.minimum => Some(true),
+        LessOrEqual if left.minimum > right.maximum => Some(false),
+        Greater => compare(Less, right, left),
+        GreaterOrEqual => compare(LessOrEqual, right, left),
+        _ => None,
+    }
+}

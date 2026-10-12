@@ -307,6 +307,14 @@ pub(super) fn validate(
             local_data,
             value_environment,
         );
+        let copied_float = arithmetic_domains::capture_float_assignment(
+            program,
+            machine,
+            current_state,
+            value_environment,
+            program.primitive_type_reference(local_data.type_reference),
+            local_data.initial_value,
+        );
         arithmetic_domains::record_assignment(
             value_environment,
             Some(local_data.name.as_str().to_owned()),
@@ -335,12 +343,10 @@ pub(super) fn validate(
                 program.primitive_type_reference(local_data.type_reference),
                 local_data.initial_value,
             );
-            arithmetic_domains::record_float_literal_assignment(
-                program,
+            arithmetic_domains::record_float_assignment(
                 value_environment,
                 Some(local_data.name.as_str().to_owned()),
-                program.primitive_type_reference(local_data.type_reference),
-                local_data.initial_value,
+                copied_float,
             );
         }
     }

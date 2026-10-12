@@ -7,7 +7,7 @@
 
 use validation::{CanonicalPlace, canonical_place_from_expression};
 
-use super::{InvocationContexts, closed_operators_are_builtin, operand_for_parameter};
+use crate::checks::operators::closed_operators_are_builtin;
 use checked_trees::CheckedOperatorFacts;
 use facts::{FactPayload, FactPlace, FactPlan, FloatPredicate, ProgramPoint};
 use numerics::literals::FloatFormat;
@@ -24,11 +24,11 @@ struct RequiredComparison {
     predicate: FloatPredicate,
 }
 
-pub(super) fn contexts_prove_comparison(
+pub(crate) fn contexts_prove_comparison(
     program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     operators: &CheckedOperatorFacts,
-    contexts: &InvocationContexts<'_>,
+    contexts: &[facts::FactContextHandle],
     parameters: &[StateParameter],
     operands: &[ExpressionHandle],
     expression: ExpressionHandle,
@@ -36,57 +36,54 @@ pub(super) fn contexts_prove_comparison(
     let Some(required) = required_comparison(program, parameters, operands, expression) else {
         return false;
     };
-    contexts
-        .for_expressions(program, parameters, [expression])
-        .iter()
-        .any(|context| {
-            semantic
-                .context_view(semantic.contexts.get(*context))
-                .facts()
-                .any(|fact| match fact.payload {
-                    FactPayload::BooleanExpression(expression)
-                    | FactPayload::BooleanValue {
-                        expression,
-                        value: true,
-                    } => expression_proves_comparison(
-                        program,
-                        operators,
-                        point_owner(fact.point),
-                        expression,
-                        &required,
-                    ),
-                    FactPayload::ContractBooleanExpression {
-                        expression,
-                        instantiated,
-                        ..
-                    } if !instantiated.is_valid() => expression_proves_comparison(
-                        program,
-                        operators,
-                        point_owner(fact.point),
-                        expression,
-                        &required,
-                    ),
-                    FactPayload::FloatPredicate { predicate }
-                        if fact_has_place(program, semantic, fact.place, &required.place) =>
-                    {
-                        predicate.implies(required.predicate)
-                    }
-                    FactPayload::AssignedValue { value }
-                        if fact_has_place(program, semantic, fact.place, &required.place) =>
-                    {
-                        literal(program, value, required.predicate.format())
-                            .and_then(|bound| {
-                                FloatPredicate::comparison(
-                                    required.predicate.format(),
-                                    BinaryOperator::Equal,
-                                    &bound,
-                                )
-                            })
-                            .is_some_and(|observed| observed.implies(required.predicate))
-                    }
-                    _ => false,
-                })
-        })
+    contexts.iter().any(|context| {
+        semantic
+            .context_view(semantic.contexts.get(*context))
+            .facts()
+            .any(|fact| match fact.payload {
+                FactPayload::BooleanExpression(expression)
+                | FactPayload::BooleanValue {
+                    expression,
+                    value: true,
+                } => expression_proves_comparison(
+                    program,
+                    operators,
+                    point_owner(fact.point),
+                    expression,
+                    &required,
+                ),
+                FactPayload::ContractBooleanExpression {
+                    expression,
+                    instantiated,
+                    ..
+                } if !instantiated.is_valid() => expression_proves_comparison(
+                    program,
+                    operators,
+                    point_owner(fact.point),
+                    expression,
+                    &required,
+                ),
+                FactPayload::FloatPredicate { predicate }
+                    if fact_has_place(program, semantic, fact.place, &required.place) =>
+                {
+                    predicate.implies(required.predicate)
+                }
+                FactPayload::AssignedValue { value }
+                    if fact_has_place(program, semantic, fact.place, &required.place) =>
+                {
+                    literal(program, value, required.predicate.format())
+                        .and_then(|bound| {
+                            FloatPredicate::comparison(
+                                required.predicate.format(),
+                                BinaryOperator::Equal,
+                                &bound,
+                            )
+                        })
+                        .is_some_and(|observed| observed.implies(required.predicate))
+                }
+                _ => false,
+            })
+    })
 }
 
 fn required_comparison(
@@ -126,7 +123,17 @@ fn required_comparison(
         ) {
             continue;
         }
-        let operand = operand_for_parameter(program, parameters, operands, path)?;
+        if program
+            .expression_table
+            .name_path_members(path.members)
+            .len()
+            != 1
+        {
+            continue;
+        }
+        let position =
+            typed_trees::signature::state_parameter_position(parameters, parameter.symbol)?;
+        let operand = *operands.get(position)?;
         let place = canonical_place_from_expression(program, operand)?;
         let predicate = if operator == BinaryOperator::Equal
             && canonical_place_from_expression(program, subject)

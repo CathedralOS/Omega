@@ -33,10 +33,43 @@ pub(crate) struct InvocationContexts<'facts> {
 
 enum CapturedInvocation<'facts> {
     Operator(&'facts FlowOperatorInvocationFact),
-    Call(&'facts FlowCallFact),
+    Call {
+        call: &'facts FlowCallFact,
+        receiver_offset: usize,
+    },
 }
 
 impl<'facts> InvocationContexts<'facts> {
+    /// Ordinary state and machine calls share the scalar snapshot law with
+    /// operator calls. The caller supplies the authenticated explicit telescope;
+    /// a namespace receiver is evaluated but is not a formal parameter.
+    pub(crate) fn from_call(
+        facts: &'facts CheckFacts,
+        call: &'facts FlowCallFact,
+        arguments: &[ExpressionHandle],
+    ) -> Self {
+        let operands = facts.flow.control.operands.span_or_empty(call.operands);
+        let receiver_offset = operands.len().checked_sub(arguments.len());
+        let invocation = receiver_offset
+            .filter(|offset| *offset <= 1)
+            .filter(|offset| {
+                call.authored_source_custody_valid
+                    && operands[*offset..]
+                        .iter()
+                        .map(|operand| operand.expression)
+                        .eq(arguments.iter().copied())
+            })
+            .map(|receiver_offset| CapturedInvocation::Call {
+                call,
+                receiver_offset,
+            });
+        Self {
+            flow: &facts.flow,
+            semantic: &facts.semantic,
+            invocation,
+        }
+    }
+
     pub(crate) fn new(
         facts: &'facts CheckFacts,
         operator_use: Handle<CheckedOperatorUseFact>,
@@ -160,7 +193,10 @@ impl<'facts> InvocationContexts<'facts> {
             calls.next(),
             calls.next(),
         ) {
-            (true, true, Some(call), None) => Some(CapturedInvocation::Call(call)),
+            (true, true, Some(call), None) => Some(CapturedInvocation::Call {
+                call,
+                receiver_offset: 0,
+            }),
             _ => None,
         };
         Self {
@@ -187,13 +223,14 @@ impl<'facts> InvocationContexts<'facts> {
                 &mut occurrences,
             );
         }
-        let (operands, requires_constraints) = match invocation {
+        let (operands, requires_constraints, receiver_offset) = match invocation {
             CapturedInvocation::Operator(invocation) => {
-                (invocation.operands, invocation.requires_constraints)
+                (invocation.operands, invocation.requires_constraints, 0)
             }
-            CapturedInvocation::Call(invocation) => {
-                (invocation.operands, invocation.requires_constraints)
-            }
+            CapturedInvocation::Call {
+                call,
+                receiver_offset,
+            } => (call.operands, call.entry_constraints, *receiver_offset),
         };
         let operands = self.flow.control.operands.span_or_empty(operands);
         let mut selected = None::<Vec<FactContextHandle>>;
@@ -204,7 +241,7 @@ impl<'facts> InvocationContexts<'facts> {
             {
                 continue;
             }
-            let Some(operand) = operands.get(ordinal) else {
+            let Some(operand) = operands.get(ordinal + receiver_offset) else {
                 return Vec::new();
             };
             let operand_contexts = crate::flow::operand_contexts(

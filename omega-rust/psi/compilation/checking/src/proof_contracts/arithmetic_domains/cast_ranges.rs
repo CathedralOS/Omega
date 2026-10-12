@@ -9,51 +9,12 @@ use crate::proof_contracts::arithmetic_domains::integer_ranges::{
     known_u64_value, primitive_range,
 };
 use diagnostics::Diagnostic;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCastExpression};
+use typed_trees::expression::{ExpressionHandle, TableCastExpression};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
-
-/// Record a successfully checked literal store at its statement point. Cast
-/// predicates read this live fact; searching declarations later would ignore
-/// intervening writes and permit forward-reference or cross-state assumptions.
-pub(crate) fn record_float_literal_assignment(
-    program: &dyn crate::CheckingInput,
-    environment: &mut ValueEnvironment,
-    path: Option<String>,
-    destination: Option<PrimitiveType>,
-    value: ExpressionHandle,
-) {
-    let Some(path) = path else {
-        return;
-    };
-    let Some(destination @ (PrimitiveType::F32 | PrimitiveType::F64)) = destination else {
-        return;
-    };
-    let ExpressionNode::Float(literal) = program.expression_table.expression(value) else {
-        return;
-    };
-    let format = match destination {
-        PrimitiveType::F32 => numerics::literals::FloatFormat::F32,
-        _ => numerics::literals::FloatFormat::F64,
-    };
-    if literal.landing().is_some_and(|retained| retained != format) {
-        return;
-    }
-    let value = literal.with_landing(format).landed_f64();
-    if value.is_finite() {
-        environment.narrow_float(
-            path.clone(),
-            crate::proof_contracts::arithmetic_domains::value_environment::FloatInterval {
-                low: Some(value),
-                high: Some(value),
-            },
-        );
-        environment.mark_non_nan(path);
-    }
-}
 
 /// The expression scanner owns selected reachability and calls this only for
 /// an executing cast. Arithmetic analysis owns the proof from the current live

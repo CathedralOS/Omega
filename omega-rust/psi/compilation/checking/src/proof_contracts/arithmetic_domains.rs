@@ -42,6 +42,8 @@ mod domain_exclusions;
 pub(crate) mod domain_intervals;
 mod expression_analysis;
 mod float_arithmetic;
+mod float_contracts;
+pub use float_contracts::{float_return_postcondition, normal_return_float_predicates};
 mod guard_narrowing;
 mod integer_ranges;
 mod interval;
@@ -65,10 +67,10 @@ mod unsigned_representability;
 mod value_environment;
 
 pub(crate) use assignments::{
-    check_narrowing_assignment, check_value_narrowing, enforced_declared_range, record_assignment,
+    capture_float_assignment, check_narrowing_assignment, check_value_narrowing,
+    enforced_declared_range, record_assignment, record_float_assignment,
     record_unsigned_literal_assignment, stored_value_carrier,
 };
-pub(crate) use cast_ranges::record_float_literal_assignment;
 pub(crate) use cast_ranges::validate_range_cast_at_use;
 pub use cast_ranges::{plain_exact_widening_cast, unannotated_exact_cast};
 pub(crate) use cited_element_bounds::{

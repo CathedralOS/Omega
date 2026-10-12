@@ -101,6 +101,32 @@ fn captured_float_requirement(
         })?;
     let parameters = validation::call_target_parameters(program, call.target_symbol)?;
     let arguments = call_values::captured_argument_expressions(program, facts, state, call)?;
+    let contexts = crate::checks::operators::InvocationContexts::from_call(facts, call, &arguments);
+    // Boolean composition keeps each leaf in its own captured operand epoch.
+    // The IEEE query publishes only proved positive atoms: failure is unknown,
+    // never the false polarity of a NaN-permitting comparison.
+    if crate::checks::operators::closed_operators_are_builtin(program, &facts.operators, expression)
+        && super::super::prover::evaluate_for_atoms(
+            program,
+            expression,
+            &mut |_| None,
+            &|_, _| true,
+            &mut |leaf| {
+                crate::checks::float_implications::contexts_prove_comparison(
+                    program,
+                    &facts.semantic,
+                    &facts.operators,
+                    &contexts.for_expressions(program, parameters, [leaf]),
+                    parameters,
+                    &arguments,
+                    leaf,
+                )
+                .then_some(true)
+            },
+        ) == Some(super::super::prover::ScalarValue::Boolean(true))
+    {
+        return Some(true);
+    }
     crate::checks::operators::selected_float_boolean_requirement(
         program,
         facts,

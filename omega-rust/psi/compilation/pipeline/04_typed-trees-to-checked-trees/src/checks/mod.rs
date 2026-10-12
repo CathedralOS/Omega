@@ -41,6 +41,7 @@ mod case_access;
 pub(crate) mod collection_extents;
 pub(crate) mod contracts;
 pub(crate) mod current_scalar_values;
+pub(crate) mod float_implications;
 mod stored_integer_calls;
 
 // Ownership and custody: linear obligations, retained content, and values

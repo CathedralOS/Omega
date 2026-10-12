@@ -12,7 +12,8 @@ pub(crate) use float_semantic::{
 mod requires;
 
 pub(crate) use requires::{
-    InvocationContexts, named_operator_route_is_false, operator_route_is_false,
+    InvocationContexts, closed_operators_are_builtin, named_operator_route_is_false,
+    operator_route_is_false,
 };
 
 pub(crate) fn check_operator_resolution(
