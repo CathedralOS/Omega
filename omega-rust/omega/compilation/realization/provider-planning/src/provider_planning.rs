@@ -30,15 +30,18 @@ pub use effects::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
     CompilerPrimitiveIntegerComparisonOperation,
 };
-pub(crate) use external_binding_rows::extract_native_external_binding_rows;
+pub(crate) use external_binding_rows::{
+    extract_native_external_binding_rows, retain_compatibility_calling_applications,
+};
 pub use operator_provider_evidence::{
     selected_requirement_plan, selected_use_plan, specialized_provider_machines,
 };
 pub(crate) use provenance_replay::{
     DerivedProviderPlan, ProviderPlanProvenance, SelectedTargetMachineOrigin,
+    UnavailableProviderCandidate,
 };
 pub use provenance_replay::{
-    ProviderPlanDerivation, ProviderSchemaDeclaration, derive_satisfies_plans,
+    ProviderPlanCatalog, ProviderPlanDerivation, ProviderSchemaDeclaration, derive_satisfies_plans,
     exact_checked_adapter, same_semantic_name, satisfies_plan_name,
     selected_requirement_checked_adapter,
 };
@@ -113,27 +116,47 @@ pub fn bind_selected_provider_plan_facts(
 
 /// PRV4c: select one fully covering provider type per applicable boundary
 /// slot. An explicit build-root declaration wins over the selected target
-/// package's ordinary default declaration. Without either, a unique covering
-/// candidate supplies the declaration-era default. Rows are never selected
+/// package's ordinary default declaration. Discovery alone never selects a
+/// candidate, even when only one covers the schema. Automatic primitives enter
+/// through their authentic toolchain settlement owner. Rows are never selected
 /// individually and partial candidates never combine. Each selected plan keeps
-/// its derivation provenance and the authority that selected it.
+/// its derivation provenance and the authority that selected it. A missing
+/// admitted profile leaves catalog choice unavailable; ordinary selector host
+/// planning never substitutes physical-target authority for that absence.
 pub fn select_derived_provider_plans(
-    derived: &[DerivedProviderPlan],
-    selected_target: target::NativeTarget,
-    defaults: &[crate::ProviderSelection],
+    context: crate::ProviderPlanningContext<'_>,
+    catalog: &ProviderPlanCatalog,
+    selected_target: Option<target::TargetProfile>,
+    declarations: &crate::SettledTargetMachineDeclarations,
     requested: &[crate::ProviderSelection],
 ) -> Result<Vec<SelectedProviderPlanWithProvenance>, Vec<diagnostics::Diagnostic>> {
+    let derived = &catalog.plans;
     let plans = derived
         .iter()
         .map(|derived| derived.plan.clone())
         .collect::<Vec<_>>();
-    select_provider_plan_indices(&plans, selected_target, defaults, requested).map(|selected| {
-        selected
-            .into_iter()
-            .map(|selected| SelectedProviderPlanWithProvenance {
-                derived: derived[selected.candidate].clone(),
-                selected_by: selected.selected_by,
-            })
-            .collect()
+    let target = selected_target
+        .map(target::TargetProfile::native_target)
+        .unwrap_or_else(target::NativeTarget::host);
+    let mut selected = select_provider_plan_indices(
+        &plans,
+        &catalog.unavailable,
+        target,
+        &declarations.provider_defaults,
+        requested,
+    )?
+    .into_iter()
+    .map(|selected| SelectedProviderPlanWithProvenance {
+        derived: derived[selected.candidate].clone(),
+        selected_by: selected.selected_by,
     })
+    .collect();
+    crate::compiler_catalog::retain_catalog_choices(
+        context,
+        derived,
+        &declarations.origins,
+        selected_target.map(target::TargetProfile::target_name),
+        &mut selected,
+    )?;
+    Ok(selected)
 }

@@ -17,21 +17,26 @@ impl StructuralJudge<'_> {
     pub(in crate::proof_contracts::contract_entailment) fn observe_storage_writes(
         &mut self,
         state: &State,
-        written: &[String],
-    ) -> Option<()> {
-        if written.is_empty() || !self.requires_value_preservation() {
-            return Some(());
+        frame: &facts::NormalizedWriteFrame,
+    ) {
+        if frame.complete_paths().is_some_and(<[String]>::is_empty)
+            || !self.requires_value_preservation()
+        {
+            return;
         }
         let program = self.program;
-        let frames = self.frame_resolver()?;
+        let frames = self.call_frames();
+        let written = frame.complete_paths();
         let mut invalidated = Vec::new();
         let mut consider = |symbol: SymbolHandle, reference| {
             let overlaps = crate::frame_coordinate_path(program, symbol, &[]).is_none_or(|path| {
-                written
-                    .iter()
-                    .any(|written| crate::frame_paths_overlap(written, &path))
+                written.is_none_or(|written| {
+                    written
+                        .iter()
+                        .any(|written| crate::frame_paths_overlap(written, &path))
+                })
             });
-            if overlaps || !frames.value_is_reference_free(reference) {
+            if overlaps || frames.is_none_or(|frames| !frames.value_is_reference_free(reference)) {
                 invalidated.push(symbol);
             }
         };
@@ -63,7 +68,6 @@ impl StructuralJudge<'_> {
                 .is_some_and(|symbol| storage.contains(&symbol))
             })
         });
-        Some(())
     }
 
     pub(super) fn storage_observation_invalidated(&self, expression: ExpressionHandle) -> bool {

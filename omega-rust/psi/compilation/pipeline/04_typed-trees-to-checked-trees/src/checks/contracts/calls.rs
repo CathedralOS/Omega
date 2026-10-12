@@ -88,79 +88,86 @@ pub(super) fn check_call_requires(
                 program, facts, state_flow, call_flow, fact,
             );
             let requirement_contexts = captured_contexts.as_deref().unwrap_or(&entry_contexts);
-            let captured_judgment = captured_boolean::judgment(
-                program,
-                facts,
-                state_flow,
-                call_flow,
-                requirement_contexts,
-                fact,
-                expression_intervals,
-                call_frames,
-            );
-            let satisfied = captured_judgment.unwrap_or_else(|| match fact.payload {
-                FactPayload::ContractBooleanExpression { expression, .. } => {
-                    boolean_requirements::proves(
-                        program,
-                        facts,
-                        state_flow,
-                        call_flow,
-                        requirement_contexts,
-                        expression,
-                        incoming_guards,
-                        call_frames,
-                    )
-                }
-                _ => semantic_contexts_prove_contract_fact(
+            let selected_requirement =
+                boolean_requirements::at_call(program, state_flow, call_flow, fact);
+            let requirement = selected_requirement.as_ref().unwrap_or(fact);
+            let captured_judgment = selected_requirement.as_ref().and_then(|requirement| {
+                captured_boolean::judgment(
                     program,
-                    &facts.semantic,
+                    facts,
+                    state_flow,
+                    call_flow,
                     requirement_contexts,
-                    fact,
-                ),
+                    requirement,
+                    expression_intervals,
+                    call_frames,
+                )
             });
+            let satisfied = selected_requirement.is_some()
+                && captured_judgment.unwrap_or_else(|| match requirement.payload {
+                    FactPayload::ContractBooleanExpression { expression, .. } => {
+                        boolean_requirements::proves(
+                            program,
+                            facts,
+                            state_flow,
+                            call_flow,
+                            requirement_contexts,
+                            expression,
+                            incoming_guards,
+                            call_frames,
+                        )
+                    }
+                    _ => semantic_contexts_prove_contract_fact(
+                        program,
+                        &facts.semantic,
+                        requirement_contexts,
+                        requirement,
+                    ),
+                });
             // ch8 construction-grant: a string literal whose compile-time bytes
             // satisfy a domain's declared byte-predicate fact grants that
             // domain without a validating boundary call -- this is how a literal
             // flows into a `&[u8] in Utf8` target.
             let satisfied = satisfied
-                || (captured_judgment.is_none()
-                    && !super::prover::indexed_membership(program, fact.payload)
+                || (selected_requirement.is_some()
+                    && captured_judgment.is_none()
+                    && !super::prover::indexed_membership(program, requirement.payload)
                     && (transition_guard_proves_requires(
                         program,
                         facts,
                         state_flow,
                         call_flow,
-                        fact,
+                        requirement,
                         call_frames,
                     ) || string_literal_grants_domain(
                         program,
                         &facts.semantic,
-                        fact.payload,
-                        fact.place,
+                        requirement.payload,
+                        requirement.place,
                     ) || value_call_return_domain_grants(
                         program,
                         &facts.semantic,
-                        fact.payload,
-                        fact.place,
+                        requirement.payload,
+                        requirement.place,
                     ) || subslice_grants_domain(
                         program,
                         facts,
                         requirement_contexts,
-                        fact.payload,
-                        fact.place,
+                        requirement.payload,
+                        requirement.place,
                     ) || parameter_domain_grants(
                         program,
                         facts,
                         state_flow,
-                        fact.payload,
-                        fact.place,
+                        requirement.payload,
+                        requirement.place,
                     ) || super::reference_domains::proves(
                         program,
                         facts,
                         state_flow,
                         call_flow,
                         requirement_contexts,
-                        fact,
+                        requirement,
                         call_frames,
                     ) || proven_predicates_grant_domain(
                         program,
@@ -169,7 +176,7 @@ pub(super) fn check_call_requires(
                         call_flow,
                         requirement_contexts,
                         incoming_guards,
-                        fact,
+                        requirement,
                         call_frames,
                         expression_intervals,
                     )));

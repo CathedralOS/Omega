@@ -1,0 +1,7 @@
+{
+  "status": "source-only unexecuted",
+  "purpose": "Only a missing named provider exists; no provider selection or runtime demand. Diagnostic inventory must not become installation or Build profile authority.",
+  "materialization": "tests/omega/pass/providers; five-up std SourcePath assumes that location.",
+  "expected_native_exit": 0,
+  "expected_interpreter_exit": 0
+}

@@ -392,7 +392,7 @@ impl<'program> Evaluator<'program> {
         // expression, so this entry stays unreached today. It reads the
         // activation out of its first argument and never needed the receiver
         // classification that used to gate it.
-        if let Some(value) = self.try_provider_selection_statement(statement, call, frame)? {
+        if let Some(value) = self.try_build_registration_statement(statement, call, frame)? {
             return Ok(value);
         }
 

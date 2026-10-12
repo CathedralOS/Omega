@@ -363,15 +363,67 @@ fn closed_argument_identities(
     parameters
         .iter()
         .zip(arguments)
-        .map(|(parameter, argument)| {
-            closed_argument_identity(
-                syntax,
-                selection,
-                *argument,
-                matches!(parameter.kind, TypeParameterKind::Const { .. }),
-            )
+        .map(|(parameter, argument)| match parameter.kind {
+            TypeParameterKind::Const { type_reference } => {
+                closed_const_argument_identity(syntax, selection, *argument, type_reference)
+            }
+            _ => closed_argument_identity(syntax, selection, *argument, false),
         })
         .collect::<Option<Vec<_>>>()
+}
+
+/// Observe the closed value under its constructor's original const binder.
+/// Structural equations can introduce applications after syntax normalization;
+/// their original operands therefore share the canonicalizer with ordinary
+/// applications. This query neither rewrites the operand nor supplies its
+/// carrier or arithmetic policy to later admission.
+pub(super) fn closed_const_argument_identity(
+    syntax: &SyntaxTrees,
+    selection: Option<&declaration_selection::ConstantSelection>,
+    argument: TypeReferenceHandle,
+    parameter_type: TypeReferenceHandle,
+) -> Option<ClosedArgumentIdentity> {
+    use super::ConstScalarSpelling;
+    use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+
+    let value = match syntax.type_references.type_reference(argument) {
+        TypeReferenceNode::ConstExpression(expression) => {
+            super::canonicalize_selected_index_expression(
+                syntax,
+                parameter_type,
+                parameter_type,
+                *expression,
+                selection,
+            )
+            .ok()?
+        }
+        TypeReferenceNode::Named(name) => {
+            match ConstScalarSpelling::from_bare_name(name.as_str()) {
+                Some(ConstScalarSpelling::Integer(value)) => {
+                    return Some(ClosedArgumentIdentity::Constant(value.to_string()));
+                }
+                Some(ConstScalarSpelling::Boolean(value)) => CanonicalConstValue::boolean(value),
+                Some(ConstScalarSpelling::Canonical(value)) => value,
+                None => {
+                    let selection = selection?;
+                    let definition = selection.select_argument(syntax, argument, name).ok()??;
+                    super::canonicalize_selected_const_definition(
+                        syntax,
+                        &definition,
+                        parameter_type,
+                        Some(selection),
+                    )
+                    .ok()?
+                }
+            }
+        }
+        _ => return None,
+    };
+    let identity = match value.decode_encoding() {
+        Some(DecodedCanonicalConstValue::Integer { value, .. }) => value.to_string(),
+        _ => value.atom(),
+    };
+    Some(ClosedArgumentIdentity::Constant(identity))
 }
 
 pub(crate) fn closed_argument_identity(

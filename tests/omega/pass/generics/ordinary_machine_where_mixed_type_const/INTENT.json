@@ -1,0 +1,6 @@
+{
+  "status": "authored unexecuted source proposal",
+  "case": "pass/ordinary_machine_where_mixed_type_const",
+  "intent": "exact static Type/Const application and source where hypotheses must check; authored native and Terminal exit0",
+  "expected_diagnostic": "not predicted; root must qualify exact intended guard"
+}

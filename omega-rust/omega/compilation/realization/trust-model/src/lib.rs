@@ -9,11 +9,18 @@
 //! grant meanings and package-grant policy. Admission does not depend on host
 //! artifact writing or compiler orchestration. Source judgments still
 //! arrive as checked trees; this is not a Terminal-only consumer yet.
+//!
+//! `AssumedBindingRelationship` is a separate runtime assumption obligation.
+//! Its complete content commitment and receiving-consent receipt never grant
+//! provider rights or create a checked conformance. The settlement producer
+//! supplies independent compatibility evidence; package review authenticates
+//! exact receiving consent. No descriptor is inferred from Build intent here.
 
 pub(crate) use optimization_core::digest_encoder;
 mod accepted_machine_grants;
 mod accepted_templates;
 mod admission_settlement;
+mod assumed_bindings;
 mod behavior_exclusions;
 mod component_assumptions;
 use effects::provider_grants;
@@ -23,6 +30,11 @@ mod trust_admission;
 pub(crate) use accepted_machine_grants::{NonProviderTrustGrant, resolve_non_provider_trust_grant};
 pub use accepted_templates::AcceptedTemplateClassifications;
 pub use admission_settlement::reconstruct_trust_obligations;
+pub use assumed_bindings::{
+    AcceptedAssumedBindingRelationship, AssumedBindingRelationship,
+    AssumedBindingRelationshipCommitments, AssumedBindingRelationshipDigest,
+    AssumedBindingRequirementCommitments, accept_assumed_binding_relationship,
+};
 pub use behavior_exclusions::{harvest_behavior_exclusions, verify_entry_behavior_exclusions};
 pub use component_assumptions::{
     AuthoredComponentAssumptionAcceptance, harvest_component_assumption_acceptances,

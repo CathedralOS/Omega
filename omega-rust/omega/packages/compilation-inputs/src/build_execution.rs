@@ -13,6 +13,7 @@ pub mod build_record_codec;
 pub mod build_value;
 mod completed_outputs;
 mod filesystem_scope;
+pub(crate) use filesystem_scope::{lexical_absolute, overlap_key};
 mod observation_identity;
 mod observation_projection;
 mod observations;

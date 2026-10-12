@@ -145,15 +145,12 @@ impl Builder<'_, '_> {
         // statement calls. A parameter projection must retain its ordinary
         // input. Entry establishment and provider selection are independent
         // realization obligations, not implicit receiver attachment authority.
-        if call.receiver.is_valid() && !program.call_has_no_runtime_receiver_for_target(call) {
-            let mut owners = program.traits().iter().filter(|owner| {
-                owner.is_boundary
-                    && program
-                        .trait_machine_instances(owner)
-                        .any(|signature| signature.symbol == authored_target)
-            });
-            let owner = owners.next()?;
-            if owners.next().is_some() {
+        if !program.call_has_no_runtime_receiver_for_selected_target(call, authored_target) {
+            let (owner, _) = program.selected_trait_requirement_signature(
+                authored_target,
+                call.authored_machine_application,
+            )?;
+            if !owner.is_boundary {
                 return None;
             }
             let state = validation::find_state_in_machine(program, self.machine, self.state)?;
@@ -173,6 +170,16 @@ impl Builder<'_, '_> {
             {
                 return None;
             }
+        }
+        if program.trait_machine_signature(authored_target).is_some()
+            && program
+                .selected_trait_requirement_signature(
+                    authored_target,
+                    call.authored_machine_application,
+                )
+                .is_none()
+        {
+            return None;
         }
         let operands = program
             .expression_table

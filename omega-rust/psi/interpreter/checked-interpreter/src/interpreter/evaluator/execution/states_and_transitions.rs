@@ -53,6 +53,7 @@ impl<'program> Evaluator<'program> {
             executed_root_bindings: Vec::new(),
             executed_behavior_exclusions: Vec::new(),
             executed_provider_selections: Vec::new(),
+            executed_assumed_binding_registrations: Vec::new(),
             executed_wire_demands: Vec::new(),
             product_entry_descriptions: Vec::new(),
             product_entry_compatibility: None,

@@ -13,6 +13,14 @@ use crate::{
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProofFacts {
     pub obligations: Arena<ProofObligationFact>,
+    /// Actual accepted proof facts from the original checking operation,
+    /// associated with this ledger's obligation handles. Pruning executable
+    /// declarations does not reconstruct or reinterpret their kernel owners.
+    pub accepted_judgments: Arena<crate::CheckedProofJudgment>,
+    /// Original source contract acceptance and observed application reads.
+    /// This is separate from bounded kernel acceptance and does not certify
+    /// complete semantic dependency closure or receiving-policy admission.
+    pub source_contract_entailments: crate::CheckedSourceContractEntailments,
     pub integer_assignments: Arena<crate::CheckedIntegerAssignmentDecision>,
     pub contract_facts: Arena<ContractProofFact>,
     /// Conformance-edge provenance for contract facts inherited from trait
@@ -63,6 +71,11 @@ pub struct ProofFacts {
     /// program whose facts were built without it reads as a producer
     /// defect, and lowering admission rejects either half missing.
     pub mathematical_signature: Option<crate::CheckedMathematicalSignature>,
+    /// Original checked application occurrences and their unreduced terms.
+    /// Their arena/capture handles stay beside the original signature owner;
+    /// normalized invocation scratch is not a second durable proof program.
+    pub mathematical_applications: Arena<crate::CheckedMathematicalApplication>,
+    pub mathematical_application_captures: Arena<crate::CheckedMathematicalApplicationCapture>,
     /// Caller-coordinate -> `contract_calls` row lookup owned by this
     /// ledger; the index carries the `contract_calls` arena's revision, so
     /// a mutation rebuilds it on the next query.

@@ -244,6 +244,8 @@ pub(crate) struct Evaluator<'program> {
     /// Build, in evaluation order.
     pub(super) executed_behavior_exclusions: Vec<crate::ExecutedBehaviorExclusion>,
     pub(super) executed_provider_selections: Vec<crate::ExecutedProviderSelection>,
+    pub(super) executed_assumed_binding_registrations:
+        Vec<crate::ExecutedAssumedBindingRegistration>,
     pub(super) executed_wire_demands: Vec<typed_trees::expression::ExpressionHandle>,
     /// Compiler-issued product-entry descriptions handed to evaluated code as
     /// opaque `ProductEntryRef` markers. The marker value indexes this table;

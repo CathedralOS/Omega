@@ -1,0 +1,19 @@
+pub data Matrix<Element, const Rows: u64, const Columns: u64> { value: i64; }
+
+pub boundary trait Indexing {
+    machine index<Element, const Rows: u64, const Columns: u64>(
+        items: Matrix<Element, Rows, Columns>
+    ) -> Matrix<Element, Rows, Columns>;
+}
+
+IndexingProvider satisfies Indexing {
+    Indexing::index = index_matrix;
+}
+
+machine index_matrix<Value, const Height: u64, const Width: u64>(
+    items: Matrix<Value, Height, Width>
+) -> Matrix<Value, Height, Width> {
+    items
+}
+
+machine main() {}

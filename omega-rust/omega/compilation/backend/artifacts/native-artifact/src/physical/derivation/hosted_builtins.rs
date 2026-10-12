@@ -27,6 +27,24 @@ use target::NativeTarget;
 use target_operations::BoundaryRealization;
 use target_operations::CompilerBuiltinExecution;
 
+/// The same hosted settlement operation consumes either an exact selected
+/// provider or an independently issued direct compiler declaration.
+pub(crate) enum HostedBuiltinOrigin<'a> {
+    Selected(NativeSelectedProviderPlanDigest),
+    Direct(&'a std::sync::Arc<effects::DirectForeignRealization>),
+}
+impl HostedBuiltinOrigin<'_> {
+    pub(super) fn commitment(&self) -> [u8; 32] {
+        match self {
+            Self::Selected(plan) => *plan.as_bytes(),
+            Self::Direct(original) => original.identity(),
+        }
+    }
+    pub(super) fn is_direct(&self) -> bool {
+        matches!(self, Self::Direct(_))
+    }
+}
+
 /// One declared scalar-argument form a hosted builtin settlement may retain.
 /// The forms are mutually exclusive on the settlement record's two scalar
 /// rosters, so at most one form binds for any installed settlement.
@@ -295,7 +313,7 @@ pub(crate) fn derive_hosted_builtin_child(
     occurrence: &OptimizedBoundaryOccurrence,
     projection: NativeOptimizationProjectionIdentity,
     requirement_identity: &str,
-    selected_plan_digest: NativeSelectedProviderPlanDigest,
+    origin: HostedBuiltinOrigin<'_>,
     target: NativeTarget,
     object: &image_emission::ObjectArtifact,
     image: &image::EmittedImageOutput,
@@ -385,7 +403,7 @@ pub(crate) fn derive_hosted_builtin_child(
     let parent_identity = hosted_builtin_settlement_identity(
         occurrence,
         requirement_identity,
-        selected_plan_digest,
+        &origin,
         target,
         builtin.identity_tags,
         scalar_argument.as_ref(),
@@ -398,17 +416,32 @@ pub(crate) fn derive_hosted_builtin_child(
         scalar_argument,
         result,
     };
-    let parent = PhysicalChildParent::BoundaryTraitSettlement(
-        BoundaryTraitSettlementParts {
-            occurrence: *occurrence,
-            requirement_identity: requirement_identity.to_owned(),
-            selected_plan_digest,
-            target,
-            role,
-            identity: parent_identity,
+    let parent = match origin {
+        HostedBuiltinOrigin::Selected(selected_plan_digest) => {
+            PhysicalChildParent::BoundaryTraitSettlement(
+                BoundaryTraitSettlementParts {
+                    occurrence: *occurrence,
+                    requirement_identity: requirement_identity.to_owned(),
+                    selected_plan_digest,
+                    target,
+                    role,
+                    identity: parent_identity,
+                }
+                .into(),
+            )
         }
-        .into(),
-    );
+        HostedBuiltinOrigin::Direct(original) => {
+            PhysicalChildParent::DirectCompilerIntrinsicSettlement(
+                crate::physical::DirectCompilerIntrinsicSettlement {
+                    occurrence: *occurrence,
+                    original: std::sync::Arc::clone(original),
+                    target,
+                    role,
+                    identity: parent_identity,
+                },
+            )
+        }
+    };
     Ok(boundary_physical_child_parts(
         parent,
         projection,

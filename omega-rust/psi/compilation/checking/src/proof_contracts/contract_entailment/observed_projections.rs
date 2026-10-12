@@ -69,7 +69,14 @@ pub(super) fn project_field(value: StructuralTerm, field_name: &str) -> Option<S
         StructuralTerm::Constructor { fields, .. } => fields
             .into_iter()
             .find_map(|(name, value)| (name == field_name).then_some(value)),
-        StructuralTerm::Variable(name) | StructuralTerm::Opaque(name) => {
+        // A formed symbolic subject retains its projection structure, just as
+        // the declared contract graph does. Opaque text has no such subject
+        // custody and cannot acquire it by spelling a dotted path.
+        subject @ StructuralTerm::Variable(_) => Some(StructuralTerm::Projection {
+            subject: Box::new(subject),
+            path: field_name.to_owned(),
+        }),
+        StructuralTerm::Opaque(name) => {
             Some(StructuralTerm::Opaque(format!("{name}.{field_name}")))
         }
         StructuralTerm::BoundValue(subject) => Some(StructuralTerm::BoundProjection {

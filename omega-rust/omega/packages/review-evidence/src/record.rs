@@ -4,6 +4,10 @@
 //! inspect compiler state, encode persistence bytes, or make admission policy.
 
 mod accessors;
+mod assumed_bindings;
+pub use assumed_bindings::{
+    PackagePolicyAssumedBindingContracts, PackageReviewAssumedBindingContract,
+};
 mod authority;
 mod baseline;
 pub use baseline::PackagePolicyBaseline;

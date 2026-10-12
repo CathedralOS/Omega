@@ -1,6 +1,6 @@
 //! Generic-data method clones retain their template's application requirements.
 //!
-//! Early container specialization clears the clone's binder list. Its exact
+//! Carrier specialization consumes data-mapped binders. Its exact
 //! template and closed owner still identify the arguments, so check selected
 //! calls against that original contract rather than mistaking the clone for an
 //! unconstrained declaration. Requirements belong to method use, not to every
@@ -163,6 +163,16 @@ pub fn validate_selected_attached_method_bounds(
             continue;
         }
         for parameter in program.machine_type_parameters(template) {
+            if program
+                .data_type_parameters
+                .span_or_empty(machine.generic_data_member_parameters)
+                .iter()
+                .any(|member| member.symbol == parameter.symbol)
+            {
+                // These requirements remain on the derived header and are
+                // admitted by ordinary per-occurrence static application checking.
+                continue;
+            }
             let requirements = crate::declared_property_requirements(&parameter.bounds);
             if requirements.is_empty() {
                 continue;

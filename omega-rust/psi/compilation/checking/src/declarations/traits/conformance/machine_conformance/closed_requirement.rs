@@ -26,9 +26,7 @@ pub fn resolve<'program>(
     requirement: &'program Machine,
     symbols: &crate::declarations::symbols::TopLevelSymbols<'_>,
 ) -> Result<&'program Machine, Diagnostic> {
-    if program.machine_type_parameters(requirement).is_empty()
-        || !program.machine_type_parameters(provider).is_empty()
-    {
+    if !requirement.has_specialization_parameters() || provider.has_specialization_parameters() {
         return Ok(requirement);
     }
     let failure = || {
@@ -37,8 +35,56 @@ pub fn resolve<'program>(
             provider.name, requirement.name,
         ))
     };
-    if provider.supply_mode != MachineSupplyMode::CheckedBody || !provider.body_is_present {
+    if !provider.supplies_checked_body() || !provider.body_is_present {
         return Err(failure());
+    }
+    // Preparation publishes the original conformance-to-application join for
+    // named requirements as well as operator requirements. This is the source
+    // edge currently being checked, not an elected runtime provider.
+    let mut produced = program
+        .instantiated_requirement_realizations
+        .iter()
+        .filter(|(_, row)| {
+            row.provider_instance == provider.symbol
+                && row.requirement_template == requirement.symbol
+        });
+    if let Some((_, row)) = produced.next() {
+        if produced.next().is_some() {
+            return Err(failure());
+        }
+        let original = program.machine(row.provider_template).ok_or_else(failure)?;
+        if !program
+            .machine_trait_conformances(original)
+            .iter()
+            .enumerate()
+            .any(|(ordinal, edge)| {
+                original.satisfies.handle_at(ordinal as u32) == row.conformance
+                    && edge.symbol == requirement.symbol
+                    && edge.requirement_symbol == requirement.symbol
+            })
+        {
+            return Err(failure());
+        }
+        let closed = program
+            .machine(row.requirement_instance)
+            .ok_or_else(failure)?;
+        let retains = |template, instance| {
+            let mut receipts = program
+                .machine_specializations
+                .iter()
+                .filter(|receipt| receipt.instance == instance);
+            receipts.next().is_some_and(|receipt| {
+                receipt.template == template && receipt.binding_application.is_valid()
+            }) && receipts.next().is_none()
+        };
+        if closed.supply_mode != MachineSupplyMode::TopLevelRequirement
+            || closed.has_specialization_parameters()
+            || !retains(requirement.symbol, closed.symbol)
+            || !retains(row.provider_template, provider.symbol)
+        {
+            return Err(failure());
+        }
+        return Ok(closed);
     }
     let operator = program
         .machine_token_binding_by_symbol(requirement.symbol)
@@ -194,4 +240,100 @@ fn same_application(
                 }
                 _ => false,
             })
+}
+
+/// Rejoin a prepared exact trait edge to its owned closed public header.
+/// The retained preparation coordinate selects a contract, never a provider
+/// or conformance proof. Ordinary signature/body checking consumes the result.
+pub(crate) fn resolve_trait<'program>(
+    program: &'program dyn crate::CheckingInput,
+    provider: &Machine,
+    application: &typed_trees::trait_definition::AppliedTraitScope<'_>,
+    requirement: &typed_trees::signature::StateSignature,
+    conformance: arena::Handle<typed_trees::machine::TraitConformance>,
+) -> Result<Option<&'program typed_trees::signature::StateSignature>, Diagnostic> {
+    let failure = || {
+        Diagnostic::error(
+            "declared trait provider lost its unique exact prepared requirement application",
+        )
+    };
+    let mut selected = None;
+    for (_, row) in program
+        .instantiated_requirement_realizations
+        .iter()
+        .filter(|(_, row)| {
+            row.provider_instance == provider.symbol
+                && row.requirement_template == requirement.symbol
+                && row.instance_conformance == conformance
+        })
+    {
+        let template = program.machine(row.provider_template).ok_or_else(failure)?;
+        let edge = program
+            .machine_trait_conformances(template)
+            .iter()
+            .enumerate()
+            .find(|(ordinal, _)| template.satisfies.handle_at(*ordinal as u32) == row.conformance)
+            .map(|(_, edge)| edge)
+            .ok_or_else(failure)?;
+        let instance_edge = program
+            .machine_trait_conformances(provider)
+            .iter()
+            .enumerate()
+            .find(|(ordinal, _)| provider.satisfies.handle_at(*ordinal as u32) == conformance)
+            .map(|(_, edge)| edge)
+            .ok_or_else(failure)?;
+        if edge.requirement_symbol != requirement.symbol || edge != instance_edge {
+            return Err(failure());
+        }
+        let Some(retained_scope) =
+            typed_trees::trait_definition::AppliedTraitScope::from_machine_conformance(
+                program.typed_program(),
+                template,
+                edge,
+            )
+            .and_then(|scope| {
+                scope.declaring_scope(program.typed_program(), application.declaration.symbol)
+            })
+        else {
+            return Err(failure());
+        };
+        if !retained_scope.same_application(program.typed_program(), application) {
+            continue;
+        }
+        let mut headers =
+            program
+                .instantiated_requirement_signatures
+                .iter()
+                .filter(|(_, header)| {
+                    header.declaring_trait == application.declaration.symbol
+                        && header.requirement_template == requirement.symbol
+                        && program
+                            .trait_machine_signatures
+                            .get(header.signature)
+                            .symbol
+                            == row.requirement_instance
+                });
+        let (_, header) = headers.next().ok_or_else(failure)?;
+        if headers.next().is_some() || !header.binding_application.is_valid() {
+            return Err(failure());
+        }
+        if row.provider_template != row.provider_instance {
+            let mut receipts = program
+                .machine_specializations
+                .iter()
+                .filter(|receipt| receipt.instance == row.provider_instance);
+            if !receipts.next().is_some_and(|receipt| {
+                receipt.template == row.provider_template && receipt.binding_application.is_valid()
+            }) || receipts.next().is_some()
+            {
+                return Err(failure());
+            }
+        }
+        let signature = program.trait_machine_signatures.get(header.signature);
+        if !signature.type_parameters.is_empty() || selected.is_some() {
+            return Err(failure());
+        }
+        selected = Some(signature);
+    }
+    Ok(selected)
 }

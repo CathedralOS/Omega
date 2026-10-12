@@ -43,7 +43,7 @@ pub struct SameStackContributionAdmissionCandidate {
     /// Historical compact report coordinate. This is not admission authority.
     pub provider_plan_report_identity: u64,
     /// Strong identity of the exact selected provider plan.
-    pub provider_plan_commitment: SameStackProviderPlanCommitment,
+    pub provider_plan_commitment: SameStackExecutionCommitment,
     pub requirement_identity: terminal_psi::TerminalIdentityIndex,
     pub receipt: SameStackContributionAdmissionReceiptId,
     pub bytes: u64,
@@ -57,6 +57,36 @@ commitment_digest!(
     from:
     /// Wrap a digest issued by canonical provider-plan construction.
 );
+
+/// Exact ownership of an opaque foreign execution. Direct realization never
+/// masquerades as a selected provider plan, even when compact reports coincide.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum SameStackExecutionCommitment {
+    SelectedProvider(SameStackProviderPlanCommitment),
+    DirectForeign([u8; 32]),
+}
+impl SameStackExecutionCommitment {
+    pub const fn as_bytes(self) -> [u8; 32] {
+        match self {
+            Self::SelectedProvider(value) => value.as_bytes(),
+            Self::DirectForeign(value) => value,
+        }
+    }
+    pub fn is_zero(self) -> bool {
+        self.as_bytes() == [0; 32]
+    }
+    pub const fn origin_tag(self) -> u8 {
+        match self {
+            Self::SelectedProvider(_) => 0,
+            Self::DirectForeign(_) => 1,
+        }
+    }
+}
+impl From<SameStackProviderPlanCommitment> for SameStackExecutionCommitment {
+    fn from(value: SameStackProviderPlanCommitment) -> Self {
+        Self::SelectedProvider(value)
+    }
+}
 
 commitment_digest!(
     /// Domain-separated commitment to the complete admitted same-stack
@@ -74,7 +104,7 @@ pub struct AdmittedSameStackContribution {
     report_identity: AdmittedStackContributionReportId,
     commitment: SameStackContributionCommitment,
     provider_plan_report_identity: u64,
-    provider_plan_commitment: SameStackProviderPlanCommitment,
+    provider_plan_commitment: SameStackExecutionCommitment,
     requirement_identity: terminal_psi::TerminalIdentityIndex,
     receipt: SameStackContributionAdmissionReceiptId,
     bytes: u64,
@@ -94,7 +124,7 @@ impl AdmittedSameStackContribution {
         self.provider_plan_report_identity
     }
 
-    pub const fn provider_plan_commitment(&self) -> SameStackProviderPlanCommitment {
+    pub const fn provider_plan_commitment(&self) -> SameStackExecutionCommitment {
         self.provider_plan_commitment
     }
 
@@ -118,7 +148,7 @@ impl AdmittedSameStackContribution {
 pub fn admit_same_stack_contribution(
     candidate: SameStackContributionAdmissionCandidate,
     selected_provider_plan_report_identity: u64,
-    selected_provider_plan_commitment: SameStackProviderPlanCommitment,
+    selected_provider_plan_commitment: SameStackExecutionCommitment,
     selected_requirement_identity: terminal_psi::TerminalIdentityIndex,
 ) -> Result<AdmittedSameStackContribution, TaskPlanDiagnostic> {
     if selected_provider_plan_report_identity == 0 {
@@ -837,6 +867,10 @@ fn admitted_contribution_report_fingerprint(
 ) -> u64 {
     let mut hash = Fnv1a::new();
     hash.u64(candidate.provider_plan_report_identity);
+    if candidate.provider_plan_commitment.origin_tag() != 0 {
+        hash.byte(0xff);
+        hash.byte(1);
+    }
     for byte in candidate.provider_plan_commitment.as_bytes() {
         hash.byte(byte);
     }
@@ -855,6 +889,10 @@ fn admitted_contribution_commitment(
     let mut hash =
         crate::digest_encoder::DomainDigestEncoder::new(b"omega.task.same-stack-contribution.v1\0");
     hash.u64(candidate.provider_plan_report_identity);
+    if candidate.provider_plan_commitment.origin_tag() != 0 {
+        hash.byte(0xff);
+        hash.byte(1);
+    }
     hash.raw(&candidate.provider_plan_commitment.as_bytes());
     hash.raw(&candidate.requirement_identity.0.to_le_bytes());
     hash.raw(&candidate.receipt.normalized_identity().to_le_bytes());

@@ -39,6 +39,7 @@ use checked_trees::{
 };
 
 mod calls;
+mod dispatch;
 
 /// Reserved homes are independent of evaluation. The expression expansion and
 /// statement prefix share one construction schedule, without inventing locals
@@ -50,6 +51,7 @@ pub(crate) struct Storage {
     /// Keep that raw producer separate from the completed operand's home.
     producers: Vec<(checked_trees::CheckedStructuralValueHandle, PlaceId)>,
     results: Vec<(u32, PlaceId)>,
+    joins: Vec<(checked_trees::CheckedStructuralValueHandle, Vec<PlaceId>)>,
 }
 
 impl Storage {
@@ -62,6 +64,7 @@ impl Storage {
             places: Vec::new(),
             producers: Vec::new(),
             results: Vec::new(),
+            joins: Vec::new(),
         };
         storage.reserve_value(checked, root, next_place)?;
         Ok(storage)
@@ -92,6 +95,10 @@ pub(crate) struct PreparedValue {
 }
 
 enum Step {
+    Dispatch {
+        prepared: dispatch::Prepared,
+        prefix: Vec<QualifiedScalarType>,
+    },
     Argument {
         coordinate: checked_trees::CheckedUnitCallCoordinate,
         ordinal: usize,
@@ -416,6 +423,9 @@ impl Preparation<'_> {
         let plans = &self.checked.facts.values.structural_values;
         let node = plans.nodes.get(value);
         let declaration = carrier_declaration(identities, self.checked, self.types, reference)?;
+        if let CheckedStructuralValueKind::Dispatch { subject, arms } = &node.kind {
+            return self.dispatch(identities, value, reference, claim_path, *subject, *arms);
+        }
         if let CheckedStructuralValueKind::BorrowedSliceView { source, region }
         | CheckedStructuralValueKind::MutableSliceView { source, region } = &node.kind
         {
@@ -1120,11 +1130,15 @@ impl PreparedValue {
         computations: &mut computations::Expansion<'_>,
     ) -> Result<usize, LoweringError> {
         computations.storage.extend(self.storage);
+        if self.steps.is_empty() {
+            return Ok(target);
+        }
         let completed_types = self
             .steps
             .last()
             .map(|step| match step {
-                Step::Call { prefix, .. }
+                Step::Dispatch { prefix, .. }
+                | Step::Call { prefix, .. }
                 | Step::Argument { prefix, .. }
                 | Step::Value { prefix, .. }
                 | Step::Scalar { prefix, .. }
@@ -1145,6 +1159,15 @@ impl PreparedValue {
         ));
         for step in self.steps.into_iter().rev() {
             target = match step {
+                Step::Dispatch { prepared, prefix } => prepared.finish(
+                    identities,
+                    state,
+                    self.statement,
+                    bindings,
+                    &prefix,
+                    target,
+                    computations,
+                )?,
                 Step::Call { prepared, prefix } => {
                     prepared.finish_completed(&prefix, target, computations)
                 }

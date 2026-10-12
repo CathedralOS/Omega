@@ -50,6 +50,15 @@ pub struct Machine {
     /// Exact authored method behind a validated generic-data clone. Invalid
     /// for authored machines; application checking retains the template bounds.
     pub generic_data_template: SymbolHandle,
+    /// Original independently generic member binders aligned with this
+    /// carrier-derived header's remaining telescope. Operand admission stays
+    /// on that header; source satisfaction projection uses these original IDs.
+    pub generic_data_member_parameters: HandleSpan<crate::data::TypeParameter>,
+    /// Occurrence-owned projections of this body's original satisfaction edges.
+    /// Code/storage sharing does not share supplying data or region arguments.
+    pub conformance_applications: HandleSpan<
+        crate::typed_trees::declarations::machine_conformances::MachineConformanceApplication,
+    >,
     /// The fixed operator token bound by this declaration head, copied from
     /// symbol-resolved trees; `None` is the ordinary named form. Checked
     /// consumers read this binding instead of guessing from the leaf name.
@@ -102,6 +111,8 @@ pub struct Machine {
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: HandleSpan<SignatureContract>,
+    /// Authored generic callable predicates, separate from structural equations.
+    pub where_facts: HandleSpan<crate::domain::ProofFact>,
     pub states: HandleSpan<State>,
 }
 
@@ -194,6 +205,8 @@ impl Default for Machine {
             attached_data_symbol: SymbolHandle::invalid(),
             attached_data_application: TypeReferenceHandle::invalid(),
             generic_data_template: SymbolHandle::invalid(),
+            generic_data_member_parameters: HandleSpan::empty(),
+            conformance_applications: HandleSpan::empty(),
             spelling: None,
             is_public: false,
             supply_mode: language_semantics::MachineSupplyMode::CheckedBody,
@@ -218,6 +231,7 @@ impl Default for Machine {
             suspends: false,
             blocks: false,
             contracts: HandleSpan::empty(),
+            where_facts: HandleSpan::empty(),
             states: HandleSpan::empty(),
         }
     }

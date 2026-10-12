@@ -11,6 +11,7 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionLateBinding, AuthoredDeclarationSelectionTarget,
 };
 use symbols::{SymbolHandle, SymbolKind};
+use typed_trees::references::StaticArgumentCall;
 use validation::compiler_operations::classify_statement_call_intrinsic;
 use validation::selection_resolution::{
     AuthoredSelectionResolution, AuthoredSelectionResolutionTarget,
@@ -270,6 +271,18 @@ pub(crate) fn collect_checked_statement_selections(
     facts: &CheckFacts,
     resolutions: &mut Vec<AuthoredSelectionResolution>,
 ) -> Result<(), Diagnostic> {
+    // Build this original call-occurrence index once; statement operands have
+    // ledger custody independent of expression attachment and current payloads.
+    let mut static_operands = program
+        .authored_declaration_selections()
+        .iter()
+        .filter_map(|selection| {
+            selection
+                .static_argument_call()
+                .map(|call| (call, selection.occurrence_id()))
+        })
+        .collect::<Vec<_>>();
+    static_operands.sort_unstable_by_key(|(call, operand)| (*call, *operand));
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for (statement_index, statement) in program
@@ -319,6 +332,45 @@ pub(crate) fn collect_checked_statement_selections(
                         "statement call retains mismatched authored call-selection evidence",
                     )
                     .with_source_span(call.source_span));
+                }
+                let first = static_operands.partition_point(|(owner, _)| *owner < occurrence);
+                let end = static_operands.partition_point(|(owner, _)| *owner <= occurrence);
+                for (_, operand_occurrence) in &static_operands[first..end] {
+                    let operand = program
+                        .authored_declaration_selections()
+                        .get(*operand_occurrence)
+                        .expect("static operand index retains an original ledger occurrence");
+                    if operand.target()
+                        != AuthoredDeclarationSelectionTarget::LateBound(
+                            AuthoredDeclarationSelectionLateBinding::CheckedStaticArgument,
+                        )
+                    {
+                        continue;
+                    }
+                    let Some(position) = operand.static_argument_position() else {
+                        return Err(Diagnostic::error(
+                            "statement static operand lost its original call coordinate",
+                        )
+                        .with_source_span(operand.source_span()));
+                    };
+                    if let Some(target) =
+                        validation::compiler_operations::resolve_static_argument_selection(
+                            program,
+                            StaticArgumentCall::Statement(call),
+                            position,
+                        )
+                        .and_then(declaration_target)
+                    {
+                        push_consistent_resolution(
+                            resolutions,
+                            AuthoredSelectionResolution {
+                                occurrence: *operand_occurrence,
+                                binding:
+                                    AuthoredDeclarationSelectionLateBinding::CheckedStaticArgument,
+                                target,
+                            },
+                        )?;
+                    }
                 }
                 let resolution_target = classify_statement_call_intrinsic(program, call)
                     .map(AuthoredSelectionResolutionTarget::Intrinsic)

@@ -179,6 +179,9 @@ fn validate_expression(
     let ExpressionNode::Call(call) = node else {
         return;
     };
+    let Some(call) = program.expression_table.source_call(call) else {
+        return;
+    };
     // Resolution, not target spelling, selects the declaration. Abstract
     // signature applications arrive through two spellings of the same owner:
     // a static requirement dispatch keeps the declaring trait's requirement
@@ -331,20 +334,93 @@ pub(crate) enum SelectedCallContract<'program> {
     Operator(&'program typed_trees::operator::OperatorDefinition),
 }
 
+impl SelectedCallContract<'_> {
+    /// Completed dependency walks belong to an immutable contract view. Public
+    /// applications can share declaration symbols while owning different facts;
+    /// declaration symbols remain the separate active recursion guard.
+    pub(super) fn same_contract_view(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Concrete(machine, state), Self::Concrete(other_machine, other_state)) => {
+                std::ptr::eq(*machine, *other_machine) && std::ptr::eq(*state, *other_state)
+            }
+            (Self::Signature(signature), Self::Signature(other_signature)) => {
+                std::ptr::eq(*signature, *other_signature)
+            }
+            (
+                Self::DynamicSlot { slot, signature },
+                Self::DynamicSlot {
+                    slot: other_slot,
+                    signature: other_signature,
+                },
+            ) => std::ptr::eq(*slot, *other_slot) && std::ptr::eq(*signature, *other_signature),
+            (Self::Operator(operator), Self::Operator(other_operator)) => {
+                std::ptr::eq(*operator, *other_operator)
+            }
+            _ => false,
+        }
+    }
+}
+
 pub(crate) fn selected_call_contract<'program>(
     program: &'program dyn crate::CheckingInput,
     call: &TableCallExpression,
 ) -> Option<SelectedCallContract<'program>> {
-    if let Some(dispatch) = &call.static_requirement_dispatch {
+    let call = program.expression_table.source_call(call)?;
+    let selected = selected_call_contract_for_application(
+        program,
+        call.target_symbol,
+        call.authored_machine_application,
+        call.static_requirement_dispatch.as_ref(),
+    );
+    // An explicit public dispatch owns the contract even when its retained
+    // declaration is unavailable. A realization operator cannot replace it.
+    if call.static_requirement_dispatch.is_some() {
+        return selected;
+    }
+    selected.or_else(|| {
+        typed_trees::operator::resolve_named_expression_call(program, call)
+            .map(SelectedCallContract::Operator)
+    })
+}
+
+/// Statement and expression requirements select the same original public
+/// application. A named state edge instead keeps that state's own contracts.
+pub(super) fn selected_call_contract_at_site<'program>(
+    program: &'program dyn crate::CheckingInput,
+    site: crate::machine_calls::calls::CallSite<'program>,
+) -> Option<SelectedCallContract<'program>> {
+    use crate::machine_calls::calls::CallSite;
+    match site {
+        CallSite::Expression { call, .. } => selected_call_contract(program, call),
+        CallSite::Statement(call) => selected_call_contract_for_application(
+            program,
+            call.target_symbol,
+            call.authored_machine_application,
+            call.static_requirement_dispatch.as_ref(),
+        ),
+        CallSite::TransitionNamed { path, .. } => selected_contract_by_symbol(program, path.symbol),
+    }
+}
+
+fn selected_call_contract_for_application<'program>(
+    program: &'program dyn crate::CheckingInput,
+    target: SymbolHandle,
+    application: typed_trees::static_applications::StaticMachineApplicationHandle,
+    dispatch: Option<&typed_trees::typed_trees::StaticRequirementDispatch>,
+) -> Option<SelectedCallContract<'program>> {
+    if let Some(signature) = program.public_requirement_contract(
+        application,
+        dispatch.map_or(target, |dispatch| dispatch.requirement),
+    ) {
+        return Some(SelectedCallContract::Signature(signature));
+    }
+    if let Some(dispatch) = dispatch {
         let definition = program.trait_definition_by_symbol(dispatch.declaring_trait)?;
         return program
             .trait_machine_signature_by_symbol(definition, dispatch.requirement)
             .map(SelectedCallContract::Signature);
     }
-    selected_contract_by_symbol(program, call.target_symbol).or_else(|| {
-        typed_trees::operator::resolve_named_expression_call(program, call)
-            .map(SelectedCallContract::Operator)
-    })
+    selected_contract_by_symbol(program, target)
 }
 /// Resolve an already retained public callable identity. No spelling or
 /// realization target substitutes for a missing exact contract owner.
@@ -397,6 +473,7 @@ pub(super) fn selected_call_contract_for_parameters<'program>(
     owner: SymbolHandle,
     parameters: &[StateParameter],
 ) -> Option<SelectedCallContract<'program>> {
+    let call = program.expression_table.source_call(call)?;
     selected_call_contract(program, call).or_else(|| {
         let (symbol, _, _) =
             crate::float_semantic_application_for_parameters(program, call, owner, parameters)?;
@@ -412,6 +489,37 @@ fn signature_by_symbol(
     program
         .trait_machine_signature(symbol)
         .map(|(_, signature)| signature)
+}
+
+/// An original retained fact must enter through the exact public copy that
+/// owns this call's formal and type telescope. Copy custody locates the goal;
+/// the ordinary runtime prefix still proves it before the enclosing call.
+pub(super) fn owner_requires_expression(
+    program: &dyn crate::CheckingInput,
+    owner: &SelectedCallContract<'_>,
+    fact: arena::Handle<ProofFact>,
+    expression: ExpressionHandle,
+) -> ExpressionHandle {
+    match owner {
+        SelectedCallContract::Signature(signature)
+        | SelectedCallContract::DynamicSlot { signature, .. } => {
+            program.applied_requirement_contract_expression(
+                signature, &SignatureContractKind::Requires, fact, expression,
+            )
+        }
+        _ => {
+            if owner_contracts(program, owner)
+                .filter(|contract| contract.kind == SignatureContractKind::Requires)
+                .flat_map(|contract| contract.facts.handles())
+                .any(|required| (!fact.is_valid() || required == fact)
+                    && matches!(program.proof_facts.get(required), ProofFact::Expression(required) if *required == expression))
+            {
+                expression
+            } else {
+                ExpressionHandle::invalid()
+            }
+        }
+    }
 }
 
 pub(super) fn owner_symbol(owner: &SelectedCallContract<'_>) -> SymbolHandle {
@@ -753,18 +861,21 @@ pub(super) fn fact_roots(
 /// Declaration validation also checks every requirement's formation, but it
 /// cannot justify a cycle of mutually dependent contracts. Check just those
 /// dependencies, not body recursion (whose well-foundedness has another owner).
-fn requirements_are_acyclic(
-    program: &dyn crate::CheckingInput,
-    owner: &SelectedCallContract<'_>,
+fn requirements_are_acyclic<'program>(
+    program: &'program dyn crate::CheckingInput,
+    owner: &SelectedCallContract<'program>,
     active: &mut Vec<SymbolHandle>,
-    complete: &mut Vec<SymbolHandle>,
+    complete: &mut Vec<SelectedCallContract<'program>>,
 ) -> bool {
     let symbol = owner_symbol(owner);
-    if complete.contains(&symbol) {
-        return true;
-    }
     if active.contains(&symbol) {
         return false;
+    }
+    if complete
+        .iter()
+        .any(|completed| completed.same_contract_view(owner))
+    {
+        return true;
     }
     active.push(symbol);
     let mut pending = Vec::new();
@@ -778,7 +889,9 @@ fn requirements_are_acyclic(
         }))
     });
     active.pop();
-    complete.push(symbol);
+    if !cyclic {
+        complete.push(*owner);
+    }
     !cyclic
 }
 
@@ -885,7 +998,7 @@ fn arithmetic_requirement(
             .collect(),
     };
     matches!(
-        super::scoped_arithmetic::scoped_arithmetic_implication_for_declaration(
+        super::scoped_arithmetic::scoped_arithmetic_implication(
             program,
             caller.symbol(),
             &hypotheses,

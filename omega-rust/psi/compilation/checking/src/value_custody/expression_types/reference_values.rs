@@ -857,6 +857,15 @@ fn selected_value_type(
         ExpressionNode::Call(_) if forwarding_root.is_none() => {
             crate::machine_calls::calls::call_result_type(program, expression)
         }
+        ExpressionNode::Cast(cast) if forwarding_root.is_none() => {
+            super::cast_result_type_reference(program, cast)
+        }
+        ExpressionNode::StructLiteral(_) if forwarding_root.is_none() => {
+            let reference = program
+                .expression_table
+                .constructed_value_type_reference(expression);
+            reference.is_valid().then_some(reference)
+        }
         ExpressionNode::Member(member) => {
             if forwarding_root.is_none()
                 && let ExpressionNode::Name(root) =

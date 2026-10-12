@@ -826,6 +826,44 @@ impl<'program> CallFrameResolver<'program> {
         .map_or_else(NormalizedWriteFrame::opaque, NormalizedWriteFrame::complete)
     }
 
+    /// The callee's writes only. Ordered expression traversal owns the
+    /// receiver/argument effects before entering this exact invocation.
+    pub(crate) fn value_call_write_frame(
+        &self,
+        current_machine: &'program Machine,
+        expression: ExpressionHandle,
+    ) -> NormalizedWriteFrame {
+        let Some(call) = self.program.expression_table.source_call_node(expression) else {
+            return NormalizedWriteFrame::opaque();
+        };
+        let Some(machine_symbols) = self.machine_symbols(current_machine) else {
+            return NormalizedWriteFrame::opaque();
+        };
+        with_caller_origins(
+            self.program,
+            current_machine,
+            &self.tables.symbols,
+            CallerWriteSite::Expression(expression),
+            &self.caches.state_write_collections,
+            |inference, prefix| {
+                let mut written = Vec::new();
+                collect_value_call_written_paths(
+                    self.program,
+                    expression,
+                    call,
+                    current_machine,
+                    &machine_symbols,
+                    &self.tables.symbols,
+                    inference,
+                    &mut written,
+                    prefix,
+                )?;
+                Some(written)
+            },
+        )
+        .map_or_else(NormalizedWriteFrame::opaque, NormalizedWriteFrame::complete)
+    }
+
     /// Aggregate only the value-position calls embedded in a statement. The
     /// statement-position call itself is handled separately by
     /// `may_write_paths`; its receiver is a path, not an evaluated expression.
@@ -1052,177 +1090,24 @@ pub(super) fn collect_expression_call_written_paths(
         }
         ExpressionNode::Atomic(atomic) => visit(atomic.value)?,
         ExpressionNode::Call(call) => {
+            let call = program.expression_table.source_call(call)?;
             if call.receiver.is_valid() {
                 visit(call.receiver)?;
             }
             for argument in program.expression_table.expression_handles(call.arguments) {
                 visit(*argument)?;
             }
-            let receiver_members = if call.receiver.is_valid() {
-                receiver_member_chain(program, call.receiver)
-            } else {
-                Some(Vec::new())
-            };
-            // Reserved value/view builtins are operand operations, not machine
-            // calls. They may read their operands or create a view, but they do
-            // not write caller storage. Keep this list aligned with the value
-            // call validation exemptions below so frame consumers do not turn
-            // `min`/`max` reductions into opaque whole-receiver clobbers.
-            // A boundary member with the same spelling still has its declared
-            // receiver and argument reach; spelling cannot bypass resolution.
-            if value_builtin_has_empty_write_frame(program, call)
-                && !super::boundary_calls::selected_boundary_signature(program, call.target_symbol)
-                && !super::boundary_calls::expression_receiver_requires_boundary_frame(
-                    program,
-                    current_machine,
-                    call.receiver,
-                )
-                && super::machine_state_by_symbol(program, call.target_symbol).is_none()
-                && super::boundary_calls::requirement_signature_for_site(
-                    program,
-                    current_machine,
-                    receiver_members.as_deref().unwrap_or(&[]),
-                    call.target.as_str(),
-                    super::caller_aliases::CallerWriteSite::Expression(expression),
-                )
-                .is_none()
-                && !receiver_members.as_deref().is_some_and(|receiver| {
-                    receiver_requires_boundary_frame(
-                        program,
-                        current_machine,
-                        machine_symbols,
-                        symbols,
-                        receiver,
-                    )
-                })
-            {
-                return Some(());
-            }
-            let exact_receiver = receiver_members.is_some();
-            // A computed call or match receiver has no member spelling, but a
-            // proven divergent candidate set plus its declared referent data
-            // may still resolve the callee by type. Everything else without a
-            // resolvable target keeps failing closed.
-            if !exact_receiver
-                && super::machine_state_by_symbol(program, call.target_symbol).is_none()
-                && super::boundary_calls::requirement_signature_by_target(
-                    program,
-                    call.target_symbol,
-                )
-                .is_none()
-                && !matches!(
-                    program.expression_table.expression(call.receiver),
-                    ExpressionNode::Call(_) | ExpressionNode::Match(_)
-                )
-            {
-                return None;
-            }
-            let (receiver_members, receiver_origins, receiver_data_name) =
-                super::receiver_frame_origins(
-                    program,
-                    current_machine,
-                    call.receiver,
-                    symbols,
-                    inference,
-                )?;
-            if !exact_receiver
-                && !super::call_trees::receiver_expression_preserves_origin(
-                    program,
-                    current_machine,
-                    call.receiver,
-                    machine_symbols,
-                    symbols,
-                    inference,
-                )
-            {
-                return None;
-            }
-            let arguments = program.expression_table.expression_handles(call.arguments);
-            let argument_types = super::call_targets::call_argument_types(
+            collect_value_call_written_paths(
                 program,
-                current_machine,
-                call.target_symbol,
-                call.target.as_str(),
-                &receiver_members,
-                CallerWriteSite::Expression(expression),
-                symbols,
-            );
-            let argument_origins = origins.argument_origins(
-                program,
+                expression,
+                call,
                 current_machine,
                 machine_symbols,
                 symbols,
                 inference,
-                arguments,
-                &argument_types,
+                written,
+                origins,
             )?;
-            let has_divergent_actual = arguments
-                .iter()
-                .any(|argument| origins.mentions_divergent(program, *argument));
-            let probe_paths = |paths: KnownWrittenPathsForParts, inference: &mut FrameInference| {
-                paths(
-                    program,
-                    current_machine,
-                    machine_symbols,
-                    symbols,
-                    &receiver_members,
-                    call.target.as_str(),
-                    CallerWriteSite::Expression(expression),
-                    arguments,
-                    inference,
-                )
-            };
-            let paths = known_call_written_paths_for_parts(
-                program,
-                call.target_symbol,
-                call.target.as_str(),
-                &receiver_members,
-                &receiver_origins,
-                receiver_data_name.as_deref(),
-                arguments,
-                current_machine,
-                machine_symbols,
-                symbols,
-                inference,
-                Some(&argument_origins),
-            )
-            .or_else(|| {
-                if !exact_receiver {
-                    return None;
-                }
-                probe_paths(known_boundary_call_written_paths_for_parts, inference)
-            })
-            .or_else(|| {
-                // Requirement receivers resolve by their single chain or
-                // origin; a divergent candidate set names neither.
-                probe_paths(
-                    super::boundary_calls::known_requirement_call_written_paths_for_parts,
-                    inference,
-                )
-            })
-            // Even when the callee body is opaque (transitioning, cyclic,
-            // static-machine, or unresolved), ownership still gives a sound
-            // caller-visible floor: it cannot mutate an unpassed caller local.
-            // Conservatively poison the whole receiver (`self` for an implicit
-            // receiver) plus every explicit mutable argument.
-            .or_else(|| {
-                if !exact_receiver || has_divergent_actual {
-                    return None;
-                }
-                syntactic_call_written_paths(
-                    program,
-                    current_machine,
-                    &receiver_members,
-                    arguments,
-                    machine_symbols,
-                    symbols,
-                )
-            })?;
-            for path in origins.close_paths(program, paths) {
-                if !written.contains(&path) {
-                    written.push(path);
-                }
-            }
         }
         ExpressionNode::Binary(binary) => {
             visit(binary.left)?;
@@ -1251,6 +1136,180 @@ pub(super) fn collect_expression_call_written_paths(
             visit(range.end)?;
         }
         typed_trees::literal_expression_pattern!() => {}
+    }
+    Some(())
+}
+
+// The same call operation serves aggregate expression frames and ordered
+// consumers which already executed the receiver and argument children.
+#[allow(clippy::too_many_arguments)]
+fn collect_value_call_written_paths(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    call: &typed_trees::expression::TableCallExpression,
+    current_machine: &Machine,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+    written: &mut Vec<String>,
+    origins: &CallOriginContext<'_>,
+) -> Option<()> {
+    let call = program.expression_table.source_call(call)?;
+    let receiver_members = if call.receiver.is_valid() {
+        receiver_member_chain(program, call.receiver)
+    } else {
+        Some(Vec::new())
+    };
+    // Reserved value/view builtins are operand operations, not machine
+    // calls. They may read their operands or create a view, but they do
+    // not write caller storage. Keep this list aligned with the value
+    // call validation exemptions below so frame consumers do not turn
+    // `min`/`max` reductions into opaque whole-receiver clobbers.
+    // A boundary member with the same spelling still has its declared
+    // receiver and argument reach; spelling cannot bypass resolution.
+    if value_builtin_has_empty_write_frame(program, call)
+        && !super::boundary_calls::selected_boundary_signature(program, call.target_symbol)
+        && !super::boundary_calls::expression_receiver_requires_boundary_frame(
+            program,
+            current_machine,
+            call.receiver,
+        )
+        && super::machine_state_by_symbol(program, call.target_symbol).is_none()
+        && super::boundary_calls::requirement_signature_for_site(
+            program,
+            current_machine,
+            receiver_members.as_deref().unwrap_or(&[]),
+            call.target.as_str(),
+            super::caller_aliases::CallerWriteSite::Expression(expression),
+        )
+        .is_none()
+        && !receiver_members.as_deref().is_some_and(|receiver| {
+            receiver_requires_boundary_frame(
+                program,
+                current_machine,
+                machine_symbols,
+                symbols,
+                receiver,
+            )
+        })
+    {
+        return Some(());
+    }
+    let exact_receiver = receiver_members.is_some();
+    // A computed call or match receiver has no member spelling, but a
+    // proven divergent candidate set plus its declared referent data
+    // may still resolve the callee by type. Everything else without a
+    // resolvable target keeps failing closed.
+    if !exact_receiver
+        && super::machine_state_by_symbol(program, call.target_symbol).is_none()
+        && super::boundary_calls::requirement_signature_by_target(program, call.target_symbol)
+            .is_none()
+        && !matches!(
+            program.expression_table.expression(call.receiver),
+            ExpressionNode::Call(_) | ExpressionNode::Match(_)
+        )
+    {
+        return None;
+    }
+    let (receiver_members, receiver_origins, receiver_data_name) =
+        super::receiver_frame_origins(program, current_machine, call.receiver, symbols, inference)?;
+    if !exact_receiver
+        && !super::call_trees::receiver_expression_preserves_origin(
+            program,
+            current_machine,
+            call.receiver,
+            machine_symbols,
+            symbols,
+            inference,
+        )
+    {
+        return None;
+    }
+    let arguments = program.expression_table.expression_handles(call.arguments);
+    let argument_types = super::call_targets::call_argument_types(
+        program,
+        current_machine,
+        call.target_symbol,
+        call.target.as_str(),
+        &receiver_members,
+        CallerWriteSite::Expression(expression),
+        symbols,
+    );
+    let argument_origins = origins.argument_origins(
+        program,
+        current_machine,
+        machine_symbols,
+        symbols,
+        inference,
+        arguments,
+        &argument_types,
+    )?;
+    let has_divergent_actual = arguments
+        .iter()
+        .any(|argument| origins.mentions_divergent(program, *argument));
+    let probe_paths = |paths: KnownWrittenPathsForParts, inference: &mut FrameInference| {
+        paths(
+            program,
+            current_machine,
+            machine_symbols,
+            symbols,
+            &receiver_members,
+            call.target.as_str(),
+            CallerWriteSite::Expression(expression),
+            arguments,
+            inference,
+        )
+    };
+    let paths = known_call_written_paths_for_parts(
+        program,
+        call.target_symbol,
+        call.target.as_str(),
+        &receiver_members,
+        &receiver_origins,
+        receiver_data_name.as_deref(),
+        arguments,
+        current_machine,
+        machine_symbols,
+        symbols,
+        inference,
+        Some(&argument_origins),
+    )
+    .or_else(|| {
+        if !exact_receiver {
+            return None;
+        }
+        probe_paths(known_boundary_call_written_paths_for_parts, inference)
+    })
+    .or_else(|| {
+        // Requirement receivers resolve by their single chain or
+        // origin; a divergent candidate set names neither.
+        probe_paths(
+            super::boundary_calls::known_requirement_call_written_paths_for_parts,
+            inference,
+        )
+    })
+    // Even when the callee body is opaque (transitioning, cyclic,
+    // static-machine, or unresolved), ownership still gives a sound
+    // caller-visible floor: it cannot mutate an unpassed caller local.
+    // Conservatively poison the whole receiver (`self` for an implicit
+    // receiver) plus every explicit mutable argument.
+    .or_else(|| {
+        if !exact_receiver || has_divergent_actual {
+            return None;
+        }
+        syntactic_call_written_paths(
+            program,
+            current_machine,
+            &receiver_members,
+            arguments,
+            machine_symbols,
+            symbols,
+        )
+    })?;
+    for path in origins.close_paths(program, paths) {
+        if !written.contains(&path) {
+            written.push(path);
+        }
     }
     Some(())
 }

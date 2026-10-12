@@ -1,0 +1,22 @@
+trait Reader {
+    machine constant() -> u32;
+    machine read(selector: &u32) -> u32;
+}
+
+ReadOnly satisfies Reader {
+    machine constant() -> u32 { 3 }
+    machine read(selector: &u32) -> u32 { selector }
+}
+
+machine main() crashes Trap {
+    let selected: dyn Reader = ReadOnly as dyn Reader;
+    let value: u32 = 4;
+    let constant: u32 = Reader::constant(selected);
+    let observed: u32 = Reader::read(selected, &value);
+    transition constant == 3 && observed == 4 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -9,10 +9,428 @@ use crate::typed_trees::type_system::type_identity::identity_context::normalize_
 use crate::{
     TypedTrees,
     expression::ExpressionNode,
-    types::{TypeReferenceHandle, TypeReferenceNode},
+    types::{ConstIntegerMeaning, TypeReferenceHandle, TypeReferenceNode},
 };
 use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
 use symbols::SymbolHandle;
+
+struct DeclaredConstValue {
+    identity: language_semantics::const_value::CanonicalConstIdentity,
+    meaning: ConstIntegerMeaning,
+}
+
+impl DeclaredConstValue {
+    fn untyped(identity: language_semantics::const_value::CanonicalConstIdentity) -> Self {
+        Self {
+            identity,
+            meaning: ConstIntegerMeaning::Unavailable,
+        }
+    }
+}
+
+/// Const slots supply contextual landing, not a spelling-based type identity.
+/// A previously typed value keeps its carrier; only anonymous integer values
+/// acquire the exact declaration's primitive carrier. Bounds and other declared
+/// obligations remain with immutable argument admission.
+pub(super) fn declared_const_argument(
+    program: &TypedTrees,
+    argument: IndexIdentityArgument<'_>,
+    carrier: TypeReferenceHandle,
+    context: &TypeIdentityContext<'_>,
+) -> Option<String> {
+    let primitive = declared_const_carrier(program, carrier, context, 0);
+    let value = declared_const_value(program, argument, primitive, context, 0)?;
+    Some(compound(
+        "named",
+        [
+            super::identity_context::canonical_const_identity_with_meaning(
+                &value.identity,
+                value.meaning,
+            ),
+        ],
+    ))
+}
+
+fn declared_const_value(
+    program: &TypedTrees,
+    argument: IndexIdentityArgument<'_>,
+    declared_primitive: Option<(
+        crate::types::PrimitiveType,
+        numerics::arithmetic::ArithmeticDomain,
+    )>,
+    context: &TypeIdentityContext<'_>,
+    depth: usize,
+) -> Option<DeclaredConstValue> {
+    if depth >= 64 {
+        return None;
+    }
+    let symbol = match argument {
+        IndexIdentityArgument::TypeReference(reference)
+        | IndexIdentityArgument::TypeArgument(reference) => {
+            if !program
+                .type_reference_table
+                .contains_type_reference(reference)
+            {
+                return None;
+            }
+            match program.type_reference_table.type_reference(reference) {
+                TypeReferenceNode::Named { symbol, name } => {
+                    if !symbol.is_valid() {
+                        if let Some(value) = CanonicalConstValue::from_atom(name.as_str()) {
+                            let meaning = program
+                                .type_reference_table
+                                .const_integer_meaning(reference);
+                            if meaning == ConstIntegerMeaning::Anonymous {
+                                let DecodedCanonicalConstValue::Integer { value: integer, .. } =
+                                    value.decode_encoding()?
+                                else {
+                                    return None;
+                                };
+                                return land_declared_integer(
+                                    integer,
+                                    None,
+                                    declared_primitive,
+                                    meaning,
+                                );
+                            }
+                            return Some(DeclaredConstValue {
+                                identity: value.identity(),
+                                meaning,
+                            });
+                        }
+                        if let Some(value) =
+                            language_semantics::const_value::boolean_literal_spelling(name.as_str())
+                        {
+                            return Some(DeclaredConstValue::untyped(
+                                CanonicalConstValue::boolean(value).identity(),
+                            ));
+                        }
+                        return land_declared_integer(
+                            name.as_str().parse().ok()?,
+                            match program
+                                .type_reference_table
+                                .const_integer_meaning(reference)
+                            {
+                                ConstIntegerMeaning::Typed { primitive, .. } => Some(primitive),
+                                _ => None,
+                            },
+                            declared_primitive,
+                            match program
+                                .type_reference_table
+                                .const_integer_meaning(reference)
+                            {
+                                ConstIntegerMeaning::Typed {
+                                    primitive,
+                                    arithmetic_domain,
+                                } => ConstIntegerMeaning::Typed {
+                                    primitive,
+                                    arithmetic_domain,
+                                },
+                                meaning => meaning,
+                            },
+                        );
+                    }
+                    *symbol
+                }
+                TypeReferenceNode::ConstExpression(expression) => {
+                    return declared_const_value(
+                        program,
+                        IndexIdentityArgument::Expression(*expression),
+                        declared_primitive,
+                        context,
+                        depth + 1,
+                    );
+                }
+                _ => return None,
+            }
+        }
+        IndexIdentityArgument::StaticArgument(argument) => {
+            if argument.type_reference.is_valid() {
+                return declared_const_value(
+                    program,
+                    IndexIdentityArgument::TypeReference(argument.type_reference),
+                    declared_primitive,
+                    context,
+                    depth + 1,
+                );
+            }
+            if argument.application.is_some() || argument.evidence_projection.is_some() {
+                return None;
+            }
+            if let Some(literal) = &argument.const_literal {
+                let integer = literal.value_bignum()?;
+                let integer = integer
+                    .to_i64()
+                    .map(i128::from)
+                    .or_else(|| integer.to_u64().map(i128::from))?;
+                let selected_primitive = literal.landing().map(|landing| {
+                    crate::types::PrimitiveType::from_landed_integer(landing.landed_type)
+                });
+                let meaning = literal
+                    .landing()
+                    .map_or(ConstIntegerMeaning::Anonymous, |landing| {
+                        ConstIntegerMeaning::Typed {
+                            primitive: crate::types::PrimitiveType::from_landed_integer(
+                                landing.landed_type,
+                            ),
+                            arithmetic_domain: landing.domain,
+                        }
+                    });
+                return land_declared_integer(
+                    integer,
+                    selected_primitive,
+                    declared_primitive,
+                    meaning,
+                );
+            }
+            if !argument.symbol.is_valid() {
+                let [name] = argument.path.as_ref() else {
+                    return None;
+                };
+                if let Some(value) = CanonicalConstValue::from_atom(name.as_str()) {
+                    return Some(DeclaredConstValue::untyped(value.identity()));
+                }
+                return language_semantics::const_value::boolean_literal_spelling(name.as_str())
+                    .map(|value| {
+                        DeclaredConstValue::untyped(CanonicalConstValue::boolean(value).identity())
+                    });
+            }
+            argument.symbol
+        }
+        IndexIdentityArgument::Expression(expression) => {
+            if !program.expression_table.expression_is_valid(expression) {
+                return None;
+            }
+            match program.expression_table.expression(expression) {
+                ExpressionNode::Boolean(value) => {
+                    return Some(DeclaredConstValue::untyped(
+                        CanonicalConstValue::boolean(*value).identity(),
+                    ));
+                }
+                ExpressionNode::Name(path) => {
+                    let symbol = if path.symbol.is_valid() {
+                        path.symbol
+                    } else if program
+                        .expression_table
+                        .name_path_members(path.members)
+                        .len()
+                        == 1
+                    {
+                        path.head_symbol
+                    } else {
+                        SymbolHandle::invalid()
+                    };
+                    return declared_const_value(
+                        program,
+                        IndexIdentityArgument::Subject(symbol),
+                        declared_primitive,
+                        context,
+                        depth + 1,
+                    );
+                }
+                _ => {}
+            }
+            // This reader evaluates only original closed arithmetic. No flow,
+            // local value or private guarantee supplies a const operand.
+            let value = program.closed_integer_value_in(expression, SymbolHandle::invalid())?;
+            let integer = value
+                .value
+                .to_i64()
+                .map(i128::from)
+                .or_else(|| value.value.to_u64().map(i128::from))?;
+            let meaning =
+                ConstIntegerMeaning::from_closed_value(&value, &program.type_reference_table);
+            return land_declared_integer(integer, value.primitive, declared_primitive, meaning);
+        }
+        IndexIdentityArgument::Subject(symbol) => symbol,
+    };
+    if let Some((actual, outer)) = context.applied_argument(symbol) {
+        return declared_const_value(program, actual, declared_primitive, &outer, depth + 1);
+    }
+    if symbol.is_valid()
+        && let Some((_, actual)) = context
+            .index_substitutions
+            .iter()
+            .find(|(candidate, _)| *candidate == symbol)
+    {
+        return declared_const_value(
+            program,
+            *actual,
+            declared_primitive,
+            &TypeIdentityContext {
+                index_substitutions: &[],
+                ..*context
+            },
+            depth + 1,
+        );
+    }
+    if let Some((ordinal, actual)) = selected(context, symbol) {
+        return declared_const_value(
+            program,
+            IndexIdentityArgument::TypeReference(actual),
+            declared_primitive,
+            &context.replacement_context_at(ordinal),
+            depth + 1,
+        );
+    }
+    // An evaluated named declaration has its own original carrier receipt.
+    // Never recover a forwarded binder or declaration from diagnostic spelling.
+    if !symbol.is_valid() {
+        return None;
+    }
+    let declaration = program.const_declaration_by_symbol(symbol)?;
+    let encoding = declaration.evaluated_value.as_ref()?.encoding()?;
+    let decoded = CanonicalConstValue::new("", encoding, "").decode_encoding()?;
+    let type_name = match decoded {
+        DecodedCanonicalConstValue::Integer { type_name, .. }
+        | DecodedCanonicalConstValue::Array { type_name, .. }
+        | DecodedCanonicalConstValue::Record { type_name, .. }
+        | DecodedCanonicalConstValue::Variant { type_name, .. } => type_name,
+        DecodedCanonicalConstValue::Boolean(_) => "bool".to_owned(),
+        DecodedCanonicalConstValue::Float { .. } => return None,
+    };
+    let meaning = program
+        .type_reference_table
+        .primitive_type(declaration.declared_type)
+        .filter(|primitive| primitive.accepts_integer_literal())
+        .map_or(ConstIntegerMeaning::Unavailable, |primitive| {
+            ConstIntegerMeaning::Typed {
+                primitive,
+                arithmetic_domain: program
+                    .type_reference_table
+                    .arithmetic_domain(declaration.declared_type),
+            }
+        });
+    Some(DeclaredConstValue {
+        identity: language_semantics::const_value::CanonicalConstIdentity {
+            type_name,
+            encoding: encoding.to_owned(),
+        },
+        meaning,
+    })
+}
+
+fn land_declared_integer(
+    integer: i128,
+    selected_primitive: Option<crate::types::PrimitiveType>,
+    declared_primitive: Option<(
+        crate::types::PrimitiveType,
+        numerics::arithmetic::ArithmeticDomain,
+    )>,
+    meaning: ConstIntegerMeaning,
+) -> Option<DeclaredConstValue> {
+    let primitive = selected_primitive.or(declared_primitive.map(|(primitive, _)| primitive))?;
+    let (minimum, maximum) = primitive.integer_bounds()?;
+    if integer < minimum || integer > maximum {
+        return None;
+    }
+    let meaning = if meaning == ConstIntegerMeaning::Anonymous {
+        ConstIntegerMeaning::Typed {
+            primitive,
+            arithmetic_domain: declared_primitive?.1,
+        }
+    } else {
+        meaning
+    };
+    Some(DeclaredConstValue {
+        identity: language_semantics::const_value::CanonicalConstIdentity::integer(
+            primitive.name(),
+            integer,
+        ),
+        meaning,
+    })
+}
+
+fn declared_const_carrier(
+    program: &TypedTrees,
+    carrier: TypeReferenceHandle,
+    context: &TypeIdentityContext<'_>,
+    depth: usize,
+) -> Option<(
+    crate::types::PrimitiveType,
+    numerics::arithmetic::ArithmeticDomain,
+)> {
+    if depth >= 64
+        || !program
+            .type_reference_table
+            .contains_type_reference(carrier)
+    {
+        return None;
+    }
+    match program.type_reference_table.type_reference(carrier) {
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            let (primitive, inherited_domain) =
+                declared_const_carrier(program, *base_type, context, depth + 1)?;
+            let domain = program
+                .type_reference_table
+                .constraints(*constraints)
+                .iter()
+                .find_map(|constraint| {
+                    if let crate::types::TypeConstraintNode::ArithmeticDomain(domain) = constraint {
+                        Some(*domain)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(inherited_domain);
+            Some((primitive, domain))
+        }
+        TypeReferenceNode::Named { symbol, .. } => {
+            let resolve = |actual, outer: &TypeIdentityContext<'_>| {
+                let reference = match actual {
+                    IndexIdentityArgument::TypeReference(reference)
+                    | IndexIdentityArgument::TypeArgument(reference) => reference,
+                    IndexIdentityArgument::StaticArgument(argument) => {
+                        if argument.type_reference.is_valid() {
+                            argument.type_reference
+                        } else {
+                            program
+                                .type_reference_table
+                                .find_named_type_reference(argument.symbol)?
+                        }
+                    }
+                    _ => return None,
+                };
+                declared_const_carrier(program, reference, outer, depth + 1)
+            };
+            if let Some((actual, outer)) = context.applied_argument(*symbol) {
+                return resolve(actual, &outer);
+            }
+            if symbol.is_valid()
+                && let Some((_, actual)) = context
+                    .index_substitutions
+                    .iter()
+                    .find(|(candidate, _)| candidate == symbol)
+            {
+                return resolve(
+                    *actual,
+                    &TypeIdentityContext {
+                        index_substitutions: &[],
+                        ..*context
+                    },
+                );
+            }
+            if let Some((ordinal, actual)) = selected(context, *symbol) {
+                return declared_const_carrier(
+                    program,
+                    actual,
+                    &context.replacement_context_at(ordinal),
+                    depth + 1,
+                );
+            }
+            program.primitive_type_reference(carrier).map(|primitive| {
+                (
+                    primitive,
+                    program.type_reference_table.arithmetic_domain(carrier),
+                )
+            })
+        }
+        _ => None,
+    }
+}
 
 pub(super) fn index_argument(
     program: &TypedTrees,

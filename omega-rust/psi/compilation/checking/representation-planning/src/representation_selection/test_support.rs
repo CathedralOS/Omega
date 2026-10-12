@@ -124,6 +124,7 @@ pub struct Fixture {
 
 fn named_argument(path: &'static str, symbol: SymbolHandle) -> StaticMachineArgument {
     StaticMachineArgument {
+        authored_position: None,
         path: vec![Identifier::generated_static(path)].into_boxed_slice(),
         application: None,
         type_reference: Default::default(),
@@ -375,6 +376,7 @@ pub fn fixture() -> Fixture {
         let expression = typed
             .expression_table
             .insert(ExpressionNode::Call(TableCallExpression {
+                source_call: Default::default(),
                 authored_machine_application: Default::default(),
                 exact_coercion_target: typed_trees::types::TypeReferenceHandle::invalid(),
                 receiver: namespace,

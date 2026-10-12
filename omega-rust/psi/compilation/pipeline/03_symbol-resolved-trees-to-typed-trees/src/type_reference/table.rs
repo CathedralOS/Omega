@@ -124,28 +124,40 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
             let lowered_arguments =
                 lower_type_argument_handles(source_trees, typed_trees, *arguments, exposure)?;
 
-            super::retain_type_reference_selection(
+            let application = super::retain_type_reference_application(
                 source_trees,
                 typed_trees,
                 base_name,
                 *base_symbol,
+                source_trees
+                    .tables
+                    .types
+                    .references
+                    .application_origin(type_reference),
                 exposure,
-                language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
             )?;
-            Ok(typed_trees
-                .type_reference_table
-                .insert(typed::types::TypeReferenceNode::Generic {
-                    base_symbol: *base_symbol,
-                    base_name: crate::lowerer::name::lower_name(base_name),
-                    lifetime_arguments: lifetime_arguments
-                        .iter()
-                        .map(crate::lowerer::name::lower_name)
-                        .collect(),
-                    arguments: lowered_arguments,
-                }))
+            let reference =
+                typed_trees
+                    .type_reference_table
+                    .insert(typed::types::TypeReferenceNode::Generic {
+                        base_symbol: *base_symbol,
+                        base_name: crate::lowerer::name::lower_name(base_name),
+                        lifetime_arguments: lifetime_arguments
+                            .iter()
+                            .map(crate::lowerer::name::lower_name)
+                            .collect(),
+                        arguments: lowered_arguments,
+                    });
+            if application.is_valid() {
+                typed_trees
+                    .type_reference_table
+                    .retain_data_application_origin(reference, application);
+            }
+            Ok(reference)
         }
         resolved::types::TypeReferenceNode::ConstExpression(expression) => {
             let expression = crate::expressions::expression::lower_expression_handle_from_table(
+                source_trees,
                 &source_trees.tables.bodies.expressions,
                 typed_trees,
                 *expression,
@@ -171,7 +183,18 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
             )
         }
         resolved::types::TypeReferenceNode::Named { symbol, name } => {
-            super::lower_named_type_reference(source_trees, typed_trees, *symbol, name, exposure)
+            super::lower_named_type_reference(
+                source_trees,
+                typed_trees,
+                *symbol,
+                name,
+                source_trees
+                    .tables
+                    .types
+                    .references
+                    .application_origin(type_reference),
+                exposure,
+            )
         }
         resolved::types::TypeReferenceNode::Unit => Ok(typed_trees
             .type_reference_table

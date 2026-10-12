@@ -89,7 +89,7 @@ pub struct ServiceReceiverApplication {
 }
 
 impl ServiceReceiverApplication {
-    fn eq_in(
+    pub fn eq_in(
         &self,
         left: &ProviderIdentityTable,
         other: &Self,
@@ -207,7 +207,34 @@ pub struct ServiceMethod {
 impl ServiceMethod {
     /// Semantic equality given the tables each method's identities were
     /// interned into: interned fields compare by resolved text, and a
-    /// process-local mint order never decides equality.
+    /// process-local mint order never decides equality. Required identities
+    /// must resolve to nonempty content before an admission comparison can
+    /// succeed; two unavailable identities never authenticate each other.
+    pub fn content_eq(
+        &self,
+        left_table: &ProviderIdentityTable,
+        other: &Self,
+        right_table: &ProviderIdentityTable,
+    ) -> bool {
+        !left_table.text(self.requirement_identity).is_empty()
+            && !right_table.text(other.requirement_identity).is_empty()
+            && self.termination_premises.iter().all(|premise| {
+                premise
+                    .establishment_routes
+                    .iter()
+                    .all(|route| !left_table.text(route.requirement_identity).is_empty())
+            })
+            && other.termination_premises.iter().all(|premise| {
+                premise
+                    .establishment_routes
+                    .iter()
+                    .all(|route| !right_table.text(route.requirement_identity).is_empty())
+            })
+            && self.eq_in(left_table, other, right_table)
+    }
+
+    // Representation equality remains reflexive for explicit default records;
+    // admission uses content_eq's availability fence before this comparison.
     fn eq_in(
         &self,
         left_table: &ProviderIdentityTable,
@@ -262,7 +289,25 @@ impl ServiceMethod {
 }
 
 impl ServiceProgressPremise {
-    /// As [`ServiceMethod::eq_in`], for the nested progress premises.
+    /// As [`ServiceMethod::content_eq`], for the nested progress premises.
+    /// Empty route rosters retain their original meaning; a present route
+    /// must have nonempty identity content under its issuing table.
+    pub fn content_eq(
+        &self,
+        left_table: &ProviderIdentityTable,
+        other: &Self,
+        right_table: &ProviderIdentityTable,
+    ) -> bool {
+        self.establishment_routes
+            .iter()
+            .all(|route| !left_table.text(route.requirement_identity).is_empty())
+            && other
+                .establishment_routes
+                .iter()
+                .all(|route| !right_table.text(route.requirement_identity).is_empty())
+            && self.eq_in(left_table, other, right_table)
+    }
+
     fn eq_in(
         &self,
         left_table: &ProviderIdentityTable,

@@ -21,3 +21,4 @@ language-core = { path = "../../../../../psi/foundation/language-core" }
 language-semantics = { path = "../../../../../psi/foundation/language-semantics" }
 numerics = { path = "../../../../../psi/foundation/numerics" }
 sha2 = "0.10.9"
+calling-conventions = { path = "../../calling-conventions" }

@@ -51,8 +51,9 @@ impl PreparedLocalProjectNativeRequest {
     /// One native production request covering several exact targets. Their
     /// prepared source shares one candidate preparation, so each package's
     /// binding-independent parse frontier is built once for the union; each
-    /// target still produces under `build_dir/<target>` with its own accepted
-    /// consent.
+    /// target still publishes its artifact under `build_dir/<target>` with its
+    /// own accepted consent. Fresh occurrence staging and the aggregate
+    /// resource budget belong to the whole invocation.
     pub fn for_targets(
         prepared: PreparedLocalProject,
         build_dir: impl Into<PathBuf>,
@@ -183,6 +184,9 @@ pub fn compile_prepared_local_project_for_native_targets(
         .into_iter()
         .filter(|target| target_profiles.contains(&target.profile))
         .collect();
+    if targets.is_empty() {
+        return Vec::new();
+    }
     if source_closure.root_role() != crate::declarations::BuildDeclarationKind::Application {
         return targets
             .into_iter()
@@ -265,9 +269,11 @@ pub fn compile_prepared_local_project_for_native_targets(
         .collect();
     // Staging cleanup is disposal work, not a target outcome; the shared
     // Drop would otherwise swallow it silently.
-    let _ = session.close();
-
-    outcomes
+    session.dispose_batch(
+        outcomes,
+        |outcome| &mut outcome.result,
+        CompilePreparedLocalProjectNativeError::Review,
+    )
 }
 
 fn product_failure(

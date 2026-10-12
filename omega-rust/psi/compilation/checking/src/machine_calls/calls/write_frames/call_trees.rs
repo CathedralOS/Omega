@@ -279,7 +279,7 @@ fn complete_expression_tree(
             }
             PendingNode::CallFrame(expression) => expression,
         };
-        let Some(call) = program.expression_table.call_node(expression) else {
+        let Some(call) = program.expression_table.source_call_node(expression) else {
             return false;
         };
         let arguments = program.expression_table.expression_handles(call.arguments);

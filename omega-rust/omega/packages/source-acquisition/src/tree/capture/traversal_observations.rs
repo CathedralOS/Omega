@@ -39,9 +39,9 @@ pub(crate) enum CapturedLocalEntryKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum SourceTreePolicy {
+pub(crate) enum SourceTreePolicy<'input> {
     /// Mutable local package roots omit paths reserved for resolver or compiler output.
-    LocalPackage,
+    LocalPackage(crate::LocalSourceCapturePolicy<'input>),
     /// Resolver-owned materializations must be hashed exactly as published.
     ExactMaterialized,
 }

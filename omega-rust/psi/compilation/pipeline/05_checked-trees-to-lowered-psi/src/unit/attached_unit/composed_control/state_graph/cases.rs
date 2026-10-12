@@ -139,8 +139,13 @@ fn result_source<'a>(
             if call.structural_result().is_none() {
                 return unsupported("Unit case subject call lost its result");
             }
-            let signature =
-                crate::declarations::target_signature(checked, machine, call.target.state)?;
+            let authored = crate::call_sites::locate(checked, source.symbol, call.coordinate)?;
+            let signature = crate::declarations::target_signature(
+                checked,
+                machine,
+                authored.source_target,
+                authored.application,
+            )?;
             (
                 CaseSubject::Computed,
                 signature.return_type,

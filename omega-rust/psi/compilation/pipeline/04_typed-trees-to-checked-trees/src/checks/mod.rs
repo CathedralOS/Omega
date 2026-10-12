@@ -65,7 +65,6 @@ pub(crate) mod termination;
 use diagnostics::Diagnostic;
 use language_core::OperatorSpelling;
 pub(crate) use operators::{named_operator_route_is_false, operator_route_is_false};
-use symbols::SymbolHandle;
 use typed_trees::expression::BinaryOperator;
 use typed_trees::types::PrimitiveType;
 
@@ -93,7 +92,7 @@ pub(crate) fn check_checked_facts_recording(
     facts: &mut checked_trees::CheckFacts,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
     guard_index: &IncomingGuardIndexCache,
-    proven_machine_contracts: &[(SymbolHandle, Vec<typed_trees::expression::ExpressionHandle>)],
+    proven_machine_contracts: &checked_trees::CheckedSourceContractEntailments,
     expression_intervals: &[validation::ExpressionInterval],
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();

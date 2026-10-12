@@ -43,7 +43,9 @@ pub(crate) fn validate_data_field_types(
             &format!("data `{}`", data_definition.name),
             type_parameters,
             crate::value_custody::type_references::TypeParameterScope {
-                lexical_owner: data_definition.symbol,
+                lexical_owner: typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(
+                    data_definition.symbol,
+                ),
                 type_parameters,
                 lifetime_parameters: &data_definition.lifetime_parameters,
             },
@@ -74,7 +76,10 @@ pub(crate) fn validate_data_field_types(
                         generic_depth: 0,
                     },
                     crate::value_custody::type_references::TypeParameterScope {
-                        lexical_owner: data_definition.symbol,
+                        lexical_owner:
+                            typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(
+                                data_definition.symbol,
+                            ),
                         type_parameters,
                         lifetime_parameters: &data_definition.lifetime_parameters,
                     },

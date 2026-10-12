@@ -10,7 +10,7 @@
 use super::super::{
     CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, LoweringError,
 };
-use crate::unit::attached_unit::call_closure::BoundaryIdentity;
+use crate::unit::attached_unit::CheckedBoundaryIdentity;
 
 use super::bodies::{UnitBody, UnitPlans};
 use super::composed_control::{self, callable::CallableBody};
@@ -39,7 +39,7 @@ pub(super) fn admit<'a>(
     checked: &'a CheckedTrees,
     plans: UnitPlans<'a>,
     closure: &[SymbolHandle],
-    boundaries: &mut Vec<(&'a CheckedBoundaryMachinePlan, BoundaryIdentity)>,
+    boundaries: &mut Vec<(&'a CheckedBoundaryMachinePlan, CheckedBoundaryIdentity)>,
 ) -> Result<Vec<AdmittedBody<'a>>, LoweringError> {
     // Every body's computation roots use the same exact boundary roster; the
     // body's return shape must not decide whether a nested application can
@@ -73,7 +73,7 @@ pub(super) fn retain_call_boundaries<'a, 'o>(
     checked: &CheckedTrees,
     plans: UnitPlans<'a>,
     operations: impl IntoIterator<Item = &'o CheckedUnitEffectOperationPlan>,
-    boundaries: &mut Vec<(&'a CheckedBoundaryMachinePlan, BoundaryIdentity)>,
+    boundaries: &mut Vec<(&'a CheckedBoundaryMachinePlan, CheckedBoundaryIdentity)>,
 ) -> Result<(), LoweringError> {
     for operation in operations {
         for call in operation
@@ -96,7 +96,7 @@ fn retain_nested_boundary_applications<'a>(
     checked: &'a CheckedTrees,
     plans: UnitPlans<'a>,
     machine: SymbolHandle,
-    boundaries: &mut Vec<(&'a CheckedBoundaryMachinePlan, BoundaryIdentity)>,
+    boundaries: &mut Vec<(&'a CheckedBoundaryMachinePlan, CheckedBoundaryIdentity)>,
 ) -> Result<(), LoweringError> {
     let computations = &checked.facts.values.scalar_computations;
     let roots = computations

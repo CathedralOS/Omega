@@ -19,6 +19,7 @@ pub(super) fn replay_provider_executions(
     foreign_calls: &[ObjectForeignCall],
     selected_provider_plans: &[NativeSelectedProviderPlan],
     provider_executions: &[NativeProviderExecution],
+    authority: &effects::TerminalAuthorityClosureReviewReceipt,
 ) -> Result<(), ProviderExecutionReplayError> {
     let mut required_executions = BTreeSet::new();
     for installed in boundary_settlements {
@@ -32,12 +33,27 @@ pub(super) fn replay_provider_executions(
         else {
             continue;
         };
+        if execution.direct_foreign_realization.is_some() {
+            return Err(ProviderExecutionReplayError::Shared(
+                "direct foreign execution retained a non-foreign settlement",
+            ));
+        }
         required_executions.insert((
-            module
-                .identities
-                .text(boundary.identity)
-                .unwrap_or_default()
-                .to_string(),
+            selected_plan_for_execution(
+                selected_provider_plans,
+                execution.provider_plan_report_identity,
+            )
+            .and_then(|plan| {
+                plan.selected_requirement_identity(
+                    module
+                        .identities
+                        .text(boundary.identity)
+                        .unwrap_or_default(),
+                )
+                .ok_or("native artifact settlement names an absent selected requirement")
+            })
+            .map_err(ProviderExecutionReplayError::Shared)?
+            .to_owned(),
             execution.provider_plan_report_identity,
             execution.provider_execution_report_identity,
             execution.provider_execution_report_fingerprint,
@@ -111,6 +127,25 @@ pub(super) fn replay_provider_executions(
             ));
         }
         let execution = foreign.provider_execution;
+        if let Some(commitment) = execution.direct_foreign_realization {
+            let direct = direct_foreign_origin(
+                authority,
+                module
+                    .identities
+                    .text(boundary.identity)
+                    .unwrap_or_default(),
+                commitment,
+            )
+            .map_err(ProviderExecutionReplayError::Shared)?;
+            validate_direct_foreign_binding(
+                direct,
+                foreign,
+                &module.identities,
+                authority.target(),
+            )
+            .map_err(ProviderExecutionReplayError::Shared)?;
+            continue;
+        }
         validate_foreign_provider_binding(
             module
                 .identities
@@ -118,15 +153,24 @@ pub(super) fn replay_provider_executions(
                 .unwrap_or_default(),
             foreign,
             selected_provider_plans,
-            &module.identities,
         )
         .map_err(ProviderExecutionReplayError::Shared)?;
         required_executions.insert((
-            module
-                .identities
-                .text(boundary.identity)
-                .unwrap_or_default()
-                .to_string(),
+            selected_plan_for_execution(
+                selected_provider_plans,
+                execution.provider_plan_report_identity,
+            )
+            .and_then(|plan| {
+                plan.selected_requirement_identity(
+                    module
+                        .identities
+                        .text(boundary.identity)
+                        .unwrap_or_default(),
+                )
+                .ok_or("native artifact foreign call names an absent selected requirement")
+            })
+            .map_err(ProviderExecutionReplayError::Shared)?
+            .to_owned(),
             execution.provider_plan_report_identity,
             execution.provider_execution_report_identity,
             execution.provider_execution_report_fingerprint,
@@ -148,25 +192,30 @@ pub(super) fn validate_foreign_provider_binding(
     requirement: &str,
     foreign: &ObjectForeignCall,
     selected_provider_plans: &[NativeSelectedProviderPlan],
-    identities: &terminal_psi::TerminalIdentityTable,
 ) -> Result<(), &'static str> {
-    // The admitted contribution indexes the selection facts table carried
-    // beside the plan's family realizations, never the module's table.
-    let binding_identities = selected_provider_plans
-        .iter()
-        .find(|plan| {
-            plan.report_identity == foreign.provider_execution.provider_plan_report_identity
-        })
-        .map(|plan| plan.family_realization_identities())
-        .unwrap_or(identities);
-    if foreign.binding.requirement_identity(binding_identities) != Some(requirement)
+    let selected_plan = selected_plan_for_execution(
+        selected_provider_plans,
+        foreign.provider_execution.provider_plan_report_identity,
+    )?;
+    let selected_requirement = selected_plan
+        .selected_requirement_identity(requirement)
+        .ok_or("native external call names an absent selected requirement")?;
+    // Contributions retain the original selected row in its own issuing table.
+    let binding_identities = selected_plan.selection_identities();
+    if foreign.binding.requirement_identity(binding_identities) != Some(selected_requirement)
         || !foreign.binding.has_valid_entry_mechanism()
     {
         return Err("native external call binding differs from its requirement");
     }
     if let Some((_, contribution)) = foreign.binding.import() {
+        if !matches!(
+            contribution.provider_plan_commitment(),
+            task_plans::SameStackExecutionCommitment::SelectedProvider(_)
+        ) {
+            return Err("selected foreign call carries a direct execution commitment");
+        }
         validate_foreign_stack_contribution(
-            requirement,
+            selected_requirement,
             foreign.provider_execution,
             binding_identities
                 .text(contribution.requirement_identity())
@@ -176,15 +225,12 @@ pub(super) fn validate_foreign_provider_binding(
             selected_provider_plans,
         )?;
     } else if let Some(kernel) = foreign.binding.system_call() {
-        if !selected_provider_plans.iter().any(|plan| {
-            plan.report_identity == kernel.provider_plan_report_identity
-                && plan.report_identity == foreign.provider_execution.provider_plan_report_identity
-                && *plan.plan_digest.as_bytes() == kernel.provider_plan_commitment
-                && plan
-                    .requirement_identities
-                    .binary_search_by(|candidate| candidate.as_str().cmp(requirement))
-                    .is_ok()
-        }) {
+        if kernel.direct_foreign_realization.is_some() {
+            return Err("selected kernel entry carries direct custody");
+        }
+        if selected_plan.report_identity != kernel.provider_plan_report_identity
+            || *selected_plan.plan_digest.as_bytes() != kernel.provider_plan_commitment
+        {
             return Err("native kernel entry differs from its selected provider commitment");
         }
         if foreign.x86_floating_control.is_some()
@@ -254,6 +300,22 @@ impl ProviderExecutionReplayError {
 
 type ProviderExecutionReportKey = (String, u64, u64, u64, u64, u64);
 
+fn selected_plan_for_execution(
+    plans: &[NativeSelectedProviderPlan],
+    report_identity: u64,
+) -> Result<&NativeSelectedProviderPlan, &'static str> {
+    let mut matches = plans
+        .iter()
+        .filter(|plan| plan.report_identity == report_identity);
+    let selected = matches
+        .next()
+        .ok_or("native artifact execution names an unselected plan")?;
+    if matches.next().is_some() {
+        return Err("native artifact execution names competing selected plans");
+    }
+    Ok(selected)
+}
+
 pub(super) fn validate_provider_execution_reports(
     selected_provider_plans: &[NativeSelectedProviderPlan],
     provider_executions: &[NativeProviderExecution],
@@ -276,6 +338,38 @@ pub(super) fn validate_provider_execution_reports(
             return Err(
                 "native artifact selected provider requirements are not canonical and unique",
             );
+        }
+        let mut prior_application = None;
+        for row in &plan.requirement_applications {
+            let requirement = plan
+                .selection_identities
+                .text(row.requirement_identity)
+                .filter(|identity| !identity.is_empty())
+                .ok_or("native artifact application lost its issued requirement identity")?;
+            let selected_requirement = plan
+                .selection_identities
+                .text(row.selected_requirement_identity)
+                .filter(|identity| !identity.is_empty())
+                .ok_or("native artifact application lost its original selected row")?;
+            if row.provider_plan_report_identity != plan.report_identity
+                || row.provider_plan_digest.as_bytes() != plan.plan_digest.as_bytes()
+                || !plan.contains_requirement(requirement)
+                || prior_application.is_some_and(|prior| prior >= requirement)
+                || plan.family_realization_rows.iter().any(|family| {
+                    (plan.selection_identities.text(family.head_identity) == Some(requirement)
+                        || plan.selection_identities.text(family.member_identity)
+                            == Some(requirement))
+                        && plan
+                            .selection_identities
+                            .text(family.selected_requirement_identity)
+                            != Some(selected_requirement)
+                })
+            {
+                return Err(
+                    "native artifact application changed its exact selected plan association",
+                );
+            }
+            prior_application = Some(requirement);
         }
     }
 
@@ -301,11 +395,7 @@ pub(super) fn validate_provider_execution_reports(
         else {
             return Err("native artifact provider execution names an unselected plan");
         };
-        if plan
-            .requirement_identities
-            .binary_search_by(|identity| identity.as_str().cmp(execution.requirement_identity()))
-            .is_err()
-        {
+        if !plan.contains_selected_requirement(execution.requirement_identity()) {
             return Err("native artifact provider execution is absent from its selected plan");
         }
         reported_executions.insert((
@@ -350,4 +440,137 @@ pub(super) fn validate_foreign_stack_contribution(
         );
     }
     Ok(())
+}
+
+/// Recover one retained direct origin from the exact closure, never a selected
+/// row alias. Multiple exercised classifications may name the same immutable
+/// origin; conflicting original records cannot substitute for it.
+pub(crate) fn direct_foreign_origin<'input>(
+    authority: &'input effects::TerminalAuthorityClosureReviewReceipt,
+    callable: &str,
+    commitment: [u8; 32],
+) -> Result<&'input std::sync::Arc<effects::DirectForeignRealization>, &'static str> {
+    let mut original = None;
+    for leaf in authority.leaves() {
+        let effects::TerminalAuthorityClosureOrigin::DirectForeign(record) = leaf.origin() else {
+            continue;
+        };
+        if record.identity() != commitment {
+            continue;
+        }
+        if authority.identities().text(leaf.requirement_identity()) != Some(callable)
+            || record.callable_identity() != callable
+            || record.target().native_target() != authority.target()
+            || original.is_some_and(
+                |prior: &std::sync::Arc<effects::DirectForeignRealization>| {
+                    prior.as_ref() != record.as_ref()
+                },
+            )
+        {
+            return Err("direct foreign closure substituted its original callable or issuer");
+        }
+        original = Some(record);
+    }
+    original.ok_or("direct foreign execution has no retained closure origin")
+}
+
+/// Replay physical custody against the original evaluated direct binding. The
+/// concrete callable and its own module index remain distinct from selection.
+pub(crate) fn validate_direct_foreign_binding(
+    direct: &effects::DirectForeignRealization,
+    foreign: &ObjectForeignCall,
+    identities: &terminal_psi::TerminalIdentityTable,
+    target: target::NativeTarget,
+) -> Result<(), &'static str> {
+    let expected =
+        target_operations::ProviderExecutionBinding::from_direct_foreign(direct.identity())
+            .ok_or("direct foreign execution has an absent commitment")?;
+    if foreign.provider_execution != machine_code::ProviderExecutionRecord::from(expected)
+        || direct.target().native_target() != target
+        || direct.boundary_entry_plan() != Some(&foreign.binding.boundary_entry_plan)
+        || foreign.binding.native_target() != Some(target)
+        || !foreign.binding.has_valid_entry_mechanism()
+        || foreign.binding.requirement_identity(identities) != Some(direct.callable_identity())
+    {
+        return Err(
+            "direct foreign call differs from its retained declaration or calling contract",
+        );
+    }
+    match (direct.binding(), &foreign.binding.mechanism) {
+        (
+            effects::DirectForeignBinding::Import(evaluated),
+            target_operations::NormalizedForeignCallMechanism::Import {
+                locator,
+                same_stack_contribution,
+            },
+        ) if locator == evaluated.locator()
+            && same_stack_contribution.provider_plan_commitment()
+                == task_plans::SameStackExecutionCommitment::DirectForeign(direct.identity())
+            && same_stack_contribution.provider_plan_report_identity()
+                == expected.provider_plan_report_identity().get()
+            && identities.text(same_stack_contribution.requirement_identity())
+                == Some(direct.callable_identity()) => {}
+        (
+            effects::DirectForeignBinding::Syscall(evaluated),
+            target_operations::NormalizedForeignCallMechanism::SystemCall(kernel),
+        ) if kernel.number == evaluated.number()
+            && kernel.target == direct.target()
+            && kernel.direct_foreign_realization == Some(direct.identity())
+            && kernel.provider_plan_commitment == direct.identity()
+            && kernel.provider_plan_report_identity
+                == expected.provider_plan_report_identity().get()
+            && kernel.requirement_identity == direct.callable_identity() =>
+        {
+            if foreign.x86_floating_control.is_some()
+                || foreign.aarch64_floating_control.is_some()
+                || !foreign.callback_addresses.is_empty()
+            {
+                return Err("direct kernel entry carries user-space callback or control custody");
+            }
+        }
+        _ => return Err("direct foreign call substituted its original evaluated mechanism"),
+    }
+    Ok(())
+}
+
+/// Recover the exercised direct intrinsic origin, without replacing its
+/// concrete declaration by a selected abstract requirement or a plan digest.
+pub(crate) fn direct_compiler_intrinsic_origin<'input>(
+    authority: &'input effects::TerminalAuthorityClosureReviewReceipt,
+    callable: &str,
+    execution: target_operations::CompilerBuiltinExecution,
+) -> Result<Option<&'input std::sync::Arc<effects::DirectForeignRealization>>, &'static str> {
+    let mut original = None;
+    for leaf in authority.leaves() {
+        let effects::TerminalAuthorityClosureOrigin::DirectForeign(record) = leaf.origin() else {
+            continue;
+        };
+        if record.callable_identity() != callable {
+            continue;
+        }
+        let effects::DirectForeignBinding::CompilerIntrinsic {
+            execution: meaning, ..
+        } = record.binding()
+        else {
+            continue;
+        };
+        if authority.identities().text(leaf.requirement_identity()) != Some(callable)
+            || record.target().native_target() != authority.target()
+            || leaf.mechanism() != effects::TerminalMechanismIdentity::CompilerIntrinsic(*meaning)
+            || terminal_psi_to_abstract_operations::provider_admission::compiler_builtin_execution(
+                *meaning, None,
+            ) != Some(execution)
+            || original.is_some_and(
+                |prior: &std::sync::Arc<effects::DirectForeignRealization>| {
+                    prior.as_ref() != record.as_ref()
+                },
+            )
+        {
+            return Err(
+                "direct intrinsic closure changed its original declaration or execution issuer",
+            );
+        }
+        original = Some(record);
+    }
+    Ok(original)
 }

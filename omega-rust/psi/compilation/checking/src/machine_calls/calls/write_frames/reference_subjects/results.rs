@@ -14,7 +14,7 @@ pub(super) fn call_expression(
     expression = program
         .expression_table
         .peeled_expression_handle(expression);
-    let call = program.expression_table.call_node(expression)?;
+    let call = program.expression_table.source_call_node(expression)?;
     Some(call)
 }
 

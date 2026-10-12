@@ -435,8 +435,6 @@ fn build_machine_catalog(program: &SymbolResolvedTrees) -> Vec<MachineCatalogEnt
         .machines
         .iter()
         .enumerate()
-        // A target sibling never realizes a conformance of this realization.
-        .filter(|(_, machine)| machine.target.is_none())
         .map(|(ordinal, machine)| MachineCatalogEntry {
             ordinal,
             symbol: machine.symbol,
@@ -509,7 +507,7 @@ fn normalize_one(
                         .is_none_or(|ordinal| requirement.ordinal == ordinal)
             })
             .collect::<Vec<_>>();
-        let realizations = resolve_realizations(authored, machine_catalog);
+        let realizations = resolve_realizations(program, authored, machine_catalog, None);
         let mut matching = Vec::new();
         for candidate in &candidates {
             // Legal same-path overload families share one normalized
@@ -520,7 +518,19 @@ fn normalize_one(
             // declaration symbol rather than collapsing to the leaf name.
             let requirement_shape =
                 result_dispatch_shape(program, candidate.signature.return_type.as_ref());
-            for (machine, state) in &realizations {
+            // The source lookup keeps ambiguity rather than electing its first
+            // overload. Apply the existing dispatch eligibility to the whole
+            // visible roster, not only its two ambiguity witnesses.
+            let overloaded;
+            let applicable = if realizations.len() > 1 {
+                overloaded = resolve_realizations(
+                    program, authored, machine_catalog, Some(&requirement_shape),
+                );
+                &overloaded
+            } else {
+                &realizations
+            };
+            for (machine, state) in applicable {
                 if result_dispatch_shape(program, state.return_type.as_ref()) == requirement_shape {
                     matching.push((*candidate, *machine, *state));
                 }
@@ -767,34 +777,54 @@ fn collect_declared_result_dispatch(
 }
 
 fn resolve_realizations<'catalog>(
+    program: &SymbolResolvedTrees,
     row: &ConformanceRow,
     catalog: &'catalog [MachineCatalogEntry],
+    dispatch_shape: Option<&str>,
 ) -> Vec<(&'catalog MachineCatalogEntry, &'catalog State)> {
-    catalog
-        .iter()
-        .filter(|machine| {
-            row.provisional_realization_ordinal
-                .map_or(machine.name == row.realization_name, |ordinal| {
-                    machine.ordinal == ordinal
+    let entry = |machine: &'catalog MachineCatalogEntry| {
+        if row.realization_state.is_valid() {
+            return machine.states.iter().find(|state| state.symbol == row.realization_state);
+        }
+        let leaf = machine.name.as_str().rsplit_once("::")
+            .map_or(machine.name.as_str(), |(_, leaf)| leaf);
+        machine.states.iter().find(|state| state.name.as_str() == leaf)
+            .or_else(|| machine.states.iter().find(|state| state.name.as_str() == "entry"))
+    };
+    // Already produced rows retain exact declaration/state custody. Generated
+    // member/default rows instead own a construction ordinal until symbols are
+    // installed. Neither route may fall back to another same-spelled machine.
+    if row.realization_machine.is_valid() && !row.realization_state.is_valid()
+        || !row.realization_machine.is_valid() && row.realization_state.is_valid()
+    {
+        return Vec::new();
+    }
+    if row.realization_machine.is_valid() || row.provisional_realization_ordinal.is_some() {
+        return catalog.iter().filter(|machine| {
+            if row.realization_machine.is_valid() {
+                machine.symbol == row.realization_machine
+                    && row.provisional_realization_ordinal.is_none_or(|ordinal| machine.ordinal == ordinal)
+            } else {
+                Some(machine.ordinal) == row.provisional_realization_ordinal
+            }
+        }).filter_map(|machine| entry(machine).map(|state| (machine, state))).collect();
+    }
+    let selected = program.symbols.lookup_signature_free_top_level_from_source_matching(
+        row.realization_name.as_str(),
+        &[symbols::SymbolKind::Machine],
+        row.authored_realization_source_span.unwrap_or_else(|| row.realization_name.source_span()),
+        |symbol| catalog.iter().find(|machine| machine.symbol == symbol)
+            .and_then(entry).is_some_and(|state| {
+                dispatch_shape.is_none_or(|shape| {
+                    result_dispatch_shape(program, state.return_type.as_ref()) == shape
                 })
-        })
-        .filter_map(|machine| {
-            let leaf = machine
-                .name
-                .as_str()
-                .rsplit_once("::")
-                .map_or(machine.name.as_str(), |(_, leaf)| leaf);
-            machine
-                .states
-                .iter()
-                .find(|state| state.name.as_str() == leaf)
-                .or_else(|| {
-                    machine
-                        .states
-                        .iter()
-                        .find(|state| state.name.as_str() == "entry")
-                })
-                .map(|state| (machine, state))
-        })
-        .collect()
+            }),
+    );
+    catalog.iter().filter(|machine| match selected {
+        symbols::SymbolLookup::NotFound => false,
+        symbols::SymbolLookup::Unique(symbol) => machine.symbol == symbol,
+        symbols::SymbolLookup::Ambiguous { first, second } => {
+            machine.symbol == first || machine.symbol == second
+        }
+    }).filter_map(|machine| entry(machine).map(|state| (machine, state))).collect()
 }

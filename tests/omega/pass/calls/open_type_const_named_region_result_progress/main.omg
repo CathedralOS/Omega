@@ -1,0 +1,6 @@
+machine preserve<'region, Item, const Count: u64>(value: &'region [Item; Count]) -> &'region [Item; Count] { value }
+machine forward<'outer, Payload, const Extent: u64>(value: &'outer [Payload; Extent]) -> &'outer [Payload; Extent] {
+    let captured: &'outer [Payload; Extent] = preserve<Payload, Extent>(value);
+    captured
+}
+machine main() {}

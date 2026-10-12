@@ -177,15 +177,14 @@ impl TypedTrees {
         if binary.operator != crate::expression::BinaryOperator::Equal {
             return None;
         }
-        let (binder, value) = match (
+        let (binder, mut value) = match (
             self.binder_operand(binders, binary.left),
             self.binder_operand(binders, binary.right),
             self.literal_operand(owner, binary.left),
             self.literal_operand(owner, binary.right),
         ) {
-            (Some(binder), None, None, Some(value)) | (None, Some(binder), Some(value), None) => {
-                (binder, value)
-            }
+            (Some(binder), None, None, Some(value)) => (binder, value),
+            (None, Some(binder), Some(value), None) => (binder, value),
             _ => return None,
         };
         let carrier = match &binders[binder].kind {
@@ -193,8 +192,33 @@ impl TypedTrees {
             | crate::data::TypeParameterKind::Value { type_reference } => *type_reference,
             _ => return None,
         };
-        self.value_fits_carrier(carrier, &value.identity)
-            .then_some((binder, value))
+        if !self.value_fits_carrier(carrier, &value.identity) {
+            return None;
+        }
+        if let Some(integer) = value
+            .identity
+            .strip_prefix("named(integer-const(")
+            .and_then(|inner| inner.strip_suffix("))"))
+            .and_then(|inner| inner.parse::<i128>().ok())
+        {
+            // A licensed equality constrains the binder's value, not the RHS
+            // literal's static-argument carrier. Mixed-width comparisons remain
+            // value comparisons; the original binder owns the roster landing.
+            let primitive = self.primitive_type_reference(carrier)?;
+            let identity = language_semantics::const_value::CanonicalConstIdentity::integer(
+                primitive.name(),
+                integer,
+            );
+            let meaning = crate::types::ConstIntegerMeaning::Typed {
+                primitive,
+                arithmetic_domain: self.type_reference_table.arithmetic_domain(carrier),
+            };
+            value.identity = format!(
+                "named({})",
+                crate::type_identity::canonical_const_identity_with_meaning(&identity, meaning)
+            );
+        }
+        Some((binder, value))
     }
 
     /// Whether the operand names one of the signature's declared value

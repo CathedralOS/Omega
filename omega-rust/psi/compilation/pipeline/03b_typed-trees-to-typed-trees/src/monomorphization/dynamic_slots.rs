@@ -23,7 +23,7 @@
 //! This runs once specialization and call rebinding have converged, before
 //! typed validation: a generated body can contain a new selection or selector
 //! call, and validation must judge the final call edges. The authored
-//! requirement stays generic; instantiation only adds type rows and symbols.
+//! requirement stays generic; instantiation adds owned public header graphs and symbols.
 
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -44,14 +44,23 @@ pub(crate) fn instantiate_dynamic_slots(program: &mut TypedTrees) -> Result<(), 
     let Ok(demands) = validation::collect_dynamic_slot_demands(program) else {
         return Ok(());
     };
+    // Every collected demand belongs to this original payload owner. Prepare
+    // it once; fresh slot graphs do not change another demand's substitutions.
+    let source = program.clone();
     for demand in demands {
         let interface_identity = program.normalized_type_identity(demand.selector_type);
         if program
             .dynamic_slot(interface_identity, demand.requirement)
             .is_none()
         {
-            let slot = instantiate_slot(program, &demand, interface_identity)?;
+            let slot = instantiate_slot(&source, program, &demand, interface_identity)?;
+            let symbol = slot.symbol;
             program.dynamic_slots.push(slot);
+            super::finalize_domain_instance_identities(
+                program,
+                &typed_trees::references::DeclarationSelection::from_symbols([symbol]),
+            )
+            .map_err(|diagnostic| vec![diagnostic])?;
         }
     }
     retarget_selector_calls(program);
@@ -59,16 +68,17 @@ pub(crate) fn instantiate_dynamic_slots(program: &mut TypedTrees) -> Result<(), 
 }
 
 fn instantiate_slot(
+    source: &TypedTrees,
     program: &mut TypedTrees,
     demand: &validation::DynamicSlotDemand,
     interface_identity: typed_trees::type_identity::TypeIdentityId,
 ) -> Result<DynamicSlotSignature, Vec<Diagnostic>> {
-    let Some(definition) = program.trait_definition_by_symbol(demand.declaring_trait) else {
+    let Some(definition) = source.trait_definition_by_symbol(demand.declaring_trait) else {
         return Err(vec![Diagnostic::error(
             "dynamic slot names no declaring trait",
         )]);
     };
-    let Some(signature) = program
+    let Some(signature) = source
         .trait_machine_signature_by_symbol(definition, demand.requirement)
         .cloned()
     else {
@@ -76,74 +86,48 @@ fn instantiate_slot(
             "dynamic slot names no requirement of its declaring trait",
         )]);
     };
-    let binders = program
-        .trait_type_parameters(definition)
-        .iter()
-        .map(|parameter| parameter.symbol)
-        .collect::<Vec<_>>();
-    let declaring_arguments = demand
-        .substitution_scope_starts
-        .last()
-        .map_or(&[][..], |start| &demand.type_substitutions[*start..]);
-    if binders.len() != declaring_arguments.len() {
-        return Err(vec![Diagnostic::error(format!(
-            "`dyn {}` supplies {} trait argument(s) for {} parameter(s)",
-            definition.name,
-            declaring_arguments.len(),
-            binders.len()
-        ))]);
+    let scope = demand.application.bind(source).ok_or_else(|| {
+        vec![Diagnostic::error(
+            "dynamic slot lost its original applied scope owner",
+        )]
+    })?;
+    if scope.declaration.symbol != demand.declaring_trait {
+        return Err(vec![Diagnostic::error(
+            "dynamic slot lost its declaring scope",
+        )]);
     }
     let selector_display = program.display_type_reference(demand.selector_type);
-    let instantiation_error = |reason: &'static str| {
-        vec![Diagnostic::error(format!(
-            "requirement `{}` cannot be instantiated for `{selector_display}`: {reason}",
-            signature.name
-        ))]
-    };
-    let formals = program.state_signature_parameters(&signature).to_vec();
-    let mut parameters = Vec::with_capacity(formals.len() + 1);
-    parameters.push(StateParameter {
+    let mut selector = StateParameter {
+        // The selector is a dispatch operand derived from the requirement,
+        // not one of the requirement's authored public formals.
+        symbol: demand.requirement,
         name: Identifier::generated_static("selector"),
         type_reference: demand.selector_type,
         ..StateParameter::default()
-    });
-    for formal in &formals {
-        let mut parameter = formal.clone();
-        parameter.type_reference =
-            instantiate_requirement_type(program, formal.type_reference, demand)
-                .map_err(instantiation_error)?;
-        parameters.push(parameter);
-    }
-    let return_type = instantiate_requirement_type(program, signature.return_type, demand)
-        .map_err(instantiation_error)?;
-
-    // The slot and its formals are fresh symbols derived from the
-    // requirement, so facts keyed by a callee formal never alias the generic
-    // requirement's own formals across two selector applications.
-    let symbol = program.symbols.insert_generated_root_from(
-        demand.requirement,
-        program.symbols.get(demand.requirement).kind,
+    };
+    let copied = super::signature_cloning::copy_applied_signature(
+        source,
+        program,
+        &signature,
+        &scope,
+        &[],
+        std::slice::from_ref(&selector),
         &format!("{selector_display}::{}", signature.name),
-    );
-    let names = parameters
-        .iter()
-        .map(|parameter| parameter.name.as_str().to_owned())
-        .collect::<Vec<_>>();
-    let origins = std::iter::once(demand.requirement)
-        .chain(formals.iter().map(|formal| formal.symbol))
-        .collect::<Vec<_>>();
-    let children = program.symbols.insert_generated_children_from(
-        symbol,
-        origins
-            .iter()
-            .zip(&names)
-            .map(|(origin, name)| (*origin, symbols::SymbolKind::Parameter, name.as_str())),
-    );
-    for (offset, parameter) in (0u32..).zip(parameters.iter_mut()) {
-        parameter.symbol = children.handle_at(offset);
-    }
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
+    selector.symbol = copied.leading_parameter_symbols.handle_at(0);
+    let contract_fact_copies = copied.contract_fact_copies;
+    let applied = copied.signature;
+    let symbol = applied.symbol;
+    let mut parameters = Vec::with_capacity(applied.parameters.len() + 1);
+    parameters.push(selector);
+    parameters.extend_from_slice(program.state_signature_parameters(&applied));
+    let return_type = applied.return_type;
+    let applied_signature = program.trait_machine_signatures.insert(applied);
     Ok(DynamicSlotSignature {
         symbol,
+        applied_signature,
+        contract_fact_copies,
         interface_identity,
         declaring_trait: demand.declaring_trait,
         requirement: demand.requirement,
@@ -157,24 +141,6 @@ fn instantiate_slot(
 /// formals stay the selector and the requirement's instantiated parameters,
 /// while the arguments ride on the call as family actuals that call lowering
 /// turns into the dispatch's row-selection operand.
-/// Instantiate the inner requirement before substituting its outer scopes.
-/// Each telescope is simultaneous: following one replacement through another
-/// binder of that same telescope would capture caller-side parameters.
-fn instantiate_requirement_type(
-    program: &mut TypedTrees,
-    mut reference: typed_trees::types::TypeReferenceHandle,
-    demand: &validation::DynamicSlotDemand,
-) -> Result<typed_trees::types::TypeReferenceHandle, &'static str> {
-    let mut end = demand.type_substitutions.len();
-    for start in demand.substitution_scope_starts.iter().rev() {
-        reference = program
-            .type_reference_table
-            .instantiate(reference, &demand.type_substitutions[*start..end])?;
-        end = *start;
-    }
-    Ok(reference)
-}
-
 fn retarget_selector_calls(program: &mut TypedTrees) {
     let mut statement_targets = Vec::new();
     let mut expression_targets = Vec::new();

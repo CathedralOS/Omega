@@ -216,6 +216,33 @@ pub fn classify_exact_service_parameter_carrier(
     }))
 }
 
+/// Resolve the boundary requirement carried by one original parameter type.
+///
+/// Routed bindings retain the requirement in their exact core-owned application;
+/// their outer data symbol is not the invoked service. Direct boundary parameters
+/// retain their own declaration symbol. This projection grants no provider,
+/// invocation ceiling, or installation authority.
+pub fn exact_parameter_boundary_requirement(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Result<Option<SymbolHandle>, String> {
+    if !type_reference.is_valid() {
+        return Ok(None);
+    }
+    if let Some(parameter) = inspect_service_parameter_contract(program, type_reference)? {
+        return Ok(Some(parameter.carrier.requirement));
+    }
+    let symbol = program
+        .type_reference_table
+        .type_reference(type_reference)
+        .type_symbol(&program.type_reference_table);
+    Ok(program
+        .traits()
+        .iter()
+        .any(|definition| definition.is_boundary && definition.symbol == symbol)
+        .then_some(symbol))
+}
+
 /// Classify one type shell. `Ok(None)` means it is not the exact core
 /// `Service` carrier; `Err` means it does name that carrier but violates the
 /// deliberately narrow first-rung contract. The carrier is closed: an authored

@@ -7,6 +7,7 @@ use crate::{
     static_applications::{
         StaticMachineApplicationHandle, StaticMachineBinding, StaticMachineBindingValue,
     },
+    type_identity::{AppliedTypeIdentityOwner, TypeIdentityQualification},
     types::TypeReferenceHandle,
 };
 use symbols::SymbolHandle;
@@ -61,6 +62,10 @@ impl TypedTrees {
                     && *prepared_demand == demand
                     && source_required == expected)
                     .then_some(AppliedMachineCallable {
+                        caller_lifetime_declaration: self
+                            .expression_table
+                            .static_machine_application(*source)
+                            .binding_declaration,
                         lexical_owner: self
                             .expression_table
                             .static_machine_application(*provider)
@@ -91,6 +96,13 @@ impl TypedTrees {
         caller_substitutions: &[(SymbolHandle, TypeReferenceHandle)],
         caller_lifetime_bindings: &[crate::static_applications::StaticMachineLifetimeBinding],
     ) -> bool {
+        // Product applications may retain a lexical scope from another typed
+        // owner. Reuse must normalize in that actual scope, not reinterpret
+        // its symbol as a declaration in the current program.
+        let application = self.expression_table.static_machine_application(invocation);
+        let Some(owner) = application.type_identity_owner(self) else {
+            return false;
+        };
         self.applied_callable_signatures
             .iter()
             .any(|(_, prepared)| {
@@ -109,10 +121,6 @@ impl TypedTrees {
                     return false;
                 };
                 let operands = self.callable_substitutions.span_or_empty(*caller_operands);
-                let owner = self
-                    .expression_table
-                    .static_machine_application(invocation)
-                    .lexical_owner;
                 let previous_bindings = self
                     .expression_table
                     .static_machine_application_bindings(*provider);
@@ -169,19 +177,26 @@ impl TypedTrees {
         &self,
         left: TypeReferenceHandle,
         right: TypeReferenceHandle,
-        owner: SymbolHandle,
+        owner: AppliedTypeIdentityOwner<'_>,
     ) -> bool {
         // Checking views retain embedded regions even though executable
         // specialization intentionally shares equal erased carriers.
         left == right
-            || crate::type_identity::applied_type_identity(self, left, owner, &[])
-                .zip(crate::type_identity::applied_type_identity(
-                    self,
-                    right,
-                    owner,
-                    &[],
-                ))
-                .is_some_and(|(left, right)| left == right)
+            || crate::type_identity::applied_type_identity(
+                self,
+                left,
+                owner,
+                &[],
+                TypeIdentityQualification::Ordinary,
+            )
+            .zip(crate::type_identity::applied_type_identity(
+                self,
+                right,
+                owner,
+                &[],
+                TypeIdentityQualification::Ordinary,
+            ))
+            .is_some_and(|(left, right)| left == right)
     }
 
     pub fn applied_machine_callables(
@@ -204,6 +219,10 @@ impl TypedTrees {
                     return None;
                 };
                 (*source == invocation).then_some(AppliedMachineCallable {
+                    caller_lifetime_declaration: self
+                        .expression_table
+                        .static_machine_application(*source)
+                        .binding_declaration,
                     lexical_owner: self
                         .expression_table
                         .static_machine_application(*provider)

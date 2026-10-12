@@ -123,7 +123,7 @@ fn evaluate_application_group(
                 source_scoped_top_level_bindings.to_vec(),
             )?;
         const_arguments.extend(
-            syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_machine_const_arguments(
+            syntax_trees_to_symbol_resolved_trees::pre_resolution::original_scope_const_arguments(
                 &syntax,
                 sources.clone(),
                 source_scoped_top_level_bindings.to_vec(),
@@ -147,7 +147,7 @@ fn evaluate_application_group(
     // program, but the call results are not known yet. Provisional leaves let
     // the frontend discover exact dependencies, never authorize execution with
     // those layouts. Retained use keys below fence admission until settlement.
-    let mut probe = syntax.clone();
+    let mut probe = crate::syntax_probes::expression_probe(&syntax);
     crate::syntax_probes::defer_pending_const_qualifications(
         &mut probe,
         &application_destinations
@@ -298,6 +298,7 @@ fn evaluate_application_group(
                         &independent_program,
                         selection_authority.clone(),
                         &independent,
+                        Default::default(),
                     )?,
                 ),
             };
@@ -339,6 +340,9 @@ fn evaluate_application_group(
                 evaluated.origins,
                 evaluated.operators,
             );
+            syntax
+                .type_references
+                .retain_const_argument_match_selections(*argument, evaluated.selected_matches);
             syntax.type_references.replace_type_reference(
                 *argument,
                 TypeReferenceNode::Named(Identifier::generated(folded)),
@@ -376,6 +380,7 @@ fn evaluate_application_group(
             crate::SelectedBuildTimeOperators {
                 operators: &[],
                 provider_bodies: &[],
+                admission: Default::default(),
             },
             &evaluation_domain,
         )?;

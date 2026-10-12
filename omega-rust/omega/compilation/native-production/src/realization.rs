@@ -70,6 +70,13 @@ pub(crate) fn realize_native_artifact(
                     .map(|settlement| native_artifact::TerminalRuntimeHostProvision {
                         boundary: settlement.boundary,
                         realization: settlement.realization.clone(),
+                        direct_foreign_realization: match settlement.execution {
+                            terminal_psi_to_abstract_operations::AdmittedBoundaryExecution::DirectForeign(original)
+                            | terminal_psi_to_abstract_operations::AdmittedBoundaryExecution::DirectCompilerIntrinsic(original, _) => {
+                                Some(std::sync::Arc::clone(original))
+                            }
+                            _ => None,
+                        },
                     })
                     .collect(),
                 &input.plan().boundary_machines,

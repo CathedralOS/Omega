@@ -268,6 +268,10 @@ impl CallableApplication {
         program
             .type_reference_table
             .retain_operand_lifetime_owner(applied, applied_owner)?;
+        let meaning = program.type_reference_table.const_integer_meaning(original);
+        program
+            .type_reference_table
+            .retain_const_integer_meaning(applied, meaning);
         Ok(applied)
     }
 
@@ -401,7 +405,13 @@ impl CallableApplication {
                             .map(
                                 |binding| static_applications::StaticMachineLifetimeBinding {
                                     parameter: binding.parameter.clone(),
-                                    argument: self.lifetime(&binding.argument),
+                                    argument: match &binding.argument {
+                                        static_applications::StaticMachineLifetimeArgument::Named(argument)
+                                            if !self.elided_lifetimes.contains(argument) => {
+                                                self.lifetime(argument).into()
+                                            }
+                                        _ => static_applications::StaticMachineLifetimeArgument::Anonymous,
+                                    },
                                 },
                             )
                             .collect::<Vec<_>>();

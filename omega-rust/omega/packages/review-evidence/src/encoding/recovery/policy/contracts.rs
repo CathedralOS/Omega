@@ -19,6 +19,7 @@ pub(in crate::encoding::recovery) fn callable_contract(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewCallableContract, Error> {
     let (kind, result_case) = super::tag!(reader => {
+        3 => (PackageReviewContractKind::Where, None),
         0 => (PackageReviewContractKind::Requires, None),
         1 => (PackageReviewContractKind::Ensures, None),
         2 => (
@@ -87,6 +88,7 @@ pub(in crate::encoding::recovery) fn binder_argument(
         2 => PackageReviewPropositionBinderValue::Integer(reader.string()?),
         3 => PackageReviewPropositionBinderValue::EvidenceProjection {
             source_kind: super::tag!(reader => {
+                2 => PackageReviewContractKind::Where,
                 0 => PackageReviewContractKind::Requires,
                 1 => PackageReviewContractKind::Ensures,
             }),

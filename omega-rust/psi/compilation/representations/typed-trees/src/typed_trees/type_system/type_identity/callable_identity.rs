@@ -10,6 +10,11 @@
 //! hands out handles: an overload comparison is an integer compare. Only the
 //! declaration memo and reverse lookup belong to a particular revision.
 //!
+//! Produced public headers and machine specializations retain their original
+//! template and complete static application in the parameter coordinate. Unused
+//! const operands, selected declarations and captured regions remain identity
+//! even when every runtime parameter and result dispatch is unchanged.
+//!
 //! Boundary-operator provider slots retain a separate structural key containing
 //! every operand type and the full result type. Their canonical `operator::`
 //! encoding is distinct from named-callable result dispatch; rehydrating that
@@ -119,6 +124,7 @@ struct BoundaryOperatorIdentityParts {
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum DeclarationKey {
     Machine(usize),
+    MachineDeclaration(usize),
     TraitRequirement(usize, usize),
     Operator(usize),
     BoundaryOperatorRequirement(usize),
@@ -287,6 +293,38 @@ impl TypedTrees {
         )
     }
 
+    /// One original physical declaration, including its target sibling and
+    /// complete overload/application coordinates. The ordinary callable key
+    /// intentionally joins target siblings; a foreign execution leaf must not.
+    /// Zero declines a missing or repeated original declaration. Source symbol
+    /// paths are export payload here, never a declaration-selection operation.
+    pub fn machine_declaration_callable_identity(
+        &self,
+        symbol: symbols::SymbolHandle,
+    ) -> CallableIdentityId {
+        if !symbol.is_valid() {
+            return Default::default();
+        }
+        let mut declarations = self
+            .machines()
+            .iter()
+            .filter(|machine| machine.symbol == symbol);
+        let Some(machine) = declarations.next() else {
+            return Default::default();
+        };
+        if declarations.next().is_some() {
+            return Default::default();
+        }
+        self.interned_callable_identity(
+            DeclarationKey::MachineDeclaration(machine as *const Machine as usize),
+            || {
+                let mut parts = self.machine_callable_identity_parts(machine)?;
+                parts.path = self.symbols.display_path(machine.symbol, "::");
+                (!parts.path.is_empty()).then_some(parts)
+            },
+        )
+    }
+
     /// The interned identity of one trait machine requirement overload.
     pub fn trait_requirement_callable_identity(
         &self,
@@ -298,7 +336,7 @@ impl TypedTrees {
                 trait_definition as *const TraitDefinition as usize,
                 requirement as *const StateSignature as usize,
             ),
-            || Some(self.trait_requirement_callable_identity_parts(trait_definition, requirement)),
+            || self.trait_requirement_callable_identity_parts(trait_definition, requirement),
         )
     }
 

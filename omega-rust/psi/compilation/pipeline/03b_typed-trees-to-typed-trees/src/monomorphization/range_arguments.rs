@@ -116,7 +116,12 @@ pub(super) fn infer(
                 program
                     .type_reference_table
                     .named_references()
-                    .find(|(_, symbol, name)| !symbol.is_valid() && *name == value)
+                    .find(|(handle, symbol, name)| {
+                        !symbol.is_valid()
+                            && *name == value
+                            && program.type_reference_table.const_integer_meaning(*handle)
+                                == typed_trees::types::ConstIntegerMeaning::Anonymous
+                    })
                     .map(|(binding, _, _)| binding)
             })
             .or_else(|| {

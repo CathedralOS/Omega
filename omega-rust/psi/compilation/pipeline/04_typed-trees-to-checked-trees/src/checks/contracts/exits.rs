@@ -100,7 +100,7 @@ pub(super) fn live_contexts_prove_scalar_postcondition<'program>(
         fact.payload,
         facts::FactPayload::ContractBooleanExpression { .. }
     ) && (semantic_contexts_prove_contract_fact(program, &facts.semantic, entry_contexts, fact)
-        || super::current_values::proves_exit(program, exit_flow, fact, call_frames)
+        || super::current_values::proves_exit(program, facts, exit_flow, fact, call_frames)
         || scalars::proves(program, facts, exit_flow, entry_contexts, fact, call_frames))
 }
 
@@ -140,17 +140,20 @@ pub(super) fn check_exit_ensures(
             // crossing. Its checked adapter does not originate that authority;
             // direct calls already refuse this authorization in call_contract_evidence.
             // Authored adapter guarantees have no such record and remain obligations.
-            let admitted_boundary_result = facts.proof.contract_facts.iter().any(|(_, inherited)| {
-                inherited.kind == checked_trees::ContractProofFactKind::Ensures
-                    && Some(inherited.fact) == contract
-                    && inherited.qualification_authorization.is_some()
-                    && matches!(
-                        inherited.owner,
-                        checked_trees::ContractProofFactOwner::MachineState { machine_symbol, state_symbol }
-                            if machine_symbol == state_flow.machine_symbol
-                                && state_symbol == state_flow.state_symbol
-                    )
-            });
+            // The exit roster already retains exactly its applicable
+            // invocation and state contracts. Read the original authorization
+            // there instead of inferring applicability from a state-only owner.
+            let admitted_boundary_result = facts
+                .proof
+                .contract_fact_refs
+                .span_or_empty(exit_flow.ensures)
+                .iter()
+                .map(|reference| facts.proof.contract_facts.get(reference.fact))
+                .any(|inherited| {
+                    inherited.kind == checked_trees::ContractProofFactKind::Ensures
+                        && Some(inherited.fact) == contract
+                        && inherited.qualification_authorization.is_some()
+                });
             if admitted_boundary_result {
                 continue;
             }

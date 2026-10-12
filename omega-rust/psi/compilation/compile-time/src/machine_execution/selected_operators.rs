@@ -20,6 +20,19 @@ use typed_trees::{
 /// interpreter runs the real provider body and the caller's result is
 /// installed only after the provider returns.
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BuildTimeProviderAuthority {
+    /// Native settlement supplies a genuine plan commitment. This remains
+    /// distinct from a source choice and cannot be synthesized by Psi.
+    Settled {
+        commitment: checked_trees::CheckedProviderPlanCommitment,
+        provider_type: String,
+    },
+    /// An executed Build choice retains both original Product operand owners.
+    /// Ordinary source checking and invocation admission still precede value publication.
+    Source(crate::SourceProviderBinding),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedBuildTimeProviderBody {
     /// The authored operator expression or its normalized requirement call.
     pub expression: ExpressionHandle,
@@ -34,10 +47,31 @@ pub struct SelectedBuildTimeProviderBody {
     pub provider_machine: symbols::SymbolHandle,
     /// The provider's executable entry state symbol.
     pub provider_state: symbols::SymbolHandle,
-    /// The nominal provider type the settled plan owns.
-    pub provider_type: String,
     /// The settled ProviderPlan commitment; never a name or fingerprint alone.
-    pub provider: checked_trees::CheckedProviderPlanCommitment,
+    pub provider: BuildTimeProviderAuthority,
+}
+
+/// Preserve the declarations that supplied each private call binding in its
+/// ordinary checking closure. Rewriting the call target cannot erase the
+/// original public requirement or the executed Product operand pair.
+pub(crate) fn selected_execution_roots(
+    roots: &[symbols::SymbolHandle],
+    bodies: &[SelectedBuildTimeProviderBody],
+) -> Vec<symbols::SymbolHandle> {
+    let mut roots = roots.to_vec();
+    for body in bodies {
+        roots.extend([body.provider_machine, body.requirement]);
+        if let BuildTimeProviderAuthority::Source(binding) = &body.provider {
+            roots.extend(
+                binding
+                    .selection()
+                    .operands
+                    .iter()
+                    .map(|operand| operand.declaration),
+            );
+        }
+    }
+    roots
 }
 
 impl SelectedBuildTimeProviderBody {
@@ -78,9 +112,50 @@ impl SelectedBuildTimeProviderBody {
             operands,
             provider_machine: provider.symbol,
             provider_state: entry.symbol,
-            provider_type,
-            provider: commitment,
+            provider: BuildTimeProviderAuthority::Settled {
+                commitment,
+                provider_type,
+            },
         })
+    }
+
+    pub(crate) fn prepare_source(
+        program: &TypedTrees,
+        expression: ExpressionHandle,
+        origin: checked_trees::CheckedValueOrigin,
+        requirement: symbols::SymbolHandle,
+        binding: crate::SourceProviderBinding,
+        body: crate::source_constants::SourceProviderBody,
+    ) -> Result<Self, String> {
+        let operands = match program.expression_table.expression(expression) {
+            ExpressionNode::Binary(binary) => vec![binary.left, binary.right],
+            ExpressionNode::Indexed(indexed) => vec![indexed.collection, indexed.index],
+            ExpressionNode::Call(call) => program
+                .expression_table
+                .expression_handles(call.arguments)
+                .to_vec(),
+            _ => {
+                return Err(
+                    "source constant provider use has no original callable operands".into(),
+                );
+            }
+        };
+        Ok(Self {
+            expression,
+            origin,
+            requirement,
+            operands,
+            provider_machine: body.machine,
+            provider_state: body.state,
+            provider: BuildTimeProviderAuthority::Source(binding),
+        })
+    }
+
+    fn retains_provider_authority(&self) -> bool {
+        match &self.provider {
+            BuildTimeProviderAuthority::Settled { commitment, .. } => !commitment.is_empty(),
+            BuildTimeProviderAuthority::Source(_) => true,
+        }
     }
 }
 
@@ -171,11 +246,51 @@ pub(crate) fn prepare_selected_execution(
             .machine(row.provider_machine)
             .map(|machine| machine.name.as_str().to_owned())
             .ok_or_else(|| "selected build-time provider body lost its exact machine".to_owned())?;
-        let arguments = program
-            .expression_table
-            .insert_expression_handles(row.operands.iter().copied());
+        let original = match program.expression_table.expression(row.expression) {
+            ExpressionNode::Call(call) => program
+                .expression_table
+                .source_call(call)
+                .cloned()
+                .ok_or("selected call lost its original invocation")?,
+            ExpressionNode::Binary(_) | ExpressionNode::Indexed(_) => {
+                // Selection already authenticated this source operation and
+                // operand order. Its public callable is the same requirement
+                // ordinary operator-call binding selects, never the provider.
+                let arguments = program
+                    .expression_table
+                    .insert_expression_handles(row.operands.iter().copied());
+                // Selection names the declaration; an ordinary machine call
+                // names its entry. Retain that public entry in the original
+                // invocation just as named source calls do, rather than asking
+                // checking to interpret a machine declaration as a state.
+                let target_symbol = validation::find_machine_head(&program, row.requirement)
+                    .map_or(row.requirement, |(_, entry)| entry.symbol);
+                typed_trees::expression::TableCallExpression {
+                    target_symbol,
+                    target: typed_trees::name::Identifier::generated(
+                        program.symbols.display_path(row.requirement, "::"),
+                    ),
+                    arguments,
+                    ..Default::default()
+                }
+            }
+            _ => return Err("selected provider lost its original callable occurrence".into()),
+        };
+        // This provider row supplies positional operands. Namespace
+        // qualification carries no evaluated storage; a real receiver needs
+        // an authenticated receiving-data operand relation before substitution.
+        if !program.call_has_no_runtime_receiver_for_target(&original) {
+            return Err(
+                "selected build-time provider lacks its source receiver operand relation".into(),
+            );
+        }
+        let arguments = original.arguments;
+        let evidence_arguments = original.evidence_arguments.clone();
+        let operational_acknowledgement = original.operational_acknowledgement;
+        let source_call = program.expression_table.retain_source_call(original)?;
         *program.expression_table.expression_mut(row.expression) =
             ExpressionNode::Call(typed_trees::expression::TableCallExpression {
+                source_call,
                 authored_machine_application: Default::default(),
                 exact_coercion_target: typed_trees::types::TypeReferenceHandle::invalid(),
                 receiver: ExpressionHandle::invalid(),
@@ -188,13 +303,8 @@ pub(crate) fn prepare_selected_execution(
                 private_layout_operation: None,
                 layout_query: None,
                 arguments,
-                evidence_arguments: Box::new([]),
-                operational_acknowledgement:
-                    language_semantics::CallOperationalAcknowledgement {
-                        origin: language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
-                        acknowledges_suspend: false,
-                        acknowledges_block: false,
-                    },
+                evidence_arguments,
+                operational_acknowledgement,
             });
     }
     // Named and normalized Float calls use the same interpreter kernel as
@@ -247,7 +357,10 @@ pub fn validate_selected_provider_bodies(
         program,
         selected,
         "selected build-time provider body",
-        |row| (!row.provider.is_empty()).then_some((row.expression, row.origin.machine_symbol())),
+        |row| {
+            row.retains_provider_authority()
+                .then_some((row.expression, row.origin.machine_symbol()))
+        },
     )?
     else {
         return Ok(());
@@ -359,13 +472,16 @@ pub fn validate_selected_provider_bodies(
         let [provider] = providers.as_slice() else {
             return Err("selected build-time provider machine is not unique".into());
         };
-        if provider.attached_data.as_ref().map(|owner| owner.as_str())
-            != Some(row.provider_type.as_str())
-            || program.attached_data_path(provider).as_deref() != Some(row.provider_type.as_str())
-        {
-            return Err(
-                "selected build-time provider does not belong to its nominal provider type".into(),
-            );
+        if let BuildTimeProviderAuthority::Settled { provider_type, .. } = &row.provider {
+            if provider.attached_data.as_ref().map(|owner| owner.as_str())
+                != Some(provider_type.as_str())
+                || program.attached_data_path(provider).as_deref() != Some(provider_type.as_str())
+            {
+                return Err(
+                    "selected build-time provider does not belong to its nominal provider type"
+                        .into(),
+                );
+            }
         }
         if provider.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
             return Err("selected build-time provider is not a checked body".into());
@@ -394,6 +510,16 @@ pub fn validate_selected_provider_bodies(
                 "selected build-time provider body crash contracts have no build-time execution support"
                     .into(),
             );
+        }
+        if let BuildTimeProviderAuthority::Source(binding) = &row.provider {
+            if !binding.belongs_to(program, row) {
+                return Err("source constant body lost its original issuing namespace".into());
+            }
+            // The source producer retained the original map/edge relation.
+            // Ordinary private checking owns its complete
+            // conformance, contracts and operational ceiling, including named
+            // maps which have no nominal attached-data subject.
+            continue;
         }
         let mut requirements = program
             .machines()

@@ -93,6 +93,7 @@ fn variant_snapshot_retains_payload_only_erased_field() {
             name: DiagnosticName::generated("proof"),
             relevance: language_core::BindingRelevance::Erased,
             type_reference: TypeReference::Named {
+                application_origin: arena::Handle::invalid(),
                 symbol: SymbolHandle::invalid(),
                 name: DiagnosticName::generated("Evidence"),
             },

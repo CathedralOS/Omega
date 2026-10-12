@@ -1,29 +1,21 @@
-//! `size_of`/`align_of` deferral trigger.
+//! Retained target observations in the current source work domain.
 //!
-//! A retained layout query names its subject from the target closure and is
-//! answered only once settlement selects the native target and the opaque
-//! representation selections; the frontend evaluation domain carries no
-//! target facts. Any program containing one therefore keeps its value-
-//! dependent const work pending until `evaluate_selected_operators` resumes
-//! under exact selected execution — the same deferral family range endpoints
-//! and const applications already use — and Omega folds every retained query
-//! (constant and runtime positions alike) under that target custody before
-//! final checking consumes the typed program.
+//! Layout queries keep their original operands while source checking has no
+//! target facts. Only queries belonging to this continuation can defer its
+//! value-dependent work; their answers require an owning portable recipe and
+//! later target geometry, never a fabricated source constant.
 
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 
-/// Whether any typed call still carries a retained data-layout query. The
-/// query itself is already the pending marker: lowering admits the request
-/// only as an explicit `DataLayoutQueryRequest`, so the field's presence is
-/// the complete deferral condition — no admission or selection closure is
-/// needed to know the answer is target-dependent.
-pub(crate) fn pending_layout_queries_need_operator_selection(typed: &TypedTrees) -> bool {
-    typed
-        .expression_table
-        .iter_expressions()
-        .any(|(_, expression)| match expression {
-            ExpressionNode::Call(call) => call.layout_query.is_some(),
-            _ => false,
-        })
+/// A projected continuation owns only its retained source work. Queries from
+/// another completed projection cannot veto this continuation's constants.
+pub(crate) fn pending_layout_queries_in(
+    typed: &TypedTrees,
+    domain: &crate::build_time_evaluation::EvaluationDomain,
+) -> bool {
+    domain.references(typed).expressions.into_iter().any(|expression| {
+        matches!(typed.expression_table.expression(expression),
+            ExpressionNode::Call(call) if call.layout_query.is_some())
+    })
 }

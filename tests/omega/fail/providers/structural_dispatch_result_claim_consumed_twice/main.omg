@@ -1,0 +1,14 @@
+use omega::language::core::drop;
+data Receipt [linear] { code: u64; }
+machine Receipt::drop(receipt: &mut Receipt) {}
+data Bundle { receipt: Receipt; }
+machine issue(code: u64) -> Bundle {
+    let receipt: Receipt = Receipt { code: code };
+    Bundle { receipt: receipt }
+}
+machine consume(receipt: Receipt) { drop(receipt); }
+machine main() {
+    let selected: Bundle = match true { true -> issue(11), _ -> issue(22) };
+    consume(selected.receipt);
+    consume(selected.receipt);
+}

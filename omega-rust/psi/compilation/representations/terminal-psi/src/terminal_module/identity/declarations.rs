@@ -40,6 +40,8 @@ impl NominalDeclarationIdentity {
 
 /// Exact checked callable and initial state from which an executable body is
 /// produced. Optimization preserves this identity, not the source arenas.
+/// Derived equality compares coordinates within one issuing table. Independent
+/// artifacts use [`Self::content_matches`] with both original tables.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CheckedMachineDeclaration {
     pub machine: NominalDeclarationIdentity,
@@ -49,37 +51,48 @@ pub struct CheckedMachineDeclaration {
 }
 
 impl CheckedMachineDeclaration {
-    /// Join checked declarations from distinct artifacts without comparing
-    /// their table-local coordinates. Contract and specialization commitments
-    /// remain exact; matching a name alone cannot substitute another body.
-    pub fn same_identity_as(
+    /// Join complete checked declaration content across independently produced
+    /// modules. Every present nominal identity resolves in its own issuer even
+    /// when other declaration components differ. This establishes declaration
+    /// correspondence, not semantic proof, ABI admission or execution authority.
+    pub fn content_matches(
         &self,
         identities: &TerminalIdentityTable,
         other: &Self,
         other_identities: &TerminalIdentityTable,
-    ) -> bool {
-        if !self
-            .machine
-            .same_identity_as(identities, &other.machine, other_identities)
-            || !self
-                .state
-                .same_identity_as(identities, &other.state, other_identities)
-            || self.contract != other.contract
-        {
-            return false;
-        }
-        match (&self.specialization, &other.specialization) {
-            (None, None) => true,
-            (Some(specialization), Some(other_specialization)) => {
-                specialization.commitment == other_specialization.commitment
-                    && specialization.template.same_identity_as(
-                        identities,
-                        &other_specialization.template,
-                        other_identities,
-                    )
-            }
-            _ => false,
-        }
+    ) -> Result<bool, &'static str> {
+        let machine_matches = identities.identity_content_matches(
+            self.machine.identity(),
+            other_identities,
+            other.machine.identity(),
+        )?;
+        let state_matches = identities.identity_content_matches(
+            self.state.identity(),
+            other_identities,
+            other.state.identity(),
+        )?;
+        let specialization = self
+            .specialization
+            .as_ref()
+            .map(|specialization| {
+                identities
+                    .required_text(specialization.template.identity())
+                    .map(|template| (template, specialization.commitment))
+            })
+            .transpose()?;
+        let other_specialization = other
+            .specialization
+            .as_ref()
+            .map(|specialization| {
+                other_identities
+                    .required_text(specialization.template.identity())
+                    .map(|template| (template, specialization.commitment))
+            })
+            .transpose()?;
+        Ok(machine_matches
+            && state_matches
+            && self.contract == other.contract
+            && specialization == other_specialization)
     }
 }
 

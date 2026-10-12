@@ -25,6 +25,7 @@ package-compilation = { path = "../compilation-inputs" }
 optimization-core = { path = "../../foundation/optimization-core" }
 platform-custody = { path = "../../foundation/platform-custody" }
 target = { path = "../../compilation/backend/target" }
+trust-model = { path = "../../compilation/realization/trust-model" }
 terminal-psi-to-abstract-operations = { path = "../../compilation/pipeline/00_terminal-psi-to-abstract-operations" }
 arena = { path = "../../../psi/foundation/arena" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }

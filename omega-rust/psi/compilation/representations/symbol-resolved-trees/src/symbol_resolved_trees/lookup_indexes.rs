@@ -13,25 +13,12 @@
 use std::sync::Mutex;
 
 use crate::{signature, statement};
-use arena::{Handle, OwnedIndex};
+use arena::OwnedIndex;
 use symbols::{SymbolHandle, SymbolKeyMap};
 
 /// Handle-keyed maps take the integer hasher; none is iterated for output
 /// order, and `usize` slice-start keys hash through the same mixing.
 type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>;
-
-/// One whole-source index behind the per-type-reference origin lookup: the
-/// generic-application origin roster bucketed by instance symbol, and the
-/// data-definition roster bucketed by symbol. The typing stage fills it —
-/// the `malformed` flag records an unreadable origin row so callers keep
-/// their scanned fallback.
-#[derive(Clone, Default)]
-pub struct GenericOriginIndex {
-    pub origins_by_symbol:
-        SymbolKeyMap<SymbolHandle, Vec<Handle<crate::types::GenericApplicationOrigin>>>,
-    pub definitions_by_symbol: SymbolKeyMap<SymbolHandle, Vec<usize>>,
-    pub malformed: bool,
-}
 
 /// Position map for one statement-prefix or parameter slice. The watermark
 /// pattern fits stamped prefixes: a state's `prior_statements` strictly
@@ -56,7 +43,6 @@ struct PrefixPositionMaps {
 /// The resolution indexes owned by one `SymbolResolvedTrees`.
 #[derive(Default)]
 pub struct ResolvedIndexes {
-    generic_origins: OwnedIndex<GenericOriginIndex>,
     data_positions: OwnedIndex<SymbolKeyMap<SymbolHandle, u32>>,
     statements: Mutex<PrefixPositionMaps>,
     parameters: Mutex<PrefixPositionMaps>,
@@ -74,7 +60,6 @@ impl Clone for ResolvedIndexes {
             )
         };
         Self {
-            generic_origins: self.generic_origins.clone(),
             data_positions: self.data_positions.clone(),
             statements: clone_maps(&self.statements),
             parameters: clone_maps(&self.parameters),
@@ -197,26 +182,6 @@ fn parameter_position(
 }
 
 impl ResolvedIndexes {
-    /// The generic-origin roster index the typing stage consumes. `revision`
-    /// is the summed revision of the arenas the builder reads; `build` fills
-    /// the index when it moved.
-    pub fn with_generic_origin_index<R>(
-        &self,
-        revision: u64,
-        build: impl FnOnce(&mut GenericOriginIndex),
-        run: impl FnOnce(&GenericOriginIndex) -> R,
-    ) -> R {
-        self.generic_origins.with_mut(
-            revision,
-            || {
-                let mut index = GenericOriginIndex::default();
-                build(&mut index);
-                index
-            },
-            |index| run(index),
-        )
-    }
-
     /// First position of `symbol` in the `definitions` roster — the index
     /// `OrderedRootArena::find` used to rescan per projection hop. The
     /// arena's own revision is the freshness key.
@@ -258,26 +223,5 @@ impl ResolvedIndexes {
         symbol: SymbolHandle,
     ) -> Option<u32> {
         parameter_position(&self.parameters, parameters, symbol)
-    }
-}
-
-impl super::SymbolResolvedTrees {
-    /// The generic-origin roster index the typing stage consumes. `build`
-    /// fills the index whenever the origin or definition arenas' revisions
-    /// moved since the stored index was built.
-    pub fn with_generic_origin_index<R>(
-        &self,
-        build: impl FnOnce(&mut GenericOriginIndex),
-        run: impl FnOnce(&GenericOriginIndex) -> R,
-    ) -> R {
-        let revision = self
-            .tables
-            .types
-            .generic_application_origins
-            .revision()
-            .wrapping_add(self.tables.declarations.child_type_references.revision())
-            .wrapping_add(self.roots.data_definitions.revision());
-        self.resolution_indexes
-            .with_generic_origin_index(revision, build, run)
     }
 }

@@ -1,0 +1,22 @@
+// Same names and scalar signature as the toolchain entries do not establish
+// their source ownership, sealed catalog identity, or automatic choice.
+data F32 { }
+data FloatNativeProvider { }
+
+pub boundary operator F32::from_i32(value: i32) -> f32;
+
+macos_arm64 machine FloatNativeProvider::from_i32_to_f32(value: i32) -> f32
+    satisfies F32::from_i32
+    via ForeignBinding::CompilerIntrinsic;
+
+// No bounded returns, Requires, casts or authored provider/default selection
+// can hide the ownership pressure behind an unrelated proof refusal.
+machine main() crashes Trap {
+    let converted: f32 = F32::from_i32(7);
+    transition converted == 7.0f32 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

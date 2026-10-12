@@ -12,7 +12,7 @@ use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::data::{TypeParameter, TypeParameterKind};
 use typed_trees::expression::ExpressionNode;
-use typed_trees::machine::{GenericConformanceBound, Machine};
+use typed_trees::machine::GenericConformanceBound;
 use typed_trees::statement::StatementNode;
 use typed_trees::static_applications::{
     StaticMachineApplication, StaticMachineApplicationHandle, StaticMachineBinding,
@@ -34,7 +34,10 @@ pub fn validate_static_machine_bindings(
         .iter()
         .filter_map(
             |expression| match program.expression_table.expression(*expression) {
-                ExpressionNode::Call(call) => Some(call.authored_machine_application),
+                ExpressionNode::Call(call) => program
+                    .expression_table
+                    .source_call(call)
+                    .map(|original| original.authored_machine_application),
                 _ => None,
             },
         )
@@ -76,6 +79,12 @@ pub fn validate_static_machine_bindings(
         .collect::<Vec<_>>();
     applications.extend(providers);
     for handle in applications {
+        for argument_index in 0..2 {
+            if let Some(retained) = program.product_declaration_application(handle, argument_index)
+            {
+                validate_product_application(program, retained, &mut diagnostics);
+            }
+        }
         let application = program.expression_table.static_machine_application(handle);
         let bindings = program
             .expression_table
@@ -98,12 +107,14 @@ pub fn validate_static_machine_bindings(
                         || lifetimes[..ordinal]
                             .iter()
                             .any(|previous| previous.parameter == binding.parameter)
-                        || typed_trees::type_identity::lifetime_parameter_identity(
-                            program,
-                            owner.symbol,
-                            binding.argument.as_str(),
-                        )
-                        .is_none()
+                        || binding.argument.named().is_some_and(|argument| {
+                            typed_trees::type_identity::lifetime_parameter_identity(
+                                program,
+                                owner.symbol,
+                                argument.as_str(),
+                            )
+                            .is_none()
+                        })
                 })
             }) {
                 diagnostics.push(Diagnostic::error("static lifetime tuple does not retain its complete declaration and lexical region custody"));
@@ -113,21 +124,44 @@ pub fn validate_static_machine_bindings(
         if bindings.is_empty() {
             continue;
         }
-        let Some(machine) = program.machine_by_symbol(application.binding_declaration) else {
+        let machine = program.machine_by_symbol(application.binding_declaration);
+        let requirement = program
+            .trait_machine_signature(application.binding_declaration)
+            .filter(|(owner, _)| owner.is_boundary);
+        let Some(name) = machine
+            .map(|machine| &machine.name)
+            .or_else(|| requirement.map(|(_, signature)| &signature.name))
+        else {
             diagnostics.push(Diagnostic::error(format!(
                 "static tuple for `{}` lost its original binding declaration",
                 application.target,
             )));
             continue;
         };
+        let declaration =
+            match typed_trees::static_applications::StaticApplicationDeclaration::for_application(
+                program.typed_program(),
+                application,
+            ) {
+                Ok(declaration) => declaration,
+                Err(reason) => {
+                    diagnostics.push(Diagnostic::error(reason));
+                    continue;
+                }
+            };
         // Calls and instances can retain the same exact tuple. Judge it once,
         // without hashing display strings or aliasing their independently
         // owned application spans. Type operands can mention caller bounds,
         // including inside compounds; forwarded consts also read that scope.
         let scope = application.lexical_owner;
         if judged.iter().any(|(declaration, owner, previous)| {
-            *declaration == machine.symbol
+            *declaration == application.binding_declaration
                 && *owner == scope
+                && program
+                    .expression_table
+                    .static_machine_application(*previous)
+                    .captured_lexical_scope
+                    == application.captured_lexical_scope
                 && program
                     .expression_table
                     .static_machine_application_bindings(*previous)
@@ -141,11 +175,14 @@ pub fn validate_static_machine_bindings(
         }) {
             continue;
         }
-        judged.push((machine.symbol, scope, handle));
-        let parameters = program.machine_type_parameters(machine);
-        let scope_parameters: &[TypeParameter] = program
-            .machine_by_symbol(application.lexical_owner)
-            .map_or(&[], |owner| program.machine_type_parameters(owner));
+        judged.push((application.binding_declaration, scope, handle));
+        let parameters = declaration.parameters();
+        let Some((_, scope_parameters)) = lexical_parameters(program, application) else {
+            diagnostics.push(Diagnostic::error(
+                "static application lost its original lexical capture",
+            ));
+            continue;
+        };
         let mut type_bounds_satisfied = true;
         for binding in bindings {
             let parameter = parameters
@@ -184,21 +221,57 @@ pub fn validate_static_machine_bindings(
                     validate_const_binding(
                         program,
                         application,
-                        machine,
+                        name.as_str(),
                         parameter,
                         *actual,
                         &mut diagnostics,
                     );
                 }
+                StaticMachineBindingValue::Machine(actual) => {
+                    let Some(parameter) = parameter else {
+                        diagnostics.push(Diagnostic::error(
+                            "static callable tuple lost its declared binder",
+                        ));
+                        continue;
+                    };
+                    let TypeParameterKind::Machine { contract } = &parameter.kind else {
+                        diagnostics.push(Diagnostic::error(
+                            "static callable tuple changed its declared parameter kind",
+                        ));
+                        continue;
+                    };
+                    let generic_types = parameters
+                        .iter()
+                        .copied()
+                        .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+                        .collect::<Vec<_>>();
+                    let machine_ordinal = parameters
+                        .iter()
+                        .take_while(|previous| previous.symbol != parameter.symbol)
+                        .filter(|previous| {
+                            matches!(previous.kind, TypeParameterKind::Machine { .. })
+                        })
+                        .count();
+                    crate::machine_calls::machine_parameters::validate_static_machine_operand(
+                        program,
+                        name.as_str(),
+                        parameter,
+                        contract,
+                        actual,
+                        handle,
+                        machine_ordinal,
+                        &actual.display_name(),
+                        &generic_types,
+                        bindings,
+                        &mut diagnostics,
+                    );
+                }
                 StaticMachineBindingValue::RuntimeValue { .. }
-                | StaticMachineBindingValue::Machine(_)
                 | StaticMachineBindingValue::Conformance(_) => {}
             }
         }
         if !type_bounds_satisfied {
-            let open_owner = program
-                .machine_by_symbol(application.lexical_owner)
-                .is_some_and(|owner| !program.machine_type_parameters(owner).is_empty());
+            let open_owner = !scope_parameters.is_empty();
             let tuple = if open_owner {
                 "call tuple"
             } else {
@@ -206,13 +279,13 @@ pub fn validate_static_machine_bindings(
             };
             diagnostics.push(Diagnostic::error(format!(
                 "generic machine `{}` has a {tuple} that does not satisfy its authored type bounds",
-                machine.name,
+                name,
             )));
         }
         let complete = parameters.iter().all(|parameter| match parameter.kind {
             TypeParameterKind::Implementation | TypeParameterKind::Proposition { .. } => true,
             _ => bindings.iter().any(|binding| binding.parameter == parameter.symbol),
-        }) && machine.conformance_bounds.iter().all(|bound| bindings.iter().any(|binding| {
+        }) && declaration.conformance_bounds().iter().all(|bound| bindings.iter().any(|binding| {
             binding.parameter == bound.binder
                 && matches!(&binding.value, StaticMachineBindingValue::Conformance(argument)
                     if !argument.symbol.is_valid()
@@ -228,7 +301,9 @@ pub fn validate_static_machine_bindings(
         });
         forwarded_evidence::validate(
             program,
-            machine,
+            application.binding_declaration,
+            name.as_str(),
+            declaration.conformance_bounds(),
             application,
             bindings,
             program
@@ -239,7 +314,9 @@ pub fn validate_static_machine_bindings(
         if complete {
             validate_conformance_bindings(
                 program,
-                machine,
+                application.binding_declaration,
+                name.as_str(),
+                declaration.conformance_bounds(),
                 application,
                 bindings,
                 program
@@ -256,10 +333,26 @@ pub fn validate_static_machine_bindings(
     }
 }
 
+fn lexical_parameters<'program>(
+    program: &'program dyn crate::CheckingInput,
+    application: &StaticMachineApplication,
+) -> Option<(&'program typed_trees::TypedTrees, &'program [TypeParameter])> {
+    use typed_trees::type_identity::AppliedTypeIdentityOwner;
+    match application.type_identity_owner(program.typed_program())? {
+        AppliedTypeIdentityOwner::Captured(scope) => Some((scope.owner(), scope.type_parameters())),
+        AppliedTypeIdentityOwner::Declaration(symbol) => Some((
+            program.typed_program(),
+            program
+                .machine_by_symbol(symbol)
+                .map_or(&[], |owner| program.machine_type_parameters(owner)),
+        )),
+    }
+}
+
 fn validate_const_binding(
     program: &dyn crate::CheckingInput,
     application: &StaticMachineApplication,
-    machine: &Machine,
+    name: &str,
     parameter: &TypeParameter,
     actual: TypeReferenceHandle,
     diagnostics: &mut Vec<Diagnostic>,
@@ -270,13 +363,15 @@ fn validate_const_binding(
     {
         // An open result tuple may forward its caller's own const binder. It
         // is not a closed value; prove the declared carrier equality instead.
-        let caller = program.machine_by_symbol(application.lexical_owner);
-        let forwarded = caller.and_then(|caller| {
-            program
-                .machine_type_parameters(caller)
-                .iter()
-                .find(|forwarded| forwarded.symbol == *symbol)
-        });
+        let Some((_, scope_parameters)) = lexical_parameters(program, application) else {
+            diagnostics.push(Diagnostic::error(
+                "static application lost its original lexical capture",
+            ));
+            return;
+        };
+        let forwarded = scope_parameters
+            .iter()
+            .find(|forwarded| forwarded.symbol == *symbol);
         if let Some(forwarded) = forwarded
             && let TypeParameterKind::Const {
                 type_reference: expected,
@@ -284,20 +379,30 @@ fn validate_const_binding(
             | TypeParameterKind::Value {
                 type_reference: expected,
             } = parameter.kind
-            && let TypeParameterKind::Const {
-                type_reference: actual,
-            }
-            | TypeParameterKind::Value {
-                type_reference: actual,
-            } = forwarded.kind
-            && program.package_qualified_type_identity(expected)
-                == program.package_qualified_type_identity(actual)
+            && let Some(lexical_owner) = application.type_identity_owner(program.typed_program())
+            && let Some(carrier) =
+                crate::value_custody::type_references::declared_parameter_value_carrier(
+                    program.typed_program(),
+                    lexical_owner,
+                    forwarded,
+                )
+            && crate::value_custody::type_references::declared_value_carriers_match(
+                carrier,
+                crate::value_custody::type_references::DeclaredValueCarrier {
+                    program: program.typed_program(),
+                    type_reference: expected,
+                    lexical_owner:
+                        typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(
+                            parameter.symbol,
+                        ),
+                },
+                typed_trees::type_identity::TypeIdentityQualification::PackageQualified,
+            )
         {
             return;
         }
     }
-    if let Err(mut errors) =
-        crate::validate_closed_const_argument(program, machine.name.as_str(), parameter, actual)
+    if let Err(mut errors) = crate::validate_closed_const_argument(program, name, parameter, actual)
     {
         diagnostics.append(&mut errors);
     }
@@ -305,13 +410,15 @@ fn validate_const_binding(
 
 fn validate_conformance_bindings(
     program: &dyn crate::CheckingInput,
-    machine: &Machine,
+    declaration: SymbolHandle,
+    name: &str,
+    conformance_bounds: &[GenericConformanceBound],
     call: &StaticMachineApplication,
     bindings: &[StaticMachineBinding],
     lifetimes: &[typed_trees::static_applications::StaticMachineLifetimeBinding],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for bound in &machine.conformance_bounds {
+    for bound in conformance_bounds {
         let Some(StaticMachineBinding {
             value: StaticMachineBindingValue::Conformance(argument),
             ..
@@ -324,7 +431,7 @@ fn validate_conformance_bindings(
         let Some(selected) = program.conformance_by_symbol(argument.symbol) else {
             diagnostics.push(Diagnostic::error(format!(
                 "generic machine `{}` binds `{}` to a symbol that is not a named conformance",
-                machine.name, bound.binder_name,
+                name, bound.binder_name,
             )));
             continue;
         };
@@ -341,8 +448,8 @@ fn validate_conformance_bindings(
         if application.trait_definition != carrier.base
             || !conformance_arguments_match(
                 program,
-                machine,
-                call.lexical_owner,
+                declaration,
+                call,
                 bindings,
                 lifetimes,
                 bound,
@@ -351,7 +458,7 @@ fn validate_conformance_bindings(
         {
             diagnostics.push(Diagnostic::error(format!(
                 "generic machine `{}` cannot bind `{}` to conformance `{}`: expected a complete `{}` implementation with the instantiated trait arguments",
-                machine.name, bound.binder_name,
+                name, bound.binder_name,
                 selected.alias.as_ref().map_or("<unnamed>", |name| name.as_str()), bound.trait_name,
             )));
             continue;
@@ -361,7 +468,7 @@ fn validate_conformance_bindings(
                 program,
                 refinement,
                 selected,
-                machine.name.as_str(),
+                name,
                 bound.binder_name.as_str(),
             ));
         }
@@ -370,8 +477,8 @@ fn validate_conformance_bindings(
 
 fn conformance_arguments_match(
     program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    lexical_owner: SymbolHandle,
+    declaration: SymbolHandle,
+    call: &StaticMachineApplication,
     bindings: &[StaticMachineBinding],
     lifetimes: &[typed_trees::static_applications::StaticMachineLifetimeBinding],
     bound: &GenericConformanceBound,
@@ -381,6 +488,9 @@ fn conformance_arguments_match(
         AppliedTypeIdentityScope, IndexIdentityArgument, applied_type_identity,
     };
 
+    let Some(lexical_owner) = call.type_identity_owner(program.typed_program()) else {
+        return false;
+    };
     let substitutions = bindings
         .iter()
         .map(|binding| {
@@ -409,12 +519,13 @@ fn conformance_arguments_match(
         .map(|binding| {
             (
                 binding.parameter.as_str().to_owned(),
-                binding.argument.as_str().to_owned(),
+                binding.argument.scope_argument(),
             )
         })
         .collect::<Vec<_>>();
     let machine_scope = AppliedTypeIdentityScope {
-        declaration: machine.symbol,
+        region_role: typed_trees::type_identity::AppliedTypeIdentityRegionRole::Supplied,
+        declaration,
         arguments: &substitutions,
         lifetimes: &lifetimes,
     };
@@ -440,9 +551,10 @@ fn conformance_arguments_match(
         .lifetime_parameters
         .iter()
         .zip(&application.lifetime_arguments)
-        .map(|(parameter, argument)| (parameter.as_str().to_owned(), argument.clone()))
+        .map(|(parameter, argument)| (parameter.as_str().to_owned(), Some(argument.clone())))
         .collect::<Vec<_>>();
     let actual_scope = AppliedTypeIdentityScope {
+        region_role: typed_trees::type_identity::AppliedTypeIdentityRegionRole::Supplied,
         declaration: conformance.symbol,
         arguments: &actual_arguments,
         lifetimes: &actual_lifetimes,
@@ -452,6 +564,7 @@ fn conformance_arguments_match(
         bound,
         lexical_owner,
         &[machine_scope],
+        typed_trees::type_identity::TypeIdentityQualification::Ordinary,
     );
     let actual = program
         .type_reference_table
@@ -463,10 +576,321 @@ fn conformance_arguments_match(
                 *reference,
                 lexical_owner,
                 &[actual_scope],
+                typed_trees::type_identity::TypeIdentityQualification::Ordinary,
             )
         })
         .collect::<Option<Vec<_>>>();
     required
         .zip(actual)
         .is_some_and(|(required, actual)| required == actual)
+}
+
+/// Admit one relocated descriptor tuple at the same static admission boundary
+/// as executable tuples. The source edge retains exact operand/lifetime arity;
+/// typed bindings alone cannot hide a missing or extra authored operand.
+fn validate_product_application(
+    source: &dyn crate::CheckingInput,
+    retained: &typed_trees::typed_trees::product_applications::ProductDeclarationOperand,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let program = retained.owner.as_ref();
+    let application = program
+        .expression_table
+        .static_machine_application(retained.application);
+    let Some(schema) = crate::compiler_operations::product_application_declaration(
+        program,
+        application,
+        retained.kind,
+    ) else {
+        diagnostics.push(Diagnostic::error(
+            "Product description lost its exact declaration telescope",
+        ));
+        return;
+    };
+    let arguments = program
+        .expression_table
+        .static_machine_application_arguments(retained.application);
+    let bindings = program
+        .expression_table
+        .static_machine_application_bindings(retained.application);
+    let lifetimes = program
+        .expression_table
+        .static_machine_application_lifetimes(retained.application);
+    let parameters = schema
+        .parameters
+        .iter()
+        .map(|parameter| (*parameter).clone())
+        .collect::<Vec<_>>();
+    let source_argument = source
+        .expression_table
+        .static_machine_application_arguments(retained.source_application)
+        .get(retained.argument_index);
+    let Some(source_argument) = source_argument else {
+        diagnostics.push(Diagnostic::error(
+            "Product application lost its authored operand",
+        ));
+        return;
+    };
+    let supplied = source_argument
+        .application
+        .as_ref()
+        .map_or(&[][..], |application| application.arguments.as_ref());
+    let lifetime_arguments = source_argument
+        .application
+        .as_ref()
+        .map_or(&[][..], |application| {
+            application.lifetime_arguments.as_ref()
+        });
+    let captured_count = schema.captured_lifetimes.len();
+    let explicit_lifetime_count = captured_count + schema.invocation_lifetimes.len();
+    if supplied.len() != arguments.len()
+        || !(lifetime_arguments.len() == captured_count
+            || lifetime_arguments.len() == explicit_lifetime_count)
+        || lifetimes.len() != lifetime_arguments.len()
+    {
+        diagnostics.push(Diagnostic::error(
+            "Product requirement application requires its complete static and lifetime telescope",
+        ));
+        return;
+    }
+    let Some(derived) = crate::static_arguments::derive_explicit_static_bindings(
+        program,
+        &parameters,
+        schema.conformance_bounds,
+        arguments,
+    ) else {
+        diagnostics.push(Diagnostic::error(format!(
+            "Product requirement `{}` requires a complete static tuple in declared binder order",
+            schema.name
+        )));
+        return;
+    };
+    if application.registration_operation != retained.declaration
+        || application.binding_declaration != retained.declaration
+        || derived != bindings
+    {
+        diagnostics.push(Diagnostic::error(
+            "Product requirement tuple lost its exact declaration/binder correspondence",
+        ));
+        return;
+    }
+    if let Err(error) = crate::static_arguments::validate_argument_telescope(
+        program,
+        schema.name.as_str(),
+        &parameters,
+        arguments,
+    ) {
+        diagnostics.push(error);
+    }
+    let symbols = crate::TopLevelSymbols::build(program, diagnostics);
+    let caller = match application.type_identity_owner(program) {
+        Some(typed_trees::type_identity::AppliedTypeIdentityOwner::Captured(scope)) => {
+            Some(crate::StaticTypeArgumentOwner::Captured(scope))
+        }
+        Some(typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(symbol)) => program
+            .machine(symbol)
+            .map(crate::StaticTypeArgumentOwner::Machine),
+        None => {
+            diagnostics.push(Diagnostic::error(
+                "Product application lost its original lexical capture",
+            ));
+            return;
+        }
+    };
+    crate::static_arguments::validate_types(program, caller, arguments, &symbols, diagnostics);
+    validate_product_argument_visibility(program, arguments, retained.source_span, diagnostics);
+    for binding in bindings {
+        match &binding.value {
+            StaticMachineBindingValue::Type(actual) => {
+                let parameter = parameters
+                    .iter()
+                    .find(|parameter| parameter.symbol == binding.parameter);
+                if !parameter.is_some_and(|parameter| {
+                    crate::declared_property_requirements(&parameter.bounds)
+                        .iter()
+                        .all(|property| {
+                            crate::type_satisfies_declared_property(
+                                program,
+                                &symbols,
+                                &[],
+                                *actual,
+                                *property,
+                            )
+                        })
+                }) {
+                    diagnostics.push(Diagnostic::error(
+                        "Product requirement type tuple does not satisfy its declaration bounds",
+                    ));
+                }
+            }
+            StaticMachineBindingValue::Const(actual) => {
+                if let Some(parameter) = parameters
+                    .iter()
+                    .find(|parameter| parameter.symbol == binding.parameter)
+                    && let Err(mut errors) = crate::validate_closed_const_argument(
+                        program,
+                        schema.name.as_str(),
+                        parameter,
+                        *actual,
+                    )
+                {
+                    diagnostics.append(&mut errors);
+                }
+            }
+            StaticMachineBindingValue::Machine(actual) => {
+                if let Some(parameter) = parameters
+                    .iter()
+                    .find(|parameter| parameter.symbol == binding.parameter)
+                    && let TypeParameterKind::Machine { contract } = &parameter.kind
+                {
+                    let generic_types = parameters
+                        .iter()
+                        .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+                        .collect::<Vec<_>>();
+                    let machine_ordinal = parameters
+                        .iter()
+                        .take_while(|previous| previous.symbol != parameter.symbol)
+                        .filter(|previous| {
+                            matches!(previous.kind, TypeParameterKind::Machine { .. })
+                        })
+                        .count();
+                    crate::machine_calls::machine_parameters::validate_static_machine_operand(
+                        program,
+                        schema.name.as_str(),
+                        parameter,
+                        contract,
+                        actual,
+                        retained.application,
+                        machine_ordinal,
+                        &actual.display_name(),
+                        &generic_types,
+                        bindings,
+                        diagnostics,
+                    );
+                }
+            }
+            StaticMachineBindingValue::Conformance(actual) => {
+                if schema
+                    .conformance_bounds
+                    .iter()
+                    .any(|bound| bound.binder == binding.parameter)
+                {
+                    continue;
+                }
+                if let Err(error) =
+                    crate::conformance_applications::close_conformance_application(program, actual)
+                {
+                    diagnostics.push(error);
+                }
+            }
+            StaticMachineBindingValue::RuntimeValue { .. } => diagnostics.push(Diagnostic::error(
+                "non-executing Product description cannot capture a Build runtime subject",
+            )),
+        }
+    }
+    let declared_regions = match caller {
+        Some(crate::StaticTypeArgumentOwner::Captured(scope)) => scope.lifetime_parameters(),
+        Some(crate::StaticTypeArgumentOwner::Machine(machine)) => {
+            machine.lifetime_parameters.as_slice()
+        }
+        _ => &[],
+    };
+    for lifetime in lifetimes {
+        // A non-executing Product reference has no invocation input from
+        // which to infer an anonymous region. Its actual stays named in the
+        // original lexical telescope; ordinary calls infer their own inputs.
+        if !lifetime
+            .argument
+            .named()
+            .is_some_and(|argument| declared_regions.contains(argument))
+        {
+            diagnostics.push(Diagnostic::error(
+                "Product application lifetime argument is outside its exact lexical owner",
+            ));
+        }
+    }
+    validate_conformance_bindings(
+        program,
+        schema.symbol,
+        schema.name.as_str(),
+        schema.conformance_bounds,
+        application,
+        bindings,
+        lifetimes,
+        diagnostics,
+    );
+}
+
+fn validate_product_argument_visibility(
+    program: &dyn crate::CheckingInput,
+    arguments: &[typed_trees::expression::StaticMachineArgument],
+    occurrence: source::SourceSpan,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for argument in arguments {
+        if argument.type_reference.is_valid() {
+            validate_product_type_visibility(
+                program,
+                argument.type_reference,
+                occurrence,
+                diagnostics,
+            );
+        }
+        if let Some(application) = &argument.application {
+            validate_product_argument_visibility(
+                program,
+                &application.arguments,
+                occurrence,
+                diagnostics,
+            );
+        }
+    }
+}
+
+fn validate_product_type_visibility(
+    program: &dyn crate::CheckingInput,
+    actual: TypeReferenceHandle,
+    occurrence: source::SourceSpan,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    struct ProductTypes {
+        types: Vec<TypeReferenceHandle>,
+    }
+    impl Extend<SymbolHandle> for ProductTypes {
+        fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, _: T) {}
+    }
+    impl typed_trees::references::TypedReferences for ProductTypes {
+        fn type_reference(&mut self, reference: TypeReferenceHandle) -> bool {
+            if self.types.contains(&reference) {
+                return false;
+            }
+            self.types.push(reference);
+            true
+        }
+    }
+    let mut selected = ProductTypes { types: Vec::new() };
+    typed_trees::references::visit_type_reference(program, &mut selected, actual);
+    for reference in selected.types {
+        let symbol = program.type_reference_table.type_symbol(reference);
+        if !symbol.is_valid() {
+            continue;
+        }
+        if program.symbols.get(symbol).kind == symbols::SymbolKind::BuiltinType {
+            continue;
+        }
+        let visible = program
+            .data_definition_by_symbol(symbol)
+            .is_some_and(|definition| {
+                program.symbols.product_declaration_visible_from_source(
+                    symbol,
+                    definition.is_public,
+                    occurrence,
+                )
+            });
+        if !visible {
+            diagnostics.push(Diagnostic::error(
+                "Product description type operand selects a declaration outside its Product scope",
+            ));
+        }
+    }
 }

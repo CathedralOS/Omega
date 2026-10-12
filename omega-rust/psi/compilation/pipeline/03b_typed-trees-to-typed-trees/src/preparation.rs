@@ -4,11 +4,13 @@
 //! an open typed program. Retained tables are preparation evidence, not a
 //! second program representation or permission to skip checking.
 
+mod admission;
 mod data_applications;
 mod default_domain_zero;
 mod deferred_constants;
 mod opaque_property_receipts;
-mod selections;
+mod product_applications;
+pub(crate) mod selections;
 
 use representation_selections::OpaqueRepresentationSelection;
 use typed_trees::TypedTrees;
@@ -22,6 +24,10 @@ pub struct PreparationRequest<'request> {
     opaque_property_receipts: &'request [validation::OpaqueDataPropertyReceipt],
     opaque_representation_selections: &'request [OpaqueRepresentationSelection],
     wire_compatibility_demands: &'request [language_semantics::wire::WireCompatibilityDemand],
+    static_application_demands:
+        &'request [typed_trees::static_applications::StaticApplicationDemand],
+    assumed_binding_contract_demands:
+        &'request [typed_trees::static_applications::AssumedBindingContractDemand],
 }
 
 impl<'request> PreparationRequest<'request> {
@@ -33,6 +39,8 @@ impl<'request> PreparationRequest<'request> {
             opaque_property_receipts: &[],
             opaque_representation_selections: &[],
             wire_compatibility_demands: &[],
+            static_application_demands: &[],
+            assumed_binding_contract_demands: &[],
         }
     }
 
@@ -50,6 +58,26 @@ impl<'request> PreparationRequest<'request> {
         authority: validation::AsmAuthorityAdmission,
     ) -> Self {
         self.asm_authority = Some(authority);
+        self
+    }
+
+    /// Retain exact non-executing source applications as ordinary elaboration
+    /// demands. Provider and trust selection remain outside this source pass.
+    pub const fn with_static_application_demands(
+        mut self,
+        demands: &'request [typed_trees::static_applications::StaticApplicationDemand],
+    ) -> Self {
+        self.static_application_demands = demands;
+        self
+    }
+
+    /// Retain actual executed endpoint pairs beside their elaboration demands.
+    /// The subsequent source judgment owns this request, not provider planning.
+    pub const fn with_assumed_binding_contract_demands(
+        mut self,
+        demands: &'request [typed_trees::static_applications::AssumedBindingContractDemand],
+    ) -> Self {
+        self.assumed_binding_contract_demands = demands;
         self
     }
 
@@ -82,33 +110,7 @@ impl<'request> PreparationRequest<'request> {
     }
 }
 
-/// One request's complete admission inputs in owned form. A caller retaining
-/// a language judgment keeps this beside it: preparation is a pure function
-/// of the typed program and these inputs, so an equal pair reproduces the
-/// exact preparation and the judgment may be taken without preparing again.
-#[derive(Debug, Clone, PartialEq)]
-pub struct PreparationAdmission {
-    admits_pending_inputs: bool,
-    asm_authority: Option<validation::AsmAuthorityAdmission>,
-    opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
-    opaque_representation_selections: Vec<OpaqueRepresentationSelection>,
-    wire_compatibility_demands: Vec<language_semantics::wire::WireCompatibilityDemand>,
-}
-
-impl PreparationRequest<'_> {
-    /// Snapshot every admission input this request carries. The snapshot is
-    /// the comparison a retained judgment needs; the borrowed slices stay
-    /// construction-time data.
-    pub fn admission(&self) -> PreparationAdmission {
-        PreparationAdmission {
-            admits_pending_inputs: self.admits_pending_inputs,
-            asm_authority: self.asm_authority,
-            opaque_property_receipts: self.opaque_property_receipts.to_vec(),
-            opaque_representation_selections: self.opaque_representation_selections.to_vec(),
-            wire_compatibility_demands: self.wire_compatibility_demands.to_vec(),
-        }
-    }
-}
+pub use admission::PreparationAdmission;
 
 /// Judgments retained while closing the typed program. Its ordinary TypedTrees
 /// form is passed separately; this record is not another program representation.
@@ -117,6 +119,8 @@ pub struct TypedPreparation {
     mathematics: proof::mathematical_declarations::CheckedMathematics,
     opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
     opaque_representation_selections: Vec<OpaqueRepresentationSelection>,
+    assumed_binding_contract_demands:
+        typed_trees::static_applications::AssumedBindingContractDemands,
 }
 
 impl TypedPreparation {
@@ -131,12 +135,14 @@ impl TypedPreparation {
         proof::mathematical_declarations::CheckedMathematics,
         Vec<validation::OpaqueDataPropertyReceipt>,
         Vec<OpaqueRepresentationSelection>,
+        typed_trees::static_applications::AssumedBindingContractDemands,
     ) {
         (
             self.admits_pending_inputs,
             self.mathematics,
             self.opaque_property_receipts,
             self.opaque_representation_selections,
+            self.assumed_binding_contract_demands,
         )
     }
 }
@@ -225,6 +231,16 @@ pub fn prepare_typed_trees(
         &program,
         &provider_candidates,
     );
+    let requirement_templates =
+        crate::monomorphization::requirement_applications::RequirementApplicationTemplates::prepare(
+            &program,
+        );
+    // Non-executing declarations demand the same source instances as calls,
+    // without introducing a callable Build edge or selecting a private body.
+    crate::monomorphization::demanded_applications::instantiate(
+        &mut program,
+        request.static_application_demands,
+    )?;
     loop {
         // Close ordinary calls before discovering boundary demands. A bound
         // token or generated candidate can expose another ordinary application,
@@ -240,6 +256,7 @@ pub fn prepare_typed_trees(
             )?,
             None => 0,
         };
+        materialized += requirement_templates.instantiate(&mut program)?;
         materialized +=
             crate::monomorphization::generate_dynamic_family_specializations(&mut program)?;
         // Bind only complete producer outputs: newly cloned bodies and callers
@@ -259,7 +276,10 @@ pub fn prepare_typed_trees(
     default_domain_zero::refine_default_domain_zero(&mut program);
     // Constructed result types finish the source roster that field elaboration reads;
     // substituted member edges do not become new application demands.
-    crate::constructed_results::retain_constructed_result_types(&mut program);
+    crate::constructed_results::retain_constructed_result_types(
+        &mut program,
+        &mut crate::monomorphization::call_results::ResultDerivations::default(),
+    );
     data_applications::elaborate(&mut program)?;
     // A projected receiver reads its elaborated field telescope. Binding it
     // before that producer would borrow the declaration's open field instead
@@ -268,6 +288,7 @@ pub fn prepare_typed_trees(
     validation::resolve_dynamic_call_targets(&mut program)?;
     crate::monomorphization::instantiate_dynamic_slots(&mut program)?;
     crate::monomorphization::instantiate_boundary_requirement_families(&mut program)?;
+    product_applications::retain(&mut program)?;
     Ok((
         program.into(),
         TypedPreparation {
@@ -275,6 +296,10 @@ pub fn prepare_typed_trees(
             mathematics,
             opaque_property_receipts,
             opaque_representation_selections,
+            assumed_binding_contract_demands:
+                typed_trees::static_applications::AssumedBindingContractDemands::from_slice(
+                    request.assumed_binding_contract_demands,
+                ),
         },
     ))
 }
@@ -338,6 +363,7 @@ pub fn specialize_static_machine_calls(
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     selections::retain_static_argument_contexts(program);
     specialize_machine_calls(program, false)?;
+    product_applications::retain(program)?;
     // This private preparation can execute before ordinary source checking.
     // Admit its completed static edges once at that execution boundary, never
     // inside the executable derivation loop.
@@ -358,7 +384,10 @@ pub fn prepare_constant_execution(
     validation::resolve_dynamic_call_targets(&mut program)?;
     specialize_static_machine_calls(&mut program)?;
     settle_value_destinations(&mut program)?;
-    crate::constructed_results::retain_constructed_result_types(&mut program);
+    crate::constructed_results::retain_constructed_result_types(
+        &mut program,
+        &mut crate::monomorphization::call_results::ResultDerivations::default(),
+    );
     Ok(program)
 }
 
@@ -366,10 +395,6 @@ fn specialize_machine_calls(
     program: &mut typed_trees::TypedTrees,
     enforce_complete_concrete_selections: bool,
 ) -> Result<typed_trees::references::DeclarationSelection, Vec<diagnostics::Diagnostic>> {
-    crate::conformance::conformance_application_lifetimes::resolve_elided_conformance_lifetimes(
-        program,
-    )?;
-    crate::conformance::explicit_requirement_calls::route_explicit_requirement_calls(program)?;
     crate::monomorphization::monomorphize_generic_machine_value_calls(
         program,
         enforce_complete_concrete_selections,

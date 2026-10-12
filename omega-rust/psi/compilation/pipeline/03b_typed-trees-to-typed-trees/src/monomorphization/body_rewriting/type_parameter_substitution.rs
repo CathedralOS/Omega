@@ -4,12 +4,12 @@
 use validation::collect_expression_tree;
 use validation::collect_statement_expression_trees;
 
-use crate::monomorphization::body_cloning::copy_type_reference;
+use crate::monomorphization::application_arguments::substitute_machine_parameter_type_references;
+use crate::monomorphization::body_cloning::copy_type_reference_payloads;
 use crate::monomorphization::body_rewriting::const_substitution::{
     fixed_array_const_replacements, substitute_const_index_expression_parameters,
     substitute_fixed_array_const_parameters,
 };
-use crate::monomorphization::body_rewriting::machine_arguments::substitute_machine_parameter_type_references;
 use crate::monomorphization::{
     Candidate, Diagnostic, ExpressionHandle, ExpressionNode, ProofFact, StatementNode,
     SymbolHandle, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
@@ -35,12 +35,12 @@ pub(crate) fn substitute_cloned_type_parameters(
             })
             .map(|(handle, _, _)| handle)
             .collect();
-        let replacement_handle = copy_type_reference(
+        let replacement_handle = copy_type_reference_payloads(
             source,
             program,
             binding.expect("complete specialization"),
             &[],
-        );
+        )?;
         let owner = source
             .unwrap_or(program)
             .expression_table
@@ -85,12 +85,12 @@ pub(crate) fn substitute_cloned_type_parameters(
             })
             .map(|(handle, _, _)| handle)
             .collect();
-        let replacement_handle = copy_type_reference(
+        let replacement_handle = copy_type_reference_payloads(
             source,
             program,
             binding.expect("complete const specialization"),
             &[],
-        );
+        )?;
         for occurrence in occurrences {
             program
                 .type_reference_table
@@ -106,8 +106,26 @@ pub(crate) fn substitute_cloned_type_parameters(
     let fixed_array_replacements =
         fixed_array_const_replacements(source.unwrap_or(program), candidate);
     substitute_fixed_array_const_parameters(program, &fixed_array_replacements, Some(type_start));
-    substitute_const_index_expression_parameters(program, candidate, Some(type_start));
-    substitute_machine_parameter_type_references(program, candidate, Some(type_start));
+    substitute_const_index_expression_parameters(source, program, candidate, Some(type_start));
+    let mut bindings = crate::monomorphization::applications::candidate_bindings(candidate);
+    if source.is_some() {
+        // This consumer writes actual type handles into the executable graph.
+        // Read-only source substitutions above do not relocate its payloads.
+        let payload_expression_start = program.expression_table.expression_count() + 1;
+        crate::monomorphization::body_cloning::copy_binding_type_payloads(
+            source,
+            program,
+            &mut bindings,
+            &[],
+        );
+        crate::monomorphization::body_cloning::copy_cloned_expression_type_payloads(
+            source,
+            program,
+            payload_expression_start,
+            &[],
+        )?;
+    }
+    substitute_machine_parameter_type_references(program, &bindings, Some(type_start));
     Ok(())
 }
 
@@ -133,6 +151,7 @@ pub(crate) fn reject_runtime_bound_static_occurrences(
     for contract in program.machine_contracts(cloned) {
         collect_contract_type_roots(program, contract, &mut roots);
     }
+    collect_fact_type_roots(program, cloned.where_facts, &mut roots);
     for state in program.machine_states(cloned) {
         roots.extend(
             program
@@ -277,6 +296,9 @@ pub(crate) fn cloned_expression_roots(
             validation::append_fact_expression_roots(program, fact, &mut roots);
         }
     }
+    for fact in program.proof_facts.span_or_empty(cloned.where_facts) {
+        validation::append_fact_expression_roots(program, fact, &mut roots);
+    }
     roots
 }
 
@@ -285,7 +307,15 @@ pub(crate) fn collect_contract_type_roots(
     contract: &typed_trees::signature::SignatureContract,
     roots: &mut Vec<TypeReferenceHandle>,
 ) {
-    for fact in program.proof_facts.span_or_empty(contract.facts) {
+    collect_fact_type_roots(program, contract.facts, roots);
+}
+
+fn collect_fact_type_roots(
+    program: &dyn ::validation::CheckingInput,
+    facts: arena::HandleSpan<ProofFact>,
+    roots: &mut Vec<TypeReferenceHandle>,
+) {
+    for fact in program.proof_facts.span_or_empty(facts) {
         match fact {
             ProofFact::Expression(expression) => {
                 collect_expression_type_roots(program, *expression, roots)
@@ -329,7 +359,12 @@ pub(crate) fn collect_expression_type_roots(
                 );
             }
             ExpressionNode::Call(call) => {
-                collect_static_argument_type_roots(&call.machine_arguments, roots)
+                collect_static_argument_type_roots(&call.machine_arguments, roots);
+                if call.source_call.is_valid()
+                    && let Some(original) = program.expression_table.source_call(call)
+                {
+                    collect_static_argument_type_roots(&original.machine_arguments, roots);
+                }
             }
             ExpressionNode::ZeroValue(type_reference) => roots.push(*type_reference),
             _ => {}

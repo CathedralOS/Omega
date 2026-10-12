@@ -216,80 +216,7 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
                 continue;
             }
 
-            // Const data arguments share the generic argument list with type
-            // arguments. Keep integer atoms and scoped const paths as named
-            // leaves; decimal and operator-bearing arguments retain expressions
-            // when their value requires declaration-aware semantic admission.
-            let (argument, rest) = if input.at_integer()
-                || input
-                    .tokens
-                    .first()
-                    .is_some_and(|token| token.float_literal_kind().is_some())
-                || input.at_punctuation(PunctuationKind::Minus)
-                || input.at_punctuation(PunctuationKind::Exclamation)
-                || input.at_punctuation(PunctuationKind::Tilde)
-                || (input.at_punctuation(PunctuationKind::LeftParen)
-                    && input
-                        .take_punctuation(PunctuationKind::LeftParen, "(")
-                        .is_ok_and(|rest| !rest.at_punctuation(PunctuationKind::RightParen)))
-            {
-                let expression_start = input;
-                let (expression, rest) =
-                    parse_const_integer_expression_handle(syntax_trees, input)?;
-                if const_expression_requires_semantic_admission(syntax_trees, expression)
-                    || syntax_trees.const_expression_contains_name(expression)
-                {
-                    (
-                        syntax_trees
-                            .type_references
-                            .insert(TypeReferenceNode::ConstExpression(expression)),
-                        rest,
-                    )
-                } else {
-                    let value = evaluate_closed_const_integer_expression(syntax_trees, expression)
-                        .map_err(|reason| expression_start.error_here(reason))?;
-                    (
-                        syntax_trees
-                            .type_references
-                            .insert_named(Identifier::generated(value.to_string())),
-                        rest,
-                    )
-                }
-            } else if input
-                .tokens
-                .first()
-                .is_some_and(crate::input::token_cursor::is_identifier_token_for_parser)
-            {
-                // An identifier-starting argument is ambiguous until the base
-                // declaration supplies its parameter kinds: `Box<T>` is a type
-                // argument, `Buffer<N>` is a const argument, and
-                // `Buffer<N + 1>` is an unmistakable symbolic const expression.
-                // Parse the delimiter-safe integer operator subset first. A
-                // binary result is retained through the pre-resolution generic
-                // instance pass; a lone name keeps the established type/scoped-
-                // const leaf representation.
-                let const_expression =
-                    parse_const_integer_expression_handle(syntax_trees, input).ok();
-                if let Some((expression, expression_rest)) = const_expression
-                    && matches!(
-                        syntax_trees.expressions.expression(expression),
-                        ExpressionNode::Binary(_) | ExpressionNode::Call(_)
-                    )
-                    && (expression_rest.at_punctuation(PunctuationKind::Comma)
-                        || expression_rest.at_punctuation(PunctuationKind::Greater))
-                {
-                    (
-                        syntax_trees
-                            .type_references
-                            .insert(TypeReferenceNode::ConstExpression(expression)),
-                        expression_rest,
-                    )
-                } else {
-                    parse_type_reference_handle(syntax_trees, input)?
-                }
-            } else {
-                parse_type_reference_handle(syntax_trees, input)?
-            };
+            let (argument, rest) = parse_static_argument_handle(syntax_trees, input)?;
             arguments.push(argument);
             input = rest;
 
@@ -365,6 +292,68 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
     Ok((type_reference, input))
 }
 
+/// Data, trait and conformance applications share one argument grammar. Names
+/// retain their unresolved role until the selected declaration supplies the
+/// Type/Const/Machine/evidence telescope; syntax cannot admit a binder's kind.
+/// The const parser leaves `>` to the enclosing application and keeps semantic
+/// operations for later carrier, formation and selected-operation checking.
+pub(crate) fn parse_static_argument_handle<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
+    if input.at_integer()
+        || input
+            .tokens
+            .first()
+            .is_some_and(|token| token.float_literal_kind().is_some())
+        || input.at_punctuation(PunctuationKind::Minus)
+        || input.at_punctuation(PunctuationKind::Exclamation)
+        || input.at_punctuation(PunctuationKind::Tilde)
+        || (input.at_punctuation(PunctuationKind::LeftParen)
+            && input
+                .take_punctuation(PunctuationKind::LeftParen, "(")
+                .is_ok_and(|rest| !rest.at_punctuation(PunctuationKind::RightParen)))
+    {
+        let (expression, rest) = parse_const_integer_expression_handle(syntax_trees, input)?;
+        // Anonymous values also need their original producer receipt. A folded
+        // decimal name cannot distinguish them from an older missing landing.
+        Ok((
+            syntax_trees
+                .type_references
+                .insert(TypeReferenceNode::ConstExpression(expression)),
+            rest,
+        ))
+    } else if input
+        .tokens
+        .first()
+        .is_some_and(crate::input::token_cursor::is_identifier_token_for_parser)
+    {
+        // A lone name may be any static binder kind. Retain unmistakable
+        // operator/call expressions; nested type or machine applications keep
+        // the ordinary type-reference graph and their complete child spans.
+        let const_expression = parse_const_integer_expression_handle(syntax_trees, input).ok();
+        if let Some((expression, rest)) = const_expression
+            && matches!(
+                syntax_trees.expressions.expression(expression),
+                ExpressionNode::Binary(_) | ExpressionNode::Call(_)
+            )
+            && (rest.at_punctuation(PunctuationKind::Comma)
+                || rest.at_punctuation(PunctuationKind::Greater))
+        {
+            Ok((
+                syntax_trees
+                    .type_references
+                    .insert(TypeReferenceNode::ConstExpression(expression)),
+                rest,
+            ))
+        } else {
+            parse_type_reference_handle(syntax_trees, input)
+        }
+    } else {
+        parse_type_reference_handle(syntax_trees, input)
+    }
+}
+
 /// Shifts and bitwise operations need declared width; remainder needs operand
 /// type admission. Boolean expressions need their own result identity and exact
 /// operator selection, even when every operand is a literal. Preserve these
@@ -374,6 +363,12 @@ fn const_expression_requires_semantic_admission(
     syntax_trees: &SyntaxTrees,
     expression: syntax_trees::expression::ExpressionHandle,
 ) -> bool {
+    // A suffix already chose the integer carrier. Rendering its decimal text
+    // would make it anonymous again and bypass the selected const slot's
+    // carrier check; keep the landing through compound arguments as well.
+    if let ExpressionNode::Integer(literal) = syntax_trees.expressions.expression(expression) {
+        return literal.landing().is_some();
+    }
     // Decimal literals and division need exact anonymous evaluation before a
     // declaration requests integer landing. Structural literals likewise require
     // their selected nominal carriers; the parser must not render their atoms.
@@ -617,11 +612,11 @@ pub(crate) fn parse_domain_argument_handles<'tokens, 'source>(
                     .insert(TypeReferenceNode::ConstExpression(expression))
             }
             _ => {
-                let value = evaluate_closed_const_integer_expression(syntax_trees, expression)
+                evaluate_closed_const_integer_expression(syntax_trees, expression)
                     .map_err(|reason| input.error_here(reason))?;
                 syntax_trees
                     .type_references
-                    .insert_named(Identifier::generated(value.to_string()))
+                    .insert(TypeReferenceNode::ConstExpression(expression))
             }
         };
         arguments.push(argument);

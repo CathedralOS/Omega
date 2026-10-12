@@ -51,6 +51,23 @@ pub(crate) fn validate_trait_application_obligations(
         caller_scope,
         diagnostics,
     );
+    let lexical_owner = match caller_scope.lexical_owner {
+        typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(symbol) => symbol,
+        typed_trees::type_identity::AppliedTypeIdentityOwner::Captured(scope) => scope.symbol(),
+    };
+    let Some(application) = typed_trees::trait_definition::AppliedTraitScope::new_with_owner(
+        program.typed_program(),
+        applied_trait,
+        typed_trees::trait_definition::TraitApplicationArguments {
+            lexical_owner,
+            enclosing_data_applications: &[],
+            arguments: applied_arguments,
+            lifetimes: applied_lifetime_arguments,
+        },
+        caller_scope.lexical_owner,
+    ) else {
+        return;
+    };
     for (parameter, argument) in parameters.iter().zip(applied_arguments) {
         match &parameter.kind {
             TypeParameterKind::Type => validate_type_reference_handle(
@@ -70,7 +87,9 @@ pub(crate) fn validate_trait_application_obligations(
                 program,
                 applied_trait.name.as_str(),
                 parameter,
-                *type_reference,
+                application
+                    .type_reference(program.typed_program(), *type_reference)
+                    .reference,
                 *argument,
                 caller_scope,
                 diagnostics,
@@ -97,7 +116,7 @@ pub(crate) fn validate_trait_application_obligations(
             | TypeParameterKind::Machine { .. } => {}
         }
     }
-    super::super::trait_implementation_arguments::validate_trait_implementation_application(
+    super::super::trait_application_arguments::validate_trait_implementation_application(
         program,
         applied_trait,
         applied_arguments,

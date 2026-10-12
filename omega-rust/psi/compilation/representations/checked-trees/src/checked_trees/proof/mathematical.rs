@@ -1,6 +1,9 @@
-use proof_admission::{Declaration, TermArena};
+use arena::HandleSpan;
+use proof_admission::{Declaration, TermArena, TermHandle};
 use symbols::SymbolHandle;
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::type_identity::TypeIdentityId;
+use typed_trees::types::TypeReferenceHandle;
 
 /// A checked top-level mathematical declaration: the checked proof surface a
 /// parsed `let`/`boundary let` elaborates into under PROOF-CONTRACT-MIGRATION
@@ -129,4 +132,41 @@ pub struct CheckedMathematicalSignature {
     /// declaration order — which positions name authored declarations
     /// rather than interned carrier assumptions.
     pub authored: Vec<u32>,
+}
+
+impl CheckedMathematicalSignature {
+    /// Read the exact assumption dependency graph the kernel already checked.
+    /// This performs no conversion, proof search or signature re-verification.
+    /// Returned declaration indices remain meaningful only beside this owner.
+    pub fn assumption_dependencies(&self, roots: &[u32]) -> std::collections::BTreeSet<u32> {
+        let signature = proof_admission::Signature::from_declarations(self.declarations.clone());
+        proof_admission::assumption_closure(&self.arena, &signature, roots)
+    }
+}
+
+/// One original kernel-checked mathematical application outside authored
+/// mathematical bodies. The source occurrence and selected declaration remain
+/// beside the unreduced term: conversion must not erase dependency custody.
+/// This records formation, not an accepted proof of the application proposition.
+/// Every term handle resolves in ProofFacts::mathematical_signature.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct CheckedMathematicalApplication {
+    pub expression: ExpressionHandle,
+    /// Exact source scope resolved by the original application producer.
+    /// Zero preserves unavailable ownership; a consumer cannot guess an owner.
+    pub source_owner: SymbolHandle,
+    pub declaration: SymbolHandle,
+    pub term: TermHandle,
+    pub result_type: TermHandle,
+    pub captures: HandleSpan<CheckedMathematicalApplicationCapture>,
+}
+
+/// One original source operand captured in an application's kernel context.
+/// The ordered span retains source value/type custody and the exact domain
+/// against which the original unreduced term was checked.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct CheckedMathematicalApplicationCapture {
+    pub expression: ExpressionHandle,
+    pub source_type: TypeReferenceHandle,
+    pub domain: TermHandle,
 }

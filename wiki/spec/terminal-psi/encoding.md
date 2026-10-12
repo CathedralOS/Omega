@@ -613,43 +613,57 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 150 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 153 + `u16` vocabulary
 marker 123 + the entry machine id, followed by the module's counted tables in
 the declaration order below and ending with boundary-application candidates.
+The identity table stores counted UTF-8 entries in producer order, with the empty
+absence entry at index zero and unique nonempty entries thereafter. Module rows
+encode declaration and type identities as `u32` indices into this retained table;
+nonzero identity fields must resolve to nonempty entries. The indices identify
+content only within their issuing module and cannot alone form an independent
+portable content commitment.
+
+Marker 148 follows those entries with a counted original lifetime-declaration
+roster. Each row encodes its declaration identity index `u32`, then counted
+formal-role tags: captured `1` or invocation `2`. Rows are ordered by declaration
+index and cannot repeat. Source publication derives the complete roster from the
+original declaration. Foreign decoding checks each application's formal and
+named actual against this roster; an application cannot declare its own role.
 
 <!-- module-table-order -->
 | # | Module table | Row |
 | --- | --- | --- |
-| 1 | scalar qualification catalog | the five counted catalog tables above |
-| 2 | structural types | counted structural type declarations |
-| 3 | structural referent identities | counted identity-only pointer targets |
-| 4 | structural domains | counted structural domain declarations |
-| 5 | services | counted service declarations |
-| 6 | concrete root service reach | counted service ids |
-| 7 | installation reach dependencies | counted installation reach rows |
-| 8 | placed-view inputs | counted placed-view input rows |
-| 9 | reborrow restored call uses | counted restored-use rows |
-| 10 | boundary machines | counted boundary machine declarations |
-| 11 | provider candidates | counted provider candidate rows |
-| 12 | dynamic dispatch | counted interfaces and implementation tables |
-| 13 | float-meaning projections | counted projection rows |
-| 14 | float-meaning equalities | counted equality rows |
-| 15 | proposition declarations | counted proposition declaration rows |
-| 16 | proposition applications | counted proposition application rows |
-| 17 | evidence terms | counted evidence term rows |
-| 18 | evidence contract lanes | counted evidence lane rows |
-| 19 | proof-output invocations | counted proof-output call rows |
-| 20 | proof recursive components | counted recursive component rows |
-| 21 | closed conformance applications | counted conformance application rows |
-| 22 | suspension rows | a bare `u32` call-plan count, then counted suspension call sites, then counted suspension call plans |
-| 23 | scalar block invariants | the counted invariant rows above |
-| 24 | operation crash contracts | counted operation crash contract rows |
-| 25 | machines | counted machine rows |
-| 26 | target-machine families | counted family rows |
-| 27 | target layout applications | counted complete checked policy alternatives |
-| 28 | boundary application demands | counted exact requirement/application rows |
-| 29 | callback applications | counted checked registrar occurrences |
-| 30 | boundary application candidates | counted checked bodies for closed applications |
+| 1 | identities | counted UTF-8 entries, including empty absence, then counted original lifetime-declaration rosters |
+| 2 | scalar qualification catalog | the five counted catalog tables above |
+| 3 | structural types | counted structural type declarations |
+| 4 | structural referent identities | counted identity-only pointer targets |
+| 5 | structural domains | counted structural domain declarations |
+| 6 | services | counted service declarations |
+| 7 | concrete root service reach | counted service ids |
+| 8 | installation reach dependencies | counted installation reach rows |
+| 9 | placed-view inputs | counted placed-view input rows |
+| 10 | reborrow restored call uses | counted restored-use rows |
+| 11 | boundary machines | counted boundary machine declarations |
+| 12 | provider candidates | counted provider candidate rows |
+| 13 | dynamic dispatch | counted interfaces and implementation tables |
+| 14 | float-meaning projections | counted projection rows |
+| 15 | float-meaning equalities | counted equality rows |
+| 16 | proposition declarations | counted proposition declaration rows |
+| 17 | proposition applications | counted proposition application rows |
+| 18 | evidence terms | counted evidence term rows |
+| 19 | evidence contract lanes | counted evidence lane rows |
+| 20 | proof-output invocations | counted proof-output call rows |
+| 21 | proof recursive components | counted recursive component rows |
+| 22 | closed conformance applications | counted conformance application rows |
+| 23 | suspension rows | a bare `u32` call-plan count, then counted suspension call sites, then counted suspension call plans |
+| 24 | scalar block invariants | the counted invariant rows above |
+| 25 | operation crash contracts | counted operation crash contract rows |
+| 26 | machines | counted machine rows |
+| 27 | target-machine families | counted family rows |
+| 28 | target layout applications | counted complete checked policy alternatives |
+| 29 | boundary application demands | counted exact requirement/application rows |
+| 30 | callback applications | counted checked registrar occurrences |
+| 31 | boundary application candidates | counted checked bodies for closed applications |
 
 A dynamic slot encodes its id, declaring-trait and requirement identity strings,
 counted family tuple, counted scalar formals and counted structural formals.
@@ -660,16 +674,46 @@ within an argument. They contain no implementation-local claim id. The optional
 scalar result follows (presence `u8`, then scalar type). Every available table
 row must realize the slot's signature and complete claim-path roster.
 
-A boundary-application row carries its nonzero operation id, counted UTF-8
-exact-owner declaration identity, counted overload identity, optional package
-identity (presence Boolean then 32 nonzero digest bytes), and counted static
-arguments. No arguments is the canonical empty application. Each argument has a
-`u8` category and `u32` binder ordinal: tag `1` carries one exact-owner type
-identity; tag `2` carries the declared carrier identity, value type identity and
-canonical value encoding as counted UTF-8 strings. Identities and constant
-encodings are nonempty. Rows are strictly ordered by operation id, each naming
-one existing operation; arguments have contiguous zero-based binder ordinals.
-The roster is semantic input, not a provider-selection or realization receipt.
+A boundary-application row carries its nonzero operation id, `u32` exact-owner declaration identity index, counted overload identity, optional package
+identity (presence Boolean then 32 nonzero digest bytes), and one application
+encoding. Rows are strictly ordered by operation id, each naming one existing
+operation. The roster is semantic input, not a provider-selection or
+realization receipt.
+
+Marker 142 combines the module-owned identity table with complete application
+operand categories and lifetime subjects.
+An application encodes counted static arguments followed by counted lifetime
+bindings. Both counts zero is the canonical empty application, which denotes a
+complete zero-length telescope under the enclosing requirement's semantic role;
+absence of a trait application is not an empty application. Static arguments
+have a `u8` category and `u32` binder ordinal:
+
+| Tag | Static argument payload |
+| --- | --- |
+| 1 | exact-owner type identity index `u32` |
+| 2 | declared carrier identity index `u32`, counted value type identity and canonical constant value encoding |
+| 3 | declared carrier identity index `u32`, counted value type identity and canonical closed runtime-capable value encoding |
+| 4 | declaration category `u8`, exact-owner declaration identity index `u32`, nested application encoding |
+
+Declaration categories are machine `1`, conformance `2`, and proposition `3`.
+Each lifetime binding encodes its `u32` binder ordinal, then the original formal
+subject and supplied subject. A named subject is an exact-owner declaration
+identity index `u32` followed by its declaration-local `u32` lifetime parameter
+ordinal. An anonymous invocation actual uses the reserved pair `(0, 0)`;
+its original formal must have invocation role in the retained declaration roster.
+Captured formals cannot accept anonymous invocation erasure.
+Captured trait and invocation lifetime formals keep their original owners; local
+compiler-local arena handles, capture identifiers and source spellings are not encoded.
+
+Static and lifetime binding sequences independently have contiguous zero-based
+binder ordinals. Lifetime formal subjects cannot repeat; supplied subjects may
+alias. Named identity references and value strings are nonempty. Nested applications are
+bounded to depth 256 with the outer application at depth zero. The tuple codec
+retains every represented category, independently of consumer admission. The
+currently published D29 operator demand and candidate owner continues to admit
+only type and constant arguments without lifetime bindings. Representing another
+category does not admit its declaration, change a requirement role, or grant
+provider selection, proof or execution authority.
 
 A callback application carries a `u32` checked occurrence number, nonzero
 registrar operation id, `u32` static-machine binder ordinal, counted UTF-8
@@ -1820,7 +1864,7 @@ table. The installation record `PSIINST\0` is emitted outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 150 | yes |
+| semantic module | `PSITERM\0` | 153 | yes |
 | proof bundle | `PSIPRF\0\0` | 34 | no |
 | sealed proof section | `PSIPSC\0\0` | 1 | yes |
 | obligation ledger | `PSIOBLG\0` | 3 | yes |

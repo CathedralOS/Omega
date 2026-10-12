@@ -19,7 +19,7 @@ pub(crate) use callee_proposals::{
 pub(crate) use selection_assembly::{
     selection_for_call, selection_from_proposals, unique_complete_selections, upsert_selection,
 };
-pub(crate) use static_bindings::infer_static_bindings;
+pub(crate) use static_bindings::{coherent_type_proposal, infer_static_bindings};
 
 use super::{
     CallSite, ExpressionHandle, ExpressionNode, StatementNode, StaticMachineArgument, SymbolHandle,

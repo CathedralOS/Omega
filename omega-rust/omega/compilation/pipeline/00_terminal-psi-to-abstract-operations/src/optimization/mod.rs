@@ -122,10 +122,13 @@ pub struct VerifiedPsiOptimizationInput {
         Option<terminal_installation::AdmittedTargetMachineSelections>,
     pub(crate) target_layout_selections: Option<terminal_installation::AdmittedTargetLayouts>,
     pub(crate) target_family_realizations: Vec<effects::SelectedTargetFamilyRealization>,
-    /// The selected facts table the family-realization row identities
-    /// resolve against. Rows are stored without their owning facts, so the
-    /// table is retained beside them.
-    pub(crate) target_family_realization_identities: terminal_psi::TerminalIdentityTable,
+    /// Actual execution-scope provider admissions, never selected planning rows.
+    pub(crate) admitted_provider_correspondences:
+        Vec<crate::AdmittedProviderBoundaryCorrespondence>,
+    /// The selected facts table used by family rows and admitted provider
+    /// correspondences. Canonical public boundary indices use `plan.identities`
+    /// instead; these two owning tables must remain distinct.
+    pub(crate) selected_provider_identities: terminal_psi::TerminalIdentityTable,
 }
 
 impl VerifiedPsiOptimizationInput {
@@ -151,9 +154,17 @@ impl VerifiedPsiOptimizationInput {
         &self.target_family_realizations
     }
 
-    /// Identity table the family-realization row indices resolve against.
-    pub fn target_family_realization_identities(&self) -> &terminal_psi::TerminalIdentityTable {
-        &self.target_family_realization_identities
+    /// Physical provider correspondence retained from actual native admission.
+    /// Optimizer-only preparation issues no such receipts.
+    pub fn admitted_provider_correspondences(
+        &self,
+    ) -> &[crate::AdmittedProviderBoundaryCorrespondence] {
+        &self.admitted_provider_correspondences
+    }
+
+    /// Identity table the selected original provider indices resolve against.
+    pub fn selected_provider_identities(&self) -> &terminal_psi::TerminalIdentityTable {
+        &self.selected_provider_identities
     }
 
     /// Exact geometry closure retained separately from immutable canonical Psi.

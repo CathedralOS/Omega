@@ -18,6 +18,7 @@ pub struct TerminalCompilerBuiltinProposal {
     provider_plan_index: usize,
     boundary: semantic_vocabulary::BoundaryMachineId,
     execution: target_operations::CompilerBuiltinExecution,
+    boundary_entry_plan: Option<calling_conventions::BoundaryEntryPlan>,
 }
 
 impl TerminalCompilerBuiltinProposal {
@@ -26,12 +27,14 @@ impl TerminalCompilerBuiltinProposal {
         provider_plan_index: usize,
         boundary: semantic_vocabulary::BoundaryMachineId,
         execution: target_operations::CompilerBuiltinExecution,
+        boundary_entry_plan: Option<calling_conventions::BoundaryEntryPlan>,
     ) -> Self {
         Self {
             requirement_identity,
             provider_plan_index,
             boundary,
             execution,
+            boundary_entry_plan,
         }
     }
 
@@ -45,6 +48,12 @@ impl TerminalCompilerBuiltinProposal {
 
     pub const fn boundary(&self) -> semantic_vocabulary::BoundaryMachineId {
         self.boundary
+    }
+
+    /// Original source-issued entry, retained for the hosted physical catalog.
+    /// Inline numeric operations have no native call-shaped entry to realize.
+    pub fn boundary_entry_plan(&self) -> Option<&calling_conventions::BoundaryEntryPlan> {
+        self.boundary_entry_plan.as_ref()
     }
 
     pub const fn execution(&self) -> target_operations::CompilerBuiltinExecution {
@@ -74,6 +83,7 @@ pub(crate) fn prepare_retained_compiler_builtins<'request>(
                 provider_plan,
                 boundary: builtin.boundary(),
                 execution: builtin.execution(),
+                boundary_entry_plan: builtin.boundary_entry_plan(),
             })
         })
         .collect()

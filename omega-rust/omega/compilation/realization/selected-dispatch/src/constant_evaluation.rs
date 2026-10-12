@@ -58,6 +58,7 @@ impl SelectedConstantEvaluation {
                 SelectedBuildTimeOperators {
                     operators: &self.operators,
                     provider_bodies: &self.provider_bodies,
+                    admission: Default::default(),
                 },
             )?;
         }
@@ -100,7 +101,20 @@ impl SelectedConstantEvaluation {
         opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
         facts: &checked_trees::CheckedOperatorFacts,
         plans: &SelectedProviderPlanFacts,
+        provenance: &[provider_planning::SelectedProviderReviewProvenance],
+        selected_target_profile: Option<target::TargetProfile>,
     ) -> Result<Self, Vec<Diagnostic>> {
+        if plans.plans().len() != provenance.len()
+            || plans
+                .plans()
+                .iter()
+                .zip(provenance)
+                .any(|(plan, retained)| *plan != retained.plan)
+        {
+            return Err(vec![Diagnostic::error(
+                "selected constant evaluation lost original provider-plan provenance",
+            )]);
+        }
         let typed = context.typed;
         let uses = facts.resolved_expression_selections();
         let mut selected = Self {
@@ -110,7 +124,7 @@ impl SelectedConstantEvaluation {
             opaque_representation_selections: opaque_representation_selections.to_vec(),
         };
         for (expression, origin, requirement, policy) in uses {
-            let Some((_, plan)) =
+            let Some((plan_index, plan)) =
                 provider_planning::selected_requirement_plan(context, plans.plans(), requirement)
             else {
                 continue;
@@ -121,10 +135,43 @@ impl SelectedConstantEvaluation {
                     effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
                 )
             }) {
-                if crate::derive_selected_primitive_float_binary_execution(typed, plan, requirement)
-                    .map_err(|error| vec![error])?
-                    .is_some()
-                {
+                let execution = match &provenance[plan_index].selected_by {
+                    provider_planning::ProviderSelectionProvenance::CompilerCatalog(choice) => {
+                        let retained = &provenance[plan_index].provider;
+                        let ([original], [realization]) = (
+                            retained.row_requirements.as_slice(),
+                            retained.row_realizations.as_slice(),
+                        ) else {
+                            return Err(vec![Diagnostic::error(
+                                "automatic constant execution lost its original row",
+                            )]);
+                        };
+                        if *original != requirement {
+                            return Err(vec![Diagnostic::error(
+                                "automatic constant execution has a different original requirement",
+                            )]);
+                        }
+                        let identity = choice
+                            .row_execution(
+                                plan,
+                                *original,
+                                *realization,
+                                selected_target_profile.map(target::TargetProfile::target_name),
+                            )
+                            .map_err(|error| vec![error])?;
+                        match identity {
+                            identity @ effects::CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary { .. } => Some(identity),
+                            _ => None,
+                        }
+                    }
+                    _ => crate::derive_selected_primitive_float_binary_execution(
+                        typed,
+                        plan,
+                        requirement,
+                    )
+                    .map_err(|error| vec![error])?,
+                };
+                if execution.is_some() {
                     selected.operators.push(
                         SelectedBuildTimeBinaryOperator::prepare(
                             typed,

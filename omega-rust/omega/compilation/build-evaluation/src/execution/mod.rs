@@ -70,6 +70,12 @@ pub(crate) fn execute_admitted_build_program(
             measured.executed_provider_selections(),
         )?;
 
+    let assumed_binding_registrations =
+        provider_planning::assumed_binding_registrations::collect_executed_assumed_binding_registrations(
+            provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
+            measured.executed_assumed_binding_registrations(),
+        )?;
+
     // Phase 3: join the augmented Build and declared grants/demands with
     // the selections and exclusions recorded by this execution.
     let mut arguments = measured.into_value();
@@ -91,6 +97,7 @@ pub(crate) fn execute_admitted_build_program(
     };
     config.grants = harvest_root_grants(typed, machine).map_err(|diagnostic| vec![diagnostic])?;
     config.provider_selections = provider_selections;
+    config.assumed_binding_registrations = assumed_binding_registrations;
     config.opaque_representation_selections =
         representation_planning::harvest_opaque_representation_selections(typed, machine)?;
     config.wire_compatibility_demands = wire_compatibility_demands;
@@ -102,7 +109,10 @@ pub(crate) fn execute_admitted_build_program(
     // Phase 4: settle outputs before artifact admission or source selection.
     let observation_summary = observations.settle(filesystem_reachable, &machine_name)?;
     if artifact_only {
-        if !config.root_bindings.is_empty() || !config.provider_selections.is_empty() {
+        if !config.root_bindings.is_empty()
+            || !config.provider_selections.is_empty()
+            || !config.assumed_binding_registrations.is_empty()
+        {
             return Err(vec![Diagnostic::error(format!(
                 "artifact-only build `{machine_name}` may not bind executable roots or select boundary providers"
             ))]);

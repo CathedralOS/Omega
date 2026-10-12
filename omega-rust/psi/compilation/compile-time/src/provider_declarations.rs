@@ -8,10 +8,12 @@
 
 mod context;
 mod identities;
+pub mod receivers;
 mod selection;
 
 use crate::is_exact_toolchain_build_prelude_data;
 use checked_trees::typed_trees::TypedTrees;
+use checked_trees::typed_trees::typed_trees::product_applications::ProductDeclarationOperand;
 pub use context::ProviderPlanningContext;
 use diagnostics::Diagnostic;
 pub use identities::{eligible, is_named_provider, named_requirement_lifetime_arguments};
@@ -95,13 +97,13 @@ fn harvest_provider_selections(
                             value_arguments: typed
                                 .expression_table
                                 .expression_handles(call.arguments),
-                            source_span: provider_selection_expression_source_span(
+                            source_span: build_declaration_expression_source_span(
                                 typed,
                                 *expression,
                             ),
                             machine: machine.symbol,
                             composition_case: None,
-                            product_operands: false,
+                            product_operands: None,
                         });
                     }
                 }
@@ -115,7 +117,7 @@ fn harvest_provider_selections(
                         source_span: call.source_span,
                         machine: machine.symbol,
                         composition_case: None,
-                        product_operands: false,
+                        product_operands: None,
                     });
                 }
                 _ => {}
@@ -132,7 +134,17 @@ struct ProviderSelectionCall<'a> {
     source_span: source::SourceSpan,
     machine: SymbolHandle,
     composition_case: Option<SymbolHandle>,
-    product_operands: bool,
+    product_operands: Option<[&'a ProductDeclarationOperand; 2]>,
+}
+
+fn retained_provider_operands(
+    typed: &TypedTrees,
+    application: checked_trees::typed_trees::static_applications::StaticMachineApplicationHandle,
+) -> Option<[&ProductDeclarationOperand; 2]> {
+    Some([
+        typed.product_declaration_operand(application, 0)?,
+        typed.product_declaration_operand(application, 1)?,
+    ])
 }
 
 /// Rejoin only calls evaluated on the original Build cell. An unreachable
@@ -152,8 +164,9 @@ pub fn collect_executed_provider_selections(
     let requests = executed
         .iter()
         .map(|row| {
-            let request = match row.site {
-                checked_interpreter::ExecutedProviderSelectionSite::Statement(handle) => {
+            let request = (|| {
+                match row.site {
+                checked_interpreter::ExecutedBuildDeclarationSite::Statement(handle) => {
                     match typed.statement_table.statement(handle) {
                         checked_trees::typed_trees::statement::StatementNode::Call(call)
                             if language_semantics::declaration_selection::is_unresolved_provider_selection_call(
@@ -170,13 +183,16 @@ pub fn collect_executed_provider_selections(
                                 source_span: call.source_span,
                                 machine: row.machine,
                                 composition_case: Some(row.composition_case),
-                                product_operands: true,
+                                product_operands: Some(retained_provider_operands(
+                                    typed,
+                                    call.authored_machine_application,
+                                )?),
                             })
                         }
                         _ => None,
                     }
                 }
-                checked_interpreter::ExecutedProviderSelectionSite::Expression(handle) => {
+                checked_interpreter::ExecutedBuildDeclarationSite::Expression(handle) => {
                     match typed.expression_table.expression(handle) {
                         checked_trees::typed_trees::expression::ExpressionNode::Call(call)
                             if language_semantics::declaration_selection::is_unresolved_provider_selection_call(
@@ -190,18 +206,22 @@ pub fn collect_executed_provider_selections(
                                 value_arguments: typed
                                     .expression_table
                                     .expression_handles(call.arguments),
-                                source_span: provider_selection_expression_source_span(
+                                source_span: build_declaration_expression_source_span(
                                     typed, handle,
                                 ),
                                 machine: row.machine,
                                 composition_case: Some(row.composition_case),
-                                product_operands: true,
+                                product_operands: Some(retained_provider_operands(
+                                    typed,
+                                    call.authored_machine_application,
+                                )?),
                             })
                         }
                         _ => None,
                     }
                 }
-            };
+                }
+            })();
             request.ok_or_else(|| {
                 vec![Diagnostic::error(
                     "executed provider selection did not rejoin its admitted call",
@@ -218,12 +238,12 @@ pub fn collect_executed_provider_selections(
     )
 }
 
-fn provider_selection_expression_source_span(
+pub fn build_declaration_expression_source_span(
     typed: &TypedTrees,
     expression: checked_trees::typed_trees::expression::ExpressionHandle,
 ) -> source::SourceSpan {
-    // The declaration occurrence names the call itself. An expression's
-    // enclosing span can be synthetic after receiver/statement lowering.
+    // The declaration occurrence owns Product authority even when the
+    // enclosing expression span was synthesized during receiver lowering.
     typed
         .expression_table
         .authored_selection_occurrences(expression)
@@ -266,28 +286,46 @@ fn collect_provider_selections<'a>(
         };
         let project_identity =
             |argument: &checked_trees::typed_trees::expression::StaticMachineArgument,
-             is_provider: bool| {
+             argument_index: usize|
+             -> Result<ProviderSelectionIdentity, Diagnostic> {
                 let authored_path = argument.path.joined_path();
-                let symbol = if product_operands {
-                    checked_trees::typed_trees::product_operand::resolve_product_operand(
-                        typed,
-                        argument,
-                        source_span,
-                        !is_provider,
-                    )
-                    .unwrap_or_else(SymbolHandle::invalid)
+                let operand = product_operands.map(|operands| operands[argument_index]);
+                let symbol = if let Some(operand) = operand {
+                    operand.declaration
                 } else {
                     argument.symbol
                 };
-                ProviderSelectionIdentity {
+                let receiver = if let Some(operand) =
+                    operand.filter(|operand| operand.application.is_valid())
+                {
+                    Some(receivers::product_receiver_application(operand).ok_or_else(|| {
+                    Diagnostic::error("applied provider subject has no complete issued receiver application")
+                })?)
+                } else if argument.application.is_some() {
+                    return Err(Diagnostic::error(
+                        "applied provider subject lost its original checked Product tuple",
+                    ));
+                } else {
+                    None
+                };
+                Ok(ProviderSelectionIdentity {
                     symbol,
                     package: typed.symbols.symbol_package_identity(symbol),
                     canonical_path: typed.symbols.display_path(symbol, "::"),
                     authored_path,
-                }
+                    receiver,
+                })
             };
-        let boundary_identity = project_identity(boundary_argument, false);
-        let provider_type = project_identity(provider_argument, true);
+        let (boundary_identity, provider_type) = match project_identity(boundary_argument, 0)
+            .and_then(|boundary| {
+                project_identity(provider_argument, 1).map(|provider| (boundary, provider))
+            }) {
+            Ok(identities) => identities,
+            Err(diagnostic) => {
+                diagnostics.push(diagnostic);
+                return;
+            }
+        };
         if !context.contains(boundary_identity.symbol) || !context.contains(provider_type.symbol) {
             diagnostics.push(Diagnostic::error(format!(
                 "provider selection subject or provider is outside the {:?} planning context",
@@ -361,7 +399,22 @@ fn collect_provider_selections<'a>(
         if let Some(implementation) = typed.conformances().iter().find(|implementation| {
             implementation.symbol == provider_type.symbol && identities::eligible(implementation)
         }) {
-            for row in &implementation.rows {
+            let Some(members) =
+                checked_trees::typed_trees::static_applications::boundary_interface_members(
+                    typed,
+                    implementation.trait_symbol,
+                )
+            else {
+                diagnostics.push(Diagnostic::error(
+                    "named provider lost its original boundary member roster",
+                ));
+                return;
+            };
+            for row in implementation
+                .rows
+                .iter()
+                .filter(|row| members.contains(&(row.declaring_trait, row.requirement)))
+            {
                 if identities::named_requirement_lifetime_arguments(
                     typed,
                     implementation,
@@ -380,7 +433,7 @@ fn collect_provider_selections<'a>(
         }
         if let Some(existing) = selections
             .iter()
-            .find(|selection| selection.subject.same_declaration_as(&subject))
+            .find(|selection| selection.subject.same_subject_as(&subject))
         {
             if existing.provider_type.symbol != provider_type.symbol {
                 diagnostics.push(Diagnostic::error(format!(
@@ -408,6 +461,8 @@ fn collect_provider_selections<'a>(
             composition_mode,
             selecting_machine: machine,
             source_span,
+            source_operands: product_operands
+                .map(|[subject, provider]| [subject.clone(), provider.clone()]),
         });
     };
     for request in requests {

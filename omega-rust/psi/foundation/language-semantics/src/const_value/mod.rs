@@ -50,6 +50,50 @@ pub enum DecodedCanonicalConstValue {
     },
 }
 
+/// The retained display grammar for decoded canonical indices.
+/// This formats the completed payload; it grants no carrier or index eligibility.
+pub fn canonical_index_display(value: &DecodedCanonicalConstValue) -> String {
+    match value {
+        // Index decoding and carrier validation both reject this declaration-only form.
+        DecodedCanonicalConstValue::Float { .. } => "<ineligible floating const index>".to_owned(),
+        DecodedCanonicalConstValue::Integer { value, .. } => value.to_string(),
+        DecodedCanonicalConstValue::Boolean(value) => value.to_string(),
+        DecodedCanonicalConstValue::Array { values, .. } => format!(
+            "[{}]",
+            values
+                .iter()
+                .map(canonical_index_display)
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        DecodedCanonicalConstValue::Record { type_name, fields } => format!(
+            "{type_name} {{ {} }}",
+            fields
+                .iter()
+                .map(|(name, value)| format!("{name}: {}", canonical_index_display(value)))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        DecodedCanonicalConstValue::Variant {
+            type_name,
+            case_name,
+            fields,
+        } if fields.is_empty() => format!("{type_name}::{case_name}"),
+        DecodedCanonicalConstValue::Variant {
+            type_name,
+            case_name,
+            fields,
+        } => format!(
+            "{type_name}::{case_name} {{ {} }}",
+            fields
+                .iter()
+                .map(|(name, value)| format!("{name}: {}", canonical_index_display(value)))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CanonicalConstValue {
     pub type_name: String,

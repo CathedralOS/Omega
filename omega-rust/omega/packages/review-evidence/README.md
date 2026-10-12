@@ -47,6 +47,21 @@ contracts, authority and behavior, representation commitments, complete
 package records, and policy rows. It does not inspect compiler state or
 encode persistence bytes.
 
+[Assumed binding contracts](src/record/assumed_bindings.rs) are a separate
+runtime relationship risk. Their bounded row projection retains the exact
+relationship commitments and readable required/supplied contracts,
+implementation, assumption differences, introduced authority, consuming root,
+dependency path, and any demonstrated contradictions. Every row requires an
+explicit decision and is recommended for audit. This projection produces inert rows for the
+existing lock; it does not accept a relationship or provide missing settlement
+evidence. `PackagePolicyBaseline::with_assumed_binding_contracts` attaches the
+complete producer roster before the ordinary collector derives rows and its
+policy commitment. The same baseline retains it in canonical bytes, text,
+comparison and lock acceptance; no separate persistence route collects risk.
+The authentic settlement must still supply the roster at that integration
+boundary. Baseline schema 13 adds this family; schema 12 does not describe it
+and needs fresh review rather than an inferred empty roster during recovery.
+
 The representation projection records package-owned opaque data as `Unbound`
 and separately records each public producer candidate as exact
 opaque/conformance/carrier availability. Availability accepts no consumer

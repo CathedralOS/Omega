@@ -48,6 +48,10 @@ pub enum DynamicNonSignatureIneligibility {
 pub struct DynamicSlotSignature {
     /// The slot a selector call targets.
     pub symbol: SymbolHandle,
+    /// Complete copied public header in the containing program’s signature arena.
+    pub applied_signature: arena::Handle<StateSignature>,
+    /// Exact authored-to-applied contract fact custody for this public header.
+    pub contract_fact_copies: arena::HandleSpan<crate::signature::SignatureContractFactCopy>,
     /// Normalized identity of the selector type (`dyn Shape<Item>`).
     pub interface_identity: crate::type_identity::TypeIdentityId,
     pub declaring_trait: SymbolHandle,
@@ -77,14 +81,19 @@ impl TypedTrees {
         })
     }
 
-    /// The machine signature a dynamic slot's `requirement` resolves to in its
-    /// declaring trait's machine list; `None` when either lookup misses.
+    /// The slot's owned applied public signature. The authored requirement
+    /// stays in its declaring trait; its facts are never reused with a new
+    /// formal roster or substituted types.
     pub fn dynamic_slot_requirement(
         &self,
         slot: &DynamicSlotSignature,
     ) -> Option<&crate::signature::StateSignature> {
-        let definition = self.trait_definition_by_symbol(slot.declaring_trait)?;
-        self.trait_machine_signature_by_symbol(definition, slot.requirement)
+        self.trait_definition_by_symbol(slot.declaring_trait)?;
+        if !slot.applied_signature.is_valid() {
+            return None;
+        }
+        let signature = self.trait_machine_signatures.get(slot.applied_signature);
+        (signature.symbol == slot.symbol).then_some(signature)
     }
 
     /// The slot a selector call targets, by the slot's own symbol.

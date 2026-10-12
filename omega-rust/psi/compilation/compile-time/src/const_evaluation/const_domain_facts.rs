@@ -72,6 +72,16 @@ fn pending_memberships(typed: &TypedTrees, domain: &EvaluationDomain) -> Vec<Pen
     pending
 }
 
+pub(crate) fn source_constant_demands(
+    typed: &TypedTrees,
+    domain: &EvaluationDomain,
+    demands: &mut crate::source_constants::SourceConstantDemands,
+) {
+    for pending in pending_memberships(typed, domain) {
+        membership::source_constant_demands(typed, pending.membership.domain_symbol, demands, &mut Vec::new());
+    }
+}
+
 /// Whether any concrete membership's fact tree would invoke a machine whose
 /// reachable closure holds a resolved boundary-operator use that only exact
 /// selected execution can run. Mirrors the fixed-array-length and
@@ -134,23 +144,19 @@ pub(crate) fn evaluate_selected_domain_facts(
         return Ok(());
     }
 
-    // Admission and execution must see the same selected realization. When a
-    // selected use means an ordinary checked provider body, rebind its
-    // occurrence to the exact provider entry state on one private copy: the
-    // provider joins the ordinary call closure and runs its real body, while
-    // the caller's tree and its source-owned handles stay untouched.
-    let selected_program =
-        crate::machine_execution::selected_operators::prepare_selected_execution(
-            typed,
-            selected.provider_bodies,
-            selected.operators,
-        )
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let execution_program = domain.execution_program(selected_program.as_ref().unwrap_or(typed));
-    let execution = &execution_program;
-    let admission = BuildTimeAdmissionPlan::infer(execution, selection_authority)
-        .with_selected_operators(execution, selected.operators)
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    let mut demands = crate::source_constants::SourceConstantDemands::default();
+    for row in &pending {
+        membership::source_constant_demands(
+            typed, row.membership.domain_symbol, &mut demands, &mut Vec::new(),
+        );
+    }
+    let mut roots = demands.machines;
+    roots.extend(pending.iter().map(|row| row.membership.domain_symbol));
+    let (prepared, admission) = crate::const_evaluation::prepared_admission(
+        typed, selected.provider_bodies, selected.operators, selection_authority,
+        domain, &roots, selected.admission,
+    )?;
+    let execution = prepared.typed();
     let mut replacements = Vec::new();
     let mut affected_data = Vec::new();
     let mut diagnostics = Vec::new();

@@ -55,6 +55,92 @@ class RunnerLibrarySelection(unittest.TestCase):
         self.assertEqual(environment["OMEGA_LIBRARY_ROOT"], explicit)
 
 
+class NativeTargetDisposition(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.fixture = self.root / "pass" / "runtime" / "foreign"
+        self.fixture.mkdir(parents=True)
+        (self.fixture / "expected_native_exit.txt").write_text("70\n")
+        self.skipped = {"native": "skipped-target",
+                        "native-target": "linux_x86_64",
+                        "native-host": "macos_arm64"}
+
+    def observed(self, facts=None, status="built"):
+        return record("pass/runtime/foreign", status=status, facts=facts)
+
+    def failures(self, facts=None, status="built", target="macos_arm64"):
+        return corpus_gate.native_exit_failures(
+            [self.observed(facts, status)], self.root, target)
+
+    def test_explicit_skip_round_trips_and_preserves_interpreter_promise(self):
+        observed = self.observed(dict(self.skipped, **{"interpreter-exit": "70"}))
+        decoded = corpus_records.parse(corpus_records.render([observed]))
+        self.assertTrue(corpus_records.native_execution_skipped(decoded[0]))
+        for target in ("macos_arm64", "linux_x86_64"):
+            self.assertEqual(corpus_gate.native_exit_failures(decoded, self.root, target), [])
+        self.assertEqual(corpus_gate.interpreter_exit_failures(
+            decoded, self.root, "macos_arm64"), [])
+        self.assertEqual(corpus_records.pinned_off_target(decoded), [])
+
+    def test_missing_incomplete_and_same_target_skip_still_fail(self):
+        invalid = [{}, {"interpreter-exit": "70"}, {"native": "skipped-target"},
+                   dict(self.skipped, **{"native-target": "macos_arm64"}),
+                   dict(self.skipped, **{"native-host": ""})]
+        for missing in ("native-target", "native-host"):
+            invalid.append({key: value for key, value in self.skipped.items() if key != missing})
+        for facts in invalid:
+            with self.subTest(facts=facts):
+                self.assertTrue(self.failures(facts))
+
+    def test_refusals_and_contradictory_native_facts_cannot_skip(self):
+        for status in ("rejected", "checked", "timeout", "crashed"):
+            self.assertTrue(self.failures(self.skipped, status))
+        for key, value in (("exit", "0"), ("signal", "5"),
+                           ("stdout", "match"), ("stderr", "match")):
+            facts = dict(self.skipped, **{key: value})
+            self.assertFalse(corpus_records.native_execution_skipped(self.observed(facts)))
+            self.assertTrue(self.failures(facts))
+
+    def test_skip_rejects_native_comparison_claims(self):
+        for stream in ("stdout", "stderr"):
+            (self.fixture / f"expected_{stream}.txt").write_text("")
+        for agreement in ("agrees", "disagrees"):
+            facts = dict(self.skipped, **{"interpreter": agreement,
+                                        "interpreter-exit": "70"})
+            observed = self.observed(facts)
+            with self.subTest(agreement=agreement):
+                self.assertFalse(corpus_records.native_execution_skipped(observed))
+                self.assertTrue(self.failures(facts))
+                self.assertEqual(len(corpus_gate.execution_output_failures(
+                    [observed], self.root, "native")), 2)
+        trapped = self.observed(dict(self.skipped, **{"interpreter": "trapped"}))
+        self.assertTrue(corpus_records.native_execution_skipped(trapped))
+
+    def test_skip_does_not_excuse_invalid_or_interpreted_oracle(self):
+        for facts in (self.skipped, dict(self.skipped, **{"interpreter-exit": "0"})):
+            self.assertTrue(corpus_gate.interpreter_exit_failures(
+                [self.observed(facts)], self.root, "macos_arm64"))
+        (self.fixture / "expected_native_exit.txt").write_text("invalid")
+        self.assertTrue(self.failures(self.skipped))
+
+    def test_stream_skip_preserves_interpreter_and_on_host_promises(self):
+        for stream in ("stdout", "stderr"):
+            (self.fixture / f"expected_{stream}.txt").write_text("")
+        observed = self.observed(self.skipped)
+        self.assertEqual(corpus_gate.execution_output_failures([observed], self.root, "native"), [])
+        self.assertEqual(len(corpus_gate.execution_output_failures(
+            [observed], self.root, "interpreter")), 2)
+        self.assertEqual(len(corpus_gate.execution_output_failures(
+            [self.observed({})], self.root, "native")), 2)
+        completed = self.observed(dict(self.skipped, **{
+            "interpreter-exit": "70", "interpreter-stdout": "match",
+            "interpreter-stderr": "match"}))
+        self.assertEqual(corpus_gate.execution_output_failures(
+            [completed], self.root, "interpreter"), [])
+
+
 class NativeExitExpectations(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()

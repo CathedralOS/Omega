@@ -44,6 +44,15 @@ pub use borrow::{
 };
 pub use facts::CheckedValueQualification;
 pub use facts::{
+    AssumedBindingContractSide, AssumedBindingDirectionalObligations, AssumedBindingPublicClaim,
+    AssumedBindingResultCase, AssumedBindingSemanticConnection, AssumedBindingSemanticDirection,
+    AssumedBindingSemanticJudgment, AssumedBindingSemanticObligation, AssumedBindingSemanticSource,
+    AssumedBindingSemanticSubject, CheckedAssumedBindingContracts, CheckedPublicContractOwner,
+};
+pub use facts::{
+    CheckedContentConservationSource, CheckedPublicContractSources, CheckedPublicSignatureContent,
+};
+pub use facts::{
     CheckedMachineRankCorrespondence, CheckedRankArrivalEdge, CheckedRankArrivalPlan,
     CheckedRankBodyJudgment, CheckedRankCoordinate, CheckedRankCoordinateBinding,
     CheckedRankCoordinateHandle, CheckedRankCoordinateTransport, CheckedRankLocalCapture,
@@ -195,13 +204,16 @@ pub use proof::{
     CheckedFloatProjectionInput, CheckedFloatProjectionInputId, CheckedFloatProjectionSource,
     CheckedFloatSemanticApplication, CheckedFloatSemanticApplicationError,
     CheckedFloatSemanticApplicationOperand, CheckedFloatUseSite, CheckedIntegerAssignmentDecision,
+    CheckedMathematicalApplication, CheckedMathematicalApplicationCapture,
     CheckedMathematicalBinder, CheckedMathematicalBinderKind, CheckedMathematicalBody,
     CheckedMathematicalDeclaration, CheckedMathematicalParameter, CheckedMathematicalSignature,
-    CheckedProofOnlyValueType, CheckedProofPropositionId, CheckedProofValueDeclaration,
-    CheckedProofValueId, CheckedPropositionApplication, CheckedPropositionBinder,
-    CheckedPropositionBinderArgument, CheckedPropositionBinderArgumentKind,
-    CheckedPropositionBinderKind, CheckedPropositionDeclaration, CheckedPropositionEvidence,
-    CheckedPropositionVocabulary, ContractCallFact, ContractEvidenceArgument, ContractExitFact,
+    CheckedProofJudgment, CheckedProofOnlyValueType, CheckedProofPropositionId,
+    CheckedProofValueDeclaration, CheckedProofValueId, CheckedPropositionApplication,
+    CheckedPropositionBinder, CheckedPropositionBinderArgument,
+    CheckedPropositionBinderArgumentKind, CheckedPropositionBinderKind,
+    CheckedPropositionDeclaration, CheckedPropositionEvidence, CheckedPropositionVocabulary,
+    CheckedSourceContractDecision, CheckedSourceContractEntailment,
+    CheckedSourceContractEntailments, ContractCallFact, ContractEvidenceArgument, ContractExitFact,
     ContractExpressionEvidenceArgumentFact, ContractExpressionEvidenceCallFact,
     ContractExpressionStaticConformanceApplicationFact, ContractOperatorUseFact, ContractProofFact,
     ContractProofFactKind, ContractProofFactOwner, ContractProofFactRef, EvidenceAssignmentSource,

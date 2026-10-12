@@ -112,6 +112,34 @@ pub fn admit_native_realization<'execution>(
                 })
         })
         .collect::<Vec<_>>();
+    let direct_foreign_settlements = request
+        .providers
+        .direct_foreign_settlements
+        .iter()
+        .filter(|prepared| {
+            let callable = prepared.realization.callable_identity();
+            let mut matching = input
+                .context()
+                .module()
+                .boundary_machines
+                .iter()
+                .filter(|boundary| {
+                    input.context().module().identities.text(boundary.identity) == Some(callable)
+                })
+                .peekable();
+            // A genuinely retained but unexecuted occurrence grants no native
+            // authority. Unknown supplies remain visible to admission refusal.
+            matching.peek().is_none()
+                || matching.any(|boundary| {
+                    input
+                        .plan()
+                        .boundary_machines
+                        .iter()
+                        .any(|executed| executed.id == boundary.id)
+                })
+        })
+        .cloned()
+        .collect::<Vec<_>>();
     let compiler_builtins = request
         .providers
         .compiler_builtins
@@ -160,6 +188,7 @@ pub fn admit_native_realization<'execution>(
         checked_adapters: request.providers.checked_adapters,
         external_binding_rows: request.providers.external_binding_rows,
         settlements: &settlements,
+        direct_foreign_settlements: &direct_foreign_settlements,
         compiler_builtins: &compiler_builtins,
         native_callbacks: &native_callbacks,
         terminal_authority_policy: request.providers.terminal_authority_policy,
@@ -169,6 +198,9 @@ pub fn admit_native_realization<'execution>(
         x86_scalar_fma_provider: request.providers.x86_scalar_fma_provider,
     };
     let providers = admit_native_providers(&input, artifact, &scoped_providers)?;
+    // Preserve exactly this scoped admission result through native optimization.
+    // The original selected-provider identity table is already owned by input.
+    let input = input.retain_admitted_provider_correspondences(&providers);
     // Exclusions constrain the exercised mechanism closure even when the
     // caller makes no receiver-permission claim.
     request

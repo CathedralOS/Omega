@@ -21,11 +21,34 @@ pub(crate) fn boundary_trait_receiver_source(
     call_site: &validation::CallSite<'_>,
     requirement: SymbolHandle,
 ) -> Option<BoundaryTraitReceiver> {
+    // The exact public application owns its namespace even when operator
+    // lowering supplies no qualifier. Its data operands are already explicit
+    // call arguments, not an implicit receiver or provider capability.
+    let namespace =
+        program.public_requirement_namespace_symbol(call.target_symbol, call.authored_application);
+    let public_owner_matches = program
+        .selected_trait_requirement_signature(call.target_symbol, call.authored_application)
+        .is_some_and(|(owner, _)| owner.symbol == requirement);
+    let namespace_call = namespace.is_valid()
+        && public_owner_matches
+        && match call_site {
+            validation::CallSite::Expression { call: source, .. } => {
+                validation::call_target_symbol(program, source) == call.target_symbol
+                    && source.authored_machine_application == call.authored_application
+                    && program.call_has_no_runtime_receiver_for_target(source)
+            }
+            validation::CallSite::Statement(source) => {
+                source.target_symbol == call.target_symbol
+                    && source.authored_machine_application == call.authored_application
+                    && (source.receiver.is_empty() || source.receiver_symbol == namespace)
+            }
+            validation::CallSite::TransitionNamed { .. } => false,
+        };
+    if namespace_call {
+        return Some(BoundaryTraitReceiver::Namespace);
+    }
     if !call.has_receiver {
         return None;
-    }
-    if call.receiver_symbol == requirement {
-        return Some(BoundaryTraitReceiver::Namespace);
     }
     let Some((source, _)) = parameter_binding_receiver_source(
         program,

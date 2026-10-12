@@ -222,6 +222,7 @@ impl Expansion<'_> {
             self.checked,
             self.machine,
             source.target_symbol,
+            source.authored_application,
         )?;
         let plans = &self.checked.facts.values.scalar_computations;
         let structural =

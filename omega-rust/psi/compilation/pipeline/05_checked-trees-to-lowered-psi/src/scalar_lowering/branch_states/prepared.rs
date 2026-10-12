@@ -270,6 +270,11 @@ pub(crate) fn scalar_state_emission_order(
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum LoweredScalarEffect {
+    /// Metadata for the actual joined result, not a second establishment.
+    StructuralCompletion {
+        parameter: StructuralParameterDeclaration,
+        claims: Vec<crate::emission::claim_bindings::PreparedClaim>,
+    },
     EstablishReference {
         storage: checked_trees::CheckedReferenceStorage,
         state: symbols::SymbolHandle,

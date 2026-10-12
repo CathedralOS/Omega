@@ -9,6 +9,7 @@ name = "native_artifact"
 path = "src/lib.rs"
 
 [dependencies]
+task-plans = { path = "../../runtime/task-plans" }
 runtime-abi = { path = "../../runtime/runtime-abi" }
 terminal-installation = { path = "../../../../../psi/compilation/checking/terminal-installation" }
 platform-custody = { path = "../../../../foundation/platform-custody" }
@@ -45,5 +46,4 @@ terminal-psi-to-abstract-operations = { path = "../../../pipeline/00_terminal-ps
 diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
 
 [dev-dependencies]
-task-plans = { path = "../../runtime/task-plans" }
 optimization-core = { path = "../../../../foundation/optimization-core", features = ["test-support"] }

@@ -139,21 +139,19 @@ fn validate_erased_binding_qualifiers(
             }
         }
     }
-    for definition in program.traits() {
-        for signature in program.trait_machine_signatures(definition) {
-            for parameter in program.state_signature_parameters(signature) {
-                let Some(qualifier) = erased_qualifier(
-                    parameter.relevance,
-                    parameter.is_const,
-                    parameter.is_mutable,
-                ) else {
-                    continue;
-                };
-                diagnostics.push(Diagnostic::error(format!(
-                    "requirement `{}` erased parameter `{}` cannot be `{qualifier}`; an erased binding owns no runtime storage or custody",
-                    signature.name, parameter.name,
-                )));
-            }
+    for (_, signature) in program.public_trait_requirement_signatures() {
+        for parameter in program.state_signature_parameters(signature) {
+            let Some(qualifier) = erased_qualifier(
+                parameter.relevance,
+                parameter.is_const,
+                parameter.is_mutable,
+            ) else {
+                continue;
+            };
+            diagnostics.push(Diagnostic::error(format!(
+                "requirement `{}` erased parameter `{}` cannot be `{qualifier}`; an erased binding owns no runtime storage or custody",
+                signature.name, parameter.name,
+            )));
         }
     }
 }

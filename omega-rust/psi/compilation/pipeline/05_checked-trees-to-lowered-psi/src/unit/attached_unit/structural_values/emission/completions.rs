@@ -48,74 +48,35 @@ impl Emission<'_, '_, '_> {
         // the unselected source the result slot displaced dies on this edge.
         // Plain-affine contents have no cleanup, making it a trivial discard,
         // and the join frontier is identical on every incoming path.
-        let displaced = (!self.sources.is_empty()
-            && !self
-                .sources
-                .iter()
-                .any(|source| source.place == selected.place))
-        .then(|| self.first_candidate())
-        .flatten();
-        let displaced_place = displaced.map(|position| self.owners[position].value.place);
-        // The first candidate's owner slot is the one the result parameter
-        // displaced; a selected non-first candidate's slot is an ordinary
-        // residual slot filled by the surviving candidates. An ordinary move
-        // instead removes the moved root's own slot.
-        let removed = self.first_candidate().or_else(|| {
-            self.owners
-                .iter()
-                .position(|owner| owner.value.place == selected.place)
-        });
-        let mut unselected = self
+        let owners = self
+            .owners
+            .iter()
+            .map(|owner| crate::emission::owned_value_join::Owner {
+                place: owner.value.place,
+                structural_type: owner.value.structural_type,
+            })
+            .collect::<Vec<_>>();
+        let sources = self
             .sources
             .iter()
             .map(|source| source.place)
-            .filter(|place| *place != selected.place && Some(*place) != displaced_place);
-        let mut structural_arguments = Vec::new();
-        for (position, owner) in self.owners.iter().enumerate() {
-            if Some(position) == removed {
-                continue;
-            }
-            let place = if self
-                .sources
-                .iter()
-                .any(|source| source.place == owner.value.place)
-            {
-                let residual = unselected.next().ok_or(LoweringError::Unsupported(
-                    "owned selection residual sources do not cover their slots",
-                ))?;
-                // A residual slot carries the surviving source at the slot's
-                // own type. The roster's ordered complement can only rebind a
-                // source of the same type: on an edge selecting a later
-                // alternative the survivor sequence shifts, so a differently
-                // typed root would land in its sibling's slot. Reject that
-                // custody join here rather than emit an edge the terminal
-                // verifier must refuse.
-                let residual_type = self
-                    .owners
-                    .iter()
-                    .find(|candidate| candidate.value.place == residual)
-                    .map(|candidate| candidate.value.structural_type)
-                    .ok_or(LoweringError::Unsupported(
-                        "owned selection residual source has no frontier type",
-                    ))?;
-                if residual_type != owner.value.structural_type {
-                    return unsupported(
-                        "owned selection residual sources need uniform custody types",
-                    );
-                }
-                residual
-            } else {
-                owner.value.place
-            };
-            structural_arguments.push(StructuralArgument {
+            .collect::<Vec<_>>();
+        let complement = crate::emission::owned_value_join::selected_complement(
+            &owners,
+            &sources,
+            selected.place,
+            &[],
+        )?;
+        let displaced_place = complement.displaced;
+        let mut structural_arguments = complement
+            .places
+            .into_iter()
+            .map(|place| StructuralArgument {
                 place,
                 path: Vec::new(),
                 access: StructuralAccess::Owned,
-            });
-        }
-        if unselected.next().is_some() {
-            return unsupported("owned selection has untransported residual candidates");
-        }
+            })
+            .collect::<Vec<_>>();
         // A projected move keeps the root's untouched structural complement
         // owned on this same edge. Reconstruction against the checked root
         // type yields the exact residual schedule in positional order; the

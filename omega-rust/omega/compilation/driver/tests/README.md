@@ -45,7 +45,12 @@ Alternatively, add `expected_native_exit.txt` containing one decimal exit code
 or `trap`. This opts the fixture into execution regardless of its name and makes
 the native gate enforce that result even with `--record`. `trap` requires the
 target's trap signal/exception, not an arbitrary abnormal termination. These
-fixtures must bind the running host; missing execution fails the oracle.
+fixtures must bind the running host to witness native execution. A successfully
+built off-host artifact with no launcher records `native:skipped-target` with
+the actual `native-target` and physical `native-host`; that explicit disposition
+skips native exit and stream comparisons without claiming an execution result.
+Missing on-host execution or a refusal still fails the oracle. Interpreter
+promises remain mandatory on the interpreted and combined legs.
 `expected_stdout.txt` and `expected_stderr.txt` also opt a fixture into execution
 and independently constrain each engine's captured stream. Matching exits cannot
 excuse missing/different output, and `--record` cannot bless that result. Captures

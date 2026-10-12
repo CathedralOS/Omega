@@ -65,8 +65,8 @@ pub mod pre_resolution {
     pub use crate::constant::requires_const_initializer_evaluation;
     pub use crate::preparation::generic_data::{
         GenericDataRequest, canonicalize_declared_const_definition,
-        closed_data_const_argument_expressions, closed_machine_const_arguments,
-        normalize_generic_data,
+        closed_data_const_argument_expressions, normalize_generic_data,
+        original_scope_const_arguments,
     };
     pub use crate::preparation::trait_defaults::synthesize_trait_defaults;
     pub use crate::resolution::{

@@ -9,6 +9,7 @@ version.workspace = true
 test-support = []
 
 [dependencies]
+package-source = { path = "../source-acquisition" }
 evaluation-accounting = { path = "../../../psi/foundation/evaluation-accounting" }
 artifacts = { path = "../../foundation/artifacts" }
 typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }

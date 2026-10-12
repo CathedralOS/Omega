@@ -24,7 +24,7 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::finite_family::{FamilyProbe, FamilyTuple};
 use typed_trees::trait_definition::{AppliedTraitScope, Conformance};
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::TypeReferenceHandle;
 use validation::contract_identities::{accepted_template_commitment, normalized_machine_identity};
 
 /// Generate every missing tuple specialization demanded by the program's
@@ -309,16 +309,11 @@ fn generate_tuple_specialization(
     .expect("generic template must retain a normalized callable identity");
     let accepted_template_commitment =
         accepted_template_commitment(program, candidate.template.machine_index);
-    let ordinal = program
-        .machine_specializations
-        .iter()
-        .filter(|instance| instance.template == candidate.template.template_symbol)
-        .count();
+
     clone_specialized_machine(
         None,
         program,
         &candidate,
-        ordinal,
         normalized_template_identity,
         accepted_template_commitment,
     )?;
@@ -329,41 +324,61 @@ fn generate_tuple_specialization(
 /// `named(integer-const(16))` spells `16`, and a canonical Boolean encodes the
 /// `true`/`false` literal reference. The reference is interned on demand so a
 /// dynamic selection needs no static call site to produce its family.
-fn const_identity_type_reference(
+pub(crate) fn const_identity_type_reference(
     program: &mut TypedTrees,
     identity: &str,
 ) -> Option<TypeReferenceHandle> {
-    let spelling = const_identity_spelling(identity)?;
-    let existing = program
-        .type_reference_table
-        .named_references()
-        .find(|(_, symbol, name)| !symbol.is_valid() && *name == spelling)
-        .map(|(handle, _, _)| handle);
-    if let Some(handle) = existing {
-        return Some(handle);
-    }
-    Some(
+    if let Some(handle) =
         program
             .type_reference_table
-            .insert(TypeReferenceNode::Named {
-                symbol: SymbolHandle::invalid(),
-                name: typed_trees::name::Identifier::generated(spelling),
-            }),
-    )
+            .named_references()
+            .find_map(|(handle, symbol, _)| {
+                (!symbol.is_valid() && program.normalized_type_identity_text(handle) == identity)
+                    .then_some(handle)
+            })
+    {
+        return Some(handle);
+    }
+    // The original finite roster owns the contextual integer meaning field.
+    // Transport that field independently of the value encoding; older value-only
+    // integer identities cannot manufacture a typed policy receipt.
+    let (spelling, meaning) = const_identity_spelling(identity)?;
+    let reference =
+        super::application_arguments::intern_closed_const_with_meaning(program, &spelling, meaning);
+    (program.normalized_type_identity_text(reference) == identity).then_some(reference)
 }
 
 /// Decode one canonical specialization const identity back to its literal
 /// type-reference spelling.
-pub(super) fn const_identity_spelling(identity: &str) -> Option<String> {
+fn const_identity_spelling(
+    identity: &str,
+) -> Option<(String, typed_trees::types::ConstIntegerMeaning)> {
     if let Some(value) = identity
         .strip_prefix("named(integer-const(")
         .and_then(|inner| inner.strip_suffix("))"))
     {
-        return value.parse::<i128>().ok().map(|value| value.to_string());
+        return value.parse::<i128>().ok().map(|value| {
+            (
+                value.to_string(),
+                typed_trees::types::ConstIntegerMeaning::Anonymous,
+            )
+        });
     }
     let encoded = identity
         .strip_prefix("named(canonical-const(type(")
         .and_then(|inner| inner.strip_suffix(")))"))?;
+    let (encoded, meaning) =
+        if let Some((encoded, meaning)) = encoded.rsplit_once("),integer-meaning(") {
+            (
+                encoded,
+                typed_trees::types::ConstIntegerMeaning::from_identity_encoding(meaning)?,
+            )
+        } else {
+            (
+                encoded,
+                typed_trees::types::ConstIntegerMeaning::Unavailable,
+            )
+        };
     let (type_name, encoding) = encoded.split_once("),encoding(")?;
     let value = language_semantics::const_value::CanonicalConstValue::new(
         unescape_identity_component(type_name),
@@ -372,12 +387,30 @@ pub(super) fn const_identity_spelling(identity: &str) -> Option<String> {
     );
     match value.decode_encoding()? {
         language_semantics::const_value::DecodedCanonicalConstValue::Integer { value, .. } => {
-            Some(value.to_string())
+            let typed_trees::types::ConstIntegerMeaning::Typed { primitive, .. } = meaning else {
+                return None;
+            };
+            let identity = language_semantics::const_value::CanonicalConstIdentity::integer(
+                primitive.name(),
+                value,
+            );
+            Some((
+                language_semantics::const_value::CanonicalConstValue::new(
+                    identity.type_name,
+                    identity.encoding,
+                    value.to_string(),
+                )
+                .atom(),
+                meaning,
+            ))
         }
         language_semantics::const_value::DecodedCanonicalConstValue::Boolean(value) => {
             // The identity visitor re-encodes the canonical atom; a bare
             // `true`/`false` display would spell `named(name(true))` instead.
-            Some(language_semantics::const_value::CanonicalConstValue::boolean(value).atom())
+            Some((
+                language_semantics::const_value::CanonicalConstValue::boolean(value).atom(),
+                typed_trees::types::ConstIntegerMeaning::Unavailable,
+            ))
         }
         _ => None,
     }

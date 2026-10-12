@@ -1,0 +1,6 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "import_entry_kernel_calling_policy");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+    Build::select_provider<KernelProbe, ProbeProvider>(builder);
+    Build::bind(builder, linux_arm64::ProgramEntry, Main::main);
+}

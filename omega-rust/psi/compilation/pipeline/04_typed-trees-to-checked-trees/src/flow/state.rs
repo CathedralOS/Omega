@@ -74,11 +74,13 @@ pub(super) fn build_state_flow_fact<'plans>(
     let (rebased_contexts, _) = {
         super::entry_origins::rebase_contexts(
             program,
+            proof,
             semantic,
             build,
             machine,
             state,
             state_contexts,
+            arena::HandleSpan::empty(),
             true,
         )
     };

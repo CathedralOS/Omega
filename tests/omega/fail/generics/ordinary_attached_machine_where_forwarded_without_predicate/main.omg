@@ -1,0 +1,11 @@
+data Carrier<Payload> { value: Payload; }
+data Main { value: u64; }
+machine Carrier::choose<Payload, const Count: u64>(carrier: &Carrier<Payload>, witness: &[u8; Count]) -> u64
+where Count == 4 || Count == 8 { transition { _ -> Count } }
+machine forward<const Count: u64>(carrier: &Carrier<u64>, witness: &[u8; Count]) -> u64 {
+    Carrier::choose(carrier, witness)
+}
+machine Main::main(main: &mut Main) {
+    let four: [u8; 4] = [0,0,0,0];
+    let result: u64 = forward<4>(&Carrier { value: main.value }, &four);
+}

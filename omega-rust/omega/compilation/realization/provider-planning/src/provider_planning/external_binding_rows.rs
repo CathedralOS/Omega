@@ -371,3 +371,99 @@ fn selected_source_boundary_entry_plan(
 
     Ok(Some(realization.exact_boundary_entry_plan().clone()))
 }
+
+/// Original selected external rows own locators/numbers; public headers own ABI
+/// geometry. Reuse the exact original-row and receiver-scope projection that
+/// product publication consumes rather than introduce another selection route.
+pub(crate) fn retain_compatibility_calling_applications(
+    typed: &checked_trees::typed_trees::TypedTrees,
+    native_target: target::NativeTarget,
+    selected: &effects::SelectedProviderPlanFacts,
+    correspondences: &[crate::selected_requirement_applications::SelectedRequirementApplicationProjection<'_>],
+    identities: &terminal_psi::TerminalIdentityTable,
+    explicit: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
+    opaque: &[representation_planning::OpaqueRepresentationSelection],
+) -> Result<Vec<calling_conventions::BoundaryCallingApplication>, Vec<Diagnostic>> {
+    let mut applications = Vec::new();
+    for projection in correspondences {
+        let correspondence = &projection.correspondence;
+        let public = projection.public;
+        let error = |message: &str| vec![Diagnostic::error(message.to_owned())];
+        let original = identities
+            .text(correspondence.selected_requirement_identity)
+            .ok_or_else(|| error("compatibility application lost its original row identity"))?;
+        let public_identity = identities
+            .text(correspondence.requirement_identity)
+            .ok_or_else(|| error("compatibility application lost its public identity"))?;
+        let mut plans = selected.plans().iter().filter(|plan| {
+            plan.report_fingerprint() == correspondence.provider_plan_report_identity
+                && plan.identity_digest() == correspondence.provider_plan_digest
+        });
+        let (Some(plan), None) = (plans.next(), plans.next()) else {
+            return Err(error(
+                "compatibility application changed its selected plan commitment",
+            ));
+        };
+        let mut rows = plan
+            .rows
+            .iter()
+            .filter(|row| plan.identities.text(row.requirement_identity) == original);
+        let (Some(row), None) = (rows.next(), rows.next()) else {
+            return Err(error(
+                "compatibility application has no unique original selected row",
+            ));
+        };
+        // Both external mechanisms use the authentic applied signature. Their
+        // physical policies remain distinct: a kernel entry never borrows the
+        // ordinary host call ABI, even when its values have equal geometry.
+        let policy = match &row.binding {
+            effects::provider_plan::ProviderBinding::Import { .. } => {
+                calling_conventions::CallingPolicy::native_for_target(native_target)
+            }
+            effects::provider_plan::ProviderBinding::Syscall { .. } => {
+                calling_conventions::CallingPolicy::native_syscall_for_target(native_target)
+                    .ok_or_else(|| {
+                        error("compatibility application has no supported kernel entry policy")
+                    })?
+            }
+            _ => continue,
+        };
+        if explicit.iter().any(|application| {
+            application.public_requirement_identity == public_identity
+                && application
+                    .materialized_signature()
+                    .owner_requirement_identity()
+                    == original
+                && application.materialized_signature().native_target() == native_target
+        }) {
+            continue;
+        }
+        let presentation = if public.selected_interface.is_valid() {
+            (public.selected_interface, public.signature.symbol)
+        } else {
+            // A finite application has no demanded presentation. Its exact
+            // public projection retains the original owning declaration.
+            (public.owner.symbol, public.declaration.symbol)
+        };
+        if crate::calling_policy_plans::calling_policy_owner(typed, presentation.0, presentation.1)
+            .map_err(|reason| error(&reason))?
+            .is_some()
+        {
+            return Err(error(
+                "explicit Calling application has no completed public realization",
+            ));
+        }
+        let application = crate::calling_policy_plans::evaluate_compatibility_boundary_application(
+            typed,
+            public,
+            original,
+            public_identity.to_owned(),
+            native_target,
+            policy,
+            opaque,
+        )
+        .map_err(|reason| error(&reason))?;
+        applications.push(application);
+    }
+    Ok(applications)
+}

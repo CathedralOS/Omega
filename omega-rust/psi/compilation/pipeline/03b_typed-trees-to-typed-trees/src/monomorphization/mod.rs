@@ -35,27 +35,39 @@ use typed_trees::statement::{StatementHandle, StatementNode};
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 use validation::contract_identities::{accepted_template_commitment, normalized_machine_identity};
 
-mod applications;
+pub(crate) mod application_arguments;
+mod application_calls;
+mod application_evidence;
+pub(crate) mod applications;
 mod candidate;
 mod contextual_calls;
 mod selection;
 pub(crate) use selection::infer_static_bindings;
 
 mod body_rewriting;
-pub(crate) use body_rewriting::{collect_evidence_requirement_closure, insert_subject_name};
+pub(crate) use application_evidence::collect_evidence_requirement_closure;
+pub(crate) use body_rewriting::insert_subject_name;
 mod body_cloning;
 pub(crate) use body_cloning::copy_type_reference;
+pub(crate) mod captured_lexical_scopes;
 mod const_arguments;
+pub(crate) mod demanded_applications;
 mod dynamic_families;
+pub(crate) mod requirement_applications;
+mod requirement_calls;
+mod requirement_scopes;
+mod requirement_signatures;
+pub(crate) use requirement_signatures::retain_requirement_operand_application;
+mod signature_cloning;
+mod trait_provider_applications;
 pub(crate) use dynamic_families::generate_dynamic_family_specializations;
 mod dynamic_slots;
 pub(crate) use dynamic_slots::instantiate_dynamic_slots;
-mod requirement_applications;
 pub(crate) use requirement_applications::instantiate_boundary_requirement_families;
 pub(crate) use type_reference_walk::{for_each_type_reference, type_reference_endpoints};
+pub(crate) mod call_results;
 mod const_values;
 mod range_arguments;
-mod result_locals;
 mod saved_calls;
 mod target_families;
 mod type_reference_walk;
@@ -114,7 +126,7 @@ struct CalleeState {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum CallSite {
+pub(crate) enum CallSite {
     Statement(StatementHandle),
     Expression(ExpressionHandle),
 }
@@ -123,6 +135,8 @@ enum CallSite {
 struct CallSelection {
     site: CallSite,
     lexical_owner: SymbolHandle,
+    enclosing_data_applications: Vec<TypeReferenceHandle>,
+    receiving_data_parameter: SymbolHandle,
     callee_symbol: SymbolHandle,
     candidate_index: usize,
     caller_is_generic: bool,
@@ -188,18 +202,62 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
     enforce_complete_concrete_selections: bool,
 ) -> Result<typed_trees::references::DeclarationSelection, Vec<Diagnostic>> {
     let mut changed_owners = Vec::new();
+    let mut result_derivations = call_results::ResultDerivations::default();
     loop {
-        // Provider clones may restore old inferred types even when this round
-        // discovers no further ordinary specialization.
-        let unavailable = crate::constructed_results::retain_constructed_result_types(program);
-        changed_owners.extend(result_locals::refresh(program, &unavailable)?);
-        changed_owners.extend(result_locals::materialize_reference_observations(program)?);
         materialize_static_argument_types(program);
+        // One postorder publishes calls, borrows and constructions before
+        // original lifetime inference and inferred-local consumers.
+        let publication = crate::constructed_results::retain_constructed_result_types(
+            program,
+            &mut result_derivations,
+        );
+        let mut result_progress = !publication.changed_owners.is_empty();
+        changed_owners.extend(publication.changed_owners);
+        let local_owners =
+            call_results::refresh_inferred_local_results(program, &publication.unavailable)?;
+        result_progress |= !local_owners.is_empty();
+        changed_owners.extend(local_owners);
+        let observations = call_results::materialize_reference_observations(program)?;
+        if !observations.is_empty() {
+            changed_owners.extend(observations);
+            continue;
+        }
+        crate::conformance::conformance_application_lifetimes::resolve_elided_conformance_lifetimes(program)?;
+        crate::conformance::explicit_requirement_calls::route_explicit_requirement_calls(program)?;
         changed_owners.extend(contextual_calls::close(program)?);
-        crate::constructed_results::retain_constructed_result_types(program);
+        let requirement_owners = requirement_calls::bind(program)?;
+        let requirement_progress = !requirement_owners.is_empty();
+        changed_owners.extend(requirement_owners);
+        // Requirement headers can complete another child. Reuse the same
+        // producer derivations and traversal, rather than a second copier.
+        let publication = crate::constructed_results::retain_constructed_result_types(
+            program,
+            &mut result_derivations,
+        );
+        result_progress |= !publication.changed_owners.is_empty();
+        changed_owners.extend(publication.changed_owners);
+        let local_owners =
+            call_results::refresh_inferred_local_results(program, &publication.unavailable)?;
+        result_progress |= !local_owners.is_empty();
+        changed_owners.extend(local_owners);
+        crate::conformance::conformance_application_lifetimes::resolve_elided_conformance_lifetimes(program)?;
+        // Reference results are published before their scalar observations.
+        // Insertion replaces a statement span, so recollect all call selections
+        // next round. This point also serves programs with no generic candidates.
+        let observations = call_results::materialize_reference_observations(program)?;
+        if !observations.is_empty() {
+            changed_owners.extend(observations);
+            continue;
+        }
+        crate::preparation::selections::retain_receiver_contexts(program);
         let candidates = candidate::collect(program);
         let callee_states = candidate::callees(program, &candidates);
         if candidates.is_empty() {
+            // A public result can supply another public call's operand even
+            // when there is no ordinary executable specialization template.
+            if requirement_progress || result_progress {
+                continue;
+            }
             return Ok(typed_trees::references::DeclarationSelection::from_symbols(
                 changed_owners,
             ));
@@ -211,6 +269,20 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
             &callee_states,
             &contract_expressions,
         );
+        // Public result/header copying can introduce const graphs after the
+        // round-entry type scan. Complete each exact selected const operand
+        // before its application, result or body consumes the proposal. The
+        // same normalizer preserves landed carriers and leaves unknown/open
+        // graphs untouched; immutable checking still admits every bound.
+        for selection in &selections {
+            for (ordinal, binding) in selection.const_bindings.iter().enumerate() {
+                if selection.runtime_value_bindings[ordinal].is_none()
+                    && let Some(binding) = binding
+                {
+                    application_arguments::materialize_const_type_argument(program, *binding);
+                }
+            }
+        }
         // An overflowing proposal cannot form an executable tuple. Preserve
         // its authored call for source admission instead of masking its binder
         // kind with a derivative grouping error.
@@ -227,41 +299,20 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
                 candidate_for_selection(program, &candidates[selection.candidate_index], selection);
             applications::retain_call(program, &candidate, selection);
         }
-        changed_owners.extend(result_locals::refresh_generic_call_results(
+        let result_owners = call_results::refresh_generic_call_results(
             program,
             &candidates,
             &selections,
-        )?);
+            &mut result_derivations,
+        )?;
+        result_progress |= !result_owners.is_empty();
+        changed_owners.extend(result_owners);
         let mut diagnostics = Vec::new();
-        let mut applied_any = false;
+        let mut applied_any = requirement_progress || result_progress;
         for (candidate_index, candidate) in candidates.iter().enumerate() {
-            // Open callers keep their symbolic applications. Concrete applications
-            // of the same template are independent tuples, never evidence with
-            // which to consume the declaration or specialize another caller.
-            //
-            // An incomplete selection that already holds const, machine, or
-            // conformance evidence rejects in every pass: partial static
-            // evidence can never complete to a single tuple.
-            //
-            // A zero-binding incomplete selection is NOT rejected here. The
-            // specialization loop is a fixed point: a later round may still
-            // land a receiver, provider, or endpoint binding that completes
-            // the tuple, so this pass must wait for `applied_any` to go quiet
-            // before calling a statement call underivable.
-            if selections.iter().any(|selection| {
-                selection.candidate_index == candidate_index
-                    && !selection.caller_is_generic
-                    && !selection.is_complete()
-                    && (selection.const_bindings.iter().any(Option::is_some)
-                        || selection.machine_bindings.iter().any(Option::is_some)
-                        || selection.evidence_bindings.iter().any(Option::is_some))
-            }) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "generic machine `{}` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived",
-                    candidate.template.template_name
-                )));
-                continue;
-            }
+            // Open callers retain their symbolic tuples. Ordinary and public
+            // result progress may complete another call later in this same
+            // fixed point; incomplete selections are judged after it settles.
             match apply_call_specializations(
                 program,
                 candidate,
@@ -276,14 +327,28 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         if !diagnostics.is_empty() {
             return Err(diagnostics);
         }
-        let observations = result_locals::materialize_reference_observations(program)?;
-        if !observations.is_empty() {
-            changed_owners.extend(observations);
-            // Recollect statement handles after inserting completed reference
-            // results; a previous selection names the old statement span.
-            continue;
-        }
         if !applied_any {
+            // Retain the original partial-static refusal, but only after both
+            // public headers and ordinary specializations stop making progress.
+            for (candidate_index, candidate) in candidates.iter().enumerate() {
+                if selections.iter().any(|selection| {
+                    selection.candidate_index == candidate_index
+                        && !selection.caller_is_generic
+                        && !selection.is_complete()
+                        && (selection.const_bindings.iter().any(Option::is_some)
+                            || selection.machine_bindings.iter().any(Option::is_some)
+                            || selection.evidence_bindings.iter().any(Option::is_some))
+                }) {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "generic machine `{}` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived",
+                        candidate.template.template_name
+                    )));
+                }
+            }
+            if !diagnostics.is_empty() {
+                return Err(diagnostics);
+            }
+
             // Fixed point: no later specialization round can still land a
             // receiver, provider, or endpoint binding, so a concrete
             // selection still incomplete here is honestly underivable. The
@@ -328,17 +393,21 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
 }
 
 fn materialize_static_argument_types(program: &mut TypedTrees) {
+    application_arguments::materialize_const_type_arguments(program);
     fn collect(
         program: &dyn ::validation::CheckingInput,
         arguments: &[StaticMachineArgument],
-        literals: &mut Vec<String>,
         types: &mut Vec<(SymbolHandle, typed_trees::name::Identifier)>,
+        meanings: &mut Vec<(String, typed_trees::types::ConstIntegerMeaning)>,
     ) {
         for argument in arguments {
-            if let Some(literal) = const_arguments::spelling(program, argument)
-                && !literals.contains(&literal)
-            {
-                literals.push(literal);
+            if let Some(literal) = const_arguments::spelling(program, argument) {
+                let meaning = program
+                    .typed_program()
+                    .static_const_integer_meaning(argument);
+                if !meanings.contains(&(literal.clone(), meaning)) {
+                    meanings.push((literal, meaning));
+                }
             }
             // Builtin-type arguments intern the same named reference an
             // authored `-> u64` would: an explicit `ident<u64>` is complete
@@ -356,26 +425,30 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
                 types.push((argument.symbol, name.clone()));
             }
             if let Some(application) = &argument.application {
-                collect(program, &application.arguments, literals, types);
+                collect(program, &application.arguments, types, meanings);
             }
         }
     }
 
     let mut literals = Vec::new();
     let mut types = Vec::new();
+    let mut meanings = Vec::new();
     for (_, expression) in program.expression_table.iter_expressions() {
         if let ExpressionNode::Call(call) = expression {
-            collect(program, &call.machine_arguments, &mut literals, &mut types);
+            collect(program, &call.machine_arguments, &mut types, &mut meanings);
         }
     }
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
                 if let Some(call) = statement.as_call() {
-                    collect(program, &call.machine_arguments, &mut literals, &mut types);
+                    collect(program, &call.machine_arguments, &mut types, &mut meanings);
                 }
             }
         }
+    }
+    for (literal, meaning) in meanings {
+        application_arguments::intern_closed_const_with_meaning(program, &literal, meaning);
     }
     literals.extend(
         program
@@ -403,18 +476,11 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
     literals.sort();
     literals.dedup();
     for literal in literals {
-        let exists = program
-            .type_reference_table
-            .named_references()
-            .any(|(_, symbol, name)| !symbol.is_valid() && name == literal);
-        if !exists {
-            program
-                .type_reference_table
-                .insert(TypeReferenceNode::Named {
-                    symbol: SymbolHandle::invalid(),
-                    name: typed_trees::name::Identifier::generated(literal),
-                });
-        }
+        application_arguments::intern_closed_const_with_meaning(
+            program,
+            &literal,
+            typed_trees::types::ConstIntegerMeaning::Anonymous,
+        );
     }
     for (symbol, name) in types {
         if program
@@ -492,8 +558,9 @@ fn apply_call_specializations(
 ) -> Result<bool, Vec<Diagnostic>> {
     // A complete telescope is not yet an admitted application. Malformed
     // source arguments must retain their ordinary diagnostic during grouping.
-    let groups = unique_complete_selections(program, selections, candidate_index)
-        .map_err(|diagnostic| vec![diagnostic])?;
+    let groups =
+        unique_complete_selections(program, selections, candidate_index, &template.template)
+            .map_err(|diagnostic| vec![diagnostic])?;
     if groups.is_empty() {
         return Ok(false);
     }
@@ -538,19 +605,14 @@ fn apply_call_specializations(
                 .zip(states.iter().map(|state| state.symbol))
                 .collect()
         } else {
-            let ordinal = program
-                .machine_specializations
-                .iter()
-                .filter(|instance| instance.template == template.template.template_symbol)
-                .count();
             clone_specialized_machine(
                 None,
                 program,
                 candidate,
-                ordinal,
                 normalized_template_identity.clone(),
                 accepted_template_commitment.clone(),
             )?
+            .state_symbols
         };
         for selection_index in members {
             let selection = &selections[*selection_index];
@@ -562,6 +624,13 @@ fn apply_call_specializations(
                     "selected call has no exact specialization state",
                 )]);
             };
+            let original =
+                candidate_for_selection(program, template, selection).binding_application;
+            let instance = program
+                .machine_holding_state(*concrete_state)
+                .ok_or_else(|| vec![Diagnostic::error("selected state lost its instance owner")])?
+                .symbol;
+            program.retain_machine_conformance_application(instance, original);
             // Each site keeps its own exact runtime subjects: the shared
             // carrier-keyed instance receives them as appended arguments.
             let subjects = selection
@@ -843,7 +912,7 @@ fn specialized_attached_data(
         .template
         .type_parameters
         .iter()
-        .position(|(_, name)| name == attached.as_str());
+        .position(|(parameter, _)| *parameter == machine.attached_data_symbol);
     let Some(parameter_index) = parameter_index else {
         return Some((attached.clone(), machine.attached_data_symbol));
     };

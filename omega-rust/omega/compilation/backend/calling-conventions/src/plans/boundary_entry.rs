@@ -21,6 +21,17 @@ pub struct BoundaryEntryPlan {
     pub state: StatePlan,
 }
 
+impl BoundaryEntryPlan {
+    /// Canonical commitment of the retained plan payload. This encodes data;
+    /// validation and admission remain with the producing calling application.
+    pub fn contract_commitment_digest(&self) -> [u8; 32] {
+        let mut hash = Fnv1a::with_strong_domain(b"omega.boundary-calling-plan.v2");
+        hash.call_plan(&self.call);
+        hash.state_plan(&self.state);
+        hash.finish_strong()
+    }
+}
+
 /// The compile-time result published by an implementation of the source
 /// `CallingPolicy::plan` relationship. A rejected policy is deliberately not
 /// representable as a validated plan and therefore cannot acquire contract
@@ -70,10 +81,7 @@ impl ValidatedBoundaryEntryPlan {
 
     /// Domain-separated commitment to the complete canonical boundary plan.
     pub fn contract_commitment_digest(&self) -> [u8; 32] {
-        let mut hash = Fnv1a::with_strong_domain(b"omega.boundary-calling-plan.v2");
-        hash.call_plan(&self.0.call);
-        hash.state_plan(&self.0.state);
-        hash.finish_strong()
+        self.0.contract_commitment_digest()
     }
 }
 

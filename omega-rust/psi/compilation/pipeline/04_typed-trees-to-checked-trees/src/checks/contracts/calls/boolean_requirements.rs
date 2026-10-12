@@ -11,6 +11,40 @@ use super::super::prover::{
 };
 use super::{incoming_guard_proves_requires, transition_guard_proves_boolean_requirement};
 
+/// Every Boolean proof route must observe the contract graph produced for
+/// this exact public application. Preserve the source fact and its flow epoch;
+/// selecting its applied expression supplies no premise or verdict.
+pub(super) fn at_call(
+    program: &dyn ::validation::CheckingInput,
+    state: &FlowStateFact,
+    call: &FlowCallFact,
+    requirement: &facts::Fact,
+) -> Option<facts::Fact> {
+    let mut selected = *requirement;
+    let facts::FactPayload::ContractBooleanExpression {
+        fact, expression, ..
+    } = requirement.payload
+    else {
+        return Some(selected);
+    };
+    let site = validation::find_call_site(
+        program,
+        state.machine_symbol,
+        state.state_symbol,
+        call.statement_index,
+        call.call_ordinal,
+    )?;
+    let applied = validation::applied_call_requirement_expression(program, site, fact, expression);
+    if !applied.is_valid() {
+        return None;
+    }
+    if let facts::FactPayload::ContractBooleanExpression { expression, .. } = &mut selected.payload
+    {
+        *expression = applied;
+    }
+    Some(selected)
+}
+
 /// A collection-predicate requirement over a field of the caller's argument
 /// place is the same fact the place's data states in `where`; it stands at
 /// every call because calls are consumption points for invariant windows.
@@ -175,6 +209,9 @@ pub(super) fn proves(
             facts,
             state_flow,
             call_flow,
+            // at_call already selected this expression from the source fact.
+            // Zero requires the selected public header to own it directly.
+            arena::Handle::invalid(),
             expression,
             call_frames,
         )

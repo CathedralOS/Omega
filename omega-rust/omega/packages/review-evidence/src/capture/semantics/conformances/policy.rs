@@ -199,6 +199,7 @@ fn validate_retained_application(
     application: &ClosedConformanceApplication,
 ) -> Result<(), Vec<Diagnostic>> {
     let selected = StaticMachineArgument {
+        authored_position: None,
         path: Box::new([]),
         application: Some(Box::new(StaticSymbolApplication {
             lifetime_arguments: application

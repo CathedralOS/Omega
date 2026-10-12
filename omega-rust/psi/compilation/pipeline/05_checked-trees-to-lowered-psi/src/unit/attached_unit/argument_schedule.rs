@@ -244,7 +244,12 @@ fn append(
         call.structural_arguments.as_slice(),
     );
     let authored = crate::call_sites::locate(checked, state, coordinate)?;
-    let target = crate::declarations::target_signature(checked, machine, authored.source_target)?;
+    let target = crate::declarations::target_signature(
+        checked,
+        machine,
+        authored.source_target,
+        authored.application,
+    )?;
     let parameters = target.parameters;
     // Authored positions and retained argument slots are different namespaces.
     // The callee's checked signature decides which structural formals survive;

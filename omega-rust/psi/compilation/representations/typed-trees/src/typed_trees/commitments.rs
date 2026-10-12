@@ -89,7 +89,7 @@ digest_commitment! {
     MachineTemplateCommitment
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Eq)]
 pub struct ClosedConformanceApplication {
     pub declaration: symbols::SymbolHandle,
     /// Exact ordered source-resolved arguments retained for structural policy
@@ -113,6 +113,40 @@ pub struct ClosedConformanceApplication {
     /// Domain-separated commitment to the historical closed-application
     /// encoding. The separately retained resolved argument tree is not hashed.
     pub commitment: ClosedConformanceApplicationCommitment,
+}
+
+impl PartialEq for ClosedConformanceApplication {
+    fn eq(&self, other: &Self) -> bool {
+        let Self {
+            declaration,
+            arguments,
+            lifetime_arguments,
+            type_arguments,
+            const_arguments,
+            machine_arguments,
+            trait_definition,
+            trait_lifetime_arguments,
+            trait_arguments,
+            rows,
+            report_fingerprint,
+            commitment,
+        } = self;
+        declaration == &other.declaration
+            && crate::expression::StaticMachineArgument::semantic_contents_equal(
+                arguments,
+                &other.arguments,
+            )
+            && lifetime_arguments == &other.lifetime_arguments
+            && type_arguments == &other.type_arguments
+            && const_arguments == &other.const_arguments
+            && machine_arguments == &other.machine_arguments
+            && trait_definition == &other.trait_definition
+            && trait_lifetime_arguments == &other.trait_lifetime_arguments
+            && trait_arguments == &other.trait_arguments
+            && rows == &other.rows
+            && report_fingerprint == &other.report_fingerprint
+            && commitment == &other.commitment
+    }
 }
 
 /// One exact const argument retained by a checked conformance application.

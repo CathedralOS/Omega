@@ -10,9 +10,10 @@
 //!   it.
 //! - `lower_expression_handle_from_table` and
 //!   `lower_expression_handle_from_table_with_symbol_substitution` take any
-//!   expression table, with or without the resolved program; the second can
+//!   expression table with its enclosing resolved program; the second can
 //!   substitute one resolved binder with a typed expression. Type references and
-//!   constraints use them.
+//!   constraints use them. The program retains declaration, carrier and builtin
+//!   identity for every expression, including constant and proof operands.
 //! - `lower_expression_handle_from_table_in_fact_position` lowers a proof
 //!   fact: equality over recursive, proof-only data stays a raw binary
 //!   comparison instead of requiring runtime equality.
@@ -57,17 +58,18 @@ pub(crate) fn lower_expression_handle(
 }
 
 pub(crate) fn lower_expression_handle_from_table(
+    program: &resolved::SymbolResolvedTrees,
     source: &resolved::expression::ExpressionTable,
     target: &mut typed::TypedTrees,
     expression: resolved::expression::ExpressionHandle,
 ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
     lower_expression_handle_from_table_with_symbol_substitution(
-        None, source, target, expression, None,
+        program, source, target, expression, None,
     )
 }
 
 pub(crate) fn lower_expression_handle_from_table_with_symbol_substitution(
-    program: Option<&resolved::SymbolResolvedTrees>,
+    program: &resolved::SymbolResolvedTrees,
     source: &resolved::expression::ExpressionTable,
     target: &mut typed::TypedTrees,
     expression: resolved::expression::ExpressionHandle,
@@ -95,7 +97,7 @@ pub(crate) fn lower_expression_handle_from_table_in_fact_position(
 }
 
 pub(crate) fn lower_static_machine_argument(
-    program: Option<&resolved::SymbolResolvedTrees>,
+    program: &resolved::SymbolResolvedTrees,
     target: &mut typed::TypedTrees,
     exposure: Option<
         language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
@@ -103,9 +105,6 @@ pub(crate) fn lower_static_machine_argument(
     argument: &resolved::expression::StaticMachineArgument,
 ) -> Result<typed::expression::StaticMachineArgument, Diagnostic> {
     let type_reference = if argument.type_reference.is_valid() {
-        let program = program.ok_or_else(|| {
-            Diagnostic::error("structural static type argument requires its resolved program")
-        })?;
         crate::type_reference::lower_type_reference_into_trees_with_exposure(
             program,
             target,
@@ -116,6 +115,7 @@ pub(crate) fn lower_static_machine_argument(
         typed::types::TypeReferenceHandle::invalid()
     };
     let mut selected = typed::expression::StaticMachineArgument {
+        authored_position: None,
         type_reference,
         path: argument
             .path

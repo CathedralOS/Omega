@@ -169,11 +169,14 @@ fn contract_occurrence_owner(
 }
 
 /// Every callable contract in the order owner resolution visits them:
-/// machines with an entry state, operators, then trait requirement signatures.
+/// machines with an entry state, operators, then public requirement graphs.
 /// Operators own their result guarantees even when their boundary body is
 /// absent; ignoring them leaves the result projection without an owner. A trait
 /// symbol cannot distinguish sibling requirements, and manufacturing a machine
 /// for a bodyless signature would give it the wrong result owner.
+/// Logical application views keep the original callable symbol and fresh fact
+/// expressions. Their exact active occurrence owns those result expressions;
+/// declaration-only enumeration cannot recover that graph from the symbol.
 fn callable_contracts(
     program: &dyn crate::CheckingInput,
 ) -> impl Iterator<
@@ -193,19 +196,24 @@ fn callable_contracts(
             program.machine_contracts(machine),
         ))
     });
-    let requirements = program.traits().iter().flat_map(|definition| {
-        program
-            .trait_machine_signatures(definition)
-            .iter()
-            .map(|signature| {
-                (
-                    signature.symbol,
-                    signature.return_type,
-                    program.state_signature_parameters(signature),
-                    program.state_signature_contracts(signature),
-                )
-            })
-    });
+    let requirements = program
+        .public_trait_requirement_signatures()
+        .map(|(_, signature)| {
+            (
+                signature.symbol,
+                signature.return_type,
+                program.state_signature_parameters(signature),
+                program.state_signature_contracts(signature),
+            )
+        })
+        .chain(program.public_requirement_contracts().map(|signature| {
+            (
+                signature.symbol,
+                signature.return_type,
+                program.state_signature_parameters(signature),
+                program.state_signature_contracts(signature),
+            )
+        }));
     let operators = program.operators().iter().map(|operator| {
         (
             operator.symbol,

@@ -16,14 +16,18 @@ pub enum ConsumedSourceUnitKind {
     PackageGenerated(source::DependencyScope),
     ToolchainVirtual,
     ToolchainOwned,
+    /// Original unmanaged root inventory. This is a source-only owner, not a
+    /// completed anonymous package or authorization identity.
+    CapturedRootAuthored([u8; 32]),
 }
 
 /// One path-stable, content-addressed source unit consumed by the final
 /// checked compilation.
 ///
 /// Physical cache roots and compiler-local source IDs are deliberately absent.
-/// Package identity or toolchain namespace plus the canonical relative path
-/// owns the coordinate, with the checked import scope additionally distinguishing
+/// Package identity, toolchain namespace or the original captured root inventory
+/// revision plus the canonical relative path owns the coordinate, with the
+/// checked import scope additionally distinguishing
 /// generated units; the collision-resistant content digest owns the exact
 /// bytes. The ordered set of these rows is the sole source projection used by
 /// both production manifests and source-consumption commitments.
@@ -61,7 +65,8 @@ impl ConsumedSourceUnit {
                         .as_deref()
                         .is_some_and(|namespace| !namespace.is_empty())
             }
-            ConsumedSourceUnitKind::ToolchainVirtual => {
+            ConsumedSourceUnitKind::ToolchainVirtual
+            | ConsumedSourceUnitKind::CapturedRootAuthored(_) => {
                 package.is_none() && toolchain_namespace.is_none()
             }
         };
@@ -109,6 +114,15 @@ impl ConsumedSourceUnit {
     pub const fn content_digest(&self) -> [u8; 32] {
         self.content_digest
     }
+
+    /// Exact source owner and byte revision, using the original canonical
+    /// source projection. This does not identify any declaration in the unit.
+    pub fn revision_identity(&self) -> [u8; 32] {
+        let mut digest =
+            crate::digest_encoder::DomainDigestEncoder::new(b"OMEGA-CONSUMED-SOURCE-REVISION-V1\0");
+        digest.bytes(&canonical_consumed_unit_bytes(self));
+        digest.finish()
+    }
 }
 
 /// Compiler-owned commitment to the reconciled package graph and exact
@@ -126,12 +140,75 @@ pub struct PackageSourceConsumptionCommitment {
 /// package-aware compilation. This is the only retained package-source
 /// authority: compatibility accessors must project from it rather than retain
 /// parallel copies.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct PackageCompilationSubject {
     root: semantic_vocabulary::PackageKeyIdentity,
     dependency_closure: super::PackageDependencyClosure,
     source_consumption_commitment: PackageSourceConsumptionCommitment,
+    source_projection: ConsumedSourceProjection,
+}
+
+/// One sealed source roster, independently of package graph ownership. Both
+/// package and original captured-root compilations use this same projection.
+/// Sources with no authentic coordinate retain an explicit unavailable row;
+/// this source roster never substitutes for a complete dependency closure.
+#[derive(Debug, Clone)]
+struct ConsumedSourceProjection {
     consumed_units: Vec<ConsumedSourceUnit>,
+    // Original frontend IDs only join within this retained compilation owner.
+    // They never enter canonical source or declaration revision bytes.
+    source_coordinates: arena::Arena<ConsumedSourceCoordinate>,
+    source_coordinate_span: arena::HandleSpan<ConsumedSourceCoordinate>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct ConsumedSourceCoordinate {
+    source_id: source::SourceId,
+    // Canonical row ordinal, not an arena handle. Missing original namespace
+    // custody retains this source occurrence without an invented unit.
+    unit_ordinal: Option<usize>,
+}
+
+// Private source IDs join the producer's original owner; they do not change
+// equality of the canonical package/source subject across compiler instances.
+impl PartialEq for PackageCompilationSubject {
+    fn eq(&self, other: &Self) -> bool {
+        self.root == other.root
+            && self.dependency_closure == other.dependency_closure
+            && self.source_consumption_commitment == other.source_consumption_commitment
+            && self.source_projection == other.source_projection
+    }
+}
+impl Eq for PackageCompilationSubject {}
+
+impl PartialEq for ConsumedSourceProjection {
+    fn eq(&self, other: &Self) -> bool {
+        self.consumed_units == other.consumed_units
+    }
+}
+impl Eq for ConsumedSourceProjection {}
+
+impl ConsumedSourceProjection {
+    fn from_rows(
+        consumed_units: Vec<ConsumedSourceUnit>,
+        coordinates: Vec<ConsumedSourceCoordinate>,
+    ) -> Self {
+        let mut source_coordinates = arena::Arena::default();
+        let source_coordinate_span = source_coordinates.insert_many(coordinates);
+        Self {
+            consumed_units,
+            source_coordinates,
+            source_coordinate_span,
+        }
+    }
+
+    fn consumed_unit_for_source(&self, source_id: source::SourceId) -> Option<&ConsumedSourceUnit> {
+        let coordinates = self.source_coordinates.span(self.source_coordinate_span)?;
+        let position = coordinates
+            .binary_search_by_key(&source_id.0, |row| row.source_id.0)
+            .ok()?;
+        self.consumed_units.get(coordinates[position].unit_ordinal?)
+    }
 }
 
 impl PackageCompilationSubject {
@@ -152,7 +229,17 @@ impl PackageCompilationSubject {
     }
 
     pub fn consumed_units(&self) -> &[ConsumedSourceUnit] {
-        &self.consumed_units
+        &self.source_projection.consumed_units
+    }
+
+    /// Resolve an original frontend source under this subject's exact owner.
+    /// Authored Product/Build copies may share one canonical unit; generated
+    /// checked occurrences keep the source projection's independent scopes.
+    pub fn consumed_unit_for_source(
+        &self,
+        source_id: source::SourceId,
+    ) -> Option<&ConsumedSourceUnit> {
+        self.source_projection.consumed_unit_for_source(source_id)
     }
 }
 
@@ -237,10 +324,11 @@ fn canonical_root_role(role: super::BuildDeclarationKind) -> u8 {
 /// This establishes source identity, not semantic validity. Both pre-build
 /// admission and final checked publication use the same projection.
 #[doc(hidden)]
-pub(crate) fn derive_consumed_source_units<'source>(
+fn derive_consumed_source_units<'source>(
     sources: impl IntoIterator<Item = &'source SourceFile>,
     generated_sources: &[(source::SourceId, build_output::PackageGeneratedSource)],
-) -> Result<Vec<ConsumedSourceUnit>, Vec<Diagnostic>> {
+    captured_root: Option<(&Path, [u8; 32])>,
+) -> Result<(Vec<ConsumedSourceUnit>, Vec<ConsumedSourceCoordinate>), Vec<Diagnostic>> {
     let generated_by_id = GeneratedSourceOrder::new(generated_sources);
     if (1..generated_sources.len())
         .any(|position| generated_by_id.at(position - 1).0 == generated_by_id.at(position).0)
@@ -251,7 +339,7 @@ pub(crate) fn derive_consumed_source_units<'source>(
     }
 
     let mut observed_generated = vec![false; generated_sources.len()];
-    let mut units = sources
+    let mut rows = sources
         .into_iter()
         .map(|source| {
             let generated = generated_by_id.find(source.source_id);
@@ -259,7 +347,8 @@ pub(crate) fn derive_consumed_source_units<'source>(
                 validate_generated_source_join(source, generated)?;
                 observed_generated[position] = true;
             }
-            consumed_source_unit(source, generated.is_some())
+            consumed_source_unit(source, generated.is_some(), captured_root)
+                .map(|unit| (unit, source.source_id))
         })
         .collect::<Result<Vec<_>, _>>()?;
     if observed_generated.contains(&false) {
@@ -267,17 +356,39 @@ pub(crate) fn derive_consumed_source_units<'source>(
             "generated-source custody names a source absent from the final checked closure",
         )]);
     }
-    if units.is_empty() {
+    if rows.is_empty() {
         return Err(vec![Diagnostic::error(
             "consumed-source projection requires retained frontend source metadata",
         )]);
     }
-    units.sort();
+    rows.sort_by(|left, right| left.0.cmp(&right.0).then(left.1.0.cmp(&right.1.0)));
+    let mut units = Vec::new();
+    let mut coordinates = Vec::with_capacity(rows.len());
+    for (unit, source_id) in rows {
+        let unit_ordinal = unit.map(|unit| {
+            if units.last() != Some(&unit) {
+                units.push(unit);
+            }
+            units.len() - 1
+        });
+        coordinates.push(ConsumedSourceCoordinate {
+            source_id,
+            unit_ordinal,
+        });
+    }
+    coordinates.sort_by_key(|row| row.source_id.0);
+    if coordinates
+        .windows(2)
+        .any(|pair| pair[0].source_id == pair[1].source_id)
+    {
+        return Err(vec![Diagnostic::error(
+            "source consumption has duplicate original frontend source coordinates",
+        )]);
+    }
     // Authored instances share their physical bytes across checked scopes and
     // retain one source row. Generated instances include their checked scope
     // in the coordinate: equal virtual paths may carry different bytes across
     // scopes, but conflicting bytes within one coordinate still reject.
-    units.dedup();
     if units
         .windows(2)
         .any(|pair| same_source_coordinate(&pair[0], &pair[1]))
@@ -286,7 +397,7 @@ pub(crate) fn derive_consumed_source_units<'source>(
             "final checked closure contains distinct sources at duplicate canonical coordinates",
         )]);
     }
-    Ok(units)
+    Ok((units, coordinates))
 }
 
 /// Producers append custody in source-ID order. Borrow that order directly;
@@ -378,46 +489,67 @@ pub fn derive_package_compilation_subject<'source>(
     inputs: &super::PackageCompilationInputs,
     generated_sources: &[(source::SourceId, build_output::PackageGeneratedSource)],
 ) -> Result<PackageCompilationSubject, Vec<Diagnostic>> {
-    let consumed_units = derive_consumed_source_units(sources, generated_sources)?;
+    let (consumed_units, coordinates) =
+        derive_consumed_source_units(sources, generated_sources, None)?;
     let source_consumption_commitment =
         derive_source_consumption_commitment(&consumed_units, inputs)?;
+    let source_projection = ConsumedSourceProjection::from_rows(consumed_units, coordinates);
     Ok(PackageCompilationSubject {
         root: inputs.root(),
         dependency_closure: inputs.dependency_closure(),
         source_consumption_commitment,
-        consumed_units,
+        source_projection,
     })
 }
 
 fn consumed_source_unit(
     source: &SourceFile,
     generated: bool,
-) -> Result<ConsumedSourceUnit, Vec<Diagnostic>> {
+    captured_root: Option<(&Path, [u8; 32])>,
+) -> Result<Option<ConsumedSourceUnit>, Vec<Diagnostic>> {
     let (kind, package, toolchain_namespace, relative_path) = match source.origin {
         SourceOrigin::User => {
-            let package = source.package_identity.ok_or_else(|| {
+            let (kind, root) = match source.package_identity {
+                Some(_) => (
+                    if generated {
+                        ConsumedSourceUnitKind::PackageGenerated(source.dependency_scope)
+                    } else {
+                        ConsumedSourceUnitKind::PackageAuthored
+                    },
+                    source.package_root.as_path(),
+                ),
+                None if !generated => {
+                    let (root, revision) = captured_root.ok_or_else(|| {
+                        vec![Diagnostic::error(format!(
+                            "source `{}` has no original package or captured root owner",
+                            source.path.display()
+                        ))]
+                    })?;
+                    if source.package_root != root || !source.path.starts_with(root) {
+                        // The focused-file import route can retain declarations
+                        // outside its consuming root without a reconciled
+                        // package owner. Their original occurrence stays in the
+                        // roster, but this root cannot issue their identity.
+                        return Ok(None);
+                    }
+                    (ConsumedSourceUnitKind::CapturedRootAuthored(revision), root)
+                }
+                None => {
+                    return Err(vec![Diagnostic::error(
+                        "generated-source custody requires a reconciled package owner",
+                    )]);
+                }
+            };
+            let relative = source.path.strip_prefix(root).map_err(|_| {
                 vec![Diagnostic::error(format!(
-                    "package-aware source `{}` has no reconciled package identity",
-                    source.path.display()
+                    "source `{}` is outside its original source root `{}`",
+                    source.path.display(),
+                    root.display()
                 ))]
             })?;
-            let relative = source
-                .path
-                .strip_prefix(&source.package_root)
-                .map_err(|_| {
-                    vec![Diagnostic::error(format!(
-                        "package-aware source `{}` is outside its reconciled root `{}`",
-                        source.path.display(),
-                        source.package_root.display()
-                    ))]
-                })?;
             (
-                if generated {
-                    ConsumedSourceUnitKind::PackageGenerated(source.dependency_scope)
-                } else {
-                    ConsumedSourceUnitKind::PackageAuthored
-                },
-                Some(package),
+                kind,
+                source.package_identity,
                 None,
                 canonical_path_components(relative, &source.path)?,
             )
@@ -472,14 +604,14 @@ fn consumed_source_unit(
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(SOURCE_CONTENT_DOMAIN);
     digest.u64(byte_count);
     digest.raw(source.source.as_bytes());
-    Ok(ConsumedSourceUnit {
+    Ok(Some(ConsumedSourceUnit {
         kind,
         package,
         toolchain_namespace,
         relative_path,
         byte_count,
         content_digest: digest.finish(),
-    })
+    }))
 }
 
 fn same_source_coordinate(left: &ConsumedSourceUnit, right: &ConsumedSourceUnit) -> bool {
@@ -502,7 +634,11 @@ fn append_canonical_consumed_unit(bytes: &mut Vec<u8>, unit: &ConsumedSourceUnit
         ConsumedSourceUnitKind::PackageGenerated(source::DependencyScope::Build) => 4,
         ConsumedSourceUnitKind::ToolchainVirtual => 2,
         ConsumedSourceUnitKind::ToolchainOwned => 3,
+        ConsumedSourceUnitKind::CapturedRootAuthored(_) => 5,
     });
+    if let ConsumedSourceUnitKind::CapturedRootAuthored(revision) = unit.kind {
+        append_field(bytes, &revision);
+    }
     match unit.package {
         None => bytes.push(0),
         Some(package) => {
@@ -594,9 +730,12 @@ pub fn toolchain_source_identity_digest(source: &SourceFile) -> Result<[u8; 32],
 }
 
 pub(super) fn canonical_source_entry(source: &SourceFile) -> Result<Vec<u8>, Vec<Diagnostic>> {
-    Ok(canonical_consumed_unit_bytes(&consumed_source_unit(
-        source, false,
-    )?))
+    let unit = consumed_source_unit(source, false, None)?.ok_or_else(|| {
+        vec![Diagnostic::error(
+            "canonical source entry requires an original source owner",
+        )]
+    })?;
+    Ok(canonical_consumed_unit_bytes(&unit))
 }
 
 fn append_field(output: &mut Vec<u8>, bytes: &[u8]) {

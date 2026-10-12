@@ -18,6 +18,7 @@ pub use declarations::operators::{
     derive_pre_flow_operator_selections,
 };
 pub use declarations::traits::refinement_fit;
+pub use declarations::traits::requirement_invocation_parameters;
 pub use declarations::traits::{ProviderRegionCorrespondence, provider_region_correspondence};
 pub use machine_calls::attached_method_bounds::validate_selected_attached_method_bounds;
 pub use machine_calls::machine_parameters::validate_callable_parameter_refinement;
@@ -33,7 +34,8 @@ pub use value_custody::places::declaration_type_reference;
 pub use declarations::selection_resolution;
 pub use declarations::source_completion;
 pub use declarations::standard_declarations::{
-    boundary_has_explicit_calling_policy, standard_calling_vocabularies,
+    boundary_has_explicit_calling_policy, boundary_requirement_has_explicit_calling_policy,
+    standard_calling_vocabularies,
 };
 use declarations::state_signatures::StateSignatureOwner;
 pub use machine_calls::boundary_calls::validate_boundary_calls;
@@ -222,7 +224,7 @@ pub use declarations::operators::{
     build_operator_uses, builtin_float_operator_selection, checked_operator_candidate,
     collect_named_requirement_uses, collect_pre_specialization_operator_selections,
     comparison_operator_spelling, expression_type_reference_for_origin, indexed_operand_types,
-    select_pending_domain_operator_meanings, token_bound_machine_call_target,
+    select_pending_domain_operator_meanings, token_bound_call_target,
 };
 pub use declarations::traits::{
     DynamicImplementationSelection, DynamicSlotDemand, collect_dynamic_implementation_selections,
@@ -346,6 +348,7 @@ pub use proof_contracts::arithmetic_domains::{
     standing_integer_bounds, stored_integer_bounds, stored_integer_source_may_require_fit,
     stored_integer_source_projection, stored_integer_source_projections,
 };
+pub use proof_contracts::contract_entailment::applied_call_requirement_expression;
 pub use proof_contracts::contract_entailment::integer_embedding_sources_equal;
 pub use proof_contracts::contract_entailment::is_arm_pattern_marker;
 pub use proof_contracts::contract_entailment::selected_value_call_requirement_entailed;
@@ -454,26 +457,29 @@ pub use machine_calls::calls::{
     call_target_state, call_target_symbol, call_target_symbol_for_origin,
     call_target_type_parameters, collect_call_sites_in_statement, find_call_site,
     find_call_site_in_state, find_machine, find_machine_by_entry_state, find_machine_head,
-    find_state, find_state_for_exit, find_state_in_machine, find_state_on_machine,
-    machine_parameter_signature_symbol, machine_state_by_symbols, machine_state_count,
-    receiver_can_dispatch_to_machine, resolve_name_path_member_symbol, resolve_state_call_target,
-    statement_call_can_dispatch_to_machine, statement_call_receiver_members,
-    statement_call_receiver_path, terminal_callable_target, trait_machine_signature_symbol,
-    transition_call_target,
+    find_source_call_site, find_state, find_state_for_exit, find_state_in_machine,
+    find_state_on_machine, machine_parameter_signature_symbol, machine_state_by_symbols,
+    machine_state_count, receiver_can_dispatch_to_machine, resolve_name_path_member_symbol,
+    resolve_state_call_target, statement_call_can_dispatch_to_machine,
+    statement_call_receiver_members, statement_call_receiver_path, terminal_callable_target,
+    trait_machine_signature_symbol, transition_call_target,
 };
 pub use value_custody::places::{
-    CanonicalPlace, canonical_place_from_expression, canonical_place_from_expression_in_state,
-    canonical_place_source_type_application, canonical_place_type_reference,
+    CallDataApplication, CanonicalPlace, CanonicalPlaceTypeApplication,
+    call_data_application_in_state, canonical_place_from_expression,
+    canonical_place_from_expression_in_state, canonical_place_source_type_application,
+    canonical_place_type_application, canonical_place_type_reference,
     collection_element_type_reference, contextual_canonical_place_from_expression,
     data_member_symbol_by_name, declared_data_type, effective_member_symbol,
     effective_member_symbol_from_type_symbol, expression_place_type_reference,
-    expression_root_symbol, expression_type_reference_in_state, expression_type_symbol,
-    first_valid_name_path_symbol, index_place_segment, loan_carrier_has_owned_storage,
-    machine_symbol_from_type_reference_handle, nearest_scoped_local,
-    project_type_reference_from_segments, projected_statement_receiver_place,
-    projected_statement_receiver_type_reference, push_field_place_segments, receiver_projections,
-    resolve_member_symbol_from_type_symbol, state_scoped_name_symbol, structural_member_identity,
-    symbol_type_symbol, unique_data_definition_by_symbol, whole_collection_view_source,
+    expression_root_symbol, expression_type_application_in_state,
+    expression_type_reference_in_state, expression_type_symbol, first_valid_name_path_symbol,
+    index_place_segment, loan_carrier_has_owned_storage, machine_symbol_from_type_reference_handle,
+    nearest_scoped_local, project_type_reference_from_segments, projected_statement_receiver_place,
+    projected_statement_receiver_type_application, projected_statement_receiver_type_reference,
+    push_field_place_segments, receiver_projections, resolve_member_symbol_from_type_symbol,
+    state_scoped_name_symbol, structural_member_identity, symbol_type_symbol,
+    unique_data_definition_by_symbol, whole_collection_view_source,
 };
 
 /// Walk a type-reference table once into a positional row vector: row 0 is

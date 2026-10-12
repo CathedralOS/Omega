@@ -1,0 +1,31 @@
+// Two simultaneously live call-result aggregates retain distinct receipts.
+// Each whole aggregate is then consumed by a scalar-returning callee.
+use omega::language::core::drop;
+data Receipt [linear] { code: u64; }
+machine Receipt::drop(receipt: &mut Receipt) {}
+data Pair { left: Receipt; right: Receipt; }
+machine issue(left_code: u64, right_code: u64) -> Pair {
+    let left: Receipt = Receipt { code: left_code };
+    let right: Receipt = Receipt { code: right_code };
+    Pair { left: left, right: right }
+}
+machine consume_pair(pair: Pair) -> bool {
+    let left: Receipt = pair.left;
+    let right: Receipt = pair.right;
+    let ordered: bool = left.code < right.code;
+    drop(left);
+    drop(right);
+    ordered
+}
+machine main() crashes Trap {
+    let first: Pair = issue(11, 12);
+    let second: Pair = issue(21, 22);
+    let second_ordered: bool = consume_pair(second);
+    let first_ordered: bool = consume_pair(first);
+    transition first_ordered && second_ordered {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -365,10 +365,7 @@ fn publish_target_providers(
     targets.sort();
     targets.dedup();
     provider_planning::target_machines::TargetProviderPublicationRequest {
-        context: provider_planning::ProviderPlanningContext::new(
-            &checked.execution().program.typed,
-            source::DependencyScope::Product,
-        ),
+        checked: &checked.execution().program,
         artifact: artifact.view(),
         exact_toolchain_sources: checked.sources().exact_toolchain_sources(),
         defaults: checked.provider_defaults(),

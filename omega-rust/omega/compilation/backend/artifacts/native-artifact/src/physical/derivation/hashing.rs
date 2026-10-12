@@ -117,6 +117,10 @@ pub(crate) fn hash_boundary_settlement_record(
     match settlement.execution {
         BoundaryExecutionRecord::AdmittedProvider(record) => {
             digest.byte(1);
+            if let Some(commitment) = record.direct_foreign_realization {
+                digest.byte(0xff);
+                digest.raw(&commitment);
+            }
             digest.raw(&record.provider_plan_report_identity.to_le_bytes());
             digest.raw(&record.provider_execution_report_identity.to_le_bytes());
             digest.raw(&record.provider_execution_report_fingerprint.to_le_bytes());
@@ -181,6 +185,10 @@ pub(crate) fn hash_boundary_settlement_record(
         digest.raw(&binding.receipt.claim.get().to_le_bytes());
         digest.raw(&binding.receipt.argument_index.to_le_bytes());
         let execution = binding.provider_execution;
+        if let Some(commitment) = execution.direct_foreign_realization {
+            digest.byte(0xff);
+            digest.raw(&commitment);
+        }
         digest.raw(&execution.provider_plan_report_identity.to_le_bytes());
         digest.raw(&execution.provider_execution_report_identity.to_le_bytes());
         digest.raw(

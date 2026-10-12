@@ -12,9 +12,10 @@ use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use crate::symbols::{expressions::assign_statement_expression_symbols, scope::MachineScope};
 
-/// Constant and field types contain the same value expressions as parameter types.
-/// Resolve them after declaration and type identities exist, before typing can
-/// copy an unresolved call into a constant position. Data owns its generic and
+/// Declaration types and application tuples contain the same value expressions
+/// as parameter types. Resolve them after declaration and type identities exist,
+/// before typing can consume an unresolved cast or call in a constant position.
+/// Data owns its generic and
 /// field names but has no machine activation: no state parameters or locals are
 /// in scope. Field references remain symbolic, not same-spelled global constants.
 pub(in crate::symbols) fn assign_declaration_type_value_expression_symbols(
@@ -22,6 +23,7 @@ pub(in crate::symbols) fn assign_declaration_type_value_expression_symbols(
     symbols: &SymbolTable,
 ) {
     let attached_machines = crate::symbols::scope::attached_machines(program);
+    let trait_scopes = crate::symbols::scope::TraitLexicalScopes::of(program);
     let declarations = &mut program.tables.declarations;
     // Constants own type-bound expressions too, including unused declarations.
     // Resolve under their exact source/module owner before typed endpoint
@@ -56,6 +58,159 @@ pub(in crate::symbols) fn assign_declaration_type_value_expression_symbols(
                 &mut declaration.declared_type,
             );
         });
+    // Declaration application tuples are value-bearing types too. Resolve
+    // their expressions under the issuing declaration, before typed result
+    // retention consumes a cast target or a selected constant. Type-only
+    // assignment cannot reach the expression graph inside ConstExpression.
+    let mut applications = Vec::new();
+    for definition in program.roots.traits.iter() {
+        let mut arguments = Vec::new();
+        for requirement in declarations
+            .trait_requirements
+            .span_or_empty(definition.requires)
+        {
+            arguments.push(requirement.arguments);
+        }
+        if let Some(base) = &definition.refines {
+            arguments.push(base.arguments);
+        }
+        arguments.extend(
+            definition
+                .conformance_bounds
+                .iter()
+                .map(|bound| bound.arguments),
+        );
+        applications.push((definition.symbol, definition.type_parameters, arguments));
+    }
+    for implementation in program.roots.conformances.iter() {
+        applications.push((
+            implementation.symbol,
+            implementation.type_parameters,
+            vec![implementation.arguments],
+        ));
+    }
+    for (owner, type_parameters, argument_rosters) in applications {
+        let scope = MachineScope {
+            symbol: owner,
+            lexical_requirements: crate::symbols::scope::LexicalRequirements::none(),
+            attached_machines: &attached_machines,
+            resolution_indexes: &program.resolution_indexes,
+            type_parameters: declarations
+                .data_type_parameters
+                .span_or_empty(type_parameters),
+            attached_data: None,
+            attached_data_symbol: SymbolHandle::invalid(),
+            inherited_data_members: None,
+            owned_data: &[],
+            prior_statements: &[],
+            data_definitions: &program.roots.data_definitions,
+            data_members: &declarations.data_members,
+            data_payload_fields: &declarations.data_payload_fields,
+            type_constraints: &program.tables.types.constraints,
+        };
+        for arguments in argument_rosters {
+            assign_type_argument_value_expression_symbols(
+                symbols,
+                &scope,
+                &mut program.tables.bodies.expressions,
+                &mut declarations.child_type_references,
+                arguments,
+            );
+        }
+    }
+    // Callable header types own the same lexical namespace as their contracts.
+    // Resolve their index expressions here instead of using a standalone header
+    // namespace which cannot distinguish binders from declaration constants.
+    let context = crate::symbols::scope::ContractScopeContext {
+        attached_machines: &attached_machines,
+        resolution_indexes: &program.resolution_indexes,
+        data_definitions: &program.roots.data_definitions,
+        data_members: &declarations.data_members,
+        data_payload_fields: &declarations.data_payload_fields,
+        type_constraints: &program.tables.types.constraints,
+    };
+    for definition in program.roots.traits.iter() {
+        for handle in definition.machines.handles() {
+            let mut signature = declarations.trait_machine_signatures.get(handle).clone();
+            let parameters = crate::symbols::scope::declaration_type_scope(
+                declarations
+                    .data_type_parameters
+                    .span_or_empty(signature.type_parameters),
+                declarations
+                    .data_type_parameters
+                    .span_or_empty(definition.type_parameters),
+            );
+            let scope = context.scope(
+                signature.symbol,
+                trait_scopes.requirements_of(definition.symbol),
+                &parameters,
+                None,
+                SymbolHandle::invalid(),
+                None,
+                &[],
+            );
+            assign_callable_type_value_expression_symbols(
+                symbols,
+                &scope,
+                signature.symbol,
+                signature.parameters,
+                &mut signature.return_type,
+                &mut declarations.state_parameters,
+                &mut program.tables.bodies.expressions,
+                &mut declarations.child_type_references,
+            );
+            *declarations.trait_machine_signatures.get_mut(handle) = signature;
+        }
+    }
+    program.roots.operators.for_each_mut(|operator| {
+        let scope = context.scope(
+            operator.symbol,
+            crate::symbols::scope::LexicalRequirements::none(),
+            declarations
+                .data_type_parameters
+                .span_or_empty(operator.type_parameters),
+            None,
+            SymbolHandle::invalid(),
+            None,
+            &[],
+        );
+        assign_callable_type_value_expression_symbols(
+            symbols,
+            &scope,
+            operator.symbol,
+            operator.parameters,
+            &mut operator.return_type,
+            &mut declarations.state_parameters,
+            &mut program.tables.bodies.expressions,
+            &mut declarations.child_type_references,
+        );
+    });
+    for domain in program.roots.domain_definitions.iter() {
+        for handle in domain.operators.handles() {
+            let operator = declarations.operator_definitions.get_mut(handle);
+            let scope = context.scope(
+                operator.symbol,
+                crate::symbols::scope::LexicalRequirements::none(),
+                declarations
+                    .data_type_parameters
+                    .span_or_empty(operator.type_parameters),
+                None,
+                SymbolHandle::invalid(),
+                None,
+                &[],
+            );
+            assign_callable_type_value_expression_symbols(
+                symbols,
+                &scope,
+                operator.symbol,
+                operator.parameters,
+                &mut operator.return_type,
+                &mut declarations.state_parameters,
+                &mut program.tables.bodies.expressions,
+                &mut declarations.child_type_references,
+            );
+        }
+    }
     let mut field_updates = Vec::new();
     let mut payload_updates = Vec::new();
     for definition in program.roots.data_definitions.iter() {
@@ -130,6 +285,71 @@ pub(in crate::symbols) fn assign_declaration_type_value_expression_symbols(
             .data_payload_fields
             .get_mut(handle)
             .type_reference = reference;
+    }
+}
+
+/// Form callable parameter and result indices under the original complete
+/// telescope and runtime formal namespace. Only expression symbols are assigned.
+fn assign_callable_type_value_expression_symbols(
+    symbols: &SymbolTable,
+    scope: &MachineScope<'_>,
+    owner: SymbolHandle,
+    parameters: arena::HandleSpan<StateParameter>,
+    result: &mut Option<TypeReference>,
+    parameter_table: &mut Arena<StateParameter>,
+    expressions: &mut ExpressionTable,
+    child_types: &mut Arena<TypeReference>,
+) {
+    let formals = parameter_table.span_or_empty(parameters).to_vec();
+    for (ordinal, parameter) in formals.iter().enumerate() {
+        let mut reference = parameter.type_reference.clone();
+        assign_type_value_expression_symbols(
+            symbols,
+            scope,
+            &formals,
+            owner,
+            expressions,
+            child_types,
+            &mut reference,
+        );
+        parameter_table
+            .get_mut(parameters.handle_at(ordinal as u32))
+            .type_reference = reference;
+    }
+    if let Some(result) = result {
+        assign_type_value_expression_symbols(
+            symbols,
+            scope,
+            &formals,
+            owner,
+            expressions,
+            child_types,
+            result,
+        );
+    }
+}
+
+/// Resolve the value graphs of one declaration-owned application without
+/// rebinding its already-selected Type/Machine/Proposition argument symbols.
+pub(in crate::symbols) fn assign_type_argument_value_expression_symbols(
+    symbols: &SymbolTable,
+    scope: &MachineScope<'_>,
+    expressions: &mut ExpressionTable,
+    child_types: &mut Arena<TypeReference>,
+    arguments: arena::HandleSpan<TypeReference>,
+) {
+    for handle in arguments.handles() {
+        let mut reference = child_types.get(handle).clone();
+        assign_type_value_expression_symbols(
+            symbols,
+            scope,
+            &[],
+            SymbolHandle::invalid(),
+            expressions,
+            child_types,
+            &mut reference,
+        );
+        *child_types.get_mut(handle) = reference;
     }
 }
 
@@ -236,6 +456,11 @@ pub(in crate::symbols) fn assign_type_value_expression_symbols(
                 child(argument);
             }
         }
+        TypeReference::DynamicTrait { arguments, .. } => {
+            for argument in arguments.handles() {
+                child(argument);
+            }
+        }
         TypeReference::Constrained(constrained) => {
             child(constrained.base_type);
             for constraint in machine
@@ -290,7 +515,7 @@ pub(in crate::symbols) fn assign_type_value_expression_symbols(
                 *expression,
             );
         }
-        TypeReference::Named { .. } | TypeReference::DynamicTrait { .. } | TypeReference::Unit => {}
+        TypeReference::Named { .. } | TypeReference::Unit => {}
     }
 }
 

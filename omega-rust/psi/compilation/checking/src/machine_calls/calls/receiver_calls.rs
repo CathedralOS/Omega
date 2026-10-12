@@ -214,13 +214,13 @@ fn validate_resolved_receiver_call(
         );
         return true;
     }
-    if let Some(signature) = boundary_trait_call_signature(program, current_machine, call) {
+    if let Some(selected) = boundary_trait_call_signature(program, current_machine, call) {
         // Runtime formals only: native callback destinations live outside
         // `parameters` and are joined to their selections below.
         validate_signature_result_and_arguments(
             program,
             call,
-            signature,
+            selected.contract,
             current_machine,
             current_state,
             value_environment,
@@ -228,7 +228,14 @@ fn validate_resolved_receiver_call(
             writable_roots,
             diagnostics,
         );
-        validate_native_callback_selections(program, call, signature, diagnostics);
+        validate_native_callback_selections(
+            program,
+            call.target.as_str(),
+            &call.machine_arguments,
+            call.authored_machine_application,
+            selected,
+            diagnostics,
+        );
         return true;
     }
     false
@@ -238,17 +245,22 @@ fn validate_resolved_receiver_call(
 /// argument (private_callbacks.md, "Authored selection"): the registrar call
 /// omits it, and its callee is the call's static machine argument for that
 /// binder. Each destination must therefore name one `machine` binder of the
-/// selected signature, and the call must supply that binder's selection at
-/// its machine ordinal. MP2b separately admits the selection against the
-/// binder's `where machine ... satisfies` bound; this check only refuses a
+/// original declaration. A prepared call retains its selection by that exact
+/// binder handle in the original application; an unapplied call supplies its
+/// authored machine ordinal. Consumed contract axes and cleared source argument
+/// lists cannot replace either receipt. MP2b separately admits the selection
+/// against the binder's `where machine ... satisfies` bound; this check only refuses a
 /// destination with no selection to bind, which later stages would otherwise
 /// have to reject without a source diagnostic.
-fn validate_native_callback_selections(
+pub(super) fn validate_native_callback_selections(
     program: &dyn crate::CheckingInput,
-    call: &TableCall,
-    signature: &StateSignature,
+    target: &str,
+    arguments: &[typed_trees::expression::StaticMachineArgument],
+    application: typed_trees::static_applications::StaticMachineApplicationHandle,
+    selected: typed_trees::typed_trees::calls::PublicTraitRequirementSignature<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let signature = selected.declaration;
     if signature.native_callback_parameters.is_empty() {
         return;
     }
@@ -257,27 +269,73 @@ fn validate_native_callback_selections(
         .iter()
         .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Machine { .. }))
         .collect::<Vec<_>>();
-    let selections = crate::machine_calls::machine_parameters::machine_selection_arguments(
-        program,
-        &call.machine_arguments,
-    )
-    .collect::<Vec<_>>();
+    let applied = if application.is_valid() {
+        if !program
+            .expression_table
+            .static_machine_application_is_valid(application)
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "call `{target}` lost its original native callback application",
+            )));
+            return;
+        }
+        let Ok(applied) =
+            typed_trees::static_applications::StaticApplicationView::new(program, application)
+        else {
+            diagnostics.push(Diagnostic::error(format!(
+                "call `{target}` lost its complete native callback binding correspondence",
+            )));
+            return;
+        };
+        if applied.application().binding_declaration != signature.symbol {
+            diagnostics.push(Diagnostic::error(format!(
+                "call `{target}` native callback bindings do not belong to its original declaration",
+            )));
+            return;
+        }
+        Some(applied)
+    } else {
+        None
+    };
+    let selections =
+        crate::machine_calls::machine_parameters::machine_selection_arguments(program, arguments)
+            .collect::<Vec<_>>();
     for callback in &signature.native_callback_parameters {
         let mut binders = machine_binders
             .iter()
             .enumerate()
             .filter(|(_, binder)| binder.name == callback.binder);
-        let (Some((ordinal, _)), None) = (binders.next(), binders.next()) else {
+        let (Some((ordinal, binder)), None) = (binders.next(), binders.next()) else {
             diagnostics.push(Diagnostic::error(format!(
                 "native callback `{}` of `{}` names `{}`, which is not exactly one `machine` binder of the signature",
                 callback.name, signature.name, callback.binder,
             )));
             continue;
         };
-        if selections.get(ordinal).is_none() {
+        let has_selection = if let Some(applied) = &applied {
+            applied.bindings().iter().any(|binding| {
+                if binding.parameter != binder.symbol {
+                    return false;
+                }
+                let typed_trees::static_applications::StaticMachineBindingValue::Machine(argument) =
+                    &binding.value
+                else {
+                    return false;
+                };
+                crate::machine_calls::machine_parameters::machine_selection_arguments(
+                    program,
+                    std::slice::from_ref(argument),
+                )
+                .next()
+                .is_some()
+            })
+        } else {
+            selections.get(ordinal).is_some()
+        };
+        if !has_selection {
             diagnostics.push(Diagnostic::error(format!(
                 "call `{}` supplies no static machine argument for native callback `{}` from `{}`",
-                call.target, callback.name, callback.binder,
+                target, callback.name, callback.binder,
             )));
         }
     }

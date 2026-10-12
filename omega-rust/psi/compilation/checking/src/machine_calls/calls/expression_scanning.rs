@@ -210,6 +210,10 @@ fn validate_expression_call_bounds(
     boundary_operator_applications: &mut Vec<crate::ValidatedBoundaryOperatorApplication>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let Some(call) = program.expression_table.source_call(call) else {
+        diagnostics.push(Diagnostic::error("call lost its original invocation payload"));
+        return;
+    };
     if call.quotient_operation.is_some() {
         // A sealed `Quotient` request is not an ordinary value call: the
         // quotient formation and correspondence checks own its judgment.
@@ -550,11 +554,12 @@ fn validate_expression_call_bounds(
         return;
     }
 
-    if let Some(signature) = super::write_frames::boundary_trait_expression_call_signature(
+    if let Some(selected) = super::write_frames::boundary_trait_expression_call_signature(
         program,
         current_machine,
         expression,
     ) {
+        let signature = selected.contract;
         // A result's scalar/structural use does not change the requirement's
         // argument contract. Apply the same custody, type and bound checks
         // as statement-position boundary calls before execution planning.
@@ -578,6 +583,14 @@ fn validate_expression_call_bounds(
                     &[],
                 )
             },
+            diagnostics,
+        );
+        super::receiver_calls::validate_native_callback_selections(
+            program,
+            call.target.as_str(),
+            &call.machine_arguments,
+            call.authored_machine_application,
+            selected,
             diagnostics,
         );
         return;

@@ -221,6 +221,7 @@ pub(super) fn bound_clause(
     let parameters = program.state_parameters(state);
     let receiver = parameters.first()?;
     let expression = match kind {
+        ContractProofFactKind::Where => return None,
         ContractProofFactKind::Requires => crate::values::lower_state_scalar_contract_predicate(
             program,
             &facts.operators,

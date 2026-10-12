@@ -33,7 +33,7 @@ mod calls;
 pub(crate) mod cases;
 pub(crate) mod comparisons;
 pub(crate) mod copies;
-mod dispatch;
+pub(crate) mod dispatch;
 pub(crate) mod fields;
 pub(crate) mod literals;
 pub(crate) mod operand_types;
@@ -78,6 +78,14 @@ enum EstablishedValue {
 pub(crate) struct PreparedExpansion {
     pub(crate) states: Vec<LoweredScalarBranchState>,
     pub(crate) storage: Vec<crate::expression_preparation::bindings::StructuralLocalBinding>,
+    pub(crate) selections: Vec<(
+        usize,
+        crate::unit::attached_unit::argument_evaluation::SelectionCleanup,
+    )>,
+    pub(crate) parameter_sources: Vec<(
+        semantic_vocabulary::PlaceId,
+        typed_trees::types::TypeReferenceHandle,
+    )>,
 }
 
 pub(crate) struct Expansion<'a> {
@@ -94,6 +102,14 @@ pub(crate) struct Expansion<'a> {
     erased_proof_formals: Vec<terminal_psi::ErasedProofFormal>,
     states: Vec<LoweredScalarBranchState>,
     pub(crate) storage: Vec<crate::expression_preparation::bindings::StructuralLocalBinding>,
+    selections: Vec<(
+        usize,
+        crate::unit::attached_unit::argument_evaluation::SelectionCleanup,
+    )>,
+    parameter_sources: Vec<(
+        semantic_vocabulary::PlaceId,
+        typed_trees::types::TypeReferenceHandle,
+    )>,
     calls: Vec<SourceCallCoordinate>,
     produced_values: Vec<produced_values::Slot>,
     subslices: Vec<subslices::Slot>,
@@ -125,6 +141,8 @@ impl<'a> Expansion<'a> {
             erased_proof_formals: Vec::new(),
             states: Vec::new(),
             storage: Vec::new(),
+            selections: Vec::new(),
+            parameter_sources: Vec::new(),
             calls: Vec::new(),
             produced_values: Vec::new(),
             subslices: Vec::new(),
@@ -165,6 +183,8 @@ impl<'a> Expansion<'a> {
         PreparedExpansion {
             states: self.states,
             storage: self.storage,
+            selections: self.selections,
+            parameter_sources: self.parameter_sources,
         }
     }
 
@@ -387,6 +407,22 @@ impl<'a> Expansion<'a> {
             &site,
             &mut Vec::new(),
         )
+    }
+
+    pub(crate) fn record_parameter_source(
+        &mut self,
+        place: semantic_vocabulary::PlaceId,
+        reference: typed_trees::types::TypeReferenceHandle,
+    ) {
+        self.parameter_sources.push((place, reference));
+    }
+
+    pub(crate) fn record_selection(
+        &mut self,
+        state: usize,
+        cleanup: crate::unit::attached_unit::argument_evaluation::SelectionCleanup,
+    ) {
+        self.selections.push((state - self.base, cleanup));
     }
 
     pub(crate) fn push(&mut self, mut state: LoweredScalarBranchState) -> usize {

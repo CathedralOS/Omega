@@ -32,7 +32,11 @@ pub(crate) fn validate_machine_trait_conformances(
     symbols: &crate::declarations::symbols::TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for conformance in program.machine_trait_conformances(machine) {
+    for (ordinal, conformance) in program
+        .machine_trait_conformances(machine)
+        .iter()
+        .enumerate()
+    {
         if let Some(requirement) = program.machines().iter().find(|requirement| {
             requirement.symbol == conformance.symbol
                 && requirement.supply_mode
@@ -123,7 +127,9 @@ pub(crate) fn validate_machine_trait_conformances(
             ),
             symbols,
             crate::value_custody::type_references::TypeParameterScope {
-                lexical_owner: authored_machine.symbol,
+                lexical_owner: typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(
+                    authored_machine.symbol,
+                ),
                 type_parameters: program.machine_type_parameters(authored_machine),
                 lifetime_parameters: &authored_machine.lifetime_parameters,
             },
@@ -144,6 +150,7 @@ pub(crate) fn validate_machine_trait_conformances(
             trait_definition,
             requirement_name,
             conformance.requirement_symbol,
+            machine.satisfies.handle_at(ordinal as u32),
             conformance.alias.as_ref().map(|alias| alias.as_str()),
             &conformance.trait_lifetime_arguments,
             explicit_type_arguments,
@@ -660,6 +667,7 @@ fn validate_machine_single_requirement(
     trait_definition: &TraitDefinition,
     requirement_name: &typed_trees::name::Identifier,
     settled_requirement_symbol: symbols::SymbolHandle,
+    conformance: arena::Handle<typed_trees::machine::TraitConformance>,
     conformance_alias: Option<&str>,
     trait_lifetime_arguments: &[u32],
     explicit_type_arguments: &[TypeReferenceHandle],
@@ -750,6 +758,20 @@ fn validate_machine_single_requirement(
     ) else {
         return;
     };
+    let requirement_family = *requirement;
+    let requirement = match closed_requirement::resolve_trait(
+        program,
+        machine,
+        &application,
+        requirement_family,
+        conformance,
+    ) {
+        Ok(closed) => closed.unwrap_or(requirement_family),
+        Err(diagnostic) => {
+            diagnostics.push(diagnostic);
+            return;
+        }
+    };
     validate_applied_trait_signature(
         program,
         service_reaches,
@@ -757,6 +779,7 @@ fn validate_machine_single_requirement(
         entry_state,
         &application,
         requirement,
+        requirement_family,
         diagnostics,
     );
 
