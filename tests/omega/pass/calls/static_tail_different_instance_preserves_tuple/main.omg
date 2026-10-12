@@ -1,0 +1,20 @@
+// The first invocation selects Tag=5; its tail explicitly selects Tag=7.
+// A provisional self-symbol rewrite must not turn that call into Tag=5 reuse.
+data Main { value: u64; }
+machine countdown<const Tag: u64>(remaining: u64) -> u64
+terminates by remaining -> Nat::Descending;
+{
+    transition remaining > 0 {
+        true -> (countdown<7>(remaining - 1))
+        false -> Tag
+    }
+}
+machine Main::main(main: &mut Main) crashes Trap {
+    let result: u64 = countdown<5>(2);
+    transition result == 7 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
