@@ -575,6 +575,18 @@ pub(crate) fn assign_lexical_inputs(
         &mut declaration_inputs,
     )
     .map_err(|diagnostic| vec![diagnostic])?;
+    // Equation inputs are not runtime facts, but their settled parent type
+    // still owns the exact child span recorded by const selection lowering.
+    // Retain that original resolved root before dropping construction scratch;
+    // otherwise carrier intake sees children with no receiving application.
+    for input in declaration_inputs {
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .child_type_references
+            .insert_many(input.types);
+    }
     let mut inputs = crate::lowering::machine::lower_pending_lexical_inputs(lowerer, syntax)
         .map_err(|diagnostic| vec![diagnostic])?;
     for input in &mut inputs {
