@@ -207,23 +207,60 @@ pub(crate) fn finalize_const_argument_selections(
             .iter()
             .filter(|slot| slot.selection == selection_ordinal)
         {
-            let parameters =
-                carrier::receiving_parameters(program, slot.arguments).ok_or_else(|| {
+            let (receiving_arguments, receiving_ordinal) = match slot.receiving {
+                crate::resolution::lowerer::PendingConstArgumentReceiving::Generic {
+                    arguments,
+                    ordinal,
+                } => (arguments, ordinal),
+                crate::resolution::lowerer::PendingConstArgumentReceiving::OriginalOperand {
+                    argument,
+                } => {
+                    if requires_nominal_slot {
+                        return Err(Diagnostic::error(
+                            "nominal constant operand requires its actual receiving telescope",
+                        )
+                        .with_source_span(origin.reference));
+                    }
+                    if selection.is_argument_value && origin.evaluated_value.encoding().is_some_and(|encoding| {
+                        matches!(language_semantics::const_value::CanonicalConstValue::new("", encoding, "").decode_encoding(),
+                            Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer { .. }))
+                    }) {
+                        let symbol_resolved_trees::types::TypeReference::Named { symbol, .. } =
+                            program.tables.declarations.child_type_references.get(argument)
+                        else {
+                            return Err(Diagnostic::error("selected original integer operand lost its declaration graph")
+                                .with_source_span(origin.reference));
+                        };
+                        if symbol.is_valid() && *symbol != declaration.symbol
+                            || selected_integer_arguments.iter().any(|(retained, selected)| {
+                                *retained == argument && *selected != declaration.symbol
+                            })
+                        {
+                            return Err(Diagnostic::error("original integer operand has conflicting selected declarations")
+                                .with_source_span(origin.reference));
+                        }
+                        selected_integer_arguments.push((argument, declaration.symbol));
+                    }
+                    continue;
+                }
+            };
+            let parameters = carrier::receiving_parameters(program, receiving_arguments)
+                .ok_or_else(|| {
                     Diagnostic::error("constant lost its actual receiving application")
                         .with_source_span(origin.reference)
                 })?;
-            let arguments = program.child_type_references(slot.arguments);
+            let arguments = program.child_type_references(receiving_arguments);
             if parameters.len() != arguments.len() {
                 return Err(Diagnostic::error(
                     "constant receiving application has mismatched argument arity",
                 )
                 .with_source_span(origin.reference));
             }
-            let argument = arguments.get(slot.ordinal).ok_or_else(|| {
+            let argument = arguments.get(receiving_ordinal).ok_or_else(|| {
                 Diagnostic::error("constant lost its actual receiving argument")
                     .with_source_span(origin.reference)
             })?;
-            let parameter = parameters.get(slot.ordinal).ok_or_else(|| {
+            let parameter = parameters.get(receiving_ordinal).ok_or_else(|| {
                 Diagnostic::error("constant lost its receiving generic slot")
                     .with_source_span(origin.reference)
             })?;
@@ -287,7 +324,7 @@ pub(crate) fn finalize_const_argument_selections(
                 // canonical display. The authenticated whole-argument slot
                 // supplies that operand's declaration, not a destination type
                 // or a declaration chosen from equal value bytes.
-                let argument = slot.arguments.handle_at(slot.ordinal as u32);
+                let argument = receiving_arguments.handle_at(receiving_ordinal as u32);
                 if selected_integer_arguments.iter().any(|(retained, selected)| {
                     *retained == argument && *selected != declaration.symbol
                 }) {
