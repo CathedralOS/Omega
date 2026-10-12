@@ -509,7 +509,19 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                 ordinal as usize,
                 expression,
                 target_parameters.get(target.position as usize)?,
-            ) {
+            )
+            .filter(|root| {
+                // Established edge values currently transport a whole home,
+                // not an owner plus a selected loan path. Keep projected
+                // borrows out of that route: copying the child would lose
+                // the complete owner's cleanup obligation.
+                target.access == CheckedStructuralAccess::Owned
+                    || validation::slice_view_shell(program, root.type_reference, &[]).is_some()
+                    || !matches!(
+                        facts.values.structural_values.nodes.get(root.root).kind,
+                        checked_trees::CheckedStructuralValueKind::Projection { .. }
+                    )
+            }) {
                 let multiplicity = if target.access == CheckedStructuralAccess::Owned {
                     if program.normalized_type_identity(root.type_reference)
                         != target.type_identity

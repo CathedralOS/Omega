@@ -398,7 +398,21 @@ fn argument_contract(
                         return None;
                     }
                 }
-                facts::PlaceRoot::Expression(source) if source == referent_expression => {
+                facts::PlaceRoot::Expression(source) => {
+                    // A loan selects a place within the complete producer.
+                    // Rejoin that root/path, not expression equality: the
+                    // selected field is not a separate temporary owner.
+                    if validation::canonical_place_from_expression_in_state(
+                        program,
+                        state,
+                        call.statement_index,
+                        referent_expression,
+                    )
+                    .as_ref()
+                        != Some(place)
+                    {
+                        return None;
+                    }
                     validate_shared_temporary(program, &facts.flow, machine, state, call, source)?;
                 }
                 _ => return None,

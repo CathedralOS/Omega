@@ -243,26 +243,19 @@ pub(in crate::execution::scalar_computations) fn needs_copied_place_root(
         .is_some_and(|leaf| validation::declared_carriers_match(program, leaf, expected))
 }
 
-/// An omitted runtime field's zero value is admitted only for a
-/// `[scalar; N]` leaf: a literal-length fixed array whose element resolves
-/// to one plain integer primitive. Anything else — borrowed carriers,
-/// bounded integers, nested composites — has no authored zero spelling to
-/// synthesize, so the field must stay authored.
-
 /// The terminal expression carrying a projection's storage: the whole local
-/// name for an owned place source, or the producing call for a structural
-/// product source.
+/// name or anonymous producer. Selecting storage does not restrict how its
+/// owner was produced; ordinary structural value planning admits that owner.
 pub(super) fn projection_root_expression(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
-) -> Option<ExpressionHandle> {
+) -> ExpressionHandle {
     let mut cursor = expression;
     loop {
         match program.expression_table.expression(cursor) {
             ExpressionNode::Member(member) => cursor = member.receiver,
             ExpressionNode::Indexed(indexed) => cursor = indexed.collection,
-            ExpressionNode::Name(_) | ExpressionNode::Call(_) => return Some(cursor),
-            _ => return None,
+            _ => return cursor,
         }
     }
 }

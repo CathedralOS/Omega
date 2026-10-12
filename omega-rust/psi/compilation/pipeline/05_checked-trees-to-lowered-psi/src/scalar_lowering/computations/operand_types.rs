@@ -28,6 +28,7 @@ pub(crate) fn type_requirements(
     for handle in super::machine_computation_handles(checked, machine)? {
         match &plans.nodes.get(handle).kind {
             Computation::Call {
+                source_call,
                 structural_arguments,
                 ..
             } => {
@@ -41,6 +42,24 @@ pub(crate) fn type_requirements(
                     if let Argument::Place(subject) = argument {
                         types.push(subject.type_identity);
                         types.extend(subject.borrowed_root_type_identity());
+                        // The actual's type names the selected child, while
+                        // reservation allocates the complete producer. Keep
+                        // both in the catalog even when no signature or local
+                        // names the temporary owner's storage type.
+                        if matches!(
+                            subject.source,
+                            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }
+                        ) {
+                            let owner = crate::expression_preparation::computation_graph::produced_value_root(
+                                checked, *source_call, subject,
+                            )?;
+                            types.push(validation::structural_type_identity(
+                                &checked.typed,
+                                owner.type_reference,
+                                &[],
+                                &[],
+                            ));
+                        }
                         // An owned literal copies immutable image bytes into
                         // its reserved bounded home. Keep that input carrier
                         // in the shared catalog before any emitter borrows it.

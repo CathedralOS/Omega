@@ -169,9 +169,7 @@ impl Builder<'_, '_> {
                         self.statement_index,
                         expression,
                     )?;
-                    if place.root != facts::PlaceRoot::Expression(expression)
-                        || !place.segments.is_empty()
-                    {
+                    if !matches!(place.root, facts::PlaceRoot::Expression(_)) {
                         return None;
                     }
                     (expression, expected)
@@ -200,6 +198,16 @@ impl Builder<'_, '_> {
         let root = self.structural_value(expression, expected)?;
         if !argument_needs_establishment(&self.structural_values.nodes.get(root).kind) {
             return None;
+        }
+        // Retain the complete producer as well as the selected value. A loan
+        // of a field or element must establish its owner's home, never move
+        // that child into a detached argument temporary. Scalar calls and
+        // statement calls consume the same owner/path relationship.
+        if let CheckedStructuralValueKind::Projection { source, .. } =
+            self.structural_values.nodes.get(root).kind
+            && argument_needs_establishment(&self.structural_values.nodes.get(source).kind)
+        {
+            self.retained_argument_owner(root, expected)?;
         }
         self.structural_values
             .roots

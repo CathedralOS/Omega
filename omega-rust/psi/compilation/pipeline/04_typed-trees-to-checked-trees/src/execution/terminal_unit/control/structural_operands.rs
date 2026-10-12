@@ -68,7 +68,7 @@ pub(in crate::execution::terminal_unit) fn evaluated_argument_root<'a>(
     {
         return None;
     }
-    let (argument, expected, lends_referent) = match program
+    let (argument, expected) = match program
         .type_reference_table
         .type_reference(parameter.type_reference)
     {
@@ -77,7 +77,7 @@ pub(in crate::execution::terminal_unit) fn evaluated_argument_root<'a>(
         typed_trees::types::TypeReferenceNode::Reference { .. }
             if validation::slice_view_shell(program, parameter.type_reference, &[]).is_some() =>
         {
-            (argument, parameter.type_reference, false)
+            (argument, parameter.type_reference)
         }
         typed_trees::types::TypeReferenceNode::Reference {
             access: language_semantics::ReferenceAccess::Shared,
@@ -101,10 +101,10 @@ pub(in crate::execution::terminal_unit) fn evaluated_argument_root<'a>(
             {
                 return None;
             }
-            (referent.0, referent.1, true)
+            referent
         }
         typed_trees::types::TypeReferenceNode::Reference { .. } => return None,
-        _ => (argument, parameter.type_reference, false),
+        _ => (argument, parameter.type_reference),
     };
     let root = facts.values.structural_values.root_for_expression(
         state,
@@ -125,17 +125,6 @@ pub(in crate::execution::terminal_unit) fn evaluated_argument_root<'a>(
     {
         return None;
     }
-    // Lending a projected referent must preserve its existing root/path, not
-    // establish a detached copy. A slice descriptor is itself a value, whose
-    // checked copy keeps the backing loan rather than copying its elements.
-    if lends_referent
-        && matches!(
-            facts.values.structural_values.nodes.get(root.root).kind,
-            checked_trees::CheckedStructuralValueKind::Projection { .. }
-        )
-    {
-        return None;
-    }
     Some(root)
 }
 
@@ -152,7 +141,7 @@ fn evaluated_value_root<'a>(
     argument: typed_trees::expression::ExpressionHandle,
     parameter: &typed_trees::signature::StateParameter,
 ) -> Option<&'a checked_trees::CheckedStructuralValueRoot> {
-    let root = evaluated_argument_root(
+    let mut root = evaluated_argument_root(
         program,
         facts,
         machine,
@@ -161,6 +150,21 @@ fn evaluated_value_root<'a>(
         argument,
         parameter,
     )?;
+    // A shared projection lends the retained producer's home. The argument
+    // planner selects its original path after establishment; evaluating the
+    // projection itself here would detach a linear child from its owner.
+    if crate::semantic::calls::shared_argument_referent(program, argument, parameter.type_reference)
+        .is_some()
+        && validation::slice_view_shell(program, parameter.type_reference, &[]).is_none()
+        && let checked_trees::CheckedStructuralValueKind::Projection { source, .. } =
+            facts.values.structural_values.nodes.get(root.root).kind
+    {
+        root = facts.values.structural_values.root_for_expression(
+            state,
+            u32::try_from(statement_index).ok()?,
+            facts.values.structural_values.nodes.get(source).expression,
+        )?;
+    }
     // A call already owns a producer operation and result binding. Retaining
     // its value for computed consumers does not turn that operation into an
     // aggregate establishment; collect it through the ordinary call route.
@@ -534,7 +538,7 @@ fn collect<'a>(
             parameter,
         ) {
             if output.iter().any(|operand| {
-                matches!(operand, Operand::Value { root: prior, .. } if prior.expression == *argument)
+                matches!(operand, Operand::Value { root: prior, .. } if prior.expression == root.expression)
             }) {
                 return None;
             }

@@ -214,7 +214,7 @@ impl Builder<'_, '_> {
         {
             return None;
         }
-        let root_expression = projection_root_expression(self.program, expression)?;
+        let root_expression = projection_root_expression(self.program, expression);
         let root_reference = validation::canonical_place_type_reference(
             self.program,
             self.state,

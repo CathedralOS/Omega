@@ -970,12 +970,21 @@ fn selected_value_type(
             };
             field.map(|field| field.type_reference)
         }
-        // A projected `const` value arrives as its substituted array literal;
-        // the authored selection still names the declaring constant, so its
-        // declared carrier — not literal inference — supplies the exact
-        // collection type. Such a literal never forwards a caller-owned root.
-        ExpressionNode::ArrayLiteral(_) if forwarding_root.is_none() => {
-            crate::declared_constant_array_type(program, expression)
+        // Preparation retains the complete constructed value before checking
+        // freezes it. Projection needs that producer's applied type, not the
+        // receiving reference or a new inference from one selected child.
+        // Anonymous construction cannot forward a caller-owned place root.
+        ExpressionNode::StructLiteral(_) | ExpressionNode::ArrayLiteral(_)
+            if forwarding_root.is_none() =>
+        {
+            let reference = program
+                .expression_table
+                .constructed_value_type_reference(expression);
+            reference.is_valid().then_some(reference).or_else(|| {
+                // Substituted constant arrays retain their declaration's exact
+                // carrier when they have no separately prepared construction.
+                crate::declared_constant_array_type(program, expression)
+            })
         }
         ExpressionNode::Indexed(indexed) => {
             if program.expression_table.indexed_on_range(indexed) {
