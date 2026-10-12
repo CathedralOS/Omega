@@ -11,14 +11,106 @@ use typed_trees::static_applications::{
     StaticApplicationView, StaticMachineApplicationHandle, StaticMachineBinding,
     StaticMachineBindingValue, static_application_identity,
 };
-use typed_trees::{TypedTrees, expression::StaticMachineArgument, types::TypeReferenceHandle};
+use typed_trees::{TypedTrees, expression::StaticMachineArgument};
 
 struct SourceCall {
     target: SymbolHandle,
-    receiver: Option<TypeReferenceHandle>,
+    receiver: Option<validation::CanonicalPlaceTypeApplication>,
+    value_arguments: Vec<typed_trees::expression::ExpressionHandle>,
+    state: SymbolHandle,
+    position: usize,
     arguments: Vec<StaticMachineArgument>,
     application: StaticMachineApplicationHandle,
     lexical_owner: SymbolHandle,
+}
+
+fn source_type_application(
+    program: &TypedTrees,
+    state: SymbolHandle,
+    position: usize,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<validation::CanonicalPlaceTypeApplication> {
+    let place =
+        validation::canonical_place_from_expression_in_state(program, state, position, expression)?;
+    let (reference, enclosing_data_applications) =
+        validation::canonical_place_source_type_application(program, state, position, &place)?;
+    Some(validation::CanonicalPlaceTypeApplication {
+        reference,
+        enclosing_data_applications,
+    })
+}
+
+fn source_input_application(
+    program: &mut TypedTrees,
+    source: &SourceCall,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<validation::borrow_contracts::InvocationInputTypeApplication> {
+    let machine = program.machine_by_symbol(source.lexical_owner)?;
+    let state = validation::find_state_in_machine(program, source.lexical_owner, source.state)?;
+    let result = validation::expression_result_type_reference(program, machine, state, expression);
+    let original = source_type_application(program, source.state, source.position, expression);
+    let (mut reference, enclosing_data_applications) = match original {
+        Some(original) => (original.reference, original.enclosing_data_applications),
+        // A computed value owns its existing result type. It has no enclosing
+        // storage telescope to borrow from another argument or receiver.
+        None => {
+            let place = validation::canonical_place_from_expression_in_state(
+                program,
+                source.state,
+                source.position,
+                expression,
+            );
+            match place {
+                Some(place)
+                    if place.root.as_expression() == Some(expression)
+                        && place.segments.is_empty() =>
+                {
+                    (
+                        result.unwrap_or(typed_trees::types::TypeReferenceHandle::invalid()),
+                        Vec::new(),
+                    )
+                }
+                // A missing semantic storage application cannot be replaced by
+                // its prepared result or an empty supplying telescope.
+                _ => (
+                    typed_trees::types::TypeReferenceHandle::invalid(),
+                    Vec::new(),
+                ),
+            }
+        }
+    };
+    if reference.is_valid()
+        && program
+            .expression_table
+            .borrow_expression(expression)
+            .is_some()
+    {
+        let carrier = program
+            .type_reference_table
+            .unconstrained_type_reference(reference);
+        if !matches!(
+            program.type_reference_table.type_reference(carrier),
+            typed_trees::types::TypeReferenceNode::Reference { .. }
+        ) {
+            // Borrow formation supplies this actual outer shell. Preserve its
+            // original semantic inner graph instead of combining prepared
+            // storage fields with their original substitution frames. No loan
+            // or lifetime is inferred from the receiving parameter.
+            let mut shell = program.type_reference_table.type_reference(result?).clone();
+            let typed_trees::types::TypeReferenceNode::Reference { referee, .. } = &mut shell
+            else {
+                return None;
+            };
+            *referee = reference;
+            reference = program.type_reference_table.insert(shell);
+        }
+    }
+    Some(
+        validation::borrow_contracts::InvocationInputTypeApplication {
+            reference,
+            enclosing_data_applications,
+        },
+    )
 }
 
 fn binding(
@@ -71,23 +163,71 @@ fn source_application(
         return Some((template, source.application));
     }
     let (owner, signature) = program.trait_machine_signature(template)?;
+    let owner_symbol = owner.symbol;
+    let signature = signature.clone();
     let name = signature.name.clone();
-    let local_parameters = program.state_signature_type_parameters(signature).to_vec();
-    let scope = match source.receiver.and_then(|reference| {
+    let local_parameters = program.state_signature_type_parameters(&signature).to_vec();
+    let previous_bindings = if program
+        .expression_table
+        .static_machine_application_is_valid(source.application)
+    {
+        program
+            .expression_table
+            .static_machine_application_bindings(source.application)
+            .to_vec()
+    } else {
+        Vec::new()
+    };
+    let local_bindings = if source.arguments.len() == local_parameters.len() {
+        local_parameters
+            .iter()
+            .zip(&source.arguments)
+            .map(|(parameter, argument)| binding(program, parameter, argument))
+            .collect::<Option<Vec<_>>>()?
+    } else if source.arguments.is_empty() {
+        local_parameters
+            .iter()
+            .map(|parameter| {
+                let mut rows = previous_bindings
+                    .iter()
+                    .filter(|row| row.parameter == parameter.symbol);
+                let row = rows.next()?;
+                if rows.next().is_some() {
+                    return None;
+                }
+                Some(row.clone())
+            })
+            .collect::<Option<Vec<_>>>()?
+    } else {
+        return None;
+    };
+    let inputs = if signature.lifetime_parameters.is_empty() {
+        Vec::new()
+    } else {
+        source
+            .value_arguments
+            .iter()
+            .map(|argument| source_input_application(program, source, *argument))
+            .collect::<Option<Vec<_>>>()?
+    };
+    let owner = program.trait_definition_by_symbol(owner_symbol)?;
+    let scope = match source.receiver.as_ref().and_then(|receiver| {
         typed_trees::service::classify_exact_service_parameter_carrier(
             program,
             typed_trees::service::ServiceCarrierOccurrence {
-                type_reference: reference,
+                type_reference: receiver.reference,
                 lexical_owner: source.lexical_owner,
-                enclosing_data_applications: &[],
+                enclosing_data_applications: &receiver.enclosing_data_applications,
             },
         )
         .ok()
         .flatten()
     }) {
-        Some(carrier) => carrier
-            .carrier
-            .application(program, source.lexical_owner, &[])?,
+        Some(carrier) => carrier.carrier.application(
+            program,
+            source.lexical_owner,
+            &source.receiver.as_ref()?.enclosing_data_applications,
+        )?,
         None if program.trait_type_parameters(owner).is_empty()
             && owner.lifetime_parameters.is_empty() =>
         {
@@ -95,12 +235,31 @@ fn source_application(
         }
         None => return None,
     };
-    // This finite producer has no captured outer-region operand representation.
-    // The call's invocation loans remain on its original application below.
-    if !scope.declaration.lifetime_parameters.is_empty()
-        || scope.declaring_scope(program, owner.symbol).is_none()
-    {
-        return None;
+    let declaring = scope.declaring_scope(program, owner.symbol)?;
+    let mut lifetimes = scope.captured_lifetime_arguments(program)?;
+    if !signature.lifetime_parameters.is_empty() {
+        let member_arguments = local_bindings
+            .iter()
+            .filter_map(|binding| match &binding.value {
+                StaticMachineBindingValue::Type(reference)
+                | StaticMachineBindingValue::Const(reference) => {
+                    Some((binding.parameter, *reference))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        lifetimes.extend(
+            validation::borrow_contracts::infer_requirement_input_lifetime_application(
+                program,
+                &signature,
+                &declaring,
+                &member_arguments,
+                source.lexical_owner,
+                source.application,
+                &inputs,
+            )
+            .ok()?,
+        );
     }
     let selected_interface = scope.declaration.symbol;
     let outer_parameters = program.trait_type_parameters(scope.declaration).to_vec();
@@ -127,12 +286,6 @@ fn source_application(
     } else {
         None
     };
-    let previous_bindings = previous.as_ref().map_or_else(Vec::new, |_| {
-        program
-            .expression_table
-            .static_machine_application_bindings(source.application)
-            .to_vec()
-    });
     let outer_arguments = program
         .materialize_trait_application_arguments(&environment)
         .ok()?;
@@ -163,24 +316,7 @@ fn source_application(
             value,
         });
     }
-    if source.arguments.len() == local_parameters.len() {
-        for (parameter, argument) in local_parameters.iter().zip(&source.arguments) {
-            bindings.push(binding(program, parameter, argument)?);
-        }
-    } else if source.arguments.is_empty() {
-        for parameter in &local_parameters {
-            let mut rows = previous_bindings
-                .iter()
-                .filter(|row| row.parameter == parameter.symbol);
-            let row = rows.next()?;
-            if rows.next().is_some() {
-                return None;
-            }
-            bindings.push(row.clone());
-        }
-    } else {
-        return None;
-    }
+    bindings.extend(local_bindings);
     // Evidence remains original occurrence data. No bound is inferred from a
     // selected map or the closed executable row; view admission rejects extras.
     bindings.extend(
@@ -214,12 +350,21 @@ fn source_application(
         .zip(&arguments)
         .map(|(parameter, _)| parameter.symbol)
         .collect::<Vec<_>>();
-    let lifetimes = previous.as_ref().map_or_else(Vec::new, |_| {
-        program
+    if previous.is_some() {
+        // A retained partial lane constrains this same original occurrence;
+        // new input inference may fill missing slots but never overwrite it.
+        for previous in program
             .expression_table
             .static_machine_application_lifetimes(source.application)
-            .to_vec()
-    });
+        {
+            let mut matches = lifetimes
+                .iter()
+                .filter(|actual| actual.parameter == previous.parameter);
+            if matches.next() != Some(previous) || matches.next().is_some() {
+                return None;
+            }
+        }
+    }
     let selected_machines = previous.as_ref().map_or_else(Vec::new, |_| {
         program
             .expression_table
@@ -289,9 +434,16 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<usize, Vec<Diagnostic
                         state.statement_nodes.handle_at(position as u32),
                         SourceCall {
                             target: call.target_symbol,
-                            receiver: validation::projected_statement_receiver_type_reference(
-                                program, state, position, call,
-                            ),
+                            receiver:
+                                validation::projected_statement_receiver_source_type_application(
+                                    program, state, position, call,
+                                ),
+                            value_arguments: program
+                                .statement_table
+                                .expression_handles(call.arguments)
+                                .to_vec(),
+                            state: state.symbol,
+                            position,
                             arguments: call.machine_arguments.to_vec(),
                             application: call.authored_machine_application,
                             lexical_owner: machine.symbol,
@@ -312,12 +464,18 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<usize, Vec<Diagnostic
                         expression,
                         SourceCall {
                             target: call.target_symbol,
-                            receiver: validation::expression_type_reference_in_state(
+                            receiver: source_type_application(
                                 program,
                                 state.symbol,
                                 position,
                                 call.receiver,
                             ),
+                            value_arguments: program
+                                .expression_table
+                                .expression_handles(call.arguments)
+                                .to_vec(),
+                            state: state.symbol,
+                            position,
                             arguments: call.machine_arguments.to_vec(),
                             application: call.authored_machine_application,
                             lexical_owner: machine.symbol,

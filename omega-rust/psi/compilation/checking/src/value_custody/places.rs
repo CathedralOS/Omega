@@ -781,5 +781,6 @@ pub use projection_types::{
 pub mod receiver_projections;
 pub use receiver_projections::{
     CallDataApplication, call_data_application_in_state, projected_statement_receiver_place,
+    projected_statement_receiver_source_type_application,
     projected_statement_receiver_type_application, projected_statement_receiver_type_reference,
 };

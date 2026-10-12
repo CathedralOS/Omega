@@ -8,6 +8,9 @@ use typed_trees::types::{
     DomainConstraint, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 
+mod applied_scopes;
+pub(crate) use applied_scopes::ApplicationRegions;
+
 pub(crate) trait TypeRegionScope: Copy {
     fn erased_identity(
         self,

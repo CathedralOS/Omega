@@ -242,6 +242,30 @@ pub fn projected_statement_receiver_type_application(
     )
 }
 
+/// Read the receiver's original semantic field payload together with its
+/// exact supplying applications, before prepared storage fields erase scope.
+pub fn projected_statement_receiver_source_type_application(
+    program: &dyn crate::CheckingInput,
+    state: &typed_trees::state::State,
+    before: usize,
+    call: &typed_trees::statement::TableCall,
+) -> Option<super::CanonicalPlaceTypeApplication> {
+    let (root, segments) = projected_statement_receiver_place(program, state, before, call)?;
+    let (reference, enclosing_data_applications) = super::canonical_place_source_type_application(
+        program,
+        state.symbol,
+        before,
+        &super::CanonicalPlace {
+            root: facts::PlaceRoot::Symbol(root),
+            segments,
+        },
+    )?;
+    Some(super::CanonicalPlaceTypeApplication {
+        reference,
+        enclosing_data_applications,
+    })
+}
+
 /// An explicit data operand issued by one exact declaration parameter. Data
 /// attachment grants no implicit receiver; namespace qualifiers never supply
 /// a place. Ambiguous same-carrier formals cannot elect an occurrence.

@@ -173,6 +173,53 @@ impl AppliedTraitScope<'_> {
         })
     }
 
+    /// Project the selected interface's captured slots to original source
+    /// coordinates. Every slot resolves through the same simultaneous frames
+    /// as complete application identity; this is no invocation or loan grant.
+    pub fn captured_lifetime_arguments(
+        &self,
+        program: &TypedTrees,
+    ) -> Option<Vec<crate::static_applications::StaticMachineLifetimeBinding>> {
+        self.with_identity_scopes(program, |scopes| {
+            self.declaration
+                .lifetime_parameters
+                .iter()
+                .map(|parameter| {
+                    let owner = self.argument_identity_owner();
+                    let region = crate::type_identity::scoped_lifetime_parameter_identity(
+                        program,
+                        owner,
+                        parameter.as_str(),
+                        scopes,
+                    )?;
+                    let (source, symbol) = match owner {
+                        crate::type_identity::AppliedTypeIdentityOwner::Declaration(symbol) => {
+                            (program, symbol)
+                        }
+                        crate::type_identity::AppliedTypeIdentityOwner::Captured(capture) => {
+                            (capture.owner(), capture.symbol())
+                        }
+                    };
+                    let argument = crate::type_identity::lifetime_parameter_name(source, region)?;
+                    if crate::type_identity::lifetime_parameter_identity(
+                        source,
+                        symbol,
+                        argument.as_str(),
+                    ) != Some(region)
+                    {
+                        return None;
+                    }
+                    Some(crate::static_applications::StaticMachineLifetimeBinding {
+                        parameter: parameter.clone(),
+                        argument: crate::static_applications::StaticMachineLifetimeArgument::Named(
+                            argument.clone(),
+                        ),
+                    })
+                })
+                .collect()
+        })
+    }
+
     /// Public lifetime operands participate even when no method mentions them.
     /// An inherited region is resolved through each edge, never recaptured by
     /// a similarly spelled binder in the receiving trait.

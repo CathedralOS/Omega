@@ -267,6 +267,273 @@ pub fn infer_type_input_lifetime_application(
     project_application(actual.lifetime_parameters, &application)
 }
 
+/// Original source inputs have their own simultaneous supplying applications.
+/// The reference may include an actual ordinary formed-borrow shell; that
+/// shell is type evidence, not permission to execute or retain the loan.
+pub struct InvocationInputTypeApplication {
+    pub reference: TypeReferenceHandle,
+    pub enclosing_data_applications: Vec<TypeReferenceHandle>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum InvocationRegionOperand {
+    Captured(typed_trees::type_identity::LifetimeParameterIdentity),
+    Anonymous,
+}
+
+/// Instantiate one original invocation from its complete source inputs. This
+/// is distinct from universal body refinement: genuine anonymous input regions
+/// may supply invocation slots, while captured receiver regions remain rigid.
+/// Results, provider bodies and equal lifetime spellings supply no constraints.
+pub fn infer_requirement_input_lifetime_application(
+    program: &typed_trees::TypedTrees,
+    signature: &typed_trees::signature::StateSignature,
+    receiver: &typed_trees::trait_definition::AppliedTraitScope<'_>,
+    member_arguments: &[(SymbolHandle, TypeReferenceHandle)],
+    caller: SymbolHandle,
+    original_application: typed_trees::static_applications::StaticMachineApplicationHandle,
+    inputs: &[InvocationInputTypeApplication],
+) -> Result<Vec<typed_trees::static_applications::StaticMachineLifetimeBinding>, &'static str> {
+    let parameters = program.state_signature_parameters(signature);
+    if parameters.len() != inputs.len()
+        || program
+            .trait_machine_signature_by_symbol(receiver.declaration, signature.symbol)
+            .is_none()
+    {
+        return Err("requirement input application lost its original signature or arity");
+    }
+    let arguments = member_arguments
+        .iter()
+        .map(|(parameter, actual)| {
+            (
+                *parameter,
+                typed_trees::type_identity::IndexIdentityArgument::TypeReference(*actual),
+            )
+        })
+        .collect::<Vec<_>>();
+    let mut initial = vec![None; signature.lifetime_parameters.len()];
+    if program
+        .expression_table
+        .static_machine_application_is_valid(original_application)
+    {
+        let original = program
+            .expression_table
+            .static_machine_application(original_application);
+        if original.registration_operation != signature.symbol
+            || (original.binding_declaration.is_valid()
+                && original.binding_declaration != signature.symbol)
+        {
+            return Err("input application lost its original callable occurrence");
+        }
+        let owner = original
+            .type_identity_owner(program)
+            .ok_or("input application lost its authentic source owner")?;
+        for (ordinal, binding) in initial.iter_mut().enumerate() {
+            if let Some(previous) = program.static_application_lifetime_binding(
+                original_application,
+                signature.symbol,
+                ordinal,
+            ) {
+                *binding = Some(match &previous.argument {
+                    typed_trees::static_applications::StaticMachineLifetimeArgument::Named(
+                        name,
+                    ) => {
+                        let region =
+                            typed_trees::type_identity::scoped_lifetime_parameter_identity(
+                                program,
+                                owner,
+                                name.as_str(),
+                                &[],
+                            )
+                            .ok_or("retained invocation region lost its supplying owner")?;
+                        InvocationRegionOperand::Captured(region)
+                    }
+                    typed_trees::static_applications::StaticMachineLifetimeArgument::Anonymous => {
+                        InvocationRegionOperand::Anonymous
+                    }
+                });
+            }
+        }
+    } else if original_application.is_valid() {
+        return Err("input application carries an unavailable original occurrence");
+    }
+    let fixed = initial.iter().map(Option::is_some).collect::<Vec<_>>();
+    let mut applications = vec![initial];
+    let matched = receiver.with_identity_scopes(program, |outer| {
+        let mut scopes = outer.to_vec();
+        scopes.push(typed_trees::type_identity::AppliedTypeIdentityScope {
+            region_role: typed_trees::type_identity::AppliedTypeIdentityRegionRole::Declaration,
+            declaration: signature.symbol,
+            arguments: &arguments,
+            lifetimes: &[],
+        });
+        let formal = crate::type_regions::ApplicationRegions::source(
+            receiver.argument_identity_owner(),
+            &scopes,
+        );
+        for (parameter, input) in parameters.iter().zip(inputs) {
+            if !input.reference.is_valid() {
+                // This query prepares invocation metadata, not value admission.
+                // A formal with no original invocation region contributes no
+                // binding constraint. Ordinary checking still owes this value's
+                // formation, carrier, access and qualifications. Unknown or
+                // regional formals cannot be treated as that empty relation.
+                let mut own_region = false;
+                let mut complete = vec![()];
+                let formed = type_reference_region_applications(
+                    program,
+                    parameter.type_reference,
+                    parameter.type_reference,
+                    formal,
+                    formal,
+                    TypeRegionRelationship::ExactApplication,
+                    &mut complete,
+                    &mut |_: &mut (),
+                          left: crate::type_regions::ApplicationRegions<'_>,
+                          _: crate::type_regions::ApplicationRegions<'_>,
+                          _: TypeReferenceHandle,
+                          name: Option<&Identifier>,
+                          _: Option<&Identifier>| {
+                        if let Some(name) = name {
+                            let Some(region) = left.region(program, name.as_str()) else {
+                                return false;
+                            };
+                            own_region |= region.declaration == signature.symbol;
+                        }
+                        true
+                    },
+                );
+                if !formed || own_region {
+                    return false;
+                }
+                continue;
+            }
+            let matched = program.with_enclosing_data_identity_scopes(
+                &input.enclosing_data_applications,
+                |input_scopes| {
+                    let actual = crate::type_regions::ApplicationRegions::source(
+                        typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(caller),
+                        input_scopes,
+                    );
+                    let mut constrain =
+                        |bindings: &mut Vec<Option<InvocationRegionOperand>>,
+                         actual: crate::type_regions::ApplicationRegions<'_>,
+                         formal: crate::type_regions::ApplicationRegions<'_>,
+                         _reference,
+                         actual_name: Option<&Identifier>,
+                         formal_name: Option<&Identifier>| {
+                            let Some(formal_name) = formal_name else {
+                                return true;
+                            };
+                            let Some(required) = formal.region(program, formal_name.as_str())
+                            else {
+                                return false;
+                            };
+                            let supplied = match actual_name {
+                                Some(name) => match actual.region(program, name.as_str()) {
+                                    Some(region) => InvocationRegionOperand::Captured(region),
+                                    None => return false,
+                                },
+                                None => InvocationRegionOperand::Anonymous,
+                            };
+                            if required.declaration != signature.symbol {
+                                return supplied == InvocationRegionOperand::Captured(required);
+                            }
+                            let Some(binding) = bindings.get_mut(required.ordinal) else {
+                                return false;
+                            };
+                            if fixed[required.ordinal] {
+                                return binding.as_ref() == Some(&supplied);
+                            }
+                            // Preserve ordinary input elision: a genuinely named
+                            // input constrains an otherwise anonymous invocation.
+                            // This relation grants no backing or output loan, and
+                            // an already-retained occurrence is never overwritten.
+                            match (binding.as_ref(), &supplied) {
+                                (
+                                    Some(InvocationRegionOperand::Captured(previous)),
+                                    InvocationRegionOperand::Captured(actual),
+                                ) => previous == actual,
+                                (
+                                    Some(InvocationRegionOperand::Captured(_)),
+                                    InvocationRegionOperand::Anonymous,
+                                ) => true,
+                                _ => {
+                                    *binding = Some(supplied);
+                                    true
+                                }
+                            }
+                        };
+                    type_reference_region_applications(
+                        program,
+                        input.reference,
+                        parameter.type_reference,
+                        actual,
+                        formal,
+                        TypeRegionRelationship::CallableRefinement,
+                        &mut applications,
+                        &mut constrain,
+                    )
+                },
+            );
+            if matched != Some(true) {
+                return false;
+            }
+        }
+        true
+    });
+    if !matched {
+        return Err("requirement inputs do not retain their original region correspondence");
+    }
+    let mut complete = Vec::new();
+    for application in applications {
+        if let Some(application) = application.into_iter().collect::<Option<Vec<_>>>()
+            && !complete.contains(&application)
+        {
+            complete.push(application);
+        }
+    }
+    let [application] = complete.as_slice() else {
+        return Err("requirement inputs do not determine one complete invocation application");
+    };
+    signature
+        .lifetime_parameters
+        .iter()
+        .zip(application)
+        .map(|(parameter, argument)| {
+            let argument = match argument {
+                InvocationRegionOperand::Captured(region) => {
+                    let name =
+                        typed_trees::type_identity::lifetime_parameter_name(program, *region)
+                            .ok_or("input region lost its original declaration payload")?;
+                    if typed_trees::type_identity::lifetime_parameter_identity(
+                        program,
+                        caller,
+                        name.as_str(),
+                    ) != Some(*region)
+                    {
+                        return Err(
+                            "input region cannot be represented in its original call owner",
+                        );
+                    }
+                    typed_trees::static_applications::StaticMachineLifetimeArgument::Named(
+                        name.clone(),
+                    )
+                }
+                InvocationRegionOperand::Anonymous => {
+                    typed_trees::static_applications::StaticMachineLifetimeArgument::Anonymous
+                }
+            };
+            Ok(
+                typed_trees::static_applications::StaticMachineLifetimeBinding {
+                    parameter: parameter.clone(),
+                    argument,
+                },
+            )
+        })
+        .collect()
+}
+
 impl InputLifetimeArgument {
     fn region(&self) -> RegionIdentity {
         match self {

@@ -71,6 +71,23 @@ pub fn applied_lifetime_parameter_identity(
     name: &str,
     scopes: &[super::AppliedTypeIdentityScope<'_>],
 ) -> Option<LifetimeParameterIdentity> {
+    scoped_lifetime_parameter_identity(
+        program,
+        super::AppliedTypeIdentityOwner::Declaration(lexical_owner),
+        name,
+        scopes,
+    )
+}
+
+/// Resolve through the authentic supplying namespace. A captured source owner
+/// is consulted only after the simultaneous application prefix is exhausted;
+/// generated Product coordinates never stand in for its original declaration.
+pub fn scoped_lifetime_parameter_identity(
+    program: &TypedTrees,
+    lexical_owner: super::AppliedTypeIdentityOwner<'_>,
+    name: &str,
+    scopes: &[super::AppliedTypeIdentityScope<'_>],
+) -> Option<LifetimeParameterIdentity> {
     if let Some((ordinal, scope)) = scopes.iter().enumerate().next_back() {
         match scope.region_role {
             super::AppliedTypeIdentityRegionRole::Supplied => {
@@ -78,7 +95,7 @@ pub fn applied_lifetime_parameter_identity(
                     .lifetimes
                     .iter()
                     .find(|(parameter, _)| parameter == name)?;
-                return applied_lifetime_parameter_identity(
+                return scoped_lifetime_parameter_identity(
                     program,
                     lexical_owner,
                     argument.as_deref()?,
@@ -99,7 +116,7 @@ pub fn applied_lifetime_parameter_identity(
                                 .is_some_and(|(left, right)| left == right)
                         })
                 {
-                    return applied_lifetime_parameter_identity(
+                    return scoped_lifetime_parameter_identity(
                         program,
                         lexical_owner,
                         name,
@@ -110,7 +127,14 @@ pub fn applied_lifetime_parameter_identity(
             }
         }
     }
-    lifetime_parameter_identity(program, lexical_owner, name)
+    match lexical_owner {
+        super::AppliedTypeIdentityOwner::Declaration(owner) => {
+            lifetime_parameter_identity(program, owner, name)
+        }
+        super::AppliedTypeIdentityOwner::Captured(capture) => {
+            lifetime_parameter_identity(capture.owner(), capture.symbol(), name)
+        }
+    }
 }
 
 /// Find a region in the supplied lexical telescope, including captured outer

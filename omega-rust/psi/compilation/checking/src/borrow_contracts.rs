@@ -328,6 +328,7 @@ pub use callable_refinement::{
 };
 pub use region_correspondence::{
     InputLifetimeArgument, InputLifetimeBinding, InputTypeRegionScope,
+    InvocationInputTypeApplication, infer_requirement_input_lifetime_application,
     infer_type_input_lifetime_application,
 };
 
