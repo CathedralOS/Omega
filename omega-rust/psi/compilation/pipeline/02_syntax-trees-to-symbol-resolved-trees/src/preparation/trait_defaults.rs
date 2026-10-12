@@ -555,12 +555,29 @@ fn substitute_type_reference(
                     .unwrap_or_else(|| length.clone()),
                 _ => length.clone(),
             };
-            if substituted_element == element_type && substituted_length == length {
+            let original_operand = syntax.type_references.fixed_array_length_operand(handle);
+            let substituted_operand = match &length {
+                FixedArrayLength::ConstParameter(name) => substitution
+                    .get(name.as_str())
+                    .copied()
+                    .unwrap_or(original_operand),
+                _ => original_operand,
+            };
+            if substituted_element == element_type
+                && substituted_length == length
+                && substituted_operand == original_operand
+            {
                 handle
             } else {
+                let array = syntax
+                    .type_references
+                    .insert_fixed_array(substituted_element, substituted_length);
+                // Source substitution owns the scalar graph independently of
+                // whether closed geometric evaluation is available yet.
                 syntax
                     .type_references
-                    .insert_fixed_array(substituted_element, substituted_length)
+                    .retain_fixed_array_length_operand(array, substituted_operand);
+                array
             }
         }
         TypeReferenceNode::Slice { element_type } => {
@@ -654,16 +671,12 @@ fn instantiate_default_signature(
         // copied requirement's invocation telescope. Deep copying keeps nested
         // operand custody while leaving fresh surrounding wrappers untouched.
         let supplied = syntax.copy_type_reference_handle(&snapshot, *argument);
-        let replacement = syntax.type_references.type_reference(supplied).clone();
+        // The copied operand includes its original array extent, const
+        // normalization and application custody; copying only the node loses
+        // those associations at this receiving handle.
         syntax
             .type_references
-            .replace_type_reference(handle, replacement);
-        let origin = syntax.type_references.generic_application_origin(supplied);
-        if origin.is_valid() {
-            syntax
-                .type_references
-                .retain_generic_application_origin(handle, origin);
-        }
+            .replace_type_reference_from(handle, supplied);
         syntax
             .type_references
             .retain_copied_operand_owner(supplied, handle);
