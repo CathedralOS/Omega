@@ -66,7 +66,7 @@ fn entry_state<'program>(
     program: &'program dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
 ) -> Option<&'program typed_trees::state::State> {
-    let index = crate::checks::termination::named_transition_target_state_index(
+    let index = validation::activation_target_state_index(
         program,
         machine,
         machine.symbol,
@@ -411,7 +411,7 @@ pub(super) fn append_entry_context(
     fields::append(program, semantic, &input.fields, machine, state, point);
     qualifications::append(semantic, &input.qualifications, point);
     predicates::append(semantic, &input.predicates, point);
-    if let Some(entry) = crate::checks::termination::named_transition_target_state_index(
+    if let Some(entry) = validation::activation_target_state_index(
         program,
         machine,
         machine.symbol,

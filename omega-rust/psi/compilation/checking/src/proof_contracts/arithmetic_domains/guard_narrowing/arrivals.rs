@@ -1084,6 +1084,9 @@ impl ArrivalWalk<'_, '_> {
                     }
                 }
                 StatementNode::Call(call) => {
+                    let operand_written = self.frames.and_then(|frames| {
+                        frames.statement_value_may_write_paths(self.machine, statement)
+                    });
                     let arguments = self
                         .program
                         .statement_table
@@ -1113,6 +1116,19 @@ impl ArrivalWalk<'_, '_> {
                             Some(source),
                             call,
                             signature,
+                            environment,
+                        );
+                    } else {
+                        // Formation and exact return observations consume the
+                        // same completed citation. Scalar selectors denote
+                        // their argument snapshots only while the complete
+                        // statement frame preserves them, including siblings.
+                        super::super::seed_cited_element_bounds(
+                            self.program,
+                            self.machine,
+                            Some(source),
+                            call,
+                            operand_written.as_deref(),
                             environment,
                         );
                     }

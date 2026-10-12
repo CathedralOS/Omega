@@ -648,15 +648,14 @@ pub(crate) fn build_checked_value_computation_plans(
                         continue;
                     }
                     let Some(target_state) =
-                        crate::checks::termination::named_transition_target_state_index(
-                            program,
-                            machine,
-                            path.symbol,
-                        )
-                        .and_then(|target_index| states.get(target_index))
+                        validation::activation_target_state_index(program, machine, path.symbol)
+                            .and_then(|target_index| states.get(target_index))
                     else {
                         continue;
                     };
+                    // Tail-normalized calls deliver into entry storage just
+                    // like local jumps. Source call/state classification owns
+                    // their different proof obligations, not argument geometry.
                     // Authored actuals exclude the implicit receiver. Each
                     // argument keeps its full target parameter position so the
                     // recorded role joins the pure expression plan, the saved

@@ -20,6 +20,7 @@ use super::super::StrictArithmeticExpressionBinding;
 use super::{BigInt, Engine, ExpressionHandle, Machine, Polynomial, State, lengths, meanings};
 use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::SymbolHandle;
+use typed_trees::expression::ExpressionNode;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// An actual that carries a saved caller observation: a plain name bound by
@@ -78,6 +79,9 @@ pub(super) fn install(
             &[local.initial_value],
         );
         bind_local_lengths(program, machine, state, local.initial_value, engine);
+        if !engine.capture_expression_calls(local.initial_value) {
+            continue;
+        }
         // The saved initializer may carry a runtime quotient, remainder, or
         // exact shift: mint each non-polynomial operand-pair atom the same
         // way the range owner does before binding, so the observation saves
@@ -208,10 +212,31 @@ fn stable_references(
     expression: ExpressionHandle,
 ) -> bool {
     let mut nodes = Vec::new();
-    let mut seen = std::collections::HashSet::new();
-    crate::expression_traversal::collect_expression_nodes(
-        program, expression, &mut nodes, &mut seen,
-    );
+    let mut pending = vec![expression];
+    while let Some(expression) = pending.pop() {
+        if nodes.contains(&expression) {
+            continue;
+        }
+        if nodes.len() >= 4096 {
+            return false;
+        }
+        nodes.push(expression);
+        let node = program.expression_table.expression(expression);
+        if let ExpressionNode::Call(call) = node {
+            // Selection is code, not an implicit data argument. Its complete
+            // effects are covered by the caller's frame judgment; public
+            // numeric clauses depend on the explicit actuals captured here.
+            pending.extend(
+                program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .copied(),
+            );
+        } else {
+            crate::expression_traversal::children(program, node, |child| pending.push(child));
+        }
+    }
     nodes.iter().all(|node| {
         let Some(path) = program.expression_table.name_path_node(*node) else {
             return true;

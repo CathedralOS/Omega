@@ -3,10 +3,11 @@ use super::{
     SymbolHandle, proof_integer_expression, proof_nat_cast,
 };
 mod difference_matrix;
-mod intervals;
 mod integer_operations;
+mod intervals;
 mod polynomial_bounds;
 use crate::proof_contracts::arithmetic_domains::BigIntInterval as Interval;
+mod captured_calls;
 mod mathematical_terms;
 mod strict_bindings;
 pub(super) enum Judgment {
@@ -260,6 +261,10 @@ pub(super) struct Engine<'program> {
     /// Exact numeric projections and quotient occurrences installed by the
     /// owning strict query after checking builtin meaning and source custody.
     strict_occurrences: Vec<(ExpressionHandle, Polynomial)>,
+    /// One call-observation namespace for this judgment. Reusing it prevents
+    /// a shared public-clause expression from identifying different invocations
+    /// merely because each operand was prepared first in a fresh namespace.
+    captured_calls: Option<super::scoped_arithmetic::calls::ScopedCalls<'program>>,
     /// A formation query has exact symbol bindings and admits only total
     /// mathematical arithmetic. It must not inherit the legacy proof
     /// machine adapter's interpretation of arbitrary executable operators.
@@ -327,6 +332,7 @@ impl<'program> Engine<'program> {
             strict_symbol_bindings_valid: true,
             strict_result_binding: None,
             strict_occurrences: Vec::new(),
+            captured_calls: None,
             proof_integer_formation: false,
             integer_embedding_policy:
                 crate::proof_contracts::proof_embeddings::machine_contains_integer_embedding(
@@ -536,6 +542,7 @@ impl<'program> Engine<'program> {
             strict_symbol_bindings_valid: true,
             strict_result_binding: None,
             strict_occurrences: Vec::new(),
+            captured_calls: None,
             proof_integer_formation: false,
             integer_embedding_policy: true,
             unsigned_atoms: Vec::new(),

@@ -102,7 +102,7 @@ pub(crate) fn plan(
         else {
             continue;
         };
-        let Some(target_state) = crate::checks::termination::named_transition_target_state_index(
+        let Some(target_state) = validation::activation_target_state_index(
             program,
             machine,
             path.symbol,

@@ -10,7 +10,7 @@ use super::patterns;
 
 /// The measure `edge_decrease_proven` reads, stated over one state's own
 /// parameters: the countdown subject itself (signed or unsigned), or the
-/// distance's unsigned parameters or unsigned cursor and collection length.
+/// distance's unsigned cursor and admitted bound expression.
 /// This query uses exact formal symbols in its own declaration frame. State
 /// transport is supplied by the retained complete arrival witness.
 pub(super) fn state_rank(
@@ -53,64 +53,11 @@ pub(super) fn state_rank(
         }
         DecreaseMeasure::Distance { lower, upper } => {
             let (lower_position, lower) = plain(lower)?;
-            if matches!(
-                program.expression_table.expression(upper),
-                ExpressionNode::Member(_)
-            ) {
-                // This is the same semantic collection-length selection the
-                // edge prover uses, not a record field merely named `len`.
-                let collection = patterns::parameter_matched_by_expression(program, state, upper)?;
-                if program.primitive_type_reference(lower.type_reference)
-                    != Some(PrimitiveType::U64)
-                {
-                    return None;
-                }
-                let collection_position = typed_trees::signature::state_parameter_position(
-                    program.state_parameters(state),
-                    collection.symbol,
-                )?;
-                return Some(checked_trees::CheckedStateNaturalRank {
-                    observation: Default::default(),
-                    state: state.symbol,
-                    parameter: lower.symbol,
-                    parameter_position: lower_position,
-                    measure: CheckedNaturalRankMeasure::CollectionLengthDistance {
-                        collection: collection.symbol,
-                        collection_position: u32::try_from(collection_position).ok()?,
-                    },
-                });
-            }
             let primitive_type = program.primitive_type_reference(lower.type_reference)?;
-            if let Some(literal) = program.expression_table.integer_node(upper) {
-                // A constant bound: the rank is the cursor's distance below a
-                // fixed value, so no upper parameter rides along the cycle.
-                let upper = literal.value_u64()?;
-                let semantic_vocabulary::IntegerValue::Unsigned(maximum) =
-                    crate::values::integer_type(primitive_type)?.maximum_value()
-                else {
-                    return None;
-                };
-                return (u128::from(upper) <= maximum).then_some(
-                    checked_trees::CheckedStateNaturalRank {
-                        observation: Default::default(),
-                        state: state.symbol,
-                        parameter: lower.symbol,
-                        parameter_position: lower_position,
-                        measure: CheckedNaturalRankMeasure::ConstantDistance {
-                            primitive_type,
-                            upper,
-                        },
-                    },
-                );
-            }
-            let (upper_position, upper) = plain(upper)?;
-            if lower.symbol == upper.symbol
-                || program.primitive_type_reference(upper.type_reference) != Some(primitive_type)
-                || !matches!(
-                    primitive_type,
-                    typed_trees::unsigned_integer_primitive_pattern!()
-                )
-            {
+            if !matches!(
+                primitive_type,
+                typed_trees::unsigned_integer_primitive_pattern!()
+            ) {
                 return None;
             }
             Some(checked_trees::CheckedStateNaturalRank {
@@ -118,10 +65,9 @@ pub(super) fn state_rank(
                 state: state.symbol,
                 parameter: lower.symbol,
                 parameter_position: lower_position,
-                measure: CheckedNaturalRankMeasure::UnsignedDistance {
+                measure: CheckedNaturalRankMeasure::BoundedDistance {
                     primitive_type,
-                    upper: upper.symbol,
-                    upper_position,
+                    upper,
                 },
             })
         }

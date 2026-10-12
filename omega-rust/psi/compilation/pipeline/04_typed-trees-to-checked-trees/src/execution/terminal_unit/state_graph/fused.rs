@@ -139,7 +139,7 @@ fn named_transition_targets<'a>(
 
 /// The fused position of a named transition target: a state symbol resolves
 /// directly, while a machine head resolves to that owner's entry state —
-/// the same normalization `named_transition_target_state_index` applies to
+/// the same normalization `activation_target_state_index` applies to
 /// one machine's own roster.
 pub(in crate::execution::terminal_unit) fn fused_target_index(
     program: &dyn ::validation::CheckingInput,

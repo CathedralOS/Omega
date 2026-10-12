@@ -27,7 +27,7 @@ pub(crate) mod runtime_ranking;
 pub use rank_relevance::{RankRelevance, rank_relevance};
 pub use runtime_ranking::{
     RuntimeRankBodyWitness, ValidatedRuntimeNaturalComponent, ValidatedRuntimeNaturalEdge,
-    ValidatedRuntimeNaturalState, internal_state_index,
+    ValidatedRuntimeNaturalState, activation_target_state_index, internal_state_index,
 };
 
 /// The one closed ranking relation currently admitted for a proof-only call
@@ -415,6 +415,7 @@ struct MachineCallGraph {
     edges: Vec<Vec<usize>>,
     index_of: HashMap<u32, usize>,
     proof_dependencies: Vec<Vec<usize>>,
+    selector_self_recursion: Vec<usize>,
 }
 
 fn build_machine_call_graph(
@@ -439,11 +440,13 @@ fn build_machine_call_graph(
         targets.sort_unstable();
         targets.dedup();
     }
-    runtime_ranking::extend_runtime_adjacency(program, proof_only, &mut edges);
+    let selector_self_recursion =
+        runtime_ranking::extend_runtime_adjacency(program, proof_only, &mut edges);
     MachineCallGraph {
         edges,
         index_of,
         proof_dependencies,
+        selector_self_recursion,
     }
 }
 
@@ -458,6 +461,7 @@ pub(crate) fn validate_machine_call_cycles(
         edges,
         index_of,
         proof_dependencies,
+        selector_self_recursion,
     } = build_machine_call_graph(program, symbols, &proof_only);
     let proof_components = build_validated_proof_recursive_components(
         program,
@@ -469,18 +473,19 @@ pub(crate) fn validate_machine_call_cycles(
     );
 
     for members in strongly_connected_components(&edges) {
-        // The existing self-call judgment owns direct single-machine
-        // recursion. A runtime self-edge here can only come from a selector
-        // call that may dispatch back into its own implementation, which no
-        // ranking yet carries across the dispatch edge.
-        if let [member] = members.as_slice() {
-            if edges[*member].contains(member)
-                && !proof_only.is_proof_machine(program, &machines[*member])
-            {
+        // Runtime singletons retain their actual call edge and use the same
+        // completed-effects component judgment as mutual recursion. Proof
+        // self-recursion keeps its independent structural-descent judgment.
+        if members.len() == 1 {
+            let member = members[0];
+            // The prepared graph retains selector-edge provenance separately
+            // from direct self calls. No source spelling or singleton shape
+            // can supply the missing implementation-selection ranking.
+            if selector_self_recursion.contains(&member) {
                 diagnostics.push(Diagnostic::error(format!(
                     "machine call cycle: `{}` can re-enter itself through a selector call; \
                      termination across runtime implementation selection is not yet ranked",
-                    machines[*member].name
+                    machines[member].name
                 )));
             }
             continue;

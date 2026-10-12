@@ -23,9 +23,7 @@ pub(crate) use progress::entry_covers_progress_premises;
 
 // Contract induction uses the same authored-edge graph as ranking; graph
 // membership supplies no ranking or invariant evidence by itself.
-pub(crate) use graph::{
-    machine_adjacency, named_transition_target_state_index, strongly_connected_components,
-};
+pub(crate) use graph::{machine_adjacency, strongly_connected_components};
 pub(crate) use ranking::proves_ranked_entry_requirement;
 
 use crate::labels::machine_name;
@@ -44,7 +42,7 @@ pub(crate) fn admit_machine_rankings(
         .as_ref()
         .map(|topology| {
             topology
-                .joint_components()
+                .joint_components(program)
                 .map(|component| {
                     component_selection::select(program, topology, component, call_frames)
                 })
@@ -149,7 +147,13 @@ pub(crate) fn admit_machine_rankings(
                     );
                 }
             }
-        } else if claimed && cycle && witness.is_none() {
+        } else if claimed
+            && (cycle
+                || topology
+                    .as_ref()
+                    .is_some_and(|topology| topology.requires_arrival_witness(position)))
+            && witness.is_none()
+        {
             diagnostic = format!(
                 "terminating machine {} contains a recursive cycle but carries no \
                  ranking witness -- spell one with `terminates by <subjects> [-> View];` \

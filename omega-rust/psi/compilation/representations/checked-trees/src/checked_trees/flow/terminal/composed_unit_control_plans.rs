@@ -151,27 +151,24 @@ pub enum CheckedNaturalRankMeasure {
     IntegerParameter { primitive_type: PrimitiveType },
     /// `Nat::BoundedDistance` and `Nat::IncreasingTo(limit)`: the natural
     /// distance from the climbing lower subject (`parameter`) up to `upper`.
-    /// Both are unsigned parameters of `primitive_type`; every cyclic edge
-    /// advances the lower subject and keeps `upper`.
-    UnsignedDistance {
+    /// The cursor uses `primitive_type`; the bound is an admitted expression
+    /// in the authored entry namespace, transported by the retained telescope.
+    /// Every cyclic edge advances the cursor and preserves the bound. Emission
+    /// uses the equivalent MAX-cursor observation, not another bound evaluator.
+    BoundedDistance {
         primitive_type: PrimitiveType,
-        upper: SymbolHandle,
-        upper_position: u32,
+        upper: typed_trees::expression::ExpressionHandle,
     },
-    /// The same distance up to a constant bound (`Nat::IncreasingTo(8)`,
-    /// `(index, 8) -> Nat::BoundedDistance`). The bound is the literal value in
-    /// `primitive_type`; there is no upper parameter to keep.
-    ConstantDistance {
-        primitive_type: PrimitiveType,
-        upper: u64,
-    },
-    /// The same distance with a `u64` cursor and a collection's live length
-    /// as its bound. The upper subject is the collection parameter, not a
-    /// fabricated scalar parameter for its length. Cyclic edges preserve it.
-    CollectionLengthDistance {
-        collection: SymbolHandle,
-        collection_position: u32,
-    },
+}
+
+/// State requirements retain the difference between a closed runtime
+/// projection and an authored source obligation with no such projection.
+/// The latter grants no proposition: emission needs the exact checked
+/// arrival decision for every incoming edge before consuming it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedStateContractRequirement {
+    Closed(ClosedScalarContractValue),
+    SourceExpression(typed_trees::expression::ExpressionHandle),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -191,13 +188,10 @@ pub struct CheckedComposedUnitControlStatePlan {
     /// Erased formals whose carriers are proof-only and admit no scalar
     /// lane. The contract term lane carries their semantic type identities.
     pub erased_proof_parameters: Vec<CheckedErasedProofParameterPlan>,
-    /// Lowered `requires` clauses for a non-entry state, in authored contract
-    /// order. Producers emit only `Some` rows — an authored clause that fails
-    /// the closed-namespace lowering leaves the whole plan unadmitted at check
-    /// time rather than recording `None`. The `Option` retains emission's
-    /// independent recheck: a plan built by any later producer still admits
-    /// the state only when every row is `Some`.
-    pub requires: Vec<Option<ClosedScalarContractValue>>,
+    /// Authored arrival obligations and required declaration projections, in
+    /// contract order. An unprojected expression stays a source obligation;
+    /// it is neither a missing row nor an opaque certified runtime atom.
+    pub requires: Vec<CheckedStateContractRequirement>,
     pub entry_claims: Vec<CheckedUnitEntryClaimPlan>,
     /// Ordered effect operations only. Control exits remain in `terminator`.
     pub operations: Vec<CheckedUnitEffectOperationPlan>,

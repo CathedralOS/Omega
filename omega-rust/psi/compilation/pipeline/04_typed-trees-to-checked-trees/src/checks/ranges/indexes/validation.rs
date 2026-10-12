@@ -18,7 +18,9 @@
 //!    range by its constant bounds or, when they do not fold, by the
 //!    unknown-length facts and then `known_ranges`;
 //! 2. a slice or bounded byte type with no known length:
-//!    `check_unknown_length_slice_index`;
+//!    `check_unknown_length_slice_index` consumes retained ordinal facts and
+//!    the shared scalar/descriptor relation judgment. A captured computation
+//!    keeps its value identity; it is not expanded by a subtraction recognizer;
 //! 3. a fixed array with a const-generic extent:
 //!    `check_symbolic_extent_index`;
 //! 4. anything else, or an extent still bound through a pending application,
@@ -531,7 +533,20 @@ fn check_unknown_length_slice_index(
             )));
         }
         _ => {
-            if unknown_length_index_is_proven(program, facts, collection, index) {
+            if unknown_length_index_is_proven(program, facts, collection, index)
+                || crate::checks::current_scalar_values::CurrentScalarValues::proves_collection_index_at(
+                    program,
+                    machine,
+                    state,
+                    facts.statement_index,
+                    collection,
+                    index,
+                    facts
+                        .checked_calls
+                        .as_ref()
+                        .and_then(|context| context.call_frames()),
+                )
+            {
                 return true;
             }
             diagnostics.push(Diagnostic::error(with_attribution(

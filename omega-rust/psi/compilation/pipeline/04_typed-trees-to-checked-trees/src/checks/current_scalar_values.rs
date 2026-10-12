@@ -450,12 +450,32 @@ impl<'program> CurrentScalarValues<'program> {
             .value
             .clone()
     }
-    /// The fixed length of a collection parameter, when it has one.
-    pub(crate) fn initial_length(&self, collection: SymbolHandle) -> Option<ScopedArithmeticValue> {
-        self.lengths
-            .iter()
-            .find(|length| length.subject == LengthSubject::Storage(collection))
-            .and_then(|length| length.value.clone())
+    /// Read an authored expression under the captured arrival roster. Later
+    /// scalar replacement cannot reinterpret this input as current storage.
+    pub(crate) fn initial(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<ScopedArithmeticExpression> {
+        admitted(
+            self.program,
+            self.machine,
+            self.state,
+            expression,
+            &self.initial,
+            &self.lengths,
+            0,
+        )
+        .then(|| {
+            scoped(
+                self.machine,
+                self.state,
+                expression,
+                &self.initial,
+                &self.lengths,
+                self.program,
+            )
+        })
+        .flatten()
     }
     pub(crate) fn current(
         &self,
@@ -579,6 +599,54 @@ impl<'program> CurrentScalarValues<'program> {
             left,
             right,
         ) == StrictArithmeticImplicationJudgment::Proven
+    }
+
+    /// Prove an element's upper bound from the same captured scalar and
+    /// descriptor observations used by arrivals and ranks. This is an integer
+    /// relation, not a fixed-extent or layout selection. The range owner keeps
+    /// its independent non-negative and selected-index obligations.
+    pub(crate) fn proves_collection_index_at(
+        program: &'program dyn ::validation::CheckingInput,
+        machine: &'program Machine,
+        state: &'program State,
+        statement_index: usize,
+        collection: ExpressionHandle,
+        index: ExpressionHandle,
+        frames: Option<&validation::CallFrameResolver<'_>>,
+    ) -> bool {
+        let Some(mut values) = Self::at(
+            program,
+            machine,
+            state,
+            statement_index,
+            TransitionTargetHandle::invalid(),
+            frames,
+        ) else {
+            return false;
+        };
+        // This query has no operand-completion receipt. Retire any storage
+        // the enclosing statement's operands can change before interpreting
+        // the current reads; disjoint writes preserve their own observations.
+        if let Some(statement) = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .get(statement_index)
+        {
+            values.invalidate_operand_effects(program, machine, statement, frames);
+        }
+        let Some(index) = values.current(index) else {
+            return false;
+        };
+        let Some(length) = values.collection_length(collection, 0) else {
+            return false;
+        };
+        values.proves_values_relation(
+            program,
+            machine,
+            BinaryOperator::Less,
+            &ScopedArithmeticValue::Term(index),
+            &length,
+        )
     }
     pub(crate) fn proves(
         &self,

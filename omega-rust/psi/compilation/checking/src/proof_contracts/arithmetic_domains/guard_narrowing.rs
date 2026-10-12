@@ -21,7 +21,7 @@ pub(super) use boolean_values::BooleanValue;
 pub(crate) use boolean_values::{record_boolean_assignment, record_boolean_local};
 mod case_facts;
 mod parameter_bounds;
-mod projected_facts;
+pub(super) mod projected_facts;
 pub use arrivals::{
     arrival_integer_expression_bounds, occurrence_integer_expression_bounds,
     occurrence_integer_expression_fits_range,

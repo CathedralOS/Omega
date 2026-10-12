@@ -8,10 +8,8 @@ use symbols::SymbolHandle;
 use typed_trees::machine::Machine;
 use typed_trees::statement::StatementNode;
 
-use super::projection::{RankOrder, RankProjection};
-
-/// `premises` names the member's entry premise carriers (`None` when its
-/// witness resolves none, which rejects every store); `entry_parameters` is
+/// `premises` names the member's entry premise carriers (`None` conservatively
+/// protects all formals); `entry_parameters` is
 /// this state's source-admitted coordinate readings;
 /// `conserved_endpoints` says the component mixes ranged and unranged
 /// members, so every caller entry input may be read as a conserved endpoint.
@@ -19,34 +17,31 @@ pub(super) fn preserves_rank(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &typed_trees::state::State,
-    rank: &RankProjection,
     premises: Option<&[SymbolHandle]>,
     entry_parameters: &crate::RankStateBindings,
     conserved_endpoints: bool,
     statement: &StatementNode,
     frames: Option<&CallFrameResolver<'_>>,
 ) -> bool {
-    if !matches!(
-        rank.order,
-        RankOrder::Natural(_)
-            | RankOrder::IncreasingTo(_)
-            | RankOrder::BoundedDistance(_)
-            | RankOrder::SliceLength
-            | RankOrder::DeclaredIdentity { .. }
-            | RankOrder::DeclaredComputation { .. }
-            | RankOrder::CustomStructView { .. }
-    ) {
-        return false;
-    }
-    let Some(premises) = premises else {
-        return false;
-    };
     // Source facts name exact selected coordinates. Field paths stay precise
     // at the shared frame adapter; collection indices retain its documented
     // coarse containing-home policy. No equal-copy premise is reconstructed.
     let mut protected = Vec::new();
+    // An order without a scalar dependency roster preserves the whole entry
+    // frame conservatively. Missing arithmetic projection is not evidence of
+    // mutation, and an empty complete operand frame remains meaningful.
+    if premises.is_none() {
+        for parameter in program.state_parameters(state) {
+            let Some(path) = crate::frame_coordinate_path(program, parameter.symbol, &[]) else {
+                return false;
+            };
+            protected.push(path);
+        }
+    }
     for binding in &entry_parameters.coordinates {
-        if !conserved_endpoints && !premises.contains(&binding.entry.parameter) {
+        if !conserved_endpoints
+            && premises.is_some_and(|premises| !premises.contains(&binding.entry.parameter))
+        {
             continue;
         }
         if program
@@ -92,30 +87,21 @@ pub(super) fn preserves_rank(
     };
     match statement {
         StatementNode::Assignment(assignment) => {
-            if !super::expression_is_inert(program, machine, state, assignment.target)
-                || !super::expression_is_inert(program, machine, state, assignment.value)
+            if !operand_has_admitted_meaning(program, machine, state, assignment.target)
+                || !operand_has_admitted_meaning(program, machine, state, assignment.value)
             {
                 return false;
             }
             frames.is_some_and(|frames| disjoint(frames.assignment_write_frame(machine, statement)))
         }
         StatementNode::Call(call) => {
-            // A statement-position call keeps the transition-actuals bar:
-            // inert arguments, then complete write-frame evidence disjoint
-            // from every protected carrier -- the call's own frame plus the
-            // aggregated frame of any value calls nested in its arguments.
-            // An authored operator or index selection inside an argument
-            // could hide a write no frame sees, so the inertness check is
-            // structural rather than delegated to the frames. The frame
-            // query itself selects the callee's contract: a checked body is
-            // summarized, a boundary, requirement, or admitted declaration is
-            // bounded by its signature's exclusive reach, and anything
-            // unresolved stays opaque rather than admitted.
+            // Selected call operands retain their own meaning; the complete
+            // frame, not call syntax, decides whether they preserve inputs.
             program
                 .statement_table
                 .expression_handles(call.arguments)
                 .iter()
-                .all(|argument| super::expression_is_inert(program, machine, state, *argument))
+                .all(|argument| operand_has_admitted_meaning(program, machine, state, *argument))
                 && frames.is_some_and(|frames| {
                     disjoint(frames.may_write_frame(machine, call))
                         && disjoint(frames.statement_value_write_frame(machine, statement))
@@ -134,18 +120,32 @@ pub(super) fn preserves_rank(
             // vacuously clears the bar. The aggregate write frame is
             // conservative over every nested call and must be complete and
             // disjoint from every protected carrier.
-            let resolved_callee =
-                |call: &typed_trees::expression::TableCallExpression| call.target_symbol.is_valid();
-            super::expression_is_inert_or_calls(
-                program,
-                machine,
-                state,
-                local.initial_value,
-                &resolved_callee,
-            ) && frames.is_some_and(|frames| {
-                disjoint(frames.expression_write_frame(machine, local.initial_value))
-            })
+            operand_has_admitted_meaning(program, machine, state, local.initial_value)
+                && frames.is_some_and(|frames| {
+                    disjoint(frames.expression_write_frame(machine, local.initial_value))
+                })
+        }
+        StatementNode::Transition(_) => frames
+            .is_some_and(|frames| disjoint(frames.statement_value_write_frame(machine, statement))),
+        StatementNode::Expression(expression) => {
+            operand_has_admitted_meaning(program, machine, state, *expression)
+                && frames.is_some_and(|frames| {
+                    disjoint(frames.statement_value_write_frame(machine, statement))
+                })
         }
         _ => false,
     }
+}
+
+/// Calls and intrinsic operations have separate authorities. This proves only
+/// operation identity; the caller must also supply complete frame preservation.
+pub(super) fn operand_has_admitted_meaning(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> bool {
+    super::expression_is_inert_or_calls(program, machine, state, expression, &|call| {
+        call.target_symbol.is_valid()
+    })
 }

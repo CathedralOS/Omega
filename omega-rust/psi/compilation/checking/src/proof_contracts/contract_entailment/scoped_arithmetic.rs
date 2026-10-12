@@ -16,7 +16,7 @@
 //! `Proven` succeeds. Occurrence meaning is established by the caller; this
 //! adapter never equates value occurrences by their spelling or operands.
 
-mod calls;
+pub(super) mod calls;
 
 use super::arithmetic_judgment::{Engine, Judgment, Polynomial};
 
@@ -226,7 +226,7 @@ fn read_comparisons(
     Some(comparisons)
 }
 
-fn install_hypotheses(
+pub(super) fn install_hypotheses(
     program: &dyn crate::CheckingInput,
     engine: &mut Engine<'_>,
     hypotheses: &[ScopedArithmeticHypothesis],

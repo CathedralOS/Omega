@@ -8,18 +8,22 @@
 //! therefore discharged when the receiver's data states exactly
 //! `P(&board) == true` over the same arguments. This matches the whole fact;
 //! it never takes the predicate apart.
+//! Readable borrows and authenticated builtin whole views keep that argument
+//! identity. Partial views do not inherit an arbitrary collection predicate.
+//! Selected fields match their declaration symbols under one receiver, not
+//! equal spellings belonging to unrelated declarations.
 
 use super::place_queries::data_definition_for_expression;
 use crate::proof_contracts::collection_predicates::{fact_argument_field, predicate_application};
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
 
 /// One argument of the instantiated requirement.
 #[derive(PartialEq, Eq)]
-enum RequiredArgument<'program> {
-    Field(&'program str),
+enum RequiredArgument {
+    Field(symbols::SymbolHandle),
     Integer(i64),
 }
 
@@ -51,13 +55,9 @@ pub fn standing_facts_prove_requirement(
         let Some(actual) = actuals.get(position) else {
             return false;
         };
-        let place = match program.expression_table.expression(*actual) {
-            ExpressionNode::Borrow(borrow)
-                if borrow.access == language_core::ReferenceAccess::Shared =>
-            {
-                borrow.target
-            }
-            _ => *actual,
+        let Some(place) = collection_observation_place(program, caller, caller_state, *actual)
+        else {
+            return false;
         };
         let Some(member) = program.expression_table.member_node(place) else {
             return false;
@@ -66,10 +66,21 @@ pub fn standing_facts_prove_requirement(
         // whose data states the fact.
         match receiver {
             None => receiver = Some(member.receiver),
-            Some(existing) if existing == member.receiver => {}
+            Some(existing)
+                if program
+                    .expression_table
+                    .expressions_structurally_equal(existing, member.receiver) => {}
             Some(_) => return false,
         }
-        required.push(RequiredArgument::Field(member.member.as_str()));
+        let Some(field) = crate::value_custody::places::declared_member_field_symbol(
+            program,
+            caller,
+            Some(caller_state),
+            place,
+        ) else {
+            return false;
+        };
+        required.push(RequiredArgument::Field(field));
     }
     let Some(receiver) = receiver else {
         return false;
@@ -100,9 +111,9 @@ pub fn standing_facts_prove_requirement(
                     .iter()
                     .zip(&required)
                     .all(|(argument, required)| match required {
-                        RequiredArgument::Field(name) => {
+                        RequiredArgument::Field(symbol) => {
                             fact_argument_field(program, definition, *argument)
-                                .is_some_and(|field| field.name.as_str() == *name)
+                                .is_some_and(|field| field.symbol == *symbol)
                         }
                         RequiredArgument::Integer(value) => {
                             program.expression_table.constant_integer_value(*argument)
@@ -110,6 +121,36 @@ pub fn standing_facts_prove_requirement(
                         }
                     })
         })
+}
+
+/// Borrowing and a builtin whole view preserve the collection observation.
+/// A partial window does not: an arbitrary predicate on the whole collection
+/// need not hold on a subset. This is argument identity, not an elementwise
+/// decomposition or permission to read a write-only loan.
+fn collection_observation_place(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    mut expression: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    for _ in 0..128 {
+        if let Some(borrow) = program.expression_table.borrow_expression(expression) {
+            if borrow.access == language_core::ReferenceAccess::WriteOnly {
+                return None;
+            }
+            expression = borrow.target;
+        } else if let Some(source) = crate::value_custody::places::whole_collection_view_source(
+            program,
+            machine,
+            Some(state),
+            expression,
+        ) {
+            expression = source;
+        } else {
+            return Some(expression);
+        }
+    }
+    None
 }
 
 fn formal_position(

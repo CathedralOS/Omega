@@ -132,6 +132,8 @@ impl ContractPredicates<'_, '_> {
                 self.parameters,
                 expression,
             )?;
+            let reference =
+                validation::field_domains::readable_type_reference(self.program, reference)?;
             Some((position, term, reference))
         });
         let (position, term, reference) = if let Some(observation) = static_observation {
@@ -277,7 +279,9 @@ impl ContractPredicates<'_, '_> {
                 ))
             }
             ExpressionNode::Name(_) => {
-                let (position, reference, erased) = self.subject(expression)?;
+                let Some((position, reference, erased)) = self.subject(expression) else {
+                    return self.structural_observation(expression, depth + 1);
+                };
                 let primitive_type = program.primitive_type_reference(reference)?;
                 Some((
                     if erased {

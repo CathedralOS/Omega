@@ -273,14 +273,9 @@ fn observation(
                 CheckedScalarComputationKind::Value(expression),
             ))
         }
-        CheckedNaturalRankMeasure::UnsignedDistance { primitive_type, .. }
-        | CheckedNaturalRankMeasure::ConstantDistance { primitive_type, .. } => {
+        CheckedNaturalRankMeasure::BoundedDistance { primitive_type, .. } => {
             let lower = input_coordinate(builder, rank, subject, bindings, primitive_type)?;
             distance(builder, lower, primitive_type)
-        }
-        CheckedNaturalRankMeasure::CollectionLengthDistance { .. } => {
-            let lower = input_coordinate(builder, rank, subject, bindings, PrimitiveType::U64)?;
-            distance(builder, lower, PrimitiveType::U64)
         }
     }
 }

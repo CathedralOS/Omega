@@ -1002,7 +1002,7 @@ fn state_parameter_entry_operand(
         .iter()
         .enumerate()
         .find(|(_, parameter)| parameter.symbol == parameter_symbol)?;
-    let entry_index = crate::checks::termination::named_transition_target_state_index(
+    let entry_index = validation::activation_target_state_index(
         program,
         machine,
         machine.symbol,
@@ -1119,7 +1119,7 @@ fn named_transition_arguments(
                 else {
                     continue;
                 };
-                if crate::checks::termination::named_transition_target_state_index(
+                if validation::activation_target_state_index(
                     program,
                     machine,
                     path.symbol,

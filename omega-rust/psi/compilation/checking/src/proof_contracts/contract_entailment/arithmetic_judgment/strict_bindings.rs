@@ -471,7 +471,11 @@ impl<'program> Engine<'program> {
             && self.bind_strict_occurrence(expression, Polynomial::constant(value))
     }
 
-    fn bind_strict_occurrence(&mut self, expression: ExpressionHandle, value: Polynomial) -> bool {
+    pub(in crate::proof_contracts::contract_entailment) fn bind_strict_occurrence(
+        &mut self,
+        expression: ExpressionHandle,
+        value: Polynomial,
+    ) -> bool {
         if self.strict_symbol_bindings.is_none()
             || !self.strict_symbol_bindings_valid
             || !self
@@ -528,6 +532,10 @@ impl<'program> Engine<'program> {
         &mut self,
         formals: Vec<(SymbolHandle, Polynomial)>,
     ) {
+        // Occurrences belong to the caller invocation just as its formals do.
+        // Hypotheses and captured actuals already hold their normalized values;
+        // the destination must install its own projected readings afterward.
+        self.strict_occurrences.clear();
         let Some(bindings) = &mut self.strict_symbol_bindings else {
             return;
         };

@@ -3,15 +3,16 @@
 //! capture their operands before replacing a binding, so an intermediate
 //! decrement followed by a restoring assignment does not establish descent.
 //!
-//! A distance (`Nat::BoundedDistance`, `Nat::IncreasingTo`) whose bound is an
-//! unsigned parameter, a literal, or a collection loan's fixed length proves
+//! A distance (`Nat::BoundedDistance`, `Nat::IncreasingTo`) proves
 //! three relations at each edge: the cursor starts below the bound, the
 //! arriving cursor exceeds it, and the arriving bound equals the current one.
 //! Those are exactly the facts the emitted `MAX - lower` rank needs (see stage
 //! 05 `state_graph/ranking.rs`), and any guard, `requires` clause or earlier
 //! transition that implies them counts: `index < limit && index < 4096`,
-//! `index < 8` and `requires index < bytes.len` all bound the cursor. A
-//! collection bound arrives equal only when the edge forwards the same loan.
+//! `index < 8` and `requires index < bytes.len` all bound the cursor.
+//! Bound expressions use simultaneous arrival substitution, including captured
+//! collection measures. A forwarded loan retains its exact length coordinate;
+//! matching names or different descriptors grant no equality.
 //!
 //! The entry declaration uses its own exact parameter coordinates. Additional
 //! states may discard those coordinates only when the shared executable call
@@ -26,8 +27,7 @@ use crate::checks::current_scalar_values::CurrentScalarValues;
 use crate::checks::termination::order::RankingOrder;
 use checked_trees::{CheckedNaturalRankMeasure, CheckedStateNaturalRank};
 use numerics::arithmetic::ArithmeticDomain;
-use symbols::SymbolHandle;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::expression::BinaryOperator;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::TransitionTargetNode;
@@ -86,13 +86,7 @@ fn scalar_rank(
     };
     let scalar = match rank.measure {
         CheckedNaturalRankMeasure::IntegerParameter { .. }
-        | CheckedNaturalRankMeasure::ConstantDistance { .. } => exact(rank.parameter_position),
-        CheckedNaturalRankMeasure::UnsignedDistance { upper_position, .. } => {
-            exact(rank.parameter_position) && exact(upper_position)
-        }
-        CheckedNaturalRankMeasure::CollectionLengthDistance { .. } => {
-            exact(rank.parameter_position)
-        }
+        | CheckedNaturalRankMeasure::BoundedDistance { .. } => exact(rank.parameter_position),
         // Declared views retain their body's formation and descent authority;
         // the primitive-formal judgment cannot stand in for that application.
         CheckedNaturalRankMeasure::DeclaredMeasure { .. }
@@ -149,35 +143,24 @@ fn prove_edge(
     // value at the target.
     let bound = match (source_rank.measure, target_rank.measure) {
         (
-            CheckedNaturalRankMeasure::UnsignedDistance {
+            CheckedNaturalRankMeasure::BoundedDistance {
                 upper: source_upper,
                 ..
             },
-            CheckedNaturalRankMeasure::UnsignedDistance { upper_position, .. },
-        ) => Some((
-            values.initial_symbol(source_upper)?,
-            arriving(upper_position)?,
-        )),
-        (CheckedNaturalRankMeasure::ConstantDistance { upper, .. }, _) => {
-            Some((constant(upper), constant(upper)))
-        }
-        (
-            CheckedNaturalRankMeasure::CollectionLengthDistance { collection, .. },
-            CheckedNaturalRankMeasure::CollectionLengthDistance {
-                collection_position,
+            CheckedNaturalRankMeasure::BoundedDistance {
+                upper: target_upper,
                 ..
             },
-        ) => {
-            // The same loan forwarded whole keeps its fixed length; any other
-            // actual has no proven length here.
-            let length = values.initial_length(collection)?;
-            forwards_parameter(
-                program,
-                *edge.arguments.get(collection_position as usize)?,
-                collection,
-            )
-            .then(|| (length.clone(), length))
-        }
+        ) => Some((
+            ScopedArithmeticValue::Term(values.initial(source_upper)?),
+            ScopedArithmeticValue::Term(values.bind_parameters(
+                machine,
+                source,
+                target_upper,
+                program.state_parameters(source),
+                edge.arguments,
+            )?),
+        )),
         _ => None,
     };
     if let Some((current_bound, arriving_bound)) = bound {
@@ -202,20 +185,5 @@ fn prove_edge(
         relation(BinaryOperator::GreaterOrEqual, &previous, &zero)
             && relation(BinaryOperator::GreaterOrEqual, &next, &zero)
             && relation(BinaryOperator::Less, &next, &previous),
-    )
-}
-
-/// Whether `argument` is exactly the parameter `symbol`, unprojected.
-fn forwards_parameter(
-    program: &dyn ::validation::CheckingInput,
-    argument: ExpressionHandle,
-    symbol: SymbolHandle,
-) -> bool {
-    matches!(
-        program.expression_table.expression(argument),
-        ExpressionNode::Name(name)
-            if name.symbol == symbol
-                && name.head_symbol == symbol
-                && program.expression_table.name_path_members(name.members).len() == 1
     )
 }

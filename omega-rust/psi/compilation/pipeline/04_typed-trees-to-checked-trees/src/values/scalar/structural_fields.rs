@@ -714,10 +714,21 @@ pub(crate) fn lower_structural_parameter_field(
     parameters: &[StateParameter],
     expression: ExpressionHandle,
 ) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
-    let (parameter_position, path, type_reference) =
+    let (parameter_position, path, mut type_reference) =
         structural_parameter_place(program, parameters, expression)?;
     if path.is_empty() {
-        return None;
+        // A whole primitive loan and a projected primitive leaf observe
+        // storage in the same formal-place namespace. Bare scalar parameters
+        // remain value formals; write-only loans grant no read.
+        let shell = validation::reference_shell(program, type_reference)?;
+        if !matches!(
+            shell.access,
+            language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable
+        ) {
+            return None;
+        }
+        type_reference =
+            validation::field_domains::readable_type_reference(program, type_reference)?;
     }
     if matches!(
         path.last(),

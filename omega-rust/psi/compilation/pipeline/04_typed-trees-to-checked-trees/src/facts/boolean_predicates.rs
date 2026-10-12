@@ -78,7 +78,7 @@ pub(crate) fn entry_scalar(
 ) -> Option<Scalar> {
     let owner = program.machine_by_symbol(machine)?;
     let entry_position =
-        crate::checks::termination::named_transition_target_state_index(program, owner, machine)?;
+        validation::activation_target_state_index(program, owner, machine)?;
     let entry = program.machine_states(owner).get(entry_position)?;
     let parameters = program.state_parameters(entry);
     if !path.is_empty() {
@@ -116,7 +116,7 @@ pub(crate) fn bind_entry(
 ) -> Option<BoundPredicate> {
     let owner = program.machine_by_symbol(machine)?;
     let entry =
-        crate::checks::termination::named_transition_target_state_index(program, owner, machine)?;
+        validation::activation_target_state_index(program, owner, machine)?;
     let state = program.machine_states(owner).get(entry)?;
     bind_parameters(
         program,

@@ -70,7 +70,7 @@ fn build_state_plan(
             && matches!(
                 program.statement_table.transition_target(transition.target),
                 TransitionTargetNode::Named { path, .. }
-                    if crate::checks::termination::named_transition_target_state_index(
+                    if validation::activation_target_state_index(
                         program, machine, path.symbol,
                     ).is_some()
                         || validation::find_machine_by_entry_state(
@@ -111,7 +111,7 @@ fn build_state_plan(
         // the same composed roster, so the edge row names whichever state
         // the transition actually transfers to. Anything else has no
         // composed edge and keeps the omitted-edge behavior.
-        let target = match crate::checks::termination::named_transition_target_state_index(
+        let target = match validation::activation_target_state_index(
             program,
             machine,
             path.symbol,

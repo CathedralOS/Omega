@@ -914,20 +914,13 @@ fn operand_place_projection_type(
             }
             let collection_type =
                 operand_type_at_depth(program, machine, state, indexed.collection, depth + 1)?;
-            let operands = [
-                Some(collection_type),
-                operand_type_at_depth(program, machine, state, indexed.index, depth + 1),
-            ];
-            if !crate::value_custody::places::has_retained_builtin_index_meaning(
-                program, expression,
-            ) || !typed_trees::operator::resolve_indexed_spelling_for_operands(
-                program,
-                OperatorSpelling::Index,
-                &operands,
-                program.expression_table.source_span(expression),
-            )
-            .is_empty()
-            {
+            // Source contracts and executable expressions share declared
+            // coordinate meaning. A contract need not have an execution-stage
+            // selection occurrence: the coordinate owner resolves exact
+            // operand types, implicit collection adaptation and overloads.
+            if !crate::value_custody::places::place_has_builtin_coordinates(
+                program, machine, state, expression,
+            ) {
                 return None;
             }
             let collection =

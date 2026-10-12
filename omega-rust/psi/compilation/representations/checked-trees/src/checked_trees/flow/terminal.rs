@@ -55,7 +55,8 @@ pub use composed_unit_control_plans::{
     CheckedConditionalReturnArm, CheckedControlResultPlan, CheckedGuardedJumpArmPlan,
     CheckedGuardedJumpFallbackPlan, CheckedGuardedJumpPlan, CheckedGuardedJumpReturnPlan,
     CheckedNaturalRankMeasure, CheckedRankEdgeCoordinate, CheckedScalarCaseFieldPlan,
-    CheckedScalarReturnPlan, CheckedStateNaturalRank, forwards_qualified_parameter,
+    CheckedScalarReturnPlan, CheckedStateContractRequirement, CheckedStateNaturalRank,
+    forwards_qualified_parameter,
 };
 pub use dynamic_slot_plans::{CheckedDynamicClaimPath, CheckedDynamicSlotPlan};
 pub use place_loan_plans::{CheckedPlaceLoanPlan, CheckedPlaceLoanRoot};

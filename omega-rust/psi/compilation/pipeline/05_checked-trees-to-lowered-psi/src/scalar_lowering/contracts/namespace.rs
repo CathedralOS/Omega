@@ -36,14 +36,9 @@ pub(super) fn validate(predicate: &CheckedBooleanExpression) -> Result<(), Lower
             .ok_or(LoweringError::Unsupported(
                 "closed byte predicate requires a structural formal",
             )),
-        CheckedBooleanExpression::StructuralParameterField { path, .. } => {
-            if path.is_empty() {
-                return Err(LoweringError::Unsupported(
-                    "closed scalar contract observation requires a field path",
-                ));
-            }
-            Ok(())
-        }
+        // The term owner resolves both a whole primitive referent and a
+        // projected leaf against the declared formal's exact type and access.
+        CheckedBooleanExpression::StructuralParameterField { .. } => Ok(()),
         CheckedBooleanExpression::IeeeFloatComparison { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
         | CheckedBooleanExpression::PayloadlessSumEqual { .. } => Err(LoweringError::Unsupported(
@@ -87,15 +82,12 @@ fn scalar(expression: &CheckedScalarExpression) -> Result<(), LoweringError> {
             )),
         // A member leaf roots at a declared structural parameter; the
         // structural signature lowering names its retained place and field
-        // path. An empty path would name the whole parameter — never a
-        // scalar leaf — and an address member has no fixed-integer carrier.
+        // path. An empty path observes the whole primitive referent; the term
+        // owner requires that exact scalar endpoint and readable access.
+        // An address member has no fixed-integer carrier.
         // An IEEE leaf keeps its exact format for an IEEE comparison.
-        CheckedScalarExpression::StructuralParameterField {
-            path,
-            primitive_type,
-            ..
-        } => {
-            if path.is_empty() || *primitive_type == PrimitiveType::Addr {
+        CheckedScalarExpression::StructuralParameterField { primitive_type, .. } => {
+            if *primitive_type == PrimitiveType::Addr {
                 return Err(LoweringError::Unsupported(
                     "closed scalar contract operand requires a scalar namespace",
                 ));

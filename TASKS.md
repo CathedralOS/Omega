@@ -1689,6 +1689,46 @@ defines the complete product bar.
   [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md). Continue the other customer groups
   without manufacturing an implicit re-export or provider-name fallback.
 
+  Collection frontier: qualify remaining view and capture compositions through
+  shared place coordinates, contract flow and termination, without assuming
+  arbitrary predicates are hereditary. Keep the five-position
+  [whole-slice inventory](samples/cli/probes/slice_view_whole/README.md#historical-scalar-positions),
+  its i32 carriers and original calculation 31 as regression constraints.
+  Reproduce with normal `omega update --project
+  samples/cli/probes/slice_view_whole --target macos_arm64` review followed by
+  `omega run --both samples/cli/probes/slice_view_whole/main.omg` (exit 0).
+  Keep symbolic descriptor/read identity, functional store versions and checked
+  well-founded predicate implication; do not unfold every possible length. Keep
+  `pass/dependent/runtime_symbolic_slice_cell_theorem_exit` (forward/reverse
+  traversal, dynamic selector, checked arithmetic and result bounds),
+  `fail/dependent/cited_cell_result_exceeds_guarantee` (too-small result bound
+  and a selector changed after citation) and
+  `fail/dependent/symbolic_collection_consequence_requires_inspection`
+  (uninspected cell, wrong collection, stronger-than-predicate bound).
+  Keep `pass/dependent/runtime_symbolic_slice_predicate_store_exit` (saved
+  operands, repeated store, forward/reverse predicate handback and complete
+  checked requirements at both state arrivals) and
+  `fail/dependent/symbolic_slice_predicate_store_requires_establishment`
+  (invalid replacement, absent premise, wrong subject, partial restoration and
+  a valid byte that breaks a relation between coordinates, and mutation that
+  invalidates a subsequent state requirement).
+  Re-drive std-backed
+  examples (`Filesystem::mkall_walk` previously refused its disjoint prefix).
+  Preserve exact call occurrences, public result guarantees and complete
+  mutation frames; do not reinstate a separate self-call recognizer or admit
+  opaque prefix effects.
+  Keep `pass/termination/runtime_self_call_forwarding_state_exit` (direct,
+  captured parenthesized, preceding-arrival, signed and computed-bound descent),
+  `runtime_ranked_recursive_argmax_forwarding_exit`, the captured-result
+  `runtime_{computed,quotient,shift}_result_rank_arrivals_exit` family and
+  `runtime_selected_boundary_requirement_identity_exit`, plus their nondecreasing,
+  moving-bound, missing-witness, genuine state-cycle and non-denotational-loop
+  controls. `checking/src/proof_contracts/collection_predicates` owns symbolic
+  predicate judgments. Keep `pass/dependent/runtime_{slice_coordinate_citation,
+  whole_view_collection_fact,computed_slice_index_relation}_exit` and their
+  wrong-subject, partial-view and changed-value controls as regression constraints
+  while closing the predicate proofs.
+
   Acceptance: spec/guide/compiler docs, bundled libraries, samples,
   `source/psi`, the corpus, `bootstrap/5_omega/parser.epsilon` and
   `tests/bootstrap/omega-parser` migrated; each customer's native oracle runs on

@@ -16,7 +16,13 @@
 //! negations over literals, parameters and in-bounds element reads, and index
 //! arithmetic is Exact addition or subtraction of known values. Named targets
 //! move to another state of the same machine; a result that calls another
-//! admitted predicate tail-calls it. Anything else stands down; a complete
+//! admitted predicate tail-calls it. An ordinary pure call in an operand or
+//! hoisted local suspends evaluation, explores the callee under the same work
+//! budget and resumes each Boolean outcome with its joined atom knowledge.
+//! Captures belong to one immutable state activation; a state transfer creates
+//! a new activation. Joining can lose correlations but never excludes a real
+//! caller value. Collection length reads use the captured extent, not a new
+//! fixed-array type for a slice. Anything else stands down; a complete
 //! exploration inside the work budget is itself the termination witness for
 //! these exact arguments.
 
@@ -78,12 +84,13 @@ pub(crate) fn integer_carrier(
         .integer_bounds()
 }
 
-/// The shape of a parameter or field the explorer can bind: a fixed integer
-/// array (owned or behind a shared reference) or an integer scalar.
+/// The declared carrier shape is separate from the captured collection extent.
+/// A fixed array requires its own extent; a slice can bind the exact extent of
+/// a supplied array observation without acquiring a fixed layout identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ValueShape {
-    Array {
-        length: usize,
+    Collection {
+        length: Option<usize>,
         element_type: TypeReferenceHandle,
     },
     Integer(TypeReferenceHandle),
@@ -114,8 +121,15 @@ pub(crate) fn value_shape(
             } => {
                 return (*length <= MAXIMUM_EXTENT
                     && integer_carrier(program, *element_type).is_some())
-                .then_some(ValueShape::Array {
-                    length: *length,
+                .then_some(ValueShape::Collection {
+                    length: Some(*length),
+                    element_type: *element_type,
+                });
+            }
+            TypeReferenceNode::Slice { element_type } => {
+                integer_carrier(program, *element_type)?;
+                return Some(ValueShape::Collection {
+                    length: None,
                     element_type: *element_type,
                 });
             }
@@ -200,6 +214,12 @@ pub(crate) enum Stop {
         atom: usize,
         parts: [IntegerSet; 2],
     },
+    Call {
+        expression: ExpressionHandle,
+        machine: usize,
+        state: usize,
+        bindings: Vec<Binding>,
+    },
     Unsupported,
 }
 
@@ -225,6 +245,7 @@ pub(crate) struct Frame<'scope> {
     pub(crate) state: &'scope State,
     pub(crate) bindings: &'scope [Binding],
     pub(crate) locals: &'scope [(symbols::SymbolHandle, Binding)],
+    pub(crate) completed_calls: &'scope [(ExpressionHandle, bool)],
 }
 
 /// Explore `machine` entered at its first state with `bindings` over the
@@ -236,6 +257,24 @@ pub(crate) fn explore(
     atoms: Vec<IntegerSet>,
 ) -> Option<Outcomes> {
     let mut remaining = WORK_BUDGET;
+    explore_at(program, machine, 0, bindings, atoms, &mut remaining, 0)
+}
+
+/// Nested calls share the caller's work budget. The nesting fence protects the
+/// host stack and declines proof; it never supplies a result or termination.
+fn explore_at(
+    program: &dyn crate::CheckingInput,
+    machine: usize,
+    state: usize,
+    bindings: Vec<Binding>,
+    atoms: Vec<IntegerSet>,
+    remaining: &mut usize,
+    nesting: usize,
+) -> Option<Outcomes> {
+    if nesting >= 64 {
+        return None;
+    }
+    *remaining = remaining.checked_sub(1)?;
     let mut frames: Vec<(FrameKey, Vec<IntegerSet>)> = Vec::new();
     let mut pending: VecDeque<usize> = VecDeque::new();
     let mut outcomes = Outcomes {
@@ -245,7 +284,7 @@ pub(crate) fn explore(
     frames.push((
         FrameKey {
             machine,
-            state: 0,
+            state,
             bindings,
         },
         atoms,
@@ -253,7 +292,7 @@ pub(crate) fn explore(
     pending.push_back(0);
     while let Some(frame_index) = pending.pop_front() {
         let (key, atoms) = frames[frame_index].clone();
-        for exit in visit(program, &key, atoms, &mut remaining)? {
+        for exit in visit(program, &key, atoms, remaining, nesting)? {
             match exit {
                 Exit::Result(result, atoms) => {
                     let joined = if result {
@@ -267,7 +306,7 @@ pub(crate) fn explore(
                     });
                 }
                 Exit::Enter(target, atoms) => {
-                    remaining = remaining.checked_sub(1)?;
+                    *remaining = remaining.checked_sub(1)?;
                     match frames.iter().position(|(existing, _)| *existing == target) {
                         None => {
                             frames.push((target, atoms));
@@ -307,6 +346,7 @@ fn visit(
     key: &FrameKey,
     atoms: Vec<IntegerSet>,
     remaining: &mut usize,
+    nesting: usize,
 ) -> Option<Vec<Exit>> {
     let machine = program.machines().get(key.machine)?;
     let state = program.machine_states(machine).get(key.state)?;
@@ -315,14 +355,15 @@ fn visit(
     }
     let statements = program.statement_table.statements(state.statement_nodes);
     let mut exits = Vec::new();
-    let mut stack = vec![(0usize, atoms, Vec::new())];
-    while let Some((index, atoms, locals)) = stack.pop() {
+    let mut stack = vec![(0usize, atoms, Vec::new(), Vec::new())];
+    while let Some((index, atoms, locals, completed_calls)) = stack.pop() {
         *remaining = remaining.checked_sub(1)?;
         let frame = Frame {
             machine,
             state,
             bindings: &key.bindings,
             locals: &locals,
+            completed_calls: &completed_calls,
         };
         let step = match statements.get(index)? {
             // Checking hoists computed operands such as a symbolic element
@@ -341,7 +382,7 @@ fn visit(
                     Ok(binding) => {
                         let mut declared = locals.clone();
                         declared.push((local.symbol, binding));
-                        stack.push((index + 1, atoms, declared));
+                        stack.push((index + 1, atoms, declared, completed_calls));
                         continue;
                     }
                     Err(stop) => Err(stop),
@@ -359,12 +400,16 @@ fn visit(
                 };
                 match taken {
                     Ok(false) => {
-                        stack.push((index + 1, atoms, locals));
+                        stack.push((index + 1, atoms, locals, completed_calls));
                         continue;
                     }
                     Ok(true) => target_exit(program, &frame, key, &atoms, transition.target),
                     Err(stop) => Err(stop),
                 }
+            }
+            StatementNode::Expression(value) if index + 1 == statements.len() => {
+                evaluate_boolean(program, &frame, &atoms, *value)
+                    .map(|value| Exit::Result(value, atoms.clone()))
             }
             _ => return None,
         };
@@ -374,7 +419,31 @@ fn visit(
                 for part in parts {
                     let mut refined = atoms.clone();
                     refined[atom] = part;
-                    stack.push((index, refined, locals.clone()));
+                    stack.push((index, refined, locals.clone(), completed_calls.clone()));
+                }
+            }
+            Err(Stop::Call {
+                expression,
+                machine,
+                state,
+                bindings,
+            }) => {
+                let called = explore_at(
+                    program,
+                    machine,
+                    state,
+                    bindings,
+                    atoms,
+                    remaining,
+                    nesting + 1,
+                )?;
+                for (value, result_atoms) in [(true, called.when_true), (false, called.when_false)]
+                {
+                    if let Some(result_atoms) = result_atoms {
+                        let mut captured = completed_calls.clone();
+                        captured.push((expression, value));
+                        stack.push((index, result_atoms, locals.clone(), captured));
+                    }
                 }
             }
             Err(Stop::Unsupported) => return None,
@@ -508,10 +577,10 @@ fn argument_binding(
                 length,
                 element_type,
             },
-            ValueShape::Array {
+            ValueShape::Collection {
                 length: expected, ..
             },
-        ) if length == expected => Ok(Binding::Array {
+        ) if expected.is_none_or(|expected| length == expected) => Ok(Binding::Array {
             first,
             length,
             element_type,
@@ -554,6 +623,41 @@ pub(crate) fn evaluate(
         return Err(Stop::Unsupported);
     }
     match program.expression_table.expression(expression) {
+        ExpressionNode::Call(call) => {
+            if let Some((_, value)) = frame
+                .completed_calls
+                .iter()
+                .find(|(captured, _)| *captured == expression)
+            {
+                return Ok(Value::Boolean(*value));
+            }
+            let Exit::Enter(target, _) = tail_call_exit(program, frame, atoms, call)? else {
+                return Err(Stop::Unsupported);
+            };
+            Err(Stop::Call {
+                expression,
+                machine: target.machine,
+                state: target.state,
+                bindings: target.bindings,
+            })
+        }
+        ExpressionNode::Member(member) if super::length_member(program, expression).is_some() => {
+            let Value::Array { length, .. } = evaluate(program, frame, atoms, member.receiver)?
+            else {
+                return Err(Stop::Unsupported);
+            };
+            Ok(Value::Integer {
+                set: IntegerSet::singleton(length as i128),
+                atom: None,
+                carrier: Some(
+                    crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
+                        program,
+                        symbols::BuiltinTypeAtom::U64,
+                    )
+                    .ok_or(Stop::Unsupported)?,
+                ),
+            })
+        }
         ExpressionNode::Boolean(value) => Ok(Value::Boolean(*value)),
         ExpressionNode::Integer(literal) => Ok(Value::Integer {
             set: IntegerSet::singleton(i128::from(literal.value_i64().ok_or(Stop::Unsupported)?)),

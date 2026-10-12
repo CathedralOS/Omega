@@ -451,6 +451,35 @@ pub(crate) fn build_closed_scalar_value_contract_plan(
     machine: &typed_trees::machine::Machine,
     operators: &checked_trees::CheckedOperatorFacts,
 ) -> checked_trees::ClosedScalarValueContractPlan {
+    let parameters =
+        crate::values::scalar::contract_entry::authored_entry_parameters(program, machine);
+    let result_type = program
+        .machine_states(machine)
+        .first()
+        .map(|state| state.return_type)
+        .unwrap_or_default();
+    build_callable_scalar_value_contract_plan(
+        program,
+        machine.symbol,
+        parameters,
+        result_type,
+        program.machine_contracts(machine),
+        operators,
+    )
+}
+
+/// Executable bodies and opaque requirement signatures publish scalar facts
+/// through the same declared formal telescope. Provider selection must not
+/// replace an authored requirement with an empty contract, nor may publication
+/// infer its requirements from whichever provider happens to be selected.
+pub(crate) fn build_callable_scalar_value_contract_plan(
+    program: &dyn ::validation::CheckingInput,
+    owner: symbols::SymbolHandle,
+    parameters: Option<&[typed_trees::signature::StateParameter]>,
+    result_type: typed_trees::types::TypeReferenceHandle,
+    contracts: &[typed_trees::signature::SignatureContract],
+    operators: &checked_trees::CheckedOperatorFacts,
+) -> checked_trees::ClosedScalarValueContractPlan {
     use typed_trees::{
         domain::ProofFact,
         expression::{BinaryOperator, ExpressionNode},
@@ -493,7 +522,7 @@ pub(crate) fn build_closed_scalar_value_contract_plan(
                     != checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
         }) || !typed_trees::operator::has_builtin_spelled_expression_meaning(
             program,
-            machine.symbol,
+            owner,
             *expression,
             language_core::OperatorSpelling::Equal,
             &operand_types,
@@ -543,10 +572,12 @@ pub(crate) fn build_closed_scalar_value_contract_plan(
                     // stays unlowered rather than shrinking to the facts that do
                     // read, which would drop an authored requirement silently.
                     let expression = fact.as_expression()?;
-                    let predicate = crate::values::lower_scalar_contract_predicate(
+                    let predicate = crate::values::lower_callable_scalar_contract_predicate(
                         program,
                         operators,
-                        machine,
+                        owner,
+                        parameters?,
+                        result_type,
                         *expression,
                         contract.kind == SignatureContractKind::Ensures,
                         &mut remaining,
@@ -579,7 +610,7 @@ pub(crate) fn build_closed_scalar_value_contract_plan(
     let mut ensures = Vec::new();
     let mut has_crash_clauses = false;
     let mut has_outcome_specific_clauses = false;
-    for contract in program.machine_contracts(machine) {
+    for contract in contracts {
         if matches!(
             &contract.kind,
             SignatureContractKind::EnsuresForResultCase { .. }
@@ -608,7 +639,10 @@ pub(crate) fn build_closed_scalar_value_contract_plan(
     // One constraint walk produces the requires tail and the retained
     // rosters together so a range clause and its retained evidence can never
     // disagree about which authored range they describe.
-    let ranges = crate::values::lower_scalar_parameter_range_requirements(program, machine);
+    let ranges = crate::values::lower_callable_parameter_range_requirements(
+        program,
+        parameters.unwrap_or_default(),
+    );
     requires.extend(ranges.scalar_clauses);
     checked_trees::ClosedScalarValueContractPlan::new(
         requires,

@@ -186,10 +186,9 @@ fn target_state_index(
 }
 
 /// Resolve one named transition target to its state index inside `machine`.
-/// A transition back to the machine's declared entry names the machine symbol,
-/// while transitions to subordinate states name the state symbol. Ranking and
-/// progress analysis must share this normalization so an entry back-edge is
-/// not mistaken for a nested machine invocation.
+/// Machine-entry targets remain calls under the source contract, even after
+/// constant-stack normalization. Ranking and progress share this classifier
+/// without mistaking recursive invocation for a cyclic internal state jump.
 pub(crate) fn named_transition_target_state_index(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,

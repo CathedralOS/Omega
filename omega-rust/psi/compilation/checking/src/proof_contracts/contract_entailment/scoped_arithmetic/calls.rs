@@ -24,7 +24,7 @@ use typed_trees::signature::SignatureContractKind;
 
 mod collections;
 
-pub(super) struct ScopedCalls<'program> {
+pub(in crate::proof_contracts::contract_entailment) struct ScopedCalls<'program> {
     program: &'program dyn crate::CheckingInput,
     context: SymbolHandle,
     remaining: usize,
@@ -39,7 +39,7 @@ impl<'program> ScopedCalls<'program> {
         Self::for_declaration(program, context.symbol)
     }
 
-    pub(super) fn for_declaration(
+    pub(in crate::proof_contracts::contract_entailment) fn for_declaration(
         program: &'program dyn crate::CheckingInput,
         context: SymbolHandle,
     ) -> Self {
@@ -91,7 +91,7 @@ impl<'program> ScopedCalls<'program> {
         })
     }
 
-    pub(super) fn hypotheses(
+    pub(in crate::proof_contracts::contract_entailment) fn hypotheses(
         &mut self,
         hypotheses: &[ScopedArithmeticHypothesis],
     ) -> Option<Vec<ScopedArithmeticHypothesis>> {
@@ -115,7 +115,7 @@ impl<'program> ScopedCalls<'program> {
         Some(prepared)
     }
 
-    pub(super) fn expression(
+    pub(in crate::proof_contracts::contract_entailment) fn expression(
         &mut self,
         source: &ScopedArithmeticExpression,
     ) -> Option<ScopedArithmeticExpression> {

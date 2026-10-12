@@ -121,18 +121,53 @@ impl Denotations<'_> {
             (ExpressionNode::Borrow(a), ExpressionNode::Borrow(b)) => {
                 a.access == b.access && equal(a.target, b.target, remaining)
             }
-            (ExpressionNode::Call(_), ExpressionNode::Call(_)) => {
-                let Some((a, left)) =
-                    typed_trees::byte_predicates::byte_predicate_call(self.program, left)
-                else {
-                    return false;
-                };
-                let Some((b, right)) =
-                    typed_trees::byte_predicates::byte_predicate_call(self.program, right)
-                else {
-                    return false;
-                };
-                a == b && equal(left, right, remaining)
+            (ExpressionNode::Call(a), ExpressionNode::Call(b)) => {
+                // Specification predicates are applications of their exact
+                // checked declaration, not fresh observations of ambient state.
+                // Source formation separately owes totality. Shared reference
+                // inputs retain their live contexts and capture epoch fences.
+                if a.is_ordinary_positional_call()
+                    && b.is_ordinary_positional_call()
+                    && a.target_symbol.is_valid()
+                    && a.target_symbol == b.target_symbol
+                {
+                    let target =
+                        validation::find_state(self.program, a.target_symbol).or_else(|| {
+                            let machine = self.program.machine_by_symbol(a.target_symbol)?;
+                            Some((machine, self.program.machine_states(machine).first()?))
+                        });
+                    let call_plans = validation::operand_call_plans(self.program, self.call_frames);
+                    let (operational, service_reaches) = call_plans.as_ref();
+                    if target.is_some_and(|(machine, state)| {
+                        validation::checked_value_call_candidate(
+                            self.program,
+                            machine,
+                            state,
+                            operational,
+                            service_reaches,
+                        )
+                        .is_ok()
+                    }) {
+                        let first = table.expression_handles(a.arguments);
+                        let second = table.expression_handles(b.arguments);
+                        return first.len() == second.len()
+                            && first
+                                .iter()
+                                .zip(second)
+                                .all(|(first, second)| equal(*first, *second, remaining));
+                    }
+                }
+                // Byte predicates have their separately sealed intrinsic
+                // selection rather than a checked machine body.
+                match (
+                    typed_trees::byte_predicates::byte_predicate_call(self.program, left),
+                    typed_trees::byte_predicates::byte_predicate_call(self.program, right),
+                ) {
+                    (Some((first, left)), Some((second, right))) => {
+                        first == second && equal(left, right, remaining)
+                    }
+                    _ => false,
+                }
             }
             (ExpressionNode::Name(_), ExpressionNode::Name(_))
             | (ExpressionNode::Boolean(_), ExpressionNode::Boolean(_))

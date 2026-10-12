@@ -20,7 +20,7 @@
 //! (`result_domains`), scalar returns (`scalars`), content preservation,
 //! integer embeddings, float meaning reflexivity, integral parameter
 //! reflexivity, transparent propositions, collection-predicate premises of a
-//! parameter-preserving helper theorem, or an authorized domain
+//! helper theorem or checked store handback, or an authorized domain
 //! establishment route. A proved loop header invariant (`cyclic_headers`)
 //! also satisfies it. A fact nothing proves is reported with the entry
 //! parameters that lack an origin.
@@ -67,8 +67,8 @@ fn direct_result_float_meaning_reflexivity_proves_exit(
 
 /// A helper theorem over collections: the machine's own `requires`,
 /// including collection-predicate premises explored through the predicate's
-/// checked body, prove the `ensures` expression at an exit that cannot have
-/// changed any parameter.
+/// checked body, prove the `ensures` expression on every normal exit. Supported
+/// stores retain distinct arrival/current versions; unknown effects stand down.
 fn collection_premises_prove_exit(
     program: &dyn ::validation::CheckingInput,
     state_flow: &FlowStateFact,

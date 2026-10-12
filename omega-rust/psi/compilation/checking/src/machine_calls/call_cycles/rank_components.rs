@@ -27,12 +27,25 @@ impl RuntimeRankComponents {
             .iter()
             .any(|component| component.contains(&machine_position))
     }
-    /// Exact recurrent member positions. The source owner searches only these
-    /// demanded bodies; singleton self-call admission remains independent.
-    pub fn joint_components(&self) -> impl Iterator<Item = &[usize]> {
+    /// Exact recurrent member positions. Self and mutual machine calls share
+    /// one source-complete call-component judgment. A private unpromised
+    /// productive self loop supplies no termination evidence and needs none.
+    pub fn joint_components<'program>(
+        &'program self,
+        program: &'program dyn crate::CheckingInput,
+    ) -> impl Iterator<Item = &'program [usize]> {
         self.components
             .iter()
-            .filter(|component| component.len() > 1)
+            .filter(move |component| {
+                component.len() > 1
+                    || component.first().is_some_and(|position| {
+                        let machine = &program.machines()[*position];
+                        machine.termination_plan.implementation_witness.is_some()
+                            || machine.termination_plan.interface.published().is_some_and(
+                                language_semantics::TerminationGuarantee::promises_termination,
+                            )
+                    })
+            })
             .map(Vec::as_slice)
     }
 

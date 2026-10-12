@@ -1,5 +1,8 @@
-//! Cross-machine scalar rank transport with optional authored ranges. Each side
-//! retains its own template; call substitution is not local-state correspondence.
+//! Invocation rank transport with optional authored ranges. Each side retains
+//! its own template, including when a recursive invocation reuses declaration
+//! handles. Actual values are captured in the caller namespace before the
+//! destination's formal and projection namespace replaces it. Source ranks and
+//! hypotheses are already polynomials, so rebinding cannot rewrite their past.
 
 use super::super::{StrictArithmeticExpressionBinding, StrictArithmeticSymbolBinding};
 use super::{
@@ -55,9 +58,6 @@ pub(crate) fn prove_ranking_range_call(
     guards: &[(ExpressionHandle, bool)],
     arguments: &[ExpressionHandle],
 ) -> Option<RankingRangeCallProgress> {
-    if caller.machine.symbol == callee.machine.symbol {
-        return None;
-    }
     let (entry, source_measure) = scalar_entry(program, &caller)?;
     let (destination, destination_measure) = scalar_entry(program, &callee)?;
     let source = caller_site.state;
@@ -366,6 +366,9 @@ pub(crate) fn prove_ranking_range_call(
         comparisons.extend(coordinates.comparisons());
     }
     for &(guard, holds) in guards {
+        if !engine.capture_expression_calls(guard) {
+            return None;
+        }
         collect_guard(&mut engine, guard, holds, &mut comparisons, 0)?;
     }
     let rank = match source_measure {
@@ -469,6 +472,20 @@ pub(crate) fn prove_ranking_range_call(
     // the actual's own evaluation; a literal zero modulus or out-of-width
     // constant shift count fails the bind.
     for binding in &actuals {
+        if let Some(observed) = fields::completed_scalar_actual(
+            program,
+            caller.machine,
+            source,
+            &mut engine,
+            binding.expression,
+            &[],
+        ) && !engine.bind_strict_occurrence(binding.expression, observed)
+        {
+            return None;
+        }
+        if !engine.capture_expression_calls(binding.expression) {
+            return None;
+        }
         meanings::install_nonpolynomial_terms(
             program,
             caller.machine,
@@ -482,9 +499,7 @@ pub(crate) fn prove_ranking_range_call(
     // Unrelated accumulators remain payload; required unknown values still
     // fail before vacuity. Whole-argument execution and effects belong to the
     // source checking and completed-operand owners.
-    if !engine.bind_strict_arguments(&actuals) {
-        return None;
-    }
+    let destination_formals = engine.exact_argument_values(&actuals)?;
     // Authored member projections in the callee's entry scope bind to the
     // value the exact actual installs: a member-chain subject, a view bound,
     // or an endpoint names the coordinate its own declaration resolves,
@@ -502,8 +517,9 @@ pub(crate) fn prove_ranking_range_call(
     {
         destination_expressions.extend([range.start, range.end]);
     }
+    let mut destination_projections = Vec::new();
     for expression in destination_expressions {
-        bind_destination_fields(
+        collect_destination_fields(
             program,
             caller.machine,
             destination,
@@ -511,8 +527,9 @@ pub(crate) fn prove_ranking_range_call(
             &mut engine,
             arguments,
             expression,
+            &mut destination_projections,
         )?;
-        bind_destination_lengths(
+        collect_destination_lengths(
             program,
             caller.machine,
             destination,
@@ -521,9 +538,10 @@ pub(crate) fn prove_ranking_range_call(
             arguments,
             &length_bindings,
             expression,
+            &mut destination_projections,
         )?;
     }
-    let next_rank = match destination_measure {
+    let captured_destination_rank = match destination_measure {
         // The callee's ranked slice formal arrives as this call's exact
         // actual; its produced length is the actual's own coordinate, not a
         // forwarded caller parameter. A member-chain subject reads the
@@ -537,7 +555,7 @@ pub(crate) fn prove_ranking_range_call(
                     program.state_parameters(destination),
                     coordinate.parameter.symbol,
                 )?;
-                coordinate.arrived_length(
+                Some(coordinate.arrived_length(
                     program,
                     caller.machine,
                     source,
@@ -545,21 +563,21 @@ pub(crate) fn prove_ranking_range_call(
                     arguments[position],
                     coordinate.borrowed,
                     &length_bindings,
-                )?
+                )?)
             } else {
                 let formal = lengths::parameter(program, destination, subject)?;
                 let position = typed_trees::signature::state_parameter_position(
                     program.state_parameters(destination),
                     formal.symbol,
                 )?;
-                lengths::actual(
+                Some(lengths::actual(
                     program,
                     caller.machine,
                     source,
                     arguments[position],
                     &length_bindings,
                     &mut engine,
-                )?
+                )?)
             }
         }
         // The callee's ranked record formal arrives as this call's exact
@@ -577,15 +595,27 @@ pub(crate) fn prove_ranking_range_call(
                 .position(|parameter| {
                     parameter.symbol == destination_coordinate.parameter.symbol
                 })?;
-            destination_coordinate.field_actual(
+            Some(destination_coordinate.field_actual(
                 program,
                 caller.machine,
                 source,
                 &mut engine,
                 arguments[position],
-            )?
+            )?)
         }
-        _ => rank_coordinate(program, caller.machine, &mut engine, destination_measure)?,
+        _ => None,
+    };
+    // This is an invocation boundary, not a same-frame consistency binding.
+    // All actuals and projected actuals were resolved before any formal changes.
+    engine.bind_goal_formals(destination_formals);
+    for (expression, value) in destination_projections {
+        if !engine.bind_strict_projection(expression, value) {
+            return None;
+        }
+    }
+    let next_rank = match captured_destination_rank {
+        Some(rank) => rank,
+        None => rank_coordinate(program, caller.machine, &mut engine, destination_measure)?,
     };
     let pinned_view_bound = match (view_bound, destination_measure) {
         (Some(bound), RankingRangeMeasure::IncreasingTo { limit, .. })
@@ -803,13 +833,13 @@ pub(super) fn membership(
     }
 }
 
-/// Bind every exact member projection inside `expression` that is rooted at a
-/// `destination` record formal to the value its call actual installs: the
+/// Capture every exact member projection inside `expression` that is rooted at
+/// a `destination` record formal as the value its call actual installs: the
 /// resolved chain re-resolved over the actual's own carrier. Members that do
 /// not resolve -- or whose actual the coordinate cannot read -- stay unbound,
 /// so an opaque endpoint still fails `normalize` rather than borrowing a
 /// foreign record's lineage.
-fn bind_destination_fields(
+fn collect_destination_fields(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     destination: &State,
@@ -817,6 +847,7 @@ fn bind_destination_fields(
     engine: &mut Engine<'_>,
     arguments: &[ExpressionHandle],
     expression: ExpressionHandle,
+    projections: &mut Vec<(ExpressionHandle, Polynomial)>,
 ) -> Option<()> {
     let mut pending = vec![(expression, 0usize)];
     while let Some((expression, depth)) = pending.pop() {
@@ -834,9 +865,8 @@ fn bind_destination_fields(
                     coordinate.parameter.symbol,
                 ) && let Some(actual) =
                     coordinate.field_actual(program, machine, source, engine, arguments[position])
-                    && !engine.bind_strict_projection(expression, actual)
                 {
-                    return None;
+                    projections.push((expression, actual));
                 }
                 pending.push((member.receiver, depth + 1));
             }
@@ -857,14 +887,14 @@ fn bind_destination_fields(
     Some(())
 }
 
-/// Bind every authored `.len` spelling inside `expression` whose receiver is
-/// an exact member chain of a `destination` record formal to the produced
+/// Capture every authored `.len` spelling inside `expression` whose receiver is
+/// an exact member chain of a `destination` record formal as the produced
 /// length its call actual installs: the projected slice coordinate walked
 /// over the actual's forward, borrow, or rebuilt literal. A `.len` whose
 /// receiver resolves no projected coordinate -- or whose actual the
 /// coordinate cannot read -- stays unbound, so an opaque endpoint still
 /// fails `normalize` rather than naming a guessed length.
-fn bind_destination_lengths(
+fn collect_destination_lengths(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     destination: &State,
@@ -873,6 +903,7 @@ fn bind_destination_lengths(
     arguments: &[ExpressionHandle],
     bindings: &[(SymbolHandle, String)],
     expression: ExpressionHandle,
+    projections: &mut Vec<(ExpressionHandle, Polynomial)>,
 ) -> Option<()> {
     let mut pending = vec![(expression, 0usize)];
     while let Some((expression, depth)) = pending.pop() {
@@ -928,10 +959,8 @@ fn bind_destination_lengths(
                             })
                         })
                     };
-                    if let Some(actual) = actual
-                        && !engine.bind_strict_projection(expression, actual)
-                    {
-                        return None;
+                    if let Some(actual) = actual {
+                        projections.push((expression, actual));
                     }
                 }
                 pending.push((member.receiver, depth + 1));
@@ -1274,13 +1303,11 @@ fn scalar_entry<'program>(
         }
         _ => return None,
     };
-    // Authored subjects and endpoint expressions name entry parameters; the
-    // member's own witness owns every internal arrival, so only the entry
-    // binding is checked here.
-    for subject in [member.subject, member.paired_subject]
-        .into_iter()
-        .filter(|subject| subject.is_valid())
+    // The ranked storage subject has an exact entry coordinate. A distance
+    // bound is an independently admitted expression; requiring it to be a
+    // formal rejects literal and computed bounds before their proof can run.
     {
+        let subject = member.subject;
         if matches!(measure, RankingRangeMeasure::SliceLength(_)) {
             // The ranked subject is the exact slice-typed entry parameter or
             // a projected slice leaf of an entry record formal; its produced
@@ -1297,10 +1324,11 @@ fn scalar_entry<'program>(
     Some((state, measure))
 }
 
-/// A scalar view subject must arrive as the machine's own exact unsigned
+/// A scalar view subject must arrive as the machine's own exact integer
 /// entry input: a bare (possibly atomically wrapped) name bound to a
-/// non-self, non-const `u8..=u64` formal, or an exact member chain rooted at
-/// such a formal whose declared leaf is unsigned.
+/// non-const formal, or an exact member chain rooted at such a formal whose
+/// declared leaf has Exact integer meaning. Natural formation is proved by
+/// the edge judgment, never inferred from unsigned-only storage eligibility.
 fn entry_scalar_parameter(
     program: &dyn crate::CheckingInput,
     state: &State,
@@ -1320,23 +1348,14 @@ fn entry_scalar_parameter(
         // step is an exact declared field of a non-self, non-const entry
         // formal's record.
         let reference = fields::projected_type(program, state, subject)?;
-        return matches!(
-            exact_integer_parameter(program, reference),
-            Some(typed_trees::unsigned_integer_primitive_pattern!())
-        )
-        .then_some(());
+        return exact_integer_parameter(program, reference).map(|_| ());
     }
     let Some(symbol) = crate::expression_traversal::single_segment_name_symbol(program, subject)
     else {
         return None;
     };
     let parameter = program.state_parameter_by_symbol(state, symbol)?;
-    if parameter.is_const
-        || !matches!(
-            exact_integer_parameter(program, parameter.type_reference),
-            Some(typed_trees::unsigned_integer_primitive_pattern!())
-        )
-    {
+    if parameter.is_const || exact_integer_parameter(program, parameter.type_reference).is_none() {
         return None;
     }
     Some(())

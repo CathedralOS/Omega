@@ -117,13 +117,11 @@ fn checked_successor(
         return None;
     };
     // An authored machine-name backedge denotes its entry child. Reuse the
-    // same identity normalization as ranking and structural state forwarding.
+    // execution storage locator as structural forwarding. Source ranking keeps
+    // recursive invocation semantics separate from this constant-stack layout.
     let target = if let Some(target_index) =
-        crate::checks::termination::named_transition_target_state_index(
-            program,
-            machine,
-            path.symbol,
-        ) {
+        validation::activation_target_state_index(program, machine, path.symbol)
+    {
         program.machine_states(machine).get(target_index)?.symbol
     } else {
         // A free name may retain the machine head while a qualified call

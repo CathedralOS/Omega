@@ -7,7 +7,7 @@ use super::{
     resolve_machine_witness_view_arguments,
 };
 use checked_trees::{CheckedNaturalRankMeasure, CheckedStateNaturalRank};
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::PrimitiveType;
 
 pub(in crate::checks::termination) fn prepare_natural_observations(
@@ -113,24 +113,8 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                 }
                 CheckedNaturalRankMeasure::IntegerParameter { primitive_type }
             }
-            (RankingOrder::BoundedDistance, [_, upper]) => distance_measure(
-                program,
-                machine,
-                state,
-                &selected,
-                &coordinate,
-                primitive()?,
-                *upper,
-            )?,
-            (RankingOrder::IncreasingTo(upper), [_]) => distance_measure(
-                program,
-                machine,
-                state,
-                &selected,
-                &coordinate,
-                primitive()?,
-                *upper,
-            )?,
+            (RankingOrder::BoundedDistance, [_, upper]) => distance_measure(primitive()?, *upper)?,
+            (RankingOrder::IncreasingTo(upper), [_]) => distance_measure(primitive()?, *upper)?,
             _ => return None,
         };
         observations.push(CheckedStateNaturalRank {
@@ -145,11 +129,6 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
 }
 
 fn distance_measure(
-    program: &dyn validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    selected: &validation::RankStateBindings,
-    coordinate: &impl Fn(ExpressionHandle) -> Option<validation::RankSubjectCoordinate>,
     primitive_type: PrimitiveType,
     upper: ExpressionHandle,
 ) -> Option<CheckedNaturalRankMeasure> {
@@ -159,53 +138,8 @@ fn distance_measure(
     ) {
         return None;
     }
-    if let Some(literal) = program.expression_table.integer_node(upper) {
-        let upper = literal.value_u64()?;
-        let semantic_vocabulary::IntegerValue::Unsigned(maximum) =
-            crate::values::integer_type(primitive_type)?.maximum_value()
-        else {
-            return None;
-        };
-        return (u128::from(upper) <= maximum).then_some(
-            CheckedNaturalRankMeasure::ConstantDistance {
-                primitive_type,
-                upper,
-            },
-        );
-    }
-    let root = program.machine_states(machine).first()?;
-    if let ExpressionNode::Member(member) = program.expression_table.expression(upper)
-        && validation::collection_length_receiver(program, machine, Some(root), upper).is_some()
-    {
-        if primitive_type != PrimitiveType::U64 {
-            return None;
-        }
-        let destination = selected.destination(&coordinate(member.receiver)?)?;
-        let position = typed_trees::signature::state_parameter_position(
-            program.state_parameters(state),
-            destination.parameter,
-        )?;
-        return Some(CheckedNaturalRankMeasure::CollectionLengthDistance {
-            collection: destination.parameter,
-            collection_position: u32::try_from(position).ok()?,
-        });
-    }
-    let destination = selected.destination(&coordinate(upper)?)?;
-    if program.primitive_type_reference(validation::ranking_coordinate_type(
-        program,
-        state,
-        &destination,
-    )?) != Some(primitive_type)
-    {
-        return None;
-    }
-    let position = typed_trees::signature::state_parameter_position(
-        program.state_parameters(state),
-        destination.parameter,
-    )?;
-    Some(CheckedNaturalRankMeasure::UnsignedDistance {
+    Some(CheckedNaturalRankMeasure::BoundedDistance {
         primitive_type,
-        upper: destination.parameter,
-        upper_position: u32::try_from(position).ok()?,
+        upper,
     })
 }

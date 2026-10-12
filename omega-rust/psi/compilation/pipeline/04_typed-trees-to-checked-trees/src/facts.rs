@@ -17,6 +17,7 @@ mod carry;
 pub(crate) mod contextual_cleanup;
 pub(crate) mod contract_occurrences;
 mod contract_plan_facts;
+pub(crate) use contract_plan_facts::build_callable_scalar_value_contract_plan;
 mod crash_calls;
 mod crash_entry_values;
 mod expression_children;

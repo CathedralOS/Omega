@@ -68,16 +68,6 @@ pub(super) struct RankProjection {
     /// bare subject, or the carrier formal a member-chain subject's
     /// coordinate is rooted at.
     pub(super) parameter: SymbolHandle,
-    /// The paired subject's entry parameter for a two-subject view. Invalid
-    /// for single-subject orders.
-    pub(super) paired_parameter: SymbolHandle,
-    /// The record formal whose projected storage produces the rank: the
-    /// subject formal of a field view, or the carrier formal of a
-    /// member-chain subject. Invalid when the rank reads no record.
-    pub(super) record_subject: SymbolHandle,
-    /// The record formal whose projected storage produces the paired upper
-    /// subject of a two-subject view. Invalid otherwise.
-    pub(super) paired_record_subject: SymbolHandle,
     pub(super) argument_position: usize,
     pub(super) subject: ExpressionHandle,
     /// The upper subject of a two-subject view (`Nat::BoundedDistance` ranks
@@ -114,31 +104,13 @@ impl RankProjection {
                 return None;
             }
             let (argument_position, parameter) = entry_parameter(program, entry, *lower)?;
-            let (_, upper_parameter) = entry_parameter(program, entry, *upper)?;
-            // A shared unsigned carrier keeps `same_order` meaningful across
-            // members; a mixed-width distance is not a single order. A
-            // member-chain subject's leaf, not its record formal's type,
-            // names the carrier.
-            let primitive = unsigned_subject_carrier(program, machine, entry, *lower, parameter)?;
-            if unsigned_subject_carrier(program, machine, entry, *upper, upper_parameter)?
-                != primitive
-            {
-                return None;
-            }
+            // The cursor has an exact storage carrier. Its bound is an
+            // expression, not necessarily another formal: the call judgment
+            // independently proves its meaning, formation and conservation.
+            let primitive = integer_subject_carrier(program, machine, entry, *lower, parameter)?;
             return Some(Self {
                 order: RankOrder::BoundedDistance(primitive),
                 parameter: parameter.symbol,
-                paired_parameter: upper_parameter.symbol,
-                record_subject: if member_subject(program, *lower) {
-                    parameter.symbol
-                } else {
-                    Default::default()
-                },
-                paired_record_subject: if member_subject(program, *upper) {
-                    upper_parameter.symbol
-                } else {
-                    Default::default()
-                },
                 argument_position,
                 subject: *lower,
                 paired_subject: *upper,
@@ -167,7 +139,6 @@ impl RankProjection {
                 return None;
             }
             return Some(Self::for_subject(
-                program,
                 parameter,
                 *subject,
                 argument_position,
@@ -194,9 +165,8 @@ impl RankProjection {
             } else if !witness.view_arguments.is_empty() || !custody.view_arguments.is_empty() {
                 return None;
             }
-            let primitive = unsigned_subject_carrier(program, machine, entry, *subject, parameter)?;
+            let primitive = integer_subject_carrier(program, machine, entry, *subject, parameter)?;
             return Some(Self::for_subject(
-                program,
                 parameter,
                 *subject,
                 argument_position,
@@ -228,7 +198,7 @@ impl RankProjection {
         // the same admission covers both readers; an optional authored range
         // then transports through the scalar range judgment.
         if let Some(view) = declared_scalar_view(program, entry, *subject, &witness.view_path) {
-            let primitive = unsigned_subject_carrier(program, machine, entry, *subject, parameter)?;
+            let primitive = integer_subject_carrier(program, machine, entry, *subject, parameter)?;
             let order = match view.computation {
                 None => RankOrder::DeclaredIdentity {
                     measure: view.measure,
@@ -250,7 +220,6 @@ impl RankProjection {
                 },
             };
             return Some(Self::for_subject(
-                program,
                 parameter,
                 *subject,
                 argument_position,
@@ -301,9 +270,6 @@ impl RankProjection {
                     measure: measure.symbol,
                 },
                 parameter: parameter.symbol,
-                paired_parameter: SymbolHandle::default(),
-                record_subject: parameter.symbol,
-                paired_record_subject: SymbolHandle::default(),
                 argument_position,
                 subject: *subject,
                 paired_subject: ExpressionHandle::invalid(),
@@ -400,9 +366,6 @@ impl RankProjection {
                 fields,
             },
             parameter: parameter.symbol,
-            paired_parameter: SymbolHandle::default(),
-            record_subject: SymbolHandle::default(),
-            paired_record_subject: SymbolHandle::default(),
             argument_position,
             subject: *subject,
             paired_subject: ExpressionHandle::invalid(),
@@ -415,7 +378,6 @@ impl RankProjection {
     /// fills: `order`/`measure` vary per view; the subject's carrier formal
     /// also names the record when the subject is a member chain.
     fn for_subject(
-        program: &dyn crate::CheckingInput,
         parameter: &StateParameter,
         subject: ExpressionHandle,
         argument_position: usize,
@@ -426,13 +388,6 @@ impl RankProjection {
         Self {
             order,
             parameter: parameter.symbol,
-            paired_parameter: SymbolHandle::default(),
-            record_subject: if member_subject(program, subject) {
-                parameter.symbol
-            } else {
-                Default::default()
-            },
-            paired_record_subject: SymbolHandle::default(),
             argument_position,
             subject,
             paired_subject: ExpressionHandle::invalid(),
@@ -572,10 +527,11 @@ fn slice_subject_carrier(
     crate::value_custody::type_shapes::has_slice_base(program, reference)
 }
 
-/// The unsigned primitive carrier under any constrained shells on the ranked
-/// leaf. A projected subject's leaf -- not its record formal's type -- must
-/// carry the exact unsigned base a natural-order projection requires.
-fn unsigned_subject_carrier(
+/// The exact integer storage carrier of the selected subject. Signed storage
+/// does not make a natural rank invalid: source admission separately proves
+/// nonnegative formation and descent. Unsigned native projection is narrower
+/// and must not define the source admission language.
+fn integer_subject_carrier(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     entry: &State,
@@ -587,7 +543,11 @@ fn unsigned_subject_carrier(
     } else {
         parameter.type_reference
     };
-    unsigned_carrier_type(program, reference)
+    let reference = program
+        .type_reference_table
+        .unconstrained_type_reference(reference);
+    crate::value_custody::recasts::exact_primitive_type(program, reference)
+        .filter(|primitive| primitive.is_fixed_integer())
 }
 
 /// The slice carrier under any reference or constrained shells. A ranked
@@ -671,9 +631,9 @@ pub(super) fn natural_component(
     })
 }
 
-/// An acyclic subordinate-state hop may rename its rank formal. Retaining
-/// its exact resolved actual proves identity transport without introducing
-/// another arithmetic comparison recognizer.
+/// A subordinate-state hop may rename or decrease its rank formal. Retain its
+/// exact source-admitted comparison rather than recognizing the actual's shape
+/// again. Local descent contributes to complete state-and-call cycles.
 pub(super) fn retain_internal_transfer(
     program: &dyn crate::CheckingInput,
     component: &mut super::ValidatedRuntimeNaturalComponent,

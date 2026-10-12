@@ -63,9 +63,9 @@ pub(crate) use machine_parameter_booleans::{
 };
 pub(crate) use result_contract::{
     lower_callable_parameter_range_requirements, lower_callable_scalar_contract_predicate,
-    lower_scalar_contract_predicate, lower_scalar_parameter_range_requirements,
-    lower_scalar_parameter_refinement_predicates, lower_state_declared_range_predicate,
-    lower_state_interval_predicate, lower_state_scalar_contract_predicate,
+    lower_scalar_contract_predicate, lower_scalar_parameter_refinement_predicates,
+    lower_state_declared_range_predicate, lower_state_interval_predicate,
+    lower_state_scalar_contract_predicate,
 };
 pub(crate) use scalar_lowering::{
     landed_for_primitive, lower_state_scalar_expression, lower_unit_scalar_argument,

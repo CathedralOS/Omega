@@ -53,8 +53,9 @@ pub(super) fn extend_runtime_adjacency(
     program: &dyn crate::CheckingInput,
     proof_only: &ProofOnlyClassification,
     adjacency: &mut [Vec<usize>],
-) {
+) -> Vec<usize> {
     let dispatched = dispatched_implementations(program);
+    let mut selector_self_recursion = Vec::new();
     for (index, machine) in program.machines().iter().enumerate() {
         if proof_only.is_proof_machine(program, machine) {
             continue;
@@ -71,12 +72,19 @@ pub(super) fn extend_runtime_adjacency(
             if let Some((_, implementations)) = dispatched.iter().find(|(slot, _)| *slot == target)
             {
                 // A selector call reaches whichever implementation is
-                // selected, including the caller itself; a dispatch
-                // self-edge is kept because the direct self-call judgment
-                // never sees it.
+                // selected, including the caller itself. Retain dispatch
+                // provenance: direct-call ranking cannot discharge selection.
                 adjacency[index].extend(implementations.iter().copied());
+                if implementations.contains(&index) && !selector_self_recursion.contains(&index) {
+                    selector_self_recursion.push(index);
+                }
             } else if let Some(callee) = target_machine(program, target)
-                && callee != index
+                && (callee != index
+                    || target == machine.symbol
+                    || program
+                        .machine_states(machine)
+                        .first()
+                        .is_some_and(|entry| target == entry.symbol))
             {
                 adjacency[index].push(callee);
             }
@@ -84,6 +92,7 @@ pub(super) fn extend_runtime_adjacency(
         adjacency[index].sort_unstable();
         adjacency[index].dedup();
     }
+    selector_self_recursion
 }
 
 /// Every implementation machine a selector call through each slot can
@@ -249,7 +258,31 @@ pub(super) fn project_component(
         })
         .collect::<Vec<_>>();
     let mut range_edges = Vec::new();
-    let mut weak_edges = vec![Vec::new(); component.len()];
+    // Complete cycles include the member's local arrivals as well as calls.
+    // Contracting a whole body to one node would erase a strict local step
+    // and wrongly reject its subsequent rank-preserving recursive invocation.
+    let component_states = component
+        .iter()
+        .flat_map(|position| program.machine_states(&program.machines()[*position]))
+        .map(|state| state.symbol)
+        .collect::<Vec<_>>();
+    let mut weak_edges = vec![Vec::new(); component_states.len()];
+    for witness in body_witnesses.iter().flatten() {
+        for edge in witness.edges {
+            if edge.strictly_decreases || !relevance.requires_rank(edge.destination) {
+                continue;
+            }
+            let source = component_states
+                .iter()
+                .position(|state| *state == edge.source)
+                .ok_or("an internal rank edge has no component source")?;
+            let destination = component_states
+                .iter()
+                .position(|state| *state == edge.destination)
+                .ok_or("an internal rank edge has no component destination")?;
+            weak_edges[source].push(destination);
+        }
+    }
     for (position, index) in component.iter().copied().enumerate() {
         let machine = &program.machines()[index];
         let states = program.machine_states(machine);
@@ -283,12 +316,14 @@ pub(super) fn project_component(
                 .statement_table
                 .indexed_statements(state.statement_nodes)
             {
+                if !relevance.requires_rank(state.symbol) {
+                    continue;
+                }
                 let Some(transition) = statement.as_transition() else {
                     if prefix::preserves_rank(
                         program,
                         machine,
                         state,
-                        &ranks[position],
                         member_premises[position].as_deref(),
                         &mappings[state_position],
                         mixed_ranges,
@@ -339,7 +374,7 @@ pub(super) fn project_component(
                 let guard = match transition.guard {
                     TransitionGuardNode::Always => ExpressionHandle::invalid(),
                     TransitionGuardNode::When(guard)
-                        if expression_is_inert(program, machine, state, guard) =>
+                        if prefix::operand_has_admitted_meaning(program, machine, state, guard) =>
                     {
                         guard
                     }
@@ -348,6 +383,18 @@ pub(super) fn project_component(
                     }
                 };
                 let mut site_guards = guards.clone();
+                if !prefix::preserves_rank(
+                    program,
+                    machine,
+                    state,
+                    member_premises[position].as_deref(),
+                    &mappings[state_position],
+                    mixed_ranges,
+                    statement,
+                    frames,
+                ) {
+                    return Err("call operands invalidate the exact entry-relative ranking frame");
+                }
                 if guard.is_valid() {
                     site_guards.push((guard, true));
                     guards.push((guard, false));
@@ -384,7 +431,9 @@ pub(super) fn project_component(
                         let Some(callee) = target_machine(program, target_symbol) else {
                             return Err("a call target has no exact machine identity");
                         };
-                        if callee == index {
+                        if callee == index
+                            && internal_state_index(program, machine, target_symbol).is_some()
+                        {
                             if let Some(retained) = &mut natural
                                 && !projection::retain_internal_transfer(
                                     program,
@@ -417,10 +466,9 @@ pub(super) fn project_component(
                         {
                             return Err("a subordinate-state call needs its own arrival evidence");
                         }
-                        if !arguments
-                            .iter()
-                            .all(|argument| expression_is_inert(program, machine, state, *argument))
-                        {
+                        if !arguments.iter().all(|argument| {
+                            prefix::operand_has_admitted_meaning(program, machine, state, *argument)
+                        }) {
                             return Err(
                                 "a call argument has effects or non-builtin operator meaning",
                             );
@@ -477,7 +525,6 @@ pub(super) fn project_component(
                                 Some(RankingRangeCallProgress::Strict) => strict = true,
                                 Some(RankingRangeCallProgress::NonIncreasing) => {
                                     strict = false;
-                                    weak_edges[position].push(callee_position)
                                 }
                                 None => {
                                     return Err(
@@ -505,7 +552,6 @@ pub(super) fn project_component(
                                 Some(Comparison::Strict) => strict = true,
                                 Some(Comparison::Equal) => {
                                     strict = false;
-                                    weak_edges[position].push(callee_position)
                                 }
                                 None => {
                                     return Err(
@@ -513,6 +559,17 @@ pub(super) fn project_component(
                                     );
                                 }
                             }
+                        }
+                        if !strict {
+                            let source = component_states
+                                .iter()
+                                .position(|symbol| *symbol == state.symbol)
+                                .ok_or("a call rank edge has no component source")?;
+                            let destination = component_states
+                                .iter()
+                                .position(|symbol| *symbol == callee_entry.symbol)
+                                .ok_or("a call rank edge has no component destination")?;
+                            weak_edges[source].push(destination);
                         }
                         if let Some(retained) = &mut natural {
                             retained.edges.push(ValidatedRuntimeNaturalEdge {
@@ -577,8 +634,8 @@ pub(super) fn project_component(
             );
         }
     }
-    // Weak edges may exist across every state of a member; their acyclicity
-    // is still judged per machine position.
+    // Removing all strict edges must leave an acyclic graph across exact
+    // state arrivals and invocation entries. No complete weak cycle survives.
     if weak_edges_are_acyclic(&weak_edges) {
         // Scalar emission currently identifies authored delivery by the
         // source/target state pair. Keep mixed parallel comparisons out of
@@ -703,18 +760,27 @@ pub(crate) fn internal_arrival_sites<'program>(
     arrivals
 }
 
-/// Resolve a named internal transition target to its state index inside
-/// `machine`, exactly as the telescope's discovery does: a transition back to
-/// the machine's declared entry names the machine symbol, while transitions
-/// to subordinate states name the state symbol.
+/// Resolve an authored internal state jump. A machine entry target remains an
+/// invocation, even when tail lowering reuses this activation's storage.
+/// Only subordinate states form the source state graph; otherwise a forwarding
+/// state before a recursive call acquires a false strict-decrease obligation.
 pub fn internal_state_index(
     program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     target_symbol: SymbolHandle,
 ) -> Option<usize> {
+    typed_trees::state::state_position(program.machine_states(machine), target_symbol)
+        .filter(|position| *position != 0)
+}
+
+/// The execution destination of an already normalized constant-stack transfer.
+/// This locates storage, not source call semantics or ranking obligations.
+pub fn activation_target_state_index(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    target_symbol: SymbolHandle,
+) -> Option<usize> {
     if target_symbol == machine.symbol {
-        // The retained machine body owns its first state as entry. A same-
-        // spelled subordinate state cannot replace that declaration identity.
         return (!program.machine_states(machine).is_empty()).then_some(0);
     }
     typed_trees::state::state_position(program.machine_states(machine), target_symbol)

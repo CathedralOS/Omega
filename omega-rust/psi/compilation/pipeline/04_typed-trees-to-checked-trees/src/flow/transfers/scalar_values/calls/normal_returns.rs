@@ -286,8 +286,11 @@ impl NormalReturnCapture<'_, '_> {
                 if static_machine_parameter.is_valid() || !evidence_arguments.is_empty() {
                     return None;
                 }
-                let target_index =
-                    validation::internal_state_index(self.program, self.machine, path.symbol)?;
+                let target_index = validation::activation_target_state_index(
+                    self.program,
+                    self.machine,
+                    path.symbol,
+                )?;
                 let target_state = self
                     .program
                     .machine_states(self.machine)

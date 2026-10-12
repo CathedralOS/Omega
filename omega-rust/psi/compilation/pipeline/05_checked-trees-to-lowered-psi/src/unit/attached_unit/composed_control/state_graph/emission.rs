@@ -2,6 +2,14 @@
 //! namespaces and the invocation entry, walks every authored state through
 //! `StateGraphEmission::emit_state`, then assembles the machine from the
 //! blocks, ranks and places that walk accumulated.
+//!
+//! Source requirements are obligations of Psi checking, not a second language
+//! limited to this emitter's scalar vocabulary. A checked state retains both
+//! its closed projections and its unprojected authored expressions. The latter
+//! can cross an internal header only when every actual incoming edge carries
+//! the exact completed source-arrival decision. Closed declaration/runtime
+//! requirements remain in the emitted invariant; an unprojected expression
+//! never becomes Truth, an opaque certified atom, or an optimizer premise.
 use super::super::super::super::{
     MachineId, StructuralArgument, StructuralParameterDeclaration, block_id,
 };
@@ -634,6 +642,35 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         if case_arrival {
             return unsupported("Unit graph requires header reached by case dispatch");
         }
+        let incoming_edges = arrival_edges.get(&header).cloned().unwrap_or_default();
+        let has_source_expression = state.requires.iter().any(|requirement| {
+            matches!(
+                requirement,
+                checked_trees::CheckedStateContractRequirement::SourceExpression(_)
+            )
+        });
+        // Source checking owns the complete authored contract, including
+        // predicates outside this scalar vocabulary. Consume its exact call
+        // decision at every actual arrival; never replace an unrepresented
+        // requirement with Truth or infer its discharge from its spelling.
+        if has_source_expression
+            && (incoming_edges.is_empty()
+                || incoming_edges
+                    .iter()
+                    .any(|edge| !decided_arrival_edges.contains(edge)))
+        {
+            return unsupported("state source requirement lacks a checked arrival decision");
+        }
+        let projected_requires = state
+            .requires
+            .iter()
+            .filter_map(|requirement| match requirement {
+                checked_trees::CheckedStateContractRequirement::Closed(clause) => {
+                    Some(Some(clause.clone()))
+                }
+                checked_trees::CheckedStateContractRequirement::SourceExpression(_) => None,
+            })
+            .collect::<Vec<_>>();
         // A state's `requires` cites its own parameter positions; the roster
         // pairs them with the terminal places each block view carried at
         // seal (the receiver entry points at the original invocation
@@ -645,7 +682,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         );
         let Some(predicate) = crate::scalar_lowering::contracts::clauses(
             identities,
-            &state.requires,
+            &projected_requires,
             &state_values[position],
             &state_erased[position],
             &crate::scalar_lowering::contracts::ContractViewNamespace {
@@ -662,7 +699,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         // certificate, provided every row is a plain clause the call check
         // judged; a float range rides its own catalog and keeps the search.
         // The invocation-entry arrival has no transition and never qualifies.
-        let checked_rows = state.requires.iter().all(|row| {
+        let checked_rows = projected_requires.iter().all(|row| {
             matches!(
                 row,
                 Some(
@@ -673,7 +710,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             )
         });
         let mut arrivals = Vec::new();
-        for edge in arrival_edges.get(&header).cloned().unwrap_or_default() {
+        for edge in incoming_edges {
             let obligation = obligation_id(allocate_dense(
                 &mut catalogs.scalar_calls.next_call_obligation,
             )?);

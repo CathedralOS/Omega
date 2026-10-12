@@ -261,9 +261,11 @@ pub(super) fn build_traced(
             return None;
         }
         // Membership contracts still restate the exact declared parameter
-        // qualifications. Authored scalar `requires` expressions lower into
-        // the state's proof-only contract roster; any other shape stays
-        // outside the state graph's admitted custody.
+        // qualifications. Closed requires retain their runtime projections;
+        // other authored expressions retain their source identity. Emission
+        // consumes them only through complete occurrence-bound arrival
+        // decisions, not by independently proving them again or replacing
+        // them with a scalar tautology. Declaration projections remain required.
         let Some(contract_predicates) =
             validation::structural_state_contract_scalar_predicates(program, state)
         else {
@@ -272,6 +274,10 @@ pub(super) fn build_traced(
         };
         let mut requires = Vec::with_capacity(contract_predicates.len());
         for row in contract_predicates {
+            let source_expression = match &row {
+                validation::StateScalarContractRow::Expression(expression) => Some(*expression),
+                _ => None,
+            };
             let predicate = match row {
                 validation::StateScalarContractRow::Expression(expression) => {
                     crate::values::lower_state_scalar_contract_predicate(
@@ -309,13 +315,21 @@ pub(super) fn build_traced(
                     validation::state_finite_predicate(program, state, parameter)
                 }
             };
-            let Some(predicate) = predicate else {
-                trace.phase("state graph: state signature: predicate lowering failed");
-                return None;
+            let requirement = match (predicate, source_expression) {
+                (Some(predicate), _) => checked_trees::CheckedStateContractRequirement::Closed(
+                    checked_trees::ClosedScalarContractValue::Predicate(predicate),
+                ),
+                (None, Some(expression)) => {
+                    checked_trees::CheckedStateContractRequirement::SourceExpression(expression)
+                }
+                (None, None) => {
+                    trace.phase(
+                        "state graph: state signature: declaration predicate lowering failed",
+                    );
+                    return None;
+                }
             };
-            requires.push(Some(checked_trees::ClosedScalarContractValue::Predicate(
-                predicate,
-            )));
+            requires.push(requirement);
         }
         // An authored state transition closes the declared-domain window of
         // each readable argument. These are destination arrival obligations,
@@ -326,9 +340,9 @@ pub(super) fn build_traced(
             validation::state_declaration_predicates(program, &facts.operators, state)
                 .into_iter()
                 .map(|row| {
-                    Some(checked_trees::ClosedScalarContractValue::Predicate(
-                        row.predicate,
-                    ))
+                    checked_trees::CheckedStateContractRequirement::Closed(
+                        checked_trees::ClosedScalarContractValue::Predicate(row.predicate),
+                    )
                 }),
         );
         state_requires.push(requires);

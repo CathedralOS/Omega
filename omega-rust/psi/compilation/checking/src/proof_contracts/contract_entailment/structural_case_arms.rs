@@ -3,6 +3,9 @@
 //! Ordinary expression tails and explicit value transitions finish the same
 //! normal-return path. Earlier expressions only advance that path's facts;
 //! named state transfers retain their captured arguments and entry subjects.
+//! A selected crash closes a path without a normal-return leaf. It cannot
+//! prevent an independently surviving path from proving its call premises,
+//! and excluding it supplies no crash permission or denotational admission.
 
 use super::call_requirements::establish_citation;
 use super::structural_prefix::StructuralPrefixVisitor;
@@ -20,7 +23,9 @@ use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
-use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+use typed_trees::statement::{
+    StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
+};
 
 /// One normal-return leaf of the structural proof path walker.
 /// Case refinements and selected public guarantees stay in the leaf's own
@@ -626,7 +631,10 @@ fn recognize_structural_state_leaves_from<'a>(
                 }
                 StatementNode::Transition(transition) => {
                     saw_transition = true;
-                    if transition.continuation.is_valid() || !transition.target.is_valid() {
+                    if transition.continuation.is_valid()
+                        || (transition.exit == TransitionExit::Ordinary
+                            && !transition.target.is_valid())
+                    {
                         return None;
                     }
                     transitions.push((statement_index, transition));
@@ -802,6 +810,13 @@ fn recognize_structural_state_leaves_from<'a>(
                 let mut branch_judge =
                     structural_arm_judge(program, judge, &branch_hypotheses, &branch_equations);
                 let judge = &mut branch_judge;
+                // A crash closes this selected execution path without a normal
+                // result or later call occurrence. Its ceiling and authority
+                // remain separately checked; excluding the path imports no
+                // fact and does not license a denotational use of this machine.
+                if matches!(transition.exit, TransitionExit::Crash(_)) {
+                    continue;
+                }
                 match program.statement_table.transition_target(transition.target) {
                     TransitionTargetNode::Value(value) => {
                         if requirement.is_some() {

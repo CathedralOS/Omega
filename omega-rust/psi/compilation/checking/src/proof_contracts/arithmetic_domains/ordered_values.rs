@@ -574,22 +574,19 @@ fn build_operand(
             // Neither source spelling nor a remembered guard is its identity:
             // ordinary effect invalidation retires a write to either operand,
             // and state transport rebinds both resolved trees simultaneously.
-            let collection = build_operand(
+            let index = build_operand(program, machine, state, indexed.index, depth + 1, frames)?;
+            let primitive = declared_place_type_raw(program, machine, Some(state), expression)
+                .and_then(|reference| program.primitive_type_reference(reference));
+            indexed_operand(
                 program,
                 machine,
                 state,
                 indexed.collection,
-                depth + 1,
-                frames,
-            )?;
-            let index = build_operand(program, machine, state, indexed.index, depth + 1, frames)?;
-            let primitive = declared_place_type_raw(program, machine, Some(state), expression)
-                .and_then(|reference| program.primitive_type_reference(reference));
-            Some(Operand::Indexed {
-                collection: Box::new(collection),
-                index: Box::new(index),
+                index,
                 primitive,
-            })
+                frames,
+                depth + 1,
+            )
         }
         ExpressionNode::Cast(cast)
             if !cast.form.is_recast()
@@ -679,6 +676,78 @@ fn integer_meaning(
             })
             .unwrap_or(ArithmeticDomain::Exact),
     ))
+}
+
+/// One element observation, whether read in source or instantiated from a
+/// public contract. Builtin windows translate the ordinal in the same operand
+/// namespace; they do not add a dimension or confer a fixed array extent.
+pub(super) fn indexed_operand(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    collection: ExpressionHandle,
+    index: Operand,
+    primitive: Option<PrimitiveType>,
+    frames: Option<&crate::CallFrameResolver<'_>>,
+    depth: usize,
+) -> Option<Operand> {
+    if depth >= 128
+        || !crate::place_has_builtin_coordinates(program, machine, Some(state), collection)
+    {
+        return None;
+    }
+    if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(collection) {
+        return indexed_operand(
+            program,
+            machine,
+            state,
+            borrow.target,
+            index,
+            primitive,
+            frames,
+            depth + 1,
+        );
+    }
+    if let Some(window) = crate::value_custody::places::subslice_expression(program, collection) {
+        let window = program.expression_table.indexed_node(window)?;
+        let range = program.expression_table.range_node(window.index)?;
+        let start = if range.start.is_valid() {
+            build_operand(program, machine, state, range.start, depth + 1, frames)?
+        } else {
+            Operand::Integer(numerics::literals::IntegerLiteral::from_value(0), None)
+        };
+        let index = match &start {
+            Operand::Integer(literal, _) if literal.value_u64() == Some(0) => index,
+            _ => Operand::Binary {
+                operator: BinaryOperator::Add,
+                primitive: PrimitiveType::U64,
+                domain: ArithmeticDomain::Exact,
+                operands: vec![start, index],
+            },
+        };
+        return indexed_operand(
+            program,
+            machine,
+            state,
+            window.collection,
+            index,
+            primitive,
+            frames,
+            depth + 1,
+        );
+    }
+    Some(Operand::Indexed {
+        collection: Box::new(build_operand(
+            program,
+            machine,
+            state,
+            collection,
+            depth + 1,
+            frames,
+        )?),
+        index: Box::new(index),
+        primitive,
+    })
 }
 
 pub(super) fn record(

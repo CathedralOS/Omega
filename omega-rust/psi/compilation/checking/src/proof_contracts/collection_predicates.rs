@@ -4,12 +4,12 @@
 //! constrain a collection with an ordinary pure, total, terminating predicate
 //! machine used in a `where` or `requires` fact, for example
 //! `where cells_valid(&cells) == true`. Naming the predicate grants nothing:
-//! every consequence here comes from exploring that machine's own checked body
-//! (`exploration.rs`) at the exact arguments of one fact. There is no
+//! every consequence here comes from that machine's own checked body at the
+//! exact arguments of one fact. There is no
 //! quantifier, no range-only domain and no decomposition rule that bypasses
 //! the body.
 //!
-//! Three judgments consume the exploration:
+//! Concrete exploration and symbolic implication have distinct jobs:
 //!
 //! - Zero initialization: a data fact holds at the all-zero representation
 //!   when the predicate returns `true` on every explored path with every
@@ -17,23 +17,25 @@
 //! - Consequences: under a fact `P(..) == true`, each array element and
 //!   scalar argument lies in the join of its values over the paths that
 //!   return `true` (`application_consequences`). Invariant windows use this for
-//!   the facts standing before a store; helper theorems use it for premises.
-//! - Proof: a goal holds when every path of its own evaluation, split on the
-//!   values it reads, yields `true` (`premises_prove_expression`).
+//!   the facts standing before a store (`exploration.rs`).
+//! - Proof: helper-theorem implication and predicate handback use symbolic
+//!   descriptors, selected read coordinates and functional store versions.
+//!   Recursive cases owe a complete substituted induction-premise roster and
+//!   a well-founded carrier step (`implication.rs`), not enumeration of every
+//!   possible collection length or unchecked predicate preservation.
 //!
 //! Every judgment stands down (proves nothing) outside the explorer's small
 //! body fragment or work budget. Failing to prove is never a refutation.
 
 mod exploration;
+mod implication;
 pub(crate) mod integer_sets;
 
-use exploration::{Binding, Frame, Stop, ValueShape, integer_carrier, value_shape};
+use exploration::{Binding, ValueShape, integer_carrier, value_shape};
 pub(crate) use integer_sets::IntegerSet;
 use typed_trees::data::{DataDefinition, DataField, DataMember};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
-use typed_trees::signature::SignatureContractKind;
-use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceHandle;
 /// The member expression when `expression` is a `<collection>.length` read —
 /// the bound shape length-guard seeding rules gate on identically.
@@ -158,18 +160,18 @@ pub(crate) fn unfold(
         let first = atoms.len();
         match (value_shape(program, parameter.type_reference)?, knowledge) {
             (
-                ValueShape::Array {
+                ValueShape::Collection {
                     length,
                     element_type,
                 },
                 ArgumentKnowledge::Array(elements),
-            ) if elements.len() == length => {
+            ) if length.is_none_or(|length| elements.len() == length) => {
                 let (low, high) = integer_carrier(program, element_type)?;
                 let carrier = IntegerSet::range(low, high);
                 atoms.extend(elements.iter().map(|element| element.intersect(&carrier)));
                 bindings.push(Binding::Array {
                     first,
-                    length,
+                    length: elements.len(),
                     element_type,
                 });
             }
@@ -202,8 +204,8 @@ pub(crate) fn unknown_knowledge(
     type_reference: TypeReferenceHandle,
 ) -> Option<ArgumentKnowledge> {
     Some(match value_shape(program, type_reference)? {
-        ValueShape::Array {
-            length,
+        ValueShape::Collection {
+            length: Some(length),
             element_type,
         } => {
             let (low, high) = integer_carrier(program, element_type)?;
@@ -213,7 +215,7 @@ pub(crate) fn unknown_knowledge(
             let (low, high) = integer_carrier(program, carrier)?;
             ArgumentKnowledge::Integer(IntegerSet::range(low, high))
         }
-        ValueShape::Boolean => return None,
+        ValueShape::Boolean | ValueShape::Collection { length: None, .. } => return None,
     })
 }
 
@@ -223,11 +225,13 @@ fn zero_knowledge(
     type_reference: TypeReferenceHandle,
 ) -> Option<ArgumentKnowledge> {
     Some(match value_shape(program, type_reference)? {
-        ValueShape::Array { length, .. } => {
-            ArgumentKnowledge::Array(vec![IntegerSet::singleton(0); length])
-        }
+        ValueShape::Collection {
+            length: Some(length),
+            ..
+        } => ArgumentKnowledge::Array(vec![IntegerSet::singleton(0); length]),
         ValueShape::Integer(_) => ArgumentKnowledge::Integer(IntegerSet::singleton(0)),
         ValueShape::Boolean => ArgumentKnowledge::Boolean(false),
+        ValueShape::Collection { length: None, .. } => return None,
     })
 }
 
@@ -468,226 +472,17 @@ fn field_type(
         })
 }
 
-/// Whether a machine's own premises prove `goal` at an exit that cannot have
-/// changed any parameter: the machine is a single entry state with no
-/// assignment or local declaration, and every parameter is read-only.
+/// Whether a machine's arrival premises and supported body prove `goal` at
+/// every normal exit. Stores keep the original predicate's logical version
+/// separate from the current collection; unknown effects grant nothing.
 ///
-/// Premises are the machine's `requires` conjuncts. A predicate application
-/// over parameters contributes its `true`-path consequences; any other
-/// conjunct refines the parameters by exploring it as a guard and keeping the
-/// forks where it holds. A conjunct outside the fragment is dropped, which
-/// only weakens the premises. The goal then holds when every fork of its own
-/// evaluation is `true`.
+/// Premises retain the machine's exact formal identities. A predicate's
+/// successful paths establish the selected read through declared coordinate
+/// meaning and checked recursive implication. Unsupported cases grant nothing.
 pub fn premises_prove_expression(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     goal: ExpressionHandle,
 ) -> bool {
-    let [entry] = program.machine_states(machine) else {
-        return false;
-    };
-    if program
-        .statement_table
-        .statements(entry.statement_nodes)
-        .iter()
-        .any(|statement| {
-            matches!(
-                statement,
-                StatementNode::Assignment(_)
-                    | StatementNode::LocalData(_)
-                    | StatementNode::RootBinding(_)
-            )
-        })
-    {
-        return false;
-    }
-    let parameters = program.state_parameters(entry);
-    if parameters.iter().any(|parameter| parameter.is_mutable) {
-        return false;
-    }
-    let mut atoms = Vec::new();
-    let mut bindings = Vec::with_capacity(parameters.len());
-    for parameter in parameters {
-        let first = atoms.len();
-        match unknown_knowledge(program, parameter.type_reference) {
-            Some(ArgumentKnowledge::Array(elements)) => {
-                let Some(ValueShape::Array { element_type, .. }) =
-                    value_shape(program, parameter.type_reference)
-                else {
-                    return false;
-                };
-                let length = elements.len();
-                atoms.extend(elements);
-                bindings.push(Binding::Array {
-                    first,
-                    length,
-                    element_type,
-                });
-            }
-            Some(ArgumentKnowledge::Integer(set)) => {
-                let Some(ValueShape::Integer(carrier)) =
-                    value_shape(program, parameter.type_reference)
-                else {
-                    return false;
-                };
-                atoms.push(set);
-                bindings.push(Binding::Atom {
-                    atom: first,
-                    carrier,
-                });
-            }
-            // A parameter the fragment cannot read stays unreadable: a
-            // premise or goal that reads it stands down.
-            _ => bindings.push(Binding::Unreadable),
-        }
-    }
-    let frame = Frame {
-        machine,
-        state: entry,
-        bindings: &bindings,
-        locals: &[],
-    };
-    let mut premises = Vec::new();
-    for expression in program.contract_expressions(
-        program.machine_contracts(machine).iter(),
-        SignatureContractKind::Requires,
-    ) {
-        collect_conjuncts(program, expression, &mut premises);
-    }
-    for premise in premises {
-        if let Some(refined) = assume_application(program, &frame, &atoms, premise)
-            .or_else(|| assume_guard(program, &frame, &atoms, premise))
-        {
-            atoms = refined;
-        }
-    }
-    holds_on_every_fork(program, &frame, atoms, goal)
-}
-
-fn collect_conjuncts(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-    into: &mut Vec<ExpressionHandle>,
-) {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::And => {
-            collect_conjuncts(program, binary.left, into);
-            collect_conjuncts(program, binary.right, into);
-        }
-        _ => into.push(expression),
-    }
-}
-
-/// Refine the frame's atoms by the `true`-path consequences of one predicate
-/// application whose arguments are the frame's own parameters or literals.
-fn assume_application(
-    program: &dyn crate::CheckingInput,
-    frame: &Frame<'_>,
-    atoms: &[IntegerSet],
-    premise: ExpressionHandle,
-) -> Option<Vec<IntegerSet>> {
-    let application = predicate_application(program, frame.machine.symbol, premise)?;
-    let mut knowledge = Vec::with_capacity(application.arguments.len());
-    let mut targets = Vec::with_capacity(application.arguments.len());
-    for argument in application.arguments {
-        match exploration::evaluate(program, frame, atoms, *argument) {
-            Ok(exploration::Value::Array { first, length, .. }) => {
-                knowledge.push(ArgumentKnowledge::Array(
-                    atoms.get(first..first + length)?.to_vec(),
-                ));
-                targets.push(Some(first..first + length));
-            }
-            Ok(exploration::Value::Integer { set, atom, .. }) => {
-                knowledge.push(ArgumentKnowledge::Integer(set));
-                targets.push(atom.map(|atom| atom..atom + 1));
-            }
-            Ok(exploration::Value::Boolean(value)) => {
-                knowledge.push(ArgumentKnowledge::Boolean(value));
-                targets.push(None);
-            }
-            Err(_) => return None,
-        }
-    }
-    let unfolding = unfold(program, application.machine, &knowledge)?;
-    let mut refined = atoms.to_vec();
-    for (position, target) in targets.into_iter().enumerate() {
-        let Some(target) = target else {
-            continue;
-        };
-        let implied = unfolding.when_true(position)?;
-        for (atom, implied) in target.zip(implied) {
-            refined[atom] = refined[atom].intersect(&implied);
-        }
-    }
-    Some(refined)
-}
-
-/// Refine the frame's atoms by one ordinary guard: explore its forks and
-/// join the atoms of those where it holds.
-fn assume_guard(
-    program: &dyn crate::CheckingInput,
-    frame: &Frame<'_>,
-    atoms: &[IntegerSet],
-    premise: ExpressionHandle,
-) -> Option<Vec<IntegerSet>> {
-    let mut remaining = 1usize << 12;
-    let mut stack = vec![atoms.to_vec()];
-    let mut joined: Option<Vec<IntegerSet>> = None;
-    while let Some(atoms) = stack.pop() {
-        remaining = remaining.checked_sub(1)?;
-        match exploration::evaluate_boolean(program, frame, &atoms, premise) {
-            Ok(true) => {
-                joined = Some(match joined {
-                    None => atoms,
-                    Some(existing) => existing
-                        .iter()
-                        .zip(&atoms)
-                        .map(|(left, right)| left.union(right))
-                        .collect(),
-                });
-            }
-            Ok(false) => {}
-            Err(Stop::Split { atom, parts }) => {
-                for part in parts {
-                    let mut refined = atoms.clone();
-                    refined[atom] = part;
-                    stack.push(refined);
-                }
-            }
-            Err(Stop::Unsupported) => return None,
-        }
-    }
-    joined
-}
-
-fn holds_on_every_fork(
-    program: &dyn crate::CheckingInput,
-    frame: &Frame<'_>,
-    atoms: Vec<IntegerSet>,
-    goal: ExpressionHandle,
-) -> bool {
-    let mut remaining = 1usize << 12;
-    let mut stack = vec![atoms];
-    while let Some(atoms) = stack.pop() {
-        let Some(left) = remaining.checked_sub(1) else {
-            return false;
-        };
-        remaining = left;
-        // An atom without any value is an unreachable fork.
-        if atoms.iter().any(IntegerSet::is_empty) {
-            continue;
-        }
-        match exploration::evaluate_boolean(program, frame, &atoms, goal) {
-            Ok(true) => {}
-            Ok(false) | Err(Stop::Unsupported) => return false,
-            Err(Stop::Split { atom, parts }) => {
-                for part in parts {
-                    let mut refined = atoms.clone();
-                    refined[atom] = part;
-                    stack.push(refined);
-                }
-            }
-        }
-    }
-    true
+    implication::proves(program, machine, goal)
 }

@@ -412,7 +412,7 @@ fn transition_may_overwrite(
                 let internal = program
                     .machine_by_symbol(machine_symbol)
                     .is_some_and(|machine| {
-                        crate::checks::termination::named_transition_target_state_index(
+                        validation::activation_target_state_index(
                             program,
                             machine,
                             path.symbol,

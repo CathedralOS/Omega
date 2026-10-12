@@ -158,7 +158,7 @@ fn entry_parameter_place_at_write_boundary(
         }
     };
     let machine = program.machine(machine_symbol)?;
-    let entry = crate::checks::termination::named_transition_target_state_index(
+    let entry = validation::activation_target_state_index(
         program,
         machine,
         machine_symbol,

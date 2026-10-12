@@ -41,15 +41,26 @@ pub(crate) fn lower_structural_member_path(
     ),
     LoweringError,
 > {
-    if path.is_empty() {
-        return unsupported("structural scalar contract has an empty member path");
-    }
     let parameter = parameters
         .iter()
         .find(|parameter| parameter.position == parameter_position)
         .ok_or(LoweringError::Unsupported(
             "structural scalar contract names a non-structural parameter",
         ))?;
+    if path.is_empty() {
+        if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
+            return unsupported("structural scalar contract requires readable access");
+        }
+        let declaration =
+            terminal_psi::find_structural_type(structural_types, parameter.structural_type).ok_or(
+                LoweringError::Unsupported("structural scalar contract root type is absent"),
+            )?;
+        let leaf = match declaration.shape {
+            StructuralTypeShape::PrimitiveScalar(scalar) => StructuralFieldType::Scalar(scalar),
+            _ => StructuralFieldType::Structural(parameter.structural_type),
+        };
+        return Ok((parameter.place, Vec::new(), leaf));
+    }
     let mut structural_type = parameter.structural_type;
     let mut terminal_path = Vec::with_capacity(path.len());
     let mut selected_case_fields = None;

@@ -21,7 +21,7 @@ pub use specification::{SpecificationCallRequest, admit_specification_calls};
 /// termination summary exists. Specification formation retains the exact call
 /// request and completes that obligation with the same checking invocation's
 /// termination facts; conditional runtime result capture has a different owner.
-pub(crate) fn checked_value_call_candidate(
+pub fn checked_value_call_candidate(
     program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -35,13 +35,8 @@ pub(crate) fn checked_value_call_candidate(
         {
             return result;
         }
-        let result = unchecked_value_call_candidate(
-            program,
-            machine,
-            state,
-            operational,
-            service_reaches,
-        );
+        let result =
+            unchecked_value_call_candidate(program, machine, state, operational, service_reaches);
         if let Ok(mut candidates) = memos.checked_value_call_candidates.lock() {
             candidates.insert(key, result);
         }

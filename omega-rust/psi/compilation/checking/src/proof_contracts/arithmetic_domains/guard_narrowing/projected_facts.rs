@@ -22,14 +22,16 @@ use super::{
 /// meaning (a strict integer order has a gap of at least one; a float order
 /// does not). `spelled` and `declared_type` key the spelling-based interval
 /// carriers; `spelled` is `None` when the spelling could name another place.
-pub(super) struct ProjectedOperand {
-    pub(super) operand: Option<ordered_values::Operand>,
-    pub(super) spelled: Option<String>,
-    pub(super) declared_type: Option<TypeReferenceHandle>,
+pub(in crate::proof_contracts::arithmetic_domains) struct ProjectedOperand {
+    pub(in crate::proof_contracts::arithmetic_domains) operand: Option<ordered_values::Operand>,
+    pub(in crate::proof_contracts::arithmetic_domains) spelled: Option<String>,
+    pub(in crate::proof_contracts::arithmetic_domains) declared_type: Option<TypeReferenceHandle>,
 }
 
 impl ProjectedOperand {
-    pub(super) fn literal(literal: &numerics::literals::IntegerLiteral) -> Self {
+    pub(in crate::proof_contracts::arithmetic_domains) fn literal(
+        literal: &numerics::literals::IntegerLiteral,
+    ) -> Self {
         Self {
             operand: Some(ordered_values::Operand::Integer(
                 literal.clone(),
@@ -43,7 +45,7 @@ impl ProjectedOperand {
 
 /// Contribute `left <operator> right`. `left_expression`/`right_expression`
 /// are the fact's own side expressions; only their literal values are read.
-pub(super) fn contribute_projected_comparison(
+pub(in crate::proof_contracts::arithmetic_domains) fn contribute_projected_comparison(
     program: &dyn crate::CheckingInput,
     environment: &mut ValueEnvironment,
     operator: BinaryOperator,

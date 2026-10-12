@@ -82,8 +82,8 @@ pub(super) fn validate(
     // unsummarized, and overlapping implementations remain
     // conservative. Authored `stores` clauses are retired; exactness
     // grows through inferred implementation summaries.
-    if let Some(written) = direct_written {
-        value_environment.invalidate_written_paths(&written);
+    if let Some(written) = direct_written.as_deref() {
+        value_environment.invalidate_written_paths(written);
     } else {
         value_environment.invalidate_unknown_writes(program, current_state);
     }
@@ -105,6 +105,13 @@ pub(super) fn validate(
     } else {
         // Citation: a checked callee's proved element bounds enter the flow
         // at the exact argument places.
-        arithmetic_domains::seed_cited_element_bounds(program, call, value_environment);
+        arithmetic_domains::seed_cited_element_bounds(
+            program,
+            machine,
+            current_state,
+            call,
+            direct_written.as_deref(),
+            value_environment,
+        );
     }
 }

@@ -66,7 +66,11 @@ pub(crate) fn build_boundary_machine(
         &binders,
     )?;
     let contract = facts.contract_plans.for_machine(machine.symbol)?;
-    let scalar_requires = boundary_scalar_requires(program, machine, contract)?;
+    let scalar_requires = boundary_scalar_requires(
+        program,
+        program.machine_contracts(machine),
+        &contract.closed_scalar_values,
+    )?;
     // The callable's checked reach can include target-family members. Its
     // empty interface state is not the machine's inferred execution closure.
     let machine_reach = facts.service_reaches.for_machine(machine.symbol)?;
@@ -103,16 +107,14 @@ pub(crate) fn build_boundary_machine(
 /// proposition form here and, as before this lane existed, is not published.
 fn boundary_scalar_requires(
     program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    contract: &checked_trees::MachineContractPlan,
+    contracts: &[typed_trees::signature::SignatureContract],
+    closed: &checked_trees::ClosedScalarValueContractPlan,
 ) -> Option<Vec<checked_trees::ClosedScalarContractValue>> {
     use checked_trees::ClosedScalarContractValue;
     use typed_trees::domain::ProofFact;
     use typed_trees::signature::SignatureContractKind;
 
-    let closed = &contract.closed_scalar_values;
-    let authored = program
-        .machine_contracts(machine)
+    let authored = contracts
         .iter()
         .filter(|clause| clause.kind == SignatureContractKind::Requires && clause.binding.is_none())
         .collect::<Vec<_>>();
@@ -391,6 +393,34 @@ pub(crate) fn build_static_boundary_requirements(
                     })
                 })
                 .collect();
+            let closed = crate::facts::build_callable_scalar_value_contract_plan(
+                program,
+                signature.symbol,
+                Some(program.state_signature_parameters(signature)),
+                signature.return_type,
+                program.state_signature_contracts(signature),
+                &facts.operators,
+            );
+            let Some(scalar_requires) = boundary_scalar_requires(
+                program,
+                program.state_signature_contracts(signature),
+                &closed,
+            ) else {
+                continue;
+            };
+            let scalar_ensures = closed
+                .ensures()
+                .iter()
+                .flatten()
+                .filter_map(|clause| match clause {
+                    checked_trees::ClosedScalarContractValue::Predicate(predicate) => Some(
+                        checked_trees::CheckedBoundaryScalarGuarantee::Predicate(predicate.clone()),
+                    ),
+                    // Source checking still establishes the complete guarantee.
+                    // An unrepresentable consequence grants no Terminal fact.
+                    _ => None,
+                })
+                .collect();
             plans.push(CheckedBoundaryMachinePlan {
                 machine: signature.symbol,
                 kind: semantic_vocabulary::BoundaryRequirementKind::Trait,
@@ -401,12 +431,8 @@ pub(crate) fn build_static_boundary_requirements(
                 scalar_parameters,
                 result,
                 domain_requirements,
-                // Source checking owns these authored contracts. This declaration
-                // retains their exact commitment without publishing scalar
-                // consequences that the requirement projection did not derive.
-                // Parameter and result qualifications keep their own carriers.
-                scalar_ensures: Vec::new(),
-                scalar_requires: Vec::new(),
+                scalar_ensures,
+                scalar_requires,
                 contract_report_fingerprint: capsule.target_contract_report_fingerprint(),
                 contract_commitment: capsule.target_contract_commitment(),
                 contract_service_reach: language_semantics::ServiceReachPlan {

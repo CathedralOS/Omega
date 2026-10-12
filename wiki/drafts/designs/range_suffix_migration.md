@@ -68,6 +68,16 @@ Do not use later reduced occurrence counts as completion evidence: they include
 unaudited rewrites. Completion requires the history-derived inventory to record
 each original declaration and its canonical replacement.
 
+## Audited whole-slice customer
+
+The five scalar positions in `samples/cli/probes/slice_view_whole` at
+`25b435334dd` retain their i32 carriers and original calculation 31. The
+[position inventory](../../../samples/cli/probes/slice_view_whole/README.md#historical-scalar-positions)
+maps each suffix to its collection predicate, callable obligation or local
+facts. Selected-cell citations follow from the predicate's body; mutable
+handback proves the predicate for the functional store result. Neither route
+assumes a fixed slice extent or an arbitrary predicate's preservation.
+
 ## Audited core layout fields
 
 The 13 common-field suffixes in `source/library/core/layout.omg` at

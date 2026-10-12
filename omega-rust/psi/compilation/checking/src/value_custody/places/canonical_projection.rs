@@ -37,6 +37,108 @@ impl CanonicalPlace {
     }
 }
 
+/// Locate a fixed element through builtin collection windows. Windows change
+/// an ordinal, not the number of collection dimensions: `a[2..][1]` denotes
+/// `a[3]`. Each selector's builtin meaning is established before its geometry
+/// is read. Unknown endpoints decline this exact-coordinate query; they never
+/// become layout constants or bounds evidence.
+pub fn canonical_collection_element_place(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: Option<&typed_trees::state::State>,
+    collection: ExpressionHandle,
+    element_index: usize,
+) -> Option<CanonicalPlace> {
+    if !super::place_has_builtin_coordinates(program, machine, state, collection) {
+        return None;
+    }
+    // A window has a slice shape but no manufactured type-table row. Its
+    // authenticated builtin selector above establishes that shape; ordinary
+    // named collections retain their declaration-backed type reference.
+    if super::subslice_expression(program, collection).is_none() {
+        let collection_type = super::declared_place_type_raw(program, machine, state, collection)?;
+        if !super::collection_operations::type_reference_is_collection(program, collection_type) {
+            return None;
+        }
+    }
+    let mut place = canonical_place_from_expression(program, collection)?;
+    place.segments.push(facts::PlaceSegment::FixedIndex {
+        index: element_index,
+    });
+    let mut normalized = Vec::with_capacity(place.segments.len());
+    let mut window: Option<(usize, Option<usize>)> = None;
+    for segment in place.segments {
+        let range = match segment {
+            facts::PlaceSegment::FixedRange { start, end } => Some((start, Some(end))),
+            facts::PlaceSegment::Index { expression } => {
+                let range = program.expression_table.range_node(expression)?;
+                let ordinal = |bound| {
+                    program
+                        .closed_integer_expression_value_in(bound, machine.symbol)?
+                        .to_u64()
+                        .and_then(|value| usize::try_from(value).ok())
+                };
+                let start = if range.start.is_valid() {
+                    ordinal(range.start)?
+                } else {
+                    0
+                };
+                let end = if range.end.is_valid() {
+                    let end = ordinal(range.end)?;
+                    Some(if range.end_inclusive {
+                        end.checked_add(1)?
+                    } else {
+                        end
+                    })
+                } else {
+                    None
+                };
+                Some((start, end))
+            }
+            _ => None,
+        };
+        if let Some((start, end)) = range {
+            if end.is_some_and(|end| start > end) {
+                return None;
+            }
+            window = Some(match window {
+                None => (start, end),
+                Some((base, limit)) => {
+                    let start = base.checked_add(start)?;
+                    let end = match end {
+                        Some(end) => Some(base.checked_add(end)?),
+                        None => None,
+                    };
+                    if limit.is_some_and(|limit| start > limit)
+                        || limit.zip(end).is_some_and(|(limit, end)| end > limit)
+                    {
+                        return None;
+                    }
+                    (start, end.or(limit))
+                }
+            });
+            continue;
+        }
+        let segment = match (window.take(), segment) {
+            (Some((base, limit)), facts::PlaceSegment::FixedIndex { index }) => {
+                let index = base.checked_add(index)?;
+                if limit.is_some_and(|limit| index >= limit) {
+                    return None;
+                }
+                facts::PlaceSegment::FixedIndex { index }
+            }
+            (Some(_), _) => return None,
+            (None, segment) => segment,
+        };
+        normalized.push(segment);
+    }
+    if window.is_some() {
+        return None;
+    }
+    place.segments = normalized;
+    Some(place)
+}
+
 pub fn index_place_segment(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
