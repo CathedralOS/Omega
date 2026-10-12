@@ -21,8 +21,9 @@ use crate::LoweringError;
 use checked_trees::{CheckedDynamicSlotPlan, CheckedTrees};
 use symbols::SymbolHandle;
 use terminal_psi::{
-    TerminalDynamicClaimPath, TerminalDynamicDispatchCatalog, TerminalDynamicInterface,
-    TerminalDynamicSlot, TerminalDynamicStructuralFormal, TerminalDynamicTable, TerminalModule,
+    TerminalDynamicClaimPath, TerminalDynamicDispatchCatalog, TerminalDynamicFamilyMember,
+    TerminalDynamicFamilyValue, TerminalDynamicInterface, TerminalDynamicSlot,
+    TerminalDynamicStructuralFormal, TerminalDynamicTable, TerminalModule,
 };
 
 /// Identity-to-id maps for one program's interfaces and tables.
@@ -250,7 +251,7 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
                 plan,
                 u32::try_from(slot)
                     .map_err(|_| LoweringError::Unsupported("dynamic slot id overflows"))?,
-                &row.tuple,
+                row,
                 &type_ids,
                 &module.structural_types,
                 &domain_ids,
@@ -342,7 +343,7 @@ fn lower_slot(
     checked: &CheckedTrees,
     plan: &CheckedDynamicSlotPlan,
     slot: u32,
-    family_tuple: &[String],
+    family: &DynamicDispatchSlot,
     type_ids: &[(
         typed_trees::type_identity::TypeIdentityId,
         semantic_vocabulary::StructuralTypeId,
@@ -350,6 +351,9 @@ fn lower_slot(
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
     domain_ids: &[crate::terminal_identities::StructuralDomainBinding],
 ) -> Result<TerminalDynamicSlot, LoweringError> {
+    if family.tuple.len() != family.values.len() {
+        return unsupported("dynamic family row lost its checked scalar values");
+    }
     let Some((selector, scalars)) = plan.scalar_parameters.split_first() else {
         return unsupported("dynamic slot lost its selector operand");
     };
@@ -424,7 +428,22 @@ fn lower_slot(
                 .typed
                 .callable_identity_text(plan.requirement_identity),
         ),
-        family_tuple: family_tuple.to_vec(),
+        family_tuple: family
+            .tuple
+            .iter()
+            .zip(&family.values)
+            .map(|(identity, value)| TerminalDynamicFamilyMember {
+                identity: identity.clone(),
+                value: match value {
+                    typed_trees::finite_family::FamilyScalarValue::Integer(value) => {
+                        TerminalDynamicFamilyValue::Integer(*value)
+                    }
+                    typed_trees::finite_family::FamilyScalarValue::Boolean(value) => {
+                        TerminalDynamicFamilyValue::Boolean(*value)
+                    }
+                },
+            })
+            .collect(),
         scalar_parameters,
         structural_parameters,
         entry_claim_paths,
