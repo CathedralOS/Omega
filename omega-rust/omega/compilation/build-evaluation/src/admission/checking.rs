@@ -98,7 +98,7 @@ pub(crate) fn prepare_checked_build(
         };
     if !pending.is_empty() {
         let operator_selections = validation::derive_pre_flow_operator_selections(input.typed());
-        selected_dispatch::SelectedConstantEvaluation::prepare(
+        let selected_constants = selected_dispatch::SelectedConstantEvaluation::prepare(
             context,
             execution_profile
                 .map(target::TargetProfile::native_target)
@@ -108,8 +108,9 @@ pub(crate) fn prepare_checked_build(
             &selected_provider_plan_facts,
             &provenance,
             execution_profile,
-        )?
-        .evaluate_pending(input.parts_mut().0, pending)?;
+        )?;
+        let (typed, _, constant_inputs) = input.parts_mut();
+        selected_constants.evaluate_pending(typed, pending, constant_inputs)?;
     }
     // Carry the invocation's earlier language judgments only for the exact
     // settled Build program this activation projects: its own slot's chain

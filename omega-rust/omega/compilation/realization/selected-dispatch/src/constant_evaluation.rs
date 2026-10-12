@@ -45,6 +45,7 @@ impl SelectedConstantEvaluation {
         self,
         typed: &mut TypedTrees,
         pending: Vec<PreCheckEvaluation>,
+        inputs: &mut Vec<build_time_evaluation::ExecutedCheckedConstantInput>,
     ) -> Result<(), Vec<Diagnostic>> {
         provider_planning::data_layout_queries::fold_data_layout_queries(
             typed,
@@ -60,7 +61,7 @@ impl SelectedConstantEvaluation {
                     provider_bodies: &self.provider_bodies,
                     admission: Default::default(),
                 },
-                &mut Vec::new(),
+                inputs,
             )?;
         }
         // The deferred evaluation installed the validated plan-laid layouts;
