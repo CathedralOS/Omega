@@ -24,6 +24,7 @@ use std::collections::BTreeMap;
 mod captured_loans;
 mod conditional_return;
 mod guarded_chain;
+mod loan_arrivals;
 mod loan_chains;
 mod loaned_local_homes;
 mod seal;

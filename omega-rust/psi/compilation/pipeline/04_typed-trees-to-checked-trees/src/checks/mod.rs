@@ -57,6 +57,7 @@ mod crashes;
 pub(crate) use cleanup_admission::validate_selected_cleanup_guarantees;
 
 // Operator resolution, indexed access bounds, and machine termination.
+mod index_preservation;
 mod indexed_writes;
 mod operators;
 mod ranges;
@@ -185,9 +186,38 @@ pub(crate) fn check_checked_facts_recording(
         incoming_guards,
         mutation_summaries,
     ) {
-        Ok(proven) => facts.proven_scalar_indexes = proven,
+        Ok((proven, decisions)) => {
+            facts.proven_scalar_indexes = proven;
+            let mut admissions = arena::Arena::default();
+            let mut places = arena::Arena::default();
+            let mut segments = arena::Arena::default();
+            for decision in decisions {
+                let dependencies_complete = decision.extent_dependencies.is_some();
+                let dependencies = decision
+                    .extent_dependencies
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|place| facts::Place {
+                        root: place.root,
+                        segments: segments.insert_many(place.segments),
+                    })
+                    .collect::<Vec<_>>();
+                admissions.append(checked_trees::ScalarIndexAdmission {
+                    occurrence: decision.expression,
+                    machine: decision.machine,
+                    state: decision.state,
+                    statement_index: decision.statement_index,
+                    dependencies_complete,
+                    extent_dependencies: places.insert_many(dependencies),
+                });
+            }
+            facts.scalar_index_admissions = admissions;
+            facts.scalar_index_dependency_places = places;
+            facts.scalar_index_dependency_segments = segments;
+        }
         Err(mut range_diagnostics) => diagnostics.append(&mut range_diagnostics),
     }
+    index_preservation::record(program, facts);
     indexed_writes::record(program, facts);
     indexed_writes::record_assignment_indexes(program, facts);
 

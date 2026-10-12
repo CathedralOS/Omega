@@ -838,6 +838,7 @@ pub(crate) fn build_checked_unit_effect_plans(
 
     CheckedUnitEffectPlans {
         cleanup_control: shapes.cleanup_control,
+        selector_bounds: shapes.selector_bounds,
         structural_types: shapes.types.into_values().collect(),
         structural_domains: {
             shapes.domains.sort_by_key(|domain| domain.domain.0);

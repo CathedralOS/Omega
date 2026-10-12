@@ -249,6 +249,31 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
             cleanup_machine: cleanup_machine.symbol,
             cleanup_state: cleanup_state.symbol,
             cleanup_contract_report_fingerprint: cleanup_target.contract_report_fingerprint,
+            storage_effect: {
+                let mut dispositions =
+                    facts
+                        .contextual_cleanup
+                        .dispositions
+                        .iter()
+                        .filter(|(_, row)| {
+                            row.machine == machine.symbol
+                                && row.state == state.symbol
+                                && row.root == facts::PlaceRoot::Symbol(source_parameter.symbol)
+                                && row.source
+                                    == language_semantics::PermissionEventSource::StateExit
+                                && row.path.is_empty()
+                                && row.exclusions.is_empty()
+                        });
+                match (dispositions.next(), dispositions.next()) {
+                    (Some((handle, _)), None) => facts.contextual_cleanup.hook_effect(
+                        handle,
+                        cleanup_machine.symbol,
+                        facts::PlaceRoot::Symbol(source_parameter.symbol),
+                        &[],
+                    ),
+                    _ => Default::default(),
+                }
+            },
             case_conditions: Default::default(),
         });
     }

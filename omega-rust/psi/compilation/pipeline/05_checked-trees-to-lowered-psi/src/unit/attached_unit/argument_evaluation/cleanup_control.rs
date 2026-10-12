@@ -31,6 +31,21 @@ pub(crate) struct CleanupEmission<'a> {
     pub(crate) blocks: &'a mut Vec<Block>,
 }
 
+/// The actual source frame consumed by one ordinary cleanup capture.
+/// These are coordinate substitutions, not value equality or loan authority.
+/// A projected operand retains its original carrier and evaluated path even
+/// after the receiving block owns that operand as a whole parameter.
+pub(crate) struct CapturedArgumentFrame {
+    pub(crate) values: Vec<(ValueDeclaration, ValueDeclaration)>,
+    pub(crate) structural: Vec<CapturedStructuralArgument>,
+}
+
+pub(crate) struct CapturedStructuralArgument {
+    pub(crate) source: terminal_psi::StructuralArgument,
+    pub(crate) source_type: semantic_vocabulary::StructuralTypeId,
+    pub(crate) captured: terminal_psi::StructuralParameterDeclaration,
+}
+
 impl Evaluation {
     /// Every cleanup emission borrows the same working set from the
     /// evaluation context — build it once per call site. The erased-formal
@@ -199,6 +214,7 @@ impl Evaluation {
                 });
             }
             regions.push(CleanupRegion {
+                storage_effect: Default::default(),
                 selected_region: None,
                 conditions,
                 action: TerminalAffineCleanupAction::DiscardResidual(
@@ -231,20 +247,55 @@ impl Evaluation {
         next_block: &mut u64,
         next_edge: &mut u64,
         operations: &OperationBuffer,
-    ) -> Result<(), LoweringError> {
+    ) -> Result<CapturedArgumentFrame, LoweringError> {
+        let source_types = arguments
+            .iter()
+            .map(|argument| {
+                let mut carriers = self
+                    .structural_root_parameters()
+                    .filter(|parameter| parameter.place == argument.place)
+                    .map(|parameter| parameter.structural_type)
+                    .chain(
+                        operations
+                            .iter()
+                            .filter_map(|operation| operation.result.structural())
+                            .filter(|result| result.place == argument.place)
+                            .map(|result| result.structural_type),
+                    )
+                    .chain(
+                        operations
+                            .structural_values
+                            .iter()
+                            .filter(|(_, binding)| {
+                                binding.place() == argument.place && binding.path().is_empty()
+                            })
+                            .map(|(_, binding)| binding.structural_type()),
+                    );
+                let carrier = carriers.next().ok_or(LoweringError::Unsupported(
+                    "cleanup capture lost its actual source carrier",
+                ))?;
+                if carriers.any(|other| other != carrier) {
+                    return Err(LoweringError::Unsupported(
+                        "cleanup capture has inconsistent source carriers",
+                    ));
+                }
+                Ok(carrier)
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
         self.cleanup_emission(checked, &mut Vec::new())
-        .capture_arguments(
-            identities,
-            arguments,
-            declarations,
-            values,
-            next_place,
-            places,
-            next_value,
-            next_block,
-            next_edge,
-            operations,
-        )
+            .capture_arguments(
+                identities,
+                arguments,
+                declarations,
+                &source_types,
+                values,
+                next_place,
+                places,
+                next_value,
+                next_block,
+                next_edge,
+                operations,
+            )
     }
 
     /// Flat schedules remain on the completion edge; selected schedules use
@@ -298,8 +349,7 @@ impl Evaluation {
                 condition.place = self.current_structural_place(condition.place);
             }
         }
-        self.cleanup_emission(checked, &mut Vec::new())
-        .emit(
+        self.cleanup_emission(checked, &mut Vec::new()).emit(
             identities, &regions, values, next_value, next_block, next_edge, operations,
         )
     }
@@ -311,6 +361,7 @@ impl CleanupEmission<'_> {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         arguments: &mut Vec<terminal_psi::StructuralArgument>,
         declarations: &[terminal_psi::StructuralParameterDeclaration],
+        source_types: &[semantic_vocabulary::StructuralTypeId],
         values: &mut Vec<ValueDeclaration>,
         next_place: &mut u64,
         places: &mut Vec<terminal_psi::StructuralPlaceDeclaration>,
@@ -318,15 +369,20 @@ impl CleanupEmission<'_> {
         next_block: &mut u64,
         next_edge: &mut u64,
         operations: &OperationBuffer,
-    ) -> Result<(), LoweringError> {
-        if arguments.len() != declarations.len() {
+    ) -> Result<CapturedArgumentFrame, LoweringError> {
+        if arguments.len() != declarations.len() || arguments.len() != source_types.len() {
             return Err(LoweringError::Unsupported(
                 "cleanup capture has no exact structural roster",
             ));
         }
         if arguments.is_empty() {
-            return Ok(());
+            return Ok(CapturedArgumentFrame {
+                values: Vec::new(),
+                structural: Vec::new(),
+            });
         }
+        let source_arguments = arguments.clone();
+        let source_values = values.clone();
         let target = block_id(allocate_dense(next_block)?);
         let parameters = super::declarations(
             &values
@@ -370,9 +426,22 @@ impl CleanupEmission<'_> {
             next_edge,
             operations,
         )?;
+        let structural = source_arguments
+            .into_iter()
+            .zip(source_types)
+            .zip(&captures)
+            .map(
+                |((source, source_type), captured)| CapturedStructuralArgument {
+                    source,
+                    source_type: *source_type,
+                    captured: captured.clone(),
+                },
+            )
+            .collect();
+        let values = source_values.into_iter().zip(parameters).collect();
         *self.structural_parameters = captures;
         *arguments = forwarded;
-        Ok(())
+        Ok(CapturedArgumentFrame { values, structural })
     }
 
     pub(crate) fn emit(

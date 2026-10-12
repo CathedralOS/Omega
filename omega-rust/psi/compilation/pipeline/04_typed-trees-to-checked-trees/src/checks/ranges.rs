@@ -81,7 +81,13 @@ pub(crate) fn check_indexed_accesses(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     incoming_guards: &IncomingGuardIndex,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
-) -> Result<Vec<typed_trees::expression::ExpressionHandle>, Vec<Diagnostic>> {
+) -> Result<
+    (
+        Vec<typed_trees::expression::ExpressionHandle>,
+        Vec<indexes::ProvenIndexDecision>,
+    ),
+    Vec<Diagnostic>,
+> {
     let field_lengths = fixed_array_field_lengths(program);
     let mut diagnostics = Vec::new();
     let mut verdicts = indexes::IndexVerdicts::default();

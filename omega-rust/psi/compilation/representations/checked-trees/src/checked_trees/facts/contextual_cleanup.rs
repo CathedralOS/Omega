@@ -20,6 +20,12 @@ pub struct ContextualCleanupFacts {
     /// Source-to-instance correspondence produced by machine specialization.
     /// These join selected occurrences; they do not grant hook prerequisites.
     pub applications: Arena<ContextualCleanupApplication>,
+    /// Actual selected hook effects in the caller storage/alias namespace.
+    /// These rows retain the original disposition and exact captured receiver;
+    /// their absence or incomplete frame never establishes preservation.
+    pub hook_effects: Arena<ContextualCleanupHookEffect>,
+    pub hook_write_places: Arena<Place>,
+    pub hook_write_segments: Arena<PlaceSegment>,
     pub exclusions: Arena<Place>,
     pub segments: Arena<PlaceSegment>,
     /// Open source windows at exact evaluated invocations. Their storage is
@@ -73,6 +79,19 @@ pub struct ContextualCleanupDisposition {
 pub struct ContextualCleanupApplication {
     pub template: Handle<ContextualCleanupDisposition>,
     pub instance: Handle<ContextualCleanupDisposition>,
+}
+
+/// One issued hook footprint on its original selected death occurrence.
+/// Complete empty writes are genuine producer output; incomplete writes have
+/// no preservation authority. Receiver and writes use this family's dedicated
+/// hook_write_segments arena, independently of ownership/exclusion segments.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ContextualCleanupHookEffect {
+    pub disposition: Handle<ContextualCleanupDisposition>,
+    pub hook_machine: SymbolHandle,
+    pub receiver: Place,
+    pub complete: bool,
+    pub writes: HandleSpan<Place>,
 }
 
 /// Instantiated cleanup prerequisites, distinct from authored `requires`.
@@ -148,5 +167,32 @@ impl ContextualCleanupEntryRequirement {
             return None;
         };
         Some((*parameter_position, path, expected))
+    }
+}
+
+impl ContextualCleanupFacts {
+    /// Select only a footprint issued for this same disposition, hook and
+    /// exact captured receiver. A duplicate or unresolved association stays
+    /// absent; complete/opaque remains on the selected row itself.
+    pub fn hook_effect(
+        &self,
+        disposition: Handle<ContextualCleanupDisposition>,
+        hook: SymbolHandle,
+        root: facts::PlaceRoot,
+        path: &[PlaceSegment],
+    ) -> Handle<ContextualCleanupHookEffect> {
+        let mut matching = self.hook_effects.iter().filter(|(_, effect)| {
+            effect.disposition == disposition
+                && effect.hook_machine == hook
+                && effect.receiver.root == root
+                && self.hook_write_segments.span(effect.receiver.segments) == Some(path)
+        });
+        let Some((handle, _)) = matching.next() else {
+            return Default::default();
+        };
+        if matching.next().is_some() {
+            return Default::default();
+        }
+        handle
     }
 }

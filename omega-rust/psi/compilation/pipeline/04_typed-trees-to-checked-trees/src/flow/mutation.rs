@@ -34,7 +34,7 @@ pub(crate) use receiver::{
 };
 pub(in crate::flow) use summary::instantiate_call_relative_places;
 use summary::instantiate_known_call_mutation_summary_places;
-pub(crate) use summary::{StateMutationSummaryCache, state_storage_writes};
+pub(crate) use summary::{StateMutationSummaryCache, cleanup_storage_writes, state_storage_writes};
 
 #[derive(Clone, Copy)]
 pub(super) enum WritePlaceNamespace {

@@ -816,6 +816,43 @@ impl<'field> RangeFacts<'field> {
             .collect()
     }
 
+    /// Capture this successful index decision's collection-extent reads while
+    /// its original range-check context is still current. A fixed array's
+    /// extent belongs to its actual declared type; element writes do not change
+    /// it. Dynamic descriptors retain all actual caller storage dependencies.
+    pub(in crate::checks::ranges) fn index_extent_dependencies(
+        &self,
+        program: &dyn ::validation::CheckingInput,
+        machine: &Machine,
+        state: &State,
+        collection: ExpressionHandle,
+    ) -> Option<Vec<CanonicalPlace>> {
+        if crate::checks::ranges::types::expression_type_reference(
+            program, machine, state, collection,
+        )
+        .and_then(|reference| {
+            crate::checks::ranges::arrays::fixed_array_type_length(program, reference)
+        })
+        .is_some()
+        {
+            return Some(Vec::new());
+        }
+        let mut reads = Vec::new();
+        let complete = collect_reads(
+            program,
+            machine,
+            state,
+            self.statement_index,
+            collection,
+            self.checked_calls,
+            self.checked_operators,
+            &mut reads,
+            0,
+            self.bound_lookup(),
+        );
+        complete.then_some(reads)
+    }
+
     pub(in crate::checks::ranges) fn expression_is_disjoint_from_writes(
         &self,
         program: &dyn ::validation::CheckingInput,

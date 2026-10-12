@@ -502,10 +502,9 @@ impl Expansion<'_> {
             for family_ordinal in 0usize.. {
                 let role = checked_trees::CheckedScalarExpressionRole::DynamicFamilyArgument {
                     call_ordinal,
-                    family_ordinal: u32::try_from(family_ordinal)
-                        .map_err(|_| LoweringError::Unsupported(
-                            "dynamic family operand ordinal overflows",
-                        ))?,
+                    family_ordinal: u32::try_from(family_ordinal).map_err(|_| {
+                        LoweringError::Unsupported("dynamic family operand ordinal overflows")
+                    })?,
                 };
                 let Some((_, expression)) = self
                     .checked
@@ -884,6 +883,7 @@ impl Expansion<'_> {
                     checked_trees::CheckedNormalCleanupAction::Discard(_) => {
                         PreparedNormalCleanupAction::Resolved(
                             crate::unit::unit_cleanup::CleanupRegion {
+                                storage_effect: Default::default(),
                                 selected_region: None,
                                 conditions,
                                 action: terminal_psi::TerminalAffineCleanupAction::DiscardResidual(
