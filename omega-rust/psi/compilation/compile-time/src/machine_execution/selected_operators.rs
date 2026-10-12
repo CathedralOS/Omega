@@ -40,6 +40,9 @@ pub struct SelectedBuildTimeProviderBody {
     pub origin: checked_trees::CheckedValueOrigin,
     /// The selected boundary requirement symbol.
     pub requirement: symbols::SymbolHandle,
+    /// The selected named implementation declaration, when the source row is
+    /// owned by a map. It remains separate from its actual executable machine.
+    pub named_implementation: symbols::SymbolHandle,
     /// The authored operand expressions forwarded to the provider entry state
     /// in their authored order.
     pub operands: Vec<ExpressionHandle>,
@@ -61,6 +64,9 @@ pub(crate) fn selected_execution_roots(
     let mut roots = roots.to_vec();
     for body in bodies {
         roots.extend([body.provider_machine, body.requirement]);
+        if body.named_implementation.is_valid() {
+            roots.push(body.named_implementation);
+        }
         if let BuildTimeProviderAuthority::Source(binding) = &body.provider {
             roots.extend(
                 binding
@@ -109,6 +115,7 @@ impl SelectedBuildTimeProviderBody {
             expression,
             origin,
             requirement,
+            named_implementation: symbols::SymbolHandle::invalid(),
             operands,
             provider_machine: provider.symbol,
             provider_state: entry.symbol,
@@ -144,11 +151,20 @@ impl SelectedBuildTimeProviderBody {
             expression,
             origin,
             requirement,
+            named_implementation: symbols::SymbolHandle::invalid(),
             operands,
             provider_machine: body.machine,
             provider_state: body.state,
             provider: BuildTimeProviderAuthority::Source(binding),
         })
+    }
+
+    /// Retain the exact selecting map supplied by the settled plan producer.
+    /// The validator rejoins its original row and complete public application;
+    /// the map name never searches for or chooses an executable body.
+    pub fn with_named_implementation(mut self, declaration: symbols::SymbolHandle) -> Self {
+        self.named_implementation = declaration;
+        self
     }
 
     fn retains_provider_authority(&self) -> bool {
@@ -472,7 +488,9 @@ pub fn validate_selected_provider_bodies(
         let [provider] = providers.as_slice() else {
             return Err("selected build-time provider machine is not unique".into());
         };
-        if let BuildTimeProviderAuthority::Settled { provider_type, .. } = &row.provider {
+        if let BuildTimeProviderAuthority::Settled { provider_type, .. } = &row.provider
+            && !row.named_implementation.is_valid()
+        {
             if provider.attached_data.as_ref().map(|owner| owner.as_str())
                 != Some(provider_type.as_str())
                 || program.attached_data_path(provider).as_deref() != Some(provider_type.as_str())
@@ -519,6 +537,10 @@ pub fn validate_selected_provider_bodies(
             // Ordinary private checking owns its complete
             // conformance, contracts and operational ceiling, including named
             // maps which have no nominal attached-data subject.
+            continue;
+        }
+        if row.named_implementation.is_valid() {
+            validate_named_requirement_body(program, row, provider)?;
             continue;
         }
         let mut requirements = program
@@ -832,6 +854,112 @@ pub fn validate_selected_operators(
                     .into(),
             );
         }
+    }
+    Ok(())
+}
+
+/// Rejoin a selected map's real source row and any already-produced closed
+/// realization. Ordinary private checking still owns conformance, contracts,
+/// effects and invocation consent; this inspection neither chooses a provider
+/// nor reconstructs a missing tuple from the implementation signature.
+fn validate_named_requirement_body(
+    program: &TypedTrees,
+    row: &SelectedBuildTimeProviderBody,
+    provider: &typed_trees::machine::Machine,
+) -> Result<(), String> {
+    let implementation = program
+        .conformance_by_symbol(row.named_implementation)
+        .ok_or_else(|| {
+            "selected constant body lost its original named implementation".to_owned()
+        })?;
+    let call = program
+        .expression_table
+        .call_node(row.expression)
+        .ok_or_else(|| "selected constant requirement lost its original call".to_owned())?;
+    let public = program
+        .selected_public_trait_requirement_signature(
+            row.requirement,
+            call.authored_machine_application,
+        )
+        .ok_or_else(|| {
+            "selected constant body lost its full public requirement application".to_owned()
+        })?;
+    let interface = if public.selected_interface.is_valid() {
+        public.selected_interface
+    } else {
+        public.owner.symbol
+    };
+    let scope =
+        typed_trees::trait_definition::AppliedTraitScope::from_conformance(program, implementation)
+            .and_then(|scope| scope.declaring_scope(program, interface))
+            .ok_or_else(|| {
+                "selected constant map lost its original declaring receiver scope".to_owned()
+            })?;
+    if !public.owner.is_boundary
+        || !program.requirement_call_application_matches_scope(
+            public.signature.symbol,
+            call.authored_machine_application,
+            &scope,
+        )
+    {
+        return Err(
+            "selected constant map differs from its complete public requirement application".into(),
+        );
+    }
+    let mut source_rows = implementation.rows.iter().filter(|source| {
+        source.requirement == public.declaration.symbol
+            && source.declaring_trait == public.owner.symbol
+    });
+    let source = source_rows
+        .next()
+        .ok_or_else(|| "selected constant map has no original requirement row".to_owned())?;
+    if source_rows.next().is_some() {
+        return Err("selected constant map has multiple original requirement rows".into());
+    }
+    let direct = source.realization_machine == provider.symbol
+        && source.realization_state == row.provider_state
+        && public.signature.symbol == public.declaration.symbol;
+    let closed = program
+        .instantiated_requirement_realizations
+        .iter()
+        .filter(|(_, instance)| {
+            instance.named_conformance.is_valid()
+                && program.conformances.get(instance.named_conformance).symbol
+                    == implementation.symbol
+                && instance.requirement_template == public.declaration.symbol
+                && instance.requirement_instance == public.signature.symbol
+                && instance.provider_template == source.realization_machine
+                && instance.provider_instance == provider.symbol
+                && instance.realization_state == source.realization_state
+        })
+        .count()
+        == 1;
+    if !direct && !closed {
+        return Err("selected constant body lost its exact named source realization".into());
+    }
+    let required = program.state_signature_parameters(public.contract);
+    let entry = program
+        .machine_states(provider)
+        .first()
+        .ok_or_else(|| "selected constant body has no executable entry".to_owned())?;
+    let supplied = program.state_parameters(entry);
+    // The exact map/instance relation is checked with the ordinary program
+    // below, including universal lifetime correspondence and passing modes.
+    // Comparing fresh declaration-region names here would reject a valid
+    // family; carrier similarity could not establish that relation either.
+    if required.len() != row.operands.len() || supplied.len() != required.len() {
+        return Err("selected constant body differs from its public argument geometry".into());
+    }
+    if program
+        .signature_contracts
+        .span_or_empty(public.contract.contracts)
+        .iter()
+        .any(|contract| contract.is_crashes())
+    {
+        return Err(
+            "selected constant requirement crash invocations have no build-time execution support"
+                .into(),
+        );
     }
     Ok(())
 }
