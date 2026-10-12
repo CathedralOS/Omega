@@ -1738,6 +1738,11 @@ defines the complete product bar.
   (complete mutual cycles preserve reordered endpoints and computed copies;
   restoring scalar bounds after a subject reset supplies no descent, and
   an unconstrained zero stride still refuses strict decrease),
+  `pass/termination/{runtime_public_result_field_rank_arrivals_exit,rank_arrival_fresh_nested_owner}`
+  and the paired missing-result-equation, wrong-subject and opaque-completion
+  `fail/termination/rank_arrival_*` controls (data predicates keep field bounds
+  through result equations and fresh guarded reception; bounds alone neither
+  identify the previous rank nor grant descent),
   `pass/termination/rank_range_{declared_step_copies,call_declared_step_copy}`.
 
   The 16 recursive filesystem parameter suffixes remain unmigrated. Their

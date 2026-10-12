@@ -180,6 +180,23 @@ between fields and no permission to decrease the wrong coordinate; the invalid
 sibling retains its original refusal. The rank range expressions remain
 unchanged. They neither constrain storage identity nor make an endpoint static.
 
+## Audited result-field and fresh-owner rank arrivals
+
+The [result-field witness inventory](../../../tests/omega/pass/termination/runtime_public_result_field_rank_arrivals_exit/README.md#historical-declaration-inventory)
+reconciles eight `Countdown.remaining: u64 [0..=5]` declarations: three at
+`fba85426683` and five at `bd68c42a6ef`. Each record retains data
+`where remaining <= 5`, its plain field and unsigned zero floor. No result
+suffix or interval-only domain is introduced. The original measures,
+recurrent calls, record constructors and identity guarantees stay unchanged.
+
+The exact result-field equation still carries the countdown through ordinary
+calls and state arrivals. The fresh-owner walk now executes its original five
+input and returns zero through the guarded replacement and nested recurrent
+carrier. Both engines observe the authored results. Field predicates provide
+bounds, not the selected subject's identity or evidence of strict decrease:
+the six missing-equation, wrong-subject and opaque-completion controls retain
+their original refusals.
+
 ## Audited mutual call and computed-copy arrivals
 
 Eleven scalar suffixes retain ordinary arrival propositions and unsigned zero
