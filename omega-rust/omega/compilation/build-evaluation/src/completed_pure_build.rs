@@ -14,6 +14,7 @@ use std::sync::{Arc, Mutex};
 #[derive(Clone)]
 pub(crate) struct CompletedPureBuildInputs {
     checked: build_time_evaluation::CheckedBuildProgram,
+    original_source_input: Arc<psi_compiler::OriginalCheckedSourceInput>,
     measurement_identity: evaluation_accounting::EvaluationMeasurementIdentity,
     selected_root: package_compilation::SelectedBuildRootDeclaration,
     selected_entry: symbols::SymbolHandle,
@@ -44,6 +45,7 @@ impl CompletedPureBuildInputs {
     /// completed carrier prevents an admitted-but-unexecuted value from reuse.
     pub(crate) fn from_admitted(
         checked: build_time_evaluation::CheckedBuildProgram,
+        original_source_input: Arc<psi_compiler::OriginalCheckedSourceInput>,
         selected_root: package_compilation::SelectedBuildRootDeclaration,
         initial_build: build_time_evaluation::BuildTimeValue,
         packages: &package_compilation::PackageCompilationInputs,
@@ -66,6 +68,7 @@ impl CompletedPureBuildInputs {
         let activation = scope.activation();
         Some(Self {
             checked,
+            original_source_input,
             measurement_identity,
             selected_root,
             selected_entry,
@@ -95,6 +98,14 @@ impl CompletedPureBuildInputs {
     fn matches(&self, other: &Self) -> bool {
         self.selected_root == other.selected_root
             && self.checked == other.checked
+            // CheckRequest allocates a fresh wrapper even when it reuses the
+            // checked body. Preserve the existing no-observation reuse route;
+            // observed source inputs need this actual owner, not equal values.
+            && (Arc::ptr_eq(&self.original_source_input, &other.original_source_input)
+                || self.original_source_input.executed_constant_inputs().is_empty()
+                    && other.original_source_input.executed_constant_inputs().is_empty()
+                    && self.original_source_input.source_constants().is_empty()
+                    && other.original_source_input.source_constants().is_empty())
             && self.measurement_identity == other.measurement_identity
             && self.selected_entry == other.selected_entry
             && same_initial_value(&self.initial_build, &other.initial_build)

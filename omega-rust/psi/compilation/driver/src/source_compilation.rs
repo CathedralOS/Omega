@@ -6,7 +6,9 @@
 //! package custody and source acquisition remain with their respective owners.
 //! Successful early constant executions leave this owner beside pending work:
 //! a folded literal cannot reconstruct the checked closure which produced it.
-//! Build projections and other value-only routes remain outside this roster.
+//! Build projection observations remain with their authentic Build source
+//! judgment; Product observations never relabel that earlier checked owner.
+//! Other value-only routes remain outside the observed roster.
 
 use crate::{PsiCompilationObserver, PsiCompilationStage};
 use build_time_evaluation::{BuildTimeSelectionAuthority, PreCheckEvaluation};
@@ -28,6 +30,7 @@ pub struct SourceContinuation {
     typing: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
     pending_bodies: syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
     pending_pre_checks: Vec<PreCheckEvaluation>,
+    build_constant_inputs: Vec<build_time_evaluation::ExecutedCheckedConstantInput>,
 }
 
 /// The mutable inputs an independently admitted Build evaluator consumes.
@@ -35,6 +38,7 @@ pub struct SourceContinuation {
 pub struct BuildSourceInput<'source> {
     typed: &'source mut typed_trees::TypedTrees,
     pre_checks: &'source mut Vec<PreCheckEvaluation>,
+    constant_inputs: &'source mut Vec<build_time_evaluation::ExecutedCheckedConstantInput>,
     identity: BuildSourceInputIdentity,
 }
 
@@ -62,6 +66,7 @@ impl std::fmt::Debug for BuildSourceInputIdentity {
 pub struct BuildSourceProjection {
     pub(crate) projection: validation::execution_projection::BuildProgramProjection,
     pub(crate) identity: BuildSourceInputIdentity,
+    pub(crate) constant_inputs: Arc<[build_time_evaluation::ExecutedCheckedConstantInput]>,
 }
 impl BuildSourceProjection {
     pub fn program(&self) -> &typed_trees::TypedTrees {
@@ -78,8 +83,14 @@ impl BuildSourceInput<'_> {
     /// Existing trusted Build preparation mutates this continuation in place.
     /// This capability does not attest immutable pre-settlement body bytes;
     /// only the final ordinary check publishes the immutable checked owner.
-    pub fn parts_mut(&mut self) -> (&mut typed_trees::TypedTrees, &mut Vec<PreCheckEvaluation>) {
-        (self.typed, self.pre_checks)
+    pub fn parts_mut(
+        &mut self,
+    ) -> (
+        &mut typed_trees::TypedTrees,
+        &mut Vec<PreCheckEvaluation>,
+        &mut Vec<build_time_evaluation::ExecutedCheckedConstantInput>,
+    ) {
+        (self.typed, self.pre_checks, self.constant_inputs)
     }
     pub fn project(
         &self,
@@ -88,6 +99,7 @@ impl BuildSourceInput<'_> {
         Ok(BuildSourceProjection {
             projection: validation::execution_projection::project_build_program(self.typed, entry)?,
             identity: self.identity.clone(),
+            constant_inputs: Arc::from(self.constant_inputs.as_slice()),
         })
     }
 }
@@ -180,6 +192,7 @@ impl SourceCompilationRequest {
             typing,
             pending_bodies,
             pending_pre_checks: vec![pre_check],
+            build_constant_inputs: Vec::new(),
         })
     }
 }
@@ -191,6 +204,7 @@ impl SourceContinuation {
     pub fn same_completion_input(&self, other: &Self) -> bool {
         self.typing == other.typing
             && self.pending_bodies == other.pending_bodies
+            && self.build_constant_inputs == other.build_constant_inputs
             && self.pending_pre_checks.len() == other.pending_pre_checks.len()
             && self
                 .pending_pre_checks
@@ -208,6 +222,7 @@ impl SourceContinuation {
         BuildSourceInput {
             typed: self.typing.typed_mut(),
             pre_checks: &mut self.pending_pre_checks,
+            constant_inputs: &mut self.build_constant_inputs,
             identity: BuildSourceInputIdentity(Arc::new(BuildSourceInputOwner { _private: 0 })),
         }
     }
@@ -221,6 +236,9 @@ impl SourceContinuation {
             mut typing,
             mut pending_bodies,
             pending_pre_checks,
+            // The completed Build retains its own original input and root.
+            // Product observations cannot relabel that checked source owner.
+            build_constant_inputs: _,
         } = self;
         loop {
             // Build may append concrete declarations. Join their exact suffix
