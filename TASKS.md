@@ -2565,13 +2565,20 @@ crash and native exit behavior.
     `expression_preparation/bindings/` and
     `scalar_lowering/computations/fields.rs`. Reuse the shared source-place
     and view-narrowing operations; do not add local-specific call or range routes.
-  - State: demonstrated on macOS arm64 (e7-m2, e2e-seven-20261012/m2 candidate
-    on 44e66b7d2f, unlanded): the
+  - State: landed on main through `72c941fdb7` and demonstrated on macOS arm64
+    (e7-m2): the
     [cohort fixture](tests/omega/pass/borrows/runtime_selected_shared_reference_cohort_exit/README.md)
     and [selected helper fixture](tests/omega/pass/borrows/runtime_selected_reference_record_helper_exit/README.md)
-    hold 0 under native execution and Terminal checking after ordinary package
-    review, and the live-copy write plus only-one-arm transfer controls reject
-    on their authored diagnostics. Call-result loans now cover each exclusive
+    hold 0 under native execution and Terminal checking, and the live-copy
+    write plus only-one-arm transfer controls reject on their authored
+    diagnostics. The helper's `verify_refill_after_selection` had been
+    rejected on the landed base (`argument referent requires a reference
+    carrier`) — an earlier claim of 0 was stale candidate evidence;
+    `prepare_structural_argument_projection` now consumes the plan's own
+    leading `Referent` instead of replaying the published-carrier hop a
+    second time, so a shared borrow of a referent-rooted local (`chosen.target`)
+    lowers to its `&Cell` descriptor exactly once.
+    Call-result loans now cover each exclusive
     operand's and the receiver's local root through
     `checks/borrows/place_access.rs`; `lent` keeps the selected leaf for
     result-origin identity, so shared `&` operands never acquire receiver
@@ -2586,9 +2593,10 @@ crash and native exit behavior.
     element-spelling view lets on receiver fields lower natively
     (`runtime_boundary_receiver_disjoint_loan_exit` holds 70).
     Every named control
-    below holds its authored exit natively and
-    `samples/cli/systems/descriptor_walk` returns 50 in both engines after
-    `omega update` local review.
+    below holds its authored exit natively; the public
+    `samples/cli/systems/descriptor_walk` 50/50 result remains UNQUALIFIED
+    pending an authority review (its capability rows were mechanically
+    accepted, which the audit disallowed).
     The current-occurrence refill and leaf-only retirement controls
     (whole-local refill installs a new carrier without reviving the consumed
     one; consumed-source RHS, partial-child refill and early-new-backing
