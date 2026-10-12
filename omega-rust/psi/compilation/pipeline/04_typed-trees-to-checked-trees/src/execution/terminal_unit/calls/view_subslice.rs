@@ -262,8 +262,15 @@ fn lends_collection(
         return false;
     }
     // The loan names the ranged place itself: the backing followed by the
-    // range's own index segment, spelled by the same canonicalization.
-    let Some(place) = validation::canonical_place_from_expression(program, expression) else {
+    // range's own index segment, spelled by the same canonicalization that
+    // produced it — a whole-collection window keeps its backing spelling
+    // rather than a redundant full-extent selector.
+    let Some(place) = validation::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        statement_index,
+        expression,
+    ) else {
         return false;
     };
 
