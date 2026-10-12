@@ -225,11 +225,10 @@ fn recorded_path(checked: &CheckedTrees, segments: &[facts::PlaceSegment]) -> Op
 }
 
 use super::{LoweringError, StateGraphEmission};
-use semantic_vocabulary::{BlockId, PlaceId, ProofTerm, ScalarTerm, ValueId};
+use semantic_vocabulary::{BlockId, ProofTerm, ScalarTerm, StructuralPlaceKind, ValueId};
 use terminal_psi::{
     Block, StructuralArgument, StructuralParameterDeclaration, StructuralPlaceDeclaration,
-    StructuralPlaceKind, TerminalAffineCleanupAction, TerminalNaturalRankComparison, Terminator,
-    ValueDeclaration,
+    TerminalAffineCleanupAction, TerminalNaturalRankComparison, Terminator, ValueDeclaration,
 };
 
 #[derive(Clone)]
