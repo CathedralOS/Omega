@@ -63,32 +63,31 @@ fn lower_type_reference_with_const_arguments(
             normalization,
         )?;
         crate::constant::validate_normalized_expression(syntax_trees, normalization)?;
-        if !lowerer
-            .derived_const_argument_expressions
-            .contains(&normalization.authored_expression)
+        // A derived argument avoids another authored public occurrence, but
+        // still lowers its original operand to retain arithmetic meaning.
+        // That emitted graph needs the operator associations from this exact
+        // validated normalization just as the original application does.
+        let expressions = syntax_trees
+            .type_references
+            .const_argument_operator_expressions(normalization.operator_expressions);
+        let spans = syntax_trees
+            .type_references
+            .const_argument_builtin_operators(normalization.builtin_operators);
+        if !expressions.is_empty()
+            && (expressions.len() != spans.len()
+                || expressions.iter().zip(spans).any(|(expression, span)| {
+                    !syntax_trees.expressions.contains_expression(*expression)
+                        || syntax_trees.expressions.source_span(*expression) != *span
+                }))
         {
-            let expressions = syntax_trees
-                .type_references
-                .const_argument_operator_expressions(normalization.operator_expressions);
-            let spans = syntax_trees
-                .type_references
-                .const_argument_builtin_operators(normalization.builtin_operators);
-            if !expressions.is_empty()
-                && (expressions.len() != spans.len()
-                    || expressions.iter().zip(spans).any(|(expression, span)| {
-                        !syntax_trees.expressions.contains_expression(*expression)
-                            || syntax_trees.expressions.source_span(*expression) != *span
-                    }))
-            {
-                return Err(Diagnostic::error(
-                    "normalized operator lost its exact original expression",
-                )
-                .with_source_span(normalization.reference));
-            }
-            lowerer
-                .lowering_const_operator_expressions
-                .extend_from_slice(expressions);
+            return Err(Diagnostic::error(
+                "normalized operator lost its exact original expression",
+            )
+            .with_source_span(normalization.reference));
         }
+        lowerer
+            .lowering_const_operator_expressions
+            .extend_from_slice(expressions);
         lowerer.lowering_const_match_selections.extend_from_slice(
             syntax_trees
                 .type_references
