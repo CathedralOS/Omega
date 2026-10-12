@@ -4277,7 +4277,7 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   static `result == Count`, nested borrowed Binding supplier and inherited
   Calling controls through the ordinary application/header route.
   **Design blocked:** only the anonymous nominal owner's discovery/default-source
-  phase awaits the [Build discovery entry decision](OWNER_QUESTIONS.md#q9---how-does-a-build-select-its-core-only-discovery-entry).
+  phase awaits the [Build discovery entry decision](OWNER_QUESTIONS.md#q8---how-does-a-build-select-its-core-only-discovery-entry).
   Other source-dependency, occurrence, consent and runtime joins remain
   implementation work.
 
