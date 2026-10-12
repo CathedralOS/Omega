@@ -925,7 +925,8 @@ fn origin_machine_symbol(origin: CheckedValueOrigin) -> Option<SymbolHandle> {
         CheckedValueOrigin::MachineDecrease { machine_symbol, .. }
         | CheckedValueOrigin::MachineOwnedDataInitializer { machine_symbol, .. }
         | CheckedValueOrigin::StateStatement { machine_symbol, .. } => Some(machine_symbol),
-        CheckedValueOrigin::NestedExpression { .. } => None,
+        CheckedValueOrigin::TypeConstantArgument { .. }
+        | CheckedValueOrigin::NestedExpression { .. } => None,
     }
 }
 
