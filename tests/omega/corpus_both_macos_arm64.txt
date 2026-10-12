@@ -657,11 +657,15 @@ pass/termination/runtime_saved_rank_cycle_exit built 1885ms exit:0 interpreter-e
 pass/termination/runtime_selected_requirement_rank_composed_prefix_exit built 3472ms exit:0 interpreter-exit:0 interpreter:agrees @cac1400fd2e4
 pass/termination/runtime_selected_requirement_rank_prefix_exit built 3571ms exit:0 interpreter-exit:0 interpreter:agrees @05ef1dca14f6
 pass/text/declared_record_view_field_fill_exit built 2399ms exit:70 interpreter-exit:70 interpreter:agrees @f76d8aa42d2a
+pass/text/local_record_byte_field_copy_exit built 5687ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @4ebb8b7f818f+wt
 pass/text/nested_mutable_receiver_byte_result_exit built 1409ms exit:70 interpreter-exit:70 interpreter:agrees @006fa124be2c
 pass/text/qualified_byte_state_snapshot_exit built 1726ms exit:70 interpreter-exit:70 interpreter:agrees @a0c004371ad8+wt
 pass/text/qualified_byte_value_forwarding_exit built 1779ms exit:70 interpreter-exit:70 interpreter:agrees @d633d9554974+wt
+pass/text/runtime_bounded_carrier_copy_exit built 5768ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @4ebb8b7f818f+wt
+pass/text/runtime_byte_field_dynamic_view_exit built 4539ms exit:0 interpreter-exit:0 interpreter:agrees @4ebb8b7f818f+wt
 pass/text/runtime_number_to_decimal_exit built 2784ms exit:70 interpreter-exit:70 interpreter:agrees @cba4ef8c9ab1
 pass/text/runtime_slice_indexed_string_guard_exit built 2006ms exit:70 interpreter-exit:70 interpreter:agrees @1152c1496b39
+pass/text/runtime_string_concat_two_fields_exit built 5718ms exit:70 interpreter-exit:70 interpreter:agrees @4ebb8b7f818f+wt
 pass/text/runtime_view_local_boundary_write_exit built 2772ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @f76d8aa42d2a
 pass/text/runtime_view_local_call_argument_exit built 2582ms exit:70 interpreter-exit:70 interpreter:agrees @f76d8aa42d2a
 pass/text/runtime_view_local_call_initialized_exit built 2313ms exit:70 interpreter-exit:70 interpreter:agrees @f76d8aa42d2a

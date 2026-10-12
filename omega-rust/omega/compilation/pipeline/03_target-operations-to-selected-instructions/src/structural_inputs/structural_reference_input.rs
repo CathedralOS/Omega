@@ -987,10 +987,8 @@ pub(crate) fn collection_view_region_geometry(
         shape if shape.is_borrowed_byte_carrier() => None,
         _ => return None,
     };
-    let (tip, offset, elements) =
-        runtime_projection(source.structural_type, field_path, declarations).or_else(|| {
-            runtime_leaf_copy_projection(source.structural_type, field_path, declarations)
-        })?;
+    let (collection_shape, offset, elements) =
+        collection_projection(source.structural_type, field_path, declarations)?;
     let element = view_element.or_else(|| {
         declarations.iter().find_map(|declaration| {
             (declaration.scalar_restriction.is_none()
@@ -1000,19 +998,31 @@ pub(crate) fn collection_view_region_geometry(
                 semantic_vocabulary::IntegerSign::Unsigned, 8)))
             .then_some(declaration.id)
             .filter(|element| {
-                terminal_semantics::collection_backing(declarations.iter(), tip, *element).is_some()
+                terminal_semantics::element_view_shape_region_geometry(
+                    declarations.iter(),
+                    &collection_shape,
+                    *element,
+                    region,
+                    argument.access,
+                )
+                .is_some()
             })
         })
     })?;
-    let geometry = terminal_semantics::element_view_region_geometry(
+    let geometry = terminal_semantics::element_view_shape_region_geometry(
         declarations.iter(),
-        tip,
+        &collection_shape,
         element,
         region,
         argument.access,
     )?;
     if region == terminal_psi::ElementViewRegion::WholeCollection
-        && !typed_collection_layout_matches(tip, element, argument.access, declarations)
+        && !typed_collection_layout_matches(
+            &collection_shape,
+            element,
+            argument.access,
+            declarations,
+        )
     {
         return None;
     }
@@ -1025,10 +1035,7 @@ pub(crate) fn collection_view_region_geometry(
             if byte_window.is_some() {
                 return None;
             }
-            let storage = if matches!(
-                find_structural_type(declarations, tip)?.shape,
-                StructuralTypeShape::ByteSequence(_)
-            ) {
+            let storage = if matches!(&*collection_shape, StructuralTypeShape::ByteSequence(_)) {
                 terminal_semantics::CollectionStorage::Borrowed
             } else {
                 terminal_semantics::CollectionStorage::Inline
@@ -1839,19 +1846,67 @@ impl From<&StructuralPathSegment> for Projection {
     }
 }
 
-fn project_inner<'a>(
+/// Select a collection occurrence for production or independent layout audit.
+/// Inline byte fields contribute their carrier directly; a catalog declaration
+/// with equal geometry is neither necessary nor an identity for that field.
+pub(crate) fn collection_projection<'types>(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &'types [StructuralTypeDeclaration],
+) -> Option<(
+    std::borrow::Cow<'types, StructuralTypeShape>,
+    u32,
+    Vec<RuntimeElement>,
+)> {
+    let (storage, offset, elements) =
+        project_storage(root, path.iter().map(Projection::from), declarations)?;
+    let shape = match &*storage {
+        StructuralFieldType::Structural(identity) => {
+            std::borrow::Cow::Borrowed(&find_structural_type(declarations, *identity)?.shape)
+        }
+        field => std::borrow::Cow::Owned(StructuralTypeShape::ByteSequence(
+            field.byte_sequence_carrier()?,
+        )),
+    };
+    Some((shape, offset, elements))
+}
+
+fn project_inner(
     root: StructuralTypeId,
     path: impl Iterator<Item = Projection>,
     declarations: &[StructuralTypeDeclaration],
     leaf_type: fn(&StructuralFieldType) -> Option<StructuralFieldType>,
 ) -> Option<(StructuralTypeId, u32, Vec<RuntimeElement>)> {
-    let mut carrier = root;
+    let (storage, offset, elements) = project_storage(root, path, declarations)?;
+    let identity = match &*storage {
+        StructuralFieldType::Structural(identity) => *identity,
+        field => leaf_type(field)?.leaf_declaration(declarations.iter())?.id,
+    };
+    Some((identity, offset, elements))
+}
+
+/// Walk physical storage without inventing a declaration for an inline leaf.
+/// A qualified owner and an unqualified temporary may share capacity; neither
+/// identity substitutes for the selected field when forming its view.
+fn project_storage<'types>(
+    root: StructuralTypeId,
+    path: impl Iterator<Item = Projection>,
+    declarations: &'types [StructuralTypeDeclaration],
+) -> Option<(
+    std::borrow::Cow<'types, StructuralFieldType>,
+    u32,
+    Vec<RuntimeElement>,
+)> {
+    use std::borrow::Cow;
+    let mut storage: Cow<'_, StructuralFieldType> =
+        Cow::Owned(StructuralFieldType::Structural(root));
     let mut offset = 0_u32;
     let mut elements = Vec::new();
     let mut repeated_stride = None;
     shape(root, declarations)?;
     let mut path = path;
     while let Some(segment) = path.next() {
+        let carrier = storage.as_structural()?;
         let declaration = find_structural_type(declarations, carrier)?;
         match (segment, &declaration.shape) {
             (
@@ -1864,9 +1919,6 @@ fn project_inner<'a>(
                 };
                 let (field_position, field) =
                     terminal_psi::live_field_entry(&cases[case_position].fields, identity)?;
-                let Some(selected) = field.field_type.as_structural() else {
-                    return None;
-                };
                 let layout = case_layout(carrier, declarations)?;
                 offset = offset.checked_add(
                     layout
@@ -1876,7 +1928,7 @@ fn project_inner<'a>(
                         .get(field_position)?
                         .byte_offset,
                 )?;
-                carrier = selected;
+                storage = Cow::Borrowed(&field.field_type);
                 repeated_stride = field
                     .storage
                     .as_ref()
@@ -1912,19 +1964,15 @@ fn project_inner<'a>(
                     }),
                     _ => return None,
                 }
-                carrier = element;
+                storage = Cow::Owned(StructuralFieldType::Structural(element));
             }
             (Projection::FieldName(name), StructuralTypeShape::Mixed { fields, .. }) => {
                 let (position, field) = terminal_psi::live_field_entry(fields, name)?;
-                let nested = match &field.field_type {
-                    StructuralFieldType::Structural(nested) => *nested,
-                    leaf => leaf_type(leaf)?.leaf_declaration(declarations.iter())?.id,
-                };
                 let field_offset = case_layout(carrier, declarations)?
                     .common_fields
                     .get(position)?
                     .byte_offset;
-                carrier = nested;
+                storage = Cow::Borrowed(&field.field_type);
                 offset = offset.checked_add(field_offset)?;
                 repeated_stride = field
                     .storage
@@ -1944,12 +1992,8 @@ fn project_inner<'a>(
                     let layout = field_storage_shape(field, declarations)?;
                     field_offset = field_storage_offset(field, field_offset, layout.alignment)?;
                     if field.identity == name {
-                        let nested = match &field.field_type {
-                            StructuralFieldType::Structural(nested) => *nested,
-                            leaf => leaf_type(leaf)?.leaf_declaration(declarations.iter())?.id,
-                        };
                         found = Some((
-                            nested,
+                            &field.field_type,
                             field_offset,
                             field.storage.as_ref().and_then(
                                 semantic_vocabulary::AuthoredFieldStorage::element_stride,
@@ -1960,14 +2004,14 @@ fn project_inner<'a>(
                     field_offset = field_offset.checked_add(layout.byte_size)?;
                 }
                 let (nested, field_offset, stride) = found?;
-                carrier = nested;
+                storage = Cow::Borrowed(nested);
                 offset = offset.checked_add(field_offset)?;
                 repeated_stride = stride;
             }
             _ => return None,
         }
     }
-    Some((carrier, offset, elements))
+    Some((storage, offset, elements))
 }
 
 /// Resolve a projection that may traverse `RuntimeIndex` segments at any
@@ -2004,21 +2048,6 @@ pub(crate) fn runtime_borrowed_projection(
         runtime_projection_with_leaf_type(root, path, declarations, borrowed_leaf_type(access))
     })?;
     Some((geometry.selected, geometry.byte_offset, geometry.elements))
-}
-
-/// Copy snapshots expose the declaration's byte payload and live length, not
-/// permission to use a byte field as an ordinary borrowed call operand.
-pub(crate) fn runtime_leaf_copy_projection(
-    root: StructuralTypeId,
-    path: &[StructuralPathSegment],
-    declarations: &[StructuralTypeDeclaration],
-) -> Option<(StructuralTypeId, u32, Vec<RuntimeElement>)> {
-    runtime_projection_with_leaf_type(
-        root,
-        path,
-        declarations,
-        StructuralFieldType::leaf_copy_type,
-    )
 }
 
 fn runtime_projection_with_leaf_type(
@@ -2695,14 +2724,14 @@ pub(crate) fn byte_view_field_descriptor(
 /// grants no target layout authority: replay each realized leaf and padded
 /// size independently before transporting the original backing pointer.
 pub(crate) fn typed_collection_layout_matches(
-    collection: StructuralTypeId,
+    collection: &StructuralTypeShape,
     target: StructuralTypeId,
     access: terminal_psi::StructuralAccess,
     declarations: &[StructuralTypeDeclaration],
 ) -> bool {
-    let Some(StructuralTypeShape::FixedArray {
+    let StructuralTypeShape::FixedArray {
         element: source, ..
-    }) = find_structural_type(declarations, collection).map(|row| &row.shape)
+    } = collection
     else {
         return true;
     };

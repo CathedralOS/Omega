@@ -722,7 +722,7 @@ pub(super) fn resolve_structural_field_path(
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
 ) -> Result<(StructuralTypeId, ValueShape, u32), LoweringError> {
-    field_path(
+    projection_path(
         structural_type,
         path,
         declarations,
@@ -730,127 +730,84 @@ pub(super) fn resolve_structural_field_path(
         active,
         StructuralFieldType::canonical_leaf_type,
     )
-    .map(|(selected, shape, offset, _)| (selected, shape, offset))
 }
 
-fn field_path(
-    mut structural_type: StructuralTypeId,
-    path: &[StructuralPathSegment],
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+fn field_geometry<'types>(
+    structural_type: StructuralTypeId,
+    segment: &StructuralPathSegment,
+    declarations: &BTreeMap<StructuralTypeId, &'types StructuralTypeDeclaration>,
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
-    leaf_type: fn(&StructuralFieldType) -> Option<StructuralFieldType>,
-) -> Result<(StructuralTypeId, ValueShape, u32, Option<u64>), LoweringError> {
+) -> Result<(&'types StructuralFieldType, ValueShape, u32, Option<u64>), LoweringError> {
     let root_type = structural_type;
-    let mut total_offset = 0_u32;
-    let mut selected_shape = None;
-    let mut repeated_stride = None;
-    for segment in path {
-        let StructuralPathSegment::Field(identity) = segment else {
-            return Err(LoweringError::UnknownStructuralType(structural_type));
-        };
-        let declaration = declarations
-            .get(&structural_type)
-            .copied()
-            .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
-        let Some(fields) = declaration.shape.direct_fields() else {
-            return Err(LoweringError::UnknownStructuralType(structural_type));
-        };
-        // Mixed common members share Field identity with record members but
-        // sit after the tag. Use their actual conventional-sum placements,
-        // never a record-relative accumulation that would read tag bytes.
-        let common_layout = if matches!(declaration.shape, StructuralTypeShape::Mixed { .. }) {
-            Some(structural_sum_layout(
-                structural_type,
-                declarations,
-                cache,
-                active,
-            )?)
-        } else {
-            None
-        };
-        let mut local_offset = 0_u32;
-        let mut selected = None;
-        for (field_position, field) in fields
-            .iter()
-            .filter(|field| !field.relevance.is_erased())
-            .enumerate()
-        {
-            if matches!(field.field_type, StructuralFieldType::Erased { .. }) {
-                continue;
-            }
-            if field.storage.is_some() && field.identity != *identity {
-                continue;
-            }
-            let field_shape = structural_field_storage_shape(
-                field,
-                structural_type,
-                declarations,
-                cache,
-                active,
-            )?;
-            local_offset = match &common_layout {
-                Some(layout) => {
-                    layout
-                        .common_fields
-                        .get(field_position)
-                        .ok_or(LoweringError::UnknownStructuralType(structural_type))?
-                        .byte_offset
-                }
-                None => {
-                    structural_field_offset(field, local_offset, field_shape.alignment, root_type)?
-                }
-            };
-            if field.identity == *identity {
-                repeated_stride = field
-                    .storage
-                    .as_ref()
-                    .and_then(semantic_vocabulary::AuthoredFieldStorage::element_stride);
-                let field_type = match &field.field_type {
-                    StructuralFieldType::Structural(nested) => *nested,
-                    leaf => {
-                        let contract = leaf_type(leaf);
-                        let field_type = match (contract, leaf.byte_sequence_carrier()) {
-                            (Some(contract), _) => contract
-                                .leaf_declaration(declarations.values().copied())
-                                .map(|declaration| declaration.id),
-                            // A byte-carrier field names its collection by
-                            // the carrier itself; the canonical leaf shape
-                            // cannot spell it.
-                            (None, Some(carrier)) => {
-                                terminal_semantics::byte_carrier_field_declaration(
-                                    declarations.values().copied(),
-                                    carrier,
-                                )
-                                .map(|declaration| declaration.id)
-                            }
-                            (None, None) => None,
-                        };
-                        field_type.ok_or(LoweringError::UnknownStructuralType(structural_type))?
-                    }
-                };
-                selected = Some((field_type, field_shape, local_offset));
-                break;
-            }
-            local_offset = local_offset
-                .checked_add(field_shape.byte_size)
-                .ok_or(LoweringError::StructuralTypeTooLarge(root_type))?;
+    let StructuralPathSegment::Field(identity) = segment else {
+        return Err(LoweringError::UnknownStructuralType(structural_type));
+    };
+    let declaration = declarations
+        .get(&structural_type)
+        .copied()
+        .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
+    let Some(fields) = declaration.shape.direct_fields() else {
+        return Err(LoweringError::UnknownStructuralType(structural_type));
+    };
+    // Mixed common members share Field identity with record members but
+    // sit after the tag. Use their actual conventional-sum placements,
+    // never a record-relative accumulation that would read tag bytes.
+    let common_layout = if matches!(declaration.shape, StructuralTypeShape::Mixed { .. }) {
+        Some(structural_sum_layout(
+            structural_type,
+            declarations,
+            cache,
+            active,
+        )?)
+    } else {
+        None
+    };
+    let mut local_offset = 0_u32;
+    for (field_position, field) in fields
+        .iter()
+        .filter(|field| !field.relevance.is_erased())
+        .enumerate()
+    {
+        if matches!(field.field_type, StructuralFieldType::Erased { .. }) {
+            continue;
         }
-        let (field_type, field_shape, field_offset) =
-            selected.ok_or(LoweringError::UnknownStructuralType(structural_type))?;
-        total_offset = total_offset
-            .checked_add(field_offset)
+        if field.storage.is_some() && field.identity != *identity {
+            continue;
+        }
+        let field_shape =
+            structural_field_storage_shape(field, structural_type, declarations, cache, active)?;
+        local_offset = match &common_layout {
+            Some(layout) => {
+                layout
+                    .common_fields
+                    .get(field_position)
+                    .ok_or(LoweringError::UnknownStructuralType(structural_type))?
+                    .byte_offset
+            }
+            None => structural_field_offset(field, local_offset, field_shape.alignment, root_type)?,
+        };
+        if field.identity == *identity {
+            let repeated_stride = field
+                .storage
+                .as_ref()
+                .and_then(semantic_vocabulary::AuthoredFieldStorage::element_stride);
+            return Ok((
+                &field.field_type,
+                field_shape,
+                local_offset,
+                repeated_stride,
+            ));
+        }
+        local_offset = local_offset
+            .checked_add(field_shape.byte_size)
             .ok_or(LoweringError::StructuralTypeTooLarge(root_type))?;
-        structural_type = field_type;
-        selected_shape = Some(field_shape);
     }
-    selected_shape
-        .map(|shape| (structural_type, shape, total_offset, repeated_stride))
-        .ok_or(LoweringError::UnknownStructuralType(root_type))
+    Err(LoweringError::UnknownStructuralType(root_type))
 }
 
 /// A byte-sequence field is a leaf carrier, not a structural type: the path's
-/// last segment names a record field carrying `ByteSequence` directly. Resolve
+/// last segment names a field carrying `ByteSequence` directly. Resolve
 /// only the field's byte offset and carrier; the storage stays the caller's.
 /// `Ok(None)` means the path does not end in such a field; `Err` means the
 /// prefix itself is malformed.
@@ -861,55 +818,22 @@ fn byte_sequence_field_geometry(
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
 ) -> Result<Option<(u32, terminal_psi::ByteSequenceCarrier)>, LoweringError> {
-    let Some((StructuralPathSegment::Field(identity), prefix)) = path.split_last() else {
+    if !matches!(path.last(), Some(StructuralPathSegment::Field(_))) {
         return Ok(None);
-    };
-    let (parent_type, _, parent_offset) = if prefix.is_empty() {
-        (
-            structural_type,
-            structural_shape(structural_type, declarations, cache, active)?,
-            0,
-        )
-    } else {
-        resolve_structural_projection_path(structural_type, prefix, declarations, cache, active)?
-    };
-    let declaration = declarations
-        .get(&parent_type)
-        .copied()
-        .ok_or(LoweringError::UnknownStructuralType(parent_type))?;
-    let Some(fields) = declaration.shape.record_fields() else {
-        return Ok(None);
-    };
-    let mut local_offset = 0_u32;
-    for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
-        let field_shape =
-            match structural_field_storage_shape(field, parent_type, declarations, cache, active) {
-                // Erased carriers occupy no storage; the shape helper declines them.
-                Ok(shape) => shape,
-                Err(_) if matches!(field.field_type, StructuralFieldType::Erased { .. }) => {
-                    continue;
-                }
-                Err(error) => return Err(error),
-            };
-        local_offset =
-            structural_field_offset(field, local_offset, field_shape.alignment, parent_type)?;
-        if field.identity == *identity {
-            return match field.field_type {
-                StructuralFieldType::ByteSequence(carrier)
-                | StructuralFieldType::PredicateByteSequence { carrier, .. } => Ok(Some((
-                    parent_offset
-                        .checked_add(local_offset)
-                        .ok_or(LoweringError::StructuralTypeTooLarge(parent_type))?,
-                    carrier,
-                ))),
-                _ => Ok(None),
-            };
-        }
-        local_offset = local_offset
-            .checked_add(field_shape.byte_size)
-            .ok_or(LoweringError::StructuralTypeTooLarge(parent_type))?;
     }
-    Ok(None)
+    let (selected, _, offset, indices) =
+        runtime_storage_projection(structural_type, path, declarations, cache, active)?;
+    if !indices.is_empty() {
+        return Err(LoweringError::UnsupportedStructuralReference(
+            structural_type,
+        ));
+    }
+    Ok(match selected {
+        ProjectedStorage::Field(field) => field
+            .byte_sequence_carrier()
+            .map(|carrier| (offset, carrier)),
+        ProjectedStorage::Declaration(_) => None,
+    })
 }
 
 /// Bounded inline byte storage is a field, not a structural type: the path's
@@ -1102,23 +1026,109 @@ fn projection_path(
     Ok((selected, shape, offset))
 }
 
-// One ordered walk keeps an authored array stride across its selecting field.
-// Static and runtime indices consume that same storage occurrence.
 fn storage_projection_path(
-    mut structural_type: StructuralTypeId,
+    structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
     leaf_type: fn(&StructuralFieldType) -> Option<StructuralFieldType>,
 ) -> Result<RuntimeProjection, LoweringError> {
+    let (selected, shape, offset, indices) =
+        runtime_storage_projection(structural_type, path, declarations, cache, active)?;
+    Ok((
+        selected.declaration(structural_type, declarations, leaf_type)?,
+        shape,
+        offset,
+        indices,
+    ))
+}
+
+/// An inline field has its own carrier contract, not a standalone declaration
+/// chosen by layout equality. Geometry consumers keep this occurrence; consumers
+/// requiring a type coordinate explicitly resolve their leaf presentation.
+#[derive(Clone, Copy)]
+pub(super) enum ProjectedStorage<'types> {
+    Declaration(StructuralTypeId),
+    Field(&'types StructuralFieldType),
+}
+
+impl ProjectedStorage<'_> {
+    fn declaration(
+        self,
+        root: StructuralTypeId,
+        declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+        leaf_type: fn(&StructuralFieldType) -> Option<StructuralFieldType>,
+    ) -> Result<StructuralTypeId, LoweringError> {
+        let leaf = match self {
+            Self::Declaration(identity) => return Ok(identity),
+            Self::Field(StructuralFieldType::Structural(identity)) => return Ok(*identity),
+            Self::Field(leaf) => leaf,
+        };
+        let declaration = match (leaf_type(leaf), leaf.byte_sequence_carrier()) {
+            (Some(contract), _) => contract.leaf_declaration(declarations.values().copied()),
+            (None, Some(carrier)) => terminal_semantics::byte_carrier_field_declaration(
+                declarations.values().copied(),
+                carrier,
+            ),
+            (None, None) => None,
+        };
+        declaration
+            .map(|declaration| declaration.id)
+            .ok_or(LoweringError::UnknownStructuralType(root))
+    }
+
+    pub(super) fn shape<'types>(
+        self,
+        declarations: &BTreeMap<StructuralTypeId, &'types StructuralTypeDeclaration>,
+    ) -> Option<std::borrow::Cow<'types, StructuralTypeShape>> {
+        match self {
+            Self::Declaration(identity) => declarations
+                .get(&identity)
+                .map(|row| std::borrow::Cow::Borrowed(&row.shape)),
+            Self::Field(StructuralFieldType::Structural(identity)) => declarations
+                .get(identity)
+                .map(|row| std::borrow::Cow::Borrowed(&row.shape)),
+            Self::Field(field) => field
+                .byte_sequence_carrier()
+                .map(|carrier| std::borrow::Cow::Owned(StructuralTypeShape::ByteSequence(carrier))),
+        }
+    }
+}
+
+type RuntimeStorageProjection<'types> = (
+    ProjectedStorage<'types>,
+    ValueShape,
+    u32,
+    Vec<(semantic_vocabulary::ValueId, u32)>,
+);
+
+// One ordered walk keeps an authored array stride across its selecting field.
+// Static and runtime indices consume that same storage occurrence. Final inline
+// leaves need no global type lookup: equal byte capacities can have distinct
+// qualified identities, and unrelated declarations cannot change field geometry.
+pub(super) fn runtime_storage_projection<'types>(
+    mut structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &BTreeMap<StructuralTypeId, &'types StructuralTypeDeclaration>,
+    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+) -> Result<RuntimeStorageProjection<'types>, LoweringError> {
     let root_type = structural_type;
+    let mut selected_storage = ProjectedStorage::Declaration(structural_type);
     let mut total_offset = 0_u32;
     let mut selected_shape = None;
     let mut indices = Vec::new();
     let mut repeated_stride = None;
     let mut segments = path.iter();
     while let Some(segment) = segments.next() {
+        structural_type = match selected_storage {
+            ProjectedStorage::Declaration(identity) => identity,
+            ProjectedStorage::Field(StructuralFieldType::Structural(identity)) => *identity,
+            ProjectedStorage::Field(_) => {
+                return Err(LoweringError::UnknownStructuralType(root_type));
+            }
+        };
         let (selected_type, shape, local_offset) = match segment {
             StructuralPathSegment::Case(case) => {
                 let invalid = || LoweringError::UnsupportedStructuralSum(structural_type);
@@ -1138,17 +1148,20 @@ fn storage_projection_path(
                 let (field_position, field) =
                     terminal_psi::live_field_entry(&cases[case_position].fields, *identity)
                         .ok_or_else(invalid)?;
-                let Some(selected) = field.field_type.as_structural() else {
-                    return Err(invalid());
-                };
                 repeated_stride = field
                     .storage
                     .as_ref()
                     .and_then(semantic_vocabulary::AuthoredFieldStorage::element_stride);
                 let layout = structural_sum_layout(structural_type, declarations, cache, active)?;
                 (
-                    selected,
-                    structural_shape(selected, declarations, cache, active)?,
+                    ProjectedStorage::Field(&field.field_type),
+                    structural_field_storage_shape(
+                        field,
+                        structural_type,
+                        declarations,
+                        cache,
+                        active,
+                    )?,
                     layout.cases[case_position].fields[field_position].byte_offset,
                 )
             }
@@ -1158,16 +1171,10 @@ fn storage_projection_path(
                 ));
             }
             StructuralPathSegment::Field(_) => {
-                let (selected, shape, offset, stride) = field_path(
-                    structural_type,
-                    std::slice::from_ref(segment),
-                    declarations,
-                    cache,
-                    active,
-                    leaf_type,
-                )?;
+                let (selected, shape, offset, stride) =
+                    field_geometry(structural_type, segment, declarations, cache, active)?;
                 repeated_stride = stride;
-                (selected, shape, offset)
+                (ProjectedStorage::Field(selected), shape, offset)
             }
             StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. } => {
                 let declaration = declarations
@@ -1206,13 +1213,13 @@ fn storage_projection_path(
                     }
                     _ => return Err(LoweringError::UnknownStructuralType(structural_type)),
                 };
-                (element, shape, offset)
+                (ProjectedStorage::Declaration(element), shape, offset)
             }
         };
         total_offset = total_offset
             .checked_add(local_offset)
             .ok_or(LoweringError::StructuralTypeTooLarge(root_type))?;
-        structural_type = selected_type;
+        selected_storage = selected_type;
         selected_shape = Some(shape);
     }
     // The empty path is the identity projection, not a missing declaration.
@@ -1221,7 +1228,7 @@ fn storage_projection_path(
         Some(shape) => shape,
         None => structural_shape(structural_type, declarations, cache, active)?,
     };
-    Ok((structural_type, shape, total_offset, indices))
+    Ok((selected_storage, shape, total_offset, indices))
 }
 
 type RuntimeProjection = (

@@ -445,33 +445,23 @@ impl Checker<'_> {
             }
             _ => (path, None),
         };
-        // Replay both type and byte offset through the shared projection owner;
-        // a field-only spelling check cannot establish either relationship.
-        // An owned byte-carrier field has no canonical leaf spelling: it
-        // resolves through the copy-snapshot channel, which names the
-        // carrier's own declaration for the collection check below.
+        // Replay the selected carrier and offset, not an invented standalone
+        // type for an inline field. Copy presentation does not supply identity.
         let Some((collection, offset, elements)) =
-            crate::structural_inputs::structural_reference_input::runtime_projection(
+            crate::structural_inputs::structural_reference_input::collection_projection(
                 root_structural_type,
                 collection_path,
                 self.types,
             )
-            .or_else(|| {
-                crate::structural_inputs::structural_reference_input::runtime_leaf_copy_projection(
-                    root_structural_type,
-                    collection_path,
-                    self.types,
-                )
-            })
         else {
             return false;
         };
         if !super::unit::runtime_indices_rejoin(indices, &elements, self.available.unwrap_or(&[])) {
             return false;
         }
-        let Some(geometry) = terminal_semantics::element_view_region_geometry(
+        let Some(geometry) = terminal_semantics::element_view_shape_region_geometry(
             self.types.iter(),
-            collection,
+            &collection,
             element,
             region,
             access,
@@ -480,7 +470,7 @@ impl Checker<'_> {
         };
         if region == terminal_psi::ElementViewRegion::WholeCollection
             && !crate::structural_inputs::structural_reference_input::typed_collection_layout_matches(
-                collection, element, access, self.types,
+                &collection, element, access, self.types,
             )
         { return false; }
         let backing =

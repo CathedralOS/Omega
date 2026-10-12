@@ -1030,6 +1030,26 @@ pub(crate) fn resolve_structural_path_type(
     )
 }
 
+/// Collection execution needs the selected carrier, not a catalog alias for an
+/// inline field. Equal-capacity qualified owners remain distinct declarations;
+/// the original root and path continue to identify the live backing.
+pub(crate) fn resolve_structural_path_shape<'types>(
+    structural_types: &crate::program::ProgramDeclarations<'types, StructuralTypeDeclaration>,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Result<std::borrow::Cow<'types, StructuralTypeShape>, TerminalInterpretError> {
+    if let Some(carrier) = inline_structural_field(structural_types, root, path)
+        .and_then(|field| field.field_type.byte_sequence_carrier())
+    {
+        return Ok(std::borrow::Cow::Owned(StructuralTypeShape::ByteSequence(
+            carrier,
+        )));
+    }
+    terminal_semantics::runtime_structural_path_tip(structural_types.values(), root, path)
+        .map(|declaration| std::borrow::Cow::Borrowed(&declaration.shape))
+        .ok_or(TerminalInterpretError::AffineProjectionNotRepresentable)
+}
+
 fn resolve_structural_path_type_with_leaf(
     structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     root: StructuralTypeId,

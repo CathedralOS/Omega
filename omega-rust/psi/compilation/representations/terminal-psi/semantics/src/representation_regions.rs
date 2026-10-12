@@ -67,7 +67,14 @@ pub fn representation_byte_extent<'a>(
     if matches.next().is_some() {
         return None;
     }
-    match &row.shape {
+    representation_shape_byte_extent(types, &row.shape)
+}
+
+fn representation_shape_byte_extent<'a>(
+    types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    shape: &StructuralTypeShape,
+) -> Option<u64> {
+    match shape {
         StructuralTypeShape::FixedArray { element, length } => {
             let mut elements = types.filter(|row| row.id == *element);
             let element = elements.next()?;
@@ -98,14 +105,32 @@ pub fn element_view_region_geometry<'a>(
     region: ElementViewRegion,
     access: terminal_psi::StructuralAccess,
 ) -> Option<ElementViewRegionGeometry> {
+    let mut declarations = types.clone().filter(|row| row.id == collection);
+    let declaration = declarations.next()?;
+    if declarations.next().is_some() {
+        return None;
+    }
+    element_view_shape_region_geometry(types, &declaration.shape, element, region, access)
+}
+
+/// Geometry of an already selected collection occurrence. Inline byte fields
+/// need no invented declaration identity; their carrier determines residence
+/// and extent, while the element declaration and region retain their contracts.
+pub fn element_view_shape_region_geometry<'a>(
+    types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    shape: &StructuralTypeShape,
+    element: StructuralTypeId,
+    region: ElementViewRegion,
+    access: terminal_psi::StructuralAccess,
+) -> Option<ElementViewRegionGeometry> {
     match region {
         ElementViewRegion::WholeCollection => {
-            crate::collection_view_backing(types, collection, element, access)
+            crate::collection_backing::collection_shape_view_backing(types, shape, element, access)
                 .map(ElementViewRegionGeometry::WholeCollection)
         }
         ElementViewRegion::RepresentationBytes { .. } => {
             Some(ElementViewRegionGeometry::RepresentationBytes {
-                byte_extent: representation_byte_extent(types.clone(), collection)?,
+                byte_extent: representation_shape_byte_extent(types.clone(), shape)?,
                 element: representation_element_layout(types, element)?,
             })
         }

@@ -1,0 +1,51 @@
+// Expected exit: 0. Equal-capacity qualified owners and temporary carriers
+// must not change the storage selected when a copied field becomes a view.
+domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
+data Text [copy] { bytes: [u8; 8] in Utf8; }
+data Room [copy] { description: Text; }
+data Main { output: [u8; 8] in Utf8; entries: [Text; 2]; }
+
+machine measure(bytes: &[u8; 8] in Ascii) -> u64 { bytes.len }
+machine measure_text(bytes: &[u8]) -> u64 { bytes.len }
+
+machine measure_room(room: &Room) -> u64 { measure_text(&room.description.bytes) }
+
+machine measure_at(entries: &[Text; 2], index: u64) -> u64
+requires index < 2 {
+    let bytes: &[u8] = &entries[index].bytes;
+    measure_text(bytes)
+}
+
+machine fill(room: &mut Room) {
+    room.description.bytes = "before";
+    room.description.bytes = "é";
+}
+
+machine change(room: &mut Room) {
+    room.description.bytes = "changed";
+}
+
+machine Main::main(main: &mut Main) crashes Trap {
+    let room: Room;
+    fill(&mut room);
+    main.output = room.description.bytes;
+    change(&mut room);
+    let other: [u8; 8] in Ascii = "ok";
+    let count: u64 = measure(&other);
+    let local_count: u64 = measure_room(&room);
+    let local_copy: Text = room.description;
+    let local_copy_count: u64 = measure_text(&local_copy.bytes);
+    let copied_count: u64 = measure_text(&main.output);
+    main.entries[0].bytes = "one";
+    main.entries[1].bytes = "four";
+    let indexed_count: u64 = measure_at(&main.entries, 1);
+    transition main.output == "é" && copied_count == 2
+        && room.description.bytes == "changed" && count == 2
+        && local_count == 7 && local_copy_count == 7 && indexed_count == 4 {
+        true -> passed()
+        false -> failed()
+    }
+    state passed() {}
+    state failed() { crash Trap; }
+}

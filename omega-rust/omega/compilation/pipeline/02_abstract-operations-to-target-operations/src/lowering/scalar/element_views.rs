@@ -2,7 +2,9 @@
 use super::{KnownInteger, KnownScalar};
 use crate::LoweringError;
 use crate::lowering::scalar::expressions::{insert_value, unsigned_u64_endpoint};
-use crate::lowering::structural_layout::{direct_scalar_field_geometry, runtime_projection};
+use crate::lowering::structural_layout::{
+    direct_scalar_field_geometry, runtime_projection, runtime_storage_projection,
+};
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use calling_conventions::ValueShape;
@@ -835,8 +837,8 @@ fn established_source(
         };
     let mut shape_cache = BTreeMap::new();
     let mut active = BTreeSet::new();
-    let (projected_type, projected_shape, source_byte_offset, runtime_elements) =
-        runtime_projection(
+    let (projected_storage, projected_shape, source_byte_offset, runtime_elements) =
+        runtime_storage_projection(
             root_structural_type,
             field_path,
             structural_types,
@@ -848,53 +850,49 @@ fn established_source(
         function,
         &backings.selectors,
     )?;
-    let geometry = terminal_semantics::element_view_region_geometry(
+    let collection_shape = projected_storage
+        .shape(structural_types)
+        .ok_or_else(invalid)?;
+    let geometry = terminal_semantics::element_view_shape_region_geometry(
         structural_types.values().copied(),
-        projected_type,
+        &collection_shape,
         element,
         region,
         source.access,
     )
     .ok_or_else(invalid)?;
-    if region == terminal_psi::ElementViewRegion::WholeCollection {
-        if let Some(StructuralTypeShape::FixedArray {
+    if region == terminal_psi::ElementViewRegion::WholeCollection
+        && let StructuralTypeShape::FixedArray {
             element: original, ..
-        }) = structural_types.get(&projected_type).map(|row| &row.shape)
-        {
-            if *original != element {
-                let relation = terminal_semantics::element_representation_relation(
-                    structural_types.values().copied(),
-                    *original,
-                    element,
-                    source.access,
-                )
-                .ok_or_else(invalid)?;
-                for (identity, layout) in [
-                    (*original, &relation.source_layout),
-                    (element, &relation.target_layout),
-                ] {
-                    let shape = crate::lowering::structural_layout::structural_shape(
-                        identity,
-                        structural_types,
-                        &mut shape_cache,
-                        &mut active,
-                    )?;
-                    if u64::from(shape.byte_size) != layout.size
-                        || u64::from(shape.alignment) != layout.alignment
-                        || layout.leaves.iter().any(|leaf| {
-                            scalar_leaf_offset(
-                                structural_types,
-                                identity,
-                                &leaf.path,
-                                leaf.scalar_type,
-                            )
-                            .map(u64::from)
-                                != Some(leaf.offset)
-                        })
-                    {
-                        return Err(invalid());
-                    }
-                }
+        } = &*collection_shape
+        && *original != element
+    {
+        let relation = terminal_semantics::element_representation_relation(
+            structural_types.values().copied(),
+            *original,
+            element,
+            source.access,
+        )
+        .ok_or_else(invalid)?;
+        for (identity, layout) in [
+            (*original, &relation.source_layout),
+            (element, &relation.target_layout),
+        ] {
+            let shape = crate::lowering::structural_layout::structural_shape(
+                identity,
+                structural_types,
+                &mut shape_cache,
+                &mut active,
+            )?;
+            if u64::from(shape.byte_size) != layout.size
+                || u64::from(shape.alignment) != layout.alignment
+                || layout.leaves.iter().any(|leaf| {
+                    scalar_leaf_offset(structural_types, identity, &leaf.path, leaf.scalar_type)
+                        .map(u64::from)
+                        != Some(leaf.offset)
+                })
+            {
+                return Err(invalid());
             }
         }
     }
@@ -909,10 +907,7 @@ fn established_source(
             if byte_window.is_some() {
                 return Err(invalid());
             }
-            let storage = if matches!(
-                structural_types.get(&projected_type).map(|row| &row.shape),
-                Some(StructuralTypeShape::ByteSequence(_))
-            ) {
+            let storage = if matches!(&*collection_shape, StructuralTypeShape::ByteSequence(_)) {
                 terminal_semantics::CollectionStorage::Borrowed
             } else {
                 terminal_semantics::CollectionStorage::Inline

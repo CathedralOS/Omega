@@ -94,7 +94,15 @@ pub fn collection_backing<'types>(
     let declaration = types
         .clone()
         .find(|declaration| declaration.id == collection)?;
-    match declaration.shape {
+    collection_shape_backing(types, &declaration.shape, element)
+}
+
+fn collection_shape_backing<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    shape: &StructuralTypeShape,
+    element: StructuralTypeId,
+) -> Option<CollectionBacking> {
+    match *shape {
         StructuralTypeShape::FixedArray {
             element: actual,
             length,
@@ -149,18 +157,29 @@ pub fn collection_view_backing<'a>(
     element: StructuralTypeId,
     access: terminal_psi::StructuralAccess,
 ) -> Option<CollectionBacking> {
-    if let Some(backing) = collection_backing(types.clone(), collection, element) {
-        return Some(backing);
-    }
     let mut declarations = types.clone().filter(|row| row.id == collection);
     let declaration = declarations.next()?;
     if declarations.next().is_some() {
         return None;
     }
+    collection_shape_view_backing(types, &declaration.shape, element, access)
+}
+
+/// Inline collection fields carry geometry without a standalone type identity.
+/// Use the selected shape directly; element relations still use exact identities.
+pub(crate) fn collection_shape_view_backing<'a>(
+    types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    shape: &StructuralTypeShape,
+    element: StructuralTypeId,
+    access: terminal_psi::StructuralAccess,
+) -> Option<CollectionBacking> {
+    if let Some(backing) = collection_shape_backing(types.clone(), shape, element) {
+        return Some(backing);
+    }
     let StructuralTypeShape::FixedArray {
         element: source,
         length,
-    } = declaration.shape
+    } = *shape
     else {
         return None;
     };

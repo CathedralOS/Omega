@@ -517,17 +517,25 @@ impl TerminalExecution<'_> {
         };
         let source = &backing_source;
         let root_type = self.live_structural_type(source.place)?;
-        let collection_type = crate::custody::resolve_structural_path_type(
+        let collection_shape = crate::custody::resolve_structural_path_shape(
             &self.program.structural_types(),
             root_type,
             &source.path,
         )?;
-        let extent = terminal_semantics::collection_backing(
+        let collection = terminal_semantics::element_view_shape_region_geometry(
             self.program.structural_types().values(),
-            collection_type,
+            &collection_shape,
             element,
+            ElementViewRegion::WholeCollection,
+            source.access,
         )
-        .map(|backing| backing.extent);
+        .and_then(|geometry| match geometry {
+            terminal_semantics::ElementViewRegionGeometry::WholeCollection(backing) => {
+                Some(backing)
+            }
+            terminal_semantics::ElementViewRegionGeometry::RepresentationBytes { .. } => None,
+        });
+        let extent = collection.map(|backing| backing.extent);
         terminal_semantics::collection_view_descriptor(
             descriptor,
             extent,
@@ -540,12 +548,7 @@ impl TerminalExecution<'_> {
             let StructuralTypeShape::FixedArray {
                 element: source_element,
                 length,
-            } = self
-                .program
-                .structural_types()
-                .get(&collection_type)
-                .ok_or_else(malformed)?
-                .shape
+            } = *collection_shape
             else {
                 return Err(malformed());
             };
@@ -573,12 +576,7 @@ impl TerminalExecution<'_> {
                 // This remains an exact byte collection, not an arbitrary
                 // record whose layout happens to occupy the same byte count.
                 // The result-family check above independently requires u8.
-                let collection = terminal_semantics::collection_backing(
-                    self.program.structural_types().values(),
-                    collection_type,
-                    element,
-                )
-                .ok_or_else(malformed)?;
+                let collection = collection.ok_or_else(malformed)?;
                 let bound = match collection.extent {
                     terminal_semantics::CollectionExtent::Fixed(length) => length,
                     // An owned carrier's live count is bounded by its
@@ -610,6 +608,11 @@ impl TerminalExecution<'_> {
                 if !matches!(descriptor, StructuralTypeShape::ElementView { .. }) {
                     return Err(malformed());
                 }
+                let collection_type = crate::custody::resolve_structural_path_type(
+                    &self.program.structural_types(),
+                    root_type,
+                    &source.path,
+                )?;
                 let view =
                     self.representation_view(source, collection_type, element, start, end)?;
                 let extent = view.length;
@@ -639,12 +642,7 @@ impl TerminalExecution<'_> {
         if let StructuralTypeShape::FixedArray {
             element: source_element,
             length,
-        } = self
-            .program
-            .structural_types()
-            .get(&collection_type)
-            .ok_or_else(malformed)?
-            .shape
+        } = *collection_shape
             && source_element != element
         {
             if !matches!(descriptor, StructuralTypeShape::ElementView { .. }) {
@@ -682,12 +680,7 @@ impl TerminalExecution<'_> {
             }
             return Ok(OperationFlow::Advance);
         }
-        let collection = terminal_semantics::collection_backing(
-            self.program.structural_types().values(),
-            collection_type,
-            element,
-        )
-        .ok_or_else(malformed)?;
+        let collection = collection.ok_or_else(malformed)?;
         if collection.storage == terminal_semantics::CollectionStorage::Borrowed
             && !descriptor.is_borrowed_byte_carrier()
         {
@@ -795,7 +788,7 @@ impl TerminalExecution<'_> {
                         .structural_values
                         .get(&source.place)
                         .ok_or_else(malformed)?;
-                    if referent.structural_type != collection_type
+                    if referent.structural_type != root_type
                         || !loan.matches_descriptor_home(referent)
                         || loan.len() != extent
                     {

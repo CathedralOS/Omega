@@ -3473,6 +3473,10 @@ of a check the same flow already performed, not the check itself.
   Carry these compositions through execution, without restoring native
   permission replay. Include qualified descriptor replacement and detached-copy
   content observations; local observations cannot acquire entry provenance.
+  Direct indexed bounded-byte call presentation and inline-byte case
+  construction remain unfinished;
+  qualify their argument preparation, constructor custody and native/Terminal
+  execution without replacing the authored call or initializer.
   Include prepared lifetime-bearing field
   views, independent nested regions, repeated generic heads, authored callable
   templates, symbolic view-free arrays, inherited const arguments and complete

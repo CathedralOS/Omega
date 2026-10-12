@@ -170,18 +170,11 @@ pub(crate) fn collection_view(
         _ => &source.path,
     };
     let (_, _, elements) =
-        crate::structural_inputs::structural_reference_input::runtime_projection(
+        crate::structural_inputs::structural_reference_input::collection_projection(
             root,
             path,
             &unit.structural_types,
         )
-        .or_else(|| {
-            crate::structural_inputs::structural_reference_input::runtime_leaf_copy_projection(
-                root,
-                path,
-                &unit.structural_types,
-            )
-        })
         .ok_or(LegalizationError::custody())?;
     operands(optimized, unit, operation, &elements)
 }

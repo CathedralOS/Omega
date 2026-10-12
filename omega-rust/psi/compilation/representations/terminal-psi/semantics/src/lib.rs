@@ -172,8 +172,8 @@ pub mod descriptor_lifetimes;
 mod representation_regions;
 pub use representation_regions::{
     ElementViewRegionGeometry, RepresentationElementLayout, RepresentationScalarLeaf,
-    element_view_region_geometry, representation_byte_extent, representation_element_layout,
-    representation_region_goal, representation_region_length,
+    element_view_region_geometry, element_view_shape_region_geometry, representation_byte_extent,
+    representation_element_layout, representation_region_goal, representation_region_length,
 };
 
 mod element_representation;
