@@ -233,9 +233,16 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
         | O::EstablishZeroedStructural { .. }
         | O::EstablishStructuralLocal { .. }
         | O::EstablishStructuralArray { .. }
-        | O::EstablishReference { .. }
         | O::ReleaseReference { .. }
         | O::PortWrite { .. } => {}
+        O::EstablishReference { storage, .. } => {
+            // The carrier captures its storage offset at formation. Keeping
+            // structural custody also keeps this scalar geometry alive, even
+            // when no later scalar operation reads the offset directly.
+            if let Some(storage) = storage {
+                values.push(storage.byte_offset);
+            }
+        }
         terminal_psi::element_view_establish_pair_pattern!(region, ..) => {
             // Formation consumes the captured byte endpoints even when no
             // later scalar observes them outside the structural descriptor.

@@ -5390,7 +5390,7 @@ pass/optimizer/rollback_proof_check_elision_selected checked 33431ms rollback:re
 pass/optimizer/rollback_sparse_conditional_constant_propagation_control checked 34433ms rollback:requested=[SparseConditionalConstantPropagation];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:9004ab1710b7a1d9 rolled-back-semantic:9004ab1710b7a1d9 module:same check-target:macos_arm64 @a9ae30e1c334+wt
 pass/optimizer/rollback_sparse_conditional_constant_propagation_selected checked 32287ms rollback:requested=[SparseConditionalConstantPropagation];applied=[SparseConditionalConstantPropagation];effective=[] unrolled-receipt:none unrolled-semantic:e6f85f649c747a74 rolled-back-semantic:9004ab1710b7a1d9 module:differs check-target:macos_arm64 @a9ae30e1c334+wt
 pass/optimizer/rollback_to_no_selection_empty_entry checked 32961ms rollback:requested=[ControlFlowCleanup,CopyPropagation];applied=[ControlFlowCleanup];effective=[] unrolled-receipt:none unrolled-semantic:9541e70f59508201 rolled-back-semantic:9541e70f59508201 module:same check-target:macos_arm64 @a9ae30e1c334+wt
-pass/optimizer/selected_comparison_demand_exit timeout 120000ms @a9ae30e1c334+wt
+pass/optimizer/selected_comparison_demand_exit checked 7508ms check-target:macos_arm64 @dfc9dc858b3e+wt
 pass/optimizer/stored_load_forwarding_selection_exit checked 11197ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/aliased_shared_views_compile checked 1794ms @a9ae30e1c334+wt
 pass/ownership/borrowed_claim_repair_roundtrip_compile checked 1761ms @a9ae30e1c334+wt
@@ -6402,3 +6402,4 @@ pass/contracts/runtime_float_fused_crash_guard_exit checked 6888ms check-target:
 pass/contracts/runtime_float_indexed_crash_guard_exit checked 6679ms check-target:macos_arm64 @c294657097ec+wt
 pass/contracts/runtime_float_nested_crash_guard_exit checked 6671ms check-target:macos_arm64 @c294657097ec+wt
 pass/contracts/runtime_float_unordered_crash_guard_exit checked 6668ms check-target:macos_arm64 @c294657097ec+wt
+pass/optimizer/reference_storage_scalar_demand_exit checked 3991ms check-target:macos_arm64 @dfc9dc858b3e+wt

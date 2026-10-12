@@ -949,3 +949,12 @@ pass/contracts/runtime_float_field_crash_guard_exit built 6915ms exit:0 interpre
 pass/contracts/runtime_float_fused_crash_guard_exit built 7013ms exit:0 interpreter-exit:0 interpreter:agrees @c294657097ec+wt
 pass/contracts/runtime_float_indexed_crash_guard_exit built 6643ms exit:0 interpreter-exit:0 interpreter:agrees @c294657097ec+wt
 pass/contracts/runtime_float_nested_crash_guard_exit built 6620ms exit:0 interpreter-exit:0 interpreter:agrees @c294657097ec+wt
+pass/optimizer/join_invariant_copy_transport_selected built 3523ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[DeadPureScalarElimination] exit:0 interpreter-exit:0 interpreter:agrees @dfc9dc858b3e+wt
+pass/optimizer/join_invariant_dead_scalar_transport_selected built 3608ms rollback:requested=[DeadPureScalarElimination];applied=[DeadPureScalarElimination];effective=[CopyPropagation] exit:0 interpreter-exit:0 interpreter:agrees @dfc9dc858b3e+wt
+pass/optimizer/join_invariant_transport_control built 3704ms exit:0 interpreter-exit:0 interpreter:agrees @dfc9dc858b3e+wt
+pass/optimizer/reference_storage_scalar_demand_exit built 4410ms exit:70 interpreter-exit:70 interpreter:agrees @dfc9dc858b3e+wt
+pass/optimizer/rollback_composed_partial_control built 3282ms rollback:requested=[CopyPropagation];applied=[];effective=[DeadPureScalarElimination] exit:0 interpreter-exit:0 interpreter:agrees @dfc9dc858b3e+wt
+pass/optimizer/rollback_composed_partial_selected built 3284ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[DeadPureScalarElimination] exit:0 interpreter-exit:0 interpreter:agrees @dfc9dc858b3e+wt
+pass/optimizer/rollback_dead_pure_scalar_elimination_control built 3268ms rollback:requested=[DeadPureScalarElimination];applied=[];effective=[] exit:0 interpreter-exit:0 interpreter:agrees @dfc9dc858b3e+wt
+pass/optimizer/rollback_dead_pure_scalar_elimination_selected built 3263ms rollback:requested=[DeadPureScalarElimination];applied=[DeadPureScalarElimination];effective=[] exit:0 interpreter-exit:0 interpreter:agrees @dfc9dc858b3e+wt
+pass/optimizer/selected_comparison_demand_exit built 6652ms exit:70 interpreter-exit:70 interpreter:agrees @dfc9dc858b3e+wt
