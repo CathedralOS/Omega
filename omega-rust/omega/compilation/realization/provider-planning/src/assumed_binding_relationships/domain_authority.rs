@@ -5,6 +5,9 @@
 //! checking's authorization. It neither turns a missing route into permission
 //! nor manufactures a receipt from a Build registration or semantic assumption.
 
+mod content;
+pub use content::{AssumedBindingDomainAuthorityContent, retain_assumed_binding_domain_authority};
+
 use super::AssumedBindingContractSide;
 use super::declarations::DeclaredRequirement;
 use super::semantic_obligations::owns_contract;
