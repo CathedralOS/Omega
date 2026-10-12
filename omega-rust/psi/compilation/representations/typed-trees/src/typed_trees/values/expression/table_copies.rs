@@ -21,7 +21,7 @@ use crate::typed_trees::values::expression::{
     TableNamePath, TableRangeExpression, TableStructLiteral, TableStructLiteralField,
     TableUnaryExpression,
 };
-use arena::HandleSpan;
+use arena::{Handle, HandleSpan};
 use symbols::SymbolHandle;
 
 /// Where a subtree copy reads the rows it appends.
@@ -152,6 +152,10 @@ impl ExpressionTable {
             return;
         }
         visited.push(root);
+        let completed_source = self.completed_expression_source(root);
+        if completed_source.is_valid() {
+            self.remap_symbols_in_inner(completed_source, symbols, visited);
+        }
 
         if self.index_expression_authority(root).is_some() {
             let authority = self.index_expression_authority_mut(root);
@@ -394,6 +398,7 @@ impl ExpressionTable {
         let origin = source.table(self);
         let source_span = origin.source_span(expression);
         let source_origin = origin.expression_source_origin(expression);
+        let completed_source = origin.completed_expression_source(expression);
         let selected = origin.selected_const_match_result(expression);
         let selected_meaning = origin.selected_const_match_meaning(expression);
         let selected_ordinal =
@@ -575,6 +580,16 @@ impl ExpressionTable {
             *self.index_expression_authority_mut(copied) = authority;
         }
         copies.push((expression, copied));
+        if completed_source.is_valid() {
+            let source_copy =
+                self.copy_subtree_with_occurrences(source, completed_source, retain, copies);
+            self.correspondences
+                .get_mut(Handle::from_parts(
+                    copied.arena_index(),
+                    copied.generation(),
+                ))
+                .completed_source = source_copy;
+        }
         copied
     }
 
