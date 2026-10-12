@@ -13,6 +13,7 @@ use symbols::SymbolHandle;
 use typed_trees::static_applications::{
     InstantiatedRequirementSignature, StaticApplicationIdentity, StaticApplicationView,
 };
+use typed_trees::trait_definition::AppliedTraitScope;
 
 pub(super) fn closed_requirement(
     checked: &CheckedTrees,
@@ -90,6 +91,7 @@ pub(super) fn retain_complete_interfaces(
                 plans,
                 application.selected_interface,
                 &interface_identity(checked, application)?,
+                closed_interface_scope(checked, application).as_ref(),
                 boundaries,
             )?;
         } else {
@@ -98,6 +100,7 @@ pub(super) fn retain_complete_interfaces(
                 plans,
                 definition.symbol,
                 &original_interface_identity(checked, definition.symbol)?,
+                Some(&original_interface_scope(checked, definition.symbol)?),
                 boundaries,
             )?;
         }
@@ -127,6 +130,7 @@ pub(super) fn selection_boundary_roots(
                 plans,
                 application.selected_interface,
                 &interface_identity(checked, application)?,
+                closed_interface_scope(checked, application).as_ref(),
                 &mut boundaries,
             )?;
             continue;
@@ -140,6 +144,7 @@ pub(super) fn selection_boundary_roots(
                 plans,
                 definition.symbol,
                 &original_interface_identity(checked, definition.symbol)?,
+                Some(&original_interface_scope(checked, definition.symbol)?),
                 &mut boundaries,
             )?;
         } else {
@@ -163,6 +168,7 @@ pub(super) fn selection_boundary_roots(
                     plans,
                     definition.symbol,
                     &interface_identity(checked, application)?,
+                    closed_interface_scope(checked, application).as_ref(),
                     &mut boundaries,
                 )?;
             }
@@ -185,11 +191,46 @@ fn original_interface_identity(
     .map_err(|_| LoweringError::Unsupported("original boundary interface has no exact empty tuple"))
 }
 
+fn original_interface_scope(
+    checked: &CheckedTrees,
+    interface: SymbolHandle,
+) -> Result<AppliedTraitScope<'_>, LoweringError> {
+    let declaration =
+        checked
+            .typed
+            .trait_definition_by_symbol(interface)
+            .ok_or(LoweringError::Unsupported(
+                "original boundary has no interface declaration",
+            ))?;
+    if !checked.typed.trait_type_parameters(declaration).is_empty()
+        || !declaration.conformance_bounds.is_empty()
+        || !declaration.lifetime_parameters.is_empty()
+    {
+        return unsupported("original boundary interface retains an open telescope");
+    }
+    Ok(AppliedTraitScope::abstract_scope(declaration))
+}
+
+fn closed_interface_scope<'program>(
+    checked: &'program CheckedTrees,
+    header: &InstantiatedRequirementSignature,
+) -> Option<AppliedTraitScope<'program>> {
+    let declaration = checked
+        .typed
+        .trait_definition_by_symbol(header.selected_interface)?;
+    AppliedTraitScope::from_binding_application(
+        &checked.typed,
+        declaration,
+        header.binding_application,
+    )
+}
+
 fn retain_interface_applications(
     checked: &CheckedTrees,
     plans: UnitPlans<'_>,
     selected_interface: SymbolHandle,
     identity: &StaticApplicationIdentity,
+    scope: Option<&AppliedTraitScope<'_>>,
     boundaries: &mut Vec<SymbolHandle>,
 ) -> Result<(), LoweringError> {
     let members = typed_trees::static_applications::boundary_interface_members(
@@ -227,11 +268,16 @@ fn retain_interface_applications(
             .typed
             .closed_requirement_applications()
             .filter(|application| {
-                application.declaring_trait == owner
-                    && application.template == member
-                    && application.trait_arguments.is_empty()
+                application.declaring_trait == owner && application.template == member
             })
         {
+            if !scope.is_some_and(|scope| {
+                checked
+                    .typed
+                    .requirement_application_matches_scope(application.signature.symbol, scope)
+            }) {
+                continue;
+            }
             retain_boundary(plans, application.signature.symbol, boundaries)?;
             retained = true;
         }
