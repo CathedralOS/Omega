@@ -238,11 +238,7 @@ pub(crate) fn lower_proof_facts_excluding(
     instantiation_obligation_offsets: &[usize],
     lexical_owner: Option<DeclarationLexicalInputOwner>,
 ) -> Result<arena::HandleSpan<ProofFact>, Diagnostic> {
-    if matches!(
-        lowerer.const_resolution_mode,
-        crate::resolution::lowerer::ConstResolutionMode::ArgumentSelection
-    ) && let Some(owner) = lexical_owner
-    {
+    if let Some(owner) = lexical_owner {
         let mut references = Vec::new();
         for (offset, fact) in syntax_trees.items.proof_facts(facts).iter().enumerate() {
             if !instantiation_obligation_offsets.contains(&offset) {
