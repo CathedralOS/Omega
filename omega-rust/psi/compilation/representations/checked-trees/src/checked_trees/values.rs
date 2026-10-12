@@ -78,6 +78,15 @@ pub enum CheckedValueOrigin {
         statement_index: usize,
         role: CheckedValueStatementRole,
     },
+    /// A source computation in one original declared Const argument slot.
+    /// These coordinates retain the receiving telescope and actual type use;
+    /// they grant no runtime machine/state activation or receiver context.
+    TypeConstantArgument {
+        declaration: SymbolHandle,
+        parameter: SymbolHandle,
+        application: typed_trees::types::TypeReferenceHandle,
+        argument: typed_trees::types::TypeReferenceHandle,
+    },
     NestedExpression {
         parent: ExpressionHandle,
     },
@@ -97,7 +106,7 @@ impl CheckedValueOrigin {
             Self::MachineDecrease { machine_symbol, .. }
             | Self::MachineOwnedDataInitializer { machine_symbol, .. }
             | Self::StateStatement { machine_symbol, .. } => Some(machine_symbol),
-            Self::NestedExpression { .. } => None,
+            Self::TypeConstantArgument { .. } | Self::NestedExpression { .. } => None,
         }
     }
 }
