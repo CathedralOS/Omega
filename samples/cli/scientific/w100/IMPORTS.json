@@ -116,6 +116,11 @@
       "original_tip": "d54ac517383b06f55c9d403ad9174a36e2e02878",
       "base": "407de7ec5ff479de7f2d15db8f7fee08e62be640",
       "local_ref": null
+    },
+    {
+      "source_ref": "refs/heads/codex/w100-nf03-complex-20261010",
+      "original_tip": "ea2a50a27f8743d41fc02b7787e90228b1162a50",
+      "receipt": "Recovered exact Git object from its supported origin branch after explicit stopped-owner handoff. Original NF03 carrier, API, complete consumers, frozen ORACLES.md and invalid alias control restored. Preservation and source checks only; connected runtime qualification belongs to W100-CONNECTED."
     }
   ],
   "original_nf01_candidate": "11632be3a409f5fec6381ca50a67983d0cc51d2b",

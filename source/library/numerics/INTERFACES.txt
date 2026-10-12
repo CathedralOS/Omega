@@ -6,3 +6,7 @@ SymmetricAnyTolerance32/64, ReferenceAdditiveTolerance32/64; classify_f32/f64,
 widen_f32_to_f64, round_f64_to_f32, round_i32_to_f32/f64,
 compare_symmetric_any_f32/f64, compare_reference_additive_f32/f64.
 Other owners propose exports to the shared metadata owner.
+NF03 complex::complex_carrier_ops: Complex<T>, ComplexF32/ComplexF64,
+ComplexMagnitude<T>; add, multiply, conjugate, norm_squared, try_magnitude.
+Magnitude admission consumes NF02 classifications; consumers retain frozen
+intervals alongside explicit NF02 reference-additive comparisons.

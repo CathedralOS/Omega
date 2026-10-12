@@ -354,13 +354,57 @@ fn land_float_value_for_type(
         }
         return;
     }
+    // A constructor delivers its fields into the receiving application's
+    // prepared telescope. Its authored owner may still be the open template,
+    // whose field type alone cannot choose a float format. Translate through
+    // the exact constructor/member correspondence before visiting operands;
+    // this supplies rounding destinations, not construction or loan authority.
+    if let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(value) {
+        let fields = if literal.case_symbol.is_some() {
+            crate::structural_case_constructor(program, value, declared)
+                .map(|constructor| {
+                    constructor
+                        .fields
+                        .into_iter()
+                        .map(|(_, value, reference)| (value, reference))
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default()
+        } else {
+            let Some(reference) = crate::unwrapped_type_reference(program, declared) else {
+                return;
+            };
+            program
+                .expression_table
+                .struct_fields(literal.fields)
+                .iter()
+                .filter_map(|field| {
+                    program
+                        .closed_data_constructor_field(
+                            reference,
+                            literal.type_symbol,
+                            field.field_symbol,
+                        )
+                        .map(|selected| (field.value, selected.type_reference))
+                })
+                .collect()
+        };
+        for (value, reference) in fields {
+            land_float_value_for_type(program, value, reference);
+        }
+        return;
+    }
     let declared_node = program
         .type_reference_table
         .type_reference(declared)
         .clone();
     match declared_node {
         TypeReferenceNode::Reference { referee, .. } => {
-            land_float_value_for_type(program, value, referee);
+            let source = match program.expression_table.expression(value) {
+                ExpressionNode::Borrow(borrow) => borrow.target,
+                _ => value,
+            };
+            land_float_value_for_type(program, source, referee);
         }
         TypeReferenceNode::Constrained { base_type, .. } => {
             land_float_value_for_type(program, value, base_type);
