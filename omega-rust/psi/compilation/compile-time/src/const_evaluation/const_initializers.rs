@@ -84,6 +84,7 @@ pub(crate) fn evaluate(
     sources: Option<Arc<SourceMap>>,
     bindings: &[SourceScopedTopLevelBinding],
     authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
+    inputs: &mut Vec<crate::CheckedConstantInput>,
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
     use syntax_trees_to_symbol_resolved_trees::pre_resolution::requires_const_initializer_evaluation;
     if !syntax.root_items().any(|item| {
@@ -407,7 +408,10 @@ pub(crate) fn evaluate(
                 }
                 let prepared = crate::PreparedBuildMachineProgram::prepare_in(&typed, &domain)?;
                 invocations::CheckedInitializers::prepare(
-                    &prepared, authority.clone(), &symbols, Default::default(),
+                    &prepared,
+                    authority.clone(),
+                    &symbols,
+                    Default::default(),
                 )
             })
             .transpose()?;
@@ -460,7 +464,7 @@ pub(crate) fn evaluate(
                     // its concrete arguments, and the reconstructed origins and
                     // call roster must match the original selection exactly.
                     let evaluation = calls
-                        .evaluate_leaf(reference, &expected, &leaf.calls, &syntax)
+                        .evaluate_leaf(reference, &expected, &leaf.calls, &syntax, inputs)
                         .map_err(|reason| failure(reference, reason))?;
                     for selection in &leaf.calls {
                         if !call_selections.contains(selection) {
@@ -516,6 +520,7 @@ pub(crate) fn evaluate(
                         &syntax,
                         &leaf.calls,
                         &calls,
+                        inputs,
                     )
                 }
                 .map_err(|reason| failure(reference, reason))?;

@@ -177,7 +177,7 @@ impl IntegerPosition {
         program: &TypedTrees,
         admission: &BuildTimeAdmissionPlan,
         value: &BigInt,
-        inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+        inputs: &mut Vec<crate::CheckedConstantInput>,
     ) -> Result<(), String> {
         // Snapshot integers use i64 bits even for u64. Check the decoded exact
         // value, never a signed compatibility interval or merely its kind.

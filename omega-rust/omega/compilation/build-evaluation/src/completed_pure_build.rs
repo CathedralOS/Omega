@@ -104,6 +104,10 @@ impl CompletedPureBuildInputs {
             && (Arc::ptr_eq(&self.original_source_input, &other.original_source_input)
                 || self.original_source_input.executed_constant_inputs().is_empty()
                     && other.original_source_input.executed_constant_inputs().is_empty()
+                    && self.original_source_input.snapshot_admissions().is_empty()
+                    && other.original_source_input.snapshot_admissions().is_empty()
+                    && self.original_source_input.source_preparation_inputs().is_empty()
+                    && other.original_source_input.source_preparation_inputs().is_empty()
                     && self.original_source_input.source_constants().is_empty()
                     && other.original_source_input.source_constants().is_empty())
             && self.measurement_identity == other.measurement_identity

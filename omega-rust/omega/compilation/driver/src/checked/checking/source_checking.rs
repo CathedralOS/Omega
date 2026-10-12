@@ -19,7 +19,8 @@ pub(crate) fn check_product_source(
     let PreparedProductSource {
         typed,
         pending_pre_checks,
-        executed_constant_inputs,
+        checked_constant_inputs,
+        source_preparation_inputs,
         computed_build_config,
         admission,
         build_sources,
@@ -28,7 +29,8 @@ pub(crate) fn check_product_source(
     } = source;
     let build = &computed_build_config.config;
     let source_constants = psi_compiler::SourceConstantRequest {
-        executed_inputs: executed_constant_inputs,
+        checked_inputs: checked_constant_inputs,
+        source_preparation_inputs,
         pending: pending_pre_checks,
         selections: build
             .provider_selections

@@ -166,7 +166,8 @@ pub(super) fn complete_product_frontend(
     (
         typed_trees::TypedTrees,
         Vec<build_time_evaluation::PreCheckEvaluation>,
-        Vec<build_time_evaluation::ExecutedCheckedConstantInput>,
+        Vec<build_time_evaluation::CheckedConstantInput>,
+        Vec<build_time_evaluation::CheckedConstantInput>,
         Arc<compilation_products::ComputedBuildConfig>,
         BuildAdmission,
     ),
@@ -205,7 +206,8 @@ pub(super) fn complete_product_frontend(
     Ok((
         prepared.typed,
         prepared.pending_pre_checks,
-        prepared.executed_constant_inputs,
+        prepared.checked_constant_inputs,
+        prepared.source_preparation_inputs,
         computed_build_config,
         admission,
     ))
