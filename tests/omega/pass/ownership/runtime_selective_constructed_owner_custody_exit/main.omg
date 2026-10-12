@@ -5,6 +5,11 @@ data Token { value: u64; }
 data Wrapped { token: Token; }
 data Holder<Value> { value: Value; }
 data Pair { left: Token; right: Token; }
+data Receipt [linear] { value: u64; }
+data MixedPair { receipt: Receipt; token: Token; }
+
+machine Receipt::drop(receipt: &mut Receipt) { receipt.value = 0; }
+machine consume_receipt(receipt: Receipt) -> u64 { receipt.value }
 
 machine consume(value: Wrapped) -> u64 { value.token.value }
 
@@ -69,7 +74,27 @@ machine replace_index_then_select(enabled: bool) -> bool {
     (observed == enabled) && index == 1
 }
 
+machine count_transfer(token: Token, count: &mut u64) -> bool {
+    count = ((count as u64 in Wrapping) + 1) as u64;
+    token.value == 7
+}
+
+// Retiring the only linear child leaves its plain sibling's exact storage
+// available. Skipping the sibling transfer still owes its no-code disposal.
+machine remaining_sibling(enabled: bool, count: &mut u64) -> bool {
+    let pair: MixedPair = MixedPair {
+        receipt: Receipt { value: 9 },
+        token: Token { value: 7 }
+    };
+    let retired: u64 = consume_receipt(pair.receipt);
+    let observed: bool = enabled && count_transfer(pair.token, count);
+    retired == 9 && observed
+}
+
 machine main() crashes Trap {
+    let mut count: u64 = 0;
+    let skipped: bool = remaining_sibling(false, &mut count);
+    let taken: bool = remaining_sibling(true, &mut count);
     let accepted: bool = and_transfer(false) && and_transfer(true)
         && or_transfer(true) && or_transfer(false)
         && nested_transfer(false, false) && nested_transfer(false, true)
@@ -78,7 +103,10 @@ machine main() crashes Trap {
         && generic_transfer(false) && generic_transfer(true)
         && replace_then_select(false) && replace_then_select(true)
         && replace_index_then_select(false) && replace_index_then_select(true);
-    transition accepted { true -> done() false -> bad() }
+    transition accepted && skipped == false && taken && count == 1 {
+        true -> done()
+        false -> bad()
+    }
     state done() {}
     state bad() { crash Trap; }
 }

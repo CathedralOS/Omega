@@ -507,7 +507,7 @@ impl<'program> StructuralJudge<'program> {
             }
             return Some(outcomes);
         }
-        if let ExpressionNode::Call(call) = node
+        let writes = if let ExpressionNode::Call(call) = node
             && !call_has_mathematical_denotation(program, call)
         {
             let machine = program.machine(scope.0.symbol)?;
@@ -521,13 +521,16 @@ impl<'program> StructuralJudge<'program> {
                 );
             }
             let writes = writes?;
-            // Case-only judging starts after the caller proved its whole
-            // reachable body tag-preserving (scalar and atomic writes only),
-            // so a write cannot change a tag it reads. Value judges refuse.
-            if !writes.is_empty() && !self.case_facts_only {
+            // Mathematical body substitution has no runtime storage epochs.
+            // It cannot unfold effectful calls as repeatable applications.
+            // Case-only paths separately establish tag preservation.
+            if !writes.is_empty() && !self.runtime_body_values && !self.case_facts_only {
                 return None;
             }
-        }
+            writes
+        } else {
+            Vec::new()
+        };
         // Retire a prior evaluation of this static node. Repeated edges are
         // distinct invocations; saved earlier values already retain their own
         // capture sequence and equations in the caller environment.
@@ -609,6 +612,11 @@ impl<'program> StructuralJudge<'program> {
                     });
                 }
                 judge.capture_normal_call(expression, call_inputs.as_deref(), environment, scope);
+                // Arguments have completed, so their copied values keep their
+                // identities. Only later storage observations see these writes.
+                // Selected contracts separately require preserved live subjects;
+                // mutation cannot turn pre-state arguments into post-state facts.
+                judge.observe_storage_writes(scope.1, &writes)?;
                 let mut value = if matches!(node, ExpressionNode::Atomic(_)) {
                     // The atomic owner distinguishes an observed load from
                     // update carriers. Its value is a fresh event, not the
@@ -629,10 +637,13 @@ impl<'program> StructuralJudge<'program> {
                     judge.callee_term_in_scope(Some(scope), expression, environment, 0)
                 {
                     value
-                } else if judge.runtime_body_values && matches!(node, ExpressionNode::Call(_)) {
-                    // A completed call whose contract could not be imported
-                    // (reference or mutable operands, selected applications)
-                    // is still one observation: a fresh identity, no facts.
+                } else if judge.runtime_body_values
+                    && (matches!(node, ExpressionNode::Call(_))
+                        || judge.storage_observation_invalidated(expression))
+                {
+                    // A completed call without an imported contract, or a
+                    // read after a write retired the storage's old facts, is
+                    // still an observation: a fresh identity, no old facts.
                     judge.capture_sequence += 1;
                     StructuralTerm::CapturedValue {
                         expression,
@@ -707,6 +718,9 @@ impl<'program> StructuralJudge<'program> {
     ) -> Option<StructuralTerm> {
         let program = self.program;
         let source = &subject.source;
+        if self.storage_binding_invalidated(source.root) {
+            return None;
+        }
         // The frame publishes a checked exact declaration path. Scope lookup
         // only locates that root's current observation; no initializer replay
         // or similarly spelled declaration may stand in for it.

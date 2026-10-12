@@ -10,6 +10,7 @@ mod integer_predicates;
 mod licenses;
 pub(super) mod normal_returns;
 mod selected_contracts;
+mod storage_effects;
 mod value_predicates;
 
 pub(crate) use licenses::{EntryMachines, LicenseCandidates, declared_index_algebra_laws};
@@ -210,6 +211,7 @@ pub(super) struct StructuralJudge<'program> {
     // deep StructuralTerm copies; writers go through Arc::make_mut and pay
     // one copy only for the field they actually change.
     normal_results: Arc<Vec<(ExpressionHandle, StructuralTerm)>>,
+    invalidated_storage: Arc<Vec<SymbolHandle>>,
     capture_sequence: usize,
     pub(super) normal_guarantees: Arc<Vec<(StructuralTerm, StructuralTerm)>>,
     // Producer identity comes only from the captured public result contract.
@@ -252,6 +254,7 @@ impl Clone for StructuralJudge<'_> {
             declaration_state: self.declaration_state,
             premise_facts: self.premise_facts.clone(),
             normal_results: Arc::clone(&self.normal_results),
+            invalidated_storage: Arc::clone(&self.invalidated_storage),
             capture_sequence: self.capture_sequence,
             normal_guarantees: Arc::clone(&self.normal_guarantees),
             captured_result_equations: Arc::clone(&self.captured_result_equations),
@@ -381,6 +384,7 @@ impl<'program> StructuralJudge<'program> {
             declaration_state: SymbolHandle::invalid(),
             premise_facts: requires.to_vec(),
             normal_results: Arc::new(Vec::new()),
+            invalidated_storage: Arc::new(Vec::new()),
             capture_sequence: 0,
             normal_guarantees: Arc::new(Vec::new()),
             captured_result_equations: Arc::new(Vec::new()),
@@ -1324,6 +1328,9 @@ impl<'program> StructuralJudge<'program> {
             .find(|(source, _)| *source == expression)
         {
             return Some(value.clone());
+        }
+        if self.storage_observation_invalidated(expression) {
+            return None;
         }
         let program = self.program;
         match program.expression_table.expression(expression) {

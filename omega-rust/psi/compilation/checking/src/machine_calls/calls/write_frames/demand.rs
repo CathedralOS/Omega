@@ -431,6 +431,15 @@ impl<'program> CallFrameResolver<'program> {
         })
     }
 
+    /// A fully known owned value cannot observe a write through an alias.
+    /// Opaque data and reference-bearing storage need independent origins.
+    pub(crate) fn value_is_reference_free(
+        &self,
+        reference: typed_trees::types::TypeReferenceHandle,
+    ) -> bool {
+        super::type_capabilities::type_is_reference_free_value(self.program, reference, &[])
+    }
+
     /// Checked storage with no exclusive reference leaves writes only its own
     /// local place. Other reference-bearing storage still requires prefix origins.
     pub fn local_requires_write_origin(

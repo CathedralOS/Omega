@@ -82,7 +82,13 @@ pub(crate) fn initial_linear_places(
                 path: Vec::new(),
                 multiplicity: Multiplicity::Affine,
                 claim_identity: None,
-                provenance: None,
+                // Claim-free does not mean unestablished: selected cleanup
+                // must retain this exact incoming storage occurrence too.
+                provenance: Some(established_provenance(
+                    machine_symbol,
+                    state_symbol,
+                    PermissionEventSource::StateEntry,
+                )),
                 live: true,
                 ever_established: true,
                 conditional: false,

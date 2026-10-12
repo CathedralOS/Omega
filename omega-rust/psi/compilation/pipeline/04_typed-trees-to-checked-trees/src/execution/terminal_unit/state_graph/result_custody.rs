@@ -38,6 +38,32 @@ pub(super) fn account(
     let statements = program.statement_table.statements(state.statement_nodes);
     trace.phase("state graph: result custody accounting");
     let abandons_custody = terminator.abandons_custody(&facts.flow.guarded_exits)?;
+    // The first guard executes before selecting any exit. Later ordered
+    // guards execute only on a remaining path; their transfers cannot stand
+    // in for unconditional ownership. The retained computation itself owns
+    // short-circuit alternatives inside this guard.
+    let entry_guard = match terminator {
+        CheckedComposedUnitControlTerminatorPlan::Conditional { guard, .. }
+        | CheckedComposedUnitControlTerminatorPlan::ConditionalReturn { guard, .. }
+        | CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion { guard, .. } => {
+            Some(guard.clone())
+        }
+        CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, .. } => {
+            arms.first().map(|arm| arm.guard().clone())
+        }
+        CheckedComposedUnitControlTerminatorPlan::Guarded { arms, .. } => {
+            match facts.flow.guarded_exits.exits.span(*arms)?.first() {
+                Some(arm) => Some(super::guards::retained_guard(
+                    facts,
+                    machine.symbol,
+                    state.symbol,
+                    arm.guard_statement_ordinal,
+                )?),
+                None => None,
+            }
+        }
+        _ => None,
+    };
     let case_successors = match terminator {
         CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } => cases
             .iter()
@@ -528,7 +554,9 @@ pub(super) fn account(
         // just as it ends a linear result or an inline operand's custody.
         // Sequencing retires the producer's discard flag; count the exact
         // later use here instead of still demanding state-exit disposal.
-        // The final sum rejects a second move, cleanup, or returned owner.
+        // Source permission replay rejects repeated moves inside selected
+        // computations; this minimum-transfer query does not replace it.
+        // The final sum rejects competing operation/cleanup/return owners.
         // Unrestricted locals remain copies, not one-use ownership debt.
         let call_transfers = if result.multiplicity == Multiplicity::Unrestricted {
             0
@@ -538,7 +566,14 @@ pub(super) fn account(
                 .map(|consumer| {
                     consumer.definite_call_transfers(&facts.values, operation, result_local)
                 })
-                .sum()
+                .sum::<usize>()
+                + if occurrence_end.is_none() {
+                    entry_guard.as_ref().map_or(0, |guard| {
+                        guard.definite_call_transfers(&facts.values, operation, result_local)
+                    })
+                } else {
+                    0
+                }
         };
         // A constructor takes its whole owned local operands just as a call
         // does. Statement sequencing already retires their disposal flags;

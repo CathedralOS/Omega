@@ -418,25 +418,29 @@ fn recognize_structural_state_leaves_from<'a>(
                 // Other incoming paths are still visited by the parent.
                 return Some(Vec::new());
             }
-            // A runtime prefix retains entry observations only across complete
-            // empty frames. The statement call and its evaluated operands own
-            // separate frames; check both before either citation intake path.
+            // Statement calls and their operands own separate write frames.
+            // Retire affected storage without discarding unrelated captures.
+            // Legacy citation substitution has no post-state argument model,
+            // so only an empty joined frame permits its value guarantees.
             // The requested call above has not executed and owes only operand
             // evaluation, which its visitor checks through normal-return paths.
+            let mut citation_preserves_values = true;
             if judge.requires_value_preservation()
                 && let StatementNode::Call(call) = statement
             {
                 let frames = judge.frame_resolver()?;
+                let mut writes = Vec::new();
                 for frame in [
                     frames.may_write_frame(machine, call),
                     frames.statement_value_write_frame(machine, statement),
                 ] {
-                    if !frame.into_complete_paths()?.is_empty() {
-                        return None;
-                    }
+                    writes.extend(frame.into_complete_paths()?);
                 }
+                citation_preserves_values = writes.is_empty();
+                judge.observe_storage_writes(state, &writes)?;
             }
             if requirement.is_some()
+                && citation_preserves_values
                 && !saw_transition
                 && (!judge.has_runtime_body_values() || matches!(statement, StatementNode::Call(_)))
                 && let Some((target, arguments)) = citation_call_in_statement(program, statement)
@@ -612,8 +616,7 @@ fn recognize_structural_state_leaves_from<'a>(
                 StatementNode::Call(_)
                     if !saw_transition && judge.requires_value_preservation() =>
                 {
-                    // The shared frame check above established completion
-                    // without invalidating retained observations.
+                    // The shared effect step above retired affected storage.
                 }
                 StatementNode::Call(call)
                     if !saw_transition

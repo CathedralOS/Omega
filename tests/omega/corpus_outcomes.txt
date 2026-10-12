@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 32, "jobs": null, "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 3.21, "load1_start": 3.32, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 835ms expected @a9ae30e1c334+wt
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -1022,12 +1022,9 @@ fail/capabilities/blocking_beneath_no_block_root rejected 1328ms expected @a9ae3
 	machine `Main::main` omits `blocks;` from its published contract, but its body may block
 fail/capabilities/boundary_qualification_subject_rejected rejected 915ms expected @a9ae30e1c334+wt
 	boundary requirement `TokenIssuer::issue` may admit domain `Token::Issued` only for its exact `result` or an exact mutable parameter; move the membership guarantee to `ensures result in Token::Issued` or name a mutable parameter
-fail/capabilities/callback_synchronous_registration_cycle rejected 4685ms unexpected @a9ae30e1c334+wt
-	machine argument `Initialization::call` for `register` does not refine `Handler`: service reach `Initializer` exceeds its authored ceiling
-	machine argument `Initialization::call` for `register` does not refine `Handler`: service reach `Initializer` exceeds its authored ceiling
-	machine `Initialization::call` state `call` does not satisfy trait `Initializer` machine `call`: service `Initializer` is not allowed by the trait requirement
-	machine `Initialization::call` publishes service reach `Console + Registration` but its checked body reaches undeclared service `Initializer`
-fail/capabilities/cyclic_synchronous_invocation rejected 192ms expected @a9ae30e1c334+wt
+fail/capabilities/callback_synchronous_registration_cycle rejected 2590ms expected @1a353f2e117b+wt
+	selected providers realize a cyclic synchronous `invokes` graph: Initializer -> Registration -> Initializer; break one edge with a mailbox, queue, scheduler handoff, or other new activation
+fail/capabilities/cyclic_synchronous_invocation rejected 894ms expected @1a353f2e117b+wt
 	selected providers realize a cyclic synchronous `invokes` graph: Alpha -> Beta -> Alpha; break one edge with a mailbox, queue, scheduler handoff, or other new activation
 fail/capabilities/effect_ceiling_exceeded rejected 1281ms expected @a9ae30e1c334+wt
 	machine `Worker::run` publishes service reach `Console` but its checked body reaches undeclared service `Disk`
@@ -2570,6 +2567,8 @@ fail/ownership/selected_carrier_refill_reads_consumed_source rejected 1312ms exp
 	owned value may have been transferred by an earlier match; it cannot be used here
 fail/ownership/selected_partial_owner_reuse rejected 1238ms expected @a9ae30e1c334+wt
 	cannot use `pair.first.value` in machine `choose` state `entry` (statement 2) after `pair.first` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `pair.first` first
+fail/ownership/selected_retired_sibling_reuse rejected 194ms expected @1a353f2e117b+wt
+	cannot use `pair.token` in machine `choose` state `entry` (statement 3) after `pair.token` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `pair.token` first
 fail/ownership/selective_constructed_owner_reuse rejected 1174ms expected @a9ae30e1c334+wt
 	cannot use `token.value` in machine `choose` state `entry` (statement 2) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
 fail/ownership/view_element_window_live_borrow rejected 1605ms expected @a9ae30e1c334+wt
@@ -2649,8 +2648,8 @@ fail/proofs/kernel_integer_discreteness_false_twin rejected 5186ms expected @a9a
 	cannot prove requires contract for call below from below_eight: value < 8 (needs fact `value < bound` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/proofs/kernel_integer_subtract_bound_false_twin rejected 837ms expected @a9ae30e1c334+wt
 	exact arithmetic in machine `walk` state `entry` transition argument may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/proofs/kernel_integer_subtract_order_false_twin rejected 1630ms unexpected @a9ae30e1c334+wt
-	terminating machine walk: cannot prove rank range `0..limits.limit % limits.divisor + 6` for the rank produced by the selected view
+fail/proofs/kernel_integer_subtract_order_false_twin rejected 309ms expected @1a353f2e117b+wt
+	terminating machine walk: cannot prove strict rank decrease on a recurrent arrival: the transition from `walk` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 fail/proofs/kernel_theorem_equality_false_twin rejected 841ms expected @a9ae30e1c334+wt
 	machine `equal_symmetric` cannot prove ensures contract proof fact `b == c` from the requires contract
 fail/proofs/linear_range_sum_false_twin rejected 827ms expected @a9ae30e1c334+wt
@@ -3373,9 +3372,8 @@ fail/termination/retired_block_form rejected 0ms expected @a9ae30e1c334+wt
 	tests/omega/fail/termination/retired_block_form/main.omg:4:12: the `terminates { decreases ...; }` block form is retired (decision 23): spell the ranking witness as `terminates by <subjects> [-> View] [in <range>];`, or bare `terminates;` for the guarantee alone
 fail/termination/retired_standalone_decreases rejected 3ms expected @a9ae30e1c334+wt
 	tests/omega/fail/termination/retired_standalone_decreases/main.omg:4:1: a standalone `decreases` clause is retired (decision 23): attach the ranking witness to the guarantee as `terminates by <subjects> [-> View] [in <range>];`
-fail/termination/runtime_non_tail_joint_machine_cycle rejected 872ms unexpected @a9ae30e1c334+wt
-	exact arithmetic in machine `Main::left` state `left` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `right(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
-	exact arithmetic in machine `Main::right` state `right` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `left(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+fail/termination/runtime_non_tail_joint_machine_cycle rejected 306ms expected @1a353f2e117b+wt
+	machine call cycle: `Main::left`, `Main::right` -- a non-tail call or unknown effect prevents ranking admission; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/termination/saved_rank_authored_operator_rejected rejected 1549ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call step from Main::count: subtract(saved, 1) <= 9 (needs fact `remaining <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 	machine call cycle: `Main::count`, `Main::step` -- a call argument has effects or non-builtin operator meaning; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
@@ -5477,7 +5475,7 @@ pass/ownership/runtime_replacement_call_child_snapshot_exit checked 11068ms chec
 pass/ownership/runtime_retained_alias_referent_transform_exit rejected 12047ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
 	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(11), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
 pass/ownership/runtime_selected_reference_local_exit checked 11154ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/ownership/runtime_selective_constructed_owner_custody_exit checked 11629ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/ownership/runtime_selective_constructed_owner_custody_exit checked 3460ms check-target:macos_arm64 @1a353f2e117b+wt
 pass/ownership/runtime_unknown_affine_case_discard_exit checked 10704ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_view_parameter_element_window_exit checked 11550ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_whole_borrowed_transform_exit checked 12004ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5564,8 +5562,7 @@ pass/proofs/citation_requires_discharged rejected 5515ms regressed-from:checked 
 pass/proofs/higher_order_machine_schema_compile checked 1725ms @a9ae30e1c334+wt
 pass/proofs/kernel_integer_discreteness checked 11286ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/proofs/kernel_integer_subtract_bound checked 1690ms @a9ae30e1c334+wt
-pass/proofs/kernel_integer_subtract_order rejected 1575ms regressed-from:checked @a9ae30e1c334+wt
-	terminating machine walk: cannot prove rank range `0..limits.limit % limits.divisor + 6` for the rank produced by the selected view
+pass/proofs/kernel_integer_subtract_order checked 3381ms check-target:macos_arm64 @1a353f2e117b+wt
 pass/proofs/kernel_theorem_equality_certificates checked 11389ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/machine_parameterized_data_compile checked 1671ms @a9ae30e1c334+wt
 pass/proofs/mathematical_predicate_contract_import_exit checked 10907ms check-target:macos_arm64 @a9ae30e1c334+wt

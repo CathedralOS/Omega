@@ -147,19 +147,11 @@ impl SelectedCleanup {
                     "selected owner region has no exact declared type",
                 ));
             };
-            if !super::type_carries_linear_obligation(program, reference)
-                && !validation::type_graph_requires_nominal_drop(
-                    program,
-                    reference,
-                    &[],
-                    &mut std::collections::BTreeSet::new(),
-                )
-            {
-                // Regions without linear obligations or nominal hooks keep
-                // ordinary no-code reconciliation, including whole values.
-                // Their owned argument events need no retained cleanup receipt.
-                continue;
-            }
+            // No-code disposal still ends an owned occurrence. Retain its
+            // skipped-path receipt alongside executable cleanup so every
+            // consumer, including a state guard, sees the same disposition.
+            // Cleanup action selection decides whether any code is required;
+            // absence of a hook is not absence of ownership.
             if self
                 .owners
                 .iter()
@@ -189,10 +181,12 @@ impl SelectedCleanup {
                         None | Some(language_semantics::PermissionClaimIdentity::Unknown)
                     ) && !matches!(place.provenance, None | Some(PermissionProvenance::Unknown))
                 });
+            // Establishment belongs to the storage occurrence, not to a
+            // surviving resource claim. A consumed linear child may leave an
+            // affine sibling; its current presence is checked below against
+            // the exact remaining region, without reviving the consumed child.
             if established.is_empty()
-                || !established
-                    .iter()
-                    .any(|place| place.ever_established && (place.live || place.case_excluded))
+                || !established.iter().any(|place| place.ever_established)
                 || if carrier {
                     // A transparent carrier has no aggregate claim lineage.
                     // Its saved receipts retain every contained live claim's

@@ -147,13 +147,11 @@ pub(super) fn builtin(
             // Result carriers belong to the selected public declaration,
             // including dynamic slots. A concrete body is not the authority
             // for that type or for the result's eventual guarantee.
+            // Mutating an argument does not erase the result carrier. The
+            // edge's complete write frame preserves its live premises;
+            // normalization separately supplies an occurrence-bound result
+            // from the public contract when the witness actually reads it.
             let owner = super::super::specification_calls::selected_call_contract(program, call)?;
-            if super::super::specification_calls::owner_parameter_scope(program, &owner)?
-                .iter()
-                .any(|parameter| parameter.is_mutable)
-            {
-                return None;
-            }
             Some(Some(super::super::specification_calls::owner_return_type(
                 &owner,
             )))
@@ -168,11 +166,9 @@ pub(super) fn builtin(
             let integer_target = program
                 .primitive_type_reference(cast.target_type)
                 .is_some_and(|target| target.is_fixed_integer());
-            let integer_source = crate::proof_contracts::proof_embeddings::integer_embedding(
-                program,
-                cast.value,
-            )
-            .is_some_and(|source| source.primitive.is_fixed_integer());
+            let integer_source =
+                crate::proof_contracts::proof_embeddings::integer_embedding(program, cast.value)
+                    .is_some_and(|source| source.primitive.is_fixed_integer());
             (integer_target && integer_source).then(|| Some(cast.target_type))
         }
         ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {

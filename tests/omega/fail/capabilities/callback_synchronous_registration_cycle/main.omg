@@ -129,7 +129,7 @@ machine CallbackPolicies::finish(output: BoundaryEntryPlan) -> BoundaryPlanResul
 }
 
 pub boundary trait Initializer: Calling<InitializerCalling> {
-    machine call(context: u64) reaches Registration + Console
+    machine call(context: u64) reaches Initializer + Registration + Console
     invokes Registration;
     invokes Console;
 }
@@ -158,7 +158,7 @@ via registration_binding();
 
 pub data Initialization { }
 pub machine Initialization::call(context: u64) satisfies Initializer::call
-reaches Registration + Console
+reaches Initializer + Registration + Console
 invokes Registration;
 invokes Console;
 {

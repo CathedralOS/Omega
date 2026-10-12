@@ -83,27 +83,23 @@ impl CheckedUnitEffectOperationPlan {
         producer: &CheckedUnitEffectOperationPlan,
         local: SymbolHandle,
     ) -> usize {
-        let Some(result) = producer.structural_result_binding() else {
-            return 0;
-        };
-        let expression = match producer {
-            Self::EstablishLocal(crate::CheckedUnitLocalBindingPlan::StructuralValue {
-                value,
-                ..
-            }) => values.structural_values.nodes.get(*value).expression,
-            Self::Call(call) => match call.source_site().flatten() {
-                Some(crate::NominalMachineUseSite::Expression(expression)) => expression,
-                _ => arena::Handle::invalid(),
-            },
-            _ => arena::Handle::invalid(),
-        };
-        CallTransfers {
-            values,
-            result,
-            local,
-            expression,
-        }
-        .operation(self)
+        CallTransfers::for_producer(values, producer, local)
+            .map_or(0, |transfers| transfers.operation(self))
+    }
+}
+
+impl CheckedCallScalarArgument {
+    /// Whole transfers completed while evaluating this value. A guard owns
+    /// the same ordered computation as a local initializer; short-circuit
+    /// alternatives must not be flattened into unconditional call operands.
+    pub fn definite_call_transfers(
+        &self,
+        values: &CheckedValueFacts,
+        producer: &CheckedUnitEffectOperationPlan,
+        local: SymbolHandle,
+    ) -> usize {
+        CallTransfers::for_producer(values, producer, local)
+            .map_or(0, |transfers| transfers.scalar(self))
     }
 }
 
@@ -114,7 +110,30 @@ struct CallTransfers<'facts> {
     expression: typed_trees::expression::ExpressionHandle,
 }
 
-impl CallTransfers<'_> {
+impl<'facts> CallTransfers<'facts> {
+    fn for_producer(
+        values: &'facts CheckedValueFacts,
+        producer: &'facts CheckedUnitEffectOperationPlan,
+        local: SymbolHandle,
+    ) -> Option<Self> {
+        let result = producer.structural_result_binding()?;
+        let expression = match producer {
+            CheckedUnitEffectOperationPlan::EstablishLocal(
+                crate::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
+            ) => values.structural_values.nodes.get(*value).expression,
+            CheckedUnitEffectOperationPlan::Call(call) => match call.source_site().flatten() {
+                Some(crate::NominalMachineUseSite::Expression(expression)) => expression,
+                _ => arena::Handle::invalid(),
+            },
+            _ => arena::Handle::invalid(),
+        };
+        Some(Self {
+            values,
+            result,
+            local,
+            expression,
+        })
+    }
     fn argument(&self, argument: &CheckedUnitStructuralArgumentPlan) -> usize {
         let whole_owner = argument.access == CheckedStructuralAccess::Owned
             && argument.path.is_empty()

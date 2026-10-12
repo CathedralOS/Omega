@@ -11,11 +11,13 @@ pub data Services {
 
 pub boundary trait Alpha {
     machine alpha(services: &Services)
+    reaches Alpha + Beta
     invokes Beta;
 }
 
 pub boundary trait Beta {
     machine beta(services: &Services)
+    reaches Alpha + Beta
     invokes Alpha;
 }
 
@@ -23,7 +25,7 @@ data AlphaProvider {}
 
 machine AlphaProvider::alpha_checked(services: &Services)
 satisfies Alpha::alpha
-reaches Beta
+reaches Alpha + Beta
 {
     services.beta.beta(services);
 }
@@ -32,7 +34,7 @@ data BetaProvider {}
 
 machine BetaProvider::beta_checked(services: &Services)
 satisfies Beta::beta
-reaches Alpha
+reaches Alpha + Beta
 {
     services.alpha.alpha(services);
 }
