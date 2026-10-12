@@ -32,6 +32,11 @@ pub(in crate::selection) fn prepare(
             .sum::<usize>();
     let mut bridges = Vec::new();
     let mut unbridged_fallthroughs = Vec::new();
+    // A conditional instruction must physically precede its zero successor.
+    // Give any edge that would close a fallthrough cycle, enter the function
+    // entry, or claim an already-used destination its own bridge block.
+    let mut fallthrough_next = Vec::<(SelectedBlockId, SelectedBlockId)>::new();
+    let entry_block = function.entry_block;
     for source in &mut function.blocks {
         let conditional = matches!(
             source.terminator,
@@ -62,11 +67,13 @@ pub(in crate::selection) fn prepare(
                     constraints,
                     catalog,
                     environment,
-                    cleanup,
+                    cleanup.clone(),
                 )? {
                     bridges.push(bridge);
+                    continue;
                 }
-                continue;
+                // A case with no payload work still needs the same physical
+                // fallthrough ordering as every other conditional edge.
             }
             let active = successor
                 .bindings
@@ -91,8 +98,24 @@ pub(in crate::selection) fn prepare(
                 // Two conditional instructions cannot both physically precede
                 // one fallthrough block. Reuse the ordinary edge bridge for the
                 // later claimant; existing transport bridges already isolate it.
-                if !unbridged_fallthroughs.contains(&successor.block) {
+                let mut current = successor.block;
+                let mut closes_cycle = current == source.id;
+                while !closes_cycle {
+                    let Some((_, next)) = fallthrough_next
+                        .iter()
+                        .find(|(origin, _)| *origin == current)
+                    else {
+                        break;
+                    };
+                    current = *next;
+                    closes_cycle = current == source.id;
+                }
+                if successor.block != entry_block
+                    && !unbridged_fallthroughs.contains(&successor.block)
+                    && !closes_cycle
+                {
                     unbridged_fallthroughs.push(successor.block);
+                    fallthrough_next.push((source.id, successor.block));
                     continue;
                 }
             }
