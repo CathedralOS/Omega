@@ -54,8 +54,8 @@
 //! Parameterized domains remain outside this route. Calls computing signature bounds are invocation
 //! dependencies, independent of declaration order.
 //!
-//! Evaluation runs in rounds. Each round prepares the execution program from
-//! the current working tree and folds every endpoint that closes; the driver
+//! Evaluation runs in dependency-ordered rounds. Each endpoint prepares its
+//! demanded execution closure from the current completed inputs; the driver
 //! publishes those folds and prepares again when an invocation
 //! failed while progress was made, because an instance's cloned signature
 //! bounds are read from the prepared tree and a template bound that folded
@@ -392,28 +392,22 @@ pub(crate) fn evaluate_selected_range_endpoints(
     // whether the deferral path had marked them. A round that ends in
     // rejection restores every one of them so a rejected program keeps its
     // authored calls, exactly as a single failing round did.
-    let mut published: Vec<(ExpressionHandle, ExpressionNode, Vec<ExpressionHandle>)> = Vec::new();
+    let input_frontier = inputs.len();
+    let mut published = Vec::new();
     let mut warnings = Vec::new();
-    let restore =
-        |typed: &mut TypedTrees,
-         published: Vec<(ExpressionHandle, ExpressionNode, Vec<ExpressionHandle>)>| {
-            for (expression, original, marked) in published.into_iter().rev() {
-                *typed.expression_table.expression_mut(expression) = original;
-                typed.pending_const_range_endpoints.extend(marked);
-            }
-        };
     loop {
         let plan = match endpoint_plan(typed, domain) {
             Ok(plan) => plan,
             Err(errors) => {
-                restore(typed, published);
+                restore_endpoint_folds(typed, published);
+                inputs.truncate(input_frontier);
                 return Err(errors);
             }
         };
         if plan.roots.is_empty() {
             break;
         }
-        let round = match evaluate_round(
+        let round = evaluate_round(
             typed,
             &plan,
             selection_authority.clone(),
@@ -423,35 +417,10 @@ pub(crate) fn evaluate_selected_range_endpoints(
             &mut warnings,
             domain,
             inputs,
-        ) {
-            Ok(round) => round,
-            // Optional closed probing must not make preparation a new
-            // requirement for runtime or dependent range declarations.
-            Err(_) if plan.calls.is_empty() => break,
-            Err(errors) => {
-                restore(typed, published);
-                return Err(errors);
-            }
-        };
+        );
         let progress = !round.folds.is_empty();
         for (expression, folded) in round.folds {
-            let original =
-                std::mem::replace(typed.expression_table.expression_mut(expression), folded);
-            let mut marked: Vec<_> = plan
-                .calls
-                .iter()
-                .filter(|call| call.root == expression)
-                .filter_map(|call| {
-                    typed
-                        .pending_const_range_endpoints
-                        .remove(&call.expression)
-                        .then_some(call.expression)
-                })
-                .collect();
-            if typed.pending_const_range_endpoints.remove(&expression) {
-                marked.push(expression);
-            }
-            published.push((expression, original, marked));
+            published.push(publish_endpoint_fold(typed, &plan, expression, folded));
         }
         if round.diagnostics.is_empty() {
             break;
@@ -461,7 +430,8 @@ pub(crate) fn evaluate_selected_range_endpoints(
         // Each progressing round permanently removes a nonliteral root; no
         // progress means another round would repeat the same failures.
         if !progress {
-            restore(typed, published);
+            restore_endpoint_folds(typed, published);
+            inputs.truncate(input_frontier);
             return Err(round.diagnostics);
         }
     }
@@ -469,6 +439,50 @@ pub(crate) fn evaluate_selected_range_endpoints(
         eprintln!("{warning}");
     }
     Ok(())
+}
+
+/// A fold and its pending marks publish together. Private dependency
+/// preparation must not see a completed literal with an outstanding call mark;
+/// rollback must restore both parts of the original obligation.
+struct PublishedEndpointFold {
+    expression: ExpressionHandle,
+    original: ExpressionNode,
+    marked: Vec<ExpressionHandle>,
+}
+
+fn publish_endpoint_fold(
+    typed: &mut TypedTrees,
+    plan: &EndpointPlan,
+    expression: ExpressionHandle,
+    folded: ExpressionNode,
+) -> PublishedEndpointFold {
+    let original = std::mem::replace(typed.expression_table.expression_mut(expression), folded);
+    let mut marked = plan
+        .calls
+        .iter()
+        .filter(|call| call.root == expression)
+        .filter_map(|call| {
+            typed
+                .pending_const_range_endpoints
+                .remove(&call.expression)
+                .then_some(call.expression)
+        })
+        .collect::<Vec<_>>();
+    if typed.pending_const_range_endpoints.remove(&expression) {
+        marked.push(expression);
+    }
+    PublishedEndpointFold {
+        expression,
+        original,
+        marked,
+    }
+}
+
+fn restore_endpoint_folds(typed: &mut TypedTrees, published: Vec<PublishedEndpointFold>) {
+    for fold in published.into_iter().rev() {
+        *typed.expression_table.expression_mut(fold.expression) = fold.original;
+        typed.pending_const_range_endpoints.extend(fold.marked);
+    }
 }
 
 /// One round over the still-authored endpoint roots against a program
@@ -490,27 +504,7 @@ fn evaluate_round(
     domain: &EvaluationDomain,
 
     inputs: &mut Vec<crate::CheckedConstantInput>,
-) -> Result<Round, Vec<Diagnostic>> {
-    // Bind exact authored provider occurrences before cloning specializations.
-    // Rebinding only the template after preparation would leave its cloned
-    // body with an unselected operator. Both steps remain private, and the
-    // existing provider validator checks the original occurrence first.
-    let checking_admission = admission;
-    let (prepared, admission) = crate::const_evaluation::prepared_admission(
-        typed,
-        provider_bodies,
-        operators,
-        selection_authority.clone(),
-        domain,
-        &plan
-            .calls
-            .iter()
-            .map(|call| call.machine)
-            .collect::<Vec<_>>(),
-        admission,
-    )?;
-    let execution = prepared.typed();
-
+) -> Round {
     let mut round = Round {
         folds: Vec::new(),
         diagnostics: Vec::new(),
@@ -518,25 +512,56 @@ fn evaluate_round(
     let mut originals = Vec::new();
     for endpoint in &plan.roots {
         let input_frontier = inputs.len();
-        let result = evaluate_endpoint(
-            execution,
-            &admission,
-            endpoint,
-            selection_authority.as_deref(),
-            selection_authority.as_ref(),
-            checking_admission,
-            warnings,
-            inputs,
+        // Signature endpoints are invocation prerequisites. The plan orders
+        // them before the call that needs them, and each completed fold below
+        // becomes an input to the next private preparation. Preparing every
+        // callee together would check a parent before its bounds had settled.
+        // Keep authored operator selections and the exact demanded closure;
+        // an unfinished sibling is neither a premise nor execution authority.
+        let roots = plan
+            .calls
+            .iter()
+            .filter(|call| call.root == endpoint.expression)
+            .map(|call| call.machine)
+            .collect::<Vec<_>>();
+        let prepared = crate::const_evaluation::prepared_admission(
+            typed,
+            provider_bodies,
+            operators,
+            selection_authority.clone(),
+            domain,
+            &roots,
+            admission,
         );
+        let result = match prepared {
+            Ok((prepared, prepared_admission)) => evaluate_endpoint(
+                prepared.typed(),
+                &prepared_admission,
+                endpoint,
+                selection_authority.as_deref(),
+                selection_authority.as_ref(),
+                admission,
+                warnings,
+                inputs,
+            ),
+            Err(diagnostics) => {
+                inputs.truncate(input_frontier);
+                if !roots.is_empty() {
+                    round.diagnostics.extend(diagnostics);
+                }
+                continue;
+            }
+        };
         match result {
             Ok(folded) => {
-                // Later endpoints in this round read this fold from the
-                // working tree (surrounding arithmetic, enclosing arguments).
-                let original = std::mem::replace(
-                    typed.expression_table.expression_mut(endpoint.expression),
+                // Later preparations read this completed dependency from the
+                // working tree, including transitive signature constraints.
+                originals.push(publish_endpoint_fold(
+                    typed,
+                    plan,
+                    endpoint.expression,
                     folded.clone(),
-                );
-                originals.push((endpoint.expression, original));
+                ));
                 round.folds.push((endpoint.expression, folded));
             }
             Err(reason) => {
@@ -558,15 +583,12 @@ fn evaluate_round(
         }
     }
 
-    // Execute against the immutable prepared program, never a graph changed
-    // underneath its admission plan. The working tree only supplies closed
-    // argument arithmetic and signature bounds. Restore it before the driver
-    // publishes any folds so a failed outer call cannot leave its
-    // successfully evaluated children erased.
-    for (expression, original) in originals.into_iter().rev() {
-        *typed.expression_table.expression_mut(expression) = original;
-    }
-    Ok(round)
+    // Each execution used its own immutable prepared program. The working
+    // tree supplied completed dependencies between invocations. Restore it
+    // before the driver publishes folds, so a failed outer call cannot leave
+    // successfully evaluated children or their pending marks erased.
+    restore_endpoint_folds(typed, originals);
+    round
 }
 
 fn evaluate_endpoint(
