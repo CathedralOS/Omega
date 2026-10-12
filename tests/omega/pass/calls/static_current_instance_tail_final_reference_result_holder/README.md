@@ -1,0 +1,1 @@
+An ordinary reference-returning `lend` call establishes `held` in `step`. The final tail call snapshots `held.value`, runs `advance(held)`, then passes `held`. Three cycles must return snapshot `2` and leave the caller counter at `3`, producing native and Terminal exit `0`.
