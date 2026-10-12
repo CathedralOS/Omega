@@ -1092,9 +1092,18 @@ pub(crate) fn prepare(
                     ))?,
             };
             let retained = terminal_psi::field_by_identity(&fields, identities.intern(&identity))
-                .ok_or(LoweringError::Unsupported(
-                "record read has no declared field identity",
-            ))?;
+                .ok_or_else(|| {
+                    if std::env::var_os("OMEGA_MAIN21_SCOPE_TRACE").is_some() {
+                        eprintln!(
+                            "main21-record-field machine={} source={source_type:?} source-type={} field={} identity={identity} subject={subject:?} declared={:?}",
+                            checked.typed.symbols.display_path(plan_machine, "::"),
+                            checked.typed.display_type_reference(*source_type),
+                            checked.typed.symbols.display_path(*field, "::"),
+                            fields.iter().map(|field| identities.text(field.identity)).collect::<Vec<_>>(),
+                        );
+                    }
+                    LoweringError::Unsupported("record read has no declared field identity")
+                })?;
             let scalar_type = terminal_scalar_type(node.primitive_type)?;
             let leaf_scalar_type = terminal_scalar_type(leaf_primitive)?;
             let bounded_leaf =
