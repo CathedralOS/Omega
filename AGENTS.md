@@ -268,6 +268,12 @@ are byte-sensitive.
 
 ## Delegation
 
+- Think in completed outcomes when creating sessions or subagents. Give each
+  owner clear, explicit directions: what must work, the required work, how
+  acceptance is verified, and who reviews and lands it. State directions
+  directly; never imply or insinuate them. The owner carries authorized work
+  through implementation, testing, review, normal main landing and remote
+  verification, and keeps working until the assigned outcome is complete.
 - Dot-created Omega cloud sessions and their native workers default to
   **GPT 6.1 Sol, medium reasoning** (`gpt-6.1-sol`, `medium`), unless the user
   specifies another model or effort. Select them through the runtime's exposed
