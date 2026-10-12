@@ -42,7 +42,15 @@ pub(crate) fn boundary_trait_receiver_source(
                     && source.authored_machine_application == call.authored_application
                     && (source.receiver.is_empty() || source.receiver_symbol == namespace)
             }
-            validation::CallSite::TransitionNamed { .. } => false,
+            validation::CallSite::TransitionNamed { path, .. } => {
+                // A named transition retains an exact resolved namespace path,
+                // but no static application payload. It can present only the
+                // complete ordinary public namespace admitted above; a runtime
+                // receiver or erased application cannot borrow that authority.
+                !call.authored_application.is_valid()
+                    && path.symbol == call.target_symbol
+                    && path.head_symbol == namespace
+            }
         };
     if namespace_call {
         return Some(BoundaryTraitReceiver::Namespace);
