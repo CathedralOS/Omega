@@ -251,14 +251,19 @@ impl<'program> CurrentScalarValues<'program> {
                 values.assume(program, machine, state, guard, transition.target == target);
             }
         }
-        if let Some((_, arguments)) = crate::checks::termination::source_state_transfer(
+        if let Some(transfer) = crate::checks::termination::source_state_transfer(
             program,
             machine,
             state,
             statement_index,
             target,
         ) {
-            for argument in arguments {
+            if transfer.receiver.is_valid() {
+                values.invalidate_operand_writes(
+                    frames.map(|frames| frames.expression_write_frame(machine, transfer.receiver)),
+                );
+            }
+            for argument in transfer.arguments {
                 values.invalidate_operand_writes(
                     frames.map(|frames| frames.expression_write_frame(machine, *argument)),
                 );

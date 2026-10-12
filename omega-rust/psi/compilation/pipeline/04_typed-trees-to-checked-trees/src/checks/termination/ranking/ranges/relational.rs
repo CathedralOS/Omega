@@ -334,14 +334,9 @@ fn prove_edges<'program>(
     let protected = protected.iter().map(String::as_str).collect::<Vec<_>>();
     let mut root_edges = Vec::new();
     for edge in edges {
-        let Some(evaluated_prefix) = preserved_entry_prefix(
-            program,
-            machine,
-            root,
-            frames,
-            edge.statement_ordinal,
-            &protected,
-        ) else {
+        let Some(evaluated_prefix) =
+            preserved_entry_prefix(program, machine, root, frames, &edge, &protected)
+        else {
             return None;
         };
         let guards = edge
@@ -402,15 +397,27 @@ fn preserved_entry_prefix<'program>(
     machine: &'program typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     frames: Option<&validation::CallFrameResolver<'program>>,
-    statement: usize,
+    edge: &patterns::GuardedEdge<'_>,
     protected: &[&str],
 ) -> Option<Vec<ExpressionHandle>> {
     let mut evaluated = Vec::new();
-    for statement in program
-        .statement_table
-        .statements(state.statement_nodes)
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let selected = statements.get(edge.statement_ordinal)?;
+    // Rejoin the exact retained edge before choosing its evaluation phase.
+    let transfer = crate::checks::termination::source_state_transfer(
+        program,
+        machine,
+        state,
+        edge.statement_ordinal,
+        edge.target,
+    )?;
+    if transfer.receiver != edge.receiver || transfer.arguments != edge.arguments {
+        return None;
+    }
+    for (ordinal, statement) in statements
         .iter()
-        .take(statement + 1)
+        .enumerate()
+        .take(edge.statement_ordinal + 1)
     {
         if validation::is_arm_pattern_marker(statement) {
             continue;
@@ -419,14 +426,37 @@ fn preserved_entry_prefix<'program>(
         // and discarded expressions. The complete operand frame includes
         // nested calls, including calls evaluating an indexed store target.
         let frames = frames?;
-        if !protected.iter().all(|input| {
-            write_preservation::prefix_preserves_path(
-                frames,
-                machine,
-                std::slice::from_ref(statement),
-                input,
-            )
-        }) {
+        let preserves = if ordinal == edge.statement_ordinal {
+            // Arrival happens after the selected receiver/arguments and guard,
+            // before its destination body. Earlier statements retain their
+            // complete frames; no returning callee frame belongs to this cut.
+            let guard = selected
+                .as_transition()
+                .and_then(|transition| match transition.guard {
+                    TransitionGuardNode::When(guard) => Some(guard),
+                    TransitionGuardNode::Always => None,
+                });
+            guard
+                .into_iter()
+                .chain(edge.receiver.is_valid().then_some(edge.receiver))
+                .chain(edge.arguments.iter().copied())
+                .all(|expression| {
+                    let frame = frames.expression_write_frame(machine, expression);
+                    protected
+                        .iter()
+                        .all(|input| write_preservation::frame_preserves_path(frame.clone(), input))
+                })
+        } else {
+            protected.iter().all(|input| {
+                write_preservation::prefix_preserves_path(
+                    frames,
+                    machine,
+                    std::slice::from_ref(statement),
+                    input,
+                )
+            })
+        };
+        if !preserves {
             return None;
         }
         let known_evaluation = |expression| {

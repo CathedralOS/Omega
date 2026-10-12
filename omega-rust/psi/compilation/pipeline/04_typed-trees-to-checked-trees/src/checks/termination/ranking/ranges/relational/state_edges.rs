@@ -132,12 +132,7 @@ pub(super) fn select<'program>(
                     });
                     for edge in patterns::edges_to_state(program, source, target.symbol) {
                         let Some(prefix) = preserved_entry_prefix(
-                            program,
-                            machine,
-                            source,
-                            frames,
-                            edge.statement_ordinal,
-                            &protected,
+                            program, machine, source, frames, &edge, &protected,
                         ) else {
                             if trace {
                                 eprintln!("rank-arrival rejected {} at {}", machine.name, line!());
