@@ -5,8 +5,7 @@ use super::super::{
 };
 use crate::preparation::generic_data::uses::{
     ConstructorFrontier, collect_expression_handles, collect_statement_expression_handles,
-    concrete_machine_expression_handles, visit_expression_type_inputs,
-    visit_static_argument_type_inputs,
+    visit_expression_type_inputs, visit_static_argument_type_inputs,
 };
 
 use crate::preparation::generic_data::EvaluatedConst;
@@ -760,7 +759,7 @@ fn visit_expression_type_positions(
     let mut expressions = HashSet::new();
     collect_expression_handles(syntax, expression, &mut expressions);
     let mut expressions = expressions.into_iter().collect::<Vec<_>>();
-    expressions.sort_unstable();
+    expressions.sort_unstable_by_key(|handle| (handle.generation(), handle.arena_index()));
     for expression in expressions {
         let mut references = Vec::new();
         visit_expression_type_inputs(syntax, expression, &mut |reference| {
@@ -1007,7 +1006,7 @@ impl LexicalTypePositions<'_> {
 
     fn expressions(&mut self, expressions: HashSet<ExpressionHandle>, public: bool) {
         let mut expressions = expressions.into_iter().collect::<Vec<_>>();
-        expressions.sort_unstable();
+        expressions.sort_unstable_by_key(|handle| (handle.generation(), handle.arena_index()));
         for expression in expressions {
             if let ExpressionNode::Call(call) = self.syntax.expressions.expression(expression) {
                 self.invocation_arguments(&call.machine_arguments);
@@ -1041,7 +1040,7 @@ impl LexicalTypePositions<'_> {
             &mut references,
         );
         let mut references = references.into_iter().collect::<Vec<_>>();
-        references.sort_unstable();
+        references.sort_unstable_by_key(|handle| (handle.generation(), handle.arena_index()));
         for reference in references {
             self.retain(reference, public);
         }
@@ -1210,17 +1209,38 @@ impl LexicalTypePositions<'_> {
     }
 
     fn signature(&mut self, signature: &syntax_trees::item::StateSignature, public: bool) {
-        self.parameters(signature.type_parameters, public);
-        self.retain(signature.return_type, public);
-        for parameter in self.syntax.items.state_parameters(signature.parameters) {
+        self.signature_inputs(
+            signature.type_parameters,
+            signature.parameters,
+            signature.return_type,
+            signature.contracts,
+            signature.where_facts,
+            signature.default_body,
+            public,
+        );
+    }
+
+    fn signature_inputs(
+        &mut self,
+        type_parameters: HandleSpan<syntax_trees::item::TypeParameter>,
+        parameters: HandleSpan<syntax_trees::item::StateParameterHandle>,
+        return_type: TypeReferenceHandle,
+        contracts: HandleSpan<CapabilityContract>,
+        where_facts: HandleSpan<ProofFact>,
+        default_body: HandleSpan<syntax_trees::statement::StatementHandle>,
+        public: bool,
+    ) {
+        self.parameters(type_parameters, public);
+        self.retain(return_type, public);
+        for parameter in self.syntax.items.state_parameters(parameters) {
             self.retain(
                 self.syntax.items.state_parameter(*parameter).type_reference,
                 public,
             );
         }
-        self.contracts(signature.contracts, public);
-        self.facts(signature.where_facts, public);
-        self.statements(signature.default_body);
+        self.contracts(contracts, public);
+        self.facts(where_facts, public);
+        self.statements(default_body);
     }
 
     fn operator(&mut self, operator: &syntax_trees::item::OperatorDefinition) {
@@ -1394,8 +1414,14 @@ pub(in crate::preparation::generic_data) fn collect_lexical_type_reference_inven
                     collector.trait_reference(refines, definition.is_public);
                 }
                 for signature in syntax.items.state_signatures(definition.machines) {
-                    collector.signature(
-                        syntax.items.state_signature(*signature),
+                    let signature = syntax.items.state_signature(*signature);
+                    collector.signature_inputs(
+                        signature.type_parameters,
+                        signature.parameters,
+                        signature.return_type,
+                        signature.contracts,
+                        signature.where_facts,
+                        signature.default_body,
                         definition.is_public,
                     );
                 }
