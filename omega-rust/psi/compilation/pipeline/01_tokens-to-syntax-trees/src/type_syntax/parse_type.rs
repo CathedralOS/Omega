@@ -96,7 +96,8 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
         let (element_type, input) = parse_type_reference_handle(syntax_trees, input)?;
         if input.at_punctuation(PunctuationKind::Semicolon) {
             let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-            let (length, input) = if input
+            let operand_input = input;
+            let (length, operand, input) = if input
                 .tokens
                 .first()
                 .is_some_and(crate::input::token_cursor::is_identifier_token_for_parser)
@@ -113,15 +114,48 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
                         ));
                     }
                     let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
-                    (FixedArrayLength::ConstCall(name), input)
+                    // Retain the same authored call through the ordinary source
+                    // expression parser; the structural grammar above still
+                    // restricts array calls to zero ordinary arguments.
+                    let (expression, rest) = parse_expression_handle_without_struct_literals(
+                        syntax_trees,
+                        operand_input,
+                    )?;
+                    if rest.tokens.len() != input.tokens.len() {
+                        return Err(input.error_here("expected ]"));
+                    }
+                    let operand = syntax_trees
+                        .type_references
+                        .insert(TypeReferenceNode::ConstExpression(expression));
+                    (FixedArrayLength::ConstCall(name), operand, input)
                 } else {
-                    (FixedArrayLength::ConstParameter(name), input)
+                    let operand = syntax_trees
+                        .type_references
+                        .insert(TypeReferenceNode::Named(name.clone()));
+                    (FixedArrayLength::ConstParameter(name), operand, input)
                 }
             } else {
-                let (length, input) = input.take_integer()?;
+                let source_span = input.current_source_span();
+                let (literal, input) = input.take_integer_literal()?;
+                // Preserve the existing structural i64 ceiling and nonnegative
+                // geometry, independently of the literal's own landing/policy.
+                let length = literal.value_i64().ok_or_else(|| {
+                    operand_input.error_here(
+                        "integer literal exceeds i64; this position needs a parse-time number",
+                    )
+                })?;
                 let length = usize::try_from(length)
                     .map_err(|_| input.error_here("expected non-negative array length"))?;
-                (FixedArrayLength::Literal(length), input)
+                let expression = syntax_trees
+                    .expressions
+                    .insert(ExpressionNode::Integer(literal));
+                syntax_trees
+                    .expressions
+                    .set_source_span(expression, source_span);
+                let operand = syntax_trees
+                    .type_references
+                    .insert(TypeReferenceNode::ConstExpression(expression));
+                (FixedArrayLength::Literal(length), operand, input)
             };
             let input = input.take_punctuation(PunctuationKind::RightBracket, "]")?;
             let array = syntax_trees
@@ -130,6 +164,9 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
                     element_type,
                     length,
                 });
+            syntax_trees
+                .type_references
+                .retain_fixed_array_length_operand(array, operand);
             // A fixed array can carry an encoding domain: `[u8; 32] in Utf8`.
             return if allow_trailing_domain {
                 apply_in_domain_suffix(syntax_trees, array, input)
