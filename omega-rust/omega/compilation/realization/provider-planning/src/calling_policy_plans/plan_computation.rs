@@ -195,6 +195,7 @@ struct BoundaryCallingPresentation {
     declaring_trait: symbols::SymbolHandle,
     selected_interface: symbols::SymbolHandle,
     boundary_arguments: Vec<checked_trees::typed_trees::types::TypeReferenceHandle>,
+    argument_owner: symbols::SymbolHandle,
     binding_application:
         checked_trees::typed_trees::static_applications::StaticMachineApplicationHandle,
     requirement_machine: symbols::SymbolHandle,
@@ -323,6 +324,7 @@ pub fn extend_boundary_calling_plans(
                         row.application_identity == application.identity
                             && row.requirement_machine == presentation.requirement_machine
                             && row.boundary_arguments == presentation.boundary_arguments
+                            && row.argument_owner == presentation.argument_owner
                     })
                 {
                     let mut row = previous.clone();
@@ -344,6 +346,7 @@ pub fn extend_boundary_calling_plans(
                 if !previous.presentations.iter().any(|row| {
                     row.requirement_machine == presentation.requirement_machine
                         && row.boundary_arguments == presentation.boundary_arguments
+                        && row.argument_owner == presentation.argument_owner
                 }) {
                     previous.presentations.push(presentation);
                 }
