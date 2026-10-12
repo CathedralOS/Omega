@@ -477,6 +477,11 @@ fail/borrows/incoming_carrier_duplicate_exclusive_leaf rejected 1724ms expected 
 	machine `duplicate` returns `carrier` as mutable more than once
 fail/borrows/local_array_borrow_operand_read rejected 1818ms expected @a9ae30e1c334+wt
 	state `stamp` receives `samples` as both mutable and read-only
+fail/borrows/local_case_subject_carried_alias_write rejected 446ms expected @04dde76a664b+wt
+	state `saved` receives `frame` while local borrow `held` is still active (borrowed at statement 4; its last use is at statement 7)
+	state `saved` receives `frame` while local borrow `__hoist_15` is still active (borrowed at statement 6; its last use is at statement 8 and it is released at state exit)
+	statement 7 mutates `frame.items[1]` while local borrow `held` is still active (borrowed at statement 4; its last use is at statement 7)
+	statement 7 mutates `frame.items[1]` while local borrow `__hoist_15` is still active (borrowed at statement 6; its last use is at statement 8 and it is released at state exit)
 fail/borrows/local_projected_field_mut_and_shared_argument rejected 1546ms expected @a9ae30e1c334+wt
 	state `copy` receives `screen.banner` as both mutable and read-only
 fail/borrows/local_record_duplicate_mut_argument rejected 1513ms expected @a9ae30e1c334+wt
@@ -4554,6 +4559,7 @@ pass/control_flow/runtime_owned_state_parallel_swap_exit checked 6231ms check-ta
 pass/control_flow/runtime_parameter_index_state_loan_exit checked 12177ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/control_flow/runtime_projected_case_large_offset_exit checked 16824ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_projected_case_payload_forwarding_exit checked 11491ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/control_flow/runtime_projected_case_payload_snapshots_exit checked 3940ms check-target:macos_arm64 @04dde76a664b+wt
 pass/control_flow/runtime_projected_float_case_payload_exit checked 6367ms check-target:macos_arm64 @aef42baa7504+wt
 pass/control_flow/runtime_projected_index_case_payload_forwarding_exit checked 13169ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_projected_index_single_case_payload_exit checked 12991ms check-target:macos_arm64 @a9ae30e1c334+wt

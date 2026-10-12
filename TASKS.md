@@ -5285,7 +5285,7 @@ wait for Cathedral's instruction coverage. The interpreter is
     Still missing: primitive/projected exclusive arms, write-only joins
     (**WRITE-ONLY-BORROW**), case/reference/descriptor-bearing referents,
     dynamic indexes, ranges, computed roots, join-place reads/projections,
-    primitive-local origins and borrowed-subject successor lifecycle. End loans
+    primitive-local origins and borrowed-result successor lifecycle. End loans
     at last use: `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/current_ownership/address_joins.rs`
     currently pins origins through the whole dominated region.
   - `branch_edges` in

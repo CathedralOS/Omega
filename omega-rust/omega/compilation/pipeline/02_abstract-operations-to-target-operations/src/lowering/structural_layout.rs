@@ -321,24 +321,31 @@ fn contiguous_primitive_read_projection(
     if let Some(leaf) = contiguous_primitive_projection(root, path, declarations) {
         return Some(leaf);
     }
-    let (StructuralPathSegment::Field(identity), carrier) = path.split_last()? else {
+    let (StructuralPathSegment::Field(_), carrier) = path.split_last()? else {
         return None;
+    };
+    let field =
+        terminal_semantics::runtime_structural_field(declarations.values().copied(), root, path)?;
+    let (prefix, namespace) = match carrier.split_last() {
+        Some((StructuralPathSegment::Case(_), prefix)) => (prefix, &carrier[carrier.len() - 1..]),
+        _ => (carrier, &[][..]),
     };
     let (carrier_type, _, carrier_offset, runs) = runtime_projection(
         root,
-        carrier,
+        prefix,
         declarations,
         &mut BTreeMap::new(),
         &mut BTreeSet::new(),
     )
     .ok()?;
-    let fields = declarations.get(&carrier_type)?.shape.direct_fields()?;
-    let field = terminal_psi::live_field_by_identity(fields, *identity)?;
     // Eligibility was checked on the complete read. This suffix supplies only
     // the scalar's storage layout, never store authority or a canonical fact.
     let scalar = field.field_type.scalar_type()?;
-    let (field_offset, _) =
-        direct_scalar_field_geometry(carrier_type, field.id, scalar, declarations).ok()?;
+    let (field_offset, _) = if namespace.is_empty() {
+        direct_scalar_field_geometry(carrier_type, field.id, scalar, declarations).ok()?
+    } else {
+        static_field_geometry(carrier_type, namespace, field.id, scalar, declarations).ok()?
+    };
     Some((scalar, carrier_offset.checked_add(field_offset)?, runs))
 }
 

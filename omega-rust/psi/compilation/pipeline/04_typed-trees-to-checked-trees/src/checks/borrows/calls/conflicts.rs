@@ -33,6 +33,7 @@ pub(super) fn check_call_access_conflicts<'p>(
         program,
         state_flow,
         borrow_call,
+        call_frames,
     );
     let active_loans: Vec<_> = facts
         .flow

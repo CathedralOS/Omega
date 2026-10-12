@@ -70,17 +70,6 @@ impl<'storage, Declaration: ProgramDeclaration> ProgramDeclarations<'storage, De
     }
 }
 
-impl<'storage> ProgramDeclarations<'storage, StructuralTypeDeclaration> {
-    /// The record-or-mixed field roster of `identity`, absent when the type is
-    /// missing or not field-shaped.
-    pub(crate) fn record_fields(
-        &self,
-        identity: &semantic_vocabulary::StructuralTypeId,
-    ) -> Option<&'storage [terminal_psi::StructuralFieldDeclaration]> {
-        self.get(identity)?.shape.record_fields()
-    }
-}
-
 impl ProgramDeclaration for TerminalMachine {
     type Identity = semantic_vocabulary::MachineId;
     fn identity(&self) -> &Self::Identity {

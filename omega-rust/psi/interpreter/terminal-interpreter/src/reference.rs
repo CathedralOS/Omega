@@ -909,8 +909,14 @@ impl TerminalExecution<'_> {
             Some(backing) => (backing, Some(owner.structural_type)),
             None => (owner, None),
         };
-        self.resolve_reference_view_path_with_leaf_type(backing, path, access, leaf_type, view)?
-            .ok_or_else(malformed)
+        self.resolve_reference_view_path_with_leaf_type(
+            backing,
+            path,
+            Some(access),
+            leaf_type,
+            view,
+        )?
+        .ok_or_else(malformed)
     }
 
     /// Project storage, crossing each reference boundary through its captured
@@ -939,7 +945,7 @@ impl TerminalExecution<'_> {
         self.resolve_reference_view_path_with_leaf_type(
             owner,
             path,
-            access,
+            Some(access),
             if access == StructuralAccess::SharedBorrow {
                 terminal_psi::StructuralFieldType::shared_observation_type
             } else {
@@ -950,11 +956,36 @@ impl TerminalExecution<'_> {
         .map(|selected| selected.map(|projection| (projection.value, projection.view_tip)))
     }
 
+    /// Discriminator validation inspects runtime custody, not a source read.
+    /// Follow the same retained reference/view backing as operand resolution,
+    /// without requiring readable payload authority from a write-only operation.
+    /// The operation's consumer still checks its actual access independently.
+    pub(crate) fn resolve_case_guard_carrier(
+        &self,
+        place: PlaceId,
+        path: &[StructuralPathSegment],
+    ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
+        let owner = self.structural_values.get(&place).ok_or_else(malformed)?;
+        let (backing, view) = match self.aggregate_argument_backings.get(&place) {
+            Some(backing) => (backing, Some(owner.structural_type)),
+            None => (owner, None),
+        };
+        self.resolve_reference_view_path_with_leaf_type(
+            backing,
+            path,
+            None,
+            terminal_psi::StructuralFieldType::canonical_leaf_type,
+            view,
+        )?
+        .map(|projection| projection.value)
+        .ok_or_else(malformed)
+    }
+
     fn resolve_reference_view_path_with_leaf_type(
         &self,
         owner: &TerminalStructuralValue,
         path: &[StructuralPathSegment],
-        access: StructuralAccess,
+        access: Option<StructuralAccess>,
         leaf_type: fn(
             &terminal_psi::StructuralFieldType,
         ) -> Option<terminal_psi::StructuralFieldType>,
@@ -1024,7 +1055,7 @@ impl TerminalExecution<'_> {
                 crate::custody::project_structural_value_with_leaf(
                     &types, &value, prefix, leaf_type,
                 )?
-            } else if access == StructuralAccess::SharedBorrow {
+            } else if access == Some(StructuralAccess::SharedBorrow) {
                 crate::custody::project_shared_structural_observation(&types, &value, prefix)?
             } else {
                 project_structural_value(&types, &value, prefix)?
@@ -1032,12 +1063,12 @@ impl TerminalExecution<'_> {
             if let Some(boundary) = boundary {
                 if matches!(remaining[boundary], StructuralPathSegment::FixedIndex(_)) {
                     let view = self.element_view_at_resolved_home(&value)?;
-                    if !access_covers(view.access(), access) {
+                    if access.is_some_and(|required| !access_covers(view.access(), required)) {
                         return Err(malformed());
                     }
                     let (collection, selected) = view.structural_projection(
                         &remaining[boundary..boundary + 1],
-                        access != StructuralAccess::SharedBorrow,
+                        access.is_some_and(|required| required != StructuralAccess::SharedBorrow),
                     )?;
                     // Consume this selector once in the actual collection.
                     // The suffix remains in its observed element declaration;
@@ -1054,7 +1085,7 @@ impl TerminalExecution<'_> {
                         None => None,
                         Some(AggregateViewTip::Scalar { .. }) => return Err(malformed()),
                     };
-                    value = if access == StructuralAccess::SharedBorrow {
+                    value = if access == Some(StructuralAccess::SharedBorrow) {
                         crate::custody::project_shared_structural_observation(
                             &types,
                             &collection,
@@ -1067,7 +1098,7 @@ impl TerminalExecution<'_> {
                     continue;
                 }
                 let (referent_type, authority) = self.reference_contract(value.structural_type)?;
-                if !access_covers(authority, access) {
+                if access.is_some_and(|required| !access_covers(authority, required)) {
                     return Err(malformed());
                 }
                 let reference_type = value.structural_type;

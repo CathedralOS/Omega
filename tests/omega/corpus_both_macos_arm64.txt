@@ -297,6 +297,7 @@ pass/control_flow/runtime_namespace_local_state_loan built 777ms exit:0 stdout:m
 pass/control_flow/runtime_nested_case_pattern_guard_meet_exit built 1534ms exit:0 interpreter-exit:0 interpreter:agrees @194c7a0f42ea+wt
 pass/control_flow/runtime_projected_case_large_offset_exit built 5787ms exit:70 interpreter-exit:70 interpreter:agrees @441e8f33f8c7+wt
 pass/control_flow/runtime_projected_case_payload_forwarding_exit built 1996ms exit:70 interpreter-exit:70 interpreter:agrees @441e8f33f8c7+wt
+pass/control_flow/runtime_projected_case_payload_snapshots_exit built 3794ms exit:0 interpreter-exit:0 interpreter:agrees @04dde76a664b+wt
 pass/control_flow/runtime_projected_float_case_payload_exit built 5311ms exit:70 interpreter-exit:70 interpreter:agrees @a800cc9ab970
 pass/control_flow/runtime_projected_index_case_payload_forwarding_exit built 2372ms exit:70 interpreter-exit:70 interpreter:agrees @0c36a0fe0b35
 pass/control_flow/runtime_projected_index_single_case_payload_exit built 2106ms exit:70 interpreter-exit:70 interpreter:agrees @0c36a0fe0b35

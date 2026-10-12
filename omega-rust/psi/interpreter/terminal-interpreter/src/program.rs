@@ -146,16 +146,6 @@ impl AdmittedTerminalProgram<'_> {
         )
     }
 
-    /// The record-or-mixed field roster of `identity`, absent when the type
-    /// is missing or not field-shaped — the lookup every shape consumer
-    /// opens through the declarations table.
-    pub(crate) fn record_fields(
-        &self,
-        identity: &StructuralTypeId,
-    ) -> Option<&[terminal_psi::StructuralFieldDeclaration]> {
-        self.structural_types().record_fields(identity)
-    }
-
     pub(crate) fn boundary_machines(&self) -> ProgramDeclarations<'_, BoundaryMachineDeclaration> {
         ProgramDeclarations::new(&self.catalogs.boundary_machines)
     }

@@ -32,6 +32,32 @@ pub(crate) mod encoding;
 
 pub(crate) use encoding::{scalar_fits_storage, shifted_byte_endpoint};
 
+/// A scalar cell keeps its selected namespace and backing declaration together.
+/// Resolving the carrier has already checked access and reference custody.
+pub(crate) struct ObservedScalarField<'a> {
+    pub(crate) carrier: TerminalStructuralValue,
+    pub(crate) leaf: TerminalStructuralValue,
+    pub(crate) declaration: &'a terminal_psi::StructuralFieldDeclaration,
+    pub(crate) stored_type: ScalarType,
+    pub(crate) cell: StructuralScalarRuntimeField,
+}
+
+/// A final Case is the carrier's field namespace, not a separate runtime value.
+/// Resolve the preceding projection before selecting that namespace's cell.
+pub(crate) fn scalar_field_projection(
+    path: &[StructuralPathSegment],
+) -> Option<(&[StructuralPathSegment], &[StructuralPathSegment])> {
+    let (StructuralPathSegment::Field(_), carrier) = path.split_last()? else {
+        return None;
+    };
+    let split = if matches!(carrier.last(), Some(StructuralPathSegment::Case(_))) {
+        carrier.len() - 1
+    } else {
+        carrier.len()
+    };
+    Some(path.split_at(split))
+}
+
 /// Reference formation and a host snapshot have different atomic permissions.
 /// A snapshot under an already-bound exclusive aggregate loan may inspect its
 /// atomic resident; no operation here can create a plain reference to that cell.
@@ -1329,73 +1355,53 @@ impl TerminalExecution<'_> {
         Ok(())
     }
 
-    /// Join a selected carrier and its observed declaration to the original
-    /// scalar cell. Primitive reads and direct/recast element views use this
-    /// same field identity and carrier relationship; neither recreates storage.
-    pub(crate) fn scalar_field_at_record(
+    /// Join an authority-resolved carrier to its selected scalar cell. A case
+    /// namespace stays with the declaration through re-view translation and
+    /// active-tag validation; common members and payload fields never alias.
+    pub(crate) fn scalar_field_at_carrier(
         &self,
-        record: TerminalStructuralValue,
+        carrier: TerminalStructuralValue,
         view: Option<crate::reference::AggregateViewTip>,
-        path: &[StructuralPathSegment],
+        field_path: &[StructuralPathSegment],
         scalar_type: ScalarType,
-    ) -> Result<
-        Option<(
-            TerminalStructuralValue,
-            &terminal_psi::StructuralFieldDeclaration,
-            ScalarType,
-        )>,
-        TerminalInterpretError,
-    > {
-        let Some(StructuralPathSegment::Field(identity)) = path.last() else {
-            return Ok(None);
-        };
-        // Through an aggregate re-view the field is the view's; its backing
-        // field at the same position holds the cell under its own carrier.
+    ) -> Result<Option<ObservedScalarField<'_>>, TerminalInterpretError> {
         let translated;
-        let (identity, stored_type) = match view {
-            None => (identity, scalar_type),
+        let (field_path, stored_type) = match view {
+            None => (field_path, scalar_type),
             Some(crate::reference::AggregateViewTip::Aggregate { view, backing })
-                if backing == record.structural_type =>
+                if backing == carrier.structural_type =>
             {
                 let (path, tip) = crate::reference::translate_aggregate_view_path(
                     &self.program.structural_types(),
                     view,
                     backing,
-                    &path[path.len() - 1..],
+                    field_path,
                 )
                 .ok_or_else(malformed)?;
-                let (
-                    [StructuralPathSegment::Field(backing_identity)],
-                    crate::reference::AggregateViewTip::Scalar {
-                        view: observed,
-                        backing: stored,
-                    },
-                ) = (path.as_slice(), tip)
+                let crate::reference::AggregateViewTip::Scalar {
+                    view: observed,
+                    backing: stored,
+                } = tip
                 else {
                     return Ok(None);
                 };
                 if observed != scalar_type {
                     return Err(malformed());
                 }
-                translated = backing_identity.clone();
-                (&translated, stored)
+                translated = path;
+                (translated.as_slice(), stored)
             }
             Some(_) => return Err(malformed()),
         };
-        let Some(fields) = self
-            .program
-            .structural_types()
-            .get(&record.structural_type)
-            .and_then(|declaration| declaration.shape.direct_fields())
-        else {
+        let Some(field) = terminal_semantics::runtime_structural_field(
+            self.program.structural_types().values(),
+            carrier.structural_type,
+            field_path,
+        ) else {
             return Ok(None);
         };
-        let mut matching = fields.iter().filter(|field| field.identity == *identity);
-        let (Some(field), None) = (matching.next(), matching.next()) else {
-            return Err(malformed());
-        };
-        // A field holding a structural child is an ordinary primitive leaf
-        // projection; only a scalar field ends this route.
+        // Structural children use the primitive-leaf route; atomic fields
+        // cannot gain an ordinary scalar observation through this resolver.
         if matches!(
             field.field_type,
             terminal_psi::StructuralFieldType::Atomic(_)
@@ -1405,54 +1411,69 @@ impl TerminalExecution<'_> {
         let Some(declared) = field.field_type.scalar_type() else {
             return Ok(None);
         };
-        if field.relevance.is_erased() || declared != stored_type {
+        if declared != stored_type {
             return Err(malformed());
         }
-        Ok(Some((record, field, stored_type)))
+        let (_, namespace) = field_path.split_last().ok_or_else(malformed)?;
+        let namespace = match namespace {
+            [] => Vec::new(),
+            [StructuralPathSegment::Case(case)] => {
+                vec![semantic_vocabulary::CanonicalStructuralPathSegment::Case(
+                    *case,
+                )]
+            }
+            _ => return Err(malformed()),
+        };
+        let cell = self.observed_field_cell_in(&carrier, None, &namespace, field.id)?;
+        let mut leaf = carrier.clone();
+        leaf.path.extend_from_slice(field_path);
+        Ok(Some(ObservedScalarField {
+            carrier,
+            leaf,
+            declaration: field,
+            stored_type,
+            cell,
+        }))
     }
 
-    /// Observe the final direct field under its original runtime carrier.
-    /// Admission checked the complete read path before runtime selection;
-    /// eligibility on a suffix would lose the preceding selectors. Restricted
-    /// fields keep their stored carrier, without granting store authority.
+    /// Observe a selected field under its original backing. Admission checked
+    /// the complete path before runtime selection; a suffix supplies no bounds
+    /// or writable authority. Byte-region and re-view reads retain their codec.
     fn scalar_field_read(
         &self,
         source: PlaceId,
         path: &[StructuralPathSegment],
         scalar_type: ScalarType,
     ) -> Result<Option<TerminalScalarValue>, TerminalInterpretError> {
-        let Some((StructuralPathSegment::Field(_), carrier)) = path.split_last() else {
+        let Some((prefix, field_path)) = scalar_field_projection(path) else {
             return Ok(None);
         };
-        let (record, view) =
-            self.resolve_live_view_projection(source, carrier, StructuralAccess::SharedBorrow)?;
-        let Some((record, field, stored_type)) =
-            self.scalar_field_at_record(record, view, path, scalar_type)?
+        let (carrier, view) =
+            self.resolve_live_view_projection(source, prefix, StructuralAccess::SharedBorrow)?;
+        let Some(observed) =
+            self.scalar_field_at_carrier(carrier, view, field_path, scalar_type)?
         else {
             return Ok(None);
         };
-        let mut leaf = record.clone();
-        leaf.path
-            .push(StructuralPathSegment::Field(field.identity.clone()));
         if let Some((storage, logical_scalar)) =
-            self.reference_byte_region_access(&record, &leaf)?
+            self.reference_byte_region_access(&observed.carrier, &observed.leaf)?
         {
             return self
                 .read_primitive_storage(source, storage, logical_scalar, scalar_type, false)
                 .map(Some);
         }
-        let cell =
-            StructuralScalarRuntimeField::member(StructuralRuntimePlace::from(&record), field.id);
-        let mut value = self.structural_scalar_fields.get(&cell).copied().ok_or(
-            TerminalInterpretError::StructuralScalarFieldMissing {
+        let mut value = self
+            .structural_scalar_fields
+            .get(&observed.cell)
+            .copied()
+            .ok_or(TerminalInterpretError::StructuralScalarFieldMissing {
                 source,
-                field: field.id,
-            },
-        )?;
-        if value.scalar_type() != stored_type {
+                field: observed.declaration.id,
+            })?;
+        if value.scalar_type() != observed.stored_type {
             return Err(malformed());
         }
-        if stored_type != scalar_type {
+        if observed.stored_type != scalar_type {
             value = scalar_reference_observation(value, scalar_type)?;
         }
         Ok(Some(value))

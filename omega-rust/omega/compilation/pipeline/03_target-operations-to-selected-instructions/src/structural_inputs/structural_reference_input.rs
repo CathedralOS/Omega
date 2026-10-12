@@ -639,20 +639,16 @@ fn contiguous_primitive_read_geometry(
     if let Some(geometry) = primitive_geometry(root, path, scalar, declarations) {
         return Some(geometry);
     }
-    let (StructuralPathSegment::Field(identity), carrier) = path.split_last()? else {
+    let (StructuralPathSegment::Field(_), carrier) = path.split_last()? else {
         return None;
     };
-    let (carrier_type, _, _) = runtime_projection(root, carrier, declarations)?;
-    let fields = find_structural_type(declarations, carrier_type)?
-        .shape
-        .direct_fields()?;
-    let field = terminal_psi::live_field_by_identity(fields, *identity)?;
+    let field = terminal_semantics::runtime_structural_field(declarations.iter(), root, path)?;
     // The complete read established eligibility; this suffix independently
     // reconstructs the declared scalar width, field offset and region bounds.
     if field.field_type.scalar_type() != Some(scalar) {
         return None;
     }
-    scalar_field_geometry(root, carrier, field.id, scalar, declarations, false)
+    inline_scalar_field_geometry(root, carrier, field.id, scalar, declarations)
 }
 
 pub(crate) fn shape(
@@ -1458,12 +1454,8 @@ pub(crate) fn projected_scalar_codec(
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<runtime_abi::ScalarStorageCodec> {
     let (root, path) = referent_projection(root, path, declarations)?;
-    if let Some((StructuralPathSegment::Field(identity), prefix)) = path.split_last() {
-        let (parent, _, _) = runtime_projection(root, prefix, declarations)?;
-        let fields = find_structural_type(declarations, parent)?
-            .shape
-            .direct_fields()?;
-        let field = terminal_psi::field_by_identity(fields, *identity)?;
+    if let Some((StructuralPathSegment::Field(_), prefix)) = path.split_last() {
+        let field = terminal_semantics::runtime_structural_field(declarations.iter(), root, path)?;
         return scalar_field_codec(root, prefix, field.id, declarations);
     }
     let (selected, _, _) = runtime_projection(root, path, declarations)?;
@@ -1479,14 +1471,10 @@ pub(crate) fn projected_scalar_fragments<'declarations>(
     declarations: &'declarations [StructuralTypeDeclaration],
 ) -> Option<&'declarations semantic_vocabulary::AuthoredBitFragments> {
     let (root, path) = referent_projection(root, path, declarations)?;
-    let (StructuralPathSegment::Field(identity), prefix) = path.split_last()? else {
+    let (StructuralPathSegment::Field(_), prefix) = path.split_last()? else {
         return None;
     };
-    let (parent, _, _) = runtime_projection(root, prefix, declarations)?;
-    let fields = find_structural_type(declarations, parent)?
-        .shape
-        .direct_fields()?;
-    let field = terminal_psi::field_by_identity(fields, *identity)?;
+    let field = terminal_semantics::runtime_structural_field(declarations.iter(), root, path)?;
     scalar_field_fragments(root, prefix, field.id, declarations)
 }
 
@@ -2135,7 +2123,7 @@ pub(crate) fn field_store_geometry(
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<PrimitiveAccessGeometry> {
     let regions = storage_projection_regions(root, path, declarations)?;
-    let (byte_offset, byte_size, leaf_elements) = inline_field_store(
+    let (byte_offset, byte_size, leaf_elements) = inline_scalar_field_geometry(
         regions.root,
         &path[regions.segment_start..],
         field,
@@ -2164,7 +2152,7 @@ pub(crate) fn store(
     Some((geometry.byte_offset, geometry.byte_size, geometry.elements))
 }
 
-fn inline_field_store(
+fn inline_scalar_field_geometry(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
     field: StructuralFieldId,

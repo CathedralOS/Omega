@@ -407,7 +407,7 @@ fn check_call_mutation_borrows<'p>(
         let live_loans = if mutated_places.is_empty() {
             Vec::new()
         } else {
-            loans_live_at_call(program, facts, state_flow, borrow_call)
+            loans_live_at_call(program, facts, state_flow, borrow_call, call_frames)
         };
         if mutated_places.is_empty() && !retains_exclusive_argument {
             continue;
@@ -518,6 +518,7 @@ fn loans_live_at_call(
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     borrow_call: &checked_trees::BorrowCallFact,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Vec<arena::Handle<checked_trees::BorrowLoanFact>> {
     let Some(statement) = facts
         .flow
@@ -537,7 +538,7 @@ fn loans_live_at_call(
         return Vec::new();
     }
     let exiting_source =
-        source_exiting_without_local_loan_carriers(program, state_flow, borrow_call);
+        source_exiting_without_local_loan_carriers(program, state_flow, borrow_call, call_frames);
     loans
         .filter(|loan_handle| {
             !exiting_source.is_some_and(|state| {
@@ -584,6 +585,7 @@ pub(super) fn source_exiting_without_local_loan_carriers<'program>(
     program: &'program dyn ::validation::CheckingInput,
     flow: &FlowStateFact,
     call: &checked_trees::BorrowCallFact,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<&'program typed_trees::state::State> {
     let source = find_state_in_machine(program, flow.machine_symbol, flow.state_symbol)?;
     let LocalJump { target, site } = local_jump(program, flow, call)?;
@@ -603,14 +605,18 @@ pub(super) fn source_exiting_without_local_loan_carriers<'program>(
         {
             continue;
         }
-        // Passing caller-backed storage is not carrying a state-local
-        // observation of it. Resolve the argument's provenance, then require
-        // an incoming reference. Stored reference leaves retain their own
-        // source loans in the assignment inventory; forwarding the parent
-        // cannot retire those loans with an unrelated local observation.
-        // Local aliases, aggregates carrying loans, and unknown frontiers
-        // cannot establish this fact. Their retained loan transport must be
-        // checked instead of treating state exit as permission to end them.
+        // Forwarding backing storage does not carry a local observation of it.
+        // Incoming references already outlive the source scope. A local owned
+        // home instead needs the complete successor retention relation, including
+        // escape and repeated-establishment checks. Reference aliases and homes
+        // containing reference leaves retain their separate loan obligations.
+        for reference in [parameter.type_reference, actual] {
+            let typed_trees::types::TypeReferenceNode::Reference { .. } =
+                program.type_reference_table.type_reference(reference)
+            else {
+                return None;
+            };
+        }
         let place = crate::borrow::argument_borrow_loan_place(
             program,
             source.symbol,
@@ -618,16 +624,34 @@ pub(super) fn source_exiting_without_local_loan_carriers<'program>(
             machine.symbol,
             *argument,
         )?;
-        let incoming = program
+        let root = place.root.as_symbol()?;
+        if let Some(incoming) = program
             .state_parameters(source)
             .iter()
-            .find(|candidate| facts::PlaceRoot::Symbol(candidate.symbol) == place.root)?;
-        for reference in [incoming.type_reference, parameter.type_reference, actual] {
-            let typed_trees::types::TypeReferenceNode::Reference { .. } =
-                program.type_reference_table.type_reference(reference)
+            .find(|candidate| candidate.symbol == root)
+        {
+            let typed_trees::types::TypeReferenceNode::Reference { .. } = program
+                .type_reference_table
+                .type_reference(incoming.type_reference)
             else {
                 return None;
             };
+        } else {
+            let (_, local) = program.state_local_declaration(source, root)?;
+            if !crate::borrow::view_link::substituted_result_is_view_free(
+                program,
+                local.type_reference,
+                &[],
+            ) || !call_frames?.local_backing_survives_state_jump(
+                machine,
+                source,
+                call.statement_index,
+                target,
+                arguments,
+                root,
+            ) {
+                return None;
+            }
         }
     }
     positional.next().is_none().then_some(source)

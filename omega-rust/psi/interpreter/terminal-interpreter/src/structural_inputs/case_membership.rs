@@ -236,13 +236,18 @@ impl TerminalExecution<'_> {
         operation: &Operation,
     ) -> Result<(), TerminalInterpretError> {
         for projection in operation.kind.structural_projections() {
-            validate_case_projection(
-                &self.program.structural_types(),
-                &self.structural_values,
-                &self.structural_cases,
-                projection.root,
-                projection.path,
-            )?;
+            for (position, segment) in projection.path.iter().enumerate() {
+                let StructuralPathSegment::Case(case) = segment else {
+                    continue;
+                };
+                let carrier =
+                    self.resolve_case_guard_carrier(projection.root, &projection.path[..position])?;
+                self.active_field_declarations(
+                    carrier.structural_type,
+                    &StructuralRuntimePlace::from(&carrier),
+                    Some(*case),
+                )?;
+            }
         }
         Ok(())
     }
@@ -490,14 +495,9 @@ pub(crate) fn case_projection_with_membership_is_active(
     if selected.peek().is_none() {
         return Ok(true);
     }
-    // Field events carry their final leaf separately. Their last Case selects
-    // its payload namespace rather than a structural child; still validate
-    // that exact discriminator below, without inventing a payload record.
-    let structural_prefix = match path.split_last() {
-        Some((StructuralPathSegment::Case(_), prefix)) => prefix,
-        _ => path,
-    };
-    crate::custody::resolve_structural_path_shape(types, structural_type, structural_prefix)?;
+    // This judgment authenticates the enclosing overlays. The consuming
+    // operation validates its endpoint, which may be an inline scalar with no
+    // standalone structural declaration or a final payload namespace.
     for (position, case) in selected {
         let prefix = &path[..position];
         let selected_type = resolve_structural_path_type(types, structural_type, prefix)?;

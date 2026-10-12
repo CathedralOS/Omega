@@ -17,9 +17,9 @@
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, TerminalExecution};
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
+use crate::values::StructuralScalarRuntimeField;
 use crate::values::TerminalScalarValue;
 use crate::values::TerminalStructuralValue;
-use crate::values::{StructuralRuntimePlace, StructuralScalarRuntimeField};
 use semantic_vocabulary::IntegerSign;
 use semantic_vocabulary::IntegerType;
 use semantic_vocabulary::IntegerValue;
@@ -854,7 +854,8 @@ impl TerminalExecution<'_> {
         scalar_type: ScalarType,
         access: StructuralAccess,
     ) -> Result<Option<(StructuralScalarRuntimeField, ScalarType)>, TerminalInterpretError> {
-        let Some((StructuralPathSegment::Field(_), prefix)) = path.split_last() else {
+        let Some((prefix, field_path)) = crate::primitive_storage::scalar_field_projection(path)
+        else {
             return Ok(None);
         };
         let mut selected_path = Vec::with_capacity(1 + prefix.len());
@@ -869,15 +870,11 @@ impl TerminalExecution<'_> {
         let (parent, view) = self
             .resolve_reference_view_path(collection.ok_or_else(malformed)?, &selected_path, access)?
             .ok_or_else(malformed)?;
-        let Some((parent, field, stored_type)) =
-            self.scalar_field_at_record(parent, view, path, scalar_type)?
+        let Some(observed) = self.scalar_field_at_carrier(parent, view, field_path, scalar_type)?
         else {
             return Ok(None);
         };
-        Ok(Some((
-            StructuralScalarRuntimeField::member(StructuralRuntimePlace::from(&parent), field.id),
-            stored_type,
-        )))
+        Ok(Some((observed.cell, observed.stored_type)))
     }
 
     fn read_structural_element(

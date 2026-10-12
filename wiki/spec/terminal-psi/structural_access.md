@@ -491,8 +491,12 @@ referent-relative offsets and indices; independent replay checks that sequence.
 A read, and only a read, may also end at a scalar field reached through a
 runtime element or stored reference. `context.cells[context.i].hp` is one
 `PrimitiveScalarRead` whose path is `cells`, `RuntimeIndex`, `hp`. The final
-field must be relevant and uniquely identified in the exact record reached by
-the complete path. Plain integer, Boolean and IEEE fields retain their scalar
+field must be relevant and uniquely identified in the exact carrier reached by
+the complete path. A final `Case` before the field selects that sum's payload
+namespace and requires its unchanged active-case evidence; it does not create
+a separate record. Runtime tag checks follow captured reference backing and
+validate the enclosing sums without requiring a standalone type for the scalar
+leaf. Plain integer, Boolean and IEEE fields retain their scalar
 carrier; bounded integers and refined scalars retain their declaration-owned
 predicate as well. Erased, atomic, byte and structural fields do not become
 ordinary scalar observations through this rule. A carrier with neither a

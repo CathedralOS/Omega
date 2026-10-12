@@ -252,7 +252,7 @@ pub fn primitive_read_field<'a>(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<&'a StructuralFieldDeclaration> {
-    let (StructuralPathSegment::Field(identity), carrier) = path.split_last()? else {
+    let (StructuralPathSegment::Field(_), carrier) = path.split_last()? else {
         return None;
     };
     // Static selectors can still cross a stored pointer. Such a read has no
@@ -260,12 +260,10 @@ pub fn primitive_read_field<'a>(
     if is_static_structural_path(carrier) && !carrier.contains(&StructuralPathSegment::Referent) {
         return None;
     }
-    let ProjectionTip::Declared(record) =
-        walk_primitive_projection(declarations, root, carrier, plain_scalar_field, |_| {})?
-    else {
-        return None;
-    };
-    let field = terminal_psi::live_field(record.shape.direct_fields()?, *identity)?;
+    // A final Case selects a field namespace on the carrier; it does not
+    // establish a standalone record. Preserve that namespace through the same
+    // declaration query used by explicit field observations.
+    let field = crate::runtime_structural_field(declarations, root, path)?;
     match field.field_type {
         StructuralFieldType::Scalar(ScalarType::Boolean) => {}
         StructuralFieldType::Scalar(ScalarType::Integer(integer)) if !integer.is_address() => {}
