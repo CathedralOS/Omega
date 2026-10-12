@@ -1,0 +1,7 @@
+// Intended-invalid: `BoundaryMode.kind` is a numeric `i64`, so storing the
+// boolean `true` violates the assignment rule (no implicit boolean-to-integer
+// conversion). Checking this project must fail for exactly that mismatch.
+data BoundaryMode { kind: i64 }
+machine main() {
+    let mode: BoundaryMode = BoundaryMode { kind: true };
+}

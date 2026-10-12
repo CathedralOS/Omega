@@ -1,0 +1,212 @@
+// A closed, synthetic reaction-diffusion model on a one-dimensional cell grid.
+// Concentrations live in decimal thousandths; the explicit Euler update adds a
+// discrete Laplacian scaled by the Courant number plus a logistic reaction term.
+// Boundary modes are reflecting (zero-flux Neumann: a missing neighbor reads the
+// boundary cell itself) and periodic (wraparound). Both conserve transported
+// mass exactly, so the step ledger reports reaction and diffusion mass changes
+// separately and their sum must equal the observed mass change.
+// A shadow trajectory integrates the same operator in two half steps; the
+// largest cell disagreement with the full step is the continuum error column.
+pub data Simulation {
+    field: [i64 in Wrapping; 32];
+    next: [i64 in Wrapping; 32];
+    shadow: [i64 in Wrapping; 32];
+    half: [i64 in Wrapping; 32];
+    cells: i64 in Wrapping;
+    mode: i64 in Wrapping;
+    lam: i64 in Wrapping;
+    rate: i64 in Wrapping;
+    capacity: i64 in Wrapping;
+}
+pub data Ledger [copy] {
+    reaction: i64 in Wrapping;
+    diffusion: i64 in Wrapping;
+    error: i64 in Wrapping;
+    mass: i64 in Wrapping;
+}
+pub machine valid_cells(value: i64 in Wrapping) -> bool { value >= 3 && value <= 32 }
+pub machine valid_steps(value: i64 in Wrapping) -> bool { value >= 0 && value <= 64 }
+pub machine valid_mode(value: i64 in Wrapping) -> bool { value == 0 || value == 1 }
+pub machine valid_lam(value: i64 in Wrapping) -> bool { value >= 0 && value <= 500 }
+pub machine valid_rate(value: i64 in Wrapping) -> bool { value >= 0 && value <= 1000 }
+pub machine valid_capacity(value: i64 in Wrapping) -> bool { value >= 1 && value <= 1000000 }
+pub machine valid_concentration(value: i64 in Wrapping) -> bool { value >= 0 && value <= 1000000 }
+// A missing boundary neighbor reads its own cell: the boundary link vanishes,
+// which is the zero-flux Neumann condition and keeps transported mass exact.
+machine left_of(sim: &Simulation, index: i64 in Wrapping) -> i64 in Wrapping requires index >= 0 requires index < 32 requires sim.cells >= 1 requires sim.cells <= 32 {
+    let before: i64 in Wrapping = index - 1;
+    transition index > 0 && before >= 0 && before < 32 {
+        true -> (sim.field[before])
+        false -> boundary(sim)
+    }
+    state boundary(sim: &Simulation) -> i64 in Wrapping {
+        transition sim.mode == 1 { true -> (sim.field[sim.cells - 1]) false -> (sim.field[0]) }
+    }
+}
+machine right_of(sim: &Simulation, index: i64 in Wrapping) -> i64 in Wrapping requires index >= 0 requires index < 32 requires sim.cells >= 1 requires sim.cells <= 32 {
+    let last: i64 in Wrapping = sim.cells - 1;
+    let after: i64 in Wrapping = index + 1;
+    transition index < last && after >= 0 && after < 32 {
+        true -> (sim.field[after])
+        false -> boundary(sim)
+    }
+    state boundary(sim: &Simulation) -> i64 in Wrapping {
+        let last: i64 in Wrapping = sim.cells - 1;
+        transition sim.mode == 1 { true -> (sim.field[0]) false -> (sim.field[last]) }
+    }
+}
+machine left_shadow(sim: &Simulation, index: i64 in Wrapping) -> i64 in Wrapping requires index >= 0 requires index < 32 requires sim.cells >= 1 requires sim.cells <= 32 {
+    let before: i64 in Wrapping = index - 1;
+    transition index > 0 && before >= 0 && before < 32 {
+        true -> (sim.shadow[before])
+        false -> boundary(sim)
+    }
+    state boundary(sim: &Simulation) -> i64 in Wrapping {
+        transition sim.mode == 1 { true -> (sim.shadow[sim.cells - 1]) false -> (sim.shadow[0]) }
+    }
+}
+machine right_shadow(sim: &Simulation, index: i64 in Wrapping) -> i64 in Wrapping requires index >= 0 requires index < 32 requires sim.cells >= 1 requires sim.cells <= 32 {
+    let last: i64 in Wrapping = sim.cells - 1;
+    let after: i64 in Wrapping = index + 1;
+    transition index < last && after >= 0 && after < 32 {
+        true -> (sim.shadow[after])
+        false -> boundary(sim)
+    }
+    state boundary(sim: &Simulation) -> i64 in Wrapping {
+        let last: i64 in Wrapping = sim.cells - 1;
+        transition sim.mode == 1 { true -> (sim.shadow[0]) false -> (sim.shadow[last]) }
+    }
+}
+// One Jacobi sweep over the primary field into `next`, or over the shadow
+// trajectory into `half`, under divisor 1000 (full step) or 2000 (half step).
+// Returns the summed reaction and diffusion mass actually applied.
+machine sweep(sim: &mut Simulation, shadowed: bool, divisor: i64 in Wrapping) -> Ledger {
+    transition divisor > 0 { true -> cell(sim, shadowed, divisor, 0, 0, 0, 0) false -> empty() }
+    state empty() -> Ledger { Ledger { reaction: 0, diffusion: 0, error: 0, mass: 0 } }
+    state cell(sim: &mut Simulation, shadowed: bool, divisor: i64 in Wrapping,
+        index: i64 in Wrapping, reaction: i64 in Wrapping, diffusion: i64 in Wrapping, error: i64 in Wrapping) -> Ledger {
+        transition index < sim.cells && index >= 0 && index < 32 {
+            true -> update(sim, shadowed, divisor, index, reaction, diffusion, error)
+            false -> Ledger { reaction: reaction, diffusion: diffusion, error: error, mass: 0 }
+        }
+    }
+    state update(sim: &mut Simulation, shadowed: bool, divisor: i64 in Wrapping,
+        index: i64 in Wrapping, reaction: i64 in Wrapping, diffusion: i64 in Wrapping, error: i64 in Wrapping) -> Ledger {
+        transition shadowed {
+            true -> guard_shadow(sim, shadowed, divisor, index, reaction, diffusion, error)
+            false -> guard_field(sim, shadowed, divisor, index, reaction, diffusion, error)
+        }
+    }
+    state guard_field(sim: &mut Simulation, shadowed: bool, divisor: i64 in Wrapping,
+        index: i64 in Wrapping, reaction: i64 in Wrapping, diffusion: i64 in Wrapping, error: i64 in Wrapping) -> Ledger {
+        transition divisor > 0 && sim.capacity > 0 && index >= 0 && index < 32 && sim.cells >= 1 && sim.cells <= 32 {
+            true -> update_field(sim, shadowed, divisor, index, reaction, diffusion, error)
+            false -> Ledger { reaction: reaction, diffusion: diffusion, error: error, mass: 0 }
+        }
+    }
+    state guard_shadow(sim: &mut Simulation, shadowed: bool, divisor: i64 in Wrapping,
+        index: i64 in Wrapping, reaction: i64 in Wrapping, diffusion: i64 in Wrapping, error: i64 in Wrapping) -> Ledger {
+        transition divisor > 0 && sim.capacity > 0 && index >= 0 && index < 32 && sim.cells >= 1 && sim.cells <= 32 {
+            true -> update_shadow(sim, shadowed, divisor, index, reaction, diffusion, error)
+            false -> Ledger { reaction: reaction, diffusion: diffusion, error: error, mass: 0 }
+        }
+    }
+    state update_field(sim: &mut Simulation, shadowed: bool, divisor: i64 in Wrapping,
+        index: i64 in Wrapping, reaction: i64 in Wrapping, diffusion: i64 in Wrapping, error: i64 in Wrapping) -> Ledger {
+        let center: i64 in Wrapping = sim.field[index];
+        let laplacian: i64 in Wrapping = left_of(sim, index) + right_of(sim, index) - 2 * center;
+        let diffusion_term: i64 in Wrapping = sim.lam * laplacian / divisor;
+        let reaction_term: i64 in Wrapping = sim.rate * center * (sim.capacity - center) / divisor / sim.capacity;
+        sim.next[index] = center + diffusion_term + reaction_term;
+        transition { _ -> cell(sim, shadowed, divisor, index + 1, reaction + reaction_term, diffusion + diffusion_term, error) }
+    }
+    state update_shadow(sim: &mut Simulation, shadowed: bool, divisor: i64 in Wrapping,
+        index: i64 in Wrapping, reaction: i64 in Wrapping, diffusion: i64 in Wrapping, error: i64 in Wrapping) -> Ledger {
+        let center: i64 in Wrapping = sim.shadow[index];
+        let laplacian: i64 in Wrapping = left_shadow(sim, index) + right_shadow(sim, index) - 2 * center;
+        let diffusion_term: i64 in Wrapping = sim.lam * laplacian / divisor;
+        let reaction_term: i64 in Wrapping = sim.rate * center * (sim.capacity - center) / divisor / sim.capacity;
+        sim.half[index] = center + diffusion_term + reaction_term;
+        transition { _ -> cell(sim, shadowed, divisor, index + 1, reaction + reaction_term, diffusion + diffusion_term, error) }
+    }
+}
+machine commit(sim: &mut Simulation, shadowed: bool) {
+    transition { _ -> cell(sim, shadowed, 0) }
+    state cell(sim: &mut Simulation, shadowed: bool, index: i64 in Wrapping) {
+        transition index < sim.cells && index >= 0 && index < 32 { true -> write(sim, shadowed, index) false -> done() }
+    }
+    state write(sim: &mut Simulation, shadowed: bool, index: i64 in Wrapping) {
+        transition shadowed {
+            true -> bound_shadow(sim, shadowed, index)
+            false -> bound_field(sim, shadowed, index)
+        }
+    }
+    state bound_shadow(sim: &mut Simulation, shadowed: bool, index: i64 in Wrapping) {
+        transition index >= 0 && index < 32 { true -> copy_shadow(sim, shadowed, index) false -> done() }
+    }
+    state bound_field(sim: &mut Simulation, shadowed: bool, index: i64 in Wrapping) {
+        transition index >= 0 && index < 32 { true -> copy_field(sim, shadowed, index) false -> done() }
+    }
+    state copy_field(sim: &mut Simulation, shadowed: bool, index: i64 in Wrapping) {
+        sim.field[index] = sim.next[index];
+        transition { _ -> cell(sim, shadowed, index + 1) }
+    }
+    state copy_shadow(sim: &mut Simulation, shadowed: bool, index: i64 in Wrapping) {
+        sim.shadow[index] = sim.half[index];
+        transition { _ -> cell(sim, shadowed, index + 1) }
+    }
+    state done() {}
+}
+machine total_mass(sim: &Simulation) -> i64 in Wrapping {
+    transition { _ -> cell(sim, 0, 0) }
+    state cell(sim: &Simulation, index: i64 in Wrapping, mass: i64 in Wrapping) -> i64 in Wrapping {
+        transition index < sim.cells && index >= 0 && index < 32 {
+            true -> cell(sim, index + 1, mass + (sim.field[index]))
+            false -> mass
+        }
+    }
+}
+machine largest_gap(sim: &Simulation) -> i64 in Wrapping {
+    transition { _ -> cell(sim, 0, 0) }
+    state cell(sim: &Simulation, index: i64 in Wrapping, gap: i64 in Wrapping) -> i64 in Wrapping {
+        transition index < sim.cells && index >= 0 && index < 32 { true -> compare(sim, index, gap) false -> gap }
+    }
+    state compare(sim: &Simulation, index: i64 in Wrapping, gap: i64 in Wrapping) -> i64 in Wrapping {
+        let difference: i64 in Wrapping = sim.field[index] - sim.shadow[index];
+        transition difference < 0 {
+            true -> positive(sim, index, gap, 0 - difference)
+            false -> positive(sim, index, gap, difference)
+        }
+    }
+    state positive(sim: &Simulation, index: i64 in Wrapping, gap: i64 in Wrapping, difference: i64 in Wrapping) -> i64 in Wrapping {
+        transition difference > gap {
+            true -> cell(sim, index + 1, difference)
+            false -> cell(sim, index + 1, gap)
+        }
+    }
+}
+machine in_bounds(sim: &Simulation) -> bool {
+    transition { _ -> cell(sim, 0) }
+    state cell(sim: &Simulation, index: i64 in Wrapping) -> bool {
+        transition index < sim.cells && index >= 0 && index < 32 {
+            true -> check(sim, index)
+            false -> true
+        }
+    }
+    state check(sim: &Simulation, index: i64 in Wrapping) -> bool {
+        transition valid_concentration(sim.field[index]) { true -> cell(sim, index + 1) false -> false }
+    }
+}
+// Advance one output step: one full update of the primary trajectory plus two
+// half updates of the shadow trajectory. The ledger records the reaction and
+// diffusion mass applied this step, the continuum error against the shadow
+// trajectory, and the resulting total mass.
+pub machine advance(sim: &mut Simulation) -> Ledger {
+    let ledger: Ledger = sweep(sim, false, 1000);
+    commit(sim, false);
+    let first_half: Ledger = sweep(sim, true, 2000);
+    commit(sim, true);
+    let second_half: Ledger = sweep(sim, true, 2000);
+    commit(sim, true);
+    Ledger { reaction: ledger.reaction, diffusion: ledger.diffusion, error: largest_gap(sim), mass: total_mass(sim) }
+}

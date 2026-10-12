@@ -1,0 +1,136 @@
+{
+  "tolerance": 0,
+  "arithmetic": "decimal thousandths; truncating division; Jacobi explicit Euler; dual half-step shadow continuum error",
+  "cases": {
+    "reflecting_pulse": {
+      "exit": 0,
+      "input_sha256": "d0348276893f8b098eeb69bc9ecf6ec619f1b5a63af8ea940edb64e743e25796",
+      "stdout_sha256": "ea88bcd48fe8124788d4bb4bd665465810046fb0ebb708b4d01b04d374fdf61a"
+    },
+    "periodic_pulse": {
+      "exit": 0,
+      "input_sha256": "9a2777461191bcdd37ac3d0a42a9f8088e29ab8880394f45017cd7c368d803af",
+      "stdout_sha256": "381b91dbeef65cec178c023b01841570425836389da45f528a2cd0705646aabf"
+    },
+    "reaction_growth": {
+      "exit": 0,
+      "input_sha256": "021077ab79eea5ff2f1de09fd1241e904315caf2ef6d88ba90d32ba75e07479f",
+      "stdout_sha256": "84c5c2e9c5eb2e91bc8ae5a86d998eaa3d0f3160d812722f286b872b9dcc03b0"
+    },
+    "fisher_reflecting": {
+      "exit": 0,
+      "input_sha256": "d1ea7f774d790b1dce08af6c020a873c1217a37e8cdae0220b9495348d3b3e43",
+      "stdout_sha256": "312839b37a59a7f653a5589478b87d697f2bbfe6eaf67d83af65208fb89aa3af"
+    },
+    "fisher_periodic": {
+      "exit": 0,
+      "input_sha256": "8595717c582036cfa4108e720183944d1710bac0bf70debe0b6fe1de6383bcd7",
+      "stdout_sha256": "9bfd1f13f7ef70598669fa512ddb512ecebf59ff05bfaf3dbe149d084f8a2cf5"
+    },
+    "zero_steps": {
+      "exit": 0,
+      "input_sha256": "95db7b56479099d8ef79c05d1b84e14935c32dd6cb0747488fbc5fea5a6e6a59",
+      "stdout_sha256": "bdbf69481ea82d7f2946f46c8efaac335410671d6e1cacbb7da6bbeb88f0907b"
+    },
+    "minimum_cells": {
+      "exit": 0,
+      "input_sha256": "dafe1b00a509cc0b80b1504b856dbdb9badfa218eb25ff344797b4c1a7fdaac8",
+      "stdout_sha256": "52ed782e130ebe082f5eeb2a4ea9832f1c8639c38e79b905620d23e023bf0ab6"
+    },
+    "maximum_cells": {
+      "exit": 0,
+      "input_sha256": "5c52a8ae24fda0913a8f123cba6cd692811f0d208d64d90e10fc97e67f23ec29",
+      "stdout_sha256": "d2d6aa56fb203ba588acbd48eeac3239c7b14b10065b58c9cd3e85eba63218ec"
+    },
+    "stability_edge": {
+      "exit": 0,
+      "input_sha256": "309c760229b5c457dd1443569cab29301a594b867040fccf053c4cb05a149891",
+      "stdout_sha256": "10ef88fe6d7f441b50f020cc5c9b6977d6e47162becf1d0d25b56c73f0fd390b"
+    },
+    "extinct": {
+      "exit": 0,
+      "input_sha256": "dd758436c2da4ded440957a096254e06ad0f97a059b0c9bcbad118d8647a6306",
+      "stdout_sha256": "de3549f63c004dc06b5f763d530bb6347ac7827c6117663b36d8d3108085c86c"
+    },
+    "saturated": {
+      "exit": 0,
+      "input_sha256": "f2fff34265ceadd3cbdfe740fce5c9b4e108e4d8356135a913c0fbbd215219b6",
+      "stdout_sha256": "16f87cf913b26834c4259031a9376f35b96a85acf0859560607d8c012cdfad46"
+    },
+    "over_capacity": {
+      "exit": 0,
+      "input_sha256": "7f6a3bf78d4477937b2afd37d0d7af76a77e2e477b1f10a4c09b40b2b236a257",
+      "stdout_sha256": "cd899ed8d4d48df6e344cd10869201399cc5fd56e760869741417d21e6c7f23b"
+    },
+    "infeasible": {
+      "exit": 3,
+      "input_sha256": "bf179df287e5f30b966003a7d09f82191b8568f9c699198c2619ec7ba07b5704",
+      "stdout_sha256": "043239f57186e0165cdf245e413e5a8b63144abd22916a794f1565026e2b6b1d"
+    },
+    "bad_mode": {
+      "exit": 2,
+      "input_sha256": "d54b12fb7d2ff5bc0ffc51feb4d80d80752db3185190dc094308095432d1a18d",
+      "stdout_sha256": "79aee4f4b965c51eccfc8c89ec567d60e5e0b6671201a41ceb7e83b869b79cbc"
+    },
+    "bad_cells": {
+      "exit": 2,
+      "input_sha256": "9434752228074d8eb0a4f86a037fc17efdb1137df5872c6799b9b77d34efe5bf",
+      "stdout_sha256": "79aee4f4b965c51eccfc8c89ec567d60e5e0b6671201a41ceb7e83b869b79cbc"
+    },
+    "bad_lam": {
+      "exit": 2,
+      "input_sha256": "a38511fe8c128949a74ad963229a631027d1caa9254cd8a7341ba270bd5d222f",
+      "stdout_sha256": "79aee4f4b965c51eccfc8c89ec567d60e5e0b6671201a41ceb7e83b869b79cbc"
+    },
+    "bad_rate": {
+      "exit": 2,
+      "input_sha256": "ad9ffc1477f6c517faad3388b65a1fdc74e247b55157e9171340287dafeb21c9",
+      "stdout_sha256": "79aee4f4b965c51eccfc8c89ec567d60e5e0b6671201a41ceb7e83b869b79cbc"
+    },
+    "bad_capacity": {
+      "exit": 2,
+      "input_sha256": "1a16c1e63ab5f17cdf364111c4e5f42c1b48eb880b2cf57996453cdc3dbdbaed",
+      "stdout_sha256": "79aee4f4b965c51eccfc8c89ec567d60e5e0b6671201a41ceb7e83b869b79cbc"
+    },
+    "negative_value": {
+      "exit": 2,
+      "input_sha256": "c12aea6f18a783c1a026ff52cc55d2e72597223457d1de0cb504177c37025f52",
+      "stdout_sha256": "79aee4f4b965c51eccfc8c89ec567d60e5e0b6671201a41ceb7e83b869b79cbc"
+    },
+    "value_overflow": {
+      "exit": 2,
+      "input_sha256": "02ab2854fd61e8d69ba04e8416f950f42773ccce846be6557eefcfe29e172394",
+      "stdout_sha256": "79aee4f4b965c51eccfc8c89ec567d60e5e0b6671201a41ceb7e83b869b79cbc"
+    },
+    "short_field": {
+      "exit": 2,
+      "input_sha256": "1e6b4b11cafce4dddec5d662a5e61cfea0de0246ecfdcc0215230df607b38fe5",
+      "stdout_sha256": "79aee4f4b965c51eccfc8c89ec567d60e5e0b6671201a41ceb7e83b869b79cbc"
+    },
+    "malformed": {
+      "exit": 2,
+      "input_sha256": "1d5385af13211d18563831b324f95ff4415dc48aa6a17148e23525a6f51250ad",
+      "stdout_sha256": "79aee4f4b965c51eccfc8c89ec567d60e5e0b6671201a41ceb7e83b869b79cbc"
+    },
+    "missing": {
+      "exit": 2,
+      "input_sha256": "5c718e408554226d3e0935827e5aaf3ab6fd7a974e7f20e8b6eae14a2db6710e",
+      "stdout_sha256": "79aee4f4b965c51eccfc8c89ec567d60e5e0b6671201a41ceb7e83b869b79cbc"
+    },
+    "overlong": {
+      "exit": 2,
+      "input_sha256": "45b7cbaaeefc5196489d4368db6fa2bffcb6ee384b3177c5a677e4a2eb691572",
+      "stdout_sha256": "79aee4f4b965c51eccfc8c89ec567d60e5e0b6671201a41ceb7e83b869b79cbc"
+    },
+    "empty": {
+      "exit": 2,
+      "input_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+      "stdout_sha256": "79aee4f4b965c51eccfc8c89ec567d60e5e0b6671201a41ceb7e83b869b79cbc"
+    },
+    "trailing": {
+      "exit": 2,
+      "input_sha256": "6fab8e721cbb8af30beebbd91ad730b28baaf0f4d48576fb016fb90564bcba71",
+      "stdout_sha256": "79aee4f4b965c51eccfc8c89ec567d60e5e0b6671201a41ceb7e83b869b79cbc"
+    }
+  }
+}

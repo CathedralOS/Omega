@@ -1,0 +1,87 @@
+use omega_language_std::console;
+use reaction::model;
+use reaction::input;
+use reaction::report;
+use reaction::oracles;
+// The ordinary sample harness supplies empty stdin; reject that input honestly.
+// Expected exit: 2.
+// Expected output contains: ERROR invalid input
+machine main() reaches Console {
+    let verified: bool = reference_checks();
+    transition verified { true -> read_header() false -> oracle_error() }
+    state oracle_error() { Console::write_line("ERROR internal oracle"); Console::exit_process(4); }
+    state read_header() {
+        let cells: Parsed = block read_number();
+        let steps: Parsed = block read_number();
+        let mode: Parsed = block read_number();
+        let lam: Parsed = block read_number();
+        let rate: Parsed = block read_number();
+        let capacity: Parsed = block read_number();
+        transition cells.valid && steps.valid && mode.valid && lam.valid && rate.valid && capacity.valid
+            && valid_cells(cells.value) && valid_steps(steps.value) && valid_mode(mode.value)
+            && valid_lam(lam.value) && valid_rate(rate.value) && valid_capacity(capacity.value) {
+            true -> prepare(cells.value, steps.value, mode.value, lam.value, rate.value, capacity.value)
+            false -> invalid()
+        }
+    }
+    state invalid() { Console::write_line("ERROR invalid input"); Console::exit_process(2); }
+    state prepare(cells: i64 in Wrapping, steps: i64 in Wrapping, mode: i64 in Wrapping, lam: i64 in Wrapping, rate: i64 in Wrapping, capacity: i64 in Wrapping) {
+        let mut sim: Simulation;
+        sim.cells = cells;
+        sim.mode = mode;
+        sim.lam = lam;
+        sim.rate = rate;
+        sim.capacity = capacity;
+        transition { _ -> read_cells(sim, steps, 0) }
+    }
+    state read_cells(sim: Simulation, steps: i64 in Wrapping, index: i64 in Wrapping) {
+        transition index < sim.cells && index >= 0 && index < 32 {
+            true -> read_cell(sim, steps, index)
+            false -> complete_input(sim, steps)
+        }
+    }
+    state read_cell(sim: Simulation, steps: i64 in Wrapping, index: i64 in Wrapping) {
+        let value: Parsed = block read_number();
+        transition value.valid && valid_concentration(value.value) {
+            true -> store_cell(sim, steps, index, value.value)
+            false -> invalid()
+        }
+    }
+    state store_cell(sim: Simulation, steps: i64 in Wrapping, index: i64 in Wrapping, value: i64 in Wrapping)
+    requires index >= 0 requires index < 32 {
+        let mut owned: Simulation = sim;
+        owned.field[index] = value;
+        owned.shadow[index] = value;
+        transition { _ -> read_cells(owned, steps, index + 1) }
+    }
+    state complete_input(sim: Simulation, steps: i64 in Wrapping) {
+        let complete: bool = block input_complete();
+        transition complete { true -> begin(sim, steps) false -> invalid() }
+    }
+    state begin(sim: Simulation, steps: i64 in Wrapping) {
+        Console::write_line("step,mass,reaction,diffusion,continuum_error");
+        let opening: Ledger = Ledger { reaction: 0, diffusion: 0, error: 0, mass: total_mass(&sim) };
+        row(0, &opening);
+        transition { _ -> cycle(sim, steps, 0, opening.mass) }
+    }
+    state cycle(sim: Simulation, steps: i64 in Wrapping, step: i64 in Wrapping, before: i64 in Wrapping) {
+        transition step < steps { true -> advance_step(sim, steps, step, before) false -> finish(sim) }
+    }
+    state advance_step(sim: Simulation, steps: i64 in Wrapping, step: i64 in Wrapping, before: i64 in Wrapping) {
+        let mut next: Simulation = sim;
+        let ledger: Ledger = advance(&mut next);
+        transition in_bounds(&next) && ledger.mass == before + ledger.reaction + ledger.diffusion {
+            true -> publish(next, steps, step, ledger)
+            false -> infeasible()
+        }
+    }
+    state publish(sim: Simulation, steps: i64 in Wrapping, step: i64 in Wrapping, ledger: Ledger) {
+        row(step + 1, &ledger);
+        transition { _ -> cycle(sim, steps, step + 1, ledger.mass) }
+    }
+    state finish(sim: Simulation) {
+        field(&sim);
+        Console::exit_process(0);
+    }
+    state infeasible() { Console::write_line("ERROR infeasible state"); Console::exit_process(3); }
+}

@@ -1,0 +1,44 @@
+// Executable startup checks consume independently frozen fixture integers.
+// They attest update values through Terminal's supported exit comparison;
+// they never replace the supplied-input simulation or derive expected results.
+use reaction::model;
+pub machine reference_checks() -> bool {
+    let mut verified: bool = true;
+    // Periodic three-cell ring: reaction grows mass, wraparound diffuses it.
+    let mut ring: Simulation;
+    ring.cells = 3; ring.mode = 1; ring.lam = 300; ring.rate = 200; ring.capacity = 600000;
+    ring.field[0] = 0; ring.field[1] = 300000; ring.field[2] = 0;
+    ring.shadow[0] = 0; ring.shadow[1] = 300000; ring.shadow[2] = 0;
+    let ring_one: Ledger = advance(&mut ring);
+    verified = verified && ring_one.reaction == 30000 && ring_one.diffusion == 0 && ring_one.error == 35062 && ring_one.mass == 330000
+        && ring.field[0] == 90000 && ring.field[1] == 150000 && ring.field[2] == 90000;
+    let ring_two: Ledger = advance(&mut ring);
+    verified = verified && ring_two.reaction == 53100 && ring_two.diffusion == 0 && ring_two.error == 20848 && ring_two.mass == 383100
+        && ring.field[0] == 123300 && ring.field[1] == 136500 && ring.field[2] == 123300;
+    let ring_three: Ledger = advance(&mut ring);
+    verified = verified && ring_three.reaction == 60273 && ring_three.mass == 443373
+        && ring.field[0] == 146852 && ring.field[1] == 149669 && ring.field[2] == 146852;
+    // Reflecting wall: diffusion alone conserves the supplied mass exactly.
+    let mut wall: Simulation;
+    wall.cells = 4; wall.mode = 0; wall.lam = 200; wall.rate = 0; wall.capacity = 1000000;
+    wall.field[0] = 500000; wall.field[1] = 0; wall.field[2] = 0; wall.field[3] = 0;
+    wall.shadow[0] = 500000; wall.shadow[1] = 0; wall.shadow[2] = 0; wall.shadow[3] = 0;
+    let wall_one: Ledger = advance(&mut wall);
+    verified = verified && wall_one.reaction == 0 && wall_one.diffusion == 0 && wall_one.error == 15000 && wall_one.mass == 500000
+        && wall.field[0] == 400000 && wall.field[1] == 100000 && wall.field[2] == 0 && wall.field[3] == 0;
+    let wall_two: Ledger = advance(&mut wall);
+    verified = verified && wall_two.reaction == 0 && wall_two.diffusion == 0 && wall_two.error == 13400 && wall_two.mass == 500000
+        && wall.field[0] == 340000 && wall.field[1] == 140000 && wall.field[2] == 20000 && wall.field[3] == 0;
+    // Pure logistic reaction: uniform growth toward capacity, no transport.
+    let mut growth: Simulation;
+    growth.cells = 4; growth.mode = 0; growth.lam = 0; growth.rate = 500; growth.capacity = 500000;
+    growth.field[0] = 100000; growth.field[1] = 100000; growth.field[2] = 100000; growth.field[3] = 100000;
+    growth.shadow[0] = 100000; growth.shadow[1] = 100000; growth.shadow[2] = 100000; growth.shadow[3] = 100000;
+    let growth_one: Ledger = advance(&mut growth);
+    verified = verified && growth_one.reaction == 160000 && growth_one.diffusion == 0 && growth_one.error == 2800 && growth_one.mass == 560000
+        && growth.field[0] == 140000 && growth.field[3] == 140000;
+    let growth_two: Ledger = advance(&mut growth);
+    verified = verified && growth_two.reaction == 201600 && growth_two.diffusion == 0 && growth_two.error == 5816 && growth_two.mass == 761600
+        && growth.field[0] == 190400 && growth.field[3] == 190400;
+    verified
+}

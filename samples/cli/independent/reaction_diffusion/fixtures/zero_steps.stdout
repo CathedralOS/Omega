@@ -1,0 +1,3 @@
+step,mass,reaction,diffusion,continuum_error
+0,800000,0,0,0
+field,100000,100000,100000,100000,100000,100000,100000,100000
