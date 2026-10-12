@@ -304,17 +304,7 @@ fn declaration_dependencies(
         // This declaration query only adds dependencies, not execution evidence.
         for contract in &operators.operator_realization_contracts {
             let requirement = contract.operator_symbol();
-            if (selection.contains(requirement) || referenced_symbols.contains(&requirement))
-                && operators
-                    .requirement_realization(
-                        program,
-                        requirement,
-                        typed_trees::expression::ExpressionHandle::invalid(),
-                    )
-                    .ok()
-                    .flatten()
-                    .is_some_and(|meaning| meaning.is_compiler_intrinsic())
-            {
+            if selection.contains(requirement) || referenced_symbols.contains(&requirement) {
                 referenced_symbols.insert(contract.machine_symbol());
             }
         }
