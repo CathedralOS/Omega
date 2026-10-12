@@ -1,0 +1,9 @@
+{
+  "intent": "Same original countdown declaration recursively invoked with true; static application remains admitted, termination rank decreases, authored result is 7 and Main returns normally.",
+  "source_only_unexecuted": true,
+  "expected": {
+    "check": "accepted",
+    "native_exit": 0,
+    "terminal_exit": 0
+  }
+}
