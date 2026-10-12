@@ -23,7 +23,7 @@ satisfies CheckedMath::offset_zero
 }
 
 CheckedMathMap satisfies CheckedMath {
-    offset_zero = CheckedMathProvider::offset_zero_impl;
+    CheckedMath::offset_zero = CheckedMathProvider::offset_zero_impl;
 }
 
 machine named_slot_count() -> i32 {
