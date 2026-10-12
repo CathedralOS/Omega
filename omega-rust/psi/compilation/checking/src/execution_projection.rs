@@ -133,6 +133,15 @@ fn build_descriptor_declarations(program: &dyn crate::CheckingInput) -> HashSet<
         .descriptor_symbols
         .into_iter()
         .collect::<Vec<_>>();
+    // Every authored `satisfies` conformance is description machinery: an
+    // unselected carrier alternative must not root its opaque into the
+    // projection any more than the selected one does.
+    pending.extend(
+        program
+            .conformances()
+            .iter()
+            .map(|conformance| conformance.symbol),
+    );
     let mut descriptors = HashSet::new();
     while !pending.is_empty() {
         let mut roots = Vec::new();
