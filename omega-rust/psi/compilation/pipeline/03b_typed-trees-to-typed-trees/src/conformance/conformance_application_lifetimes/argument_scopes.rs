@@ -50,16 +50,19 @@ impl<'scopes> Scope<'scopes> {
                 .type_reference_table
                 .operand_lifetime_owner(reference);
             if owner.is_valid() {
-                let count = self
-                    .frames
-                    .iter()
-                    .rposition(|frame| {
-                        program.lifetime_declaration_owner(frame.declaration)
-                            == program.lifetime_declaration_owner(owner)
-                    })
-                    .map_or(0, |ordinal| ordinal + 1);
-                self.frames = &self.frames[..count];
-                self.owner = owner;
+                let supplying_frame = self.frames.iter().rposition(|frame| {
+                    program.lifetime_declaration_owner(frame.declaration)
+                        == program.lifetime_declaration_owner(owner)
+                });
+                self.frames = &self.frames[..supplying_frame.map_or(0, |ordinal| ordinal + 1)];
+                // A declaration-owned field is interpreted through the exact
+                // supplying application. Its actual region operands still
+                // belong to the caller prefix, not the field declaration.
+                // A foreign copied operand with no such frame instead owns
+                // its retained lexical scope and cannot borrow caller names.
+                if supplying_frame.is_none() {
+                    self.owner = owner;
+                }
             }
             let TypeReferenceNode::Named { symbol, .. } =
                 program.type_reference_table.type_reference(reference)
