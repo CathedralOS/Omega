@@ -1634,6 +1634,11 @@ defines the complete product bar.
   and `predicate_constant_*` controls (ordinary materialization never grants
   const-index eligibility),
   `pass/layouts/placed_view_source_access_compile`,
+  `pass/layouts/schema_field_at_declared_size`,
+  `pass/layouts/schema_identity_payload_within_predicate` and
+  `fail/layouts/{schema_field_exceeds_declared_size,schema_identity_payload_predicate,resource_profile_exceeds_region_capacity}`
+  (compiler-supplied arrivals owe ordinary construction predicates; preserve
+  declared schema rosters, active payloads and valid inactive-tail alignment),
   `fail/layouts/placement_policy_unproved_callee_premise` and
   `pass/filesystem/native_crud` (policy admission keeps each concrete callee
   premise without checking unrelated unfinished runtime layouts),

@@ -66,3 +66,27 @@ Epsilon's own surface is unchanged.
 Do not use later reduced occurrence counts as completion evidence: they include
 unaudited rewrites. Completion requires the history-derived inventory to record
 each original declaration and its canonical replacement.
+
+## Audited core layout fields
+
+The 13 common-field suffixes in `source/library/core/layout.omg` at
+`c1303f89d4` retain their predicates on their containing data. All carriers
+remain `u64`; its nonnegative carrier supplies each old zero lower bound.
+No interval-only domain or replacement nominal identity is introduced.
+
+| Declaration and fields | Original suffix | Canonical predicate |
+|---|---|---|
+| `SchemaField.size` | `[0..=4096]` | `size <= 4096` |
+| `SchemaField.align` | `[1..=16]` | `align >= 1, align <= 16` |
+| `SchemaCase.payload_field_count`, `retired_payload_identity_count` | `[0..=32]` | each count `<= 32` |
+| `Schema.field_count`, `retired_field_identity_count`, `case_count`, `retired_case_identity_count` | `[0..=32]` | each count `<= 32` |
+| `AccessPlan.field_count`, `BoundaryReach.service_count`, `ResourceProfile.region_count` | `[0..=32]` | each count `<= 32` |
+| `TransferRules.rule_count`, `AtomicTransferRules.rule_count` | `[0..=16]` | each count `<= 16` |
+
+Compiler reflection must establish these values before policy execution,
+including inactive field slots whose alignment is one, not zero. The
+`layouts/schema_field_at_declared_size` and
+`layouts/schema_field_exceeds_declared_size` controls bound the reflected
+extent; `schema_identity_payload_predicate` checks a different active payload
+predicate against a smaller authored schema roster. Existing native plan-laid
+array writes and placed-view policies constrain field-key and padding transport.

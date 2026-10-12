@@ -276,7 +276,7 @@ pub(crate) fn snapshot_arguments_discharge(
 
 /// Append the generated probe machine whose single state returns the
 /// synthesized call: `machine @const-length() -> <entry return> { machine() }`.
-fn append_invocation_probe(
+pub(super) fn append_invocation_probe(
     probe: &mut TypedTrees,
     owner: SymbolHandle,
     name: &str,

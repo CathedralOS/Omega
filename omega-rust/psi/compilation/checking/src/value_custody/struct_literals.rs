@@ -42,6 +42,33 @@ pub(crate) use field_obligations::{
     validate_array_literal_elements_for_shape,
 };
 
+/// Establish a compiler-supplied literal with the ordinary construction rules.
+/// The caller supplies an exact-carrier expression in its own statement
+/// context. This judges that construction only; it does not admit a machine
+/// body, executable closure, or returned layout plan.
+pub fn validate_value_construction(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
+    scan_expression(
+        program,
+        machine,
+        state,
+        expression,
+        &mut diagnostics,
+        &mut Vec::new(),
+        0,
+    );
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
 pub(crate) fn validate_struct_literal_fields(
     program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
