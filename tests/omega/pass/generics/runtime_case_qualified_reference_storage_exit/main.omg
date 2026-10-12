@@ -215,11 +215,10 @@ machine forward_exclusive<'storage>(selection: MutableSelection<'storage>) -> bo
 machine consume_envelope<'storage>(envelope: SelectionEnvelope<'storage>) -> bool {
     envelope.ready && envelope.selection.stamp == 0
 }
-machine exercise_exclusive() -> bool {
-    let mut cell: Cell = Cell { value: 17 };
-    let selection: MutableSelection = MutableSelection::Left { stamp: 3, target: &mut cell };
+machine exercise_exclusive<'storage>(cell: &'storage mut Cell) -> bool {
+    let selection: MutableSelection<'storage> = MutableSelection::Left { stamp: 3, target: &mut cell };
     let forwarded: bool = forward_exclusive(selection);
-    let envelope: SelectionEnvelope = SelectionEnvelope {
+    let envelope: SelectionEnvelope<'storage> = SelectionEnvelope {
         ready: true,
         selection: MutableSelection::Right { target: &mut cell }
     };
@@ -231,7 +230,8 @@ machine main() crashes Trap {
     let seed: Cell = Cell { value: 17 };
     let other: Cell = Cell { value: 19 };
     let bytes: [u8; 4] = [71, 97, 116, 101];
-    transition exercise(&seed, &bytes) && exercise_selections(&seed, &other) && exercise_exclusive() {
+    let mut exclusive: Cell = Cell { value: 17 };
+    transition exercise(&seed, &bytes) && exercise_selections(&seed, &other) && exercise_exclusive(&mut exclusive) && exclusive.value == 23 {
         true -> passed()
         false -> failed()
     }
