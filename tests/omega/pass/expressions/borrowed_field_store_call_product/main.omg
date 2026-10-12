@@ -1,0 +1,19 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+data Category { case Other; case Missing; }
+data Holder { category: Category; }
+machine supply_cat() -> Category { Category::Missing }
+machine Holder::replace(holder: &mut Holder) {
+    holder.category = supply_cat();
+}
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    let mut h: Holder = Holder { category: Category::Other };
+    Holder::replace(&mut h);
+    transition h.category in Category::Missing {
+        true -> good(main)
+        _ -> bad(main)
+    }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
+}

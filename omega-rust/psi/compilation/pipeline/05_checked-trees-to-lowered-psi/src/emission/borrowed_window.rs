@@ -502,6 +502,21 @@ impl BorrowedWindowLedger {
                         .filter(|result| result.place == value.place)
                         .map(|result| result.multiplicity)
                 })
+            })
+            .or_else(|| {
+                // A selection or dispatch completes at a join's block
+                // parameter, not at an operation result: the completed
+                // binding's registry still names that place's custody.
+                operations
+                    .structural_values
+                    .iter()
+                    .find_map(|(_, binding)| {
+                        binding
+                            .operation_result()
+                            .ok()
+                            .filter(|result| result.place == value.place)
+                            .map(|result| result.multiplicity)
+                    })
             });
         let discardable = multiplicity == Some(StructuralMultiplicity::Unrestricted)
             || multiplicity == Some(StructuralMultiplicity::Affine)
@@ -548,6 +563,15 @@ impl BorrowedWindowLedger {
                     .filter(|result| result.place == value.place)
                     .map(|result| (&result.qualifications, &result.projected_qualifications))
             }))
+            .chain(operations.structural_values.iter().filter_map(
+                |(_, binding)| {
+                    binding.operation_result().ok().filter(|result| {
+                        result.place == value.place
+                    }).map(|result| {
+                        (&result.qualifications, &result.projected_qualifications)
+                    })
+                },
+            ))
             .next()
             .ok_or_else(|| {
                 unpinned(

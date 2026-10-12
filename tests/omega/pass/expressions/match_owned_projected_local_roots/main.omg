@@ -1,0 +1,23 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+data Payload { left: u64; right: u64; }
+data Pair { first: Payload; second: Payload; }
+machine choose_l(selected: u64) -> u64 {
+    let p: Pair = Pair { first: Payload { left: 4, right: 6 }, second: Payload { left: 8, right: 10 } };
+    let q: Pair = Pair { first: Payload { left: 40, right: 60 }, second: Payload { left: 80, right: 100 } };
+    let result: Payload = match selected {
+        0 -> p.first,
+        _ -> q.second
+    };
+    result.left ^ result.right
+}
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    let b: u64 = choose_l(1);
+    transition b == 52 {
+        true -> good(main)
+        _ -> exit(main, b)
+    }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state exit(main: &mut Main, code: u64) { main.console.exit_process((code % 200) as i32); }
+}
