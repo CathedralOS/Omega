@@ -227,24 +227,33 @@ fn collect_contract_expression_handles(
     type_references: &mut HashSet<TypeReferenceHandle>,
 ) {
     for contract in syntax.items.capability_contracts(contracts) {
-        for fact in syntax.items.proof_facts(contract.facts) {
-            match fact {
-                ProofFact::Expression(expression) => {
-                    collect_expression_handles(syntax, *expression, expressions)
-                }
-                ProofFact::Membership(membership) => {
-                    collect_expression_handles(syntax, membership.value, expressions);
-                    for argument in syntax
-                        .type_references
-                        .type_reference_handles(membership.domain_arguments)
-                    {
-                        collect_type_expression_handles(
-                            syntax,
-                            *argument,
-                            expressions,
-                            type_references,
-                        );
-                    }
+        collect_proof_fact_expression_handles(syntax, contract.facts, expressions, type_references);
+    }
+}
+
+fn collect_proof_fact_expression_handles(
+    syntax: &SyntaxTrees,
+    facts: HandleSpan<ProofFact>,
+    expressions: &mut HashSet<ExpressionHandle>,
+    type_references: &mut HashSet<TypeReferenceHandle>,
+) {
+    for fact in syntax.items.proof_facts(facts) {
+        match fact {
+            ProofFact::Expression(expression) => {
+                collect_expression_handles(syntax, *expression, expressions)
+            }
+            ProofFact::Membership(membership) => {
+                collect_expression_handles(syntax, membership.value, expressions);
+                for argument in syntax
+                    .type_references
+                    .type_reference_handles(membership.domain_arguments)
+                {
+                    collect_type_expression_handles(
+                        syntax,
+                        *argument,
+                        expressions,
+                        type_references,
+                    );
                 }
             }
         }
@@ -571,6 +580,9 @@ pub(in crate::preparation::generic_data) fn collect_data_type_reference_position
 enum TypePositionTraversal {
     Identity,
     Storage,
+    /// Source input ownership includes each live applied tuple and nested
+    /// static type input, rather than demanding new runtime instantiation.
+    Source,
 }
 
 pub(in crate::preparation) fn collect_type_positions(
@@ -595,10 +607,39 @@ fn visit_type_positions(
     include_domain_arguments: bool,
     traversal: TypePositionTraversal,
 ) {
+    if !type_reference.is_valid() || positions.contains(&type_reference) {
+        return;
+    }
     positions.push(type_reference);
+    if traversal == TypePositionTraversal::Source {
+        let original = syntax
+            .type_references
+            .generic_application_origin(type_reference);
+        if original.is_valid() {
+            visit_type_positions(
+                syntax,
+                original,
+                positions,
+                include_domain_arguments,
+                traversal,
+            );
+        }
+        for pending in syntax
+            .type_references
+            .pending_const_arguments(type_reference)
+        {
+            visit_type_positions(
+                syntax,
+                pending,
+                positions,
+                include_domain_arguments,
+                traversal,
+            );
+        }
+    }
     match syntax.tables.type_references.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => {
-            if traversal == TypePositionTraversal::Identity {
+            if traversal != TypePositionTraversal::Storage {
                 visit_type_positions(
                     syntax,
                     *referee,
@@ -626,6 +667,26 @@ fn visit_type_positions(
                 return;
             }
             for constraint in syntax.type_references.constraints(*constraints) {
+                if traversal == TypePositionTraversal::Source
+                    && let TypeConstraintNode::Range {
+                        minimum, maximum, ..
+                    } = constraint
+                {
+                    visit_expression_type_positions(
+                        syntax,
+                        *minimum,
+                        positions,
+                        include_domain_arguments,
+                        traversal,
+                    );
+                    visit_expression_type_positions(
+                        syntax,
+                        *maximum,
+                        positions,
+                        include_domain_arguments,
+                        traversal,
+                    );
+                }
                 if let TypeConstraintNode::Domain(domain) = constraint {
                     for argument in syntax
                         .type_references
@@ -669,9 +730,51 @@ fn visit_type_positions(
                 );
             }
         }
+        TypeReferenceNode::ConstExpression(expression)
+            if traversal == TypePositionTraversal::Source =>
+        {
+            visit_expression_type_positions(
+                syntax,
+                *expression,
+                positions,
+                include_domain_arguments,
+                traversal,
+            );
+        }
         TypeReferenceNode::ConstExpression(_)
         | TypeReferenceNode::Named(_)
         | TypeReferenceNode::Unit => {}
+    }
+}
+
+fn visit_expression_type_positions(
+    syntax: &SyntaxTrees,
+    expression: ExpressionHandle,
+    positions: &mut Vec<TypeReferenceHandle>,
+    include_domain_arguments: bool,
+    traversal: TypePositionTraversal,
+) {
+    if !expression.is_valid() {
+        return;
+    }
+    let mut expressions = HashSet::new();
+    collect_expression_handles(syntax, expression, &mut expressions);
+    let mut expressions = expressions.into_iter().collect::<Vec<_>>();
+    expressions.sort_unstable();
+    for expression in expressions {
+        let mut references = Vec::new();
+        visit_expression_type_inputs(syntax, expression, &mut |reference| {
+            references.push(reference)
+        });
+        for reference in references {
+            visit_type_positions(
+                syntax,
+                reference,
+                positions,
+                include_domain_arguments,
+                traversal,
+            );
+        }
     }
 }
 
@@ -811,105 +914,578 @@ fn collect_owned_type_reference_positions(
 /// Original declaration type positions, including open generic owners. This
 /// inventory does not specialize templates: value selection must resolve each
 /// operand under its original owner, and free const binders stay unevaluated.
-pub(in crate::preparation::generic_data) fn collect_lexical_type_reference_positions(
-    syntax: &SyntaxTrees,
-) -> (Vec<TypeReferenceHandle>, Vec<TypeReferenceHandle>) {
-    let mut positions = Vec::new();
-    let mut public_positions = Vec::new();
-    let mut retain = |reference: TypeReferenceHandle, public: bool| {
+pub(in crate::preparation::generic_data) struct SourceTraitApplication {
+    pub name: syntax_trees::identifier::Identifier,
+    pub arguments: HandleSpan<TypeReferenceHandle>,
+}
+
+pub(in crate::preparation::generic_data) struct LexicalTypeReferenceInventory {
+    pub positions: Vec<TypeReferenceHandle>,
+    pub public_positions: Vec<TypeReferenceHandle>,
+    pub trait_applications: Vec<SourceTraitApplication>,
+    pub invocation_arguments: Vec<TypeReferenceHandle>,
+    pub container_arguments: Vec<TypeReferenceHandle>,
+}
+
+struct LexicalTypePositions<'syntax> {
+    syntax: &'syntax SyntaxTrees,
+    inventory: LexicalTypeReferenceInventory,
+}
+
+impl LexicalTypePositions<'_> {
+    fn retain(&mut self, reference: TypeReferenceHandle, public: bool) {
         if !reference.is_valid() {
             return;
         }
-        let start = positions.len();
-        collect_type_positions(syntax, reference, &mut positions, true);
-        if public {
-            public_positions.extend_from_slice(&positions[start..]);
+        let mut positions = Vec::new();
+        visit_type_positions(
+            self.syntax,
+            reference,
+            &mut positions,
+            true,
+            TypePositionTraversal::Source,
+        );
+        for position in &positions {
+            if let TypeReferenceNode::ConstExpression(expression) =
+                self.syntax.type_references.type_reference(*position)
+            {
+                self.expression_invocation_arguments(*expression);
+            }
+            match self.syntax.type_references.type_reference(*position) {
+                TypeReferenceNode::Generic { arguments, .. }
+                | TypeReferenceNode::DynamicTrait {
+                    trait_arguments: arguments,
+                    ..
+                } => {
+                    self.inventory.container_arguments.extend_from_slice(
+                        self.syntax
+                            .type_references
+                            .type_reference_handles(*arguments),
+                    );
+                }
+                TypeReferenceNode::Constrained { constraints, .. } => {
+                    for constraint in self.syntax.type_references.constraints(*constraints) {
+                        if let TypeConstraintNode::Range {
+                            minimum, maximum, ..
+                        } = constraint
+                        {
+                            self.expression_invocation_arguments(*minimum);
+                            self.expression_invocation_arguments(*maximum);
+                        }
+                        if let TypeConstraintNode::Domain(domain) = constraint {
+                            self.inventory.container_arguments.extend_from_slice(
+                                self.syntax
+                                    .type_references
+                                    .type_reference_handles(domain.arguments),
+                            );
+                        }
+                    }
+                }
+                _ => {}
+            }
+            if let TypeReferenceNode::DynamicTrait {
+                trait_name,
+                trait_arguments,
+                ..
+            } = self.syntax.type_references.type_reference(*position)
+            {
+                self.inventory
+                    .trait_applications
+                    .push(SourceTraitApplication {
+                        name: trait_name.clone(),
+                        arguments: *trait_arguments,
+                    });
+            }
         }
+        if public {
+            self.inventory
+                .public_positions
+                .extend_from_slice(&positions);
+        }
+        self.inventory.positions.extend(positions);
+    }
+
+    fn expressions(&mut self, expressions: HashSet<ExpressionHandle>, public: bool) {
+        let mut expressions = expressions.into_iter().collect::<Vec<_>>();
+        expressions.sort_unstable();
+        for expression in expressions {
+            if let ExpressionNode::Call(call) = self.syntax.expressions.expression(expression) {
+                self.invocation_arguments(&call.machine_arguments);
+            }
+            let mut references = Vec::new();
+            visit_expression_type_inputs(self.syntax, expression, &mut |reference| {
+                references.push(reference)
+            });
+            for reference in references {
+                self.retain(reference, public);
+            }
+        }
+    }
+
+    fn expression(&mut self, expression: ExpressionHandle, public: bool) {
+        if !expression.is_valid() {
+            return;
+        }
+        let mut expressions = HashSet::new();
+        collect_expression_handles(self.syntax, expression, &mut expressions);
+        self.expressions(expressions, public);
+    }
+
+    fn facts(&mut self, facts: HandleSpan<ProofFact>, public: bool) {
+        let mut expressions = HashSet::new();
+        let mut references = HashSet::new();
+        collect_proof_fact_expression_handles(
+            self.syntax,
+            facts,
+            &mut expressions,
+            &mut references,
+        );
+        let mut references = references.into_iter().collect::<Vec<_>>();
+        references.sort_unstable();
+        for reference in references {
+            self.retain(reference, public);
+        }
+        self.expressions(expressions, public);
+    }
+
+    fn contracts(&mut self, contracts: HandleSpan<CapabilityContract>, public: bool) {
+        for contract in self.syntax.items.capability_contracts(contracts) {
+            self.facts(contract.facts, public);
+        }
+    }
+
+    fn trait_application(
+        &mut self,
+        name: &syntax_trees::identifier::Identifier,
+        arguments: HandleSpan<TypeReferenceHandle>,
+        public: bool,
+    ) {
+        self.inventory
+            .trait_applications
+            .push(SourceTraitApplication {
+                name: name.clone(),
+                arguments,
+            });
+        self.inventory.container_arguments.extend_from_slice(
+            self.syntax
+                .type_references
+                .type_reference_handles(arguments),
+        );
+        for argument in self
+            .syntax
+            .type_references
+            .type_reference_handles(arguments)
+        {
+            self.retain(*argument, public);
+        }
+    }
+
+    fn trait_reference(&mut self, reference: TypeReferenceHandle, public: bool) {
+        if !reference.is_valid() {
+            return;
+        }
+        self.retain(reference, public);
+        let original = self
+            .syntax
+            .type_references
+            .generic_application_origin(reference);
+        let application = if original.is_valid() {
+            original
+        } else {
+            reference
+        };
+        if let TypeReferenceNode::Generic {
+            base_name,
+            arguments,
+            ..
+        } = self.syntax.type_references.type_reference(application)
+        {
+            self.trait_application(base_name, *arguments, public);
+        }
+    }
+
+    fn parameters(
+        &mut self,
+        parameters: HandleSpan<syntax_trees::item::TypeParameter>,
+        public: bool,
+    ) {
+        use syntax_trees::item::MachineParameterContract;
+        for parameter in self.syntax.items.type_parameters(parameters) {
+            match &parameter.kind {
+                TypeParameterKind::Const { type_reference }
+                | TypeParameterKind::Value { type_reference } => {
+                    self.retain(*type_reference, public)
+                }
+                TypeParameterKind::Machine {
+                    contract: Some(MachineParameterContract::Structural(signature)),
+                } => self.signature(signature, public),
+                TypeParameterKind::Machine {
+                    contract:
+                        Some(MachineParameterContract::Nominal {
+                            requirement,
+                            trait_arguments,
+                        }),
+                } => {
+                    let members = self.syntax.items.identifier_path_members(*requirement);
+                    if members.len() >= 2 {
+                        let first = &members[0];
+                        let last = &members[members.len() - 2];
+                        let mut span = first.source_span();
+                        span.span.end = last.source_span().span.end;
+                        let name = members[..members.len() - 1]
+                            .iter()
+                            .map(|member| member.as_str())
+                            .collect::<Vec<_>>()
+                            .join("::");
+                        self.trait_application(
+                            &syntax_trees::identifier::Identifier::new(name, span),
+                            *trait_arguments,
+                            public,
+                        );
+                    } else {
+                        for argument in self
+                            .syntax
+                            .type_references
+                            .type_reference_handles(*trait_arguments)
+                        {
+                            self.retain(*argument, public);
+                        }
+                    }
+                }
+                TypeParameterKind::Proposition {
+                    contract: Some(signature),
+                } => {
+                    for parameter in self.syntax.items.state_parameters(signature.parameters) {
+                        self.retain(
+                            self.syntax.items.state_parameter(*parameter).type_reference,
+                            public,
+                        );
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn expression_invocation_arguments(&mut self, expression: ExpressionHandle) {
+        if !expression.is_valid() {
+            return;
+        }
+        let mut expressions = HashSet::new();
+        collect_expression_handles(self.syntax, expression, &mut expressions);
+        for expression in expressions {
+            if let ExpressionNode::Call(call) = self.syntax.expressions.expression(expression) {
+                self.invocation_arguments(&call.machine_arguments);
+            }
+        }
+    }
+
+    fn invocation_arguments(&mut self, arguments: &[StaticMachineArgument]) {
+        for argument in arguments {
+            if argument.type_reference.is_valid() {
+                self.inventory
+                    .invocation_arguments
+                    .push(argument.type_reference);
+            }
+            if let Some(application) = &argument.application {
+                self.invocation_arguments(&application.arguments);
+            }
+        }
+    }
+
+    fn statements(&mut self, statements: HandleSpan<syntax_trees::statement::StatementHandle>) {
+        for statement in self.syntax.items.statements(statements) {
+            if let StatementNode::Call(call) = self.syntax.statements.statement(*statement) {
+                self.invocation_arguments(&call.machine_arguments);
+            }
+            let mut expressions = HashSet::new();
+            collect_statement_expression_handles(self.syntax, *statement, &mut expressions);
+            self.expressions(expressions, false);
+            for reference in
+                crate::preparation::generic_data::statement_type_inputs(self.syntax, *statement)
+            {
+                self.retain(reference, false);
+            }
+        }
+    }
+
+    fn signature(&mut self, signature: &syntax_trees::item::StateSignature, public: bool) {
+        self.parameters(signature.type_parameters, public);
+        self.retain(signature.return_type, public);
+        for parameter in self.syntax.items.state_parameters(signature.parameters) {
+            self.retain(
+                self.syntax.items.state_parameter(*parameter).type_reference,
+                public,
+            );
+        }
+        self.contracts(signature.contracts, public);
+        self.facts(signature.where_facts, public);
+        self.statements(signature.default_body);
+    }
+
+    fn operator(&mut self, operator: &syntax_trees::item::OperatorDefinition) {
+        self.parameters(operator.type_parameters, operator.is_public);
+        self.retain(operator.return_type, operator.is_public);
+        for parameter in self.syntax.items.state_parameters(operator.parameters) {
+            self.retain(
+                self.syntax.items.state_parameter(*parameter).type_reference,
+                operator.is_public,
+            );
+        }
+        self.contracts(operator.contracts, operator.is_public);
+    }
+
+    fn machine(&mut self, machine: &Machine) {
+        self.parameters(machine.type_parameters, machine.is_public);
+        for bound in &machine.conformance_bounds {
+            self.trait_application(&bound.trait_name, bound.arguments, machine.is_public);
+        }
+        for clause in self.syntax.items.satisfies_clauses(machine.satisfies) {
+            self.trait_application(&clause.trait_name, clause.arguments, machine.is_public);
+            self.expression(clause.via_expression, machine.is_public);
+        }
+        self.facts(machine.where_facts, machine.is_public);
+        self.contracts(machine.contracts, machine.is_public);
+        for expression in self
+            .syntax
+            .expressions
+            .expression_handles(machine.ranking_subjects)
+        {
+            self.expression(*expression, false);
+        }
+        for expression in self
+            .syntax
+            .expressions
+            .expression_handles(machine.ranking_view_arguments)
+        {
+            self.expression(*expression, false);
+        }
+        self.expression(machine.ranking_range, false);
+        for (ordinal, state) in self
+            .syntax
+            .items
+            .state_handles(machine.states)
+            .iter()
+            .enumerate()
+        {
+            let state = self.syntax.items.state(*state);
+            let public = ordinal == 0 && machine.is_public;
+            self.retain(state.return_type, public);
+            for parameter in self.syntax.items.state_parameters(state.parameters) {
+                self.retain(
+                    self.syntax.items.state_parameter(*parameter).type_reference,
+                    public,
+                );
+            }
+            self.contracts(state.contracts, public);
+            self.statements(state.statements);
+        }
+    }
+
+    fn mathematical_type(
+        &mut self,
+        reference: syntax_trees::item::MathematicalTypeHandle,
+        public: bool,
+        visited: &mut Vec<syntax_trees::item::MathematicalTypeHandle>,
+    ) {
+        if !reference.is_valid() || visited.contains(&reference) {
+            return;
+        }
+        visited.push(reference);
+        match self.syntax.items.mathematical_type(reference) {
+            syntax_trees::item::MathematicalTypeNode::Ordinary(reference) => {
+                self.retain(*reference, public)
+            }
+            syntax_trees::item::MathematicalTypeNode::Arrow {
+                domain, codomain, ..
+            } => {
+                self.mathematical_type(*domain, public, visited);
+                self.mathematical_type(*codomain, public, visited);
+            }
+            syntax_trees::item::MathematicalTypeNode::Application { callee, arguments } => {
+                self.mathematical_type(*callee, public, visited);
+                for expression in self.syntax.expressions.expression_handles(*arguments) {
+                    self.expression(*expression, public);
+                }
+            }
+        }
+    }
+}
+
+pub(in crate::preparation::generic_data) fn collect_lexical_type_reference_inventory(
+    syntax: &SyntaxTrees,
+) -> LexicalTypeReferenceInventory {
+    use syntax_trees::item::{CapabilityMember, ConformanceMember, PropositionBody};
+    let mut collector = LexicalTypePositions {
+        syntax,
+        inventory: LexicalTypeReferenceInventory {
+            positions: Vec::new(),
+            public_positions: Vec::new(),
+            trait_applications: Vec::new(),
+            invocation_arguments: Vec::new(),
+            container_arguments: Vec::new(),
+        },
     };
     for item in syntax.root_items() {
         match item {
             Item::Data(definition) => {
+                collector.parameters(definition.type_parameters, definition.is_public);
+                collector.facts(definition.where_facts, definition.is_public);
+                if let Some(quotient) = &definition.quotient {
+                    collector.retain(quotient.carrier, definition.is_public);
+                    if let Some(equivalence) = &quotient.equivalence {
+                        collector.trait_application(
+                            &equivalence.trait_name,
+                            equivalence.trait_arguments,
+                            definition.is_public,
+                        );
+                    }
+                }
                 for member in syntax.items.data_members(definition.members) {
                     match member {
                         DataMember::Field(field) => {
-                            retain(field.type_reference, definition.is_public)
+                            collector.retain(field.type_reference, definition.is_public)
                         }
                         DataMember::Variant(variant) => {
                             for field in syntax.items.data_payload_fields(variant.payload) {
-                                retain(field.type_reference, definition.is_public);
+                                collector.retain(field.type_reference, definition.is_public);
                             }
+                            collector.facts(variant.where_facts, definition.is_public);
                         }
                         DataMember::Retired(_) => {}
                     }
                 }
             }
-            Item::Const(definition) => retain(definition.type_reference, definition.is_public),
-            Item::Operator(operator) => {
-                retain(operator.return_type, operator.is_public);
-                for parameter in syntax.items.state_parameters(operator.parameters) {
-                    retain(
-                        syntax.items.state_parameter(*parameter).type_reference,
-                        operator.is_public,
-                    );
-                }
+            Item::Const(definition) => {
+                collector.retain(definition.type_reference, definition.is_public);
+                collector.expression(definition.value, definition.is_public);
             }
+            Item::Operator(operator) => collector.operator(operator),
             Item::Domain(definition) => {
+                collector.parameters(definition.type_parameters, definition.is_public);
+                collector.retain(definition.target_type, definition.is_public);
+                for argument in syntax
+                    .type_references
+                    .type_reference_handles(definition.index_arguments)
+                {
+                    collector.retain(*argument, definition.is_public);
+                }
+                collector.facts(definition.facts, definition.is_public);
                 for operator in syntax.items.operators(definition.operators) {
-                    retain(operator.return_type, operator.is_public);
-                    for parameter in syntax.items.state_parameters(operator.parameters) {
-                        retain(
-                            syntax.items.state_parameter(*parameter).type_reference,
-                            operator.is_public,
-                        );
-                    }
+                    collector.operator(operator);
                 }
             }
             Item::Trait(definition) => {
-                for signature in syntax.items.state_signatures(definition.machines) {
-                    let signature = syntax.items.state_signature(*signature);
-                    retain(signature.return_type, definition.is_public);
-                    for parameter in syntax.items.state_parameters(signature.parameters) {
-                        retain(
-                            syntax.items.state_parameter(*parameter).type_reference,
-                            definition.is_public,
-                        );
-                    }
-                    for statement in syntax.items.statements(signature.default_body) {
-                        for reference in crate::preparation::generic_data::statement_type_inputs(
-                            syntax, *statement,
-                        ) {
-                            retain(reference, false);
-                        }
-                    }
+                collector.parameters(definition.type_parameters, definition.is_public);
+                for bound in &definition.conformance_bounds {
+                    collector.trait_application(
+                        &bound.trait_name,
+                        bound.arguments,
+                        definition.is_public,
+                    );
                 }
-            }
-            Item::Machine(machine) => {
-                for (ordinal, state) in syntax
-                    .items
-                    .state_handles(machine.states)
-                    .iter()
-                    .enumerate()
+                for parent in syntax
+                    .type_references
+                    .type_reference_handles(definition.parents)
                 {
-                    let state = syntax.items.state(*state);
-                    let public = ordinal == 0 && machine.is_public;
-                    retain(state.return_type, public);
-                    for parameter in syntax.items.state_parameters(state.parameters) {
-                        retain(
-                            syntax.items.state_parameter(*parameter).type_reference,
-                            public,
-                        );
+                    collector.trait_reference(*parent, definition.is_public);
+                }
+                if let Some(refines) = definition.refines {
+                    collector.trait_reference(refines, definition.is_public);
+                }
+                for signature in syntax.items.state_signatures(definition.machines) {
+                    collector.signature(
+                        syntax.items.state_signature(*signature),
+                        definition.is_public,
+                    );
+                }
+                for clause in &definition.refinement_clauses {
+                    collector.signature(&clause.signature, definition.is_public);
+                }
+            }
+            Item::Conformance(definition) => {
+                collector.parameters(definition.type_parameters, definition.is_public);
+                collector.trait_application(
+                    &definition.trait_name,
+                    definition.trait_arguments,
+                    definition.is_public,
+                );
+                for member in syntax.items.conformance_members(definition.members) {
+                    match member {
+                        ConformanceMember::Machine(machine)
+                        | ConformanceMember::Synthesized(machine)
+                        | ConformanceMember::TraitDefault { machine, .. } => {
+                            collector.machine(machine)
+                        }
+                        ConformanceMember::Reference { .. } => {}
                     }
-                    for statement in syntax.items.statements(state.statements) {
-                        for reference in crate::preparation::generic_data::statement_type_inputs(
-                            syntax, *statement,
-                        ) {
-                            retain(reference, false);
+                }
+            }
+            Item::Machine(machine) => collector.machine(machine),
+            Item::Proposition(definition) => {
+                collector.parameters(definition.type_parameters, definition.is_public);
+                for parameter in syntax.items.state_parameters(definition.parameters) {
+                    collector.retain(
+                        syntax.items.state_parameter(*parameter).type_reference,
+                        definition.is_public,
+                    );
+                }
+                match &definition.body {
+                    PropositionBody::Witness { evidence } => {
+                        collector.retain(*evidence, definition.is_public)
+                    }
+                    PropositionBody::Transparent { proposition } => {
+                        collector.expression(*proposition, definition.is_public)
+                    }
+                    PropositionBody::Primitive => {}
+                }
+            }
+            Item::Measure(definition) => {
+                collector.retain(
+                    syntax
+                        .items
+                        .state_parameter(definition.parameter)
+                        .type_reference,
+                    false,
+                );
+                collector.retain(definition.return_type, false);
+                for expression in syntax.expressions.expression_handles(definition.body) {
+                    collector.expression(*expression, false);
+                }
+            }
+            Item::Capability(definition) => {
+                for member in syntax.items.capability_members(definition.members) {
+                    match member {
+                        CapabilityMember::Field(field) => {
+                            collector.retain(field.type_reference, false)
+                        }
+                        CapabilityMember::State(state) => {
+                            collector.signature(&state.signature, false);
+                            collector.contracts(state.contracts, false);
                         }
                     }
                 }
             }
-            _ => {}
+            Item::Module(_) | Item::Package(_) | Item::Use(_) => {}
         }
     }
-    (positions, public_positions)
+    for handle in syntax.root_mathematical_definition_handles() {
+        let definition = syntax.items.mathematical_definition(*handle);
+        collector.parameters(definition.type_parameters, definition.is_public);
+        let mut visited = Vec::new();
+        for parameter in syntax.items.mathematical_parameters(definition.parameters) {
+            collector.mathematical_type(
+                syntax.items.mathematical_parameter(*parameter).ty,
+                definition.is_public,
+                &mut visited,
+            );
+        }
+        collector.mathematical_type(definition.result, definition.is_public, &mut visited);
+        if let syntax_trees::item::MathematicalDefinitionBody::Definition(expression) =
+            &definition.body
+        {
+            collector.expression(*expression, definition.is_public);
+        }
+    }
+    collector.inventory
 }
