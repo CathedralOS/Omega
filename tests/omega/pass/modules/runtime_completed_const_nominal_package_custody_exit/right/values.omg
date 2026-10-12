@@ -1,0 +1,2 @@
+module values;
+pub data Token [copy] { flag: bool; }
