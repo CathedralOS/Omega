@@ -678,7 +678,7 @@ fn instance_origin_matches(
             reference,
             AppliedTypeIdentityOwner::Declaration(SymbolHandle::invalid()),
             &[],
-            TypeIdentityQualification::Ordinary,
+            TypeIdentityQualification::CompilationLocal,
         )
     };
     match (identity(origin), identity(site)) {
