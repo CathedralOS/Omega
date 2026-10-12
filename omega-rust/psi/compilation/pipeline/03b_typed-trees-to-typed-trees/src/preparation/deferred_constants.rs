@@ -47,6 +47,18 @@ pub(super) fn require_evaluated_constants(
         .iter()
         .filter(|expression| references.expressions.contains(expression))
         .map(|expression| {
+            if std::env::var_os("OMEGA_SOURCE_CONSTANT_INPUT_TRACE").is_some() {
+                let call = program.expression_table.call_node(*expression);
+                let original = program.expression_table.source_call_node(*expression);
+                eprintln!(
+                    "TRACE_PENDING_CONSTANT_INPUT expression={:?} span={:?} node={:?} target={:?} original_target={:?}",
+                    expression,
+                    program.expression_table.source_span(*expression),
+                    std::mem::discriminant(program.expression_table.expression(*expression)),
+                    call.map(|call| (call.target_symbol, call.target.as_str())),
+                    original.map(|call| (call.target_symbol, call.target.as_str())),
+                );
+            }
             Diagnostic::error("range endpoint has an unresolved build-time evaluation dependency")
                 .with_source_span(program.expression_table.source_span(*expression))
         })
