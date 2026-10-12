@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 5.24, "load1_start": 5.34, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 14.16, "load1_start": 10.88, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 835ms expected @a9ae30e1c334+wt
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -276,6 +276,20 @@ fail/atomics/atomic_load_publish_ordering_rejected rejected 3ms expected @a9ae30
 	tests/omega/fail/atomics/atomic_load_publish_ordering_rejected/main.omg:7:40: atomic load cannot use `Publish` ordering; use `NoOrdering`, `Receive`, or `GlobalOrder`
 fail/atomics/case_payload_non_event_write rejected 930ms expected @a9ae30e1c334+wt
 	machine `overwrite` state `entry` assignment cannot write `choice` because it is not mutable in this state (if `choice` is undeclared -- a typo -- no such field or local exists)
+fail/atomics/fence_authored_bodyless_lookalike rejected 10ms expected @b2d763407d51+wt
+	`Atomic::fence` names a compiler primitive, but only the sealed toolchain declaration supplies it; merely naming a declaration `Atomic::fence` grants no primitive implementation or proof authority
+fail/atomics/fence_does_not_identify_observations rejected 413ms expected @289501b5c2fe+wt
+	cannot prove requires contract for call same from observe: before == after (needs fact `before == after` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/atomics/fence_false_result_case rejected 375ms expected @b2d763407d51+wt
+	cannot prove ensures contract for exit from wrong at statement 0: result == FenceOrdering::Publish
+fail/atomics/fence_no_ordering rejected 167ms expected @b2d763407d51+wt
+	machine `fence_invalid` state `entry` uses `NoOrdering`, which is not a declared local, parameter, field, or type in this state (check the spelling)
+fail/atomics/fence_returned_view_case_invalidated rejected 418ms expected @b2d763407d51+wt
+	Atomic::fence requires one proof-static FenceOrdering case at operand completion: no live ordering case is proved
+fail/atomics/fence_runtime_ordering rejected 448ms expected @b2d763407d51+wt
+	Atomic::fence requires one proof-static FenceOrdering case at operand completion: no live ordering case is proved
+fail/atomics/fence_stale_ordering_case rejected 423ms expected @b2d763407d51+wt
+	Atomic::fence requires one proof-static FenceOrdering case at operand completion: no live ordering case is proved
 fail/atomics/shared_receiver_plain_field_write rejected 874ms expected @a9ae30e1c334+wt
 	machine `Counter::bump` state `bump` assignment cannot write `counter` because it is not mutable in this state (if `counter` is undeclared -- a typo -- no such field or local exists)
 fail/atomics/stored_reference_non_atomic_shared_store rejected 863ms expected @a9ae30e1c334+wt
@@ -330,6 +344,22 @@ fail/borrow/write_only_capture_missing_bounds rejected 419ms expected @e80db4a26
 	cannot prove index `position` is within length 3 in select::entry
 fail/borrow/write_only_capture_selector_observation rejected 211ms expected @e80db4a269fa+wt
 	machine `select` state `entry` reads field `value` from write-only parameter `cells`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
+fail/borrow/write_only_exclusive_call_operand_incoming_child rejected 321ms expected @6ede3322eb88+wt
+	statement 5 creates local borrow `held` while local borrow `child` is still active (borrowed at statement 4; its last use is at statement 6)
+	statement 6 reads `child.value` while local borrow `held` is still active (borrowed at statement 5; its last use is at statement 8)
+fail/borrow/write_only_exclusive_call_operand_incoming_reuse rejected 204ms expected @6ede3322eb88+wt
+	cannot use `incoming.target.value` in machine `Main::main` state `main` (statement 5) after `incoming` was transferred or consumed at statement 4: it holds no value; read what is needed before the transfer or assign a whole value to `incoming` first
+fail/borrow/write_only_exclusive_owned_wrapper_new_backing_conflict rejected 321ms expected @6ede3322eb88+wt
+	statement 6 mutates `main.right.value` while local borrow `held` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/borrow/write_only_exclusive_replacement_incoming_child rejected 319ms expected @6ede3322eb88+wt
+	statement 5 creates local borrow `held` while local borrow `child` is still active (borrowed at statement 4; its last use is at statement 6)
+	statement 6 reads `child.value` while local borrow `held` is still active (borrowed at statement 5; its last use is at statement 8)
+fail/borrow/write_only_exclusive_replacement_incoming_reuse rejected 204ms expected @6ede3322eb88+wt
+	cannot use `incoming.target.value` in machine `Main::main` state `main` (statement 5) after `incoming` was transferred or consumed at statement 4: it holds no value; read what is needed before the transfer or assign a whole value to `incoming` first
+fail/borrow/write_only_exclusive_replacement_new_backing_conflict rejected 318ms expected @6ede3322eb88+wt
+	statement 5 mutates `main.right.value` while local borrow `held` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/borrow/write_only_exclusive_replacement_old_child_conflict rejected 307ms expected @6ede3322eb88+wt
+	statement 6 mutates `main.left.value` while local borrow `child` is still active (borrowed at statement 4; its last use is at statement 7)
 fail/borrow/write_only_implicit_attenuation rejected 801ms expected @a9ae30e1c334+wt
 	argument `value` for state `entry` requires explicit write-only attenuation; pass `&write ...` (a bare value or `&mut ...` does not establish the no-read contract)
 fail/borrow/write_only_index_missing_bounds rejected 1492ms expected @a9ae30e1c334+wt
@@ -425,6 +455,8 @@ fail/borrows/case_reference_through_shared_container rejected 790ms expected @a9
 	construction of `MutableChoice` field `bytes` requires mutable source access; shared or immutable storage cannot supply it
 fail/borrows/clock_out_parameter_mutable_from_shared rejected 3759ms expected @a9ae30e1c334+wt
 	argument `instant` for state `read` is declared `&mut` (`&mut Instant`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/borrows/computed_case_copy_requires_live_bounds rejected 428ms expected @6043bf4a18bd+wt
+	cannot prove index `select()` is within unknown slice length of `cells` in copy::entry
 fail/borrows/conditional_overlapping_field_loans rejected 4727ms expected @16ed47526a08
 fail/borrows/constructor_case_owner_mismatch rejected 812ms expected @a9ae30e1c334+wt
 	construction of `Holder` field `choice` expects the `Correct` data type but got `Other` in the `field` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
@@ -477,6 +509,8 @@ fail/borrows/generic_result_retains_lifetime_candidates rejected 1708ms expected
 	statement 3 mutates `second` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 fail/borrows/guarded_structural_producer_shared_argument_cannot_mutate rejected 906ms expected @a9ae30e1c334+wt
 	mutable argument `envelope` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
+fail/borrows/imported_range_retains_backing_loan rejected 580ms expected @71e65af3059c+wt
+	statement 1 mutates `main.bytes` while local borrow `view` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 fail/borrows/incoming_carrier_duplicate_exclusive_leaf rejected 1724ms expected @a9ae30e1c334+wt
 	machine `duplicate` returns `carrier` as mutable more than once
 fail/borrows/local_array_borrow_operand_read rejected 1818ms expected @a9ae30e1c334+wt
@@ -1190,6 +1224,12 @@ fail/contracts/captured_predicate_arithmetic_policies rejected 1621ms expected @
 	cannot prove requires contract for call wrapping_greater from wrapping_step: value + 1 > value (needs fact `actual > prior` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 	cannot prove requires contract for call saturating_greater from saturating_step: value + 1 > value (needs fact `actual > prior` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 	cannot prove requires contract for call at_least_one from positive_float: value >= 1.0 (needs fact `value >= 1.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/case_payload_write_retires_content_guarantee rejected 384ms expected @6c0183cab07b
+	cannot prove requires contract for call require_three from main: choice.value == 3 (needs fact `choice.value == 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/case_requirement_replaced_through_parameter rejected 382ms expected @6c0183cab07b
+	cannot prove requires contract for call observe from exercise: choice == constructor:6:Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/case_requirement_selector_changed rejected 384ms expected @6c0183cab07b
+	cannot prove requires contract for call observe from exercise: choices[position.index] == constructor:6:Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/contracts/case_requires_other_case_payload_read rejected 5075ms expected @a9ae30e1c334+wt
 	cannot prove selected case for payload access
 fail/contracts/ensures_named_parameter_arithmetic_wrong rejected 1674ms expected @a9ae30e1c334+wt
@@ -1197,6 +1237,16 @@ fail/contracts/ensures_named_parameter_arithmetic_wrong rejected 1674ms expected
 	cannot prove ensures contract for exit from Countdown::arm at statement 2: timer.remaining - 1 < 8
 fail/contracts/ensures_wrapping_field_arithmetic_wrong rejected 1575ms expected @a9ae30e1c334+wt
 	cannot prove ensures contract for exit from Countdown::arm at statement 1: countdown.remaining - 1 < 8
+fail/contracts/float_field_crash_false_guard rejected 1023ms expected @c294657097ec+wt
+	machine `read` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
+fail/contracts/float_field_crash_stale_write rejected 1013ms expected @c294657097ec+wt
+	machine `read` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
+fail/contracts/float_field_crash_wrong_field rejected 1014ms expected @c294657097ec+wt
+	machine `read` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
+fail/contracts/float_field_crash_wrong_order rejected 1015ms expected @c294657097ec+wt
+	machine `read` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
+fail/contracts/float_indexed_crash_wrong_element rejected 1028ms expected @c294657097ec+wt
+	machine `read` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
 fail/contracts/indexed_element_requirement_after_write rejected 447ms expected @6d847e2a233e
 fail/contracts/indexed_element_requirement_effectful_guard rejected 451ms expected @6d847e2a233e
 fail/contracts/indexed_element_requirement_weakened_guard rejected 449ms expected @6d847e2a233e
@@ -1206,6 +1256,10 @@ fail/contracts/later_arm_call_requires_unproven rejected 1669ms expected @a9ae30
 	cannot prove requires contract for call walk from walk: index + 1 <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/contracts/machine_requires_later_state_parameter_rejected rejected 823ms expected @a9ae30e1c334+wt
 	machine `first` state `entry` arrival contract value `later_bound` is not in the state's explicit parameter scope or prior local declarations
+fail/contracts/mixed_requirement_prior_float_capture rejected 1065ms expected @cf645a79ddb2+wt
+	cannot prove requires contract for call compare from main: value == value && replace(mut value) <= 4 (needs fact `before == after && count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/mixed_result_requirement_integer_bound rejected 1074ms expected @cf645a79ddb2+wt
+	cannot prove requires contract for call accept from main: value >= 0.0 && 5 <= 4 (needs fact `value >= 0.0 && count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/contracts/named_state_prefix_does_not_inherit_machine_entry_facts rejected 1725ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call accept from bad: value == 1 (needs fact `value == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/contracts/named_tail_return_contract rejected 1599ms expected @a9ae30e1c334+wt
@@ -1243,6 +1297,8 @@ fail/contracts/runtime_requirement_after_transition_argument_write rejected 1579
 	cannot prove requires contract for call needs_one from statement: cell.value == 1 (needs fact `value == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/contracts/saved_call_case_guarantee_replaced_by_call rejected 1625ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call observe from main: choice == constructor:6:Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/saved_float_guard_after_write rejected 1065ms expected @cf645a79ddb2+wt
+	cannot prove requires contract for call accept from main: reading.value >= 0.0 && 0 <= 4 (needs fact `reading.value >= 0.0 && count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/contracts/shared_field_current_arithmetic_out_of_bounds rejected 1605ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call checked from last: offset < backing.len (needs fact `index < backing.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/contracts/shared_field_current_arithmetic_unrelated_root rejected 1553ms expected @a9ae30e1c334+wt
@@ -1443,8 +1499,12 @@ fail/dependent/case_where_sibling_payload_scope rejected 820ms expected @a9ae30e
 	data `Pair` case `B` constraint names `x`, which is not in scope: a case `where` fact may read only the case's payload bindings and the data's common fields (a sibling case's payload is never in scope)
 fail/dependent/case_where_unproved_bound_rejected rejected 806ms expected @a9ae30e1c334+wt
 	data `Interval` case `Range` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/dependent/case_where_zero_payload_requires_establishment rejected 150ms expected @2b888a3f0e32
+	construction of `Context` omits gated field `choice`: its zero-filled representation is not an established value -- initialize it explicitly
 fail/dependent/case_where_zero_refuted_first_case_rejected rejected 820ms expected @a9ae30e1c334+wt
 	construction of `Main` omits gated field `v`: its zero-filled representation is not an established value -- initialize it explicitly
+fail/dependent/case_where_zero_wide_arithmetic_not_saturated rejected 148ms expected @2b888a3f0e32
+	construction of `Context` omits gated field `choice`: its zero-filled representation is not an established value -- initialize it explicitly
 fail/dependent/collection_predicate_caller_store_before_call_rejected rejected 875ms expected @a9ae30e1c334+wt
 	the next whole-value read of `context` occurs inside an OPEN invariant window: a prior write left data `Grid`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
 	data `Grid`'s default domain is still FALSE at a call: the invariant window opened on `context.grid` must close first -- restore the `where` facts before this consumption point (ch11)
@@ -1785,35 +1845,35 @@ fail/expressions/token_bound_machine_duplicate_shape_rejected rejected 17ms expe
 	`Wrapped::plus` binds the fixed operator token `+` already bound by `Wrapped::add` for the same owner and operand shape (Wrapped, Wrapped); a second spelling needs a distinct operand shape or a separate owner
 fail/expressions/token_bound_machine_foreign_family_rejected rejected 19ms expected @a9ae30e1c334+wt
 	`Wrapped::add` binds the fixed operator token `+` but no operand names its semantic home `Wrapped` (u8#7, u8#7); a closed family's direct token bindings belong to the owner of a participating operand
-fail/float/builtin_operand_borrow_conflict_rejected rejected 71964ms expected @a9ae30e1c334+wt
+fail/float/builtin_operand_borrow_conflict_rejected rejected 4002ms expected @9c4d1c444502
 	state `F64::maximum` receives `main.values` as both mutable and read-only
 	state `F64::maximum` receives `main.values` as both mutable and read-only
 	state `pair` receives `main.values` as both mutable and read-only
 	state `subtract` receives `main.values` as both mutable and read-only
-fail/float/captured_finite_requirement_precedes_source_repair rejected 70671ms expected @a9ae30e1c334+wt
+fail/float/captured_finite_requirement_precedes_source_repair rejected 3990ms expected @9c4d1c444502
 	cannot prove requires contract for call finite_captured from main: F32.is_finite(slot.value) (needs fact `F32.is_finite(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/float/closed_integer_conversion_predicate_retains_result rejected 33721ms expected @a9ae30e1c334+wt
+fail/float/closed_integer_conversion_predicate_retains_result rejected 1673ms expected @9c4d1c444502
 	cannot prove requires contract for call infinite_value from main: F32.is_infinite(F32.from_i32(1)) (needs fact `F32.is_infinite(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/float/closed_integer_conversion_requires_exact_cast rejected 5332ms expected @a9ae30e1c334+wt
+fail/float/closed_integer_conversion_requires_exact_cast rejected 451ms expected @9c4d1c444502
 	machine `main` state `entry` cannot prove integer-to-`f32` cast operand `16777217` preserves its denotation; prove exact format representability or use a named conversion to round
-fail/float/closed_integer_conversion_requires_exact_format rejected 5078ms expected @a9ae30e1c334+wt
+fail/float/closed_integer_conversion_requires_exact_format rejected 374ms expected @9c4d1c444502
 	machine `main` state `entry` cannot prove Exact float-to-`f32` cast operand `from_i32(16777217) as f64` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
-fail/float/closed_integer_conversion_trapping_zero_divisor rejected 5420ms expected @a9ae30e1c334+wt
+fail/float/closed_integer_conversion_trapping_zero_divisor rejected 504ms expected @9c4d1c444502
 	division by zero in integer-to-float coercion source: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.
 	division by zero in machine `main` state `entry` local `observed`: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.
-fail/float/closed_public_float_predicate_requires_bound_actual rejected 32626ms expected @a9ae30e1c334+wt
+fail/float/closed_public_float_predicate_requires_bound_actual rejected 1678ms expected @9c4d1c444502
 	cannot prove requires contract for call finite_right from main: F32.is_finite(340282346638528859811704183484516925440.0 * 2.0) (needs fact `F32.is_finite(right * 2.0)` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/float/closed_public_float_predicate_requires_finite_actual rejected 33053ms expected @a9ae30e1c334+wt
+fail/float/closed_public_float_predicate_requires_finite_actual rejected 1669ms expected @9c4d1c444502
 	cannot prove requires contract for call finite_value from main: F32.is_finite(divide(0.0, 0.0)) (needs fact `F32.is_finite(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/float/constant_exact_integer_coercion_fractional rejected 761ms expected @a9ae30e1c334+wt
+fail/float/constant_exact_integer_coercion_fractional rejected 126ms expected @9c4d1c444502
 	constant initializer: constant cast needs a total integer conversion or checked partial-conversion evidence
-fail/float/digit_separator_format_mismatch_rejected rejected 887ms expected @a9ae30e1c334+wt
+fail/float/digit_separator_format_mismatch_rejected rejected 189ms expected @9c4d1c444502
 	literal `12.5` is suffixed `f32` but lands in a `f64` place -- a width suffix chooses the literal's format at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
-fail/float/digit_separator_missing_exponent_rejected rejected 0ms expected @a9ae30e1c334+wt
+fail/float/digit_separator_missing_exponent_rejected rejected 0ms expected @9c4d1c444502
 	tests/omega/fail/float/digit_separator_missing_exponent_rejected/main.omg:1:35: invalid float literal
-fail/float/digit_separator_unknown_suffix_rejected rejected 0ms expected @a9ae30e1c334+wt
+fail/float/digit_separator_unknown_suffix_rejected rejected 0ms expected @9c4d1c444502
 	tests/omega/fail/float/digit_separator_unknown_suffix_rejected/main.omg:1:35: unknown float literal suffix
-fail/float/exact_format_conversion_requires_denotation rejected 438ms expected @e2eb2e0b9606
+fail/float/exact_format_conversion_requires_denotation rejected 480ms expected @9c4d1c444502
 	machine `lossy` state `entry` cannot prove Exact float-to-`f32` cast operand `value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `lossy_literal` state `entry` cannot prove Exact float-to-`f32` cast operand `0.1` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `unknown` state `entry` cannot prove Exact float-to-`f32` cast operand `value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
@@ -1821,7 +1881,7 @@ fail/float/exact_format_conversion_requires_denotation rejected 438ms expected @
 	machine `exact_ends_are_not_enough` state `entry` cannot prove Exact float-to-`f32` cast operand `value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `overflow` state `entry` cannot prove Exact float-to-`f32` cast operand `large()` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `receiving_type_is_not_proof` state `entry` cannot prove Exact float-to-`f32` cast operand `value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
-fail/float/exact_integer_coercion_requires_denotation rejected 436ms expected @e2eb2e0b9606
+fail/float/exact_integer_coercion_requires_denotation rejected 483ms expected @9c4d1c444502
 	machine `fractional` state `entry` cannot prove Exact float-to-`i32` cast operand `value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `negative_fraction` state `entry` cannot prove Exact float-to-`u32` cast operand `-0.5` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `unknown` state `entry` cannot prove Exact float-to-`i32` cast operand `value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
@@ -1832,49 +1892,49 @@ fail/float/exact_integer_coercion_requires_denotation rejected 436ms expected @e
 	machine `nan` state `entry` cannot prove Exact float-to-`i32` cast operand `divide(0.0, 0.0)` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `nan` state `entry` cannot prove unqualified `I32::from_f64` operand `divide(0.0, 0.0)` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 	machine `stale_guard` state `guarded` cannot prove Exact float-to-`i32` cast operand `subject.value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
-fail/float/exact_integer_to_float_all_policies_requires_denotation rejected 5047ms expected @a9ae30e1c334+wt
+fail/float/exact_integer_to_float_all_policies_requires_denotation rejected 462ms expected @9c4d1c444502
 	machine `main` state `entry` cannot prove integer-to-`f32` cast operand `16777217` preserves its denotation; prove exact format representability or use a named conversion to round
 	machine `main` state `entry` cannot prove integer-to-`f32` cast operand `16777217` preserves its denotation; prove exact format representability or use a named conversion to round
 	machine `main` state `entry` cannot prove integer-to-`f32` cast operand `16777217` preserves its denotation; prove exact format representability or use a named conversion to round
-fail/float/exclusive_float_range_endpoint_rejected rejected 895ms expected @a9ae30e1c334+wt
+fail/float/exclusive_float_range_endpoint_rejected rejected 195ms expected @9c4d1c444502
 	cannot prove call argument `1.5` satisfies bounded parameter `value` for `accept` in `Main::main.main`; expected 0..1.5
-fail/float/field_range_conversion_after_invalid_write rejected 5225ms expected @a9ae30e1c334+wt
+fail/float/field_range_conversion_after_invalid_write rejected 494ms expected @9c4d1c444502
 	data `Sample`'s default domain is still FALSE at a call: the invariant window opened on `sample` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/float/finite_constructor_requires_operand_proof rejected 5089ms expected @a9ae30e1c334+wt
+fail/float/finite_constructor_requires_operand_proof rejected 492ms expected @9c4d1c444502
 	cannot prove initializer `value` satisfies `finite` for the bounded value of machine `make` state `entry` constructor field `amount`
-fail/float/finite_result_requires_proof rejected 5033ms expected @a9ae30e1c334+wt
+fail/float/finite_result_requires_proof rejected 487ms expected @9c4d1c444502
 	cannot prove return value `value` satisfies `finite` for bounded return type in `invalid.entry`
-fail/float/finite_store_invalidated rejected 5447ms expected @a9ae30e1c334+wt
+fail/float/finite_store_invalidated rejected 464ms expected @9c4d1c444502
 	cannot prove transition argument `sample.value` satisfies `finite` for bounded parameter `value` in `inspect.entry`
-fail/float/float_semantics_lookalike_grants_no_primitive rejected 42ms expected @a9ae30e1c334+wt
+fail/float/float_semantics_lookalike_grants_no_primitive rejected 34ms expected @9c4d1c444502
 	`FloatSemantics::add` names a compiler primitive, but only the sealed toolchain declaration supplies it; merely naming a declaration `FloatSemantics::add` grants no primitive implementation or proof authority
-fail/float/format_conversion_exclusive_upper rejected 1330ms expected @e2eb2e0b9606
+fail/float/format_conversion_exclusive_upper rejected 1866ms expected @9c4d1c444502
 	cannot prove ensures contract for exit from exclusive at statement 0: result >= 0.0 && result < 1.0
-fail/float/format_conversion_lookalike rejected 5491ms expected @a9ae30e1c334+wt
+fail/float/format_conversion_lookalike rejected 539ms expected @9c4d1c444502
 	cannot prove return value `__hoist_34` satisfies bounded return type in `lookalike.entry`; expected 0.10000000149011612..=0.10000000149011612
-fail/float/format_conversion_requires_result_proof rejected 5121ms expected @a9ae30e1c334+wt
+fail/float/format_conversion_requires_result_proof rejected 533ms expected @9c4d1c444502
 	cannot prove initializer `F32.from_f64(huge())` satisfies `finite` for the bounded value of machine `make` state `entry` constructor field `amount`
 	cannot prove call argument `F32.from_f64(huge())` satisfies `finite` for bounded parameter `value` for `consume` in `overflow.entry`
 	cannot prove return value `F32.from_f64(value)` satisfies `finite` for bounded return type in `unknown.entry`
-fail/float/integer_conversion_lookalike rejected 5671ms expected @a9ae30e1c334+wt
+fail/float/integer_conversion_lookalike rejected 565ms expected @9c4d1c444502
 	machine `lookalike` state `entry` terminal expression returns a value not provably within its declared range: callers rely on the declared `[a..=b]` for exact arithmetic on the result, so the returned value must be proven to honor it (decision 17). Constrain the returned value, or widen/remove the return range constraint.
-fail/float/integer_to_float_coercion_requires_denotation rejected 5248ms expected @a9ae30e1c334+wt
+fail/float/integer_to_float_coercion_requires_denotation rejected 511ms expected @9c4d1c444502
 	machine `rounded32` state `entry` cannot prove integer-to-`f32` cast operand `16777217` preserves its denotation; prove exact format representability or use a named conversion to round
 	machine `rounded64` state `entry` cannot prove integer-to-`f64` cast operand `9007199254740993` preserves its denotation; prove exact format representability or use a named conversion to round
 	machine `unsigned_loss` state `entry` cannot prove integer-to-`f64` cast operand `value` preserves its denotation; prove exact format representability or use a named conversion to round
 	machine `unknown` state `entry` cannot prove integer-to-`f64` cast operand `value` preserves its denotation; prove exact format representability or use a named conversion to round
 	machine `endpoints_are_not_enough` state `entry` cannot prove integer-to-`f64` cast operand `value` preserves its denotation; prove exact format representability or use a named conversion to round
 	machine `stale_guard` state `guarded` cannot prove integer-to-`f64` cast operand `sample.value` preserves its denotation; prove exact format representability or use a named conversion to round
-fail/float/integer_to_float_semantics_lookalike rejected 47ms expected @a9ae30e1c334+wt
+fail/float/integer_to_float_semantics_lookalike rejected 32ms expected @9c4d1c444502
 	`FloatSemantics::from_integer` names a compiler primitive, but only the sealed toolchain declaration supplies it; merely naming a declaration `FloatSemantics::from_integer` grants no primitive implementation or proof authority
-fail/float/local_initializer_range_unproven rejected 827ms expected @a9ae30e1c334+wt
+fail/float/local_initializer_range_unproven rejected 204ms expected @9c4d1c444502
 	cannot prove initializer `20.0` satisfies the bounded value of machine `literal` state `entry` local `bounded`; expected 0..=0.5
 	cannot prove initializer `value` satisfies the bounded value of machine `forwarded` state `entry` local `bounded`; expected 0..=0.5
-fail/float/mathematical_generic_ieee_equality_requires_non_nan rejected 1473ms expected @a9ae30e1c334+wt
+fail/float/mathematical_generic_ieee_equality_requires_non_nan rejected 559ms expected @9c4d1c444502
 	cannot prove ensures contract for exit from invalid at statement 0: reflexive<f32>(value)
-fail/float/named_argument_format_rejected rejected 883ms expected @a9ae30e1c334+wt
+fail/float/named_argument_format_rejected rejected 194ms expected @9c4d1c444502
 	argument `value` for state `entry` delivers a `f64` value to a `f32` parameter; a landed float retains its format, so changing format requires an explicit conversion
-fail/float/named_call_computed_policy_erasure rejected 5108ms expected @a9ae30e1c334+wt
+fail/float/named_call_computed_policy_erasure rejected 498ms expected @9c4d1c444502
 	store in machine `invalid` state `combine` argument `left` implicitly converts `f32 in Saturating` to `f32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
 	store in machine `invalid` state `combine` argument `right` implicitly converts `f32 in Saturating` to `f32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
 	implicit domain weakening in argument `right` for state `combine` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
@@ -1882,7 +1942,7 @@ fail/float/named_call_computed_policy_erasure rejected 5108ms expected @a9ae30e1
 	implicit domain weakening in argument `addend` for state `combine` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 	machine `invalid` state `entry`: a value-call argument cannot itself be a machine call yet (`multiply(..)` nested in `combine(..)` would read a garbage result) -- bind the inner call to a local first, then pass the local.
 	store in machine `invalid` state `entry` local `result` implicitly converts `f32` to `f32 in Saturating`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32 in Saturating`)
-fail/float/named_call_implicit_policy_erasure rejected 42203ms expected @a9ae30e1c334+wt
+fail/float/named_call_implicit_policy_erasure rejected 2657ms expected @9c4d1c444502
 	store in machine `invalid` state `combine` argument `left` implicitly converts `f32 in Saturating` to `f32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
 	implicit domain weakening in argument `left` for state `combine` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 	store in machine `invalid` state `combine` argument `right` implicitly converts `f32 in Saturating` to `f32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
@@ -1890,109 +1950,109 @@ fail/float/named_call_implicit_policy_erasure rejected 42203ms expected @a9ae30e
 	store in machine `invalid` state `combine` argument `addend` implicitly converts `f32 in Saturating` to `f32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
 	implicit domain weakening in argument `addend` for state `combine` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 	store in machine `invalid` state `entry` local `result` implicitly converts `f32` to `f32 in Saturating`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32 in Saturating`)
-fail/float/named_float_to_integer_no_context_unproven rejected 5338ms expected @a9ae30e1c334+wt
+fail/float/named_float_to_integer_no_context_unproven rejected 525ms expected @9c4d1c444502
 	machine `Main::main` state `main` cannot prove unqualified `I32::from_f64` operand `main.value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
-fail/float/named_nan_runtime_materialization rejected 1437ms expected @a9ae30e1c334+wt
+fail/float/named_nan_runtime_materialization rejected 293ms expected @9c4d1c444502
 	constant initializer: undetermined NaN has no representation for a raw-bit recast
-fail/float/named_trapping_cast_operand_requires_site_coverage rejected 61451ms expected @a9ae30e1c334+wt
+fail/float/named_trapping_cast_operand_requires_site_coverage rejected 3295ms expected @9c4d1c444502
 	`F32.multiply_then_add(3.4028234663852886e38 as f32 , 2.0, 0.0)` in machine `overflow` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
-fail/float/named_trapping_index_operand_requires_site_coverage rejected 32393ms expected @a9ae30e1c334+wt
+fail/float/named_trapping_index_operand_requires_site_coverage rejected 1632ms expected @9c4d1c444502
 	`F32.multiply_then_add(values[0], 2.0, 0.0)` in machine `overflow` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
-fail/float/negated_ordered_guard_cast rejected 5147ms expected @a9ae30e1c334+wt
+fail/float/negated_ordered_guard_cast rejected 429ms expected @9c4d1c444502
 	machine `Guarded::convert` state `bounded` cannot prove Exact float-to-`i32` cast operand `guarded.value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `Guarded::convert` state `bounded` cannot prove unqualified `I32::from_f64` operand `guarded.value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
-fail/float/normal_call_guarantee_inactive_match_arm rejected 32715ms expected @a9ae30e1c334+wt
+fail/float/normal_call_guarantee_inactive_match_arm rejected 1573ms expected @9c4d1c444502
 	cannot prove ensures contract for exit from invalid at statement 1: result == F32.is_finite(value)
-fail/float/normal_call_guarantee_skipped_short_circuit rejected 32093ms expected @a9ae30e1c334+wt
+fail/float/normal_call_guarantee_skipped_short_circuit rejected 1585ms expected @9c4d1c444502
 	cannot prove ensures contract for exit from invalid at statement 1: result == F32.is_finite(value)
-fail/float/parameter_guarantee_does_not_bound_result rejected 396ms expected @e2eb2e0b9606
+fail/float/parameter_guarantee_does_not_bound_result rejected 440ms expected @9c4d1c444502
 	machine `narrow` state `entry` cannot prove Exact float-to-`f32` cast operand `source(3.75, 0.1)` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
-fail/float/policy_cast_requires_unchanged_denotation rejected 5214ms expected @a9ae30e1c334+wt
+fail/float/policy_cast_requires_unchanged_denotation rejected 510ms expected @9c4d1c444502
 	machine `fractional_saturating` state `entry` cannot prove Exact float-to-`i32` cast operand `3.75` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `fractional_trapping` state `entry` cannot prove Exact float-to-`i32` cast operand `3.75` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `lossy_format` state `entry` cannot prove Exact float-to-`f32` cast operand `3.0000000000000004` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `outside_carrier` state `entry` cannot prove Exact float-to-`u8` cast operand `300.0` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `outside_carrier` state `entry` cannot prove unqualified `U8::from_f64` operand `300.0` is finite and truncates into `u8`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `u8 in Trapping` or `u8 in Saturating`
-fail/float/private_float_projection_selection rejected 74285ms expected @a9ae30e1c334+wt
+fail/float/private_float_projection_selection rejected 4313ms expected @9c4d1c444502
 	package `private_float_projection_selection` (0101010101010101010101010101010101010101010101010101010101010101) selects private operator `Float::meaning32`
-fail/float/public_boolean_result_contract_false rejected 35463ms expected @a9ae30e1c334+wt
+fail/float/public_boolean_result_contract_false rejected 1685ms expected @9c4d1c444502
 	cannot prove ensures contract for exit from finite at statement 0: result == F32.is_finite(value)
-fail/float/public_boolean_result_contract_lookalike rejected 33058ms expected @a9ae30e1c334+wt
+fail/float/public_boolean_result_contract_lookalike rejected 1752ms expected @9c4d1c444502
 	cannot prove ensures contract for exit from finite at statement 0: result == F32.is_finite(value)
-fail/float/public_boolean_result_contract_retains_actual rejected 71832ms expected @a9ae30e1c334+wt
+fail/float/public_boolean_result_contract_retains_actual rejected 4143ms expected @9c4d1c444502
 	cannot prove ensures contract for exit from finite at statement 0: result == F32.is_finite(value)
-fail/float/public_class_contract_ieee_equality_retains_zero_sign rejected 70237ms expected @a9ae30e1c334+wt
+fail/float/public_class_contract_ieee_equality_retains_zero_sign rejected 4092ms expected @9c4d1c444502
 	cannot prove ensures contract for exit from category at statement 0: result == F32.classify(value)
-fail/float/public_class_result_contract_retains_actual rejected 70188ms expected @a9ae30e1c334+wt
+fail/float/public_class_result_contract_retains_actual rejected 4008ms expected @9c4d1c444502
 	cannot prove ensures contract for exit from category at statement 0: result == F32.classify(value)
-fail/float/public_class_state_contract_retains_entry_subject rejected 71649ms expected @a9ae30e1c334+wt
+fail/float/public_class_state_contract_retains_entry_subject rejected 3822ms expected @9c4d1c444502
 	cannot prove ensures contract for exit from category at statement 0: result == F32.classify(value); no exact incoming reference origin for value
-fail/float/public_integer_result_contract_retains_policy rejected 69069ms expected @a9ae30e1c334+wt
+fail/float/public_integer_result_contract_retains_policy rejected 3890ms expected @9c4d1c444502
 	cannot prove ensures contract for exit from increment at statement 1: result == saturating_increment(value)
-fail/float/qualified_conversion_requires_operand_proof rejected 5378ms expected @a9ae30e1c334+wt
+fail/float/qualified_conversion_requires_operand_proof rejected 496ms expected @9c4d1c444502
 	machine `fractional` state `entry` cannot prove Exact float-to-`i32` cast operand `3.75` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `lossy` state `entry` cannot prove Exact float-to-`f32` cast operand `3.0000000000000004` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	`as ... in Four` cannot mint: a `Four` domain fact is FALSE at this value -- the predicate obligation is owed (decision 19's "predicate obligation not discharged" class)
 	`as ... in Issued` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
-fail/float/range_bound_names_value_rejected rejected 845ms expected @a9ae30e1c334+wt
+fail/float/range_bound_names_value_rejected rejected 209ms expected @9c4d1c444502
 	machine `scale` state `entry` parameter `value` declares a `f64` range whose bound is not a float literal or closed integer constant; a floating range retains only those endpoints, so any other bound cannot be enforced (it would silently behave unbounded)
 	machine `scale` state `entry` return type declares a `f64` range whose bound is not a float literal or closed integer constant; a floating range retains only those endpoints, so any other bound cannot be enforced (it would silently behave unbounded)
 	data `Gauge` field `level` declares a `f64` range whose bound is not a float literal or closed integer constant; a floating range retains only those endpoints, so any other bound cannot be enforced (it would silently behave unbounded)
 	machine `settle` state `entry` local data `bounded` declares a `f64` range whose bound is not a float literal or closed integer constant; a floating range retains only those endpoints, so any other bound cannot be enforced (it would silently behave unbounded)
-fail/float/record_window_transition_unrepaired rejected 5472ms expected @a9ae30e1c334+wt
+fail/float/record_window_transition_unrepaired rejected 470ms expected @9c4d1c444502
 	the next whole-value read of `envelope.child` occurs inside an OPEN invariant window: a prior write left data `Sample`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
 	the next whole-value read of `envelope.child` occurs inside an OPEN invariant window: a prior write left data `Sample`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
-fail/float/refined_conversion_target_requires_source_proof rejected 469ms expected @9be27a3951a7
+fail/float/refined_conversion_target_requires_source_proof rejected 503ms expected @9c4d1c444502
 	machine `fractional` state `entry` cannot prove Exact float-to-`i32` cast operand `3.75` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `rounded` state `entry` cannot prove Exact float-to-`f32` cast operand `3.0000000000000004` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
-fail/float/refined_result_wrong_or_excluded_bounds rejected 1380ms expected @9be27a3951a7
+fail/float/refined_result_wrong_or_excluded_bounds rejected 1781ms expected @9c4d1c444502
 	cannot prove ensures contract for exit from outside at statement 0: result == 4
 	cannot prove ensures contract for exit from float_outside at statement 0: result == 4.0
 	cannot prove ensures contract for exit from excluded at statement 0: result >= 0.0 && result < 3.0
-fail/float/requirement_record_field_trapping_requires_coverage rejected 32683ms expected @a9ae30e1c334+wt
+fail/float/requirement_record_field_trapping_requires_coverage rejected 1633ms expected @9c4d1c444502
 	`multiply(value, 2.0)` in machine `packet` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
-fail/float/result_predicate_stale_or_wrong_value rejected 1328ms expected @e2eb2e0b9606
+fail/float/result_predicate_stale_or_wrong_value rejected 1639ms expected @9c4d1c444502
 	cannot prove requires contract for call accept from stale: current == 3.75 (needs fact `value == 3.75` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 	cannot prove requires contract for call accept from wrong_value: 0.1 == 3.75 (needs fact `value == 3.75` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/float/same_carrier_cast_cannot_mint_finite rejected 5698ms expected @a9ae30e1c334+wt
+fail/float/same_carrier_cast_cannot_mint_finite rejected 517ms expected @9c4d1c444502
 	cannot prove initializer `identity(value) as f64` satisfies `finite` for the bounded value of machine `invalid` state `entry` local `finite`
-fail/float/state_arrival_ieee_predicate_unsatisfied rejected 34670ms expected @a9ae30e1c334+wt
+fail/float/state_arrival_ieee_predicate_unsatisfied rejected 1645ms expected @9c4d1c444502
 	cannot prove requires contract for call bounded from Main::main: main.value == main.value && main.value >= 0.0 && main.value < 1000.0 (needs fact `value == value && value >= 0.0 && value < 1000.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/float/state_constructor_ieee_reflexivity rejected 381ms expected @6ede3322eb88+wt
+fail/float/state_constructor_ieee_reflexivity rejected 552ms expected @9c4d1c444502
 	cannot prove requires contract for call conclude from invalid: constructor:5:Chain9:name:Cons17:payload:name:head9:0.0 / 0.017:payload:name:tail87:constructor:5:Chain9:name:Cons17:payload:name:head9:0.0 / 0.017:payload:name:tail4:tail == constructor:5:Chain9:name:Cons17:payload:name:head9:0.0 / 0.017:payload:name:tail87:constructor:5:Chain9:name:Cons17:payload:name:head9:0.0 / 0.017:payload:name:tail4:tail (needs fact `Chain == Chain` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/float/suffix_format_disagrees_rejected rejected 2761ms expected @a9ae30e1c334+wt
+fail/float/suffix_format_disagrees_rejected rejected 738ms expected @9c4d1c444502
 	literal `1.5` is suffixed `f32` but lands in a `f64` place -- a width suffix chooses the literal's format at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
-fail/float/symbolic_integer_conversion_requires_preserves_exact_cast rejected 5590ms expected @a9ae30e1c334+wt
+fail/float/symbolic_integer_conversion_requires_preserves_exact_cast rejected 484ms expected @9c4d1c444502
 	machine `main` state `entry` cannot prove integer-to-`f32` cast operand `16777217` preserves its denotation; prove exact format representability or use a named conversion to round
-fail/float/symbolic_integer_conversion_requires_preserves_preconditions rejected 34010ms expected @a9ae30e1c334+wt
+fail/float/symbolic_integer_conversion_requires_preserves_preconditions rejected 1724ms expected @9c4d1c444502
 	cannot prove requires contract for call source from converted: value > 0 (needs fact `value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/float/symbolic_integer_conversion_requires_preserves_trapping_failure rejected 5128ms expected @a9ae30e1c334+wt
+fail/float/symbolic_integer_conversion_requires_preserves_trapping_failure rejected 517ms expected @9c4d1c444502
 	uncovered Trap crash in machine `converted` state `entry` local `__hoist_34`: Trapping `+` of `value` and `10 as u8` in `u8` traps when its result lies outside `u8`, and no published `crashes Trap` route covers that condition over these operands; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
-fail/float/symbolic_integer_conversion_requires_rejects_lookalike rejected 34439ms expected @a9ae30e1c334+wt
+fail/float/symbolic_integer_conversion_requires_rejects_lookalike rejected 1728ms expected @9c4d1c444502
 	cannot prove requires contract for call finite_value from converted: F32.is_finite(from_i32(value, other)) (needs fact `F32.is_finite(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/float/symbolic_integer_conversion_requires_retains_actual rejected 33924ms expected @a9ae30e1c334+wt
+fail/float/symbolic_integer_conversion_requires_retains_actual rejected 1711ms expected @9c4d1c444502
 	cannot prove requires contract for call finite_value from converted: F32.is_finite(other) (needs fact `F32.is_finite(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/float/symbolic_integer_conversion_requires_retains_classification rejected 33374ms expected @a9ae30e1c334+wt
+fail/float/symbolic_integer_conversion_requires_retains_classification rejected 1659ms expected @9c4d1c444502
 	cannot prove requires contract for call infinite_value from converted: F32.is_infinite(F32.from_i32(value)) (needs fact `F32.is_infinite(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/float/total_order_wrong_carrier rejected 1402ms expected @a9ae30e1c334+wt
+fail/float/total_order_wrong_carrier rejected 484ms expected @9c4d1c444502
 	machine `Wrong::before` state `before` does not satisfy trait `Order` machine `before` parameter `left`: expected `f64`, got `f32`
 	machine `Wrong::before` state `before` does not satisfy trait `Order` machine `before` parameter `right`: expected `f64`, got `f32`
-fail/float/trapping_arithmetic_requires_same_cause_ceiling rejected 31806ms expected @a9ae30e1c334+wt
+fail/float/trapping_arithmetic_requires_same_cause_ceiling rejected 1601ms expected @9c4d1c444502
 	`multiply(value, 2.0)` in machine `scale` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
-fail/float/trapping_named_conversion_requires_site_coverage rejected 33300ms expected @a9ae30e1c334+wt
+fail/float/trapping_named_conversion_requires_site_coverage rejected 1558ms expected @9c4d1c444502
 	`F32.from_f64(value)` in machine `narrow` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
-fail/float/trapping_nonentry_site_requires_matching_path rejected 33322ms expected @a9ae30e1c334+wt
+fail/float/trapping_nonentry_site_requires_matching_path rejected 1581ms expected @9c4d1c444502
 	`multiply(value, 2.0)` in machine `scale` state `risky` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
-fail/float/trapping_raw_finite_predicate_invalidated_by_write rejected 32459ms expected @a9ae30e1c334+wt
+fail/float/trapping_raw_finite_predicate_invalidated_by_write rejected 1610ms expected @9c4d1c444502
 	`multiply(value, 2.0)` in machine `scale` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
-fail/float/trapping_raw_finite_predicate_keeps_operand_identity rejected 33629ms expected @a9ae30e1c334+wt
+fail/float/trapping_raw_finite_predicate_keeps_operand_identity rejected 1584ms expected @9c4d1c444502
 	`multiply(value, 3.0)` in machine `scale` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
-fail/float/trapping_raw_finite_proof_keeps_operation_identity rejected 34257ms expected @a9ae30e1c334+wt
+fail/float/trapping_raw_finite_proof_keeps_operation_identity rejected 1504ms expected @9c4d1c444502
 	`divide(value, 0.0)` in machine `scale` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
 	`F32.from_f64(value)` in machine `wrong_format` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
-fail/float/unbounded_result_does_not_prove_guarantee rejected 1314ms expected @e2eb2e0b9606
+fail/float/unbounded_result_does_not_prove_guarantee rejected 1369ms expected @9c4d1c444502
 	cannot prove ensures contract for exit from tail at statement 1: result == 3.75
-fail/float/unguarded_scalar_state_contract rejected 32973ms expected @a9ae30e1c334+wt
+fail/float/unguarded_scalar_state_contract rejected 1179ms expected @9c4d1c444502
 	cannot prove requires contract for call bounded from unchecked: value == value && value >= -100.0 && value <= 100.0 (needs fact `value == value && value >= -100.0 && value <= 100.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/generics/attached_machine_unresolved_extent rejected 869ms expected @a9ae30e1c334+wt
 	machine `Buffer::scratch` state `scratch` parameter `copy` uses unresolved fixed-array length `Missing`; a symbolic array length must name an in-scope `const` parameter
@@ -2104,6 +2164,10 @@ fail/generics/erased_static_const_keeps_literal_landing rejected 783ms expected 
 	const parameter `Tag` of `unused` requires `u8`, but its literal already landed as `u16`
 fail/generics/forwarded_const_argument_conflicts_with_explicit_selection rejected 1983ms expected @a9ae30e1c334+wt
 	generic machine `FixedBuffer::select` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived
+fail/generics/forwarded_slice_argument_element_mismatch rejected 159ms expected @71e65af3059c+wt
+	argument `items` for state `entry` expects `&[Element]`, got `named value`
+fail/generics/forwarded_slice_result_element_mismatch rejected 120ms expected @71e65af3059c+wt
+	machine `wrong` state `entry` terminal expression expects `&[Output]`, got `named value`
 fail/generics/generic_carrier_equation_index_conflict rejected 16ms expected @a9ae30e1c334+wt
 	generic data `Box` where equation binds `Index` to 8 but its explicit argument is 9
 fail/generics/generic_carrier_equation_mismatch rejected 15ms expected @a9ae30e1c334+wt
@@ -2857,6 +2921,8 @@ fail/providers/checked_boundary_operator_const_application_unselected rejected 9
 	unimplemented: portable provider-dependent constant recipes; target realization cannot fold selected values into checked source
 fail/providers/checked_boundary_operator_missing_contract rejected 1307ms expected @a9ae30e1c334+wt
 	checked operator provider `CheckedMathProvider::identity_impl` proves no ensures matching operator requirement `operator::CheckedMath::identity(named(name(i32)))->named(name(i32))` contract `result == value`
+fail/providers/checked_view_provider_wrong_extent rejected 271ms expected @71e65af3059c+wt
+	provider machine `Provider::at` for top-level boundary requirement `Window::at` does not refine `Window::at`: its requires facts are not a conservative refinement
 fail/providers/computed_binding_receiver_fabricated_carrier rejected 3603ms expected @a9ae30e1c334+wt
 	opaque boundary data `Binding` has no public constructor; a boundary provider must establish its values
 fail/providers/consuming_requirement_without_provider rejected 23449ms expected @a9ae30e1c334+wt
@@ -3111,6 +3177,8 @@ fail/slices/predicate_scalar_store_invalid_membership rejected 5777ms expected @
 	cannot prove the value assigned to `items[1]` in main is in domain `i32::Selected`; a place declared `in i32::Selected` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
 fail/slices/projected_descriptor_index_requires_live_bound rejected 1577ms expected @a9ae30e1c334+wt
 	cannot prove index `position` is within unknown slice length of `envelope.window.cells` in read::entry
+fail/slices/rebound_subslice_loses_byte_predicate rejected 339ms expected @7451127fc8f8+wt
+	cannot prove requires contract for call inspect from replace: view in [u8]::Ascii (invalidated by prior mutation of view; view is part of [u8]::Ascii)
 fail/slices/record_length_field_is_not_collection_extent rejected 1573ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call require_all from Main::main: prefix.len == 3 (needs fact `bytes.len == 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/slices/result_length_contract_requires_returned_view rejected 1531ms expected @a9ae30e1c334+wt
@@ -3166,6 +3234,8 @@ fail/slices/utf8_subslice_byte_cut rejected 1820ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call inspect from relay: bytes[0..1] in [u8]::Utf8
 fail/slices/window_shrink_index_out_of_length rejected 1658ms expected @a9ae30e1c334+wt
 	cannot prove index `3` is within length 3
+fail/slices/written_subslice_loses_byte_predicate rejected 347ms expected @7451127fc8f8+wt
+	cannot prove requires contract for call inspect from replace: view in [u8]::Ascii (invalidated by prior mutation of view; view is part of [u8]::Ascii)
 fail/structs/affine_result_constructor_reuse rejected 1202ms expected @a9ae30e1c334+wt
 	cannot use `kind` in machine `Worker::wrap` state `wrap` (statement 1) after `kind` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `kind` first
 fail/structs/local_record_policy_erasure rejected 827ms expected @a9ae30e1c334+wt
@@ -3305,6 +3375,18 @@ fail/termination/endpoint_folded_into_payload rejected 1738ms expected @a9ae30e1
 	terminating machine walk: cannot prove rank range `0..=limit` for the rank produced by the selected view
 fail/termination/explicit_self_without_descent rejected 284ms expected @dca1c7cd7e6f+wt
 	terminating machine spin: cannot prove strict rank decrease on a recurrent arrival: the transition from `spin` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+fail/termination/float_requirement_disjunction_not_integer_bound rejected 1077ms expected @cf645a79ddb2+wt
+	cannot prove requires contract for call countdown from countdown: value >= 0.0 || count - 1 <= 4 (needs fact `value >= 0.0 || count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+	terminating machine countdown: cannot prove rank range `0..=4` for the rank produced by the selected view
+fail/termination/float_requirement_nan_argument rejected 1061ms expected @cf645a79ddb2+wt
+	cannot prove requires contract for call countdown from main: invalid >= 0.0 && 0 <= 4 (needs fact `value >= 0.0 && count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/termination/float_requirement_non_decreasing_rank rejected 1069ms expected @cf645a79ddb2+wt
+	terminating machine repeat: cannot prove strict rank decrease on a recurrent arrival: the transition from `repeat` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+fail/termination/float_requirement_recursive_argument_changed rejected 1075ms expected @cf645a79ddb2+wt
+	cannot prove requires contract for call countdown from countdown: -1.0 >= 0.0 && count - 1 <= 4 (needs fact `value >= 0.0 && count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/termination/float_requirement_stale_field_arrival rejected 1060ms expected @cf645a79ddb2+wt
+	cannot prove requires contract for call countdown from countdown: reading.value >= 0.0 && count - 1 <= 4 (needs fact `reading.value >= 0.0 && count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+	terminating machine countdown: cannot prove rank range `0..=4` for the rank produced by the selected view
 fail/termination/forwarding_state_in_ranked_loop rejected 1682ms expected @a9ae30e1c334+wt
 	terminating machine argmax: cannot prove strict rank decrease on a recurrent arrival: the transition from `argmax` to `step` is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 fail/termination/identity_measure_call_component_mixed_view rejected 1555ms expected @a9ae30e1c334+wt
@@ -3575,6 +3657,14 @@ fail/traits/explicit_implementation_wrong_trait_arguments rejected 169ms expecte
 	`PowerOrder` implements `Ranked<Card>`, not the `Ranked<Gem>` this call of `Ranked::compare` names
 fail/traits/external_row_does_not_capture_map_region rejected 223ms expected @21c44dfab69b
 	machine `read` state `entry` parameter `context` uses undeclared lifetime `'storage'; declare it in the owner's generic parameter list
+fail/traits/finite_family_machine_facts_do_not_bind_state rejected 91ms expected @7e763bd2f4f6+wt
+	cannot prove declared where facts for static application of requirement `Factory::make` under its complete applied telescope
+fail/traits/finite_family_mutable_state_subject rejected 89ms expected @7e763bd2f4f6+wt
+	cannot prove declared where facts for static application of requirement `Factory::make` under its complete applied telescope
+fail/traits/finite_family_owned_result_second_transfer rejected 210ms expected @7e763bd2f4f6+wt
+	cannot use `result` in machine `duplicate` state `entry` (statement 2) after `result` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `result` first
+fail/traits/finite_family_sibling_state_facts rejected 90ms expected @7e763bd2f4f6+wt
+	cannot prove declared where facts for static application of requirement `Factory::make` under its complete applied telescope
 fail/traits/generic_reference_forwarding_carrier_mismatch rejected 875ms expected @a9ae30e1c334+wt
 	argument `subject` for state `entry` expects `&mut T`, got `named value`
 	argument `subject` for state `entry` expects `&mut Counter`, got `named value`
@@ -3680,7 +3770,7 @@ pass/arithmetic/qualified_float_cast_abstract_prior_fact checked 33208ms @a9ae30
 pass/arithmetic/qualified_float_cast_specification_declared_sources checked 32872ms @a9ae30e1c334+wt
 pass/arithmetic/reused_fixed_integer_operands_exit checked 11245ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/arithmetic/reused_masked_shift_count_exit checked 11301ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/arithmetic/runtime_anonymous_array_stores_with_float_import_exit timeout 120003ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/arithmetic/runtime_anonymous_array_stores_with_float_import_exit checked 12929ms check-target:macos_arm64 @9c4d1c444502
 pass/arithmetic/runtime_bitwise_high_ops_exit checked 11095ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/arithmetic/runtime_boolean_alias_shift_count_exit checked 10654ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/arithmetic/runtime_boolean_divisor_state_exit checked 10204ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -3702,9 +3792,9 @@ pass/arithmetic/runtime_exact_signed_divisor_exclusions_exit checked 11362ms che
 pass/arithmetic/runtime_explicit_call_operand_policy_exit checked 11183ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/arithmetic/runtime_explicit_call_result_policy_exit checked 10777ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/arithmetic/runtime_fixed_input_policy_reuse_exit checked 10599ms check-target:linux_x86_64 @a9ae30e1c334+wt
-pass/arithmetic/runtime_fixed_integer_across_console_exit timeout 120000ms @a9ae30e1c334+wt
-pass/arithmetic/runtime_float_nan_comparison_exit timeout 120002ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/arithmetic/runtime_float_self_compare_nan_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/arithmetic/runtime_fixed_integer_across_console_exit checked 13330ms check-target:linux_x86_64 @9c4d1c444502
+pass/arithmetic/runtime_float_nan_comparison_exit checked 12809ms check-target:macos_arm64 @9c4d1c444502
+pass/arithmetic/runtime_float_self_compare_nan_exit checked 12978ms check-target:macos_arm64 @9c4d1c444502
 pass/arithmetic/runtime_full_width_unsigned_quotient_exit checked 10239ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/arithmetic/runtime_guard_narrowed_transition_arg_exit checked 11066ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/arithmetic/runtime_guarded_read_count_assignment_exit checked 11018ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -3751,8 +3841,12 @@ pass/arrays/runtime_computed_float_element_store_exit checked 137602ms check-tar
 pass/atomics/atomic_global_order_operations checked 1566ms @a9ae30e1c334+wt
 pass/atomics/runtime_atomic_after_quoted_write_exit checked 10962ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/atomics/runtime_atomic_bitwise_widths_exit checked 11190ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/atomics/runtime_atomic_case_field_state_exit checked 4692ms check-target:macos_arm64 @6c0183cab07b
 pass/atomics/runtime_atomic_compare_exchange_exit checked 10896ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/atomics/runtime_atomic_fence_captured_ordering_exit checked 4305ms check-target:macos_arm64 @b2d763407d51+wt
+pass/atomics/runtime_atomic_fences_exit checked 4314ms check-target:macos_arm64 @b2d763407d51+wt
 pass/atomics/runtime_atomic_fetch_add_exit checked 10884ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/atomics/runtime_authored_fence_name_exit checked 4288ms check-target:macos_arm64 @b2d763407d51+wt
 pass/atomics/runtime_case_payload_atomic_events_exit checked 4669ms check-target:macos_arm64 @6c0183cab07b
 pass/atomics/runtime_mixed_common_atomic_cell_exit checked 10589ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/atomics/runtime_nested_case_payload_atomic_event_exit checked 4666ms check-target:macos_arm64 @6c0183cab07b
@@ -3775,6 +3869,15 @@ pass/borrow/runtime_write_only_array_indexed_calls_exit checked 2848ms check-tar
 pass/borrow/runtime_write_only_array_selector_snapshot_exit checked 4145ms check-target:macos_arm64 @e80db4a269fa+wt
 pass/borrow/runtime_write_only_call_result_observation_exit checked 10497ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrow/runtime_write_only_captured_record_copy_exit checked 4227ms check-target:macos_arm64 @2e62c6e27183+wt
+pass/borrow/runtime_write_only_exclusive_reference_aggregate_exit checked 3640ms check-target:macos_arm64 @6ede3322eb88+wt
+pass/borrow/runtime_write_only_exclusive_reference_call_operand_exit checked 3640ms check-target:macos_arm64 @6ede3322eb88+wt
+pass/borrow/runtime_write_only_exclusive_reference_call_result_exit checked 3640ms check-target:macos_arm64 @6ede3322eb88+wt
+pass/borrow/runtime_write_only_exclusive_reference_detached_child_exit checked 3483ms check-target:macos_arm64 @6ede3322eb88+wt
+pass/borrow/runtime_write_only_exclusive_reference_forward_exit checked 3483ms check-target:macos_arm64 @6ede3322eb88+wt
+pass/borrow/runtime_write_only_exclusive_reference_nested_call_operand_exit checked 3483ms check-target:macos_arm64 @6ede3322eb88+wt
+pass/borrow/runtime_write_only_exclusive_reference_owned_wrapper_exit checked 3411ms check-target:macos_arm64 @6ede3322eb88+wt
+pass/borrow/runtime_write_only_exclusive_reference_projected_exit checked 3414ms check-target:macos_arm64 @6ede3322eb88+wt
+pass/borrow/runtime_write_only_exclusive_reference_returned_view_exit checked 3410ms check-target:macos_arm64 @6ede3322eb88+wt
 pass/borrow/runtime_write_only_indexed_record_copy_exit checked 4227ms check-target:macos_arm64 @2e62c6e27183+wt
 pass/borrow/runtime_write_only_local_affine_aggregate_exit checked 4298ms check-target:macos_arm64 @6abc05dd203a
 pass/borrow/runtime_write_only_record_array_argument_exit rejected 10341ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
@@ -3864,7 +3967,9 @@ pass/borrows/runtime_carrier_reference_store_exit checked 11057ms check-target:m
 pass/borrows/runtime_case_payload_partial_transfer_exit checked 10506ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_case_return_parameter_order_exit checked 10245ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_computed_backing_reference_copy_exit checked 10544ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_computed_case_copy_order_exit checked 4847ms check-target:macos_arm64 @6043bf4a18bd+wt
 pass/borrows/runtime_computed_shared_view_reborrow_exit checked 3460ms check-target:macos_arm64 @54d47902d575+wt
+pass/borrows/runtime_computed_view_observation_composition_exit checked 3631ms check-target:macos_arm64 @54d47902d575+wt
 pass/borrows/runtime_constructed_reference_array_restoration_exit checked 11074ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_copied_byte_distinct_epochs_exit checked 10345ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_copied_byte_predicate_snapshot_exit checked 10420ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -3899,6 +4004,7 @@ pass/borrows/runtime_nested_reference_array_bounded_read_exit checked 10949ms ch
 pass/borrows/runtime_nested_reference_record_direct_payload_restoration_exit checked 11079ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_projected_fixed_byte_array_local_exit checked 4988ms check-target:macos_arm64 @77acc22653d9
 pass/borrows/runtime_projected_reference_call_return_exit checked 10339ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_projected_view_observations_exit checked 3460ms check-target:macos_arm64 @54d47902d575+wt
 pass/borrows/runtime_qualified_byte_argument_snapshot_exit checked 11337ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_reassigned_view_capture_exit checked 4224ms check-target:macos_arm64 @eee96af606fc+wt
 pass/borrows/runtime_reassigned_view_return_exit checked 4368ms check-target:macos_arm64 @eee96af606fc+wt
@@ -4002,7 +4108,7 @@ pass/build/runtime_main_source_builder_is_ordinary_exit checked 11077ms check-ta
 pass/build/runtime_static_service_exclusion_exit checked 10448ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/same_leaf_runner_entry_left_exit checked 11139ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/same_leaf_runner_entry_right_exit checked 11237ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/build/selected_const_array_length_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/build/selected_const_array_length_exit checked 19740ms check-target:macos_arm64 @9c4d1c444502
 pass/build/static_assumed_binding_spelling_exit checked 10190ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/uefi_entry_schema_same_leaf checked 7689ms check-target:uefi_x86_64 @c46a502724a1+wt
 pass/build/uefi_os_handoff_invocation rejected 9044ms check-target:uefi_x86_64 @c46a502724a1+wt
@@ -4012,7 +4118,7 @@ pass/calling/calling_count_boundaries_exit checked 7399ms check-target:macos_arm
 pass/calls/ambient_receiver_scalar_return_exit checked 10883ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/borrowed_case_dispatch_member_leaf_reads checked 11238ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/borrowed_float_argument_scalar_result_exit checked 10908ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/calls/borrowed_float_result_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/borrowed_float_result_exit checked 12891ms check-target:macos_arm64 @9c4d1c444502
 pass/calls/borrowed_float_scalar_result_exit checked 11084ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/borrowed_scalar_result_with_binding_exit checked 10798ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/boundary_call_nested_call_argument_exit checked 12759ms check-target:windows_x86_64 @a9ae30e1c334+wt
@@ -4108,7 +4214,7 @@ pass/calls/runtime_authored_numeric_guard_result_exit checked 10550ms check-targ
 pass/calls/runtime_authored_numeric_names_exit checked 10247ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_boolean_result_across_console_exit checked 11214ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_borrowed_binding_field_state_loan_exit checked 10907ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/calls/runtime_borrowed_float_formal_exchange_exit timeout 120030ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/runtime_borrowed_float_formal_exchange_exit checked 13144ms check-target:macos_arm64 @9c4d1c444502
 pass/calls/runtime_boundary_computed_selector_order_exit checked 11100ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_boundary_loop_projected_subslice_exit checked 11119ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_boundary_projected_mutable_subslice_exit checked 10940ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -4138,7 +4244,7 @@ pass/calls/runtime_copied_argument_live_mutable_ensures_exit checked 10282ms che
 pass/calls/runtime_cross_machine_substate_name_exit checked 11069ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_cyclic_state_reference_result_exit checked 11399ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_dispatch_binary_call_argument_exit checked 11173ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/calls/runtime_dispatch_float_terminal_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/runtime_dispatch_float_terminal_exit checked 12816ms check-target:macos_arm64 @9c4d1c444502
 pass/calls/runtime_dispatch_machine_array_slice_arg_exit checked 10995ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_dispatch_result_enum_case_exit checked 11256ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_dispatch_slice_element_terminal_exit checked 11152ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -4230,7 +4336,7 @@ pass/calls/runtime_value_call_nested_entry_call_exit checked 15027ms check-targe
 pass/calls/runtime_value_call_return_types_exit checked 17099ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_value_call_single_execution_exit checked 13917ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_value_call_statement_recursive_walk_exit checked 13386ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/calls/runtime_value_call_terminal_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/runtime_value_call_terminal_exit checked 13114ms check-target:macos_arm64 @9c4d1c444502
 pass/calls/runtime_wrapping_division_call_span_exit checked 12918ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/scalar_callee_borrowed_primitive_reads_exit checked 14153ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/scalar_expression_binding_evaluation_order_exit checked 11775ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -4318,7 +4424,7 @@ pass/collections/record_array_field_access_exit rejected 5364ms check-target:mac
 pass/collections/record_array_literal_field_store_exit checked 11725ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_argmax_index_exit checked 12194ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_array_child_membership_transport_exit checked 11202ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/collections/runtime_borrowed_element_float_guard_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/collections/runtime_borrowed_element_float_guard_exit checked 12882ms check-target:macos_arm64 @9c4d1c444502
 pass/collections/runtime_borrowed_fixed_array_state_reads_exit checked 11876ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_bounded_byte_reference_forward_exit checked 12331ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_bounded_byte_reference_read_exit checked 11761ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -4345,7 +4451,7 @@ pass/collections/runtime_dynamic_borrow_selector_order_exit checked 10450ms chec
 pass/collections/runtime_dynamic_indexed_borrow_call_exit checked 10386ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_element_view_selector_snapshot_exit checked 10504ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_field_borrow_selector_order_exit checked 10294ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/collections/runtime_finite_element_view_call_write_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/collections/runtime_finite_element_view_call_write_exit checked 11149ms check-target:macos_arm64 @9c4d1c444502
 pass/collections/runtime_fixed_array_captured_selector_store_exit checked 10925ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_fixed_array_projected_write_exit checked 11159ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_fixed_array_selector_call_store_exit checked 7535ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -4361,7 +4467,7 @@ pass/collections/runtime_indexed_assignment_selector_snapshot_exit checked 6313m
 pass/collections/runtime_indexed_boolean_field_guard_exit checked 11056ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_indexed_bounded_element_read_exit checked 11076ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_indexed_bounded_field_local_exit checked 11078ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/collections/runtime_indexed_float_field_compare_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/collections/runtime_indexed_float_field_compare_exit checked 11183ms check-target:macos_arm64 @9c4d1c444502
 pass/collections/runtime_indexed_record_field_read_exit checked 11031ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_indexed_struct_field_rmw_exit checked 11022ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_indexed_successor_argument_exit checked 11038ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -4402,12 +4508,15 @@ pass/collections/std_option_runtime_match_exit checked 16596ms check-target:maco
 pass/collections/std_option_surface checked 3192ms @a9ae30e1c334+wt
 pass/collections/view_record_element_member_read_exit checked 10959ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/zero_length_byte_array_admission checked 3145ms @a9ae30e1c334+wt
-pass/comptime/provider_boundary_range_endpoint_exit timeout 120001ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/comptime/provider_boundary_range_endpoint_exit rejected 1813ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @9c4d1c444502
+	unimplemented: portable provider-dependent constant recipes; target realization cannot fold selected values into checked source
 pass/comptime/range_endpoint_requires_discharge_exit checked 26944ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/comptime/runtime_const_array_length_dependency_order_exit timeout 120001ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/comptime/runtime_const_array_length_dependency_order_exit rejected 1893ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @9c4d1c444502
+	unimplemented: portable provider-dependent constant recipes; target realization cannot fold selected values into checked source
 pass/comptime/runtime_const_array_length_transitive_exit checked 11031ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/comptime/runtime_const_measured_recursion_exit checked 12401ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/comptime/selected_float_array_length_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/comptime/selected_float_array_length_exit rejected 1822ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @9c4d1c444502
+	unimplemented: portable provider-dependent constant recipes; target realization cannot fold selected values into checked source
 pass/concurrency/boundary_suspension_inline_completion_exit checked 11498ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/concurrency/runtime_array_loan_suspension_exit checked 10498ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/concurrency/runtime_retained_reference_boundary_exit rejected 4723ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
@@ -4432,10 +4541,19 @@ pass/contracts/ensures_fact_list_exit checked 15348ms check-target:macos_arm64 @
 pass/contracts/ensures_named_parameter_arithmetic_exit checked 13664ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/contracts/ensures_saturating_field_arithmetic_exit checked 13670ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/contracts/ensures_wrapping_field_arithmetic_exit checked 12892ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/contracts/entry_case_replaced_before_call checked 1805ms @6c0183cab07b
 pass/contracts/named_tail_return_contract checked 12896ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/contracts/proof_fact_indexed_domain_application checked 1913ms @a9ae30e1c334+wt
 pass/contracts/requires_narrow_ceiling_unproven checked 12007ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/contracts/requires_u8_ceiling_below_carrier checked 11707ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/contracts/runtime_case_payload_write_preserves_tag_exit checked 3963ms check-target:macos_arm64 @6c0183cab07b
+pass/contracts/runtime_float_case_crash_guard_exit checked 6891ms check-target:macos_arm64 @c294657097ec+wt
+pass/contracts/runtime_float_entry_relations_exit checked 6892ms check-target:macos_arm64 @c294657097ec+wt
+pass/contracts/runtime_float_field_crash_guard_exit checked 6888ms check-target:macos_arm64 @c294657097ec+wt
+pass/contracts/runtime_float_fused_crash_guard_exit checked 6888ms check-target:macos_arm64 @c294657097ec+wt
+pass/contracts/runtime_float_indexed_crash_guard_exit checked 6679ms check-target:macos_arm64 @c294657097ec+wt
+pass/contracts/runtime_float_nested_crash_guard_exit checked 6671ms check-target:macos_arm64 @c294657097ec+wt
+pass/contracts/runtime_float_unordered_crash_guard_exit checked 6668ms check-target:macos_arm64 @c294657097ec+wt
 pass/contracts/runtime_indexed_element_requirements_exit checked 2817ms check-target:macos_arm64 @6d847e2a233e
 pass/contracts/runtime_later_arm_call_requires_exit checked 11514ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/contracts/runtime_projected_element_requirements_exit checked 2774ms check-target:macos_arm64 @6d847e2a233e
@@ -4462,7 +4580,7 @@ pass/control_flow/case_dispatch_unread_structural_payload_exit checked 12794ms c
 pass/control_flow/case_guard_wildcard_fallthrough_compile checked 1630ms @a9ae30e1c334+wt
 pass/control_flow/case_pattern_rename_waive_exit checked 13132ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/composite_state_parameter checked 11610ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/control_flow/computed_float_array_field_store_exit timeout 120000ms @a9ae30e1c334+wt
+pass/control_flow/computed_float_array_field_store_exit checked 11538ms check-target:linux_x86_64 @9c4d1c444502
 pass/control_flow/conditional_unit_completion_exit checked 11500ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/conjunct_subject_dispatch_compile checked 1615ms @a9ae30e1c334+wt
 pass/control_flow/copy_enum_cycle_edge_write_frame checked 1751ms @a9ae30e1c334+wt
@@ -4550,7 +4668,7 @@ pass/control_flow/runtime_integer_literal_dispatch_exit checked 11951ms check-ta
 pass/control_flow/runtime_later_state_shared_array_loan checked 11481ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_local_record_array_byte_render_exit checked 16908ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_loop_patterns_exit checked 12355ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/control_flow/runtime_mutable_bounded_byte_formatter_exit timeout 120000ms @a9ae30e1c334+wt
+pass/control_flow/runtime_mutable_bounded_byte_formatter_exit checked 12751ms check-target:linux_x86_64 @9c4d1c444502
 pass/control_flow/runtime_namespace_local_state_loan checked 10916ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_narrow_signed_case_payload_state_guard_exit checked 11489ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/control_flow/runtime_nested_case_pattern_guard_meet_exit checked 11183ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -4733,6 +4851,7 @@ pass/dependent/transitive_call_frame_preserves_disjoint_fact_compile checked 225
 pass/dependent/valuation_order_cycle checked 2373ms @a9ae30e1c334+wt
 pass/dependent/where_field_shadows_module_const_exit checked 12591ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/dependent/zero_case_absorbs_nested_gate_compile checked 12060ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/dependent/zero_case_predicate_entry_exit checked 5863ms check-target:macos_arm64 @2b888a3f0e32
 pass/dependent/zero_valid_qualified_storage checked 1689ms @a9ae30e1c334+wt
 pass/dependent/zeroed_record_member_sum_elision checked 12554ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/bodyless_owner_establishment checked 1760ms @a9ae30e1c334+wt
@@ -4759,7 +4878,7 @@ pass/domains/record_predicate_domain_member_exit checked 11607ms check-target:ma
 pass/domains/refinement_chain_predicates checked 1707ms @a9ae30e1c334+wt
 pass/domains/refinement_chain_routed_provenance checked 1643ms @a9ae30e1c334+wt
 pass/domains/runtime_case_constructor_child_memberships_exit checked 11262ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/domains/runtime_computed_qualification_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/domains/runtime_computed_qualification_exit checked 11223ms check-target:macos_arm64 @9c4d1c444502
 pass/domains/runtime_constructor_ensured_membership_exit checked 11216ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/runtime_nested_record_membership_transport_exit checked 11182ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/runtime_qualified_borrowed_gated_input_exit checked 11348ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -4881,9 +5000,9 @@ pass/expressions/indexed_qualified_call_argument checked 1586ms @a9ae30e1c334+wt
 pass/expressions/match_anonymous_result_landing checked 1632ms @a9ae30e1c334+wt
 pass/expressions/match_domain_results checked 1530ms @a9ae30e1c334+wt
 pass/expressions/match_float_interpretation checked 34404ms @a9ae30e1c334+wt
-pass/expressions/match_float_patterns timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/expressions/match_float_patterns checked 11254ms check-target:macos_arm64 @9c4d1c444502
 pass/expressions/match_float_results checked 1678ms @a9ae30e1c334+wt
-pass/expressions/match_float_subjects timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/expressions/match_float_subjects checked 11149ms check-target:macos_arm64 @9c4d1c444502
 pass/expressions/match_fresh_owned checked 1658ms @a9ae30e1c334+wt
 pass/expressions/match_ordered_duplicate_patterns checked 1643ms @a9ae30e1c334+wt
 pass/expressions/mixed_integer_comparison_places checked 11375ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -4900,14 +5019,14 @@ pass/expressions/owned_match_record_values checked 1568ms @a9ae30e1c334+wt
 pass/expressions/owned_match_values checked 1568ms @a9ae30e1c334+wt
 pass/expressions/qualified_call_result_argument checked 1625ms @a9ae30e1c334+wt
 pass/expressions/runtime_flat_boolean_logic_exit checked 11198ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/expressions/runtime_float_record_field_reads_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/expressions/runtime_indexed_float_record_fields_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/expressions/runtime_float_record_field_reads_exit checked 11200ms check-target:macos_arm64 @9c4d1c444502
+pass/expressions/runtime_indexed_float_record_fields_exit checked 11087ms check-target:macos_arm64 @9c4d1c444502
 pass/expressions/runtime_nested_record_field_call_exit checked 10582ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/expressions/runtime_nested_record_field_reads_exit checked 11285ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/expressions/runtime_numeric_cast_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/expressions/runtime_numeric_cast_exit checked 12014ms check-target:macos_arm64 @9c4d1c444502
 pass/expressions/runtime_temporary_record_field_call_exit checked 10564ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/expressions/runtime_widened_comparison_exit checked 11140ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/expressions/scalar_match_boundary_composition_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/expressions/scalar_match_boundary_composition_exit checked 12777ms check-target:macos_arm64 @9c4d1c444502
 pass/filesystem/cross_linux_value_syscalls rejected 16883ms regressed-from:checked @a9ae30e1c334+wt
 	machine `Main::main` state `classify_missing`: value call `Filesystem.open_with(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
 	machine `Main::main` state `read_missing_directory`: value call `Filesystem.read_dir_nth(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
@@ -4957,111 +5076,111 @@ pass/filesystem/wrapper_open_with_exit rejected 11928ms check-target:macos_arm64
 	machine `Main::main` state `leg4`: value call `Filesystem.open_with(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
 	machine `Main::main` state `leg5`: value call `Filesystem.open_with(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
 	machine `Main::main` state `leg6`: value call `Filesystem.open_with(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-pass/float/admitted_float_conversion_crash timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/admitted_float_lower_boundary_crash timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/admitted_numeric_imports_preserve_semantics timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/build_runtime_semantics_twins_windows_x64 rejected 145968ms check-target:windows_x86_64 regressed-from:checked+check-target:windows_x86_64 @a9ae30e1c334+wt
-	native artifact identity physical pipeline failed: common physical staging failed: RegisterAllocation(RuntimeSpill(FixedOccurrences(WorkBudgetExceeded { function: 1, required: 1733360, limit: 1000000, registers: 8724, operands: 13077, transports: 15722, tie_steps: 26154, settlement_steps: 0 })))
-pass/float/build_runtime_semantics_twins_x86_baseline rejected 160040ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @a9ae30e1c334+wt
-	native artifact identity physical pipeline failed: common physical staging failed: RegisterAllocation(RuntimeSpill(FixedOccurrences(WorkBudgetExceeded { function: 1, required: 1733360, limit: 1000000, registers: 8724, operands: 13077, transports: 15722, tie_steps: 26154, settlement_steps: 0 })))
-pass/float/builtin_extrema_field_store_exit timeout 120001ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/closed_integer_conversion_predicate_proof_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/closed_integer_conversion_trapping_source_no_normal_result timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/coherent_field_energy_scattering_exit checked 158430ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/computed_comparison_literal_landing_exit checked 21280ms check-target:macos_arm64 @282425e6e323
-pass/float/computed_float_bare_literal_comparison timeout 120001ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/constructor_requirement_result_policy_exit checked 154755ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/data_where_float_field_restored_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/f32_arg_const_arith_landed_exit timeout 120001ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/f32_per_operation_rounding_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/finite_core_domain_range_discharge timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/finite_signature_transport_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/float_saturating_arithmetic_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/float_to_int_trapping_nan_traps timeout 120003ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/float_trapping_overflow_traps timeout 120001ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/float_trapping_propagated_nan_traps timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/foreign_control_state_restore timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/fused_multiply_add_single_rounding_exit timeout 120000ms @a9ae30e1c334+wt
-pass/float/guarded_exact_float_conversion checked 37736ms @a9ae30e1c334+wt
-pass/float/guarded_scalar_state_contract_exit checked 149007ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/hydrostatic_load_format_exit checked 174772ms check-target:linux_x86_64 @a9ae30e1c334+wt
-pass/float/literal_indexed_float_field_read_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/live_division_operand_across_call_exit checked 14054ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/live_float_parameter_across_call_exit checked 148689ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/local_after_float_call_store_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/module_imported_policy_conversion_family_exit built 61316ms exit:2 interpreter-exit:2 interpreter:agrees @8a006b29cc3b
-pass/float/named_constant_materialization_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/named_float_integer_lower_boundary_conversion_traps timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/named_float_integer_nan_conversion_traps timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/named_fractional_integer_boundary_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/named_ieee_conversions_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/named_ieee_operations_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/named_ieee_truncations_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/named_infinity_classification_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/named_integer_conversion_source_proofs_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/named_nan_semantic_only_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/named_operation_retains_collection_element_policy_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/named_provider_directed_divide_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/named_provider_fused_multiply_add_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/named_provider_min_max_sqrt_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/named_provider_multiply_then_add_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/named_provider_negate_is_nan_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/nearest_even_binary_arithmetic_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/nested_float_operator_applications_exit checked 24591ms check-target:macos_arm64 @282425e6e323
-pass/float/owned_local_computed_float_store_exit checked 160704ms check-target:linux_x86_64 @a9ae30e1c334+wt
-pass/float/public_boolean_result_contract_import_exit checked 158015ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/public_boolean_result_contract_match_import_exit checked 156380ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/public_boolean_result_contract_short_circuit_import_exit checked 161269ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/public_class_result_contract_import_exit checked 176983ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/public_integer_input_contract_guarded_import_exit checked 158335ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/public_integer_input_contract_import_exit checked 179431ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/public_integer_input_contract_state_import_exit checked 156534ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/public_integer_result_contract_import_exit checked 157230ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/qualified_integer_source_exact_float_coercion_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/requirement_nested_record_arithmetic_exit checked 152066ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/returned_record_computed_fields_exit checked 148171ms check-target:linux_x86_64 @a9ae30e1c334+wt
-pass/float/runtime_absolute_return_sum_exit checked 145583ms check-target:linux_x86_64 @e977d51d9986
-pass/float/runtime_absolute_shared_call_operands_exit checked 142230ms check-target:linux_x86_64 @e977d51d9986
-pass/float/runtime_authored_max_selection_exit timeout 120001ms @a9ae30e1c334+wt
-pass/float/runtime_builtin_guard_application_exit timeout 120000ms @a9ae30e1c334+wt
-pass/float/runtime_builtin_ieee_order_exit timeout 120000ms @a9ae30e1c334+wt
-pass/float/runtime_coercion_future_policy_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/runtime_exact_format_narrowing_exit checked 9264ms check-target:macos_arm64 @e2eb2e0b9606
-pass/float/runtime_exact_integer_coercion_exit checked 9260ms check-target:macos_arm64 @e2eb2e0b9606
-pass/float/runtime_exact_integer_to_float_coercion_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/runtime_finite_record_invariant_window_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/runtime_float_call_same_carrier_cast_exit timeout 120002ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/runtime_float_digit_separators_exit checked 145577ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/runtime_float_integer_conversion_boundaries_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/runtime_format_conversion_result_bounds_exit checked 9133ms check-target:macos_arm64 @e2eb2e0b9606
-pass/float/runtime_named_float_to_integer_conversion_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/runtime_named_fma_sequence_exit timeout 120003ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/runtime_named_format_conversion_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/runtime_named_policy_conversion_composition_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/runtime_named_policy_result_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/runtime_nested_float_min_max_exit checked 143720ms check-target:linux_x86_64 @e977d51d9986
-pass/float/runtime_qualified_carrier_conversion_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/runtime_refined_conversion_target_exit checked 8578ms check-target:macos_arm64 @9be27a3951a7
-pass/float/runtime_result_predicate_custody_exit checked 9135ms check-target:macos_arm64 @e2eb2e0b9606
-pass/float/runtime_resultless_law_equality_custody_exit checked 143939ms check-target:linux_x86_64 @e977d51d9986
-pass/float/runtime_shared_float_lazy_branch_exit timeout 120000ms @a9ae30e1c334+wt
-pass/float/runtime_shared_float_operand_once_exit timeout 120000ms @a9ae30e1c334+wt
-pass/float/runtime_std_is_finite_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/runtime_std_trigonometric_endpoints checked 34863ms check-target:macos_arm64 @5c5bb7a1c2c2+wt
-pass/float/runtime_total_order_satisfiers_exit timeout 120003ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/saturating_named_operations_retain_ordered_inputs timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/scalar_helper_boundary_sequence_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/state_arrival_ieee_predicates checked 143338ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/state_loop_field_refinement_restoration_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/symbolic_integer_conversion_finite_requires_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/trapping_float_sites_share_nonentry_guard_coverage timeout 120002ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/trapping_raw_finite_operand_capture_proof checked 34333ms @a9ae30e1c334+wt
-pass/float/trapping_raw_finite_semantic_result_proof timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/waterline_record_computed_return_exit checked 147620ms check-target:linux_x86_64 @a9ae30e1c334+wt
-pass/float/x86_fma_plan_association timeout 120000ms @a9ae30e1c334+wt
+pass/float/admitted_float_conversion_crash checked 33720ms check-target:macos_arm64 @9c4d1c444502
+pass/float/admitted_float_lower_boundary_crash checked 33599ms check-target:macos_arm64 @9c4d1c444502
+pass/float/admitted_numeric_imports_preserve_semantics checked 41383ms check-target:macos_arm64 @9c4d1c444502
+pass/float/build_runtime_semantics_twins_windows_x64 rejected 9327ms check-target:windows_x86_64 regressed-from:checked+check-target:windows_x86_64 @9c4d1c444502
+	unimplemented: portable provider-dependent constant recipes; target realization cannot fold selected values into checked source
+pass/float/build_runtime_semantics_twins_x86_baseline rejected 9417ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @9c4d1c444502
+	unimplemented: portable provider-dependent constant recipes; target realization cannot fold selected values into checked source
+pass/float/builtin_extrema_field_store_exit checked 33249ms check-target:macos_arm64 @9c4d1c444502
+pass/float/closed_integer_conversion_predicate_proof_exit checked 29550ms check-target:macos_arm64 @9c4d1c444502
+pass/float/closed_integer_conversion_trapping_source_no_normal_result checked 29350ms check-target:macos_arm64 @9c4d1c444502
+pass/float/coherent_field_energy_scattering_exit checked 43211ms check-target:macos_arm64 @9c4d1c444502
+pass/float/computed_comparison_literal_landing_exit checked 29297ms check-target:macos_arm64 @9c4d1c444502
+pass/float/computed_float_bare_literal_comparison checked 29624ms check-target:macos_arm64 @9c4d1c444502
+pass/float/constructor_requirement_result_policy_exit checked 29175ms check-target:macos_arm64 @9c4d1c444502
+pass/float/data_where_float_field_restored_exit checked 28777ms check-target:macos_arm64 @9c4d1c444502
+pass/float/f32_arg_const_arith_landed_exit checked 28206ms check-target:macos_arm64 @9c4d1c444502
+pass/float/f32_per_operation_rounding_exit checked 28524ms check-target:macos_arm64 @9c4d1c444502
+pass/float/finite_core_domain_range_discharge checked 27869ms check-target:macos_arm64 @9c4d1c444502
+pass/float/finite_signature_transport_exit checked 27899ms check-target:macos_arm64 @9c4d1c444502
+pass/float/float_saturating_arithmetic_exit checked 28544ms check-target:macos_arm64 @9c4d1c444502
+pass/float/float_to_int_trapping_nan_traps checked 27036ms check-target:macos_arm64 @9c4d1c444502
+pass/float/float_trapping_overflow_traps checked 27155ms check-target:macos_arm64 @9c4d1c444502
+pass/float/float_trapping_propagated_nan_traps checked 26892ms check-target:macos_arm64 @9c4d1c444502
+pass/float/foreign_control_state_restore checked 26763ms check-target:macos_arm64 @9c4d1c444502
+pass/float/fused_multiply_add_single_rounding_exit checked 26137ms check-target:macos_arm64 @9c4d1c444502
+pass/float/guarded_exact_float_conversion checked 7372ms @9c4d1c444502
+pass/float/guarded_scalar_state_contract_exit checked 26224ms check-target:macos_arm64 @9c4d1c444502
+pass/float/hydrostatic_load_format_exit checked 25745ms check-target:linux_x86_64 @9c4d1c444502
+pass/float/literal_indexed_float_field_read_exit checked 26117ms check-target:macos_arm64 @9c4d1c444502
+pass/float/live_division_operand_across_call_exit checked 13385ms check-target:macos_arm64 @9c4d1c444502
+pass/float/live_float_parameter_across_call_exit checked 27021ms check-target:macos_arm64 @9c4d1c444502
+pass/float/local_after_float_call_store_exit checked 26480ms check-target:macos_arm64 @9c4d1c444502
+pass/float/module_imported_policy_conversion_family_exit checked 25583ms check-target:linux_x86_64 @9c4d1c444502
+pass/float/named_constant_materialization_exit checked 64831ms check-target:macos_arm64 @9c4d1c444502
+pass/float/named_float_integer_lower_boundary_conversion_traps checked 26419ms check-target:macos_arm64 @9c4d1c444502
+pass/float/named_float_integer_nan_conversion_traps checked 26691ms check-target:macos_arm64 @9c4d1c444502
+pass/float/named_fractional_integer_boundary_exit checked 27178ms check-target:macos_arm64 @9c4d1c444502
+pass/float/named_ieee_conversions_exit checked 27925ms check-target:macos_arm64 @9c4d1c444502
+pass/float/named_ieee_operations_exit checked 28143ms check-target:macos_arm64 @9c4d1c444502
+pass/float/named_ieee_truncations_exit checked 47465ms check-target:macos_arm64 @9c4d1c444502
+pass/float/named_infinity_classification_exit checked 26985ms check-target:macos_arm64 @9c4d1c444502
+pass/float/named_integer_conversion_source_proofs_exit checked 26954ms check-target:macos_arm64 @9c4d1c444502
+pass/float/named_nan_semantic_only_exit checked 75236ms check-target:macos_arm64 @9c4d1c444502
+pass/float/named_operation_retains_collection_element_policy_exit checked 27010ms check-target:macos_arm64 @9c4d1c444502
+pass/float/named_provider_directed_divide_exit checked 26310ms check-target:macos_arm64 @9c4d1c444502
+pass/float/named_provider_fused_multiply_add_exit checked 25409ms check-target:macos_arm64 @9c4d1c444502
+pass/float/named_provider_min_max_sqrt_exit checked 26030ms check-target:macos_arm64 @9c4d1c444502
+pass/float/named_provider_multiply_then_add_exit checked 25581ms check-target:macos_arm64 @9c4d1c444502
+pass/float/named_provider_negate_is_nan_exit checked 25723ms check-target:macos_arm64 @9c4d1c444502
+pass/float/nearest_even_binary_arithmetic_exit checked 25648ms check-target:macos_arm64 @9c4d1c444502
+pass/float/nested_float_operator_applications_exit checked 25987ms check-target:macos_arm64 @9c4d1c444502
+pass/float/owned_local_computed_float_store_exit checked 24703ms check-target:linux_x86_64 @9c4d1c444502
+pass/float/public_boolean_result_contract_import_exit checked 24929ms check-target:macos_arm64 @9c4d1c444502
+pass/float/public_boolean_result_contract_match_import_exit checked 24773ms check-target:macos_arm64 @9c4d1c444502
+pass/float/public_boolean_result_contract_short_circuit_import_exit checked 25074ms check-target:macos_arm64 @9c4d1c444502
+pass/float/public_class_result_contract_import_exit checked 25037ms check-target:macos_arm64 @9c4d1c444502
+pass/float/public_integer_input_contract_guarded_import_exit checked 25027ms check-target:macos_arm64 @9c4d1c444502
+pass/float/public_integer_input_contract_import_exit checked 25392ms check-target:macos_arm64 @9c4d1c444502
+pass/float/public_integer_input_contract_state_import_exit checked 25240ms check-target:macos_arm64 @9c4d1c444502
+pass/float/public_integer_result_contract_import_exit checked 25164ms check-target:macos_arm64 @9c4d1c444502
+pass/float/qualified_integer_source_exact_float_coercion_exit checked 25623ms check-target:macos_arm64 @9c4d1c444502
+pass/float/requirement_nested_record_arithmetic_exit checked 25829ms check-target:macos_arm64 @9c4d1c444502
+pass/float/returned_record_computed_fields_exit checked 25305ms check-target:linux_x86_64 @9c4d1c444502
+pass/float/runtime_absolute_return_sum_exit checked 27121ms check-target:linux_x86_64 @9c4d1c444502
+pass/float/runtime_absolute_shared_call_operands_exit checked 26026ms check-target:linux_x86_64 @9c4d1c444502
+pass/float/runtime_authored_max_selection_exit checked 25839ms check-target:macos_arm64 @9c4d1c444502
+pass/float/runtime_builtin_guard_application_exit checked 25797ms check-target:macos_arm64 @9c4d1c444502
+pass/float/runtime_builtin_ieee_order_exit checked 27023ms check-target:macos_arm64 @9c4d1c444502
+pass/float/runtime_coercion_future_policy_exit checked 26161ms check-target:macos_arm64 @9c4d1c444502
+pass/float/runtime_exact_format_narrowing_exit checked 25624ms check-target:macos_arm64 @9c4d1c444502
+pass/float/runtime_exact_integer_coercion_exit checked 25427ms check-target:macos_arm64 @9c4d1c444502
+pass/float/runtime_exact_integer_to_float_coercion_exit checked 25190ms check-target:macos_arm64 @9c4d1c444502
+pass/float/runtime_finite_record_invariant_window_exit checked 25261ms check-target:macos_arm64 @9c4d1c444502
+pass/float/runtime_float_call_same_carrier_cast_exit checked 25094ms check-target:macos_arm64 @9c4d1c444502
+pass/float/runtime_float_digit_separators_exit checked 25286ms check-target:macos_arm64 @9c4d1c444502
+pass/float/runtime_float_integer_conversion_boundaries_exit checked 25128ms check-target:macos_arm64 @9c4d1c444502
+pass/float/runtime_format_conversion_result_bounds_exit checked 24869ms check-target:macos_arm64 @9c4d1c444502
+pass/float/runtime_named_float_to_integer_conversion_exit checked 24284ms check-target:macos_arm64 @9c4d1c444502
+pass/float/runtime_named_fma_sequence_exit checked 23441ms check-target:macos_arm64 @9c4d1c444502
+pass/float/runtime_named_format_conversion_exit checked 22605ms check-target:macos_arm64 @9c4d1c444502
+pass/float/runtime_named_policy_conversion_composition_exit checked 20755ms check-target:macos_arm64 @9c4d1c444502
+pass/float/runtime_named_policy_result_exit checked 17969ms check-target:macos_arm64 @9c4d1c444502
+pass/float/runtime_nested_float_min_max_exit checked 19035ms check-target:linux_x86_64 @9c4d1c444502
+pass/float/runtime_qualified_carrier_conversion_exit checked 15571ms check-target:macos_arm64 @9c4d1c444502
+pass/float/runtime_refined_conversion_target_exit checked 14972ms check-target:macos_arm64 @9c4d1c444502
+pass/float/runtime_result_predicate_custody_exit checked 13984ms check-target:macos_arm64 @9c4d1c444502
+pass/float/runtime_resultless_law_equality_custody_exit checked 13151ms check-target:linux_x86_64 @9c4d1c444502
+pass/float/runtime_shared_float_lazy_branch_exit checked 12616ms check-target:macos_arm64 @9c4d1c444502
+pass/float/runtime_shared_float_operand_once_exit checked 12074ms check-target:macos_arm64 @9c4d1c444502
+pass/float/runtime_std_is_finite_exit checked 11351ms check-target:macos_arm64 @9c4d1c444502
+pass/float/runtime_std_trigonometric_endpoints checked 11609ms check-target:macos_arm64 @9c4d1c444502
+pass/float/runtime_total_order_satisfiers_exit checked 12762ms check-target:macos_arm64 @9c4d1c444502
+pass/float/saturating_named_operations_retain_ordered_inputs checked 11371ms check-target:macos_arm64 @9c4d1c444502
+pass/float/scalar_helper_boundary_sequence_exit checked 11374ms check-target:macos_arm64 @9c4d1c444502
+pass/float/state_arrival_ieee_predicates checked 11086ms check-target:macos_arm64 @9c4d1c444502
+pass/float/state_loop_field_refinement_restoration_exit checked 11144ms check-target:macos_arm64 @9c4d1c444502
+pass/float/symbolic_integer_conversion_finite_requires_exit checked 11294ms check-target:macos_arm64 @9c4d1c444502
+pass/float/trapping_float_sites_share_nonentry_guard_coverage checked 11131ms check-target:macos_arm64 @9c4d1c444502
+pass/float/trapping_raw_finite_operand_capture_proof checked 3102ms @9c4d1c444502
+pass/float/trapping_raw_finite_semantic_result_proof checked 11246ms check-target:macos_arm64 @9c4d1c444502
+pass/float/waterline_record_computed_return_exit checked 11824ms check-target:linux_x86_64 @9c4d1c444502
+pass/float/x86_fma_plan_association checked 11382ms check-target:linux_x86_64 @9c4d1c444502
 pass/formatting/runtime_repeated_wrapping_decimal_format_exit checked 11312ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/generics/closed_generic_local_field_observation_exit checked 10700ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/generics/closed_indexed_quantity timeout 120001ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/generics/closed_indexed_quantity checked 12823ms check-target:macos_arm64 @9c4d1c444502
 pass/generics/closed_sum_case_membership checked 1660ms @a9ae30e1c334+wt
 pass/generics/const_data_param checked 1647ms @a9ae30e1c334+wt
 pass/generics/contextual_static_machine_applications_exit checked 10752ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5105,6 +5224,7 @@ pass/generics/runtime_copied_indexed_case_subject_exit checked 17292ms check-tar
 pass/generics/runtime_equation_constructor_selected_const_exit checked 11013ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/generics/runtime_equation_named_array_actual_exit checked 10859ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/generics/runtime_finite_recursive_reference_catalog_exit checked 11194ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/generics/runtime_forwarded_generic_slice_result_exit checked 4018ms check-target:macos_arm64 @71e65af3059c+wt
 pass/generics/runtime_forwarded_value_contract_exit checked 11857ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/runtime_generic_carrier_binder_equation_exit checked 11028ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/generics/runtime_generic_carrier_equation_context_exit checked 11318ms check-target:linux_x86_64 @a9ae30e1c334+wt
@@ -5153,8 +5273,8 @@ pass/host/runtime_descriptor_case_atomic_input_exit checked 11680ms check-target
 pass/host/runtime_descriptor_case_replacement_exit checked 12292ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/host/runtime_descriptor_direct_array_exit checked 12124ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/host/runtime_descriptor_exclusive_atomic_record_exit checked 12607ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/host/runtime_descriptor_float_loan_input_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/host/runtime_descriptor_immutable_primitive_loans_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/host/runtime_descriptor_float_loan_input_exit checked 13030ms check-target:macos_arm64 @9c4d1c444502
+pass/host/runtime_descriptor_immutable_primitive_loans_exit checked 14235ms check-target:macos_arm64 @9c4d1c444502
 pass/host/runtime_descriptor_local_array_loan_input_exit checked 13016ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/host/runtime_descriptor_mutable_view_input_exit checked 8681ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/host/runtime_descriptor_nested_array_window_exit checked 12931ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5352,7 +5472,7 @@ pass/modules/selected_constant_nominal_match checked 1665ms @a9ae30e1c334+wt
 pass/modules/selected_constant_nominal_record_match_field checked 1600ms @a9ae30e1c334+wt
 pass/modules/use_imports_sibling_trait checked 1579ms @a9ae30e1c334+wt
 pass/objc/gui_provider_substitution checked 11814ms @a9ae30e1c334+wt
-pass/objc/native_gui_loop timeout 120005ms regressed-from:checked @a9ae30e1c334+wt
+pass/objc/native_gui_loop checked 13013ms @9c4d1c444502
 pass/objc/objc_get_class checked 11443ms @a9ae30e1c334+wt
 pass/objc/objc_msgsend_scalar checked 11375ms @a9ae30e1c334+wt
 pass/operators/compound_assignment_exit checked 12986ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5361,13 +5481,13 @@ pass/operators/crash_routes checked 11263ms check-target:macos_arm64 @a9ae30e1c3
 pass/operators/division_value_entry_selection checked 12016ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/operators/domain_operator_overload_signature_compile checked 1751ms @a9ae30e1c334+wt
 pass/operators/fixed_use_survives_division_and_call_exit checked 12077ms check-target:linux_x86_64 @a9ae30e1c334+wt
-pass/operators/float_operator_identities timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/operators/float_operator_identities checked 15514ms check-target:macos_arm64 @9c4d1c444502
 pass/operators/integer_literal_suffix_exit checked 11462ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/operators/operand_requires_after_effects checked 1751ms @a9ae30e1c334+wt
 pass/operators/parenthesized_precedence_value checked 1623ms @a9ae30e1c334+wt
 pass/operators/result_domain_operator_family_conversion_exit checked 149771ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/operators/runtime_bitwise_operators_exit checked 11508ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/operators/runtime_constructed_operand_result_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/operators/runtime_constructed_operand_result_exit checked 16396ms check-target:macos_arm64 @9c4d1c444502
 pass/operators/runtime_declared_index_collection_loans_exit checked 11041ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/operators/runtime_declared_open_range_evaluates_collection_once_exit checked 11336ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/operators/runtime_declared_open_range_preserves_operand_snapshot_exit checked 10641ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5389,6 +5509,7 @@ pass/optimizer/join_invariant_transport_control checked 11899ms check-target:mac
 pass/optimizer/ordinary_copy_membership_selected checked 12109ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/optimizer/pre_allocation_joint_frontier_exit checked 10942ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/optimizer/redundant_compare_selection_compile checked 10710ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/optimizer/reference_storage_scalar_demand_exit checked 3991ms check-target:macos_arm64 @dfc9dc858b3e+wt
 pass/optimizer/rollback_composed_partial_control checked 33546ms rollback:requested=[CopyPropagation];applied=[];effective=[DeadPureScalarElimination] unrolled-receipt:none unrolled-semantic:e9beb93001facdfd rolled-back-semantic:e9beb93001facdfd module:same check-target:macos_arm64 @a9ae30e1c334+wt
 pass/optimizer/rollback_composed_partial_selected checked 32370ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[DeadPureScalarElimination] unrolled-receipt:none unrolled-semantic:0fa67793c382cfc2 rolled-back-semantic:e9beb93001facdfd module:differs check-target:macos_arm64 @a9ae30e1c334+wt
 pass/optimizer/rollback_control_flow_cleanup_control checked 33308ms rollback:requested=[ControlFlowCleanup];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:dc028abf09a93002 rolled-back-semantic:dc028abf09a93002 module:same check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5662,6 +5783,7 @@ pass/providers/boundary_declaration_structural_result_return_exit checked 11322m
 pass/providers/boundary_primitive_array_argument_exit checked 12398ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/boundary_scalar_field_store checked 11793ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/build_product_adapter_frontiers_exit checked 10791ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/providers/calling_application_region_scopes_exit checked 5401ms check-target:macos_arm64 @c03720bf6cb3
 pass/providers/checked_boundary_operator_const_application_alternate_exit rejected 1937ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @d986b866df88+wt
 	unimplemented: portable provider-dependent constant recipes; target realization cannot fold selected values into checked source
 pass/providers/checked_boundary_operator_physical_custody checked 12039ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5776,7 +5898,7 @@ pass/recast/runtime_authored_toolchain_type_shadow_exit checked 10420ms check-ta
 pass/recast/runtime_bool_representation_recast_exit checked 11336ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/runtime_boolean_view_decision_exit checked 10913ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/runtime_field_precondition_capture_exit checked 11966ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/recast/runtime_float_range_representation_recast_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/recast/runtime_float_range_representation_recast_exit checked 14468ms check-target:macos_arm64 @9c4d1c444502
 pass/recast/runtime_guarded_offset_recast_exit checked 11146ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/runtime_inline_shared_slice_record_read_exit checked 11818ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/runtime_inline_slice_recast_call_exit checked 11768ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5787,7 +5909,7 @@ pass/recast/runtime_interior_slice_view_mutable_write_exit checked 14083ms check
 pass/recast/runtime_mutable_equivalent_domain_recast_exit rejected 11610ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
 	terminal-artifact production failed: Lowering(Unsupported("Unit closure references a missing structural domain carrier"))
 pass/recast/runtime_mutable_equivalent_range_recast_exit checked 11394ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/recast/runtime_mutable_equivalent_record_recast_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/recast/runtime_mutable_equivalent_record_recast_exit checked 14981ms check-target:macos_arm64 @9c4d1c444502
 pass/recast/runtime_nested_record_byte_store_exit checked 11664ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/runtime_offset_byte_recast_mutable_write_exit checked 11962ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/runtime_recast_record_view_indexed_write_exit checked 12001ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5797,7 +5919,7 @@ pass/recast/runtime_restricted_field_loans_exit checked 12537ms check-target:mac
 pass/recast/runtime_scalar_parameter_shared_views_exit checked 13159ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/runtime_shared_domain_weakening_recast_exit checked 16067ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/runtime_shared_parameter_view_calls_exit checked 11207ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/recast/runtime_shared_record_float_range_weakening_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/recast/runtime_shared_record_float_range_weakening_exit checked 21081ms check-target:macos_arm64 @9c4d1c444502
 pass/recast/signed64_unsigned_view_compile checked 1675ms @a9ae30e1c334+wt
 pass/recast/signed_int_float_view_compile checked 2482ms @a9ae30e1c334+wt
 pass/recast/signed_source_bits_view_compile checked 1659ms @a9ae30e1c334+wt
@@ -5852,6 +5974,7 @@ pass/slices/runtime_call_endpoint_field_transition_exit checked 12784ms check-ta
 pass/slices/runtime_call_endpoint_order_exit checked 12048ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_call_endpoint_view_exit checked 14004ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_captured_range_end_exit checked 16499ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/slices/runtime_captured_subslice_predicates_exit checked 3389ms check-target:macos_arm64 @7451127fc8f8+wt
 pass/slices/runtime_cut_byte_view_cycle_exit checked 14970ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_direct_view_requires_index_exit checked 11803ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_dynamic_record_subslice_state_forwarding_exit checked 11442ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5862,6 +5985,8 @@ pass/slices/runtime_exact_scalar_stores_establish_qualified_view_exit checked 11
 pass/slices/runtime_forwarded_range_extent_snapshot_exit checked 10996ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_forwarded_view_runtime_index_exit checked 14554ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_guarded_view_copy_cycle_exit checked 13561ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/slices/runtime_imported_range_views_exit checked 4112ms check-target:macos_arm64 @71e65af3059c+wt
+pass/slices/runtime_imported_slice_provider_composition_exit checked 4174ms check-target:macos_arm64 @71e65af3059c+wt
 pass/slices/runtime_inclusive_call_endpoint_order_exit checked 12040ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_inclusive_call_endpoint_view_exit checked 12833ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_indexed_record_field_range_exit checked 11701ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5919,7 +6044,7 @@ pass/slices/subslice_folded_bound_facts_compile checked 1564ms @a9ae30e1c334+wt
 pass/slices/subslice_literal_bounds_compile checked 1743ms @a9ae30e1c334+wt
 pass/slices/termination_slice_length_compile checked 1734ms @a9ae30e1c334+wt
 pass/slices/window_shrink_min_length_tail_index_compile checked 1665ms @a9ae30e1c334+wt
-pass/storage/computed_float_local_view_store_exit timeout 120001ms @a9ae30e1c334+wt
+pass/storage/computed_float_local_view_store_exit checked 24225ms check-target:linux_x86_64 @9c4d1c444502
 pass/storage/forwarded_context_bounded_byte_field_exit checked 11355ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/storage/forwarded_context_byte_field_cross_state_store_exit checked 11209ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/storage/forwarded_context_byte_field_read_store_exit checked 11289ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6113,6 +6238,7 @@ pass/termination/runtime_call_result_short_circuit_rank_exit checked 12008ms che
 pass/termination/runtime_computed_projected_measure_arrivals_exit checked 11351ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/termination/runtime_computed_result_rank_arrivals_exit checked 11368ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/termination/runtime_distance_crossed_header_exit checked 10799ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/termination/runtime_float_requirement_integer_rank_exit checked 6962ms check-target:macos_arm64 @cf645a79ddb2+wt
 pass/termination/runtime_joint_rank_computed_copy_exit checked 12381ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/termination/runtime_named_state_remainder_endpoint_exit checked 11619ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/termination/runtime_nested_borrowed_rank_carrier_exit checked 12725ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6250,7 +6376,7 @@ pass/traits/inherited_region_application_identity_exit checked 10560ms check-tar
 pass/traits/nominal_generic_reference_forwarding_exit checked 11241ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/nominal_machine_binder_static_dispatch checked 11071ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/prepared_callable_nested_borrow_paths_exit checked 3390ms check-target:macos_arm64 @992d27dd3135+wt
-pass/traits/resultless_law_float_equality_exit timeout 120000ms @a9ae30e1c334+wt
+pass/traits/resultless_law_float_equality_exit checked 24646ms check-target:macos_arm64 @9c4d1c444502
 pass/traits/ring_requirement_satisfies_exit rejected 4829ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
 	specification call `add` is not denotational: the selected machine is not unconditionally terminating
 	specification call `add` is not denotational: the selected machine is not unconditionally terminating
@@ -6270,6 +6396,11 @@ pass/traits/runtime_dyn_two_impl_dispatch_exit checked 11169ms check-target:maco
 pass/traits/runtime_exact_requirement_edge_exit checked 11814ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/runtime_explicit_implementation_arguments_exit checked 11001ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/runtime_explicit_implementation_requirement_call_exit checked 11665ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/traits/runtime_finite_family_affine_result_exit checked 4395ms check-target:macos_arm64 @7e763bd2f4f6+wt
+pass/traits/runtime_finite_family_correlated_case_result_exit checked 4401ms check-target:macos_arm64 @7e763bd2f4f6+wt
+pass/traits/runtime_finite_family_owned_result_exit checked 4418ms check-target:macos_arm64 @7e763bd2f4f6+wt
+pass/traits/runtime_finite_family_owned_state_result_exit checked 3406ms check-target:macos_arm64 @7e763bd2f4f6+wt
+pass/traits/runtime_finite_family_structural_result_exit checked 3366ms check-target:macos_arm64 @7e763bd2f4f6+wt
 pass/traits/runtime_generic_exact_application_exit checked 10978ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/runtime_inherited_trait_default_exit checked 11830ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/runtime_named_implementation_selection_exit checked 12231ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6305,7 +6436,7 @@ run/arithmetic/fixed_input_reused_across_calls checked 11597ms check-target:maco
 run/arithmetic/fixed_integer_operand_after_call checked 11751ms check-target:linux_x86_64 @a9ae30e1c334+wt
 run/arithmetic/fixed_integer_operand_after_pressure checked 11907ms check-target:linux_x86_64 @a9ae30e1c334+wt
 run/arithmetic/fixed_integer_operand_join checked 11395ms check-target:linux_x86_64 @a9ae30e1c334+wt
-run/arithmetic/float_structural_initializer_selection timeout 120000ms @a9ae30e1c334+wt
+run/arithmetic/float_structural_initializer_selection checked 24258ms check-target:macos_arm64 @9c4d1c444502
 run/arithmetic/pinned_dividend_across_console_calls checked 11062ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/borrows/conditional_disjoint_field_loans_exit checked 8442ms check-target:linux_x86_64 @16ed47526a08
 run/borrows/direct_runtime_index_write checked 11448ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6332,138 +6463,10 @@ run/calls/runtime_float_distinct_operand_calls_exit checked 103811ms check-targe
 run/calls/runtime_float_normalized_operand_single_evaluation_exit checked 95931ms check-target:linux_x86_64 @16ed47526a08
 run/calls/table_report_call_survival checked 11628ms check-target:linux_x86_64 @a9ae30e1c334+wt
 run/contained_health_loop_command_branch checked 1918ms @a9ae30e1c334+wt
-run/float/folded_anonymous_operator_custody_exit checked 28507ms check-target:macos_arm64 @d041496df109+wt
+run/float/folded_anonymous_operator_custody_exit checked 7084ms check-target:macos_arm64 @9c4d1c444502
 run/nested_mut_alias_assignment_return checked 11468ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/providers/module_named_float_conversion_family_exit checked 79121ms check-target:macos_arm64 @16ed47526a08
 run/stores/runtime_float_indexed_call_result_exit checked 90790ms check-target:linux_x86_64 @16ed47526a08
 run/stores/runtime_float_store_selector_snapshot_exit checked 96305ms check-target:linux_x86_64 @16ed47526a08
 run/variant_decimal_runtime_division checked 11419ms check-target:linux_x86_64 @a9ae30e1c334+wt
 run/variant_record_normalization_repeats checked 13906ms check-target:linux_x86_64 @a9ae30e1c334+wt
-pass/borrow/runtime_write_only_exclusive_reference_aggregate_exit checked 3640ms check-target:macos_arm64 @6ede3322eb88+wt
-pass/borrow/runtime_write_only_exclusive_reference_projected_exit checked 3414ms check-target:macos_arm64 @6ede3322eb88+wt
-pass/borrow/runtime_write_only_exclusive_reference_forward_exit checked 3483ms check-target:macos_arm64 @6ede3322eb88+wt
-pass/borrow/runtime_write_only_exclusive_reference_detached_child_exit checked 3483ms check-target:macos_arm64 @6ede3322eb88+wt
-fail/borrow/write_only_exclusive_replacement_incoming_child rejected 319ms expected @6ede3322eb88+wt
-	statement 5 creates local borrow `held` while local borrow `child` is still active (borrowed at statement 4; its last use is at statement 6)
-	statement 6 reads `child.value` while local borrow `held` is still active (borrowed at statement 5; its last use is at statement 8)
-fail/borrow/write_only_exclusive_replacement_incoming_reuse rejected 204ms expected @6ede3322eb88+wt
-	cannot use `incoming.target.value` in machine `Main::main` state `main` (statement 5) after `incoming` was transferred or consumed at statement 4: it holds no value; read what is needed before the transfer or assign a whole value to `incoming` first
-fail/borrow/write_only_exclusive_replacement_old_child_conflict rejected 307ms expected @6ede3322eb88+wt
-	statement 6 mutates `main.left.value` while local borrow `child` is still active (borrowed at statement 4; its last use is at statement 7)
-fail/borrow/write_only_exclusive_replacement_new_backing_conflict rejected 318ms expected @6ede3322eb88+wt
-	statement 5 mutates `main.right.value` while local borrow `held` is still active (borrowed at statement 4; its last use is at statement 7)
-pass/borrow/runtime_write_only_exclusive_reference_call_result_exit checked 3640ms check-target:macos_arm64 @6ede3322eb88+wt
-pass/borrow/runtime_write_only_exclusive_reference_call_operand_exit checked 3640ms check-target:macos_arm64 @6ede3322eb88+wt
-pass/borrow/runtime_write_only_exclusive_reference_nested_call_operand_exit checked 3483ms check-target:macos_arm64 @6ede3322eb88+wt
-fail/borrow/write_only_exclusive_call_operand_incoming_child rejected 321ms expected @6ede3322eb88+wt
-	statement 5 creates local borrow `held` while local borrow `child` is still active (borrowed at statement 4; its last use is at statement 6)
-	statement 6 reads `child.value` while local borrow `held` is still active (borrowed at statement 5; its last use is at statement 8)
-fail/borrow/write_only_exclusive_call_operand_incoming_reuse rejected 204ms expected @6ede3322eb88+wt
-	cannot use `incoming.target.value` in machine `Main::main` state `main` (statement 5) after `incoming` was transferred or consumed at statement 4: it holds no value; read what is needed before the transfer or assign a whole value to `incoming` first
-pass/borrow/runtime_write_only_exclusive_reference_returned_view_exit checked 3410ms check-target:macos_arm64 @6ede3322eb88+wt
-pass/borrow/runtime_write_only_exclusive_reference_owned_wrapper_exit checked 3411ms check-target:macos_arm64 @6ede3322eb88+wt
-fail/borrow/write_only_exclusive_owned_wrapper_new_backing_conflict rejected 321ms expected @6ede3322eb88+wt
-	statement 6 mutates `main.right.value` while local borrow `held` is still active (borrowed at statement 4; its last use is at statement 7)
-fail/traits/finite_family_machine_facts_do_not_bind_state rejected 91ms expected @7e763bd2f4f6+wt
-	cannot prove declared where facts for static application of requirement `Factory::make` under its complete applied telescope
-fail/traits/finite_family_mutable_state_subject rejected 89ms expected @7e763bd2f4f6+wt
-	cannot prove declared where facts for static application of requirement `Factory::make` under its complete applied telescope
-fail/traits/finite_family_owned_result_second_transfer rejected 210ms expected @7e763bd2f4f6+wt
-	cannot use `result` in machine `duplicate` state `entry` (statement 2) after `result` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `result` first
-fail/traits/finite_family_sibling_state_facts rejected 90ms expected @7e763bd2f4f6+wt
-	cannot prove declared where facts for static application of requirement `Factory::make` under its complete applied telescope
-pass/traits/runtime_finite_family_affine_result_exit checked 4395ms check-target:macos_arm64 @7e763bd2f4f6+wt
-pass/traits/runtime_finite_family_correlated_case_result_exit checked 4401ms check-target:macos_arm64 @7e763bd2f4f6+wt
-pass/traits/runtime_finite_family_owned_result_exit checked 4418ms check-target:macos_arm64 @7e763bd2f4f6+wt
-pass/traits/runtime_finite_family_owned_state_result_exit checked 3406ms check-target:macos_arm64 @7e763bd2f4f6+wt
-pass/traits/runtime_finite_family_structural_result_exit checked 3366ms check-target:macos_arm64 @7e763bd2f4f6+wt
-pass/slices/runtime_captured_subslice_predicates_exit checked 3389ms check-target:macos_arm64 @7451127fc8f8+wt
-fail/slices/rebound_subslice_loses_byte_predicate rejected 339ms expected @7451127fc8f8+wt
-	cannot prove requires contract for call inspect from replace: view in [u8]::Ascii (invalidated by prior mutation of view; view is part of [u8]::Ascii)
-fail/slices/written_subslice_loses_byte_predicate rejected 347ms expected @7451127fc8f8+wt
-	cannot prove requires contract for call inspect from replace: view in [u8]::Ascii (invalidated by prior mutation of view; view is part of [u8]::Ascii)
-pass/slices/runtime_imported_range_views_exit checked 4112ms check-target:macos_arm64 @71e65af3059c+wt
-pass/slices/runtime_imported_slice_provider_composition_exit checked 4174ms check-target:macos_arm64 @71e65af3059c+wt
-pass/generics/runtime_forwarded_generic_slice_result_exit checked 4018ms check-target:macos_arm64 @71e65af3059c+wt
-fail/generics/forwarded_slice_argument_element_mismatch rejected 159ms expected @71e65af3059c+wt
-	argument `items` for state `entry` expects `&[Element]`, got `named value`
-fail/generics/forwarded_slice_result_element_mismatch rejected 120ms expected @71e65af3059c+wt
-	machine `wrong` state `entry` terminal expression expects `&[Output]`, got `named value`
-fail/borrows/imported_range_retains_backing_loan rejected 580ms expected @71e65af3059c+wt
-	statement 1 mutates `main.bytes` while local borrow `view` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
-fail/providers/checked_view_provider_wrong_extent rejected 271ms expected @71e65af3059c+wt
-	provider machine `Provider::at` for top-level boundary requirement `Window::at` does not refine `Window::at`: its requires facts are not a conservative refinement
-pass/borrows/runtime_computed_view_observation_composition_exit checked 3631ms check-target:macos_arm64 @54d47902d575+wt
-pass/borrows/runtime_projected_view_observations_exit checked 3460ms check-target:macos_arm64 @54d47902d575+wt
-fail/dependent/case_where_zero_payload_requires_establishment rejected 150ms expected @2b888a3f0e32
-	construction of `Context` omits gated field `choice`: its zero-filled representation is not an established value -- initialize it explicitly
-fail/dependent/case_where_zero_wide_arithmetic_not_saturated rejected 148ms expected @2b888a3f0e32
-	construction of `Context` omits gated field `choice`: its zero-filled representation is not an established value -- initialize it explicitly
-pass/dependent/zero_case_predicate_entry_exit checked 5863ms check-target:macos_arm64 @2b888a3f0e32
-pass/providers/calling_application_region_scopes_exit checked 5401ms check-target:macos_arm64 @c03720bf6cb3
-fail/contracts/float_field_crash_false_guard rejected 1023ms expected @c294657097ec+wt
-	machine `read` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
-fail/contracts/float_field_crash_stale_write rejected 1013ms expected @c294657097ec+wt
-	machine `read` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
-fail/contracts/float_field_crash_wrong_field rejected 1014ms expected @c294657097ec+wt
-	machine `read` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
-fail/contracts/float_field_crash_wrong_order rejected 1015ms expected @c294657097ec+wt
-	machine `read` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
-fail/contracts/float_indexed_crash_wrong_element rejected 1028ms expected @c294657097ec+wt
-	machine `read` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
-pass/contracts/runtime_float_case_crash_guard_exit checked 6891ms check-target:macos_arm64 @c294657097ec+wt
-pass/contracts/runtime_float_entry_relations_exit checked 6892ms check-target:macos_arm64 @c294657097ec+wt
-pass/contracts/runtime_float_field_crash_guard_exit checked 6888ms check-target:macos_arm64 @c294657097ec+wt
-pass/contracts/runtime_float_fused_crash_guard_exit checked 6888ms check-target:macos_arm64 @c294657097ec+wt
-pass/contracts/runtime_float_indexed_crash_guard_exit checked 6679ms check-target:macos_arm64 @c294657097ec+wt
-pass/contracts/runtime_float_nested_crash_guard_exit checked 6671ms check-target:macos_arm64 @c294657097ec+wt
-pass/contracts/runtime_float_unordered_crash_guard_exit checked 6668ms check-target:macos_arm64 @c294657097ec+wt
-pass/optimizer/reference_storage_scalar_demand_exit checked 3991ms check-target:macos_arm64 @dfc9dc858b3e+wt
-fail/contracts/mixed_requirement_prior_float_capture rejected 1065ms expected @cf645a79ddb2+wt
-	cannot prove requires contract for call compare from main: value == value && replace(mut value) <= 4 (needs fact `before == after && count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/contracts/mixed_result_requirement_integer_bound rejected 1074ms expected @cf645a79ddb2+wt
-	cannot prove requires contract for call accept from main: value >= 0.0 && 5 <= 4 (needs fact `value >= 0.0 && count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/contracts/saved_float_guard_after_write rejected 1065ms expected @cf645a79ddb2+wt
-	cannot prove requires contract for call accept from main: reading.value >= 0.0 && 0 <= 4 (needs fact `reading.value >= 0.0 && count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/termination/float_requirement_disjunction_not_integer_bound rejected 1077ms expected @cf645a79ddb2+wt
-	cannot prove requires contract for call countdown from countdown: value >= 0.0 || count - 1 <= 4 (needs fact `value >= 0.0 || count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-	terminating machine countdown: cannot prove rank range `0..=4` for the rank produced by the selected view
-fail/termination/float_requirement_nan_argument rejected 1061ms expected @cf645a79ddb2+wt
-	cannot prove requires contract for call countdown from main: invalid >= 0.0 && 0 <= 4 (needs fact `value >= 0.0 && count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/termination/float_requirement_non_decreasing_rank rejected 1069ms expected @cf645a79ddb2+wt
-	terminating machine repeat: cannot prove strict rank decrease on a recurrent arrival: the transition from `repeat` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
-fail/termination/float_requirement_recursive_argument_changed rejected 1075ms expected @cf645a79ddb2+wt
-	cannot prove requires contract for call countdown from countdown: -1.0 >= 0.0 && count - 1 <= 4 (needs fact `value >= 0.0 && count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/termination/float_requirement_stale_field_arrival rejected 1060ms expected @cf645a79ddb2+wt
-	cannot prove requires contract for call countdown from countdown: reading.value >= 0.0 && count - 1 <= 4 (needs fact `reading.value >= 0.0 && count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-	terminating machine countdown: cannot prove rank range `0..=4` for the rank produced by the selected view
-pass/termination/runtime_float_requirement_integer_rank_exit checked 6962ms check-target:macos_arm64 @cf645a79ddb2+wt
-fail/atomics/fence_authored_bodyless_lookalike rejected 10ms expected @b2d763407d51+wt
-	`Atomic::fence` names a compiler primitive, but only the sealed toolchain declaration supplies it; merely naming a declaration `Atomic::fence` grants no primitive implementation or proof authority
-fail/atomics/fence_false_result_case rejected 375ms expected @b2d763407d51+wt
-	cannot prove ensures contract for exit from wrong at statement 0: result == FenceOrdering::Publish
-fail/atomics/fence_no_ordering rejected 167ms expected @b2d763407d51+wt
-	machine `fence_invalid` state `entry` uses `NoOrdering`, which is not a declared local, parameter, field, or type in this state (check the spelling)
-fail/atomics/fence_returned_view_case_invalidated rejected 418ms expected @b2d763407d51+wt
-	Atomic::fence requires one proof-static FenceOrdering case at operand completion: no live ordering case is proved
-fail/atomics/fence_runtime_ordering rejected 448ms expected @b2d763407d51+wt
-	Atomic::fence requires one proof-static FenceOrdering case at operand completion: no live ordering case is proved
-fail/atomics/fence_stale_ordering_case rejected 423ms expected @b2d763407d51+wt
-	Atomic::fence requires one proof-static FenceOrdering case at operand completion: no live ordering case is proved
-pass/atomics/runtime_atomic_fence_captured_ordering_exit checked 4305ms check-target:macos_arm64 @b2d763407d51+wt
-pass/atomics/runtime_atomic_fences_exit checked 4314ms check-target:macos_arm64 @b2d763407d51+wt
-pass/atomics/runtime_authored_fence_name_exit checked 4288ms check-target:macos_arm64 @b2d763407d51+wt
-fail/atomics/fence_does_not_identify_observations rejected 413ms expected @289501b5c2fe+wt
-	cannot prove requires contract for call same from observe: before == after (needs fact `before == after` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-pass/atomics/runtime_atomic_case_field_state_exit checked 4692ms check-target:macos_arm64 @6c0183cab07b
-pass/contracts/entry_case_replaced_before_call checked 1805ms @6c0183cab07b
-pass/contracts/runtime_case_payload_write_preserves_tag_exit checked 3963ms check-target:macos_arm64 @6c0183cab07b
-fail/contracts/case_payload_write_retires_content_guarantee rejected 384ms expected @6c0183cab07b
-	cannot prove requires contract for call require_three from main: choice.value == 3 (needs fact `choice.value == 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/contracts/case_requirement_replaced_through_parameter rejected 382ms expected @6c0183cab07b
-	cannot prove requires contract for call observe from exercise: choice == constructor:6:Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/contracts/case_requirement_selector_changed rejected 384ms expected @6c0183cab07b
-	cannot prove requires contract for call observe from exercise: choices[position.index] == constructor:6:Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-pass/borrows/runtime_computed_case_copy_order_exit checked 4847ms check-target:macos_arm64 @6043bf4a18bd+wt
-fail/borrows/computed_case_copy_requires_live_bounds rejected 428ms expected @6043bf4a18bd+wt
-	cannot prove index `select()` is within unknown slice length of `cells` in copy::entry
