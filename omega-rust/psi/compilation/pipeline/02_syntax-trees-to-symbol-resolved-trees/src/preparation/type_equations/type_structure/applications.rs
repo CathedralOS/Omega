@@ -348,6 +348,12 @@ impl Solver<'_, '_> {
                             ));
                         }
                         self.bind_integer(position, value, span)?;
+                        if !self.integer_operands[position].is_valid() {
+                            // This equation decomposed the exact actual const
+                            // child; retain its original operand, not its value
+                            // spelling or the receiving binder's policy.
+                            self.integer_operands[position] = actual;
+                        }
                     } else if self.application_integer(pattern, type_reference, true, span)?
                         != Some(value)
                     {
@@ -430,8 +436,9 @@ impl Solver<'_, '_> {
                         .type_reference(argument)
                         .as_named()
                         .and_then(|name| self.parameter_position(name.as_str()))
-                        .and_then(|(position, _)| self.original_supplied.get(position))
-                        .copied();
+                        .and_then(|(position, _)| self.integer_operands.get(position))
+                        .copied()
+                        .filter(|operand| operand.is_valid());
                     if let Some(original) = supplied_original {
                         // Forward the caller's exact literal/declaration graph,
                         // including any prior landing; the receiving slot still
