@@ -109,8 +109,15 @@ pub(crate) fn project_selected_requirement_applications<'program>(
                     continue;
                 }
                 produced_parameters.push((symbol, application));
+                // These inventories enumerate issued public producers, not
+                // source invocations. A finite producer retains its outer
+                // tuple in RequirementInstance and its local tuple in this
+                // application; it does not carry a caller's complete interface
+                // telescope. Rejoin its exact owned row here. Genuine calls
+                // still use selected_public_trait_requirement_signature and
+                // discharge their complete original invocation separately.
                 let public = program
-                    .selected_public_trait_requirement_signature(symbol, application)
+                    .public_trait_requirement_signature(symbol)
                     .filter(|public| {
                         public.owner.symbol == owner.symbol
                             && public.declaration.symbol == original.symbol
