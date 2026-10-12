@@ -286,6 +286,39 @@ fn validate_call(
     }
 }
 
+/// Rejoin a const graph payload to the existing ordinary static value lane.
+/// Missing original integer meaning remains unavailable; carrier/policy and
+/// binder-kind admission still belong to the immutable telescope judgment.
+pub fn normalized_const_operand(
+    program: &dyn crate::CheckingInput,
+    argument: &StaticMachineArgument,
+) -> Option<StaticMachineArgument> {
+    if !argument.type_reference.is_valid()
+        || !argument.path.is_empty()
+        || argument.const_literal.is_some()
+        || argument.application.is_some()
+        || argument.evidence_projection.is_some()
+    {
+        return None;
+    }
+    let mut operand = program
+        .typed_program()
+        .static_operand_from_type_reference(argument.type_reference)
+        .ok()?;
+    if operand.type_reference.is_valid()
+        || (typed_trees::typed_trees::static_const_argument_spelling(
+            program.typed_program(),
+            &operand,
+        )
+        .is_none()
+            && !forwarded_type(program, &operand).is_valid())
+    {
+        return None;
+    }
+    operand.authored_position = argument.authored_position;
+    Some(operand)
+}
+
 pub fn validate_types(
     program: &dyn crate::CheckingInput,
     caller: Option<crate::StaticTypeArgumentOwner<'_>>,
@@ -294,7 +327,9 @@ pub fn validate_types(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for argument in arguments {
-        if argument.type_reference.is_valid() {
+        if argument.type_reference.is_valid()
+            && normalized_const_operand(program, argument).is_none()
+        {
             if let Some(caller) = caller {
                 crate::validate_static_type_argument(
                     program,
@@ -325,7 +360,11 @@ pub fn spelling(
     program: &dyn crate::CheckingInput,
     argument: &StaticMachineArgument,
 ) -> Option<String> {
-    typed_trees::typed_trees::static_const_argument_spelling(program.typed_program(), argument)
+    let projected = normalized_const_operand(program, argument);
+    typed_trees::typed_trees::static_const_argument_spelling(
+        program.typed_program(),
+        projected.as_ref().unwrap_or(argument),
+    )
 }
 
 pub fn forwarded_type(
@@ -420,6 +459,19 @@ pub fn validate_argument_telescope<Parameter: Borrow<TypeParameter>>(
         .collect::<Vec<_>>();
     let mut const_index = 0;
     for (ordinal, argument) in arguments.iter().enumerate() {
+        let projected = normalized_const_operand(program, argument);
+        if projected.is_some()
+            && !parameters
+                .get(ordinal)
+                .is_some_and(|parameter| parameter.borrow().kind.is_const_or_value())
+        {
+            return Err(Diagnostic::error(format!(
+                "machine `{}` static argument {} requires its declared binder kind, not a const graph argument",
+                name,
+                ordinal + 1,
+            )));
+        }
+        let argument = projected.as_ref().unwrap_or(argument);
         // Proposals are grouped by kind after validation. Named types must
         // retain their authored slot just like structural types; otherwise
         // `<7, u8>` can silently become `<u8, 7>`. A const-only template keeps

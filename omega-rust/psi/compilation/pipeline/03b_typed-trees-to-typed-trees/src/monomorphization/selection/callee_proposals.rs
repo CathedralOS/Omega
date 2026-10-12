@@ -33,6 +33,8 @@ pub(crate) fn collect_machine_proposals_for_callee(
     let mut machine_index = 0usize;
     let mut evidence_index = 0usize;
     for selected in machine_arguments {
+        let projected = validation::static_arguments::normalized_const_operand(program, selected);
+        let selected = projected.as_ref().unwrap_or(selected);
         if selected.type_reference.is_valid() {
             if type_index >= candidate.template.type_parameters.len() {
                 return Err(StaticArgumentOverflow);
