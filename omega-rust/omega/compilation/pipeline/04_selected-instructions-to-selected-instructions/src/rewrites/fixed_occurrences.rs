@@ -6,6 +6,11 @@
 //! target-admitted copies establish reads before it and publish writes after
 //! it. CFG edges and source fuel remain unchanged, so joins still require one
 //! common resident home on every copy-free incoming edge.
+//!
+//! Occurrence analysis selects fixed/tied components, not every semantic
+//! register in a large aggregate. It still observes every reference, escape
+//! and intervening operation of each selected register. Unselected registers
+//! keep their already-validated identities and ordinary allocation route.
 
 use std::sync::Arc;
 
@@ -119,11 +124,34 @@ pub fn materialize_selected_fixed_occurrences(
                     )
             })
             .ok_or(FixedOccurrencesError::IdentityOverflow)?;
-        // Prepare references once and use a sorted construction-time roster.
-        // Binary searches and sorting have a logarithmic register bound; tie
-        // closure is bounded separately by each actual instruction's arity.
+        // Only a row containing a fixed operand can contribute a constrained
+        // component. Its complete arity bounds tie closure's selected roster
+        // before doing that work, including duplicates. Charge the selection
+        // and lookups against this bound, never an unrelated aggregate's size.
+        let constrained_operand_bound = function
+            .instructions()
+            .chain(
+                function
+                    .blocks
+                    .iter()
+                    .map(|block| selected_instructions::terminator_instruction(&block.terminator)),
+            )
+            .try_fold(0usize, |total, instruction| {
+                total.checked_add(
+                    if instruction
+                        .operands
+                        .iter()
+                        .any(|operand| operand.fixed_view.is_some())
+                    {
+                        instruction.operands.len()
+                    } else {
+                        0
+                    },
+                )
+            })
+            .ok_or(FixedOccurrencesError::IdentityOverflow)?;
         let register_depth =
-            usize::BITS as usize - function.virtual_registers.len().max(1).leading_zeros() as usize;
+            usize::BITS as usize - constrained_operand_bound.max(1).leading_zeros() as usize;
         let tie_steps = function
             .instructions()
             .chain(
@@ -156,9 +184,10 @@ pub fn materialize_selected_fixed_occurrences(
             .len()
             .checked_mul(function.boundary_settlements.len())
             .ok_or(FixedOccurrencesError::IdentityOverflow)?;
-        // Charge each work domain separately. Instruction scans do not search
-        // the register roster. Each operand performs one binary lookup;
-        // its prepared slot retains the result and fixed-component membership.
+        // Charge each work domain separately. Scan the source register roster
+        // once to join the selected identities; only selected rows are sorted.
+        // Every operand performs a lookup in that smaller roster, retaining
+        // all references of its selected register, not just fixed occurrences.
         // Four additional operand steps cover retaining and consuming those
         // slots, and two instruction scans cover their construction/validation.
         // Each transport names at most two registers. Tie closure runs once.
@@ -177,6 +206,12 @@ pub fn materialize_selected_fixed_occurrences(
                     function
                         .virtual_registers
                         .len()
+                        .checked_mul(register_depth.checked_add(4)?)?,
+                )
+            })
+            .and_then(|steps| {
+                steps.checked_add(
+                    constrained_operand_bound
                         .checked_mul(register_depth.checked_mul(4)?.checked_add(12)?)?,
                 )
             })
@@ -454,22 +489,43 @@ struct PreparedOccurrenceRegister {
 fn local_occurrence_registers(
     function: &SelectedFunction,
 ) -> Result<OccurrencePlan, FixedOccurrencesError> {
+    // The input's sealed selected-analysis owner already established all
+    // semantic register references. This operation needs only the fixed/tied
+    // subset, but it cannot decide locality from only those occurrences.
+    let mut selected_registers = Vec::new();
+    let mut instruction_components = Vec::new();
+    for instruction in function.blocks.iter().flat_map(|block| {
+        block.instructions.iter().chain(std::iter::once(
+            selected_instructions::terminator_instruction(&block.terminator),
+        ))
+    }) {
+        let components = fixed_component(instruction)?;
+        selected_registers.extend(
+            instruction
+                .operands
+                .iter()
+                .zip(&components)
+                .filter_map(|(operand, selected)| selected.then_some(operand.virtual_register)),
+        );
+        instruction_components.push((instruction.id, components));
+    }
+    selected_registers.sort_unstable();
+    selected_registers.dedup();
     // References borrow the input. Construction storage retains at most four
     // per register: a fourth already proves it cannot be an ABI local carrier.
-    let mut roster: Vec<_> = function
-        .virtual_registers
-        .iter()
-        .enumerate()
-        .map(|(index, register)| {
-            (
-                register.id,
-                register.entry_fixed_view.is_some(),
-                Vec::new(),
-                index,
-            )
-        })
+    let mut roster: Vec<_> = selected_registers
+        .into_iter()
+        .map(|identity| (identity, false, Vec::new(), None))
         .collect();
-    roster.sort_unstable_by_key(|entry| entry.0);
+    for (source_index, register) in function.virtual_registers.iter().enumerate() {
+        if let Ok(position) = roster.binary_search_by_key(&register.id, |entry| entry.0) {
+            if roster[position].3.replace(source_index).is_some() {
+                return Err(FixedOccurrencesError::SourceMismatch);
+            }
+            roster[position].1 = register.entry_fixed_view.is_some();
+        }
+    }
+    let mut instruction_components = instruction_components.into_iter();
     let mut instructions = Vec::new();
     for (block_index, block) in function.blocks.iter().enumerate() {
         for successor in selected_instructions::terminator_successors(&block.terminator) {
@@ -499,12 +555,20 @@ fn local_occurrence_registers(
             ))
             .enumerate()
         {
-            let components = fixed_component(instruction)?;
+            let (identity, components) = instruction_components
+                .next()
+                .ok_or(FixedOccurrencesError::SourceMismatch)?;
+            if identity != instruction.id {
+                return Err(FixedOccurrencesError::SourceMismatch);
+            }
             let mut prepared_operands = Vec::with_capacity(instruction.operands.len());
             for (operand_index, operand) in instruction.operands.iter().enumerate() {
-                let index = roster
-                    .binary_search_by_key(&operand.virtual_register, |entry| entry.0)
-                    .map_err(|_| FixedOccurrencesError::SourceMismatch)?;
+                let Ok(index) =
+                    roster.binary_search_by_key(&operand.virtual_register, |entry| entry.0)
+                else {
+                    prepared_operands.push(None);
+                    continue;
+                };
                 prepared_operands.push(components[operand_index].then_some(index));
                 if roster[index].2.len() < 4 {
                     roster[index].2.push((
@@ -524,11 +588,14 @@ fn local_occurrence_registers(
             destructive_prefix += usize::from(!transport_kind(instruction.kind));
         }
     }
+    if instruction_components.next().is_some() {
+        return Err(FixedOccurrencesError::SourceMismatch);
+    }
     let mut registers = Vec::with_capacity(roster.len());
     for (register, escapes, references, index) in roster {
         registers.push(PreparedOccurrenceRegister {
             id: register,
-            source_index: index,
+            source_index: index.ok_or(FixedOccurrencesError::SourceMismatch)?,
             instruction_local: false,
         });
         if escapes || references.is_empty() || references.len() > 3 {

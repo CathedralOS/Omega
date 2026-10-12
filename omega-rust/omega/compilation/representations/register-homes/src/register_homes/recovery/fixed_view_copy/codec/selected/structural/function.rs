@@ -14,6 +14,12 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn dec
     cursor: &mut Cursor<'_>,
 ) -> Result<selected_instructions::LocalStorageSlotId, FixedViewCopyDecodeError> {
     let tag = cursor.byte()?;
+    if tag == 6 {
+        return Ok(selected_instructions::LocalStorageSlotId::EdgeSnapshot {
+            edge: decode_id(cursor, semantic_vocabulary::EdgeId::new)?,
+            binding_index: cursor.u32()?,
+        });
+    }
     if tag == 4 {
         return Ok(
             selected_instructions::LocalStorageSlotId::StructuralParameter {

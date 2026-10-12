@@ -401,6 +401,13 @@ pub fn decode_local_storage_slot(
     cursor: &mut Cursor<'_>,
 ) -> Result<crate::LocalStorageSlotId, PreAllocationMachineEffectDecodeError> {
     let tag = cursor.byte()?;
+    if tag == 6 {
+        return Ok(crate::LocalStorageSlotId::EdgeSnapshot {
+            edge: semantic_vocabulary::EdgeId::new(cursor.u64()?)
+                .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+            binding_index: cursor.u32()?,
+        });
+    }
     if tag == 4 {
         return Ok(crate::LocalStorageSlotId::StructuralParameter {
             place: semantic_vocabulary::PlaceId::new(cursor.u64()?)

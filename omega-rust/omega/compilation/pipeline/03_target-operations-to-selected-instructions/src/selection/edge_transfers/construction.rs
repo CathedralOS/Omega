@@ -113,12 +113,14 @@ pub(in crate::selection) fn prepare(
                         function_index,
                         &mut function.virtual_registers,
                         &mut function.memory_accesses,
+                        &mut function.local_storage_slots,
                         &mut instructions,
                         &mut next_instruction,
                         successor.psi_edge,
                         &successor.structural_bindings,
                         constraints,
                         catalog,
+                        environment,
                     )?;
                     scalar_references = super::scalar_references::snapshot(
                         function_index,
@@ -194,6 +196,7 @@ pub(in crate::selection) fn prepare(
                 &descriptors,
                 constraints,
                 catalog,
+                environment,
             )?;
             super::scalar_references::store(
                 function_index,

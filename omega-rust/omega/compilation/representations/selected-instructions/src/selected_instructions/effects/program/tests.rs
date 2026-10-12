@@ -539,6 +539,23 @@ fn outgoing_frame_roles_round_trip_and_cannot_substitute_under_a_retained_identi
     }
 }
 
+#[test]
+fn edge_snapshot_frame_slot_codec_round_trip() {
+    let mut source = plan();
+    source.functions[0].blocks[0].instructions[0].kind = SelectedInstructionKind::FrameAddress {
+        slot: crate::FrameStorageSlotId::Local(crate::LocalStorageSlotId::EdgeSnapshot {
+            edge: semantic_vocabulary::EdgeId::new(43).unwrap(),
+            binding_index: 7,
+        }),
+        byte_offset: 0,
+    };
+    source.identity = pre_allocation_machine_effect_identity(&source);
+    assert_eq!(
+        PreAllocationMachineEffectPlan::decode(&source.encode()),
+        Ok(source)
+    );
+}
+
 fn plan() -> PreAllocationMachineEffectPlan {
     let mut plan = PreAllocationMachineEffectPlan {
         identity: PreAllocationMachineEffectIdentity::from_bytes([0; 32]),

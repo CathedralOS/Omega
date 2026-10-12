@@ -145,6 +145,16 @@ fn activation_local_roster_and_memory_roles_round_trip() {
     function
         .local_storage_slots
         .push(selected_instructions::SelectedLocalStorageSlot {
+            id: selected_instructions::LocalStorageSlotId::EdgeSnapshot {
+                edge: semantic_vocabulary::EdgeId::new(83).unwrap(),
+                binding_index: 2,
+            },
+            byte_size: 13,
+            alignment: 1,
+        });
+    function
+        .local_storage_slots
+        .push(selected_instructions::SelectedLocalStorageSlot {
             id: slot,
             byte_size: 24,
             alignment: 8,

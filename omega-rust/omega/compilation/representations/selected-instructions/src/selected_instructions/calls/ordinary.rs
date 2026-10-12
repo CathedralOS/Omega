@@ -57,6 +57,11 @@ pub enum LocalStorageSlotId {
         operation: OperationId,
         argument_index: u32,
     },
+    /// Private parallel-assignment staging, not a semantic place or ABI home.
+    EdgeSnapshot {
+        edge: semantic_vocabulary::EdgeId,
+        binding_index: u32,
+    },
     Boundary {
         operation: OperationId,
     },
@@ -69,6 +74,7 @@ impl LocalStorageSlotId {
             | Self::StructuralCallArgument { operation, .. }
             | Self::Boundary { operation } => Some(operation),
             Self::Spill { .. }
+            | Self::EdgeSnapshot { .. }
             | Self::StructuralBlockParameter { .. }
             | Self::StructuralParameter { .. } => None,
         }
@@ -79,15 +85,24 @@ impl LocalStorageSlotId {
             Self::Structural { place, .. }
             | Self::StructuralBlockParameter { place, .. }
             | Self::StructuralParameter { place } => Some(place),
-            Self::Boundary { .. } | Self::Spill { .. } | Self::StructuralCallArgument { .. } => {
-                None
-            }
+            Self::Boundary { .. }
+            | Self::Spill { .. }
+            | Self::StructuralCallArgument { .. }
+            | Self::EdgeSnapshot { .. } => None,
         }
     }
 
     /// Tagged storage-origin identity; boundary scratch never fabricates a place.
     pub fn encode_identity(self, bytes: &mut Vec<u8>) {
         match self {
+            Self::EdgeSnapshot {
+                edge,
+                binding_index,
+            } => {
+                bytes.push(6);
+                crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, binding_index.to_le_bytes());
+            }
             Self::StructuralCallArgument {
                 operation,
                 argument_index,
