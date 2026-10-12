@@ -139,6 +139,25 @@ helper that passes does not close an item.
 
 ## Immediate product closure
 
+- **CHECKED-PACKAGE-REUSE.** (new-scope) A dependent's check re-judges its
+  dependencies' bodies: on Windows (opt-level 1, `90dcfa2bcbe`) a 10-line std
+  program checks in 15.6 s, std's package step 5.8 s plus 7.1 s of Stage 05
+  in the program's own check. A std-free fixture checks in 1.26 s. The corpus
+  is 767 CPU-minutes (median fixture 5.6 s; 1,385 of 3,998 fixtures depend on
+  std). std is already checked once at package review. Dependents should
+  consume that judgment through a handle-free checked package interface: per
+  public machine, the crash, effect/reach, termination and write-frame
+  summaries Psi now infers from callee bodies, plus checked generic templates.
+  That interface must carry the same facts at the same precision, so it is
+  implementation, not a language change. Reachability pruning was measured
+  and rejected: the existing product closure keeps 904 of 1,174 library
+  machines for the 10-line program, because every provider of a reached
+  requirement stays live for every target. Acceptance: fixture median under
+  2 s and a std probe check under 3 s, with `corpus_gate --compare` over the
+  touched groups losing nothing. Frontier: inventory which per-machine facts
+  the dependent check reads from callee bodies, against what the cached
+  review records already publish.
+
 - **FLOAT-PAYLOAD-COMPILE-TIME.** (new-scope) Remove the ~28x source-checking
   slowdown on the float case-payload cohort.
   `pass/control_flow/runtime_{float_payload_snapshot_after_case_replacement,projected_float_case_payload,root_float_case_payload}_exit`
