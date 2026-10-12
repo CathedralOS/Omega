@@ -12,8 +12,7 @@ pub use borrows::{
     RetainedBorrowContentProjection, RetainedBorrowCustody, RetainedBorrowPlace,
     RetainedBorrowPlaceRoot, TerminalBorrowBoundarySource, TerminalBorrowOwnerSegment,
     TerminalBorrowPlace, TerminalBorrowPlaceSegment, TerminalReborrowRestorationClass,
-    TerminalReborrowRestoredCallUse, TerminalReborrowRootHandoff, TerminalReborrowRootHandoffStep,
-    TerminalReborrowSharedCohortMember,
+    TerminalReborrowRestoredCallUse, TerminalReborrowSharedCohortMember,
 };
 pub use claims::{ClaimTransfer, CompletionReceipt, EntryClaim, LoanCompletion};
 pub use cleanup::{NominalAffineCleanup, StructuralAffineDiscard, TerminalAffineCleanupAction};

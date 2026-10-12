@@ -66,43 +66,6 @@ pub struct TerminalBorrowPlace {
     pub segments: Vec<TerminalBorrowPlaceSegment>,
 }
 
-/// One exact child edge in a finite exclusive-reborrow root-handoff lineage.
-///
-/// Rows are ordered from the direct-root child toward the leaf whose closure
-/// reaches state exit. The immediate parent's place and access are therefore
-/// the handoff root for the first row and the preceding child's for every later
-/// row. This representation has no shared-cohort or branching vocabulary.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct TerminalReborrowRootHandoffStep {
-    pub child_owner_identity: TerminalIdentityIndex,
-    pub child_owner_path: Vec<TerminalBorrowOwnerSegment>,
-    pub child_place: TerminalBorrowPlace,
-    pub projection_remainder: Vec<TerminalBorrowPlaceSegment>,
-    pub child_access: StructuralAccess,
-    pub child_activation: TerminalBorrowBoundarySource,
-    pub formation_boundary: TerminalBorrowBoundarySource,
-    pub child_weakening: TerminalBorrowBoundarySource,
-}
-
-/// Closed publication of direct-root custody after one exact finite linear
-/// exclusive-reborrow lineage has reached a checked state-exit handoff. The
-/// row's vocabulary is intentionally incapable of expressing cleanup,
-/// transfer, discharge, shared cohorts, or branching.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct TerminalReborrowRootHandoff {
-    pub machine: MachineId,
-    pub source_machine_identity: TerminalIdentityIndex,
-    pub source_state_identity: TerminalIdentityIndex,
-    pub direct_root_owner_identity: TerminalIdentityIndex,
-    pub direct_root_owner_path: Vec<TerminalBorrowOwnerSegment>,
-    pub direct_root_place: TerminalBorrowPlace,
-    pub direct_root_access: StructuralAccess,
-    pub direct_root_activation: TerminalBorrowBoundarySource,
-    pub direct_root_weakening: TerminalBorrowBoundarySource,
-    pub direct_root_lifetime_identity: TerminalIdentityIndex,
-    pub lineage: Vec<TerminalReborrowRootHandoffStep>,
-}
-
 /// Closed publication of one exact use after one direct exclusive child, or
 /// an exact one- or two-member shared-freeze cohort, has restored its mutable
 /// parent. The canonical operation identifies the sole authorized use. Access,

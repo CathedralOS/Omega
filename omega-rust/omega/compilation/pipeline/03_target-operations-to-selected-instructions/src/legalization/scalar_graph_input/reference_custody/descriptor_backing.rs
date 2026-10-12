@@ -9,7 +9,7 @@ use terminal_semantics::borrowed_storage::{Projection, Region};
 use terminal_semantics::descriptor_lifetimes::{DescriptorPosition, descriptor_path};
 use terminal_semantics::descriptor_results::{
     DescriptorAnalysis, DescriptorCallOrigin, DescriptorSourceOrigin, descriptor_machine,
-    descriptor_slots,
+    descriptor_slot_inventory,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -107,7 +107,13 @@ pub(super) fn prepare(
                 let Some(ty) = current.place_types.get(&input.root) else {
                     continue;
                 };
-                slots.extend(descriptor_slots(types, input.root, *ty).unwrap_or_default());
+                // Snapshot materialized slots; opaque siblings remain unknown
+                // in the shared analysis, not a reason to erase this input.
+                slots.extend(
+                    descriptor_slot_inventory(types, input.root, *ty)
+                        .map(|inventory| inventory.slots)
+                        .unwrap_or_default(),
+                );
             }
             for location in slots {
                 let ty = *current

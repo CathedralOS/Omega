@@ -83,6 +83,11 @@ boundary; the latter requires state exit and an exact direct-root lifetime.
 Neither label alone establishes restored use, cleanup, transfer, or linear
 discharge.
 
+State-exit closure remains a checked resource disposition, not a serialized
+Terminal root-handoff certificate. It has no executable consumer. Source
+checking still closes exclusive lineages and shared cohorts; lowering must not
+restrict accepted loans to a second, exclusive-only publication vocabulary.
+
 A retained dynamic place segment names an opaque selector formation occurrence,
 scoped to the handoff's state invocation. Parent segments retain their original
 capture identities when a child projects further; only the new suffix belongs

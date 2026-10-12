@@ -3266,10 +3266,9 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
   Reactivate/RestoreSharedCohort boundaries; resource reconstruction moved to
   `loan_resources.rs` and `span_handle` to `lifecycle.rs`. Consumers read the
   event join directly: stage 04 `receiver_aliases` and
-  `calls/structural_arguments.rs`, stage 05 `retention/reborrow_root_handoff`
-  (projection remainder derived from the child place prefix; the 21-field
-  certificate replay is deleted) and `retention/reborrow_restored_call_use`;
-  `machine_lowering/reborrow_handoffs.rs` needed no change. Acceptance:
+  `calls/structural_arguments.rs` and stage 05
+  `retention/reborrow_restored_call_use`. State-exit root handoffs remain
+  checked dispositions, not Terminal certificates. Acceptance:
   `--filter borrows/,borrow/,references/` 325 fixtures, 0 status moves.
 
 - **CHECK-ONCE-ACROSS-TARGETS.** Implemented — pending board verification.
@@ -3425,8 +3424,13 @@ of a check the same flow already performed, not the check itself.
   inactive payloads; retain the growing `Chain`, nested constructors and mixed-case
   controls in
   `runtime_case_qualified_reference_storage_exit`, including independent custody
-  auditing. On macOS ARM64, a named `&view[0]` from a local byte
-  slice separately fails Terminal lowering's direct-root reborrow identity.
+  auditing and named element references from local byte slices. Descriptor
+  inventories distinguish known slots from opaque referents; unavailable
+  subtrees must not become storage origins or complete return/effect summaries.
+  Extending `ChainHolder` with a stored byte view still needs projected extent
+  and field-argument execution: `holder.bytes.len` in a borrowed helper lacks a
+  retained descriptor home, while passing `&holder.bytes` to a slice helper
+  reaches unsupported target control flow in `lowering/control_flow/borrowed_calls.rs`.
   The native audit of `runtime_linear_constructor_instances_exit` also rejects
   its nominal-cleanup `ReturnUnit` as an unaccounted operation on macOS ARM64,
   including the retained `12b7f1b5bcd` producer; retain its exit-zero oracle.

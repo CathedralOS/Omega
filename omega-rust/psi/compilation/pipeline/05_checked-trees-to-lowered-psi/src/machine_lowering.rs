@@ -9,6 +9,9 @@
 //! completion or module validation, and the debug companion.
 //! Callback selections join the same program's retained roots. Each body retains its portable
 //! checked declaration, so consumers need no source-to-Terminal receipt.
+//! State-exit loan closure stays in source checking: it has no executable
+//! Terminal operation and needs no serialized lineage certificate. Restored
+//! calls below still retain their operation-specific source relationships.
 //! Unsupported source constructs fail closed.
 
 mod boundary_applications;
@@ -18,7 +21,6 @@ pub(crate) mod declarations;
 pub(crate) mod float_meanings;
 pub(crate) mod guarded_exits;
 pub(crate) mod machine_dispatch;
-pub(crate) mod reborrow_handoffs;
 
 use checked_trees::{CheckedTerminalSignatureEligibility, CheckedTrees};
 use lowered_psi::LoweredPsi;
@@ -30,7 +32,6 @@ use crate::machine_lowering::guarded_exits::reject_unguarded_outcome_guarantees;
 use crate::machine_lowering::machine_dispatch::{
     TerminalMachineSelection, lower_selected_machine, select_terminal_machine,
 };
-use crate::machine_lowering::reborrow_handoffs::retain_admitted_reborrow_root_handoffs;
 use crate::producer_result::{DebugPublication, LoweredSelectedMachine, LoweringCompletion};
 use crate::proofs::evidence_lowering::lower_and_install_evidence_artifacts;
 use crate::retention::placed_view_inputs::retain_selected_placed_view_inputs;
@@ -258,13 +259,6 @@ fn lower_terminal_selection(
     )
     .map_err(LoweringError::Unsupported)?;
     retain_nominal_cleanup_roles(checked, &source_machine_ids, &mut lowered.semantic_module)?;
-    retain_admitted_reborrow_root_handoffs(
-        identities,
-        checked,
-        &source_machines,
-        &source_machine_ids,
-        &mut lowered.semantic_module,
-    )?;
     closed_reach_applications::retain_closed_reach_applications(
         identities,
         checked,

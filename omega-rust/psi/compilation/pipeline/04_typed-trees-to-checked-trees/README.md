@@ -756,10 +756,8 @@ and exact source call. Four-member/sequential shared cohorts, multihop or
 projected restored use, direct assignment, and partial/nonmutating uses remain
 outside this producer.
 
-[root handoff](../05_checked-trees-to-lowered-psi/src/retention/reborrow_root_handoff.rs)
-separately admits a finite nonempty exclusive chain rooted in a direct mutable
-or write-only loan and ending at state exit. Reverse and rejoin its exact
-retired-parent path; reject branches and shared edges. This is direct-root
-custody, not a cleanup,
-transfer, or linear-discharge operation. Broader Terminal evidence must be
-implemented explicitly rather than inferred from a successful checked replay.
+State-exit direct-root handoff remains a source-checked resource disposition.
+It has no Terminal certificate or execution operation: lowering does not replay
+the lineage or impose an exclusive-only publication shape on shared loans.
+Source admission still checks complete parent lineage, access and lifetime;
+state exit grants no cleanup, transfer or linear-discharge authority.

@@ -71,7 +71,8 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // earlier candidate format 142 did not yet encode the owner/role fields.
 // Reborrow custody retains opaque selector formation occurrences.
 // Structural declarations retain checked no-code affine cleanup authority.
-pub(crate) const FORMAT_MARKER: u16 = 145;
+// State-exit reborrow certificates are not an executable Terminal product.
+pub(crate) const FORMAT_MARKER: u16 = 146;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

@@ -299,8 +299,12 @@ fn adapt(
                     ));
                 }
                 O::EstablishZeroedStructural { result, .. } => {
-                    for slot in
-                        kernel::descriptor_slots(types, result.place, result.structural_type)?
+                    for slot in kernel::descriptor_slot_inventory(
+                        types,
+                        result.place,
+                        result.structural_type,
+                    )?
+                    .slots
                     {
                         graph
                             .originations
@@ -517,8 +521,12 @@ fn adapt(
                         if !cases.iter().any(|case| case.id == *result_case) {
                             return None;
                         }
-                        for slot in
-                            kernel::descriptor_slots(types, result.place, result.structural_type)?
+                        for slot in kernel::descriptor_slot_inventory(
+                            types,
+                            result.place,
+                            result.structural_type,
+                        )?
+                        .slots
                         {
                             if matches!(slot.path.first(), Some(terminal_semantics::descriptor_lifetimes::DescriptorPathSegment::Case(case)) if case != result_case)
                             {

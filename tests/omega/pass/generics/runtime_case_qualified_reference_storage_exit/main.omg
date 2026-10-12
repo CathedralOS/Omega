@@ -36,8 +36,12 @@ machine exercise<'storage>(source: &'storage Cell, bytes: &[u8; 4]) -> bool {
     // The selected field and byte-view backing do not depend on unrelated
     // growing pointee layouts; both borrow their actual finite projections.
     let first: u8 = byte_value(&bytes[0]);
+    let view: &[u8] = &bytes[..];
+    let first_reference: &u8 = &view[0];
+    let second_reference: &u8 = &view[1];
     read(&ordinary) == 17 && inspect_active(&inner) == 29
-        && read(&holder.node) == 37 && first == 71
+        && read(&holder.node) == 37 && first == 71 && first_reference == 71
+        && second_reference == 97
 }
 
 // Identically named payload fields stay in distinct case namespaces, even

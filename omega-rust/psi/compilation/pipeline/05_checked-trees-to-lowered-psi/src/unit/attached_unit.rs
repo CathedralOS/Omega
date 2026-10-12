@@ -588,7 +588,6 @@ pub(crate) fn lower_unit_closure(
             services,
             root_service_reach,
             placed_view_inputs,
-            reborrow_root_handoffs: Vec::new(),
             reborrow_restored_call_uses: Vec::new(),
             boundary_machines,
             provider_candidates,

@@ -68,13 +68,13 @@ pub use ownership::{
     RetainedBorrowPlaceRoot, StructuralAccess, StructuralAffineDiscard, StructuralMultiplicity,
     TerminalAffineCleanupAction, TerminalBorrowBoundarySource, TerminalBorrowOwnerSegment,
     TerminalBorrowPlace, TerminalBorrowPlaceSegment, TerminalPlacedViewInput,
-    TerminalReborrowRestorationClass, TerminalReborrowRestoredCallUse, TerminalReborrowRootHandoff,
-    TerminalReborrowRootHandoffStep, TerminalReborrowSharedCohortMember,
-    TerminalSuspensionCallPlan, TerminalSuspensionCallSite, TerminalSuspensionCallTarget,
-    TerminalSuspensionLiveValue, TerminalSuspensionLoan, TerminalSuspensionLoanBacking,
-    TerminalSuspensionLoanCapture, TerminalSuspensionLoanResource, TerminalSuspensionLoans,
-    TerminalSuspensionPlace, TerminalSuspensionStorage, TerminalSuspensionValueLoans,
-    TerminalSuspensionValueType, canonical_placed_view_identity, suspension_frontier_commitment,
+    TerminalReborrowRestorationClass, TerminalReborrowRestoredCallUse,
+    TerminalReborrowSharedCohortMember, TerminalSuspensionCallPlan, TerminalSuspensionCallSite,
+    TerminalSuspensionCallTarget, TerminalSuspensionLiveValue, TerminalSuspensionLoan,
+    TerminalSuspensionLoanBacking, TerminalSuspensionLoanCapture, TerminalSuspensionLoanResource,
+    TerminalSuspensionLoans, TerminalSuspensionPlace, TerminalSuspensionStorage,
+    TerminalSuspensionValueLoans, TerminalSuspensionValueType, canonical_placed_view_identity,
+    suspension_frontier_commitment,
 };
 pub use proof::{
     ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
@@ -163,10 +163,6 @@ pub struct TerminalModule {
     /// bound to one exact source-derived placement interpretation. This is
     /// semantic custody only and grants no runtime storage or access.
     pub placed_view_inputs: Vec<TerminalPlacedViewInput>,
-    /// Exact direct-root custody restored by independently replayed, finite
-    /// linear exclusive-reborrow lineages. These rows grant no cleanup,
-    /// transfer, or linear-discharge authority.
-    pub reborrow_root_handoffs: Vec<TerminalReborrowRootHandoff>,
     /// One exact whole-parent mutating call after a one-hop exclusive child
     /// reactivates its direct mutable root. These rows grant use only at the
     /// named call and cannot express cleanup, transfer, or discharge.
@@ -311,7 +307,6 @@ impl TerminalModule {
             services: Vec::new(),
             root_service_reach: Default::default(),
             placed_view_inputs: Vec::new(),
-            reborrow_root_handoffs: Vec::new(),
             reborrow_restored_call_uses: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),

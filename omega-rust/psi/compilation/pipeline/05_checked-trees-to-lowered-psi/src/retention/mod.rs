@@ -28,6 +28,5 @@ pub(crate) mod conformance_applications;
 pub(crate) mod operation_crash_contracts;
 pub(crate) mod placed_view_inputs;
 pub(crate) mod reborrow_restored_call_use;
-pub(crate) mod reborrow_root_handoff;
 pub(crate) mod retained_borrow_custody;
 pub(crate) mod suspension_call_plan;

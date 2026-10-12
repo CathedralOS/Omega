@@ -326,9 +326,6 @@ fn machine_retention_roots(module: &TerminalModule) -> BTreeSet<MachineId> {
             roots.insert(callable.machine);
         }
     }
-    for handoff in &module.reborrow_root_handoffs {
-        roots.insert(handoff.machine);
-    }
     for use_row in &module.reborrow_restored_call_uses {
         roots.insert(use_row.machine);
         roots.insert(use_row.call_target_machine);

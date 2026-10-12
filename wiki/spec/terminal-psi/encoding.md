@@ -610,7 +610,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 145 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 146 + `u16` vocabulary
 marker 123 + the entry machine id, followed by the module's counted tables in
 the declaration order below and ending with boundary-application candidates.
 
@@ -625,29 +625,28 @@ the declaration order below and ending with boundary-application candidates.
 | 6 | concrete root service reach | counted service ids |
 | 7 | installation reach dependencies | counted installation reach rows |
 | 8 | placed-view inputs | counted placed-view input rows |
-| 9 | reborrow root handoffs | counted reborrow handoff rows |
-| 10 | reborrow restored call uses | counted restored-use rows |
-| 11 | boundary machines | counted boundary machine declarations |
-| 12 | provider candidates | counted provider candidate rows |
-| 13 | dynamic dispatch | counted interfaces and implementation tables |
-| 14 | float-meaning projections | counted projection rows |
-| 15 | float-meaning equalities | counted equality rows |
-| 16 | proposition declarations | counted proposition declaration rows |
-| 17 | proposition applications | counted proposition application rows |
-| 18 | evidence terms | counted evidence term rows |
-| 19 | evidence contract lanes | counted evidence lane rows |
-| 20 | proof-output invocations | counted proof-output call rows |
-| 21 | proof recursive components | counted recursive component rows |
-| 22 | closed conformance applications | counted conformance application rows |
-| 23 | suspension rows | a bare `u32` call-plan count, then counted suspension call sites, then counted suspension call plans |
-| 24 | scalar block invariants | the counted invariant rows above |
-| 25 | operation crash contracts | counted operation crash contract rows |
-| 26 | machines | counted machine rows |
-| 27 | target-machine families | counted family rows |
-| 28 | target layout applications | counted complete checked policy alternatives |
-| 29 | boundary application demands | counted exact requirement/application rows |
-| 30 | callback applications | counted checked registrar occurrences |
-| 31 | boundary application candidates | counted checked bodies for closed applications |
+| 9 | reborrow restored call uses | counted restored-use rows |
+| 10 | boundary machines | counted boundary machine declarations |
+| 11 | provider candidates | counted provider candidate rows |
+| 12 | dynamic dispatch | counted interfaces and implementation tables |
+| 13 | float-meaning projections | counted projection rows |
+| 14 | float-meaning equalities | counted equality rows |
+| 15 | proposition declarations | counted proposition declaration rows |
+| 16 | proposition applications | counted proposition application rows |
+| 17 | evidence terms | counted evidence term rows |
+| 18 | evidence contract lanes | counted evidence lane rows |
+| 19 | proof-output invocations | counted proof-output call rows |
+| 20 | proof recursive components | counted recursive component rows |
+| 21 | closed conformance applications | counted conformance application rows |
+| 22 | suspension rows | a bare `u32` call-plan count, then counted suspension call sites, then counted suspension call plans |
+| 23 | scalar block invariants | the counted invariant rows above |
+| 24 | operation crash contracts | counted operation crash contract rows |
+| 25 | machines | counted machine rows |
+| 26 | target-machine families | counted family rows |
+| 27 | target layout applications | counted complete checked policy alternatives |
+| 28 | boundary application demands | counted exact requirement/application rows |
+| 29 | callback applications | counted checked registrar occurrences |
+| 30 | boundary application candidates | counted checked bodies for closed applications |
 
 A dynamic slot encodes its id, declaring-trait and requirement identity strings,
 counted family tuple, counted scalar formals and counted structural formals.
@@ -1054,8 +1053,6 @@ are not re-sorted by the canonical-order checker.
 | Row | Fields |
 | --- | --- |
 | placed-view input | machine id + `u32` position + source machine identity string + source state identity string + source parameter identity string + structural access + `bool` const binding + `bool` mutable binding + view identity string + policy identity string + policy-plan machine identity string + schema identity string + `u64` placement report fingerprint + 32-byte placement commitment |
-| reborrow root handoff | machine id + source machine identity string + source state identity string + direct root owner identity string + counted owner path segments + direct root place + direct root access + activation boundary + weakening boundary + direct-root lifetime identity string + counted lineage steps |
-| reborrow lineage step | child owner identity string + counted owner path segments + child place + counted projection remainder segments + child access + child activation boundary + formation boundary + child weakening boundary |
 | reborrow place | root identity string + counted place segments |
 | reborrow restored call use | machine id + operation id + restoration class + call boundary + call target machine id + source machine identity string + source state identity string + direct root owner identity string + counted owner path segments + direct root place + activation boundary + weakening boundary + direct-root lifetime identity string + child owner identity string + counted owner path segments + child place + counted projection remainder segments + child access + child activation boundary + formation boundary + child weakening boundary + counted shared cohort |
 | shared cohort member | child owner identity string + counted owner path segments + child place + child access + child activation boundary + child weakening boundary |
@@ -1809,7 +1806,7 @@ table. The installation record `PSIINST\0` is emitted outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 145 | yes |
+| semantic module | `PSITERM\0` | 146 | yes |
 | proof bundle | `PSIPRF\0\0` | 34 | no |
 | sealed proof section | `PSIPSC\0\0` | 1 | yes |
 | obligation ledger | `PSIOBLG\0` | 3 | yes |

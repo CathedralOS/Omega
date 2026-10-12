@@ -546,12 +546,13 @@ mod tests {
     }
 
     #[test]
-    fn suspension_loan_graph_rejects_the_previous_capture_module_format() {
+    fn module_format_rejects_previous_layout() {
         let mut encoded = super::super::super::MAGIC.to_vec();
-        encoded.extend_from_slice(&136_u16.to_le_bytes());
+        let previous = super::super::super::FORMAT_MARKER - 1;
+        encoded.extend_from_slice(&previous.to_le_bytes());
         assert!(matches!(
             super::super::super::decode_module(&encoded),
-            Err(CodecError::UnsupportedFormatMarker(136))
+            Err(CodecError::UnsupportedFormatMarker(marker)) if marker == previous
         ));
     }
 

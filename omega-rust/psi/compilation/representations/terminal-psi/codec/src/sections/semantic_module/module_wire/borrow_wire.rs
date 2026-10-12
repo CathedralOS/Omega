@@ -1,4 +1,4 @@
-//! Borrow boundaries, owner paths, places, accesses and reborrow handoffs
+//! Borrow boundaries, owner paths, places, accesses and restored calls
 //! on the wire.
 
 use super::super::structural_signature_wire::{decode_structural_access, encode_structural_access};
@@ -7,8 +7,7 @@ use crate::sections::semantic_module::wire::{Reader, Writer, decode_counted};
 use terminal_psi::{
     TerminalBorrowBoundarySource, TerminalBorrowOwnerSegment, TerminalBorrowPlace,
     TerminalBorrowPlaceSegment, TerminalIdentityIndex, TerminalReborrowRestorationClass,
-    TerminalReborrowRestoredCallUse, TerminalReborrowRootHandoff, TerminalReborrowRootHandoffStep,
-    TerminalReborrowSharedCohortMember,
+    TerminalReborrowRestoredCallUse, TerminalReborrowSharedCohortMember,
 };
 
 fn encode_borrow_boundary(
@@ -155,63 +154,6 @@ fn decode_place(reader: &mut Reader<'_>) -> Result<TerminalBorrowPlace, CodecErr
     Ok(TerminalBorrowPlace {
         root_identity: TerminalIdentityIndex(reader.u32()?),
         segments: decode_place_segments(reader)?,
-    })
-}
-
-pub(crate) fn encode_reborrow_root_handoff(
-    writer: &mut Writer,
-    handoff: &TerminalReborrowRootHandoff,
-) -> Result<(), CodecError> {
-    writer.id(handoff.machine);
-    writer.u32(handoff.source_machine_identity.0);
-    writer.u32(handoff.source_state_identity.0);
-    writer.u32(handoff.direct_root_owner_identity.0);
-    encode_owner_path(writer, &handoff.direct_root_owner_path)?;
-    encode_place(writer, &handoff.direct_root_place)?;
-    encode_structural_access(writer, handoff.direct_root_access);
-    encode_borrow_boundary(writer, &handoff.direct_root_activation)?;
-    encode_borrow_boundary(writer, &handoff.direct_root_weakening)?;
-    writer.u32(handoff.direct_root_lifetime_identity.0);
-    writer.len("reborrow root-handoff lineage", handoff.lineage.len())?;
-    for step in &handoff.lineage {
-        writer.u32(step.child_owner_identity.0);
-        encode_owner_path(writer, &step.child_owner_path)?;
-        encode_place(writer, &step.child_place)?;
-        encode_place_segments(writer, &step.projection_remainder)?;
-        encode_structural_access(writer, step.child_access);
-        encode_borrow_boundary(writer, &step.child_activation)?;
-        encode_borrow_boundary(writer, &step.formation_boundary)?;
-        encode_borrow_boundary(writer, &step.child_weakening)?;
-    }
-    Ok(())
-}
-
-pub(crate) fn decode_reborrow_root_handoff(
-    reader: &mut Reader<'_>,
-) -> Result<TerminalReborrowRootHandoff, CodecError> {
-    Ok(TerminalReborrowRootHandoff {
-        machine: reader.id("MachineId")?,
-        source_machine_identity: TerminalIdentityIndex(reader.u32()?),
-        source_state_identity: TerminalIdentityIndex(reader.u32()?),
-        direct_root_owner_identity: TerminalIdentityIndex(reader.u32()?),
-        direct_root_owner_path: decode_owner_path(reader)?,
-        direct_root_place: decode_place(reader)?,
-        direct_root_access: decode_structural_access(reader)?,
-        direct_root_activation: decode_borrow_boundary(reader)?,
-        direct_root_weakening: decode_borrow_boundary(reader)?,
-        direct_root_lifetime_identity: TerminalIdentityIndex(reader.u32()?),
-        lineage: decode_counted(reader, |reader| {
-            Ok(TerminalReborrowRootHandoffStep {
-                child_owner_identity: TerminalIdentityIndex(reader.u32()?),
-                child_owner_path: decode_owner_path(reader)?,
-                child_place: decode_place(reader)?,
-                projection_remainder: decode_place_segments(reader)?,
-                child_access: decode_structural_access(reader)?,
-                child_activation: decode_borrow_boundary(reader)?,
-                formation_boundary: decode_borrow_boundary(reader)?,
-                child_weakening: decode_borrow_boundary(reader)?,
-            })
-        })?,
     })
 }
 

@@ -203,20 +203,44 @@ fn may_contain_descriptor(
     contains
 }
 
-/// Enumerate actual shared carrier slots, retaining reference boundaries.
+/// Materialized descriptor slots and referent subtrees whose layout is not
+/// available. Reference identity alone does not demand a pointee definition;
+/// recursive pointer closure is not a finite storage inventory. Unknown
+/// subtrees remain explicit so reading them cannot invent a storage origin.
+pub struct DescriptorSlotInventory {
+    pub slots: Vec<DescriptorLocation>,
+    pub opaque_referents: Vec<DescriptorLocation>,
+}
+
+/// Enumerate the complete slot roster when every reachable layout is available.
+/// Consumers that require complete return/effect coverage must retain this gate.
 pub fn descriptor_slots(
     types: &[StructuralTypeDeclaration],
     root: PlaceId,
     structural_type: StructuralTypeId,
 ) -> Option<Vec<DescriptorLocation>> {
+    let inventory = descriptor_slot_inventory(types, root, structural_type)?;
+    inventory
+        .opaque_referents
+        .is_empty()
+        .then_some(inventory.slots)
+}
+
+/// Inventory known slots without letting an unrelated opaque pointer erase
+/// observations of materialized storage in the same machine.
+pub fn descriptor_slot_inventory(
+    types: &[StructuralTypeDeclaration],
+    root: PlaceId,
+    structural_type: StructuralTypeId,
+) -> Option<DescriptorSlotInventory> {
     fn walk(
         types: &[StructuralTypeDeclaration],
         ty: StructuralTypeId,
         location: DescriptorLocation,
         active: &mut BTreeSet<StructuralTypeId>,
-        result: &mut Vec<DescriptorLocation>,
+        result: &mut DescriptorSlotInventory,
     ) -> Option<()> {
-        if !active.insert(ty) || result.len() > 4096 {
+        if !active.insert(ty) || result.slots.len() + result.opaque_referents.len() > 4096 {
             return None;
         }
         let mut matching = types.iter().filter(|declaration| declaration.id == ty);
@@ -225,7 +249,7 @@ pub fn descriptor_slots(
             return None;
         }
         if is_shared_descriptor(types.iter(), ty) {
-            result.push(location);
+            result.slots.push(location);
             active.remove(&ty);
             return Some(());
         }
@@ -233,7 +257,11 @@ pub fn descriptor_slots(
             StructuralTypeShape::Reference { referent, .. } => {
                 let mut child = location.clone();
                 child.path.push(DescriptorPathSegment::Referent);
-                walk(types, *referent, child, active, result)?;
+                if active.contains(referent) || find_structural_type(types, *referent).is_none() {
+                    result.opaque_referents.push(child);
+                } else {
+                    walk(types, *referent, child, active, result)?;
+                }
             }
             terminal_psi::record_or_mixed_shape_pattern!(fields) => {
                 for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
@@ -248,7 +276,7 @@ pub fn descriptor_slots(
                             .byte_sequence_carrier()
                             .is_some_and(|carrier| carrier.is_shared_readable_view()) =>
                         {
-                            result.push(child)
+                            result.slots.push(child)
                         }
                         _ => {}
                     }
@@ -293,7 +321,7 @@ pub fn descriptor_slots(
                             .byte_sequence_carrier()
                             .is_some_and(|carrier| carrier.is_shared_readable_view()) =>
                         {
-                            result.push(child)
+                            result.slots.push(child)
                         }
                         _ => {}
                     }
@@ -303,7 +331,10 @@ pub fn descriptor_slots(
         active.remove(&ty);
         Some(())
     }
-    let mut result = Vec::new();
+    let mut result = DescriptorSlotInventory {
+        slots: Vec::new(),
+        opaque_referents: Vec::new(),
+    };
     walk(
         types,
         structural_type,

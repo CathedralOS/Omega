@@ -46,8 +46,7 @@ use super::structural_type_wire::{decode_structural_type, encode_structural_type
 use super::wire::{Reader, Writer};
 use super::{CodecError, FORMAT_MARKER, MAGIC};
 use crate::sections::semantic_module::module_wire::borrow_wire::{
-    decode_reborrow_restored_call_use, decode_reborrow_root_handoff,
-    encode_reborrow_restored_call_use, encode_reborrow_root_handoff,
+    decode_reborrow_restored_call_use, encode_reborrow_restored_call_use,
 };
 use crate::sections::semantic_module::module_wire::carry_and_suspension_wire::{
     decode_suspension_call_plan, decode_suspension_call_site, encode_suspension_call_plan,
@@ -106,13 +105,6 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
     writer.len("placed-view inputs", module.placed_view_inputs.len())?;
     for input in &module.placed_view_inputs {
         placed_view_wire::encode_placed_view_input(&mut writer, input)?;
-    }
-    writer.len(
-        "reborrow root handoffs",
-        module.reborrow_root_handoffs.len(),
-    )?;
-    for handoff in &module.reborrow_root_handoffs {
-        encode_reborrow_root_handoff(&mut writer, handoff)?;
     }
     writer.len(
         "reborrow restored call uses",
@@ -290,7 +282,6 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         declaration_wire::decode_installation_reach_dependency,
     )?;
     let placed_view_inputs = decode_counted(reader, placed_view_wire::decode_placed_view_input)?;
-    let reborrow_root_handoffs = decode_counted(reader, decode_reborrow_root_handoff)?;
     let reborrow_restored_call_uses = decode_counted(reader, decode_reborrow_restored_call_use)?;
     let boundary_machines = decode_counted(reader, decode_boundary_machine)?;
     let provider_candidates = decode_counted(reader, decode_provider_candidate)?;
@@ -360,7 +351,6 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
             installation_dependencies: installation_reach_dependencies,
         },
         placed_view_inputs,
-        reborrow_root_handoffs,
         reborrow_restored_call_uses,
         boundary_machines,
         provider_candidates,

@@ -165,6 +165,16 @@ impl<'a> Replay<'a> {
         if let Some(value) = state.get(&location) {
             return value.clone();
         }
+        // An opaque referent is unavailable, not an owned subtree whose
+        // address can be reconstructed from the enclosing storage root.
+        if state.iter().any(|(prefix, value)| {
+            value.is_none()
+                && prefix.root == location.root
+                && !prefix.path.is_empty()
+                && location.path.starts_with(&prefix.path)
+        }) {
+            return None;
+        }
         // Only a genuine storage root supplies an unmaterialized owned subtree.
         // Unknown carrier slots are explicitly present in the state as None.
         let root = DescriptorLocation::whole(location.root);
@@ -197,10 +207,13 @@ impl<'a> Replay<'a> {
         let mut state = State::new();
         for row in &machine.places {
             state.insert(DescriptorLocation::whole(row.place), None);
-            if let Some(structural_type) = machine.place_types.get(&row.place) {
-                for slot in descriptor_slots(self.types, row.place, *structural_type)? {
-                    state.insert(slot, None);
-                }
+            let inventory = descriptor_slot_inventory(
+                self.types,
+                row.place,
+                *machine.place_types.get(&row.place)?,
+            )?;
+            for slot in inventory.slots.iter().chain(&inventory.opaque_referents) {
+                state.insert(slot.clone(), None);
             }
             if let DescriptorDefinition::Parameter {
                 structural_type,
@@ -225,7 +238,7 @@ impl<'a> Replay<'a> {
                     DescriptorLocation::whole(row.place),
                     Some(BTreeSet::from([origin])),
                 );
-                for slot in descriptor_slots(self.types, row.place, structural_type)? {
+                for slot in inventory.slots {
                     if !slot.path.is_empty() {
                         state.insert(slot.clone(), Some(BTreeSet::from([Origin::Incoming(slot)])));
                     }

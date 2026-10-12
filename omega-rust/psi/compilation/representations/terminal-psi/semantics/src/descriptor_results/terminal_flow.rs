@@ -94,11 +94,13 @@ pub(super) fn adapt(
                 }
                 OperationKind::EstablishZeroedStructural {} => {
                     let result = result?;
-                    for slot in replay::descriptor_slots(
+                    for slot in replay::descriptor_slot_inventory(
                         &module.structural_types,
                         result.place,
                         result.structural_type,
-                    )? {
+                    )?
+                    .slots
+                    {
                         graph
                             .originations
                             .entry(position)
@@ -334,11 +336,13 @@ pub(super) fn adapt(
                         // payload slots do not exist in this value. Only those
                         // slots have no backing; an unresolved live field stays
                         // unknown and cannot be exported by a result summary.
-                        for slot in replay::descriptor_slots(
+                        for slot in replay::descriptor_slot_inventory(
                             &module.structural_types,
                             result?.place,
                             result?.structural_type,
-                        )? {
+                        )?
+                        .slots
+                        {
                             if matches!(slot.path.first(), Some(crate::descriptor_lifetimes::DescriptorPathSegment::Case(case)) if case != result_case)
                             {
                                 graph

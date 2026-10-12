@@ -288,8 +288,6 @@ pub struct InstallationServiceBound {
 pub enum CustodyKind {
     /// A closure-wide direct entry input bound to one exact placed view.
     PlacedViewInput,
-    /// An exact direct-root custody handoff over a finite reborrow lineage.
-    ReborrowRootHandoff,
     /// A whole-parent mutating call reactivating a direct mutable root.
     ReborrowRestoredCall,
     /// A live caller claim consumed by a successful boundary invocation.
@@ -314,7 +312,6 @@ impl CustodyKind {
     pub(crate) fn tag(self) -> u8 {
         match self {
             Self::PlacedViewInput => 1,
-            Self::ReborrowRootHandoff => 2,
             Self::ReborrowRestoredCall => 3,
             Self::CompletionReceipt => 4,
             Self::ProgramLocalRootIntroduction => 5,
@@ -328,7 +325,6 @@ impl CustodyKind {
     fn from_tag(tag: u8) -> Option<Self> {
         match tag {
             1 => Some(Self::PlacedViewInput),
-            2 => Some(Self::ReborrowRootHandoff),
             3 => Some(Self::ReborrowRestoredCall),
             4 => Some(Self::CompletionReceipt),
             5 => Some(Self::ProgramLocalRootIntroduction),
@@ -851,20 +847,6 @@ pub(crate) fn derive_component_inventory(
                 module
                     .identities
                     .text(input.view_identity)
-                    .unwrap_or_default(),
-            ),
-            evidence: CustodyEvidence::ModuleDerived,
-        });
-    }
-    for handoff in &module.reborrow_root_handoffs {
-        custody.push(CustodyConstraint {
-            kind: CustodyKind::ReborrowRootHandoff,
-            identity: format!(
-                "reborrow-handoff:{}:{}",
-                handoff.machine.get(),
-                module
-                    .identities
-                    .text(handoff.direct_root_lifetime_identity)
                     .unwrap_or_default(),
             ),
             evidence: CustodyEvidence::ModuleDerived,
