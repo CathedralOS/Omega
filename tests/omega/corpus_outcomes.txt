@@ -4964,7 +4964,7 @@ pass/float/builtin_extrema_field_store_exit timeout 120001ms regressed-from:chec
 pass/float/closed_integer_conversion_predicate_proof_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
 pass/float/closed_integer_conversion_trapping_source_no_normal_result timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
 pass/float/coherent_field_energy_scattering_exit checked 158430ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/computed_comparison_literal_landing_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/float/computed_comparison_literal_landing_exit checked 21280ms check-target:macos_arm64 @282425e6e323
 pass/float/computed_float_bare_literal_comparison timeout 120001ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
 pass/float/constructor_requirement_result_policy_exit checked 154755ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/float/data_where_float_field_restored_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5003,7 +5003,7 @@ pass/float/named_provider_min_max_sqrt_exit timeout 120000ms regressed-from:chec
 pass/float/named_provider_multiply_then_add_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
 pass/float/named_provider_negate_is_nan_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
 pass/float/nearest_even_binary_arithmetic_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-pass/float/nested_float_operator_applications_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/float/nested_float_operator_applications_exit checked 24591ms check-target:macos_arm64 @282425e6e323
 pass/float/owned_local_computed_float_store_exit checked 160704ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/float/public_boolean_result_contract_import_exit checked 158015ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/float/public_boolean_result_contract_match_import_exit checked 156380ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5198,6 +5198,7 @@ pass/layouts/empty_cases_sum_layout_compile checked 1697ms @a9ae30e1c334+wt
 pass/layouts/empty_record_layout_queries_compile checked 1632ms @a9ae30e1c334+wt
 pass/layouts/five_element_array_layout_compile checked 1703ms @a9ae30e1c334+wt
 pass/layouts/float_member_layout_queries_compile checked 1639ms @a9ae30e1c334+wt
+pass/layouts/guarded_policy_state_premise checked 118645ms @d041496df109+wt
 pass/layouts/integer_at_owned_local_borrow_call_exit checked 10712ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/layouts/invariant_record_layout_compile checked 1888ms @a9ae30e1c334+wt
 pass/layouts/mixed_alignment_layout_queries_compile checked 1655ms @a9ae30e1c334+wt
@@ -6326,6 +6327,7 @@ run/calls/runtime_float_distinct_operand_calls_exit checked 103811ms check-targe
 run/calls/runtime_float_normalized_operand_single_evaluation_exit checked 95931ms check-target:linux_x86_64 @16ed47526a08
 run/calls/table_report_call_survival checked 11628ms check-target:linux_x86_64 @a9ae30e1c334+wt
 run/contained_health_loop_command_branch checked 1918ms @a9ae30e1c334+wt
+run/float/folded_anonymous_operator_custody_exit checked 28507ms check-target:macos_arm64 @d041496df109+wt
 run/nested_mut_alias_assignment_return checked 11468ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/providers/module_named_float_conversion_family_exit checked 79121ms check-target:macos_arm64 @16ed47526a08
 run/stores/runtime_float_indexed_call_result_exit checked 90790ms check-target:linux_x86_64 @16ed47526a08

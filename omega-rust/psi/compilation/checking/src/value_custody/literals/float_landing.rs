@@ -424,6 +424,7 @@ fn land_float_tree(
         };
         let value = numerics::float_semantics::FloatSemantics::round_exact(semantic_format, exact)
             .to_interpreter_value(semantic_format);
+        retain_folded_subtree_occurrences(program, expression);
         *program.expression_table.expression_mut(expression) = ExpressionNode::Float(
             numerics::literals::FloatLiteral::from_f64(value).with_landing(format),
         );
@@ -512,7 +513,40 @@ fn fold_anonymous_float_comparison(program: &mut TypedTrees, expression: Express
         ),
         _ => return,
     };
+    retain_folded_subtree_occurrences(program, expression);
     *program.expression_table.expression_mut(expression) = ExpressionNode::Boolean(value);
+}
+
+/// A successfully evaluated anonymous builtin tree becomes one literal, but
+/// every authored operation still belongs to that live value. Retain child
+/// occurrence identities before removing their edges. Otherwise a later private
+/// projection sees the detached child ledger rows as orphan obligations and
+/// cannot exclude them with their owning declaration. This moves custody only:
+/// the caller already established builtin numeric meaning, and ordinary checked
+/// finalization still resolves each retained occurrence on the literal result.
+fn retain_folded_subtree_occurrences(program: &mut TypedTrees, root: ExpressionHandle) {
+    let mut pending = vec![root];
+    let mut visited = Vec::new();
+    let mut occurrences = Vec::new();
+    while let Some(expression) = pending.pop() {
+        if !expression.is_valid() || visited.contains(&expression) {
+            continue;
+        }
+        visited.push(expression);
+        occurrences.extend(
+            program
+                .expression_table
+                .authored_selection_occurrences(expression),
+        );
+        crate::expression_traversal::children(
+            program,
+            program.expression_table.expression(expression),
+            |child| pending.push(child),
+        );
+    }
+    program
+        .expression_table
+        .attach_authored_selection_occurrences(root, occurrences);
 }
 
 /// Stamp every UNSTAMPED float literal reachable through Mutable/Unary/Binary

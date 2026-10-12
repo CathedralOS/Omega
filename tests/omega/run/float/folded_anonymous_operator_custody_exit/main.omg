@@ -1,0 +1,22 @@
+// Nested folded operators keep their authored occurrence custody through a
+// field, local, returned value, parameter delivery, and Boolean comparison.
+use omega_language_std::console;
+use omega::language::core::float_operations;
+use omega::language::core::binding;
+
+data Main { console: Binding<Console>; value: f64; }
+machine fraction() -> f64 { 0.0 - 1.0 / 360.0 }
+machine identity(value: f64) -> f64 { value }
+machine Main::main(main: &mut Main) reaches Console {
+    main.value = 0.0 - 1.0 / 360.0;
+    let local: f64 = 0.0 - 1.0 / 360.0;
+    let returned: f64 = fraction();
+    let delivered: f64 = identity(0.0 - 1.0 / 360.0);
+    let comparison: bool = (0.0 - 1.0 / 360.0) == (0.0 - 1.0 / 360.0);
+    transition main.value == local && local == returned && returned == delivered && comparison {
+        true -> finish(main)
+        false -> wrong(main)
+    }
+    state finish(main: &mut Main) { main.console.exit_process(0); }
+    state wrong(main: &mut Main) { main.console.exit_process(90); }
+}

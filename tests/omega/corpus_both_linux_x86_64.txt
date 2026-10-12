@@ -148,6 +148,7 @@ pass/arithmetic/runtime_fixed_input_policy_reuse_exit built 4162ms exit:0 interp
 pass/arithmetic/reused_fixed_integer_operands_exit built 6837ms exit:0 interpreter-exit:0 interpreter:agrees @7223309ebb5b
 pass/arithmetic/reused_masked_shift_count_exit built 6780ms exit:0 interpreter-exit:0 interpreter:agrees @56b53faa47a8
 pass/borrows/static_byte_case_state_loan_compile built 9664ms exit:42 interpreter-exit:42 interpreter:agrees @14d037e0837c+wt
+run/float/folded_anonymous_operator_custody_exit built 27827ms exit:0 interpreter-exit:0 interpreter:agrees @d041496df109+wt
 run/variant_decimal_runtime_division built 8601ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @14d037e0837c+wt
 run/variant_record_normalization_repeats built 11141ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @14d037e0837c+wt
 pass/text/runtime_decimal_scalar_across_output_alternate_exit built 17211ms exit:70 stdout:match stderr:match interpreter-exit:70 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @767574d46ddd
