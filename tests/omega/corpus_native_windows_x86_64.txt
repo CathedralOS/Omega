@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 32, "jobs": null, "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 32, "jobs": "8", "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 302ms @0484de104502
 pass/arithmetic/anonymous_rational_integer_landing checked 306ms @0484de104502
 pass/arithmetic/bounded_assignment checked 323ms @0484de104502
@@ -294,8 +294,22 @@ pass/core/content_retained_custody_round_trip built 537ms @0484de104502
 pass/core/extent_core_surface checked 441ms @0484de104502
 pass/core/extent_root_provider_adapter built 551ms @0484de104502
 pass/core/interrupt_obligations_surface checked 411ms @0484de104502
-pass/core/numeric_cross_signed_conversion_surface built 37523ms exit:70 @0484de104502
-pass/core/numeric_trapping_conversion_overflow built 1726ms exit:-1073741795 @0484de104502
+pass/core/numeric_cross_signed_conversion_surface built 84178ms exit:70 @619f89e4fed6
+pass/core/numeric_signed_narrowing_policies built 79168ms exit:0 @619f89e4fed6
+pass/core/numeric_signed_to_unsigned_policies built 78421ms exit:0 @619f89e4fed6
+pass/core/numeric_signed_wide_to_unsigned_policies built 77871ms exit:0 @619f89e4fed6
+pass/core/numeric_trapping_conversion_overflow built 82943ms exit:-1073741795 @619f89e4fed6
+pass/core/numeric_trapping_direct_conversion_negative built 74554ms exit:-1073741795 @619f89e4fed6
+pass/core/numeric_trapping_discarded_conversion built 72303ms exit:-1073741795 @619f89e4fed6
+pass/core/numeric_trapping_negative_to_unsigned built 68971ms exit:-1073741795 @619f89e4fed6
+pass/core/numeric_trapping_signed_narrowing_above_maximum built 70775ms exit:-1073741795 @619f89e4fed6
+pass/core/numeric_trapping_signed_narrowing_below_minimum built 68027ms exit:-1073741795 @619f89e4fed6
+pass/core/numeric_trapping_unsigned_above_signed_maximum built 68109ms exit:-1073741795 @619f89e4fed6
+pass/core/numeric_unsigned_64_to_signed_policies built 70406ms exit:0 @619f89e4fed6
+pass/core/numeric_unsigned_narrowing_policies built 72335ms exit:0 @619f89e4fed6
+pass/core/numeric_unsigned_to_signed_policies built 69503ms exit:0 @619f89e4fed6
+pass/core/numeric_widening_preserves_values built 70280ms exit:0 @619f89e4fed6
+pass/core/numeric_widening_published_ranges built 69761ms exit:0 @619f89e4fed6
 pass/core/runtime_natural_termination_exit built 625ms exit:0 @0484de104502
 pass/core/self_read_only_receiver_compile checked 418ms @0484de104502
 pass/core/task_lifecycle_operations rejected 561ms @0484de104502

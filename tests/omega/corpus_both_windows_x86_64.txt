@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 32, "jobs": null, "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 32, "jobs": "8", "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/runtime_dispatch_cast_decisions_exit built 3510ms exit:70 interpreter-exit:70 interpreter:agrees @6dd207b5fbb6+wt
 pass/borrows/interleaved_parameter_field_replacement_exit built 8195ms exit:70 interpreter-exit:70 interpreter:agrees @5b40b0f7256d
 pass/borrows/qualified_byte_owner_exclusive_call_exit built 5310ms exit:70 interpreter-exit:70 interpreter:agrees @e399918ecace+wt
@@ -27,6 +27,22 @@ pass/collections/runtime_nested_fixed_array_projected_write_exit built 2775ms ex
 pass/control_flow/element_view_enum_equality_exit built 9147ms exit:70 interpreter-exit:70 interpreter:agrees @5b40b0f7256d
 pass/control_flow/no_payload_case_variant_after_payload_dispatch_exit built 4434ms exit:70 interpreter-exit:70 interpreter:agrees @76e6a2caeab4+wt
 pass/core/extent_root_provider_adapter built 2986ms exit:0 interpreter-exit:0 interpreter:agrees @b429d3348cac+wt
+pass/core/numeric_cross_signed_conversion_surface built 84799ms exit:70 interpreter-exit:70 interpreter:agrees @619f89e4fed6
+pass/core/numeric_signed_narrowing_policies built 76981ms exit:0 interpreter-exit:0 interpreter:agrees @619f89e4fed6
+pass/core/numeric_signed_to_unsigned_policies built 75380ms exit:0 interpreter-exit:0 interpreter:agrees @619f89e4fed6
+pass/core/numeric_signed_wide_to_unsigned_policies built 79596ms exit:0 interpreter-exit:0 interpreter:agrees @619f89e4fed6
+pass/core/numeric_trapping_conversion_overflow built 82965ms exit:-1073741795 interpreter:trapped @619f89e4fed6
+pass/core/numeric_trapping_direct_conversion_negative built 72228ms exit:-1073741795 interpreter:trapped @619f89e4fed6
+pass/core/numeric_trapping_discarded_conversion built 69043ms exit:-1073741795 interpreter:trapped @619f89e4fed6
+pass/core/numeric_trapping_negative_to_unsigned built 72321ms exit:-1073741795 interpreter:trapped @619f89e4fed6
+pass/core/numeric_trapping_signed_narrowing_above_maximum built 71562ms exit:-1073741795 interpreter:trapped @619f89e4fed6
+pass/core/numeric_trapping_signed_narrowing_below_minimum built 74262ms exit:-1073741795 interpreter:trapped @619f89e4fed6
+pass/core/numeric_trapping_unsigned_above_signed_maximum built 71336ms exit:-1073741795 interpreter:trapped @619f89e4fed6
+pass/core/numeric_unsigned_64_to_signed_policies built 75665ms exit:0 interpreter-exit:0 interpreter:agrees @619f89e4fed6
+pass/core/numeric_unsigned_narrowing_policies built 72610ms exit:0 interpreter-exit:0 interpreter:agrees @619f89e4fed6
+pass/core/numeric_unsigned_to_signed_policies built 73629ms exit:0 interpreter-exit:0 interpreter:agrees @619f89e4fed6
+pass/core/numeric_widening_preserves_values built 74524ms exit:0 interpreter-exit:0 interpreter:agrees @619f89e4fed6
+pass/core/numeric_widening_published_ranges built 69879ms exit:0 interpreter-exit:0 interpreter:agrees @619f89e4fed6
 pass/data/opaque_copy_selected built 3871ms exit:0 interpreter-exit:0 interpreter:agrees @9daaa9bd9280+wt
 pass/domains/named_const_subject_binding built 5457ms exit:3 interpreter-exit:3 interpreter:agrees @9ed8b7d0772d
 pass/domains/named_subject_capacity_identity_exit built 5855ms exit:70 interpreter-exit:70 interpreter:agrees @9ed8b7d0772d
