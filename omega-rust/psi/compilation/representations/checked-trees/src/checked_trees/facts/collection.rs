@@ -214,6 +214,9 @@ pub struct CallExitPreservation {
     pub call: arena::Handle<crate::FlowCallFact>,
     pub target_state: symbols::SymbolHandle,
     pub requires_preserved: bool,
+    /// Exact normalized target metric issued after rank computation retention.
+    pub rank_observation: crate::CheckedScalarComputationHandle,
+    pub rank_preserved: bool,
     pub erased_observations: arena::HandleSpan<ErasedExitObservation>,
 }
 

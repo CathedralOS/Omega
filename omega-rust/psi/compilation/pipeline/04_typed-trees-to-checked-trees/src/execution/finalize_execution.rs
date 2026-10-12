@@ -11,6 +11,7 @@ pub(crate) fn finalize_execution(
     // call frames.
     let call_frames = validation::CallFrameResolver::new(program);
     crate::execution::scalar_computations::record_rank_observations(program, &mut facts);
+    crate::checks::record_rank_preservation(program, &mut facts, call_frames.as_ref());
     facts.flow.terminal_machines =
         crate::execution::terminal_scalar::build_checked_terminal_machine_selections(
             program,
