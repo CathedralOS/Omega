@@ -239,7 +239,7 @@ pub(crate) fn evaluate_scalar(
         calls,
         inputs,
     )
-    .map(|(value, _, warnings)| (value, warnings))
+    .map(|(value, _, _, warnings)| (value, warnings))
 }
 
 pub(crate) struct SelectedMatchResult {
@@ -257,7 +257,15 @@ pub(crate) fn evaluate_scalar_with_correspondence(
     calls: Option<&dyn ConstantCalls>,
 
     inputs: &mut Vec<crate::CheckedConstantInput>,
-) -> Result<(ScalarValue, Vec<SelectedMatchResult>, Vec<Diagnostic>), String> {
+) -> Result<
+    (
+        ScalarValue,
+        ConstIntegerMeaning,
+        Vec<SelectedMatchResult>,
+        Vec<Diagnostic>,
+    ),
+    String,
+> {
     evaluate_scalar_with_correspondence_in(
         program,
         EvaluationContext::Machine(machine, state),
@@ -267,7 +275,6 @@ pub(crate) fn evaluate_scalar_with_correspondence(
         calls,
         inputs,
     )
-    .map(|(value, _, selected, warnings)| (value, selected, warnings))
 }
 
 fn evaluate_scalar_in(

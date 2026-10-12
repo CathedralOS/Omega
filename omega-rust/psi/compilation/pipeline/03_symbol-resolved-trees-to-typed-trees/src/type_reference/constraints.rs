@@ -161,14 +161,11 @@ fn lower_type_constraint_node_with_context(
             typed::types::TypeConstraintNode::Named(crate::lowerer::name::lower_name(name)),
         ),
         resolved::types::TypeConstraint::Domain(domain) => {
-            let arguments = source_trees
-                .tables
-                .declarations
-                .child_type_references
-                .span_or_empty(domain.arguments)
-                .iter()
+            let arguments = domain
+                .arguments
+                .handles()
                 .map(|argument| {
-                    crate::type_reference::lower_type_reference_into_trees_with_exposure(
+                    crate::type_reference::lower_child_type_reference_with_exposure(
                         source_trees,
                         typed_trees,
                         argument,

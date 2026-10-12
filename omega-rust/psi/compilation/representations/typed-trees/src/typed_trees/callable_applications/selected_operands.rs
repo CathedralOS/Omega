@@ -94,6 +94,15 @@ impl TypedTrees {
         &self,
         reference: types::TypeReferenceHandle,
     ) -> Option<numerics::literals::IntegerLiteral> {
+        if self
+            .type_reference_table
+            .completed_const_result(reference)
+            .is_some()
+        {
+            return crate::static_applications::static_const_literal_from_type_reference(
+                self, reference,
+            );
+        }
         match self.type_reference_table.type_reference(reference) {
             types::TypeReferenceNode::ConstExpression(value) => {
                 let expression::ExpressionNode::Integer(literal) =

@@ -296,6 +296,7 @@ pub(crate) fn evaluate(
             .map(|(_, origins)| origins.as_slice());
         let ScalarProbeResult {
             value: result,
+            integer_meaning,
             origins,
             operators,
             selected_matches,
@@ -318,9 +319,14 @@ pub(crate) fn evaluate(
         syntax.type_references.retain_const_argument_normalization(
             argument,
             reference,
-            result.encoding,
+            result.encoding.clone(),
             origins,
             operators,
+        );
+        syntax.type_references.retain_const_argument_result(
+            argument,
+            result.atom(),
+            integer_meaning.source_meaning(),
         );
         syntax
             .type_references
@@ -863,15 +869,16 @@ fn evaluate_probe_internal(
                 .to_owned(),
         );
     }
-    let (value, selected_matches, warnings) = value::evaluate_scalar_with_correspondence(
-        typed,
-        machine,
-        state,
-        *expression,
-        destination,
-        calls.map(|(_, calls)| calls),
-        inputs,
-    )?;
+    let (value, integer_meaning, selected_matches, warnings) =
+        value::evaluate_scalar_with_correspondence(
+            typed,
+            machine,
+            state,
+            *expression,
+            destination,
+            calls.map(|(_, calls)| calls),
+            inputs,
+        )?;
     let selected_matches = retain_original_match_selections(typed, syntax, selected_matches)?;
     if value.type_name() != destination.name() {
         return Err(format!(
@@ -882,6 +889,7 @@ fn evaluate_probe_internal(
     }
     Ok(ScalarProbeResult {
         value,
+        integer_meaning,
         origins,
         operators,
         selected_matches,
@@ -949,6 +957,7 @@ pub(super) fn retain_original_match_selections(
 
 pub(super) struct ScalarProbeResult {
     pub(super) value: value::ScalarValue,
+    pub(super) integer_meaning: typed_trees::types::ConstIntegerMeaning,
     pub(super) origins: Vec<ConstArgumentOrigin>,
     pub(super) operators: Vec<SourceSpan>,
     pub(super) selected_matches: Vec<syntax_trees::types::ConstArgumentMatchSelection>,

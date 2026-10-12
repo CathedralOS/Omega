@@ -9,8 +9,9 @@ pub struct SourceExpression;
 
 pub type ExpressionSourceOrigin = Handle<SourceExpression>;
 
-/// The admitted evaluator's Match result join, independent of the value codec
-/// and of any receiving const slot. Missing formation is never Anonymous.
+/// Integer meaning issued by successful source normalization, including Match
+/// result joins, independently of the value codec and any receiving Const slot.
+/// Missing formation is never Anonymous.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum ConstMatchIntegerMeaning {
     #[default]

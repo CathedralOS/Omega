@@ -1126,15 +1126,16 @@ impl Invocation<'_> {
                 public,
                 syntax,
             )?;
-        let (value, selected_matches, warnings) = value::evaluate_scalar_with_correspondence(
-            typed,
-            self.machine,
-            self.state,
-            expression,
-            destination,
-            Some(self),
-            inputs,
-        )?;
+        let (value, integer_meaning, selected_matches, warnings) =
+            value::evaluate_scalar_with_correspondence(
+                typed,
+                self.machine,
+                self.state,
+                expression,
+                destination,
+                Some(self),
+                inputs,
+            )?;
         let value = value.into_index()?;
         let selected_matches =
             crate::const_evaluation::const_generic_expressions::retain_original_match_selections(
@@ -1144,6 +1145,7 @@ impl Invocation<'_> {
             )?;
         Ok(ApplicationProbeEvaluation {
             value,
+            integer_meaning,
             origins,
             operators,
             calls,
@@ -1233,6 +1235,7 @@ fn result_carriers_match(
 /// the selection custody gathered beside it, the exact transitive call
 /// closure, and any evaluation warnings.
 pub(crate) struct ApplicationProbeEvaluation {
+    pub(crate) integer_meaning: typed_trees::types::ConstIntegerMeaning,
     pub(crate) value: CanonicalConstValue,
     pub(crate) origins: Vec<syntax_trees::types::ConstArgumentOrigin>,
     pub(crate) operators: Vec<source::SourceSpan>,

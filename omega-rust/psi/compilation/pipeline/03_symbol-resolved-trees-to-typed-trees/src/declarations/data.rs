@@ -83,11 +83,8 @@ fn lower_data_definition_contents(
                         .equivalence
                         .as_ref()
                         .map(|selection| {
-                            let trait_arguments = lowerer
-                                .source_trees
-                                .child_type_references(selection.trait_arguments)
-                                .iter()
-                                .map(|argument| lower_type_reference_into_table(lowerer, argument))
+                            let trait_arguments = selection.trait_arguments.handles()
+                                .map(|argument| crate::type_reference::lower_child_type_reference_into_table(lowerer, argument))
                                 .collect::<Result<Vec<_>, _>>()?;
                             Ok::<_, Diagnostic>(typed::data::QuotientEquivalenceSelection {
                                 relation: selection
