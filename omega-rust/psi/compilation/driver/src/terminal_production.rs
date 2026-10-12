@@ -16,6 +16,9 @@ use lowered_psi_to_terminal_psi::{prepare_program_entry_receipt, rejoin_program_
 
 /// Exact borrowed source inputs and target-neutral selection for Terminal production.
 pub struct TerminalProductionRequest<'a> {
+    /// Original successful source input for compilation-local content retention.
+    /// This does not cross the canonical Terminal artifact boundary.
+    pub original_source_input: Option<&'a crate::OriginalCheckedSourceInput>,
     pub checked: &'a CheckedTrees,
     pub exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
     pub machine: TerminalMachineSelection<'a>,
@@ -33,12 +36,23 @@ impl<'a> TerminalProductionRequest<'a> {
         exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
     ) -> Self {
         Self {
+            original_source_input: None,
             checked,
             exact_toolchain_sources,
             machine,
             roots: crate::TerminalProgramRoots::default(),
             optimization_selections: optimization::PsiOptimizationSelections::default(),
         }
+    }
+
+    /// Retain the actual original input beside this production request. It is
+    /// not a certificate that a pruned/lowered artifact contains every input.
+    pub fn with_original_source_input(
+        mut self,
+        input: &'a crate::OriginalCheckedSourceInput,
+    ) -> Self {
+        self.original_source_input = Some(input);
+        self
     }
 
     /// Produce the canonical Terminal artifact beside the custody the caller
