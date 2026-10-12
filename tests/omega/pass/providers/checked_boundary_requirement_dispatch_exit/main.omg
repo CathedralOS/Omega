@@ -1,7 +1,8 @@
 // A public top-level boundary requirement is its own provider slot: the
 // `boundary requirement` form (no operator token, no `operator` introducer)
 // declares the required operation, a checked adapter `satisfies` it, and the
-// unique covering adapter is the declaration-era default. Checking retains
+// Build explicitly selects that adapter for source evaluation and runtime.
+// Checking retains
 // the public requirement contract and the exact ProviderPlan identity;
 // the direct call stays on the requirement through Terminal Psi, and Omega
 // installs the selected adapter; the interpreter dispatches the same row.
