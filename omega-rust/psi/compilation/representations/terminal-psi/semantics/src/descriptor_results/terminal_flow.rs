@@ -7,6 +7,7 @@ use crate::descriptor_lifetimes::{
 pub(super) fn adapt(
     module: &TerminalModule,
     machine: &TerminalMachine,
+    slot_kind: DescriptorSlotKind,
 ) -> Option<DescriptorMachine> {
     let mut graph = DescriptorMachine {
         id: machine.id,
@@ -14,12 +15,13 @@ pub(super) fn adapt(
             .result
             .structural()
             .filter(|result| {
-                replay::descriptor_slots(
-                    &module.structural_types,
-                    result.place,
-                    result.structural_type,
-                )
-                .is_some_and(|slots| !slots.is_empty())
+                slot_kind
+                    .slots(
+                        &module.structural_types,
+                        result.place,
+                        result.structural_type,
+                    )
+                    .is_some_and(|slots| !slots.is_empty())
             })
             .map(|_| Vec::new()),
         places: Vec::new(),
@@ -28,6 +30,7 @@ pub(super) fn adapt(
         flow: BTreeMap::new(),
         originations: BTreeMap::new(),
         projections: BTreeMap::new(),
+        storage_derivations: BTreeSet::new(),
         calls: BTreeMap::new(),
         normal_exits: Vec::new(),
     };
@@ -77,7 +80,9 @@ pub(super) fn adapt(
                 }
                 step.definitions
                     .push(DescriptorLocation::whole(result.place));
-                if !is_shared_descriptor(module.structural_types.iter(), result.structural_type) {
+                if !is_shared_descriptor(module.structural_types.iter(), result.structural_type)
+                    && !slot_kind.is_slot(&module.structural_types, result.structural_type)
+                {
                     graph.originations.entry(position).or_default().push((
                         DescriptorLocation::whole(result.place),
                         DescriptorCallOrigin::Argument {
@@ -94,12 +99,13 @@ pub(super) fn adapt(
                 }
                 OperationKind::EstablishZeroedStructural {} => {
                     let result = result?;
-                    for slot in replay::descriptor_slot_inventory(
-                        &module.structural_types,
-                        result.place,
-                        result.structural_type,
-                    )?
-                    .slots
+                    for slot in slot_kind
+                        .inventory(
+                            &module.structural_types,
+                            result.place,
+                            result.structural_type,
+                        )?
+                        .slots
                     {
                         graph
                             .originations
@@ -130,6 +136,15 @@ pub(super) fn adapt(
                     )?;
                     step.derivations
                         .push((source_location.clone(), destination.clone()));
+                    if slot_kind == DescriptorSlotKind::References
+                        && matches!(operation.kind, OperationKind::EstablishReference { .. })
+                    {
+                        graph.storage_derivations.insert((
+                            position,
+                            source_location.clone(),
+                            destination.clone(),
+                        ));
+                    }
                     let preserves_coordinates = match &operation.kind {
                         terminal_psi::element_view_establish_pair_pattern!(
                             source,
@@ -265,6 +280,10 @@ pub(super) fn adapt(
                                 module.structural_types.iter(),
                                 *graph.place_types.get(&destination.root)?,
                             )
+                            && !slot_kind.is_slot(
+                                &module.structural_types,
+                                *graph.place_types.get(&destination.root)?,
+                            )
                         {
                             graph.originations.entry(position).or_default().push((
                                 destination.clone(),
@@ -275,7 +294,7 @@ pub(super) fn adapt(
                             ));
                         }
                     } else {
-                        step.definitions.extend(replay::descriptor_slots(
+                        step.definitions.extend(slot_kind.slots(
                             &module.structural_types,
                             *destination,
                             *graph.place_types.get(destination)?,
@@ -295,7 +314,7 @@ pub(super) fn adapt(
                         step.derivations
                             .push((DescriptorLocation::whole(*source), destination));
                     } else {
-                        step.definitions.extend(replay::descriptor_slots(
+                        step.definitions.extend(slot_kind.slots(
                             &module.structural_types,
                             *destination,
                             *graph.place_types.get(destination)?,
@@ -336,12 +355,13 @@ pub(super) fn adapt(
                         // payload slots do not exist in this value. Only those
                         // slots have no backing; an unresolved live field stays
                         // unknown and cannot be exported by a result summary.
-                        for slot in replay::descriptor_slot_inventory(
-                            &module.structural_types,
-                            result?.place,
-                            result?.structural_type,
-                        )?
-                        .slots
+                        for slot in slot_kind
+                            .inventory(
+                                &module.structural_types,
+                                result?.place,
+                                result?.structural_type,
+                            )?
+                            .slots
                         {
                             if matches!(slot.path.first(), Some(crate::descriptor_lifetimes::DescriptorPathSegment::Case(case)) if case != result_case)
                             {
@@ -412,12 +432,13 @@ pub(super) fn adapt(
                         arguments.push(argument);
                     }
                     let descriptor_result = result.filter(|result| {
-                        replay::descriptor_slots(
-                            &module.structural_types,
-                            result.place,
-                            result.structural_type,
-                        )
-                        .is_some_and(|slots| !slots.is_empty())
+                        slot_kind
+                            .slots(
+                                &module.structural_types,
+                                result.place,
+                                result.structural_type,
+                            )
+                            .is_some_and(|slots| !slots.is_empty())
                     });
                     if let Some(result) = descriptor_result {
                         let expected = callee.result.structural()?;
@@ -436,7 +457,7 @@ pub(super) fn adapt(
                             .iter()
                             .filter(|actual| actual.access != StructuralAccess::SharedBorrow)
                         {
-                            step.definitions.extend(replay::descriptor_slots(
+                            step.definitions.extend(slot_kind.slots(
                                 &module.structural_types,
                                 actual.place,
                                 *graph.place_types.get(&actual.place)?,
@@ -463,7 +484,7 @@ pub(super) fn adapt(
                             .iter()
                             .filter(|actual| actual.access != StructuralAccess::SharedBorrow)
                         {
-                            step.definitions.extend(replay::descriptor_slots(
+                            step.definitions.extend(slot_kind.slots(
                                 &module.structural_types,
                                 actual.place,
                                 *graph.place_types.get(&actual.place)?,
@@ -574,7 +595,7 @@ pub(super) fn adapt(
                     parameter.access,
                     terminal_psi::exclusive_borrow_pair_pattern!()
                 ) {
-                    step.inputs.extend(replay::descriptor_slots(
+                    step.inputs.extend(slot_kind.slots(
                         &module.structural_types,
                         parameter.place,
                         parameter.structural_type,

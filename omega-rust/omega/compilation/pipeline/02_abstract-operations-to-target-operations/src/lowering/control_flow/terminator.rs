@@ -118,7 +118,10 @@ pub(super) fn plain_home_cleanup(
                 // selected payload has moved; only the checked edge decides
                 // which residents owed disposition. Moved leaves and copied
                 // descriptors retain their metadata at their own homes.
-                live.references.retain(|(carrier, _), _| carrier != place);
+                live.references.retain(|(carrier, path), _| {
+                    carrier != place
+                        || path.contains(&terminal_psi::StructuralPathSegment::Referent)
+                });
             }
             TerminalAffineCleanupAction::DiscardRoot(place) => {
                 if live.views.contains_key(place) {

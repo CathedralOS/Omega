@@ -839,10 +839,9 @@ fn validate_structural_field_range_authority(
             } => {
                 // Check the current store, not merely the original Terminal
                 // write: a rewrite can change its RHS or selected declaration.
-                let (storage_type, storage_path) = if matches!(
-                    path.first(),
-                    Some(terminal_psi::StructuralPathSegment::Referent)
-                ) {
+                let (storage_type, storage_path) = if path
+                    .contains(&terminal_psi::StructuralPathSegment::Referent)
+                {
                     super::references::record_field_destination(
                         function,
                         types,

@@ -2054,7 +2054,47 @@ fn runtime_projection_with_leaf_type(
 /// carrier `path`, its width, and each runtime element of the carrier in
 /// path order. The carrier composes record fields and literal or runtime
 /// elements in any order (`is_structural_scalar_store_path`).
+/// Reconstruct every pointer region before selecting the final scalar field.
+/// The pointer offsets and selector regions survive to instruction selection;
+/// flattening them would write the carrier home instead of its referent.
+pub(crate) fn field_store_geometry(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    field: StructuralFieldId,
+    scalar: ScalarType,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<PrimitiveAccessGeometry> {
+    let regions = storage_projection_regions(root, path, declarations)?;
+    let (byte_offset, byte_size, leaf_elements) = inline_field_store(
+        regions.root,
+        &path[regions.segment_start..],
+        field,
+        scalar,
+        declarations,
+    )?;
+    let mut elements = regions.elements;
+    elements.extend(leaf_elements);
+    Some(PrimitiveAccessGeometry {
+        byte_offset,
+        byte_size,
+        elements,
+        pointer_slots: regions.pointer_slots,
+        uses_borrowed_backing: regions.uses_borrowed_backing,
+    })
+}
+
 pub(crate) fn store(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    field: StructuralFieldId,
+    scalar: ScalarType,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<(u32, u32, Vec<RuntimeElement>)> {
+    let geometry = field_store_geometry(root, path, field, scalar, declarations)?;
+    Some((geometry.byte_offset, geometry.byte_size, geometry.elements))
+}
+
+fn inline_field_store(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
     field: StructuralFieldId,
@@ -2067,29 +2107,6 @@ pub(crate) fn store(
         let (offset, bytes) = case_field_read(root, prefix, *case, field, scalar, declarations)?;
         return Some((offset, bytes, Vec::new()));
     }
-    // The owner retains the reference carrier and explicit crossing. Layout
-    // continues inside its exclusive record referent; this supplies geometry,
-    // never permission or evidence that the carrier is currently live.
-    let (root, path) = if let Some((StructuralPathSegment::Referent, suffix)) = path.split_first() {
-        let StructuralTypeShape::Reference {
-            referent,
-            access:
-                terminal_psi::StructuralAccess::MutableBorrow
-                | terminal_psi::StructuralAccess::WriteOnlyBorrow,
-        } = find_structural_type(declarations, root)?.shape
-        else {
-            return None;
-        };
-        if !declarations
-            .iter()
-            .any(|declaration| declaration.id == referent && declaration.is_record_shape())
-        {
-            return None;
-        }
-        (referent, suffix)
-    } else {
-        (root, path)
-    };
     // The carrier resolver checks each declaration-owned segment, including
     // Case/Field pairs below a selected payload. A second record-only path
     // grammar would reject that same field solely because of its container.

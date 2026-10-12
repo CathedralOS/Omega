@@ -15,7 +15,7 @@
 use std::io::Read;
 use std::sync::{Arc, Mutex};
 
-use runtime_abi::NativeBorrowedStorageLayout;
+use runtime_abi::{DescriptorAbi, DescriptorOperation, NativeBorrowedStorageLayout};
 use semantic_vocabulary::{IntegerValue, ScalarType};
 use target_operations::NormalizedForeignCallBinding;
 use terminal_interpreter::{
@@ -30,19 +30,6 @@ use super::borrowed_storage::{CapturedStorage, StorageTransfer};
 use super::buffered_output::BufferedStreams;
 
 mod admission;
-
-#[derive(Clone, Copy)]
-enum DescriptorOperation {
-    Read,
-    Write,
-}
-
-#[derive(Clone, Copy)]
-enum DescriptorAbi {
-    WindowsCrt,
-    DarwinLibSystem,
-    LinuxKernel,
-}
 
 enum DescriptorBuffer {
     Scalar(ScalarType),

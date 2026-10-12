@@ -260,14 +260,19 @@ pub(super) fn referent_projection<'path>(
     path: &'path [StructuralPathSegment],
     required_access: StructuralAccess,
 ) -> Option<(StructuralTypeId, &'path [StructuralPathSegment])> {
-    let (StructuralPathSegment::Referent, suffix) = path.split_first()? else {
-        return None;
-    };
-    // The storage query admits the complete suffix. Selector presence does
-    // not change the carrier's required pointer crossing.
+    let crossing = path
+        .iter()
+        .rposition(|segment| *segment == StructuralPathSegment::Referent)?;
     let structural_type =
         if let Some((_, result)) = super::aggregate_result_input::home(function, place) {
-            carrier_referent(function, result)?;
+            if result.multiplicity != StructuralMultiplicity::Affine
+                || !result.qualifications.is_empty()
+                || !result.projected_qualifications.is_empty()
+                || !result.qualification_establishments.is_empty()
+                || !result.claims.is_empty()
+            {
+                return None;
+            }
             result.structural_type
         } else {
             let (_, parameter) = super::aggregate_result_input::block_home(function, place)?;
@@ -279,21 +284,13 @@ pub(super) fn referent_projection<'path>(
             }
             parameter.structural_type
         };
-    let StructuralTypeShape::Reference { referent, access } = terminal_psi::find_structural_type(
-        &function.structural.as_ref()?.structural_types,
+    let projection = crate::structural_inputs::structural_reference_input::reference_projection(
         structural_type,
-    )?
-    .shape
-    else {
-        return None;
-    };
-    (access == required_access
-        || access == StructuralAccess::MutableBorrow
-            && matches!(
-                required_access,
-                StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
-            ))
-    .then_some((referent, suffix))
+        &path[..=crossing],
+        required_access,
+        &function.structural.as_ref()?.structural_types,
+    )?;
+    Some((projection.selected, &path[crossing + 1..]))
 }
 
 pub(super) fn store_destination<'path>(

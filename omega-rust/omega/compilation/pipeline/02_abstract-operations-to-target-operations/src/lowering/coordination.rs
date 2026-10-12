@@ -125,6 +125,13 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
         &plan.boundary_machines,
         &structural_types,
     );
+    let stored_reference_effects = super::control_flow::references::stored_effect_catalog(
+        &functions_by_machine,
+        &plan.boundary_machines,
+        &structural_types,
+        &installed_by_call,
+        &settlements_by_boundary,
+    );
     let target_plan = TargetOperationPlan {
         psi: plan.psi,
         target,
@@ -146,6 +153,7 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
                         .get(&function.machine)
                         .cloned()
                         .unwrap_or_default(),
+                    stored_reference_effects.clone(),
                     &scalar_abis,
                     &structural_types,
                     &boundary_machines,

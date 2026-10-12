@@ -6,7 +6,7 @@
 use super::{
     Custody, Leaf, LegalizationError, OperationId, PlaceId, PsiOptimizationFunction, Root,
     StructuralAccess, StructuralOperationResult, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeId, invalid, leaf_referent,
+    StructuralTypeId, invalid, leaf_referent, owned_relative_path,
 };
 use semantic_vocabulary::{BlockId, StructuralPlaceKind};
 use std::collections::{BTreeMap, BTreeSet};
@@ -258,7 +258,7 @@ pub(super) fn re_home_bound_leaves(
             if source.0 != binding.argument.place {
                 continue;
             }
-            let Some(relative) = source.1.strip_prefix(binding.argument.path.as_slice()) else {
+            let Some(relative) = owned_relative_path(&source.1, &binding.argument.path) else {
                 continue;
             };
             let destination = (parameter.place, relative.to_vec());

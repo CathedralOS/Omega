@@ -175,6 +175,13 @@ pub(super) fn lower_call(
     // their ownership; commit the native metadata move only after every
     // operand has retained its exact storage and ABI placement.
     let moved = super::references::moved_argument_leaves(live, call.structural_arguments);
+    let stored = super::references::stage_stored_effects(
+        function,
+        callee_function,
+        types,
+        live,
+        call.structural_arguments,
+    )?;
     let scalar_arguments = call
         .scalar_arguments
         .iter()
@@ -224,6 +231,7 @@ pub(super) fn lower_call(
         types,
         live,
     )?;
+    super::references::commit_stored_effects(live, stored);
     operations.push(TargetUnitOperation::Call {
         origin: target_operations::NativeCallOrigin::Authored,
         psi_operation: call.psi_operation,

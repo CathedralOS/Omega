@@ -344,7 +344,7 @@ mod cleanup_tests {
         let structural_type = StructuralTypeId::new(1).unwrap();
         let structural_types = vec![StructuralTypeDeclaration {
             no_code_affine_cleanup: false,
-            shared_descriptor_cleanup: false,
+            descriptor_cleanup: false,
             scalar_restriction: None,
             id: structural_type,
             identity: terminal_psi::TerminalIdentityIndex(1),

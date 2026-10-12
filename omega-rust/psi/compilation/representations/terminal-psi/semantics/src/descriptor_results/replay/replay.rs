@@ -22,6 +22,7 @@ pub(super) struct Summary {
 }
 pub(super) struct Replay<'a> {
     pub(super) types: &'a [StructuralTypeDeclaration],
+    pub(super) slot_kind: DescriptorSlotKind,
     pub(super) machines: &'a [DescriptorMachine],
     pub(super) summaries: BTreeMap<MachineId, Option<Summary>>,
     pub(super) snapshots: BTreeMap<MachineId, Option<States>>,
@@ -31,8 +32,16 @@ impl<'a> Replay<'a> {
         types: &'a [StructuralTypeDeclaration],
         machines: &'a [DescriptorMachine],
     ) -> Self {
+        Self::with_slot_kind(types, machines, DescriptorSlotKind::SharedViews)
+    }
+    pub(super) fn with_slot_kind(
+        types: &'a [StructuralTypeDeclaration],
+        machines: &'a [DescriptorMachine],
+        slot_kind: DescriptorSlotKind,
+    ) -> Self {
         Self {
             types,
+            slot_kind,
             machines,
             summaries: BTreeMap::new(),
             snapshots: BTreeMap::new(),
@@ -207,7 +216,7 @@ impl<'a> Replay<'a> {
         let mut state = State::new();
         for row in &machine.places {
             state.insert(DescriptorLocation::whole(row.place), None);
-            let inventory = descriptor_slot_inventory(
+            let inventory = self.slot_kind.inventory(
                 self.types,
                 row.place,
                 *machine.place_types.get(&row.place)?,
@@ -226,7 +235,11 @@ impl<'a> Replay<'a> {
                 {
                     continue;
                 }
-                let origin = if is_shared_descriptor(self.types.iter(), structural_type) {
+                let origin = if self.slot_kind == DescriptorSlotKind::References
+                    && self.slot_kind.is_slot(self.types, structural_type)
+                {
+                    Origin::Incoming(DescriptorLocation::whole(row.place))
+                } else if is_shared_descriptor(self.types.iter(), structural_type) {
                     Origin::Backing(DescriptorCallOrigin::Argument {
                         source: row.place,
                         projection: Projection::new(&[]),
@@ -325,6 +338,30 @@ impl<'a> Replay<'a> {
                     .projections
                     .get(&(position, source.clone(), destination.clone()))
             });
+            if position.is_some_and(|position| {
+                machine.storage_derivations.contains(&(
+                    position,
+                    source.clone(),
+                    destination.clone(),
+                ))
+            }) {
+                // Borrowing a pointer slot captures its address. Loading or
+                // moving that slot instead captures the pointer it contains.
+                // Referent reads subsequently follow this storage alias, so
+                // copying descendants into the pointer's own carrier would
+                // both duplicate and misplace their contents.
+                let storage = self.canonical_storage(machine, before, source)?;
+                merge_value(
+                    &mut assigned,
+                    canonical(destination)?,
+                    self.project(
+                        machine,
+                        Some(BTreeSet::from([Origin::Storage(storage)])),
+                        projection,
+                    ),
+                );
+                continue;
+            }
             let value = self.project(machine, self.read(machine, before, source), projection);
             let destination = canonical(destination)?;
             merge_value(&mut assigned, destination.clone(), value);
@@ -568,7 +605,9 @@ impl<'a> Replay<'a> {
                     return None;
                 }
                 result_type = Some(structural_type);
-                let returned = descriptor_slots(self.types, location.root, structural_type)?;
+                let returned = self
+                    .slot_kind
+                    .slots(self.types, location.root, structural_type)?;
                 let accumulated = slots.get_or_insert_with(|| {
                     returned
                         .iter()
@@ -609,21 +648,27 @@ impl<'a> Replay<'a> {
             else {
                 continue;
             };
-            if !matches!(access, terminal_psi::exclusive_borrow_pair_pattern!())
-                && !matches!(
-                    find_structural_type(self.types, structural_type)?.shape,
-                    StructuralTypeShape::Reference {
-                        access: terminal_psi::exclusive_borrow_pair_pattern!(),
-                        ..
-                    }
-                )
-            {
-                continue;
-            }
-            for slot in descriptor_slots(self.types, row.place, structural_type)?
-                .into_iter()
-                .filter(|slot| !slot.path.is_empty())
-            {
+            let slots = if self.slot_kind == DescriptorSlotKind::References {
+                writable_reference_slots(self.types, row.place, structural_type, access)?
+            } else {
+                if !matches!(access, terminal_psi::exclusive_borrow_pair_pattern!())
+                    && !matches!(
+                        find_structural_type(self.types, structural_type)?.shape,
+                        StructuralTypeShape::Reference {
+                            access: terminal_psi::exclusive_borrow_pair_pattern!(),
+                            ..
+                        }
+                    )
+                {
+                    continue;
+                }
+                self.slot_kind
+                    .slots(self.types, row.place, structural_type)?
+                    .into_iter()
+                    .filter(|slot| !slot.path.is_empty())
+                    .collect()
+            };
+            for slot in slots {
                 let mut origins = BTreeSet::new();
                 for exit in &machine.normal_exits {
                     if let Some(state) = states.get(exit) {

@@ -38,6 +38,9 @@ mod selection;
 mod structural_inputs;
 
 // The stage entry and its custody join.
+pub use abstract_operations_to_target_operations::{
+    DescriptorInputGuard, descriptor_input_guard_for_call,
+};
 pub use optimized::{
     OptimizedSelectionPipelineError, StagedOptimizedSelectedInstructions,
     StagedOptimizedSelectionCustodyReceipt, stage_optimized_instruction_selection,

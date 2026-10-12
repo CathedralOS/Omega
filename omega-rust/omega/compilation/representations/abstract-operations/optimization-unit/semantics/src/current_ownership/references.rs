@@ -36,6 +36,7 @@ pub enum CallRegion {
 }
 
 mod access_paths;
+pub(super) mod call_effects;
 mod windows;
 use access_paths::{access_reference_custody, call_dependency_conflict};
 
@@ -91,6 +92,81 @@ fn invalid(
         node,
         reason,
     }
+}
+
+/// Whether a selected carrier owns this resident; crossing a pointer selects
+/// external storage whose descriptors do not move or retire with that carrier.
+pub(super) fn owned_resident(
+    path: &[terminal_psi::StructuralPathSegment],
+    prefix: &[terminal_psi::StructuralPathSegment],
+) -> bool {
+    path.strip_prefix(prefix)
+        .is_some_and(|suffix| !suffix.contains(&terminal_psi::StructuralPathSegment::Referent))
+}
+
+/// A surviving permission prevents moving its actual owned backing, not the
+/// pointer carrier whose ingress coordinate names external storage.
+pub(super) fn borrows_owned_storage(
+    function: &PsiOptimizationFunction,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    reference: &LiveReference,
+    place: PlaceId,
+) -> bool {
+    let ingress = |identity: ReferenceIdentity| {
+        if identity.place != place {
+            return false;
+        }
+        let expected =
+            structural_source_contract(function, reference.carrier).and_then(|signature| {
+                leaf_referent(types, signature.structural_type, &reference.carrier_path)
+            });
+        expected
+            .and_then(|expected| storage_cursor(function, types, identity, expected))
+            .is_none_or(|cursor| owned_resident(&cursor.path, &[]))
+    };
+    match &reference.root {
+        ReferenceOrigin::Primitive(root) => *root == place,
+        ReferenceOrigin::IngressLeaf(identity) => ingress(identity.clone()),
+        ReferenceOrigin::Alternatives { place: root, paths } => paths.iter().any(|path| {
+            ingress(ReferenceIdentity {
+                place: *root,
+                path: path.clone(),
+            })
+        }),
+    }
+}
+
+/// Convert logical ingress custody to a typed storage cursor without changing
+/// its permission identity or inventing any pointee descriptor at entry.
+fn storage_cursor(
+    function: &PsiOptimizationFunction,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    mut identity: ReferenceIdentity,
+    expected: StructuralTypeId,
+) -> Option<ReferenceIdentity> {
+    let signature = structural_source_contract(function, identity.place)?;
+    let selected = leaf_type(types, signature.structural_type, &identity.path)?;
+    if selected != expected {
+        let parameter = function.structural_parameter(identity.place)?;
+        if parameter.structural_type != signature.structural_type
+            || identity.path.iter().any(|segment| {
+                !matches!(
+                    segment,
+                    terminal_psi::StructuralPathSegment::Field(_)
+                        | terminal_psi::StructuralPathSegment::Case(_)
+                        | terminal_psi::StructuralPathSegment::FixedIndex(_)
+                )
+            })
+            || !matches!(types.get(&selected).map(|declaration| &declaration.shape),
+                Some(terminal_psi::StructuralTypeShape::Reference { referent, .. }) if *referent == expected)
+        {
+            return None;
+        }
+        identity
+            .path
+            .push(terminal_psi::StructuralPathSegment::Referent);
+    }
+    Some(identity)
 }
 
 /// Seed one ingress leaf per reference leaf of each reference-bearing entry
@@ -636,7 +712,7 @@ pub(super) fn discard_subtree(
     }
     if live.iter().any(|reference| {
         reference.carrier == source
-            && reference.carrier_path.starts_with(prefix)
+            && owned_resident(&reference.carrier_path, prefix)
             && !released_paths.contains(&reference.carrier_path)
     }) {
         return Err(invalid_discard());
@@ -781,7 +857,7 @@ fn establish_constructor<'a>(
         }
         if live.iter().enumerate().any(|(position, reference)| {
             reference.carrier == argument.place
-                && reference.carrier_path.starts_with(&argument.path)
+                && owned_resident(&reference.carrier_path, &argument.path)
                 && !moved.contains(&position)
         }) {
             return Err(invalid(
@@ -812,6 +888,7 @@ pub(super) fn apply_operation(
     functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     borrowed_sources: &BorrowedReferenceSources,
+    call_effects: &call_effects::ReferenceCallEffects,
     block: BlockId,
     node: u32,
     operation: &O,
@@ -1330,7 +1407,10 @@ pub(super) fn apply_operation(
                     && reference
                         .carrier_path
                         .strip_prefix(path.as_slice())
-                        .is_some_and(|relative| !paths.iter().any(|expected| expected == relative))
+                        .is_some_and(|relative| {
+                            !relative.contains(&terminal_psi::StructuralPathSegment::Referent)
+                                && !paths.iter().any(|expected| expected == relative)
+                        })
             }) {
                 return Err(invalid(
                     function,
@@ -1439,7 +1519,7 @@ pub(super) fn apply_operation(
                     .iter()
                     .filter(|reference| {
                         reference.carrier == argument.place
-                            && reference.carrier_path.starts_with(&argument.path)
+                            && owned_resident(&reference.carrier_path, &argument.path)
                     })
                     .count()
             {
@@ -1456,7 +1536,7 @@ pub(super) fn apply_operation(
             });
             if live.iter().any(|reference| {
                 !(reference.carrier == argument.place
-                    && reference.carrier_path.starts_with(&argument.path))
+                    && owned_resident(&reference.carrier_path, &argument.path))
                     && origins_overlap(&storage, &reference.root)
             }) {
                 return Err(invalid(
@@ -1473,6 +1553,12 @@ pub(super) fn apply_operation(
                 Vec::new(),
                 argument_position,
             ));
+            // Write-only access lends these carrier bytes, without lending the
+            // permissions stored inside them. Their children keep the backing
+            // they captured even when the callee replaces the descriptors.
+            if argument.access == StructuralAccess::WriteOnlyBorrow {
+                continue;
+            }
             for path in paths {
                 let permission = leaf_type(structural_types, projected_type.id, &path)
                     .and_then(|leaf| reference_access(structural_types, leaf))
@@ -1607,6 +1693,17 @@ pub(super) fn apply_operation(
             ));
         }
     }
+    let stored = call_effects.stage(
+        function,
+        functions,
+        structural_types,
+        borrowed_sources,
+        block,
+        node,
+        operation,
+        live,
+        &moved,
+    )?;
     let sources = match operation {
         O::EstablishReference { source, .. } => {
             let transferred = transferred_ingress_leaf(function, structural_types, live, source);
@@ -1834,6 +1931,7 @@ pub(super) fn apply_operation(
     } else {
         live.retain(|reference| !moved.contains(&reference.identity));
     }
+    stored.commit(function, structural_types, block, node, live)?;
     Ok(())
 }
 
@@ -1866,9 +1964,9 @@ pub(super) fn transferred_ingress_leaf(
     if paths.as_slice() != [path.to_vec()] {
         return None;
     }
-    let mut leaves = live
-        .iter()
-        .filter(|reference| reference.carrier == source.place);
+    let mut leaves = live.iter().filter(|reference| {
+        reference.carrier == source.place && owned_resident(&reference.carrier_path, &[])
+    });
     let leaf = leaves.next()?;
     (leaves.next().is_none()
         && leaf.carrier_path == path
@@ -1982,7 +2080,9 @@ pub(super) fn transfer_return(
     if signature.structural_type != result.structural_type
         || live
             .iter()
-            .filter(|reference| reference.carrier == source)
+            .filter(|reference| {
+                reference.carrier == source && owned_resident(&reference.carrier_path, &[])
+            })
             .count()
             != result.reference_sources.len()
     {
@@ -2039,7 +2139,9 @@ pub(super) fn transfer_return(
     }
     // This removes frame-local ownership rows, not the referents or the loans.
     // The caller independently instantiates the checked result source roster.
-    live.retain(|reference| reference.carrier != source);
+    live.retain(|reference| {
+        reference.carrier != source || !owned_resident(&reference.carrier_path, &[])
+    });
     Ok(true)
 }
 
@@ -2073,11 +2175,12 @@ pub(super) fn validate_return_coverage(
     Ok(())
 }
 
-/// Normal completion restores the exact borrowed ingress roster while closing
-/// every local or owned permission. Reconstruct entry custody independently.
+/// Normal completion accounts for independently reconstructed stored effects,
+/// restores untouched borrowed ingress, and closes every local permission.
 pub(super) fn validate_normal_return(
     function: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    effects: &call_effects::ReferenceCallEffects,
     block: BlockId,
     live: &[LiveReference],
 ) -> Result<(), OptimizationUnitValidationError> {
@@ -2087,8 +2190,8 @@ pub(super) fn validate_normal_return(
             parameter.place == reference.carrier && parameter.access != StructuralAccess::Owned
         })
     });
+    let mut ordered = effects.remaining_at_return(function, types, block, &mut expected, live)?;
     expected.sort_by(|left, right| left.identity.cmp(&right.identity));
-    let mut ordered = live.iter().collect::<Vec<_>>();
     ordered.sort_by(|left, right| left.identity.cmp(&right.identity));
     if expected.len() == ordered.len()
         && expected

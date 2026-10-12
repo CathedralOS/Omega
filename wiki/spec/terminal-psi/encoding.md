@@ -610,7 +610,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 148 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 149 + `u16` vocabulary
 marker 123 + the entry machine id, followed by the module's counted tables in
 the declaration order below and ending with boundary-application candidates.
 

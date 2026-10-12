@@ -10,6 +10,7 @@ pub(super) fn loans(
     machine_symbol: symbols::SymbolHandle,
     statement: &checked_trees::statement::StatementNode,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    loan_trackers: &[super::StateLoanTracker],
 ) -> Vec<StatementBorrowLoan> {
     let Some(machine) = program.machine(machine_symbol) else {
         return Vec::new();
@@ -25,26 +26,50 @@ pub(super) fn loans(
             let owner = effect.destination.local_symbol;
             let owner_path =
                 owner_path_from_place_segments(program, &effect.destination.local_segments);
-            effect
-                .sources
-                .into_iter()
-                .map(move |source| StatementBorrowLoan {
+            effect.sources.into_iter().map(move |source| {
+                let backing = source.backing;
+                let captured = super::call_views::rebase_borrow_places_through_local_loans(
+                    program,
+                    checked_trees::CapturedPlace {
+                        incoming_reference: Default::default(),
+                        root: facts::PlaceRoot::Symbol(source.carrier_symbol),
+                        segments: source.carrier_segments,
+                    },
+                    loan_trackers,
+                );
+                let mut matching = captured.iter().filter(|candidate| {
+                    candidate.place.root == facts::PlaceRoot::Symbol(backing.root)
+                        && candidate.place.segments == backing.segments
+                });
+                let supplying = match (matching.next(), matching.next()) {
+                    (Some(supplying), None) => Some(supplying),
+                    _ => None,
+                };
+                // Provenance alone cannot select a convenient same-backing
+                // loan. Only the exact actual carrier supplies transfer
+                // authority; otherwise retain the backing conflict without
+                // inventing a parent.
+                StatementBorrowLoan {
                     formation_expression: Default::default(),
                     owner_symbol: owner,
                     storage_owner: facts::PlaceRoot::Symbol(owner),
                     owner_name: program.symbols.name(owner).into(),
                     owner_path: owner_path.clone(),
                     place: checked_trees::CapturedPlace {
-                        incoming_reference: Default::default(),
-                        root: facts::PlaceRoot::Symbol(source.root),
-                        segments: source.segments,
+                        incoming_reference: supplying
+                            .map_or(Default::default(), |source| source.place.incoming_reference),
+                        root: facts::PlaceRoot::Symbol(backing.root),
+                        segments: backing.segments,
                     },
-                    source_owner_symbol: source.root,
-                    supplying_loan: Default::default(),
+                    source_owner_symbol: supplying
+                        .map_or(Default::default(), |source| source.source_owner_symbol),
+                    supplying_loan: supplying
+                        .map_or(Default::default(), |source| source.parent_loan),
                     lineage: checked_trees::BorrowLoanLineage::UnretainedDerived,
-                    kind: checked_trees::BorrowAccessKind::Read,
+                    kind: super::borrow_access_kind(effect.access),
                     call_result: true,
-                })
+                }
+            })
         })
         .collect()
 }

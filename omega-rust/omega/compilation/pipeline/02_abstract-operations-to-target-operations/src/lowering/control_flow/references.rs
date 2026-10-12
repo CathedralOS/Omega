@@ -831,6 +831,9 @@ mod copies;
 pub(super) use copies::copied_leaves;
 mod arrivals;
 pub(super) use arrivals::merge_arrivals;
+mod stored_calls;
+pub(in crate::lowering) use stored_calls::{StoredEffectCatalog, catalog as stored_effect_catalog};
+pub(super) use stored_calls::{commit as commit_stored_effects, stage as stage_stored_effects};
 
 /// Transport existing descriptor metadata for owned call operands. Psi owns
 /// whether these operands may move or alias; native lowering needs only the
@@ -852,7 +855,11 @@ pub(super) fn moved_argument_leaves(
             continue;
         }
         for ((carrier, path), leaf) in &live.references {
-            if *carrier == argument.place && path.starts_with(&argument.path) {
+            if *carrier == argument.place
+                && path
+                    .strip_prefix(argument.path.as_slice())
+                    .is_some_and(|relative| !relative.contains(&StructuralPathSegment::Referent))
+            {
                 moved.insert((*carrier, path.clone()), leaf.clone());
             }
         }
@@ -1008,8 +1015,12 @@ pub(super) fn discard_subtree(
     }
     // Cleanup disposes the metadata actually resident in this subtree. A
     // constructor need not supply descriptors for its inactive alternatives.
-    live.references
-        .retain(|(carrier, path), _| *carrier != source || !path.starts_with(prefix));
+    live.references.retain(|(carrier, path), _| {
+        *carrier != source
+            || !path
+                .strip_prefix(prefix)
+                .is_some_and(|relative| !relative.contains(&StructuralPathSegment::Referent))
+    });
     Ok(true)
 }
 
@@ -1112,6 +1123,9 @@ pub(super) fn subtree_leaves(
         let Some(path) = source_path.strip_prefix(argument.path.as_slice()) else {
             continue;
         };
+        if path.contains(&StructuralPathSegment::Referent) {
+            continue;
+        }
         if transfers_storage {
             moved.insert((*carrier, source_path.clone()));
         }

@@ -12,6 +12,16 @@ impl<'a> DescriptorAnalysis<'a> {
             replay: Replay::new(types, machines),
         }
     }
+    /// Ordinary reference-slot contents use the same replay without adopting
+    /// shared-view copy or observation rules. Pair with a reference-slot graph.
+    pub fn with_reference_slots(
+        types: &'a [StructuralTypeDeclaration],
+        machines: &'a [DescriptorMachine],
+    ) -> Self {
+        Self {
+            replay: Replay::with_slot_kind(types, machines, DescriptorSlotKind::References),
+        }
+    }
     pub(in crate::descriptor_results) fn compatibility_machines(&self) -> &[DescriptorMachine] {
         self.replay.machines
     }
@@ -28,7 +38,11 @@ impl<'a> DescriptorAnalysis<'a> {
         let (_, access, ty) = self.replay.parameter(machine, location.root)?;
         if location.path.is_empty()
             || access == StructuralAccess::WriteOnlyBorrow
-            || !descriptor_slots(self.replay.types, location.root, ty)?.contains(location)
+            || !self
+                .replay
+                .slot_kind
+                .slots(self.replay.types, location.root, ty)?
+                .contains(location)
         {
             return None;
         }
@@ -51,7 +65,9 @@ impl<'a> DescriptorAnalysis<'a> {
         // Reuse the catalog walker to reject recursive/ambiguous structural
         // declarations. With finite array extents, every accepted static path
         // then belongs to a finite universe; relation closure needs no row cap.
-        descriptor_slots(self.replay.types, *source, ty)?;
+        self.replay
+            .slot_kind
+            .slots(self.replay.types, *source, ty)?;
         if *projection != Projection::new(&projection.path) {
             return None;
         }
@@ -145,7 +161,12 @@ impl<'a> DescriptorAnalysis<'a> {
         let exported = match origin {
             DescriptorSourceOrigin::IncomingSlot(location) => {
                 let (position, _, ty) = self.replay.parameter(callee, location.root)?;
-                if !descriptor_slots(self.replay.types, location.root, ty)?.contains(location) {
+                if !self
+                    .replay
+                    .slot_kind
+                    .slots(self.replay.types, location.root, ty)?
+                    .contains(location)
+                {
                     return None;
                 }
                 DescriptorStoredOrigin::IncomingSlot {

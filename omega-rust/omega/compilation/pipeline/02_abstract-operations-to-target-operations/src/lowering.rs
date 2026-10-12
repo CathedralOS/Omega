@@ -4,6 +4,7 @@ mod borrowed_storage;
 mod boundary_settlements;
 mod control_flow;
 mod coordination;
+pub(crate) mod descriptor_input_guard;
 mod function;
 mod function_signature;
 pub(crate) mod model;

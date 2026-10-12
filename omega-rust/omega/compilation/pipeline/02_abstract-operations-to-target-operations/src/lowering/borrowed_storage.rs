@@ -37,31 +37,44 @@ pub(super) fn capture(plan: &AbstractOperationPlan) -> Vec<NativeBorrowedStorage
         .collect();
     requested
         .into_iter()
-        .filter_map(|root| {
-            let shape = structural_layout::structural_shape(
-                root,
-                &declarations,
-                &mut BTreeMap::new(),
-                &mut BTreeSet::new(),
-            )
-            .ok()?;
-            let mut recipes = StorageRecipes {
-                declarations: &declarations,
-                fields: Vec::new(),
-                discriminators: Vec::new(),
-                opaque_regions: Vec::new(),
-            };
-            recipes.collect(root, 0, None, &mut Vec::new(), &mut Vec::new())?;
-            Some(NativeBorrowedStorageLayout::new(
-                root,
-                shape.byte_size,
-                shape.alignment,
-                recipes.fields,
-                recipes.discriminators,
-                recipes.opaque_regions,
-            ))
-        })
+        .filter_map(|root| capture_declared_type(root, &declarations))
         .collect()
+}
+
+pub(super) fn capture_type(
+    root: StructuralTypeId,
+    types: &[StructuralTypeDeclaration],
+) -> Option<NativeBorrowedStorageLayout> {
+    let declarations = types.iter().map(|row| (row.id, row)).collect();
+    capture_declared_type(root, &declarations)
+}
+
+fn capture_declared_type(
+    root: StructuralTypeId,
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Option<NativeBorrowedStorageLayout> {
+    let shape = structural_layout::structural_shape(
+        root,
+        declarations,
+        &mut BTreeMap::new(),
+        &mut BTreeSet::new(),
+    )
+    .ok()?;
+    let mut recipes = StorageRecipes {
+        declarations,
+        fields: Vec::new(),
+        discriminators: Vec::new(),
+        opaque_regions: Vec::new(),
+    };
+    recipes.collect(root, 0, None, &mut Vec::new(), &mut Vec::new())?;
+    Some(NativeBorrowedStorageLayout::new(
+        root,
+        shape.byte_size,
+        shape.alignment,
+        recipes.fields,
+        recipes.discriminators,
+        recipes.opaque_regions,
+    ))
 }
 
 type Field = (

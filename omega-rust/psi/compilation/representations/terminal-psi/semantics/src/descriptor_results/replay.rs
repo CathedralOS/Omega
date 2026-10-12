@@ -164,6 +164,7 @@ pub(super) fn call_origins(
 }
 
 fn may_contain_descriptor(
+    kind: DescriptorSlotKind,
     types: &[StructuralTypeDeclaration],
     ty: StructuralTypeId,
     active: &mut BTreeSet<StructuralTypeId>,
@@ -177,12 +178,15 @@ fn may_contain_descriptor(
     let mut fields_contain = |fields: &[terminal_psi::StructuralFieldDeclaration]| {
         fields.iter().any(|field| match field.field_type {
             terminal_psi::StructuralFieldType::Structural(ty) => {
-                may_contain_descriptor(types, ty, active)
+                may_contain_descriptor(kind, types, ty, active)
             }
-            _ => field
-                .field_type
-                .byte_sequence_carrier()
-                .is_some_and(|carrier| carrier.is_shared_readable_view()),
+            _ => {
+                kind == DescriptorSlotKind::SharedViews
+                    && field
+                        .field_type
+                        .byte_sequence_carrier()
+                        .is_some_and(|carrier| carrier.is_shared_readable_view())
+            }
         })
     };
     let contains = match &declaration.shape {
@@ -192,15 +196,115 @@ fn may_contain_descriptor(
         }
         StructuralTypeShape::Sum { cases } => cases.iter().any(|case| fields_contain(&case.fields)),
         StructuralTypeShape::Reference { referent, .. } => {
-            may_contain_descriptor(types, *referent, active)
+            kind == DescriptorSlotKind::References
+                || may_contain_descriptor(kind, types, *referent, active)
         }
         StructuralTypeShape::FixedArray { element, .. } => {
-            may_contain_descriptor(types, *element, active)
+            may_contain_descriptor(kind, types, *element, active)
         }
-        _ => is_shared_descriptor(types.iter(), ty),
+        _ => kind.is_slot(types, ty),
     };
     active.remove(&ty);
     contains
+}
+
+/// Independent inventories for view backing and ordinary pointer custody.
+/// Neither inventory grants copyability, observation, or access authority.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DescriptorSlotKind {
+    SharedViews,
+    References,
+}
+impl DescriptorSlotKind {
+    pub fn is_slot(self, types: &[StructuralTypeDeclaration], ty: StructuralTypeId) -> bool {
+        match self {
+            Self::SharedViews => is_shared_descriptor(types.iter(), ty),
+            Self::References => find_structural_type(types, ty).is_some_and(|declaration| {
+                matches!(declaration.shape, StructuralTypeShape::Reference { .. })
+            }),
+        }
+    }
+    pub fn slots(
+        self,
+        types: &[StructuralTypeDeclaration],
+        root: PlaceId,
+        structural_type: StructuralTypeId,
+    ) -> Option<Vec<DescriptorLocation>> {
+        let inventory = self.inventory(types, root, structural_type)?;
+        inventory
+            .opaque_referents
+            .is_empty()
+            .then_some(inventory.slots)
+    }
+    pub fn inventory(
+        self,
+        types: &[StructuralTypeDeclaration],
+        root: PlaceId,
+        structural_type: StructuralTypeId,
+    ) -> Option<DescriptorSlotInventory> {
+        slot_inventory(self, types, root, structural_type)
+    }
+}
+
+/// Pointer slots whose storage a parameter can replace outside its owned
+/// carrier. Owned aggregates may lend external storage through reference fields;
+/// an outer ownership mode alone cannot classify their stored effects.
+pub fn writable_reference_slots(
+    types: &[StructuralTypeDeclaration],
+    root: PlaceId,
+    structural_type: StructuralTypeId,
+    access: StructuralAccess,
+) -> Option<Vec<DescriptorLocation>> {
+    // Shared carrier access cannot acquire stronger permission by reading an
+    // embedded exclusive pointer. Its unavailable pointee layout is irrelevant
+    // to pointer-slot writes, even for an open or growing recursive schema.
+    if access == StructuralAccess::SharedBorrow {
+        return Some(Vec::new());
+    }
+    let inventory = DescriptorSlotKind::References.inventory(types, root, structural_type)?;
+    let writable = |path: &[DescriptorPathSegment]| -> Option<bool> {
+        let mut external = access != StructuralAccess::Owned;
+        let mut permission = access;
+        for (index, segment) in path.iter().enumerate() {
+            if *segment == DescriptorPathSegment::Referent {
+                // A write-only carrier may replace its resident pointer, but
+                // cannot read that pointer to reach another storage region.
+                if matches!(
+                    permission,
+                    StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
+                ) {
+                    return Some(false);
+                }
+                let ty = crate::descriptor_lifetimes::descriptor_location_type(
+                    types,
+                    structural_type,
+                    &path[..index],
+                )?;
+                let StructuralTypeShape::Reference { access, .. } =
+                    find_structural_type(types, ty)?.shape
+                else {
+                    return None;
+                };
+                external = true;
+                permission = access;
+            }
+        }
+        Some(external && matches!(permission, terminal_psi::exclusive_borrow_pair_pattern!()))
+    };
+    // Only an inaccessible/read-only opaque subtree can be ignored. Unknown
+    // storage reachable with write authority still prevents a complete effect.
+    for opaque in inventory.opaque_referents {
+        if writable(&opaque.path)? {
+            return None;
+        }
+    }
+    let mut slots = Vec::new();
+    for slot in inventory.slots {
+        if writable(&slot.path)? {
+            slots.push(slot);
+        }
+    }
+    Some(slots)
 }
 
 /// Materialized descriptor slots and referent subtrees whose layout is not
@@ -219,11 +323,7 @@ pub fn descriptor_slots(
     root: PlaceId,
     structural_type: StructuralTypeId,
 ) -> Option<Vec<DescriptorLocation>> {
-    let inventory = descriptor_slot_inventory(types, root, structural_type)?;
-    inventory
-        .opaque_referents
-        .is_empty()
-        .then_some(inventory.slots)
+    DescriptorSlotKind::SharedViews.slots(types, root, structural_type)
 }
 
 /// Inventory known slots without letting an unrelated opaque pointer erase
@@ -233,7 +333,17 @@ pub fn descriptor_slot_inventory(
     root: PlaceId,
     structural_type: StructuralTypeId,
 ) -> Option<DescriptorSlotInventory> {
+    DescriptorSlotKind::SharedViews.inventory(types, root, structural_type)
+}
+
+fn slot_inventory(
+    kind: DescriptorSlotKind,
+    types: &[StructuralTypeDeclaration],
+    root: PlaceId,
+    structural_type: StructuralTypeId,
+) -> Option<DescriptorSlotInventory> {
     fn walk(
+        kind: DescriptorSlotKind,
         types: &[StructuralTypeDeclaration],
         ty: StructuralTypeId,
         location: DescriptorLocation,
@@ -248,10 +358,12 @@ pub fn descriptor_slot_inventory(
         if matching.next().is_some() {
             return None;
         }
-        if is_shared_descriptor(types.iter(), ty) {
-            result.slots.push(location);
-            active.remove(&ty);
-            return Some(());
+        if kind.is_slot(types, ty) {
+            result.slots.push(location.clone());
+            if kind == DescriptorSlotKind::SharedViews {
+                active.remove(&ty);
+                return Some(());
+            }
         }
         match &declaration.shape {
             StructuralTypeShape::Reference { referent, .. } => {
@@ -260,7 +372,7 @@ pub fn descriptor_slot_inventory(
                 if active.contains(referent) || find_structural_type(types, *referent).is_none() {
                     result.opaque_referents.push(child);
                 } else {
-                    walk(types, *referent, child, active, result)?;
+                    walk(kind, types, *referent, child, active, result)?;
                 }
             }
             terminal_psi::record_or_mixed_shape_pattern!(fields) => {
@@ -269,12 +381,13 @@ pub fn descriptor_slot_inventory(
                     child.path.push(DescriptorPathSegment::Field(field.id));
                     match field.field_type {
                         terminal_psi::StructuralFieldType::Structural(ty) => {
-                            walk(types, ty, child, active, result)?
+                            walk(kind, types, ty, child, active, result)?
                         }
-                        _ if field
-                            .field_type
-                            .byte_sequence_carrier()
-                            .is_some_and(|carrier| carrier.is_shared_readable_view()) =>
+                        _ if kind == DescriptorSlotKind::SharedViews
+                            && field
+                                .field_type
+                                .byte_sequence_carrier()
+                                .is_some_and(|carrier| carrier.is_shared_readable_view()) =>
                         {
                             result.slots.push(child)
                         }
@@ -283,7 +396,7 @@ pub fn descriptor_slot_inventory(
                 }
             }
             StructuralTypeShape::FixedArray { element, length } => {
-                if !may_contain_descriptor(types, *element, &mut BTreeSet::new()) {
+                if !may_contain_descriptor(kind, types, *element, &mut BTreeSet::new()) {
                     active.remove(&ty);
                     return Some(());
                 }
@@ -293,7 +406,7 @@ pub fn descriptor_slot_inventory(
                 for index in 0..*length {
                     let mut child = location.clone();
                     child.path.push(DescriptorPathSegment::FixedIndex(index));
-                    walk(types, *element, child, active, result)?;
+                    walk(kind, types, *element, child, active, result)?;
                 }
             }
             _ => {}
@@ -314,12 +427,13 @@ pub fn descriptor_slot_inventory(
                     ]);
                     match field.field_type {
                         terminal_psi::StructuralFieldType::Structural(ty) => {
-                            walk(types, ty, child, active, result)?
+                            walk(kind, types, ty, child, active, result)?
                         }
-                        _ if field
-                            .field_type
-                            .byte_sequence_carrier()
-                            .is_some_and(|carrier| carrier.is_shared_readable_view()) =>
+                        _ if kind == DescriptorSlotKind::SharedViews
+                            && field
+                                .field_type
+                                .byte_sequence_carrier()
+                                .is_some_and(|carrier| carrier.is_shared_readable_view()) =>
                         {
                             result.slots.push(child)
                         }
@@ -336,6 +450,7 @@ pub fn descriptor_slot_inventory(
         opaque_referents: Vec::new(),
     };
     walk(
+        kind,
         types,
         structural_type,
         DescriptorLocation::whole(root),

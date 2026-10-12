@@ -63,13 +63,9 @@ pub(super) fn consume_edge_sources(
             let mut remaining = frontier.live_references.clone();
             super::references::discard_owned(function, types, block, &mut remaining, source)?;
             if remaining.iter().any(|reference| {
-                use crate::unit_validation::references::ReferenceOrigin;
-                let root = match &reference.root {
-                    ReferenceOrigin::Primitive(place)
-                    | ReferenceOrigin::Alternatives { place, .. } => *place,
-                    ReferenceOrigin::IngressLeaf(identity) => identity.place,
-                };
-                root == source || reference.carrier == source
+                super::references::borrows_owned_storage(function, types, reference, source)
+                    || (reference.carrier == source
+                        && super::references::owned_resident(&reference.carrier_path, &[]))
             }) {
                 return Err(invalid());
             }
@@ -113,7 +109,10 @@ pub(super) fn consume_edge_sources(
                     parameter.access == StructuralAccess::Owned
                         && binding.argument.access == StructuralAccess::Owned
                         && binding.argument.place == reference.carrier
-                        && reference.carrier_path.starts_with(&binding.argument.path)
+                        && super::references::owned_resident(
+                            &reference.carrier_path,
+                            &binding.argument.path,
+                        )
                 })
         else {
             continue;

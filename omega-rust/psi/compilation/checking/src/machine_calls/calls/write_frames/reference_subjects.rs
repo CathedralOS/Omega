@@ -553,7 +553,9 @@ fn frozen_reference_origin(
     if !type_reference_is_reference(program, slot)
         || stored_origins::project_stored_origins(program, carrier, &leaf.local_segments, false)?
             .references
-            .len()
+            .iter()
+            .filter(|leaf| leaf.local_segments.is_empty())
+            .count()
             != 1
     {
         return None;
@@ -615,7 +617,9 @@ pub(super) fn validate_source_projection(
     if !type_reference_is_reference(program, slot)
         || stored_origins::project_stored_origins(program, input, &leaf.local_segments, false)?
             .references
-            .len()
+            .iter()
+            .filter(|leaf| leaf.local_segments.is_empty())
+            .count()
             != 1
     {
         return None;

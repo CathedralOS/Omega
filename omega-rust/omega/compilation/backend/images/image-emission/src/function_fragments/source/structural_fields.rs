@@ -1348,6 +1348,63 @@ fn pointer_read_before(
         && reads.next().is_none()
 }
 
+/// Every static reference crossing loads its own descriptor word before the
+/// field write. Reconstruct offsets in each region independently: a nested
+/// descriptor is not necessarily at offset zero in the original home.
+fn field_pointer_reads_before(
+    function: &AbstractFunction,
+    target: &TargetFunction,
+    accesses: &[selected_instructions::SelectedMemoryAccess],
+    operation: semantic_vocabulary::OperationId,
+    carrier: semantic_vocabulary::PlaceId,
+    path: &[terminal_psi::StructuralPathSegment],
+    before: selected_instructions::SelectedInstructionId,
+) -> Option<()> {
+    use selected_instructions::{
+        SelectedMemoryAccessOrigin as Origin, SelectedMemoryAccessRole as Role,
+    };
+    let types = &target.graph.structural_types;
+    let mut root = field_root_type(function, carrier)?;
+    let mut reads = accesses.iter().filter(|access| {
+        access.origin == Origin::Operation(operation)
+            && access.role == Role::ReadPlace
+            && access.place == carrier
+    });
+    let mut region_start = 0;
+    let mut previous = None;
+    for (position, segment) in path.iter().enumerate() {
+        if *segment != terminal_psi::StructuralPathSegment::Referent {
+            continue;
+        }
+        let prefix = &path[region_start..position];
+        let (descriptor, offset) = if prefix.is_empty() {
+            (root, 0)
+        } else {
+            let (descriptor, _, offset) = crate::object_artifact::replay::structural::condition_layout::replay_structural_projection(
+                root, prefix, types,
+            )?;
+            (descriptor, offset)
+        };
+        let terminal_psi::StructuralTypeShape::Reference { referent, .. } =
+            terminal_psi::find_structural_type(types, descriptor)?.shape
+        else {
+            return None;
+        };
+        let read = reads.next()?;
+        if read.byte_offset != offset
+            || read.byte_count != 8
+            || read.instruction >= before
+            || previous.is_some_and(|previous| previous >= read.instruction)
+        {
+            return None;
+        }
+        previous = Some(read.instruction);
+        root = referent;
+        region_start = position + 1;
+    }
+    reads.next().is_none().then_some(())
+}
+
 pub(super) fn scalar_store_footprints_retained(
     function: &AbstractFunction,
     operation: &AbstractOperation,
@@ -1376,12 +1433,18 @@ pub(super) fn scalar_store_footprints_retained(
     let Some(write) = writes.next() else {
         return false;
     };
-    if matches!(
-        path.first(),
-        Some(terminal_psi::StructuralPathSegment::Referent)
-    ) {
+    if path.contains(&terminal_psi::StructuralPathSegment::Referent) {
         writes.next().is_none()
-            && pointer_read_before(accesses, *psi_operation, place, write.instruction)
+            && field_pointer_reads_before(
+                function,
+                target,
+                accesses,
+                *psi_operation,
+                place,
+                path,
+                write.instruction,
+            )
+            .is_some()
     } else {
         true
     }

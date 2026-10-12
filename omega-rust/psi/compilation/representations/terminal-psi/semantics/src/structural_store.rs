@@ -2,7 +2,7 @@
 //! contracts. Geometry alone cannot erase a nominal obligation: replacement
 //! requires unrestricted multiplicity or source-retained no-code affine
 //! disposal authority, no claims, and resource-free storage. A separate
-//! checked authority permits shared-descriptor retirement; receiving custody
+//! checked authority permits reference-descriptor retirement; receiving custody
 //! still proves the exact resident roster and child closure at that store. Bounds, qualifications,
 //! absence of overlapping debt and active loan authority remain separate.
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
@@ -61,22 +61,23 @@ pub fn discardable_store_value<'types>(
     multiplicity: StructuralMultiplicity,
     has_claims: bool,
 ) -> bool {
-    let shared_cleanup = types
+    let descriptor_cleanup = types
         .clone()
-        .any(|declaration| declaration.id == identity && declaration.shared_descriptor_cleanup);
+        .any(|declaration| declaration.id == identity && declaration.descriptor_cleanup);
     (multiplicity == StructuralMultiplicity::Unrestricted
         || multiplicity == StructuralMultiplicity::Affine
             && types.clone().any(|declaration| {
-                declaration.id == identity && (declaration.no_code_affine_cleanup || shared_cleanup)
+                declaration.id == identity
+                    && (declaration.no_code_affine_cleanup || descriptor_cleanup)
             }))
         && !has_claims
-        && disposable_storage(types, identity, shared_cleanup, &mut Vec::new())
+        && disposable_storage(types, identity, descriptor_cleanup, &mut Vec::new())
 }
 
 fn disposable_storage<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     identity: StructuralTypeId,
-    shared_cleanup: bool,
+    descriptor_cleanup: bool,
     visiting: &mut Vec<StructuralTypeId>,
 ) -> bool {
     if visiting.contains(&identity) {
@@ -95,27 +96,27 @@ fn disposable_storage<'types>(
     let valid = match &declaration.shape {
         StructuralTypeShape::PrimitiveScalar(_) => true,
         StructuralTypeShape::ByteSequence(carrier) => {
-            shared_cleanup || matches!(carrier, ByteSequenceCarrier::BoundedOwned { .. })
+            descriptor_cleanup || matches!(carrier, ByteSequenceCarrier::BoundedOwned { .. })
         }
         StructuralTypeShape::Record { fields, .. } => {
-            fields_are_disposable(types.clone(), fields, shared_cleanup, visiting)
+            fields_are_disposable(types.clone(), fields, descriptor_cleanup, visiting)
         }
         StructuralTypeShape::FixedArray { element, .. } => {
-            disposable_storage(types.clone(), *element, shared_cleanup, visiting)
+            disposable_storage(types.clone(), *element, descriptor_cleanup, visiting)
         }
         StructuralTypeShape::Sum { cases } => cases.iter().all(|case| {
-            fields_are_disposable(types.clone(), &case.fields, shared_cleanup, visiting)
+            fields_are_disposable(types.clone(), &case.fields, descriptor_cleanup, visiting)
         }),
         StructuralTypeShape::Mixed { fields, cases } => {
-            fields_are_disposable(types.clone(), fields, shared_cleanup, visiting)
+            fields_are_disposable(types.clone(), fields, descriptor_cleanup, visiting)
                 && cases.iter().all(|case| {
-                    fields_are_disposable(types.clone(), &case.fields, shared_cleanup, visiting)
+                    fields_are_disposable(types.clone(), &case.fields, descriptor_cleanup, visiting)
                 })
         }
         StructuralTypeShape::Reference { access, .. } => {
-            shared_cleanup && *access == terminal_psi::StructuralAccess::SharedBorrow
+            descriptor_cleanup && *access != terminal_psi::StructuralAccess::Owned
         }
-        StructuralTypeShape::ElementView { .. } => shared_cleanup,
+        StructuralTypeShape::ElementView { .. } => descriptor_cleanup,
         StructuralTypeShape::BindingCarrier => false,
     };
     visiting.pop();
@@ -125,7 +126,7 @@ fn disposable_storage<'types>(
 fn fields_are_disposable<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     fields: &[StructuralFieldDeclaration],
-    shared_cleanup: bool,
+    descriptor_cleanup: bool,
     visiting: &mut Vec<StructuralTypeId>,
 ) -> bool {
     fields
@@ -137,11 +138,11 @@ fn fields_are_disposable<'types>(
             | StructuralFieldType::RefinedScalar(_)
             | StructuralFieldType::IeeeFloat(_) => true,
             StructuralFieldType::Structural(identity) => {
-                disposable_storage(types.clone(), *identity, shared_cleanup, visiting)
+                disposable_storage(types.clone(), *identity, descriptor_cleanup, visiting)
             }
             StructuralFieldType::ByteSequence(carrier)
             | StructuralFieldType::PredicateByteSequence { carrier, .. } => {
-                shared_cleanup || matches!(carrier, ByteSequenceCarrier::BoundedOwned { .. })
+                descriptor_cleanup || matches!(carrier, ByteSequenceCarrier::BoundedOwned { .. })
             }
             StructuralFieldType::Atomic(_) | StructuralFieldType::Erased { .. } => false,
         })

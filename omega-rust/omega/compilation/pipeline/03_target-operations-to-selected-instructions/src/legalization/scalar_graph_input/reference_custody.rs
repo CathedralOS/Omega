@@ -37,6 +37,7 @@ use terminal_psi::{
 mod borrowed_arrivals;
 mod descriptor_backing;
 mod occurrences;
+mod stored_calls;
 use occurrences::{CarrierContract, Formation, merge_arrivals, re_home_bound_leaves};
 
 /// One outstanding permission occurrence: its referent roots, immediate
@@ -96,6 +97,48 @@ impl Root {
     }
 }
 
+/// Turn captured origins into typed storage cursors. An ingress reference
+/// names its incoming descriptor in custody; its pointee is external storage
+/// reached by one explicit crossing. This does not materialize any descriptor
+/// inside that pointee: a later read still needs its current resident leaf.
+fn storage_origins(
+    function: &PsiOptimizationFunction,
+    custody: &Custody,
+    types: &[StructuralTypeDeclaration],
+    root: &Root,
+    referent: StructuralTypeId,
+) -> Result<Vec<target_operations::TargetReferenceOrigin>, LegalizationError> {
+    root.origins()
+        .into_iter()
+        .map(|mut origin| {
+            let selected = source_contract(function, custody, origin.root)
+                .and_then(|contract| leaf_type(types, contract, &origin.path))
+                .ok_or_else(invalid)?;
+            if selected != referent {
+                if function.structural_parameter(origin.root).is_none()
+                    || origin.path.iter().any(|segment| {
+                        !matches!(
+                            segment,
+                            StructuralPathSegment::Field(_)
+                                | StructuralPathSegment::Case(_)
+                                | StructuralPathSegment::FixedIndex(_)
+                        )
+                    })
+                    || !find_structural_type(types, selected).is_some_and(|declaration| {
+                        matches!(declaration.shape, StructuralTypeShape::Reference {
+                        referent: declared, ..
+                    } if declared == referent)
+                    })
+                {
+                    return Err(invalid());
+                }
+                origin.path.push(StructuralPathSegment::Referent);
+            }
+            Ok(origin)
+        })
+        .collect()
+}
+
 fn roots_overlap(left: &Root, right: &Root) -> bool {
     let left = left.origins();
     let right = right.origins();
@@ -119,6 +162,7 @@ pub(in crate::legalization) struct Custody {
     )>,
     borrowed_sources: std::sync::Arc<BTreeMap<PlaceId, Option<Vec<StructuralArgument>>>>,
     descriptor_backing: std::sync::Arc<descriptor_backing::Observations>,
+    stored_calls: std::sync::Arc<stored_calls::Effects>,
 }
 
 impl Custody {
@@ -138,6 +182,7 @@ impl Custody {
             edge_exits: Vec::new(),
             borrowed_sources: self.borrowed_sources.clone(),
             descriptor_backing: self.descriptor_backing.clone(),
+            stored_calls: self.stored_calls.clone(),
         })
     }
 
@@ -233,6 +278,36 @@ pub(in crate::legalization) fn window_destination(
     })
 }
 
+/// Authenticate the backing owners of a captured window. A child pointer can
+/// retain its enclosing array's permission root while its captured address
+/// selects one element. Root authority does not require that coarse root to
+/// have the element's type; exact descriptor-slot mutation uses window_regions.
+pub(in crate::legalization) fn window_backing_roots(
+    function: &PsiOptimizationFunction,
+    custody: &Custody,
+    types: &[StructuralTypeDeclaration],
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+    access: StructuralAccess,
+) -> Result<Vec<PlaceId>, LegalizationError> {
+    let observed = call_paths::call_reference_custody(
+        function,
+        custody,
+        types,
+        &StructuralArgument {
+            place,
+            path: path.to_vec(),
+            access,
+        },
+    )?;
+    Ok(observed
+        .origins
+        .iter()
+        .flat_map(Root::origins)
+        .map(|origin| origin.root)
+        .collect())
+}
+
 /// Select mutation storage through the same current-descriptor observation as
 /// calls. One runtime alternative cannot retire every possible backing.
 pub(in crate::legalization) fn window_regions(
@@ -260,12 +335,14 @@ pub(in crate::legalization) fn window_regions(
         },
     )?;
     let mut regions = Vec::new();
-    for origin in observed.origins.into_iter().flat_map(|root| root.origins()) {
-        let mut prefix = origin.path;
-        prefix.extend_from_slice(&path[crossing + 1..]);
-        let region = (origin.root, prefix);
-        if !regions.contains(&region) {
-            regions.push(region);
+    for root in &observed.origins {
+        for origin in storage_origins(function, custody, types, root, observed.referent)? {
+            let mut prefix = origin.path;
+            prefix.extend_from_slice(&path[crossing + 1..]);
+            let region = (origin.root, prefix);
+            if !regions.contains(&region) {
+                regions.push(region);
+            }
         }
     }
     Ok(regions)
@@ -942,11 +1019,17 @@ fn call_arguments(
                 CallRegion::CarrierStorage,
                 None,
             ));
+            // Lending write-only carrier storage does not observe, lend or
+            // transfer its resident pointers. Old child permissions remain
+            // attached to their captured descriptors across replacement.
+            if argument.access == StructuralAccess::WriteOnlyBorrow {
+                continue;
+            }
             for ((carrier, carrier_path), leaf) in &custody.leaves {
                 if *carrier != argument.place {
                     continue;
                 }
-                let Some(path) = carrier_path.strip_prefix(argument.path.as_slice()) else {
+                let Some(path) = owned_relative_path(carrier_path, &argument.path) else {
                     continue;
                 };
                 let permission = leaf_type(types, selected, path)
@@ -1110,7 +1193,7 @@ fn call_results(
     if custody
         .leaves
         .keys()
-        .any(|(carrier, _)| *carrier == result.place)
+        .any(|(carrier, path)| *carrier == result.place && owned_relative_path(path, &[]).is_some())
         || custody
             .leaves
             .values()
@@ -1296,6 +1379,17 @@ fn combine_candidate_origins(
     Ok((Root::Alternatives(origins), immediate_parents))
 }
 
+/// Select the inline payload of this storage subtree. A pointer crossing
+/// names external backing, which remains anchored to its ingress occurrence
+/// when the carrier itself moves, is copied, or is retired.
+fn owned_relative_path<'a>(
+    path: &'a [StructuralPathSegment],
+    prefix: &[StructuralPathSegment],
+) -> Option<&'a [StructuralPathSegment]> {
+    path.strip_prefix(prefix)
+        .filter(|relative| !relative.contains(&StructuralPathSegment::Referent))
+}
+
 /// Whole cleanup uses the same declaration-derived subtree release as a
 /// partial complement. Storage keys, not shared loan provenance, select rows.
 fn discard_owned(
@@ -1324,7 +1418,9 @@ fn discard_subtree(
     let released: BTreeSet<_> = custody
         .leaves
         .iter()
-        .filter(|((carrier, path), _)| *carrier == source && path.starts_with(prefix))
+        .filter(|((carrier, path), _)| {
+            *carrier == source && owned_relative_path(path, prefix).is_some()
+        })
         .map(|(_, leaf)| leaf.identity.clone())
         .collect();
     if custody.leaves.values().any(|child| {
@@ -1333,9 +1429,9 @@ fn discard_subtree(
     }) {
         return Err(invalid());
     }
-    custody
-        .leaves
-        .retain(|(carrier, path), _| *carrier != source || !path.starts_with(prefix));
+    custody.leaves.retain(|(carrier, path), _| {
+        *carrier != source || owned_relative_path(path, prefix).is_none()
+    });
     Ok(true)
 }
 
@@ -1386,11 +1482,9 @@ fn relocate_subtree_leaves<'a>(
         if !contains_reference(types, nested) {
             continue;
         }
-        if custody
-            .leaves
-            .keys()
-            .any(|(carrier, path)| *carrier == destination && path.starts_with(&prefix))
-        {
+        if custody.leaves.keys().any(|(carrier, path)| {
+            *carrier == destination && owned_relative_path(path, &prefix).is_some()
+        }) {
             return Err(invalid());
         }
         let contract = source_contract(function, custody, argument.place).ok_or(invalid())?;
@@ -1420,7 +1514,7 @@ fn relocate_subtree_leaves<'a>(
             if *carrier != argument.place {
                 continue;
             }
-            let Some(path) = source_path.strip_prefix(argument.path.as_slice()) else {
+            let Some(path) = owned_relative_path(source_path, &argument.path) else {
                 continue;
             };
             if leaf_referent(types, nested, path) != Some(leaf.referent) {
@@ -1650,8 +1744,7 @@ pub(in crate::legalization) fn apply(
             }
             if custody.leaves.keys().any(|(carrier, selected)| {
                 *carrier == *source
-                    && selected
-                        .strip_prefix(path.as_ref())
+                    && owned_relative_path(selected, path.as_ref())
                         .is_some_and(|relative| !paths.iter().any(|expected| expected == relative))
             }) {
                 return Err(invalid());
@@ -1666,10 +1759,9 @@ pub(in crate::legalization) fn apply(
         } => {
             let referent = referent(types, result.structural_type).ok_or_else(|| invalid())?;
             if !result.is_affine_plain()
-                || custody
-                    .leaves
-                    .keys()
-                    .any(|(carrier, _)| *carrier == result.place)
+                || custody.leaves.keys().any(|(carrier, path)| {
+                    *carrier == result.place && owned_relative_path(path, &[]).is_some()
+                })
                 || custody
                     .leaves
                     .values()
@@ -1750,11 +1842,9 @@ pub(in crate::legalization) fn apply(
         }
         AbstractOperation::EstablishRecord { result, fields, .. }
         | AbstractOperation::EstablishCase { result, fields, .. } => {
-            if custody
-                .leaves
-                .keys()
-                .any(|(carrier, _)| *carrier == result.place)
-            {
+            if custody.leaves.keys().any(|(carrier, path)| {
+                *carrier == result.place && owned_relative_path(path, &[]).is_some()
+            }) {
                 return Err(invalid());
             }
             let shape = &find_structural_type(types, result.structural_type)
@@ -1806,11 +1896,9 @@ pub(in crate::legalization) fn apply(
         AbstractOperation::EstablishStructuralArray {
             result, elements, ..
         } => {
-            if custody
-                .leaves
-                .keys()
-                .any(|(carrier, _)| *carrier == result.place)
-            {
+            if custody.leaves.keys().any(|(carrier, path)| {
+                *carrier == result.place && owned_relative_path(path, &[]).is_some()
+            }) {
                 return Err(invalid());
             }
             let Some(StructuralTypeDeclaration {
@@ -1919,7 +2007,6 @@ pub(in crate::legalization) fn apply(
             structural_arguments,
             ..
         } => {
-            let moved = call_arguments(function, types, custody, structural_arguments)?;
             let callee_function = match callee {
                 abstract_operations::AbstractCallTarget::Machine(machine) => Some(
                     unit.functions
@@ -1947,27 +2034,37 @@ pub(in crate::legalization) fn apply(
                     None
                 }
             };
-            commit_argument_moves(custody, &moved);
-            if let Some(callee_function) = callee_function {
-                call_results(
-                    function,
-                    callee_function,
-                    types,
-                    result,
-                    *psi_operation,
-                    structural_arguments,
-                    custody,
-                    &moved,
-                )?;
-            }
+            call_transition(
+                function,
+                callee_function,
+                types,
+                Some(result),
+                *psi_operation,
+                structural_arguments,
+                custody,
+            )?;
         }
         AbstractOperation::CallStructural {
+            psi_operation,
+            callee,
             structural_arguments,
             result: AbstractStructuralCallResult::Unit | AbstractStructuralCallResult::Scalar(_),
             ..
         } => {
-            let moved = call_arguments(function, types, custody, structural_arguments)?;
-            commit_argument_moves(custody, &moved);
+            let callee_function = callee.machine().and_then(|machine| {
+                unit.functions
+                    .iter()
+                    .find(|function| function.machine == machine)
+            });
+            call_transition(
+                function,
+                callee_function,
+                types,
+                None,
+                *psi_operation,
+                structural_arguments,
+                custody,
+            )?;
         }
         AbstractOperation::BoundaryCall {
             structural_arguments,
@@ -2005,7 +2102,7 @@ pub(in crate::legalization) fn return_custody(
         return Err(invalid());
     }
     for ((carrier, path), leaf) in &custody.leaves {
-        if *carrier != source {
+        if *carrier != source || owned_relative_path(path, &[]).is_none() {
             continue;
         }
         let mapping = result
@@ -2124,8 +2221,11 @@ fn apply_cleanup_actions(
                 // The checked partition has disposed resident obligations.
                 // Signature slots for inactive cases can remain in this
                 // conservative roster after the active payload moved. Retire
-                // only this carrier's metadata, never origins at other homes.
-                custody.leaves.retain(|(carrier, _), _| *carrier != place);
+                // only inline payload. External storage remains anchored to
+                // ingress even after its pointer carrier is no longer resident.
+                custody.leaves.retain(|(carrier, path), _| {
+                    *carrier != place || owned_relative_path(path, &[]).is_none()
+                });
                 continue;
             }
             TerminalAffineCleanupAction::DiscardRoot(place) => place,
@@ -2247,6 +2347,7 @@ pub(in crate::legalization) fn block_entry_states(
     initial.borrowed_sources = borrowed_sources;
     initial.descriptor_backing =
         std::sync::Arc::new(descriptor_backing::prepare(function, native, plan, unit)?);
+    initial.stored_calls = std::sync::Arc::new(stored_calls::prepare(native, plan, unit));
     let mut entries = BTreeMap::from([(function.entry, initial)]);
     let mut pending = VecDeque::from([entry_position]);
     let mut queued = vec![false; blocks.len()];
@@ -2304,12 +2405,13 @@ pub(in crate::legalization) fn block_entry_states(
                 types,
             )?;
             let scope = dominators.get(&edge.target).ok_or(invalid())?;
-            arrival.leaves.retain(|(carrier, _), _| {
-                storage_definitions
-                    .get(carrier)
-                    .is_none_or(|(definition, parameter)| {
-                        scope.contains(definition) && (*parameter || *definition != edge.target)
-                    })
+            arrival.leaves.retain(|(carrier, path), _| {
+                owned_relative_path(path, &[]).is_none()
+                    || storage_definitions
+                        .get(carrier)
+                        .is_none_or(|(definition, parameter)| {
+                            scope.contains(definition) && (*parameter || *definition != edge.target)
+                        })
             });
             arrivals.push((edge.psi_edge, edge.target, arrival));
         }
@@ -2576,17 +2678,45 @@ pub(in crate::legalization) fn reference_results(
     custody: &Custody,
     types: &[StructuralTypeDeclaration],
 ) -> Result<Vec<target_operations::TargetReferenceResult>, LegalizationError> {
-    let moved = call_arguments(caller, types, custody, arguments)?;
     let mut returned = custody.clone();
-    commit_argument_moves(&mut returned, &moved);
-    call_results(
+    call_transition(
         caller,
-        callee,
+        Some(callee),
         types,
-        result,
+        Some(result),
         psi_operation,
         arguments,
         &mut returned,
-        &moved,
     )
+}
+
+/// Both state replay and retained-row comparison use one complete call
+/// transaction. Result mappings capture pre-call permissions; stored effects
+/// then replace carrier bindings, with duplicate transfers checked together.
+fn call_transition(
+    caller: &PsiOptimizationFunction,
+    callee: Option<&PsiOptimizationFunction>,
+    types: &[StructuralTypeDeclaration],
+    result: Option<&StructuralOperationResult>,
+    operation: OperationId,
+    arguments: &[StructuralArgument],
+    custody: &mut Custody,
+) -> Result<Vec<target_operations::TargetReferenceResult>, LegalizationError> {
+    let moved = call_arguments(caller, types, custody, arguments)?;
+    let stored = stored_calls::stage(caller, callee, types, custody, arguments, operation, &moved)?;
+    commit_argument_moves(custody, &moved);
+    let results = match (callee, result) {
+        (Some(callee), Some(result)) => call_results(
+            caller, callee, types, result, operation, arguments, custody, &moved,
+        )?,
+        _ => Vec::new(),
+    };
+    stored_calls::commit(
+        caller,
+        types,
+        result.map(|result| result.place),
+        custody,
+        stored,
+    )?;
+    Ok(results)
 }

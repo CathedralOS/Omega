@@ -141,7 +141,7 @@ pub(super) fn bind(
             if location.0 != binding.argument.place {
                 continue;
             }
-            if let Some(relative) = location.1.strip_prefix(binding.argument.path.as_slice()) {
+            if let Some(relative) = owned_relative_path(&location.1, &binding.argument.path) {
                 let destination = (parameter.place, relative.to_vec());
                 if identities
                     .insert(leaf.identity.clone(), destination.clone())

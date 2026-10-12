@@ -15,7 +15,8 @@ pub(in super::super) fn storage_regions(
 ) -> Result<Vec<(PlaceId, Vec<StructuralPathSegment>)>, LoweringError> {
     // Follow descriptor associations to the actual selected storage before
     // rebasing resident leaves. The logical path can cross several carriers;
-    // no leaf lives at a synthetic `root/Referent/...` metadata key.
+    // incoming descriptor origins acquire a typed Referent storage cursor;
+    // explicit writes may install known leaves there without seeding pointees.
     let mut cursors = vec![(source, Vec::new())];
     let mut segment_start = 0;
     let budget = live
@@ -49,13 +50,7 @@ pub(in super::super) fn storage_regions(
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
                 for origin in leaf.root.origins() {
-                    if source_contract(function, live, origin.root)
-                        .and_then(|root| leaf_type(types, root, &origin.path))
-                        != Some(leaf.referent)
-                    {
-                        return Err(LoweringError::unsupported_control_flow(function.machine));
-                    }
-                    let cursor = (origin.root, origin.path);
+                    let cursor = storage_cursor(function, types, live, origin, leaf.referent)?;
                     if !next.contains(&cursor) {
                         if next.len() >= budget {
                             return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -72,6 +67,42 @@ pub(in super::super) fn storage_regions(
         prefix.extend_from_slice(&path[segment_start..]);
     }
     Ok(cursors)
+}
+
+/// Ingress custody names the incoming descriptor, while a storage cursor
+/// names its pointee. Only an exact descriptor in a declared parameter's owned
+/// payload supplies that implicit crossing; retained target origins stay intact.
+fn storage_cursor(
+    function: &AbstractFunction,
+    types: &StructuralTypeLookup<'_>,
+    live: &LiveDefinitions,
+    mut origin: target_operations::TargetReferenceOrigin,
+    expected: StructuralTypeId,
+) -> Result<(PlaceId, Vec<StructuralPathSegment>), LoweringError> {
+    let invalid = || LoweringError::unsupported_control_flow(function.machine);
+    let root = source_contract(function, live, origin.root).ok_or_else(invalid)?;
+    let selected = leaf_type(types, root, &origin.path).ok_or_else(invalid)?;
+    if selected != expected {
+        let parameter = function
+            .structural_parameter(origin.root)
+            .ok_or_else(invalid)?;
+        if parameter.structural_type != root
+            || origin.path.iter().any(|segment| {
+                !matches!(
+                    segment,
+                    StructuralPathSegment::Field(_)
+                        | StructuralPathSegment::Case(_)
+                        | StructuralPathSegment::FixedIndex(_)
+                )
+            })
+            || !matches!(types.get(&selected).map(|declaration| &declaration.shape),
+                Some(StructuralTypeShape::Reference { referent, .. }) if *referent == expected)
+        {
+            return Err(invalid());
+        }
+        origin.path.push(StructuralPathSegment::Referent);
+    }
+    Ok((origin.root, origin.path))
 }
 
 pub(in super::super) fn copied_leaves(
@@ -130,6 +161,9 @@ pub(in super::super) fn copied_leaves(
             let Some(relative) = selected.relative_path(path) else {
                 continue;
             };
+            if relative.contains(&StructuralPathSegment::Referent) {
+                continue;
+            }
             let carrier_type = leaf_type(types, result.structural_type, relative)
                 .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
             if carrier_type != original.carrier_type

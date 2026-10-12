@@ -6309,3 +6309,28 @@ run/stores/runtime_float_indexed_call_result_exit checked 90790ms check-target:l
 run/stores/runtime_float_store_selector_snapshot_exit checked 96305ms check-target:linux_x86_64 @16ed47526a08
 run/variant_decimal_runtime_division checked 11419ms check-target:linux_x86_64 @a9ae30e1c334+wt
 run/variant_record_normalization_repeats checked 13906ms check-target:linux_x86_64 @a9ae30e1c334+wt
+pass/borrow/runtime_write_only_exclusive_reference_aggregate_exit checked 3640ms check-target:macos_arm64 @6ede3322eb88+wt
+pass/borrow/runtime_write_only_exclusive_reference_projected_exit checked 3414ms check-target:macos_arm64 @6ede3322eb88+wt
+pass/borrow/runtime_write_only_exclusive_reference_forward_exit checked 3483ms check-target:macos_arm64 @6ede3322eb88+wt
+pass/borrow/runtime_write_only_exclusive_reference_detached_child_exit checked 3483ms check-target:macos_arm64 @6ede3322eb88+wt
+fail/borrow/write_only_exclusive_replacement_incoming_child rejected 319ms expected @6ede3322eb88+wt
+	statement 5 creates local borrow `held` while local borrow `child` is still active (borrowed at statement 4; its last use is at statement 6)
+	statement 6 reads `child.value` while local borrow `held` is still active (borrowed at statement 5; its last use is at statement 8)
+fail/borrow/write_only_exclusive_replacement_incoming_reuse rejected 204ms expected @6ede3322eb88+wt
+	cannot use `incoming.target.value` in machine `Main::main` state `main` (statement 5) after `incoming` was transferred or consumed at statement 4: it holds no value; read what is needed before the transfer or assign a whole value to `incoming` first
+fail/borrow/write_only_exclusive_replacement_old_child_conflict rejected 307ms expected @6ede3322eb88+wt
+	statement 6 mutates `main.left.value` while local borrow `child` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/borrow/write_only_exclusive_replacement_new_backing_conflict rejected 318ms expected @6ede3322eb88+wt
+	statement 5 mutates `main.right.value` while local borrow `held` is still active (borrowed at statement 4; its last use is at statement 7)
+pass/borrow/runtime_write_only_exclusive_reference_call_result_exit checked 3640ms check-target:macos_arm64 @6ede3322eb88+wt
+pass/borrow/runtime_write_only_exclusive_reference_call_operand_exit checked 3640ms check-target:macos_arm64 @6ede3322eb88+wt
+pass/borrow/runtime_write_only_exclusive_reference_nested_call_operand_exit checked 3483ms check-target:macos_arm64 @6ede3322eb88+wt
+fail/borrow/write_only_exclusive_call_operand_incoming_child rejected 321ms expected @6ede3322eb88+wt
+	statement 5 creates local borrow `held` while local borrow `child` is still active (borrowed at statement 4; its last use is at statement 6)
+	statement 6 reads `child.value` while local borrow `held` is still active (borrowed at statement 5; its last use is at statement 8)
+fail/borrow/write_only_exclusive_call_operand_incoming_reuse rejected 204ms expected @6ede3322eb88+wt
+	cannot use `incoming.target.value` in machine `Main::main` state `main` (statement 5) after `incoming` was transferred or consumed at statement 4: it holds no value; read what is needed before the transfer or assign a whole value to `incoming` first
+pass/borrow/runtime_write_only_exclusive_reference_returned_view_exit checked 3410ms check-target:macos_arm64 @6ede3322eb88+wt
+pass/borrow/runtime_write_only_exclusive_reference_owned_wrapper_exit checked 3411ms check-target:macos_arm64 @6ede3322eb88+wt
+fail/borrow/write_only_exclusive_owned_wrapper_new_backing_conflict rejected 321ms expected @6ede3322eb88+wt
+	statement 6 mutates `main.right.value` while local borrow `held` is still active (borrowed at statement 4; its last use is at statement 7)

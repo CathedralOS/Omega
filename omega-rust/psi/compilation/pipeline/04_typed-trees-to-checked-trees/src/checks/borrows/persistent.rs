@@ -101,16 +101,18 @@ fn check_stored_output_relations(
                 .iter()
                 .filter(|(handle, _)| facts.borrow.state_owns_loan(borrowing, *handle))
             {
-                if loan.kind != checked_trees::BorrowAccessKind::Read
-                    || facts.borrow.loan_owner_path(loan).is_empty()
-                    || !program.state_parameters(state).iter().any(|parameter| {
-                        parameter.symbol == loan.owner_symbol
-                            && crate::borrow::reference_borrow_access_kind(
-                                program,
-                                parameter.type_reference,
-                            )
-                            .is_some()
-                    })
+                if facts.borrow.loan_owner_path(loan).is_empty()
+                    || !program
+                        .state_parameters(state)
+                        .iter()
+                        .any(|parameter| parameter.symbol == loan.owner_symbol)
+                    || validation::loan_carrier_has_owned_storage(
+                        program,
+                        state.symbol,
+                        loan.statement_index,
+                        loan.owner_symbol,
+                        facts.borrow.loan_owner_path(loan),
+                    )
                 {
                     continue;
                 }
@@ -136,14 +138,9 @@ fn check_stored_output_relations(
                 let Some(call) = statement.as_call() else {
                     continue;
                 };
-                let requires_relation = program.machines().iter().any(|callee| {
-                    obligated.contains(&callee.symbol)
-                        && typed_trees::state::state_by_symbol(
-                            program.machine_states(callee),
-                            call.target_symbol,
-                        )
-                        .is_some()
-                });
+                let requires_relation = validation::call_target_state(program, call.target_symbol)
+                    .and_then(|target| program.machine_holding_state(target.symbol))
+                    .is_some_and(|callee| obligated.contains(&callee.symbol));
                 if requires_relation
                     && frames
                         .and_then(|frames| frames.stored_reference_effects(machine, statement))

@@ -324,9 +324,9 @@ fn write_only_record(
 }
 
 /// Displacing this complete value executes no hook and settles no conserved
-/// claim. Shared descriptors may end only through the retained replacement
+/// claim. Reference descriptors may end only through the retained replacement
 /// custody transaction; their referents remain untouched. These exact source
-/// judgments publish distinct resource-free and shared-descriptor authorities.
+/// judgments publish distinct resource-free and descriptor-disposal authorities.
 fn is_discardable_write_only_data(
     program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
@@ -342,7 +342,7 @@ fn is_discardable_write_only_data(
             program,
             definition,
             &[],
-            crate::ContentsRequirement::OwnedOrSharedView,
+            crate::ContentsRequirement::DescriptorCleanup,
         )
 }
 

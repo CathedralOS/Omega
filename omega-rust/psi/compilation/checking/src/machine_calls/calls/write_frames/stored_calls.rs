@@ -2,7 +2,8 @@
 //! the complete body supplies its possible exit contents. Identity rows mean
 //! incoming contents survive that route, not that the carrier is its backing.
 //! Unknown new contents, local backing escapes and recursive summaries fail
-//! closed. These rows carry provenance, never access or predicate authority.
+//! closed. Rows retain each slot's declared access alongside provenance;
+//! checked stores still own permission and predicate authority.
 
 pub(super) mod retention;
 
@@ -23,16 +24,41 @@ use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode
 #[derive(Clone)]
 pub struct StoredReferenceEffect {
     pub destination: LocalWriteOrigin,
-    pub sources: Vec<LocalWriteSource>,
+    pub sources: Vec<StoredReferenceSource>,
     pub retains_incoming: bool,
+    pub access: language_semantics::ReferenceAccess,
+}
+
+/// The actual descriptor home and its backing are distinct coordinates.
+/// Both are required: backing alone cannot authorize an exclusive transfer.
+#[derive(Clone)]
+pub struct StoredReferenceSource {
+    pub carrier_symbol: SymbolHandle,
+    pub carrier_segments: Vec<PlaceSegment>,
+    pub backing: LocalWriteSource,
 }
 
 #[derive(Clone)]
 pub(super) struct SlotEffect {
     root: SymbolHandle,
     segments: Vec<PlaceSegment>,
-    sources: Vec<FramePlaceOrigin>,
+    sources: Vec<SlotSource>,
     incoming: bool,
+    access: language_semantics::ReferenceAccess,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+struct SlotSource {
+    origin: FramePlaceOrigin,
+    carrier: FrameSourcePlace,
+}
+
+struct SlotInventory {
+    origin: StoredWriteOrigin,
+    access: language_semantics::ReferenceAccess,
+    /// Each crossed pointer still denotes its incoming descriptor occurrence.
+    /// A final spelling cannot recover a destination captured before rebinding.
+    ancestors: Vec<Vec<PlaceSegment>>,
 }
 
 pub(super) fn public_effects(effects: Vec<SlotEffect>) -> Vec<StoredReferenceEffect> {
@@ -47,10 +73,15 @@ pub(super) fn public_effects(effects: Vec<SlotEffect>) -> Vec<StoredReferenceEff
             sources: effect
                 .sources
                 .into_iter()
-                .filter(|source| !source.source.is_static())
-                .map(LocalWriteSource::from)
+                .filter(|source| !source.origin.source.is_static())
+                .map(|source| StoredReferenceSource {
+                    carrier_symbol: source.carrier.root,
+                    carrier_segments: source.carrier.segments,
+                    backing: LocalWriteSource::from(source.origin),
+                })
                 .collect(),
             retains_incoming: effect.incoming,
+            access: effect.access,
         })
         .collect()
 }
@@ -77,50 +108,6 @@ pub(super) fn call_effects(
     if destination_inventory(program, state)?.is_empty() {
         return Some(Vec::new());
     }
-    // The relation below captures actuals from the incoming inventory. Pure
-    // argument calls preserve it; a write during argument evaluation needs a
-    // post-evaluation inventory, which this query must not fabricate from the
-    // pre-call snapshot. Use ordinary frame inference, not a syntactic call ban.
-    if arguments
-        .iter()
-        .any(|argument| super::caller_aliases::expression_has_calls(program, *argument))
-    {
-        let (caller_state, _, _) = super::caller_aliases::caller_statement_at_site(
-            program,
-            machine,
-            symbols,
-            super::caller_aliases::CallerWriteSite::Call(call),
-        )?;
-        let mut diagnostics = Vec::new();
-        let machine_symbols =
-            crate::declarations::symbols::MachineSymbols::build(program, machine, &mut diagnostics);
-        if !diagnostics.is_empty() {
-            return None;
-        }
-        let origins = super::caller_aliases::CallOriginContext {
-            parameters: program.state_parameters(caller_state),
-            isolated_locals: &context.isolated_locals,
-            aliases: &context.aliases,
-            divergent: &context.divergent,
-            stored: &context.stored,
-        };
-        let mut writes = Vec::new();
-        for argument in arguments {
-            super::demand::collect_expression_call_written_paths(
-                program,
-                *argument,
-                machine,
-                &machine_symbols,
-                symbols,
-                inference,
-                &mut writes,
-                &origins,
-            )?;
-        }
-        if !writes.is_empty() {
-            return None;
-        }
-    }
     let relative = state_effects(program, callee, state, symbols, inference)?;
     instantiate(
         program, machine, parameters, arguments, &relative, context, symbols, inference,
@@ -130,53 +117,135 @@ pub(super) fn call_effects(
 fn destination_inventory(
     program: &dyn crate::CheckingInput,
     state: &State,
-) -> Option<Vec<StoredWriteOrigin>> {
+) -> Option<Vec<SlotInventory>> {
     let mut leaves = Vec::new();
     for parameter in program.state_parameters(state) {
-        if !super::type_reference_is_reference(program, parameter.type_reference)
-            || !super::type_may_carry_write(program, parameter.type_reference)
-        {
+        let shell = crate::reference_shell(program, parameter.type_reference);
+        if shell.is_some_and(|shell| !shell.access.is_exclusive()) {
             continue;
         }
-        let reference = super::reference_subjects::carrier_storage_declaration(
-            program,
-            parameter.type_reference,
-        )?;
-        let inventory = stored_origins::declared_origins_for_query(
-            program,
-            parameter.symbol,
-            parameter.name.as_str(),
+        let reference = shell.map_or(parameter.type_reference, |shell| shell.referee);
+        let mut pending = vec![(
             reference,
-            true,
-        )?;
-        // The write frontier also retains opaque data as an unknown region.
-        // That region is not a declared descriptor slot: its contents remain
-        // opaque to the ordinary write/exposure checks, independently of this
-        // normal-exit relation for publicly declared reference leaves. Rejoin
-        // its exact declaration before excluding it; an unresolved type or an
-        // actual reference to opaque storage still needs the slot relation.
-        for leaf in inventory.references {
-            let leaf_type =
-                stored_origins::projected_storage_type(program, reference, &leaf.local_segments)?;
-            if !super::type_reference_is_reference(program, leaf_type) {
-                let leaf_type = program
-                    .type_reference_table
-                    .unconstrained_type_reference(leaf_type);
-                let (definition, _) = super::type_instantiation::DeclarationScopes::default()
-                    .definition(program, leaf_type, 0)?;
-                if definition.supply_mode != language_semantics::DataSupplyMode::BoundaryOpaque {
-                    return None;
-                }
-                continue;
-            }
-            // Exclusive slots are not silently omitted from a shared relation.
-            if super::type_may_carry_write(program, leaf_type) {
+            Vec::new(),
+            shell.is_some(),
+            shell.is_none_or(|shell| shell.access.is_readable()),
+            Vec::new(),
+            Vec::<Vec<PlaceSegment>>::new(),
+        )];
+        while let Some((reference, prefix, borrowed, readable, mut visited, ancestors)) =
+            pending.pop()
+        {
+            // A recursive pointee needs demand-bounded captured destinations;
+            // do not turn an incomplete reachable inventory into an empty one.
+            if visited.contains(&reference) {
                 return None;
             }
-            leaves.push(leaf);
+            visited.push(reference);
+            let inventory = stored_origins::declared_origins_for_query(
+                program,
+                parameter.symbol,
+                parameter.name.as_str(),
+                reference,
+                true,
+            )?;
+            for mut leaf in inventory.references {
+                let leaf_type = stored_origins::projected_storage_type(
+                    program,
+                    reference,
+                    &leaf.local_segments,
+                )?;
+                let Some(shell) = crate::reference_shell(program, leaf_type) else {
+                    let leaf_type = program
+                        .type_reference_table
+                        .unconstrained_type_reference(leaf_type);
+                    let (definition, _) = super::type_instantiation::DeclarationScopes::default()
+                        .definition(program, leaf_type, 0)?;
+                    if definition.supply_mode != language_semantics::DataSupplyMode::BoundaryOpaque
+                    {
+                        return None;
+                    }
+                    continue;
+                };
+                let mut segments = prefix.clone();
+                segments.extend_from_slice(&leaf.local_segments);
+                leaf.local_segments = segments.clone();
+                leaf.local_path = super::place_paths::coordinate_storage_path(
+                    program,
+                    parameter.name.as_str(),
+                    &segments,
+                )
+                .0;
+                if borrowed {
+                    leaves.push(SlotInventory {
+                        origin: leaf,
+                        access: shell.access,
+                        ancestors: ancestors.clone(),
+                    });
+                }
+                // A pointer under write-only storage cannot be loaded to
+                // reach another destination. An owned/readable carrier can
+                // lend the storage behind its exclusive pointer fields.
+                if readable && shell.access.is_exclusive() {
+                    let mut child_ancestors = ancestors.clone();
+                    child_ancestors.push(segments.clone());
+                    pending.push((
+                        shell.referee,
+                        segments,
+                        true,
+                        shell.access.is_readable(),
+                        visited.clone(),
+                        child_ancestors,
+                    ));
+                }
+            }
         }
     }
     Some(leaves)
+}
+
+/// Seed the incoming pointee slots before the ordinary transfer walk. Missing
+/// rows after that walk are unknown, never evidence that a slot was untouched.
+/// Unsupported reachable inventories add no knowledge; any demanded summary
+/// still fails in `destination_inventory`/`collect_exit`.
+pub(super) fn seed_incoming_slots(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    stored: &mut [StoredLocalOrigins],
+) {
+    let Some(inventory) = destination_inventory(program, state) else {
+        return;
+    };
+    for declaration in inventory {
+        if declaration.ancestors.is_empty() {
+            continue;
+        }
+        let mut slot = declaration.origin;
+        let Some(record) = stored
+            .iter_mut()
+            .find(|record| record.local_symbol == slot.local_symbol)
+        else {
+            continue;
+        };
+        if record
+            .references
+            .iter()
+            .any(|leaf| leaf.local_segments == slot.local_segments)
+        {
+            continue;
+        }
+        slot.origin = Some(FramePlaceOrigin {
+            path: slot.local_path.clone(),
+            precision: FramePathPrecision::Exact,
+            source: FrameSourcePlace {
+                root: slot.local_symbol,
+                segments: slot.local_segments.clone(),
+                builtin_coordinates: true,
+                ..Default::default()
+            },
+        });
+        record.references.push(slot);
+    }
 }
 
 pub(super) fn state_effects(
@@ -206,7 +275,7 @@ enum SlotExit {
 
 struct SlotEquation<'program> {
     state: &'program State,
-    inventory: Vec<StoredWriteOrigin>,
+    inventory: Vec<SlotInventory>,
     exits: Vec<SlotExit>,
 }
 
@@ -386,6 +455,9 @@ fn solve_state_effects<'program>(
                     .iter_mut()
                     .find(|prior| prior.root == effect.root && prior.segments == effect.segments)
                 {
+                    if prior.access != effect.access {
+                        return None;
+                    }
                     if effect.incoming && !prior.incoming {
                         prior.incoming = true;
                         changed = true;
@@ -412,11 +484,12 @@ fn solve_state_effects<'program>(
 fn collect_exit(
     program: &dyn crate::CheckingInput,
     state: &State,
-    inventory: &[StoredWriteOrigin],
+    inventory: &[SlotInventory],
     stored: &[StoredLocalOrigins],
     effects: &mut Vec<SlotEffect>,
 ) -> Option<()> {
-    for slot in inventory {
+    for declaration in inventory {
+        let slot = &declaration.origin;
         // Runtime selector identity cannot escape its expression namespace.
         if slot
             .local_segments
@@ -428,14 +501,30 @@ fn collect_exit(
         let record = stored
             .iter()
             .find(|record| record.local_symbol == slot.local_symbol)?;
-        let mut selected = false;
-        for leaf in record
+        for ancestor in &declaration.ancestors {
+            let mut matching = record
+                .references
+                .iter()
+                .filter(|leaf| &leaf.local_segments == ancestor);
+            let origin = matching.next()?.origin.as_ref()?;
+            if matching.next().is_some()
+                || origin.source.root != slot.local_symbol
+                || &origin.source.segments != ancestor
+                || !origin.source.builtin_coordinates
+            {
+                return None;
+            }
+        }
+        let sources = record
             .references
             .iter()
             .filter(|leaf| leaf.local_segments == slot.local_segments)
-        {
-            selected = true;
-            let source = leaf.origin.as_ref()?;
+            .map(|leaf| leaf.origin.as_ref())
+            .collect::<Option<Vec<_>>>()?;
+        if sources.is_empty() {
+            return None;
+        }
+        for source in sources {
             if !source.source.builtin_coordinates {
                 return None;
             }
@@ -476,16 +565,21 @@ fn collect_exit(
                     segments: slot.local_segments.clone(),
                     sources: Vec::new(),
                     incoming: false,
+                    access: declaration.access,
                 });
                 effects.last_mut()?
             };
-            effect.incoming |= incoming;
-            if !incoming && !effect.sources.contains(source) {
-                effect.sources.push(source.clone());
+            if effect.access != declaration.access {
+                return None;
             }
-        }
-        if !selected {
-            return None;
+            effect.incoming |= incoming;
+            let source = SlotSource {
+                origin: source.clone(),
+                carrier: source.source.clone(),
+            };
+            if !incoming && !effect.sources.contains(&source) {
+                effect.sources.push(source);
+            }
         }
     }
     Some(())
@@ -504,53 +598,108 @@ fn instantiate(
     if parameters.len() != arguments.len() || !context.divergent.is_empty() {
         return None;
     }
-    let substitute = |root, segments: &[PlaceSegment], inference: &mut FrameInference| {
-        let index = typed_trees::signature::state_parameter_position(parameters, root)?;
-        let actual = *arguments.get(index)?;
-        if super::caller_aliases::expression_has_calls(program, actual) {
+    // The relation below captures actuals from the incoming inventory. Pure
+    // argument calls preserve it; a write during argument evaluation needs a
+    // post-evaluation inventory, which this query must not fabricate from the
+    // pre-call snapshot. Use ordinary frame inference, not a syntactic call ban.
+    if arguments
+        .iter()
+        .any(|argument| super::caller_aliases::expression_has_calls(program, *argument))
+    {
+        let actual = *arguments.first()?;
+        let (caller_state, _, _) = super::caller_aliases::caller_statement_owner(
+            program,
+            machine,
+            super::caller_aliases::CallerWriteSite::Expression(actual),
+        )?;
+        let mut diagnostics = Vec::new();
+        let machine_symbols =
+            crate::declarations::symbols::MachineSymbols::build(program, machine, &mut diagnostics);
+        if !diagnostics.is_empty() {
             return None;
         }
-        // Resolve the actual's referent before appending the callee's slot.
-        // Appending first could follow the very descriptor being replaced,
-        // while a raw binding path would leave stores under a pointer carrier.
-        let base = argument_origin(
+        let origins = super::caller_aliases::CallOriginContext {
+            parameters: program.state_parameters(caller_state),
+            isolated_locals: &context.isolated_locals,
+            aliases: &context.aliases,
+            divergent: &context.divergent,
+            stored: &context.stored,
+        };
+        let mut writes = Vec::new();
+        for argument in arguments {
+            super::demand::collect_expression_call_written_paths(
+                program,
+                *argument,
+                machine,
+                &machine_symbols,
+                symbols,
+                inference,
+                &mut writes,
+                &origins,
+            )?;
+        }
+        if !writes.is_empty() {
+            return None;
+        }
+    }
+    let substitute = |root, segments: &[PlaceSegment], inference: &mut FrameInference| {
+        let index = typed_trees::signature::state_parameter_position(parameters, root)?;
+        destination_source(
             program,
             machine,
             &parameters[index],
-            actual,
+            *arguments.get(index)?,
+            segments,
             context,
             symbols,
             inference,
-        )?
-        .source;
-        if !base.root.is_valid()
-            || base.is_static()
-            || !base.builtin_coordinates
-            || base.segments.iter().any(|segment| {
-                !matches!(
-                    segment,
-                    PlaceSegment::Field { .. }
-                        | PlaceSegment::Case { .. }
-                        | PlaceSegment::FixedIndex { .. }
-                )
-            })
-        {
-            return None;
-        }
-        Some(base.append_relative(&FrameSourcePlace {
-            recasts: Vec::new(),
-            representation: None,
-            kind: Default::default(),
-            root,
-            segments: segments.to_vec(),
-            builtin_coordinates: true,
-        }))
+        )
     };
     let mut output = Vec::new();
     for effect in relative {
         let destination = substitute(effect.root, &effect.segments, inference)?;
         let mut sources = Vec::new();
-        for source in &effect.sources {
+        for supplied in &effect.sources {
+            let source = &supplied.origin;
+            if !source.source.is_static() {
+                let index = typed_trees::signature::state_parameter_position(
+                    parameters,
+                    source.source.root,
+                )?;
+                if !super::type_reference_is_reference(program, parameters[index].type_reference) {
+                    for source in aggregate_argument_sources(
+                        program,
+                        machine,
+                        &parameters[index],
+                        *arguments.get(index)?,
+                        supplied,
+                        context,
+                        symbols,
+                        inference,
+                    )? {
+                        if !sources.contains(&source) {
+                            sources.push(source);
+                        }
+                    }
+                    continue;
+                }
+            }
+            // Keep the actual descriptor home beside its backing. Resolving
+            // only the backing would turn an exclusive transfer into a fresh
+            // competing loan of the same referent.
+            let carrier = if supplied.carrier.is_static() {
+                supplied.carrier.clone()
+            } else {
+                let index = typed_trees::signature::state_parameter_position(
+                    parameters,
+                    supplied.carrier.root,
+                )?;
+                let actual = FrameSourcePlace::from_expression(program, *arguments.get(index)?);
+                if !actual.root.is_valid() || !actual.builtin_coordinates {
+                    return None;
+                }
+                actual.append_relative(&supplied.carrier)
+            };
             let candidates = if source.source.is_static() {
                 vec![Some(source.clone())]
             } else {
@@ -592,6 +741,10 @@ fn instantiate(
                 {
                     return None;
                 }
+                let source = SlotSource {
+                    origin: source,
+                    carrier: carrier.clone(),
+                };
                 if !sources.contains(&source) {
                     sources.push(source);
                 }
@@ -602,9 +755,214 @@ fn instantiate(
             segments: destination.segments,
             sources,
             incoming: effect.incoming,
+            access: effect.access,
         });
     }
     Some(output)
+}
+
+/// Resolve each pointer boundary before appending the destination slot.
+/// Only the selected descriptor is interpreted; the final slot's old contents
+/// never become its own storage address.
+#[allow(clippy::too_many_arguments)]
+fn destination_source(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    parameter: &StateParameter,
+    actual: ExpressionHandle,
+    mut segments: &[PlaceSegment],
+    context: &CollectedStatementPrefix,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+) -> Option<FrameSourcePlace> {
+    if segments.iter().any(|segment| {
+        !matches!(
+            segment,
+            PlaceSegment::Field { .. }
+                | PlaceSegment::Case { .. }
+                | PlaceSegment::FixedIndex { .. }
+        )
+    }) {
+        return None;
+    }
+    let mut reference = parameter.type_reference;
+    let mut base = None;
+    if let Some(shell) = crate::reference_shell(program, reference) {
+        if !shell.access.is_exclusive() {
+            return None;
+        }
+        base = Some(argument_origin(
+            program, machine, parameter, actual, context, symbols, inference,
+        )?);
+        reference = shell.referee;
+    }
+    loop {
+        let inventory = stored_origins::declared_origins_for_query(
+            program,
+            parameter.symbol,
+            parameter.name.as_str(),
+            reference,
+            true,
+        )?;
+        let mut boundaries = inventory.references.iter().filter(|leaf| {
+            leaf.local_segments.len() < segments.len() && segments.starts_with(&leaf.local_segments)
+        });
+        let Some(boundary) = boundaries.next() else {
+            let leaf = stored_origins::projected_storage_type(program, reference, segments)?;
+            crate::reference_shell(program, leaf)?;
+            let base = base?;
+            if !base.source.root.is_valid()
+                || base.source.is_static()
+                || !base.source.builtin_coordinates
+            {
+                return None;
+            }
+            return Some(base.source.append_segments(segments));
+        };
+        if boundaries.next().is_some() {
+            return None;
+        }
+        let shell = crate::reference_shell(
+            program,
+            stored_origins::projected_storage_type(program, reference, &boundary.local_segments)?,
+        )?;
+        if !shell.access.is_exclusive() {
+            return None;
+        }
+        let candidates = if let Some(captured) = &base {
+            let mut projected = captured.clone();
+            projected.source = captured.source.append_segments(&boundary.local_segments);
+            projected.path = path(program, &projected.source);
+            stored_origins::captured_reference_projection_origins(
+                program,
+                captured,
+                &projected,
+                &context.stored,
+            )
+            .into_iter()
+            .collect::<Option<Vec<_>>>()?
+        } else {
+            let relative = FrameSourcePlace {
+                root: parameter.symbol,
+                segments: boundary.local_segments.clone(),
+                builtin_coordinates: true,
+                ..Default::default()
+            };
+            aggregate_argument_sources(
+                program,
+                machine,
+                parameter,
+                actual,
+                &SlotSource {
+                    origin: FramePlaceOrigin {
+                        path: path(program, &relative),
+                        precision: FramePathPrecision::Exact,
+                        source: relative.clone(),
+                    },
+                    carrier: relative,
+                },
+                context,
+                symbols,
+                inference,
+            )?
+            .into_iter()
+            .map(|source| source.origin)
+            .collect()
+        };
+        let mut candidates = candidates.into_iter();
+        base = Some(candidates.next()?);
+        if candidates.next().is_some() {
+            return None;
+        }
+        reference = shell.referee;
+        segments = &segments[boundary.local_segments.len()..];
+    }
+}
+
+/// Instantiate value operands through their returned leaf relation before
+/// resolving caller backing. The symbolic leaf is the supplying carrier;
+/// resolving it first would lose the exclusive permission being transferred.
+/// This is shared by names, projections, constructors and computed results.
+#[allow(clippy::too_many_arguments)]
+fn aggregate_argument_sources(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    parameter: &StateParameter,
+    actual: ExpressionHandle,
+    supplied: &SlotSource,
+    context: &CollectedStatementPrefix,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+) -> Option<Vec<SlotSource>> {
+    // A relative normal-exit row must still identify the same input leaf for
+    // carrier transport and backing substitution. Do not pair independent
+    // alternatives merely because their referents happen to overlap.
+    if supplied.carrier != supplied.origin.source {
+        return None;
+    }
+    let carriers = super::result_origins::instantiate_source(
+        program,
+        machine,
+        parameter,
+        actual,
+        &supplied.origin,
+        symbols,
+        inference,
+        true,
+        &|expression, _, _, inference| {
+            let (state, _, index) = super::caller_aliases::caller_statement_owner(
+                program,
+                machine,
+                super::caller_aliases::CallerWriteSite::Expression(expression),
+            )?;
+            super::result_origins::reference_result_relation(
+                program, machine, state, index, expression, symbols, inference,
+            )?
+            .references
+            .into_iter()
+            .map(|leaf| leaf.origin)
+            .collect()
+        },
+        &|expression, reference, _| {
+            let (state, before, _) = super::caller_aliases::caller_statement_owner(
+                program,
+                machine,
+                super::caller_aliases::CallerWriteSite::Expression(expression),
+            )?;
+            stored_origins::reference_leaves_before_statement_for_query(
+                program, state, before, expression, reference, None, None, true,
+            )
+        },
+    )?;
+    let mut sources = Vec::new();
+    for carrier in carriers {
+        if (!carrier.source.root.is_valid() && !carrier.source.is_static())
+            || !carrier.source.builtin_coordinates
+        {
+            return None;
+        }
+        for origin in stored_origins::canonical_reference_origins(
+            program,
+            &Some(carrier.clone()),
+            &context.aliases,
+            &context.stored,
+        ) {
+            let origin = origin?;
+            if (!origin.source.root.is_valid() && !origin.source.is_static())
+                || !origin.source.builtin_coordinates
+            {
+                return None;
+            }
+            let source = SlotSource {
+                origin,
+                carrier: carrier.source.clone(),
+            };
+            if !sources.contains(&source) {
+                sources.push(source);
+            }
+        }
+    }
+    (!sources.is_empty()).then_some(sources)
 }
 
 fn argument_origin(
@@ -676,12 +1034,17 @@ pub(super) fn apply(
                 stored.len() - 1
             });
         let record = &mut stored[index];
-        if !effect.incoming {
-            record
-                .references
-                .retain(|leaf| leaf.local_segments != effect.segments);
-        }
-        for source in &effect.sources {
+        // Installing a pointer changes the storage reached beneath it. Old
+        // pointee-slot snapshots cannot outlive that replacement, even when
+        // another normal route preserves the pointer's incoming contents.
+        record.references.retain(|leaf| {
+            !((!effect.incoming || !effect.sources.is_empty())
+                && leaf.local_segments.len() > effect.segments.len()
+                && leaf.local_segments.starts_with(&effect.segments))
+                && (effect.incoming || leaf.local_segments != effect.segments)
+        });
+        for supplied in &effect.sources {
+            let source = &supplied.origin;
             if record.references.iter().any(|leaf| {
                 leaf.local_segments == effect.segments && leaf.origin.as_ref() == Some(source)
             }) {

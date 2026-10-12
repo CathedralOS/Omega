@@ -17,10 +17,12 @@ use terminal_psi::{
 pub(super) type CaseMembership<'a> =
     dyn Fn(PlaceId, &[StructuralPathSegment], StructuralCaseId, bool) -> bool + 'a;
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn validate_unit_cleanup_actions(
     function: &PsiOptimizationFunction,
     functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    reference_effects: &super::references::call_effects::ReferenceCallEffects,
     block: BlockId,
     frontier: &CurrentOwnership,
     actions: &[TerminalAffineCleanupAction],
@@ -30,6 +32,7 @@ pub(super) fn validate_unit_cleanup_actions(
         function,
         functions,
         structural_types,
+        reference_effects,
         block,
         frontier,
         actions,
@@ -38,10 +41,12 @@ pub(super) fn validate_unit_cleanup_actions(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn validate_scalar_cleanup_actions(
     function: &PsiOptimizationFunction,
     functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    reference_effects: &super::references::call_effects::ReferenceCallEffects,
     block: BlockId,
     frontier: &CurrentOwnership,
     actions: &[TerminalAffineCleanupAction],
@@ -69,6 +74,7 @@ pub(super) fn validate_scalar_cleanup_actions(
     super::references::validate_normal_return(
         function,
         structural_types,
+        reference_effects,
         block,
         &remaining.live_references,
     )?;
@@ -425,10 +431,10 @@ pub(super) fn consume_owner_cleanup(
             || !super::structural::projected_root_is_fully_consumed(
                 function, types, frontier, place,
             )
-            || frontier
-                .live_references
-                .iter()
-                .any(|reference| reference.carrier == place)
+            || frontier.live_references.iter().any(|reference| {
+                reference.carrier == place
+                    && super::references::owned_resident(&reference.carrier_path, &[])
+            })
         {
             return Err(mismatch());
         }

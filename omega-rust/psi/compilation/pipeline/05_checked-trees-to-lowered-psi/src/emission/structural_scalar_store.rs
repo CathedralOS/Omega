@@ -330,9 +330,31 @@ pub(crate) fn lower_structural_field_steps<'a>(
     ),
     LoweringError,
 > {
-    let (mut field_owner, mut steps) = structural_field_root(root_type, structural_types)?;
+    let mut field_owner = terminal_psi::find_structural_type(structural_types, root_type).ok_or(
+        LoweringError::Unsupported("structural scalar store root type is absent"),
+    )?;
+    let mut steps = Vec::new();
     let mut payload_fields = None;
     for segment in carrier_path {
+        if matches!(segment, CheckedUnitStructuralPathSegment::Referent) {
+            if payload_fields.is_some() {
+                return unsupported("field path case must select a payload field");
+            }
+            let StructuralTypeShape::Reference { referent, .. } = &field_owner.shape else {
+                return unsupported("field path reference crossing has no reference carrier");
+            };
+            field_owner = terminal_psi::find_structural_type(structural_types, *referent).ok_or(
+                LoweringError::Unsupported("field path referent type is absent"),
+            )?;
+            steps.push(ProjectionStep::Static(StructuralPathSegment::Referent));
+            continue;
+        }
+        // A declared member selects through its owner's reference shell.
+        // Delay this normalization until member selection so an explicit
+        // checked Referent step consumes the pointer exactly once.
+        let (owner, crossings) = structural_field_root(field_owner.id, structural_types)?;
+        field_owner = owner;
+        steps.extend(crossings);
         if let CheckedUnitStructuralPathSegment::Case(identity) = segment {
             if payload_fields.is_some() {
                 return unsupported("field path repeats an unconsumed case namespace");
@@ -403,13 +425,13 @@ pub(crate) fn lower_structural_field_steps<'a>(
             }
             _ => return unsupported("structural scalar store carrier path is unsupported"),
         };
-        // A stored reference starts a new region at any depth, not only at
-        // the root. Keep its pointer crossing before the following member.
-        // Checking owns authority; this shared walker supplies geometry only.
-        let (nested_owner, crossings) = structural_field_root(nested, structural_types)?;
-        field_owner = nested_owner;
-        steps.extend(crossings);
+        field_owner = terminal_psi::find_structural_type(structural_types, nested).ok_or(
+            LoweringError::Unsupported("structural scalar store carrier type is absent"),
+        )?;
     }
+    let (owner, crossings) = structural_field_root(field_owner.id, structural_types)?;
+    field_owner = owner;
+    steps.extend(crossings);
     // A mixed shape's common fields sit at one offset in every case, so the
     // leaf writes one without a `Case` step, as a read observes it.
     let Some(fields) = payload_fields.or_else(|| field_owner.shape.direct_fields()) else {

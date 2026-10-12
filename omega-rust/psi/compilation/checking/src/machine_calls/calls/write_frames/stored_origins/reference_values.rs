@@ -75,9 +75,21 @@ fn resolve_origins(
     else {
         return vec![Some(origin)];
     };
+    // A retained nested slot records its current contents. Its incoming
+    // ancestor descriptor only identifies storage and must not reintroduce
+    // the pre-store value beside that current slot (including unknown rows).
+    let selected_depth = local
+        .references
+        .iter()
+        .filter(|leaf| {
+            !crossed.is_some_and(|depth| leaf.local_segments.len() <= depth)
+                && source_reaches_leaf(&origin.source.segments, &leaf.local_segments)
+        })
+        .map(|leaf| leaf.local_segments.len())
+        .max();
     let mut sources = Vec::new();
     for leaf in &local.references {
-        if crossed.is_some_and(|depth| leaf.local_segments.len() <= depth)
+        if Some(leaf.local_segments.len()) != selected_depth
             || !source_reaches_leaf(&origin.source.segments, &leaf.local_segments)
         {
             continue;

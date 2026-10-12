@@ -15,7 +15,7 @@ use super::super::{
 use crate::machine_calls::calls::write_frames::FrameInference;
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn instantiate_source(
+pub(in crate::machine_calls::calls::write_frames) fn instantiate_source(
     program: &dyn crate::CheckingInput,
     caller_machine: &Machine,
     parameter: &StateParameter,

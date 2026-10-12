@@ -19,6 +19,8 @@ use selected_instructions::{
 };
 use semantic_vocabulary::BoundaryInvocationSite;
 
+mod descriptor_input;
+
 pub(super) enum Invocation<'source> {
     Operation(&'source LegalizedScalarInstruction),
     ExternalCompletion {
@@ -107,6 +109,9 @@ pub(super) fn emit_invocation(
         &constraint,
         environment,
     )?;
+    if let Some(operation) = operation {
+        descriptor_input::emit(source, call, operation.operation, builder)?;
+    }
     // Encoding materializes private addresses inside the call row, but frame
     // demand belongs here alongside every other outgoing argument. A final
     // stack callback cannot borrow extent from an unrelated sibling operand.

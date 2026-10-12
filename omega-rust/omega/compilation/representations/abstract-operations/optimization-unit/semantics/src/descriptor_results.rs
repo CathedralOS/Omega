@@ -36,6 +36,48 @@ pub fn abstract_catalog_graph<'function, 'boundary>(
     })
 }
 
+/// Ordinary reference-pointer contents reconstructed from current flat bodies.
+pub fn abstract_reference_catalog_graph<'function, 'boundary>(
+    functions: impl IntoIterator<Item = &'function abstract_operations::AbstractFunction>,
+    boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
+    types: &[StructuralTypeDeclaration],
+) -> Option<Vec<DescriptorMachine>> {
+    let functions = functions
+        .into_iter()
+        .map(optimization_unit::reconstruct_psi_optimization_function_seed)
+        .collect::<Result<Vec<_>, _>>()
+        .ok()?;
+    optimized_reference_catalog_graph(functions.iter(), boundaries, types, |_, node| {
+        Some(Cow::Borrowed(&node.operation))
+    })
+}
+
+/// Adapt flat current bodies with their independently selected execution and
+/// explicit guarded-boundary obligations. Portable callers use the default API.
+pub fn abstract_reference_catalog_graph_with_boundary_preservation<'function, 'boundary>(
+    functions: impl IntoIterator<Item = &'function abstract_operations::AbstractFunction>,
+    boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
+    types: &[StructuralTypeDeclaration],
+    operation: impl for<'node> Fn(
+        &PsiOptimizationFunction,
+        &'node optimization_unit::OptimizationNode,
+    ) -> Option<Cow<'node, O>>,
+    preserves_boundary: impl Fn(&PsiOptimizationFunction, &optimization_unit::OptimizationNode) -> bool,
+) -> Option<Vec<DescriptorMachine>> {
+    let functions = functions
+        .into_iter()
+        .map(optimization_unit::reconstruct_psi_optimization_function_seed)
+        .collect::<Result<Vec<_>, _>>()
+        .ok()?;
+    optimized_reference_catalog_graph_with_boundary_preservation(
+        functions.iter(),
+        boundaries,
+        types,
+        operation,
+        preserves_boundary,
+    )
+}
+
 pub(crate) fn optimized_graph(unit: &PsiOptimizationUnit) -> Option<Vec<DescriptorMachine>> {
     optimized_catalog_graph(
         unit.functions.iter(),
@@ -60,6 +102,73 @@ pub fn optimized_catalog_graph<'function, 'boundary>(
         &'node optimization_unit::OptimizationNode,
     ) -> Option<Cow<'node, O>>,
 ) -> Option<Vec<DescriptorMachine>> {
+    catalog_graph(
+        functions,
+        boundaries,
+        types,
+        operation,
+        kernel::DescriptorSlotKind::SharedViews,
+        |_, _| false,
+    )
+}
+
+/// Independently track ordinary pointer slots, using the same executable flow
+/// and call substitution as view backing. This grants no copy or access rights.
+pub fn optimized_reference_catalog_graph<'function, 'boundary>(
+    functions: impl IntoIterator<Item = &'function PsiOptimizationFunction>,
+    boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
+    types: &[StructuralTypeDeclaration],
+    operation: impl for<'node> Fn(
+        &PsiOptimizationFunction,
+        &'node optimization_unit::OptimizationNode,
+    ) -> Option<Cow<'node, O>>,
+) -> Option<Vec<DescriptorMachine>> {
+    optimized_reference_catalog_graph_with_boundary_preservation(
+        functions,
+        boundaries,
+        types,
+        operation,
+        |_, _| false,
+    )
+}
+
+/// Reference storage may survive an opaque boundary only when the realization
+/// supplies a specific independently discharged preservation obligation. This
+/// callback grants no portable fact: selected Omega bodies must instead use
+/// `operation` to supply their actual executable call relation. A guarded foreign
+/// implementation must emit its exact guard and every receiving audit must
+/// reconstruct the guard from the authenticated binding and byte geometry.
+pub fn optimized_reference_catalog_graph_with_boundary_preservation<'function, 'boundary>(
+    functions: impl IntoIterator<Item = &'function PsiOptimizationFunction>,
+    boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
+    types: &[StructuralTypeDeclaration],
+    operation: impl for<'node> Fn(
+        &PsiOptimizationFunction,
+        &'node optimization_unit::OptimizationNode,
+    ) -> Option<Cow<'node, O>>,
+    preserves_boundary: impl Fn(&PsiOptimizationFunction, &optimization_unit::OptimizationNode) -> bool,
+) -> Option<Vec<DescriptorMachine>> {
+    catalog_graph(
+        functions,
+        boundaries,
+        types,
+        operation,
+        kernel::DescriptorSlotKind::References,
+        preserves_boundary,
+    )
+}
+
+fn catalog_graph<'function, 'boundary>(
+    functions: impl IntoIterator<Item = &'function PsiOptimizationFunction>,
+    boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
+    types: &[StructuralTypeDeclaration],
+    operation: impl for<'node> Fn(
+        &PsiOptimizationFunction,
+        &'node optimization_unit::OptimizationNode,
+    ) -> Option<Cow<'node, O>>,
+    slot_kind: kernel::DescriptorSlotKind,
+    preserves_boundary: impl Fn(&PsiOptimizationFunction, &optimization_unit::OptimizationNode) -> bool,
+) -> Option<Vec<DescriptorMachine>> {
     let functions = functions.into_iter().collect::<Vec<_>>();
     let boundaries = boundaries.into_iter().collect::<Vec<_>>();
     let mut identities = BTreeSet::new();
@@ -69,7 +178,15 @@ pub fn optimized_catalog_graph<'function, 'boundary>(
             if !identities.insert(function.machine) {
                 return None;
             }
-            adapt(types, &boundaries, &functions, function, &operation)
+            adapt(
+                types,
+                &boundaries,
+                &functions,
+                function,
+                &operation,
+                slot_kind,
+                &preserves_boundary,
+            )
         })
         .collect()
 }
@@ -134,6 +251,8 @@ fn adapt(
         &PsiOptimizationFunction,
         &'node optimization_unit::OptimizationNode,
     ) -> Option<Cow<'node, O>>,
+    slot_kind: kernel::DescriptorSlotKind,
+    preserves_boundary: &impl Fn(&PsiOptimizationFunction, &optimization_unit::OptimizationNode) -> bool,
 ) -> Option<DescriptorMachine> {
     let mut graph = DescriptorMachine {
         id: function.machine,
@@ -142,7 +261,8 @@ fn adapt(
             .result
             .structural()
             .filter(|result| {
-                kernel::descriptor_slots(types, result.place, result.structural_type)
+                slot_kind
+                    .slots(types, result.place, result.structural_type)
                     .is_some_and(|slots| !slots.is_empty())
             })
             .map(|_| Vec::new()),
@@ -151,6 +271,7 @@ fn adapt(
         flow: BTreeMap::new(),
         originations: BTreeMap::new(),
         projections: BTreeMap::new(),
+        storage_derivations: BTreeSet::new(),
         calls: BTreeMap::new(),
         normal_exits: Vec::new(),
     };
@@ -273,7 +394,9 @@ fn adapt(
             if let Some(result) = result {
                 let destination = DescriptorLocation::whole(result.place);
                 step.definitions.push(destination.clone());
-                if !kernel::is_shared_descriptor(types.iter(), result.structural_type) {
+                if !kernel::is_shared_descriptor(types.iter(), result.structural_type)
+                    && !slot_kind.is_slot(types, result.structural_type)
+                {
                     graph.originations.entry(position).or_default().push((
                         destination,
                         kernel::DescriptorCallOrigin::Argument {
@@ -299,12 +422,9 @@ fn adapt(
                     ));
                 }
                 O::EstablishZeroedStructural { result, .. } => {
-                    for slot in kernel::descriptor_slot_inventory(
-                        types,
-                        result.place,
-                        result.structural_type,
-                    )?
-                    .slots
+                    for slot in slot_kind
+                        .inventory(types, result.place, result.structural_type)?
+                        .slots
                     {
                         graph
                             .originations
@@ -347,6 +467,15 @@ fn adapt(
                     }
                     if let Some(source) = location(source.place, path, None) {
                         step.derivations.push((source.clone(), destination.clone()));
+                        if slot_kind == kernel::DescriptorSlotKind::References
+                            && matches!(operation, O::EstablishReference { .. })
+                        {
+                            graph.storage_derivations.insert((
+                                position,
+                                source.clone(),
+                                destination.clone(),
+                            ));
+                        }
                         if let Some(projection) = projection {
                             graph
                                 .projections
@@ -452,6 +581,7 @@ fn adapt(
                                 types.iter(),
                                 *graph.place_types.get(&destination.root)?,
                             )
+                            && !slot_kind.is_slot(types, *graph.place_types.get(&destination.root)?)
                         {
                             graph.originations.entry(position).or_default().push((
                                 destination.clone(),
@@ -462,7 +592,7 @@ fn adapt(
                             ));
                         }
                     } else {
-                        step.definitions.extend(kernel::descriptor_slots(
+                        step.definitions.extend(slot_kind.slots(
                             types,
                             destination.place(),
                             *graph.place_types.get(&destination.place())?,
@@ -482,7 +612,7 @@ fn adapt(
                         step.derivations
                             .push((DescriptorLocation::whole(*source), destination));
                     } else {
-                        step.definitions.extend(kernel::descriptor_slots(
+                        step.definitions.extend(slot_kind.slots(
                             types,
                             *destination,
                             *graph.place_types.get(destination)?,
@@ -521,12 +651,9 @@ fn adapt(
                         if !cases.iter().any(|case| case.id == *result_case) {
                             return None;
                         }
-                        for slot in kernel::descriptor_slot_inventory(
-                            types,
-                            result.place,
-                            result.structural_type,
-                        )?
-                        .slots
+                        for slot in slot_kind
+                            .inventory(types, result.place, result.structural_type)?
+                            .slots
                         {
                             if matches!(slot.path.first(), Some(terminal_semantics::descriptor_lifetimes::DescriptorPathSegment::Case(case)) if case != result_case)
                             {
@@ -594,7 +721,8 @@ fn adapt(
                             arguments.push(actual);
                         }
                         let descriptor_result = result.filter(|result| {
-                            kernel::descriptor_slots(types, result.place, result.structural_type)
+                            slot_kind
+                                .slots(types, result.place, result.structural_type)
                                 .is_some_and(|slots| !slots.is_empty())
                         });
                         if let Some(result) = descriptor_result {
@@ -628,6 +756,7 @@ fn adapt(
                                     types,
                                     &graph.place_types,
                                     actual,
+                                    slot_kind,
                                 )?);
                             }
                         }
@@ -665,6 +794,7 @@ fn adapt(
                                 types,
                                 &graph.place_types,
                                 actual,
+                                slot_kind,
                             )?);
                         }
                     }
@@ -707,6 +837,9 @@ fn adapt(
                         }
                         _ => false,
                     };
+                    let preserved = preserved
+                        || (slot_kind == kernel::DescriptorSlotKind::References
+                            && preserves_boundary(function, node));
                     if !preserved {
                         step.may_escape = true;
                         for actual in structural_arguments
@@ -717,6 +850,7 @@ fn adapt(
                                 types,
                                 &graph.place_types,
                                 actual,
+                                slot_kind,
                             )?);
                         }
                     }
@@ -745,7 +879,7 @@ fn adapt(
                         parameter.access,
                         terminal_psi::exclusive_borrow_pair_pattern!()
                     ) {
-                        step.inputs.extend(kernel::descriptor_slots(
+                        step.inputs.extend(slot_kind.slots(
                             types,
                             parameter.place,
                             parameter.structural_type,
@@ -821,11 +955,13 @@ fn writable_descriptor_slots(
     types: &[StructuralTypeDeclaration],
     place_types: &BTreeMap<PlaceId, semantic_vocabulary::StructuralTypeId>,
     actual: &terminal_psi::StructuralArgument,
+    slot_kind: kernel::DescriptorSlotKind,
 ) -> Option<Vec<DescriptorLocation>> {
     let ty = *place_types.get(&actual.place)?;
     let selected = descriptor_location(types, actual.place, ty, &actual.path, None);
     Some(
-        kernel::descriptor_slots(types, actual.place, ty)?
+        slot_kind
+            .slots(types, actual.place, ty)?
             .into_iter()
             .filter(|slot| {
                 !slot.path.is_empty()

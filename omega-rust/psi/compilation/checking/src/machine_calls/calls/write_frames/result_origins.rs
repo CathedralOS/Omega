@@ -27,6 +27,7 @@ use typed_trees::statement::{TransitionExit, TransitionTargetHandle, TransitionT
 
 mod input_moves;
 mod input_sources;
+pub(super) use input_sources::instantiate_source;
 mod state_equations;
 
 pub(super) fn call_result_origins(
@@ -442,7 +443,7 @@ fn merge_result_arm(
 /// expression resolver. Local declaration symbols authenticate alias identity;
 /// the prefix supplies the referents after all preceding writes and rebinds.
 #[allow(clippy::too_many_arguments)]
-fn reference_result_relation(
+pub(super) fn reference_result_relation(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
@@ -463,9 +464,9 @@ fn reference_result_relation(
         let Some(local) = statement.as_local_data() else {
             continue;
         };
-        if !super::type_reference_is_reference(program, local.type_reference) {
-            continue;
-        }
+        // A fresh borrow can name owned local storage as well as a stored
+        // reference. Retain that exact home symbol here; the prefix join and
+        // exit lifetime check still decide its backing and whether it escapes.
         let declared = FramePlaceOrigin {
             path: local.name.as_str().to_owned(),
             precision: FramePathPrecision::Exact,

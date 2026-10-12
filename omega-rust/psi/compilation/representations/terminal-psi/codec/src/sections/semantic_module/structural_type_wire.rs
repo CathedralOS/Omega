@@ -23,7 +23,7 @@ pub(crate) fn encode_structural_type(
     writer.id(declaration.id);
     writer.u32(declaration.identity.0);
     writer.boolean(declaration.no_code_affine_cleanup);
-    writer.boolean(declaration.shared_descriptor_cleanup);
+    writer.boolean(declaration.descriptor_cleanup);
     match &declaration.shape {
         StructuralTypeShape::BindingCarrier => writer.u8(11),
         StructuralTypeShape::Reference { referent, access } => {
@@ -116,7 +116,7 @@ pub(crate) fn decode_structural_type(
     let id = reader.id("StructuralTypeId")?;
     let identity = TerminalIdentityIndex(reader.u32()?);
     let no_code_affine_cleanup = reader.boolean()?;
-    let shared_descriptor_cleanup = reader.boolean()?;
+    let descriptor_cleanup = reader.boolean()?;
     let mut scalar_restriction = None;
     let shape = match reader.u8()? {
         11 => StructuralTypeShape::BindingCarrier,
@@ -189,7 +189,7 @@ pub(crate) fn decode_structural_type(
     };
     Ok(StructuralTypeDeclaration {
         no_code_affine_cleanup,
-        shared_descriptor_cleanup,
+        descriptor_cleanup,
         scalar_restriction,
         id,
         identity,
@@ -302,7 +302,7 @@ mod tests {
             ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 8).expect("signed byte"));
         let declaration = StructuralTypeDeclaration {
             no_code_affine_cleanup: true,
-            shared_descriptor_cleanup: true,
+            descriptor_cleanup: true,
             scalar_restriction: None,
             id: StructuralTypeId::new(1).expect("record identity"),
             identity: terminal_psi::TerminalIdentityIndex(15),

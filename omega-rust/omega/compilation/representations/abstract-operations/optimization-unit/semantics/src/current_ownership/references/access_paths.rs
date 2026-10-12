@@ -159,12 +159,14 @@ pub(super) fn access_reference_custody(
                         // An ingress leaf can name an opaque permission rather
                         // than concrete storage. Only an exact referent contract
                         // may become the cursor for another stored descriptor.
-                        if structural_source_contract(function, place).and_then(|signature| {
-                            leaf_type(structural_types, signature.structural_type, &path)
-                        }) != Some(referent)
-                        {
-                            return Err(invalid_opaque());
-                        }
+                        let cursor = super::storage_cursor(
+                            function,
+                            structural_types,
+                            ReferenceIdentity { place, path },
+                            referent,
+                        )
+                        .ok_or_else(invalid_opaque)?;
+                        let (place, path) = (cursor.place, cursor.path);
                         let mut ancestry = ancestors.clone();
                         ancestry.push(carrier.identity.clone());
                         if !next_cursors.contains(&(place, path.clone(), ancestry.clone())) {

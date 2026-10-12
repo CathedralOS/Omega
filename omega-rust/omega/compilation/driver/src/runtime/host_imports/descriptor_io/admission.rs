@@ -9,7 +9,6 @@
 use calling_conventions::{CallSignature, ValueShape, validate_boundary_entry_plan};
 use runtime_abi::NativeBorrowedStorageLayout;
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
-use target::TargetProfile;
 use target_operations::NormalizedForeignCallBinding;
 use terminal_interpreter::{TerminalImportSignature, TerminalProgram};
 use terminal_psi::{
@@ -33,52 +32,13 @@ pub(super) struct DescriptorContract {
 fn select(
     binding: &NormalizedForeignCallBinding,
 ) -> Result<Option<(DescriptorAbi, DescriptorOperation)>, TerminalRuntimeError> {
-    if let Some(system_call) = binding.system_call() {
-        let operation = match (system_call.target, system_call.number) {
-            (TargetProfile::LinuxX64, 0) | (TargetProfile::LinuxArm64, 63) => {
-                DescriptorOperation::Read
-            }
-            (TargetProfile::LinuxX64, 1) | (TargetProfile::LinuxArm64, 64) => {
-                DescriptorOperation::Write
-            }
-            _ => return Ok(None),
-        };
-        return Ok(Some((DescriptorAbi::LinuxKernel, operation)));
-    }
-    let Some((locator, _)) = binding.import() else {
-        return Ok(None);
-    };
-    let target = locator.target();
-    let abi = match target {
-        TargetProfile::MacosArm64 | TargetProfile::MacosX64 => DescriptorAbi::DarwinLibSystem,
-        TargetProfile::WindowsX64 => DescriptorAbi::WindowsCrt,
-        _ => return Ok(None),
-    };
-    for (symbol, operation) in [
-        (b"_read".as_slice(), DescriptorOperation::Read),
-        (b"_write".as_slice(), DescriptorOperation::Write),
-    ] {
-        let candidate = match abi {
-            DescriptorAbi::DarwinLibSystem => target::ForeignLocatorCandidate::MachODylibSymbol {
-                install_name: b"/usr/lib/libSystem.B.dylib".to_vec(),
-                symbol: symbol.to_vec(),
-            },
-            DescriptorAbi::WindowsCrt => target::ForeignLocatorCandidate::PeByName {
-                library: b"msvcrt.dll".to_vec(),
-                export: symbol.to_vec(),
-            },
-            DescriptorAbi::LinuxKernel => return Ok(None),
-        };
-        let offered = target::normalize_foreign_locator(candidate, target).map_err(|_| {
-            TerminalRuntimeError::InvalidProvision(
-                "host descriptor implementation has an invalid locator",
-            )
-        })?;
-        if offered == *locator {
-            return Ok(Some((abi, operation)));
-        }
-    }
-    Ok(None)
+    Ok(if let Some(system_call) = binding.system_call() {
+        runtime_abi::descriptor_system_call(system_call.target, system_call.number)
+    } else {
+        binding
+            .import()
+            .and_then(|(locator, _)| runtime_abi::descriptor_import(locator))
+    })
 }
 
 pub(super) fn admit(

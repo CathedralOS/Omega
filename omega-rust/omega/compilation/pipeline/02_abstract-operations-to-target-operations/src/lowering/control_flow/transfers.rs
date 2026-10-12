@@ -68,6 +68,9 @@ pub(super) fn re_home_bound_references(
             let Some(relative) = source.1.strip_prefix(binding.argument.path.as_slice()) else {
                 continue;
             };
+            if relative.contains(&terminal_psi::StructuralPathSegment::Referent) {
+                continue;
+            }
             let destination = (parameter.place, relative.to_vec());
             if references::leaf_referent(types, parameter.structural_type, relative)
                 != Some(descriptor.referent)

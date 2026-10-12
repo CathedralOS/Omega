@@ -28,9 +28,9 @@ pub use compatibility::{DescriptorCompatibilityFailure, DescriptorCompatibilityR
 pub use owned_shape::{owned_shared_byte_descriptor_shape, plain_owned_shape};
 mod terminal_flow;
 pub use replay::{
-    DescriptorAnalysis, DescriptorSlotInventory, DescriptorStoredCallEffect,
+    DescriptorAnalysis, DescriptorSlotInventory, DescriptorSlotKind, DescriptorStoredCallEffect,
     DescriptorStoredEffect, DescriptorStoredOrigin, descriptor_slot_inventory, descriptor_slots,
-    reconstruct_source_origins, reconstruct_stored_effects,
+    reconstruct_source_origins, reconstruct_stored_effects, writable_reference_slots,
 };
 
 #[derive(Clone)]
@@ -246,6 +246,9 @@ pub struct DescriptorMachine {
     pub originations: BTreeMap<DescriptorPosition, Vec<(DescriptorLocation, DescriptorCallOrigin)>>,
     pub projections:
         BTreeMap<(DescriptorPosition, DescriptorLocation, DescriptorLocation), Projection>,
+    /// Reference construction captures the source slot address, not its current
+    /// pointer contents. Copies and moves remain ordinary value derivations.
+    pub storage_derivations: BTreeSet<(DescriptorPosition, DescriptorLocation, DescriptorLocation)>,
     pub calls: BTreeMap<DescriptorPosition, DescriptorInvocation>,
     pub normal_exits: Vec<DescriptorPosition>,
 }
@@ -405,7 +408,18 @@ pub fn terminal_graph(module: &TerminalModule) -> Vec<DescriptorMachine> {
     module
         .machines
         .iter()
-        .filter_map(|machine| terminal_flow::adapt(module, machine))
+        .filter_map(|machine| {
+            terminal_flow::adapt(module, machine, DescriptorSlotKind::SharedViews)
+        })
+        .collect()
+}
+
+/// Current Terminal reference-slot graph; pair with `with_reference_slots`.
+pub fn terminal_reference_graph(module: &TerminalModule) -> Vec<DescriptorMachine> {
+    module
+        .machines
+        .iter()
+        .filter_map(|machine| terminal_flow::adapt(module, machine, DescriptorSlotKind::References))
         .collect()
 }
 

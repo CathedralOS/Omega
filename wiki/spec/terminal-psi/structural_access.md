@@ -262,14 +262,18 @@ Intact whole-value replacement admits an affine incoming value only with this
 authority for its exact type, no retained claims, and resource-free storage.
 The incoming value transfers once, while the borrowed owner retains its custody.
 
-Separate checked `shared_descriptor_cleanup` authority admits a closed value
-containing only owned storage and shared reference descriptors, with no nominal
+Separate checked `descriptor_cleanup` authority admits a closed value
+containing only owned storage and reference descriptors, with no nominal
 cleanup hook or conserved claim. Replacement retires the exact displaced
 resident descriptor cohort only after checking its child-loan closure, then
 installs the incoming value's complete descriptor roster. It does not load or
 dispose the referents; detached copies keep their identities and backing loans.
-An unrestricted incoming value keeps its source descriptors, while an affine
-incoming value transfers them once. Receiving custody checks independently
+An unrestricted incoming value keeps its shared source descriptors, while an affine
+incoming value transfers them once. Exclusive descriptors never gain copy
+permission. Ending a permission requires its complete child closure; retiring
+its carrier binding keeps any still-borrowed parent permission until its children
+end through the ordinary checked disposition path.
+Receiving custody checks independently
 reconstruct storage geometry, access, multiplicity and the full old/new rosters.
 This capability does not grant resource-free cleanup to ordinary exit handling.
 

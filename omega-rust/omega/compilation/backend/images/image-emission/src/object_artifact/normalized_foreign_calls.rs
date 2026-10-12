@@ -30,6 +30,7 @@
 //! record and the selected callback argument agree on destination, span, and
 //! relocation shape, and the plan's parameter roster accounts for the slot.
 
+mod descriptor_input;
 mod floating_control;
 
 use calling_conventions::ValueLocation;
@@ -78,6 +79,7 @@ pub fn derive_normalized_foreign_call_custody(
             }
             let (block, instruction) =
                 unique_block_instruction(function, record.instruction).ok_or_else(invalid)?;
+            descriptor_input::validate(function, block, record).ok_or_else(invalid)?;
             if !foreign_invocation_provenance_matches(
                 &instruction.provenance,
                 record.invocation_site,

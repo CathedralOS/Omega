@@ -60,6 +60,7 @@ struct ReferenceEdgeStorage {
 #[derive(Clone)]
 struct LiveDefinitions {
     borrowed_reference_sources: references::BorrowedSources,
+    stored_reference_effects: references::StoredEffectCatalog,
     // Dominating definitions only. Abstract-unit validation owns edge liveness.
     structural_homes: BTreeMap<PlaceId, target_operations::TargetStructuralHomeRequirement>,
     integers: BTreeMap<ValueId, KnownUnitInteger>,
@@ -196,6 +197,7 @@ pub(super) fn lower(
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
     borrowed_reference_sources: references::BorrowedSources,
+    stored_reference_effects: references::StoredEffectCatalog,
     structural_types: &StructuralTypeLookup<'_>,
     boundary_machines: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
@@ -467,6 +469,7 @@ pub(super) fn lower(
     let mut block_provenance = vec![TerminalPsiProvenance::default(); entries.len()];
     let initial = LiveDefinitions {
         borrowed_reference_sources,
+        stored_reference_effects,
         structural_homes: BTreeMap::new(),
         integers: super::function_signature::integer_parameters(
             function.machine,

@@ -366,9 +366,14 @@ pub(super) fn statement_borrow_loans(
                 loan_trackers,
             )
         }
-        StatementNode::Call(_) => {
-            stored_calls::loans(program, state, machine_symbol, statement, call_frames)
-        }
+        StatementNode::Call(_) => stored_calls::loans(
+            program,
+            state,
+            machine_symbol,
+            statement,
+            call_frames,
+            loan_trackers,
+        ),
         StatementNode::RootBinding(_)
         | StatementNode::AssemblyFact(_)
         | StatementNode::Expression(_)

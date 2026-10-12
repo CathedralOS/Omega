@@ -87,6 +87,14 @@ pub(super) fn transfer(
                 .collect(),
         };
         for mut region in candidates {
+            if let Some(position) = crossing {
+                let reference = access_path_type(types, root.structural_type(), &hole[..position])
+                    .ok_or_else(|| fail("window reference crossing has no type"))?;
+                let referent = leaf_referent(types, reference, &[])
+                    .ok_or_else(|| fail("window reference crossing has no referent"))?;
+                region = super::storage_cursor(function, types, region, referent)
+                    .ok_or_else(|| fail("window reference origin has no exact storage cursor"))?;
+            }
             region.path.extend_from_slice(suffix);
             if !regions.contains(&region) {
                 regions.push(region);
@@ -123,6 +131,8 @@ pub(super) fn transfer(
         if regions.iter().any(|region| {
             live.iter().any(|reference| {
                 reference.carrier == region.place
+                    && (!reference.carrier_path.starts_with(&region.path)
+                        || super::owned_resident(&reference.carrier_path, &region.path))
                     && terminal_semantics::structural_paths_may_overlap(
                         &reference.carrier_path,
                         &region.path,
@@ -152,7 +162,7 @@ pub(super) fn transfer(
             contract.access == StructuralAccess::Owned
                 && contract.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
         });
-    // Discarding shared descriptors settles only this resident cohort. Stage
+    // Discarding reference descriptors settles only this resident cohort. Stage
     // closure and transfer together so a failed incoming roster changes none
     // of the caller's custody. Captured backing and external copies stay live.
     let mut staged = live.clone();
@@ -169,6 +179,8 @@ pub(super) fn transfer(
     let staged_live = &mut staged;
     if staged_live.iter().any(|reference| {
         reference.carrier == destination.place
+            && (!reference.carrier_path.starts_with(&destination.path)
+                || super::owned_resident(&reference.carrier_path, &destination.path))
             && terminal_semantics::structural_paths_may_overlap(
                 &reference.carrier_path,
                 &destination.path,
@@ -203,7 +215,7 @@ pub(super) fn transfer(
     }
     if staged_live.iter().enumerate().any(|(position, reference)| {
         reference.carrier == source.place
-            && reference.carrier_path.starts_with(&source.path)
+            && super::owned_resident(&reference.carrier_path, &source.path)
             && !relocations
                 .iter()
                 .any(|(selected, _)| *selected == position)

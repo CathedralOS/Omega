@@ -5,7 +5,7 @@
 use super::{
     Custody, LegalizationError, PsiOptimizationFunction, Root, StructuralAccess,
     StructuralArgument, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
-    invalid, leaf_type, shared_source_compatible, source_contract,
+    invalid, leaf_type, shared_source_compatible, source_contract, storage_origins,
 };
 
 /// A nonescaping call follows live descriptor custody at every crossing.
@@ -14,6 +14,7 @@ use super::{
 /// remain valid final origins, but cannot invent another stored descriptor.
 pub(super) struct ReferenceObservation {
     pub(super) origins: Vec<Root>,
+    pub(super) referent: semantic_vocabulary::StructuralTypeId,
     pub(super) dependencies: Vec<Root>,
     pub(super) descriptors: Vec<(semantic_vocabulary::PlaceId, Vec<StructuralPathSegment>)>,
     absent_case_descriptors: bool,
@@ -190,15 +191,9 @@ pub(super) fn observe_reference_custody(
                     dependencies.push(leaf.root.clone());
                     let mut ancestors = ancestors.clone();
                     ancestors.push(leaf.identity.clone());
-                    for origin in leaf.root.origins() {
+                    for origin in storage_origins(function, custody, types, &leaf.root, referent)? {
                         let place = origin.root;
                         let path = origin.path;
-                        if source_contract(function, custody, place)
-                            .and_then(|contract| leaf_type(types, contract, &path))
-                            != Some(referent)
-                        {
-                            return Err(invalid());
-                        }
                         let cursor = (place, path, ancestors.clone());
                         if !next_cursors.contains(&cursor) {
                             if next_cursors.len() >= cursor_budget {
@@ -224,6 +219,7 @@ pub(super) fn observe_reference_custody(
             }
             return Ok(ReferenceObservation {
                 origins,
+                referent,
                 dependencies,
                 descriptors,
                 absent_case_descriptors,

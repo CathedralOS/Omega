@@ -116,7 +116,7 @@ pub(in crate::legalization) fn extent(
     // following field or element selects a child of that referent.
     if !terminal_semantics::structural_window_selects_child(path, field) {
         let authenticated = if let Some(referent) = &referent {
-            super::reference_custody::window_regions(
+            super::reference_custody::window_backing_roots(
                 function,
                 custody,
                 types,
@@ -129,7 +129,7 @@ pub(in crate::legalization) fn extent(
                 },
                 required_access,
             )
-            .is_ok_and(|regions| {
+            .is_ok_and(|roots| {
                 terminal_semantics::structural_window_origins(
                     function.structural_parameters.iter().chain(
                         function
@@ -137,7 +137,7 @@ pub(in crate::legalization) fn extent(
                             .iter()
                             .flat_map(|block| &block.structural_parameters),
                     ),
-                    regions.into_iter().map(|(place, _)| place),
+                    roots,
                     required_access,
                     |place| {
                         optimization_unit_semantics::structural_place_supports_window_restoration(

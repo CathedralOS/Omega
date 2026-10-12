@@ -266,7 +266,7 @@ pub(crate) fn prepare_types(
                     ))?;
                 types.push(StructuralTypeDeclaration {
                     no_code_affine_cleanup: false,
-                    shared_descriptor_cleanup: false,
+                    descriptor_cleanup: false,
                     scalar_restriction: None,
                     id: structural_type_id(ordinal),
                     identity: identities.intern(&identity),
@@ -308,7 +308,7 @@ pub(crate) fn literal_view_type(
     let id = structural_type_id(identity);
     types.push(StructuralTypeDeclaration {
         no_code_affine_cleanup: false,
-        shared_descriptor_cleanup: false,
+        descriptor_cleanup: false,
         scalar_restriction: None,
         id,
         identity: identities.intern(LITERAL_VIEW_IDENTITY),
@@ -353,7 +353,7 @@ pub(crate) fn descriptor_value_type(
     );
     types.push(StructuralTypeDeclaration {
         no_code_affine_cleanup: false,
-        shared_descriptor_cleanup: false,
+        descriptor_cleanup: false,
         scalar_restriction: None,
         id,
         identity: identities.intern(IDENTITY),

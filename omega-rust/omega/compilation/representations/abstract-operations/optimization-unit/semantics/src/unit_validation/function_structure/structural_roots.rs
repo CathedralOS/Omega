@@ -389,10 +389,8 @@ pub(crate) fn validate_structural_root_operations(
                     range_obligation,
                     ..
                 } => {
-                    let geometry = if matches!(
-                        path.first(),
-                        Some(terminal_psi::StructuralPathSegment::Referent)
-                    ) {
+                    let geometry = if path.contains(&terminal_psi::StructuralPathSegment::Referent)
+                    {
                         super::super::references::record_field_destination(
                             function,
                             structural_types,

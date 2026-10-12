@@ -56,7 +56,7 @@ mod tests {
     fn declaration() -> StructuralTypeDeclaration {
         StructuralTypeDeclaration {
             no_code_affine_cleanup: false,
-            shared_descriptor_cleanup: false,
+            descriptor_cleanup: false,
             scalar_restriction: None,
             id: StructuralTypeId::new(1).unwrap(),
             identity: terminal_psi::TerminalIdentityIndex(1),

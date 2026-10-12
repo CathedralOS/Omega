@@ -164,13 +164,45 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves_before_sta
         .and_then(|stored| stored.iter().find(|local| local.local_symbol == root))
         .or_else(|| inference.and_then(|inference| inference.local_origins(root)));
     let declared_origins = if tracked.is_none() && (parameter.is_some() || stored.is_none()) {
-        let origins = super::type_origins::declared_origins_for_query(
+        let mut origins = super::type_origins::declared_origins_for_query(
             program,
             root,
             source_name,
             source_reference,
             include_shared,
         )?;
+        if include_shared && stored.is_none() && inference.is_none() {
+            // This raw argument query requests descriptor homes, not their
+            // pointees. A local descriptor has the same symbolic identity as
+            // an incoming one, even when its referee contains more pointers.
+            // Its caller-prefix consumer must resolve the live contents; an
+            // opaque region or unresolved stored row supplies no such fact.
+            for leaf in &mut origins.references {
+                if crate::reference_shell(
+                    program,
+                    projected_storage_type(program, source_reference, &leaf.local_segments)?,
+                )
+                .is_none()
+                {
+                    continue;
+                }
+                leaf.origin = Some(super::super::FramePlaceOrigin {
+                    path: leaf.local_path.clone(),
+                    precision: super::super::place_paths::coordinate_storage_path(
+                        program,
+                        source_name,
+                        &leaf.local_segments,
+                    )
+                    .1,
+                    source: super::super::FrameSourcePlace {
+                        root,
+                        segments: leaf.local_segments.clone(),
+                        builtin_coordinates: true,
+                        ..Default::default()
+                    },
+                });
+            }
+        }
         Some(origins)
     } else {
         None

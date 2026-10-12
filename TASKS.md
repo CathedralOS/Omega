@@ -4316,9 +4316,9 @@ and `mapped` need matching-host measurements, including the full-i32 status.
     before original-backing foreign output transport. Source checking rejects
     them today; preserve `fail/borrow/opaque_write_only_boundary`. ABI shape and
     a host output offer do not prove native non-observation;
-  - aggregate replacement carrying mutable reference resources or conserved
-    displaced custody, preserving whole-value validity without observing old
-    contents through write-only access. Preserve the mutable controls
+  - aggregate replacement carrying conserved displaced custody, preserving
+    whole-value validity without observing old contents through write-only
+    access. Preserve the mutable controls
     `borrows/runtime_reference_aggregate_{call,alias,projected,array_alias,call_result}_replacement_exit`
     (0), including exact old/new loan lifetimes and projected reference storage;
   - computed IEEE store/readback (through **FLOAT-PROVIDERS**; the mutable
@@ -4349,6 +4349,14 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   loans still prevent conflicting writes. Write-only stored pointers remain
   unreadable, shared pointers cannot widen to exclusive access, and reference
   constraints survive projection and capture.
+
+  Keep `borrow/runtime_write_only_exclusive_reference_*_exit` (0), covering
+  direct, projected, forwarded, detached-child, call-result, call-operand,
+  returned-view and owned-wrapper replacement. Replacement transfers exclusive
+  descriptors once, writes through installed pointers at nonzero field offsets,
+  and preserves old child loans until their final use. Incoming reuse, live
+  incoming children and conflicting writes to either borrowed backing remain
+  rejected.
 
   Coordinate sequencing with **STATE-LOCAL-VALUE-FRONTIER**, reference identity
   with **STRUCTURAL-BORROW-IDENTITY**, mutable dynamic dispatch with

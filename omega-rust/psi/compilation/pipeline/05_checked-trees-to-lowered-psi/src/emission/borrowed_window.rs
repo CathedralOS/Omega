@@ -522,8 +522,7 @@ impl BorrowedWindowLedger {
             || multiplicity == Some(StructuralMultiplicity::Affine)
                 && structural_types.iter().any(|declaration| {
                     declaration.id == value.structural_type
-                        && (declaration.no_code_affine_cleanup
-                            || declaration.shared_descriptor_cleanup)
+                        && (declaration.no_code_affine_cleanup || declaration.descriptor_cleanup)
                 });
         if index.is_none()
             && ((place.restoration_required && !discardable)

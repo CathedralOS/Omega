@@ -130,45 +130,49 @@ fn lower_store(
     let scalar_type =
         dominating_scalar_type(machine, block, operation.id, value).ok_or_else(invalid)?;
     // A returned reference is a permission carrier, not a new record home.
-    // Peel only the explicit dereference for geometry; preserve the shell and
+    // Resolve the final explicit crossing for geometry; preserve the root and
     // full path below for independent ownership and native custody replay.
-    let (storage_type, storage_path) =
-        if let Some((StructuralPathSegment::Referent, suffix)) = path.split_first() {
-            // Any owned or loaned carrier whose declaration is a reference
-            // type peels the same explicit dereference: an operation result,
-            // an entry parameter, or a join-completed block parameter all
-            // carry the loan's authority on the type, not on a producer
-            // identity only an operation result has.
-            let (carrier_type, multiplicity) = match &destination {
-                StructuralScalarStoreDestination::OwnedResult { result, .. } => {
-                    (result.structural_type, result.multiplicity)
-                }
-                StructuralScalarStoreDestination::Parameter(parameter)
-                | StructuralScalarStoreDestination::OwnedBlockParameter { parameter, .. } => {
-                    (parameter.structural_type, parameter.multiplicity)
-                }
-            };
-            let Some(StructuralTypeShape::Reference {
-                referent,
-                access: StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow,
-            }) = find_structural_type(structural_types, carrier_type)
-                .map(|declaration| &declaration.shape)
-            else {
-                return Err(invalid());
-            };
-            if multiplicity != StructuralMultiplicity::Affine
-                || !matches!(
-                    find_structural_type(structural_types, *referent)
-                        .map(|declaration| &declaration.shape),
-                    Some(StructuralTypeShape::Record { .. })
-                )
-            {
-                return Err(invalid());
+    let (storage_type, storage_path) = if let Some(crossing) = path
+        .iter()
+        .rposition(|segment| *segment == StructuralPathSegment::Referent)
+    {
+        let suffix = &path[crossing + 1..];
+        // Any owned or loaned carrier whose declaration is a reference
+        // type peels the same explicit dereference: an operation result,
+        // an entry parameter, or a join-completed block parameter all
+        // carry the loan's authority on the type, not on a producer
+        // identity only an operation result has.
+        let (carrier_type, multiplicity) = match &destination {
+            StructuralScalarStoreDestination::OwnedResult { result, .. } => {
+                (result.structural_type, result.multiplicity)
             }
-            (*referent, suffix)
-        } else {
-            (destination.structural_type(), path)
+            StructuralScalarStoreDestination::Parameter(parameter)
+            | StructuralScalarStoreDestination::OwnedBlockParameter { parameter, .. } => {
+                (parameter.structural_type, parameter.multiplicity)
+            }
         };
+        let Some(StructuralTypeShape::Reference {
+            referent,
+            access: StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow,
+        }) = resolve_structural_path(structural_types, carrier_type, &path[..crossing])
+            .and_then(|descriptor| find_structural_type(structural_types, descriptor))
+            .map(|declaration| &declaration.shape)
+        else {
+            return Err(invalid());
+        };
+        if multiplicity != StructuralMultiplicity::Affine
+            || !matches!(
+                find_structural_type(structural_types, *referent)
+                    .map(|declaration| &declaration.shape),
+                Some(StructuralTypeShape::Record { .. })
+            )
+        {
+            return Err(invalid());
+        }
+        (*referent, suffix)
+    } else {
+        (destination.structural_type(), path)
+    };
     if operation.result != OperationResult::Unit
         || destination.parameter().is_some_and(|parameter| {
             !matches!(

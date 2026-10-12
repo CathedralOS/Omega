@@ -93,7 +93,7 @@ fn fixture() -> (AbstractFunction, SelectedFunction) {
             result: None,
             structural_types: vec![terminal_psi::StructuralTypeDeclaration {
                 no_code_affine_cleanup: false,
-                shared_descriptor_cleanup: false,
+                descriptor_cleanup: false,
                 scalar_restriction: None,
                 id: structural_type,
                 identity: terminal_psi::TerminalIdentityIndex(1),
@@ -320,7 +320,7 @@ fn primitive_reference_publication_preserves_original_home_and_total_view() {
     .enumerate()
     .map(|(index, scalar)| StructuralTypeDeclaration {
         no_code_affine_cleanup: false,
-        shared_descriptor_cleanup: false,
+        descriptor_cleanup: false,
         scalar_restriction: None,
         id: StructuralTypeId::new(index as u64 + 1).unwrap(),
         identity: terminal_psi::TerminalIdentityIndex(index as u32 + 1),

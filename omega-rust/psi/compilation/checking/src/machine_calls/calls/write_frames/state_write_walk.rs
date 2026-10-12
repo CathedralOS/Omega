@@ -454,6 +454,9 @@ fn walk_state_write_prefix_inner(
     } else {
         Vec::new()
     };
+    if include_shared {
+        super::stored_calls::seed_incoming_slots(program, state, &mut stored);
+    }
     let mut written = Vec::new();
 
     let mut nested_diagnostics = Vec::new();

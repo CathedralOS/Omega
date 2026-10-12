@@ -476,11 +476,11 @@ impl<'a> Destination<'a> {
     ) -> Option<Carrier<'a>> {
         let projection = self.walk(program, segments)?;
         let owner = projection.owner?;
-        ((plain_record(owner, program, self.operators)
+        // The shared walk already establishes each reference crossing's
+        // mutable access. Keep that geometry for field stores just as for
+        // primitive stores; the carrier need not be inline in the root.
+        (plain_record(owner, program, self.operators)
             || plain_mixed(owner, program, self.operators))
-            && !projection
-                .path
-                .contains(&CheckedUnitStructuralPathSegment::Referent))
         .then_some(Carrier {
             path: projection.path,
             owner,

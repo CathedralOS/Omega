@@ -29,9 +29,10 @@ fn reference_store_carrier<'path>(
     semantic_vocabulary::StructuralTypeId,
     &'path [terminal_psi::StructuralPathSegment],
 )> {
-    let (terminal_psi::StructuralPathSegment::Referent, suffix) = path.split_first()? else {
-        return None;
-    };
+    let crossing = path
+        .iter()
+        .rposition(|segment| *segment == terminal_psi::StructuralPathSegment::Referent)?;
+    let suffix = &path[crossing + 1..];
     let structural_type = structural_place_type(machine, destination)?;
     let parameter = machine.structural_parameter(destination);
     let exact = if let Some(parameter) = parameter {
@@ -59,7 +60,11 @@ fn reference_store_carrier<'path>(
         access:
             terminal_psi::StructuralAccess::MutableBorrow
             | terminal_psi::StructuralAccess::WriteOnlyBorrow,
-    } = module.structural_type(structural_type)?.shape
+    } = module
+        .structural_type(
+            validate_structural_path(module, structural_type, &path[..crossing]).ok()?,
+        )?
+        .shape
     else {
         return None;
     };

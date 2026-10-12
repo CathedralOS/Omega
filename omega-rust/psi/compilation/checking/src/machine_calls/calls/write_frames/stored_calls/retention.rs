@@ -161,7 +161,8 @@ fn check_exit(
     stored: &[StoredLocalOrigins],
     slots: &[FrameSourcePlace],
 ) -> Option<()> {
-    for destination in destination_inventory(program, state)? {
+    for declaration in destination_inventory(program, state)? {
+        let destination = declaration.origin;
         let record = stored
             .iter()
             .find(|record| record.local_symbol == destination.local_symbol)?;

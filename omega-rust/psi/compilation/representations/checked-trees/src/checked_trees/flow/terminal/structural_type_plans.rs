@@ -55,10 +55,10 @@ pub struct CheckedUnitStructuralTypePlan {
     /// its owned, claim-free operation and qualification judgments; a missing
     /// final-exit drop does not erase this capability.
     pub no_code_affine_cleanup: bool,
-    /// Checked authority to retire contained shared descriptors without
+    /// Checked authority to retire contained reference descriptors without
     /// observing old payloads or executing nominal cleanup. Exact live
     /// custody and child closure remain obligations of each replacement.
-    pub shared_descriptor_cleanup: bool,
+    pub descriptor_cleanup: bool,
     pub shape: CheckedUnitStructuralTypeShape,
     /// Declaration-owned scalar restriction; no membership or store evidence
     /// is created merely by retaining this schema.

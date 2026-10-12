@@ -232,24 +232,27 @@ fn walk_declared_origins(
                         local_symbol: symbol,
                         local_path: path.clone(),
                         local_segments: segments.clone(),
-                        // Crossing another reference boundary cannot be represented
-                        // by path substitution. Keep the leaf, without claiming a
-                        // source: disjoint fields remain independently writable.
-                        origin: super::super::reference_origins::referent_has_only_owned_storage(
+                        // An incoming descriptor has symbolic identity even
+                        // when its referee contains more pointers. This names
+                        // the incoming value, not the current pointee contents.
+                        // Unestablished local frontiers retain the old unknown.
+                        origin: (super::super::reference_origins::referent_has_only_owned_storage(
                             program, *referee,
-                        )
-                        .then_some(FramePlaceOrigin {
-                            path,
-                            precision,
-                            source: super::super::FrameSourcePlace {
-                                recasts: Vec::new(),
-                                representation: None,
-                                kind: Default::default(),
-                                root: symbol,
-                                segments,
-                                builtin_coordinates: symbol.is_valid(),
-                            },
-                        }),
+                        ) || (include_shared
+                            && symbol.is_valid()
+                            && program.symbols.get(symbol).kind == SymbolKind::Parameter))
+                            .then_some(FramePlaceOrigin {
+                                path,
+                                precision,
+                                source: super::super::FrameSourcePlace {
+                                    recasts: Vec::new(),
+                                    representation: None,
+                                    kind: Default::default(),
+                                    root: symbol,
+                                    segments,
+                                    builtin_coordinates: symbol.is_valid(),
+                                },
+                            }),
                     });
                 }
             }

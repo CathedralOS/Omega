@@ -32,10 +32,10 @@ enum ContentType {
         arguments: Vec<ContentType>,
     },
     /// A shared-view member — `&[T]` or `&'a V` — under
-    /// [`ContentsRequirement::OwnedOrSharedView`]. A terminal descriptor leaf:
-    /// the carrier copies base and extent while the referent's loan stays
-    /// with the view's owner, so the referee's own contents never descend
-    /// into this classification.
+    /// [`ContentsRequirement::OwnedOrSharedView`], or a reference carrier under
+    /// [`ContentsRequirement::DescriptorCleanup`]. This is a terminal leaf:
+    /// the referee remains borrowed and its contents never descend into the
+    /// carrier's classification. The operation retains loan access and closure.
     View,
     /// A closed const argument. It fills a const parameter's slot so data
     /// arguments stay positional, and is never itself a member's contents.
@@ -118,6 +118,12 @@ pub enum ContentsRequirement {
     /// mutate, no erased or generic members, no linear declarations, no
     /// drop carriers.
     OwnedOrSharedView,
+    /// Closed owned storage and reference descriptors whose removal executes
+    /// no nominal cleanup and settles no conserved claim. A descriptor is a
+    /// terminal leaf: its referee remains borrowed, never owned or disposed.
+    /// Shared and exclusive carriers retain exact access and child closure at
+    /// each replacement; this judgment grants no copy or observation authority.
+    DescriptorCleanup,
     /// Established storage lent in place, with shared descriptors and provider
     /// handles classified per member. This is neither a copy nor a stable
     /// observation judgment. Atomic members retain their original cells, not
@@ -489,6 +495,11 @@ fn resolve(
             Box::new(resolve(program, *element_type, arguments, requirement)?),
             *length,
         )),
+        TypeReferenceNode::Reference { .. }
+            if requirement == ContentsRequirement::DescriptorCleanup =>
+        {
+            Some(ContentType::View)
+        }
         TypeReferenceNode::Reference {
             access: language_semantics::ReferenceAccess::Shared,
             referee,
@@ -749,7 +760,9 @@ fn check_contents(
             // stable observation nor ordinary scalar/byte access to its resident.
             ContentType::Atomic(_) => !matches!(
                 requirement,
-                ContentsRequirement::StableObservation | ContentsRequirement::SeamMarshal
+                ContentsRequirement::StableObservation
+                    | ContentsRequirement::SeamMarshal
+                    | ContentsRequirement::DescriptorCleanup
             ),
             ContentType::Array(element, _)
             | ContentType::Slice(element)

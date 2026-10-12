@@ -8,7 +8,6 @@ use super::{
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
-use crate::structural_inputs::structural_reference_input::PointerSlot;
 use crate::structural_inputs::structural_reference_input::runtime_indices_match;
 
 pub(super) fn emit(
@@ -34,19 +33,21 @@ pub(super) fn emit(
                     path,
                     terminal_psi::StructuralAccess::WriteOnlyBorrow,
                 );
-                let (root, suffix) =
-                    reference.unwrap_or((destination.structural_type(), path.as_slice()));
-                let (offset, size, elements) =
-                    crate::structural_inputs::structural_reference_input::store(
-                        root,
-                        suffix,
+                let geometry =
+                    crate::structural_inputs::structural_reference_input::field_store_geometry(
+                        destination.structural_type(),
+                        path,
                         *field,
                         value.scalar_type,
                         &signature.structural_types,
                     )
                     .ok_or_else(|| invalid())?;
-                if (offset, size) != (*byte_offset, *byte_size)
-                    || !runtime_indices_match(indices, &elements)
+                if (geometry.byte_offset, geometry.byte_size) != (*byte_offset, *byte_size)
+                    || !runtime_indices_match(indices, &geometry.elements)
+                    // View indexing owns its descriptor access separately; only
+                    // an explicit reference crossing needs this carrier join.
+                    || path.contains(&terminal_psi::StructuralPathSegment::Referent)
+                        && reference.is_none()
                 {
                     return Err(invalid());
                 }
@@ -57,14 +58,7 @@ pub(super) fn emit(
                     *byte_size,
                     indices,
                     reference.is_some(),
-                    reference
-                        .map(|_| PointerSlot {
-                            byte_offset: 0,
-                            indices: 0..0,
-                            scalar_descriptor: false,
-                        })
-                        .into_iter()
-                        .collect::<Vec<_>>(),
+                    geometry.pointer_slots,
                 )
             }
             LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {

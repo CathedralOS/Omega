@@ -13,10 +13,7 @@ pub(in crate::legalization) fn scalar_store_destination(
     abstract_operations::StructuralScalarStoreDestination,
     Vec<terminal_psi::StructuralPathSegment>,
 )> {
-    if !matches!(
-        path.first(),
-        Some(terminal_psi::StructuralPathSegment::Referent)
-    ) {
+    if !path.contains(&terminal_psi::StructuralPathSegment::Referent) {
         return Some((destination.clone(), path.to_vec()));
     }
     let resolved = super::reference_custody::referent_destination(

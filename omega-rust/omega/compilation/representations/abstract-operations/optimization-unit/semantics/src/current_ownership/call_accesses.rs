@@ -38,6 +38,7 @@ pub(crate) struct CallAccesses<'unit> {
     /// Host declarations a descriptor replay consults at each boundary
     /// completion; boundary bodies are not part of the unit.
     boundaries: Vec<&'unit BoundaryMachineDeclaration>,
+    pub(super) references: super::references::call_effects::ReferenceCallEffects,
 }
 
 impl<'unit> CallAccesses<'unit> {
@@ -46,9 +47,16 @@ impl<'unit> CallAccesses<'unit> {
         boundaries: impl IntoIterator<Item = &'unit BoundaryMachineDeclaration>,
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     ) -> Self {
+        let boundaries = boundaries.into_iter().collect::<Vec<_>>();
+        let references = super::references::call_effects::ReferenceCallEffects::new(
+            functions,
+            &boundaries,
+            types,
+        );
         let mut result = Self {
             functions: BTreeMap::new(),
-            boundaries: boundaries.into_iter().collect(),
+            boundaries,
+            references,
         };
         let mut closed_storage = BTreeMap::new();
         for machine in functions.keys() {

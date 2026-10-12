@@ -27,6 +27,9 @@
 mod lowering;
 mod validation;
 
+pub use lowering::descriptor_input_guard::{
+    DescriptorInputGuard, descriptor_input_guard, descriptor_input_guard_for_call,
+};
 pub use lowering::model::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedNativeCallbackArgument,
     LoweringError,
