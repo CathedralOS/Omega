@@ -58,19 +58,6 @@ pub(super) fn closed_requirement(
     Ok(Some(row))
 }
 
-fn interface_identity(
-    checked: &CheckedTrees,
-    row: &InstantiatedRequirementSignature,
-) -> Result<StaticApplicationIdentity, LoweringError> {
-    typed_trees::static_applications::requirement_interface_application_identity(
-        &checked.typed,
-        row,
-    )
-    .map_err(|_| {
-        LoweringError::Unsupported("closed boundary interface tuple has no exact identity")
-    })
-}
-
 pub(super) fn retain_complete_interfaces(
     checked: &CheckedTrees,
     plans: UnitPlans<'_>,
@@ -85,25 +72,8 @@ pub(super) fn retain_complete_interfaces(
         if !definition.is_boundary {
             continue;
         }
-        if let Some(application) = closed_requirement(checked, symbol)? {
-            retain_interface_applications(
-                checked,
-                plans,
-                application.selected_interface,
-                &interface_identity(checked, application)?,
-                closed_interface_scope(checked, application).as_ref(),
-                boundaries,
-            )?;
-        } else {
-            retain_interface_applications(
-                checked,
-                plans,
-                definition.symbol,
-                &original_interface_identity(checked, definition.symbol)?,
-                Some(&original_interface_scope(checked, definition.symbol)?),
-                boundaries,
-            )?;
-        }
+        let application = executable_interface_application(checked, symbol)?;
+        retain_interface_applications(checked, plans, &application, boundaries)?;
     }
     Ok(())
 }
@@ -124,15 +94,14 @@ pub(super) fn selection_boundary_roots(
         if !definition.is_boundary {
             return unsupported("selected boundary root belongs to an ordinary contract");
         }
-        if let Some(application) = closed_requirement(checked, symbol)? {
-            retain_interface_applications(
-                checked,
-                plans,
-                application.selected_interface,
-                &interface_identity(checked, application)?,
-                closed_interface_scope(checked, application).as_ref(),
-                &mut boundaries,
-            )?;
+        if closed_requirement(checked, symbol)?.is_some()
+            || checked
+                .typed
+                .closed_requirement_application(symbol)
+                .is_some()
+        {
+            let application = executable_interface_application(checked, symbol)?;
+            retain_interface_applications(checked, plans, &application, &mut boundaries)?;
             continue;
         }
         if checked.typed.trait_type_parameters(definition).is_empty()
@@ -142,9 +111,7 @@ pub(super) fn selection_boundary_roots(
             retain_interface_applications(
                 checked,
                 plans,
-                definition.symbol,
-                &original_interface_identity(checked, definition.symbol)?,
-                Some(&original_interface_scope(checked, definition.symbol)?),
+                &original_interface_application(checked, definition.symbol)?,
                 &mut boundaries,
             )?;
         } else {
@@ -162,33 +129,101 @@ pub(super) fn selection_boundary_roots(
                     .trait_machine_signatures
                     .get(application.signature)
                     .symbol;
-                closed_requirement(checked, symbol)?;
-                retain_interface_applications(
-                    checked,
-                    plans,
-                    definition.symbol,
-                    &interface_identity(checked, application)?,
-                    closed_interface_scope(checked, application).as_ref(),
-                    &mut boundaries,
-                )?;
+                let application = executable_interface_application(checked, symbol)?;
+                retain_interface_applications(checked, plans, &application, &mut boundaries)?;
+            }
+            for application in checked
+                .typed
+                .closed_requirement_applications()
+                .filter(|application| application.declaring_trait == definition.symbol)
+            {
+                let application =
+                    executable_interface_application(checked, application.signature.symbol)?;
+                retain_interface_applications(checked, plans, &application, &mut boundaries)?;
             }
         }
     }
     Ok(boundaries)
 }
 
-fn original_interface_identity(
+/// Executable requirements retain their issuing interface application. A
+/// finite family carries its outer scope separately from the local tuple; a
+/// public invocation header carries the complete original binding application.
+/// Neither may be reconstructed as an empty declaration scope after planning.
+struct InterfaceApplication<'program> {
+    scope: AppliedTraitScope<'program>,
+    // Public headers retain independent evidence binders in their full key.
+    // Finite families instead retain a checked declaring scope; their keys
+    // cannot admit evidence outside the declared parameter telescope.
+    public_identity: Option<StaticApplicationIdentity>,
+}
+
+fn executable_interface_application(
+    checked: &CheckedTrees,
+    requirement: SymbolHandle,
+) -> Result<InterfaceApplication<'_>, LoweringError> {
+    if let Some(header) = closed_requirement(checked, requirement)? {
+        return Ok(InterfaceApplication {
+            scope: closed_interface_scope(checked, header).ok_or(LoweringError::Unsupported(
+                "public boundary lost its retained interface scope",
+            ))?,
+            public_identity: Some(interface_identity(checked, header)?),
+        });
+    }
+    if let Some(application) = checked.typed.closed_requirement_application(requirement) {
+        return Ok(InterfaceApplication {
+            scope: application
+                .trait_scope
+                .scope(&checked.typed)
+                .filter(|scope| scope.declaration.symbol == application.declaring_trait)
+                .ok_or(LoweringError::Unsupported(
+                    "finite boundary lost its retained interface scope",
+                ))?,
+            public_identity: None,
+        });
+    }
+    let (definition, _) =
+        checked
+            .typed
+            .trait_machine_signature(requirement)
+            .ok_or(LoweringError::Unsupported(
+                "boundary lost its original interface",
+            ))?;
+    original_interface_application(checked, definition.symbol)
+}
+
+fn interface_identity(
+    checked: &CheckedTrees,
+    row: &InstantiatedRequirementSignature,
+) -> Result<StaticApplicationIdentity, LoweringError> {
+    typed_trees::static_applications::requirement_interface_application_identity(
+        &checked.typed,
+        row,
+    )
+    .map_err(|_| {
+        LoweringError::Unsupported("closed boundary interface tuple has no exact identity")
+    })
+}
+
+fn original_interface_application(
     checked: &CheckedTrees,
     interface: SymbolHandle,
-) -> Result<StaticApplicationIdentity, LoweringError> {
-    typed_trees::static_applications::static_binding_identity(
+) -> Result<InterfaceApplication<'_>, LoweringError> {
+    let scope = original_interface_scope(checked, interface)?;
+    let identity = typed_trees::static_applications::static_binding_identity(
         &checked.typed,
         interface,
         &[],
         typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(interface),
         std::iter::empty::<&typed_trees::name::Identifier>(),
     )
-    .map_err(|_| LoweringError::Unsupported("original boundary interface has no exact empty tuple"))
+    .map_err(|_| {
+        LoweringError::Unsupported("original boundary interface has no exact empty tuple")
+    })?;
+    Ok(InterfaceApplication {
+        scope,
+        public_identity: Some(identity),
+    })
 }
 
 fn original_interface_scope(
@@ -228,11 +263,11 @@ fn closed_interface_scope<'program>(
 fn retain_interface_applications(
     checked: &CheckedTrees,
     plans: UnitPlans<'_>,
-    selected_interface: SymbolHandle,
-    identity: &StaticApplicationIdentity,
-    scope: Option<&AppliedTraitScope<'_>>,
+    application: &InterfaceApplication<'_>,
     boundaries: &mut Vec<SymbolHandle>,
 ) -> Result<(), LoweringError> {
+    let scope = &application.scope;
+    let selected_interface = scope.declaration.symbol;
     let members = typed_trees::static_applications::boundary_interface_members(
         &checked.typed,
         selected_interface,
@@ -258,7 +293,13 @@ fn retain_interface_applications(
                 .get(sibling.signature)
                 .symbol;
             closed_requirement(checked, symbol)?;
-            if interface_identity(checked, sibling)? != *identity {
+            let matches = match &application.public_identity {
+                Some(identity) => interface_identity(checked, sibling)? == *identity,
+                None => checked
+                    .typed
+                    .requirement_application_matches_scope(symbol, scope),
+            };
+            if !matches {
                 continue;
             }
             retain_boundary(plans, symbol, boundaries)?;
@@ -271,11 +312,10 @@ fn retain_interface_applications(
                 application.declaring_trait == owner && application.template == member
             })
         {
-            if !scope.is_some_and(|scope| {
-                checked
-                    .typed
-                    .requirement_application_matches_scope(application.signature.symbol, scope)
-            }) {
+            if !checked
+                .typed
+                .requirement_application_matches_scope(application.signature.symbol, scope)
+            {
                 continue;
             }
             retain_boundary(plans, application.signature.symbol, boundaries)?;
@@ -305,7 +345,8 @@ fn retain_interface_applications(
         {
             if std::env::var_os("OMEGA_SOURCE_CONSTANT_INPUT_TRACE").is_some() {
                 eprintln!(
-                    "TRACE_INTERFACE_COMPLETION selected={selected_interface:?} identity={identity:?} owner={owner:?} member={member:?}"
+                    "TRACE_INTERFACE_COMPLETION selected={selected_interface:?} scope={:?} owner={owner:?} member={member:?}",
+                    scope.application_identity(&checked.typed),
                 );
                 for (_, header) in checked
                     .typed
@@ -324,7 +365,8 @@ fn retain_interface_applications(
                             .typed
                             .requirement_interface_applications
                             .span(header.interface_applications),
-                        interface_identity(checked, header)
+                        closed_interface_scope(checked, header)
+                            .and_then(|scope| scope.application_identity(&checked.typed))
                     );
                 }
                 for application in checked
