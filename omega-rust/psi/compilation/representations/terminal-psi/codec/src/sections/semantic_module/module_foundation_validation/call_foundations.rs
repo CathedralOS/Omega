@@ -168,12 +168,30 @@ pub(super) fn validate_call_dynamic(
                 // Identity encodings are opaque. Two different encodings may
                 // not publish the same executable tuple and make row choice
                 // depend on roster traversal order.
-                let mut values: Vec<Vec<_>> = roster
-                    .iter()
-                    .map(|tuple| tuple.iter().map(|member| member.value).collect())
-                    .collect();
-                values.sort();
-                values.windows(2).any(|pair| pair[0] == pair[1])
+                let mut ordered = roster.clone();
+                ordered.sort_by(|left, right| {
+                    left.iter()
+                        .map(|member| &member.identity)
+                        .cmp(right.iter().map(|member| &member.identity))
+                });
+                let duplicate_identity = ordered.windows(2).any(|pair| {
+                    pair[0]
+                        .iter()
+                        .map(|member| &member.identity)
+                        .eq(pair[1].iter().map(|member| &member.identity))
+                });
+                ordered.sort_by(|left, right| {
+                    left.iter()
+                        .map(|member| member.value)
+                        .cmp(right.iter().map(|member| member.value))
+                });
+                duplicate_identity
+                    || ordered.windows(2).any(|pair| {
+                        pair[0]
+                            .iter()
+                            .map(|member| member.value)
+                            .eq(pair[1].iter().map(|member| member.value))
+                    })
             }
         {
             return malformed("dynamic family call disagrees with its slot roster");
