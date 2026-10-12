@@ -1,0 +1,3 @@
+cannot prove ensures contract for exit from outside
+cannot prove ensures contract for exit from float_outside
+cannot prove ensures contract for exit from excluded

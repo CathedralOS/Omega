@@ -21,6 +21,7 @@ the canonical clauses, and the parser/representation path is removed.
 | Old spelling | New spelling | When |
 |---|---|---|
 | `-> T [lo..=hi]` | `-> T` + `ensures result >= lo && result <= hi` | Result bounds are published postconditions. Use `-> T in D` only when the exact named domain is independently required. |
+| returned conversion `value as T [lo..=hi]` | bare Exact cast plus the owning result's `ensures` | Preserve the demanded output predicate separately from the cast's independent representability and denotation obligations. |
 | parameter/state parameter `x: T [lo..=hi]` | `x: T` + `requires x >= lo && x <= hi` | Callers prove callable preconditions; ranges are not parameter type identity. |
 | common field `f: T [lo..=hi]` | `f: T` plus data `where f >= lo && f <= hi` | The relation is part of the containing value's default domain. |
 | case payload `case X(v: T [lo..=hi])` | `case X(v: T) where v >= lo && v <= hi` | The relation exists only for the active case. |
@@ -132,6 +133,14 @@ Public result predicates travel through captured values and exact normal
 returns. `float/runtime_result_predicate_custody_exit` covers local/state,
 constructor-field and saved-copy transport. Stale values, unrelated operands,
 parameter-only guarantees and unbounded tail results cannot grant bounds.
+
+The nine additional positions at `f2714a1d179` are reconciled in the
+[refined-conversion inventory](../../../tests/omega/pass/float/runtime_refined_conversion_target_exit/README.md#historical-scalar-positions).
+The returned casts keep their original operations while their demanded bounds
+move to ordinary result postconditions. False output bounds and fractional or
+lossy input conversions have separate refusal witnesses, because source
+validation can stop before exit checking. The original runtime oracle is kept;
+local-capture and later-state variations use the same conversion judgments.
 
 ## Audited time fields and initializer facts
 

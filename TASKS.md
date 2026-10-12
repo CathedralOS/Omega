@@ -3680,10 +3680,11 @@ deletions, which the commit lists.
   `float/exact_integer_coercion_requires_denotation` and
   `float/integer_conversion_lookalike` must reject fractional values, NaN,
   overflow, integer-ended fractional intervals, stale writes and spelling lookalikes.
-  `float/runtime_refined_conversion_target_exit` (0) constrains carrier
-  conversion beneath explicit target ranges and same-carrier call completion;
-  `float/refined_conversion_target_requires_source_proof` must reject wrong or
-  excluded bounds independently of fractional and lossy coercion obligations.
+  `float/runtime_refined_conversion_target_exit` (native/Terminal 0) constrains
+  Exact carrier conversion with ordinary result postconditions;
+  `float/refined_result_wrong_or_excluded_bounds` rejects false output demands,
+  while `float/refined_conversion_target_requires_source_proof` independently
+  rejects fractional and lossy inputs. An output demand grants no input proof.
   `float/runtime_coercion_future_policy_exit` (0) constrains value-preserving
   float coercions and subsequent Wrapping/Saturating/Trapping operations;
   `float/policy_cast_requires_unchanged_denotation` and
