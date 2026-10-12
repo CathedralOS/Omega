@@ -291,6 +291,7 @@ fn checked_evidence_producer(
                 realization_state: row.realization_state,
                 realization_identity,
                 family_tuple: Box::default(),
+                family_values: Box::default(),
                 source: match row.source {
                     // A synthesized core row is an ordinary checked member
                     // body of its own block, exactly as an inline row is.

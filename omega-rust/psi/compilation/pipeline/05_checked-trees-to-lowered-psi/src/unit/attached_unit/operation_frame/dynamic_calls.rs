@@ -144,17 +144,17 @@ impl OperationFrame<'_, '_> {
         }
         if !family_actuals.is_empty() {
             let dispatch = &self.operations.dynamic_dispatch;
-            let roster: Vec<Vec<String>> = dispatch
+            let roster: Vec<Vec<typed_trees::finite_family::FamilyScalarValue>> = dispatch
                 .interface_slots(interface)
                 .ok_or(LoweringError::Unsupported(
                     "selector call names an interface with no slot roster",
                 ))?
                 .iter()
                 .skip(slot as usize)
-                .take_while(|(requirement, tuple)| {
-                    *requirement == slot_plan.requirement_identity && !tuple.is_empty()
+                .take_while(|row| {
+                    row.requirement == slot_plan.requirement_identity && !row.values.is_empty()
                 })
-                .map(|(_, tuple)| tuple.clone())
+                .map(|row| row.values.clone())
                 .collect();
             let leaf_selector = selector.id;
             let leaf_arguments: Vec<_> = data.iter().map(|value| value.id).collect();

@@ -13,11 +13,21 @@
 use crate::TypedTrees;
 use crate::typed_trees::escape;
 
+/// The scalar selected by a checked finite-family equality. Keep its value
+/// independently of the canonical identity's carrier/policy encoding: lowering
+/// emits a runtime comparison, while specialization uses the full identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FamilyScalarValue {
+    Integer(i128),
+    Boolean(bool),
+}
+
 /// One canonical value in a finite-family tuple. `identity` is the string a
 /// `MachineSpecialization` retains in `const_argument_identities` for the
 /// same static argument; `display` is diagnostic-only spelling.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FamilyValue {
+    pub scalar: FamilyScalarValue,
     pub identity: String,
     pub display: String,
 }
@@ -26,6 +36,7 @@ pub struct FamilyValue {
 /// a closed canonical value, in the signature's binder declaration order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FamilyTuple {
+    pub values: Box<[FamilyScalarValue]>,
     pub identities: Box<[String]>,
     pub display: Box<[String]>,
 }
@@ -126,6 +137,7 @@ impl TypedTrees {
                 .map(|value| value.expect("complete alternative tuple"))
                 .collect::<Vec<_>>();
             tuples.push(FamilyTuple {
+                values: tuple.iter().map(|value| value.scalar).collect(),
                 identities: tuple.iter().map(|value| value.identity.clone()).collect(),
                 display: tuple.iter().map(|value| value.display.clone()).collect(),
             });
@@ -192,15 +204,10 @@ impl TypedTrees {
             | crate::data::TypeParameterKind::Value { type_reference } => *type_reference,
             _ => return None,
         };
-        if !self.value_fits_carrier(carrier, &value.identity) {
+        if !self.value_fits_carrier(carrier, value.scalar) {
             return None;
         }
-        if let Some(integer) = value
-            .identity
-            .strip_prefix("named(integer-const(")
-            .and_then(|inner| inner.strip_suffix("))"))
-            .and_then(|inner| inner.parse::<i128>().ok())
-        {
+        if let FamilyScalarValue::Integer(integer) = value.scalar {
             // A licensed equality constrains the binder's value, not the RHS
             // literal's static-argument carrier. Mixed-width comparisons remain
             // value comparisons; the original binder owns the roster landing.
@@ -259,11 +266,13 @@ impl TypedTrees {
                     .map(i128::from)
                     .or_else(|| literal.value_u64().map(i128::from))?;
                 Some(FamilyValue {
+                    scalar: FamilyScalarValue::Integer(value),
                     identity: integer_const_identity(value),
                     display: value.to_string(),
                 })
             }
             crate::expression::ExpressionNode::Boolean(value) => Some(FamilyValue {
+                scalar: FamilyScalarValue::Boolean(*value),
                 identity: canonical_const_identity(
                     "bool",
                     &language_semantics::const_value::CanonicalConstValue::boolean(*value).encoding,
@@ -299,11 +308,13 @@ impl TypedTrees {
                         value,
                         ..
                     } => Some(FamilyValue {
+                        scalar: FamilyScalarValue::Integer(value),
                         identity: integer_const_identity(value),
                         display: value.to_string(),
                     }),
                     language_semantics::const_value::DecodedCanonicalConstValue::Boolean(value) => {
                         Some(FamilyValue {
+                            scalar: FamilyScalarValue::Boolean(value),
                             identity: canonical_const_identity(
                                 "bool",
                                 &language_semantics::const_value::CanonicalConstValue::boolean(
@@ -327,20 +338,16 @@ impl TypedTrees {
     fn value_fits_carrier(
         &self,
         carrier: crate::types::TypeReferenceHandle,
-        identity: &str,
+        value: FamilyScalarValue,
     ) -> bool {
         let Some(primitive) = self.primitive_type_reference(carrier) else {
             return false;
         };
-        if let Some(value) = identity
-            .strip_prefix("named(integer-const(")
-            .and_then(|inner| inner.strip_suffix("))"))
-            .and_then(|inner| inner.parse::<i128>().ok())
-        {
-            return primitive_integer_range(primitive)
-                .is_some_and(|(low, high)| low <= value && value <= high);
+        match value {
+            FamilyScalarValue::Integer(value) => primitive_integer_range(primitive)
+                .is_some_and(|(low, high)| low <= value && value <= high),
+            FamilyScalarValue::Boolean(_) => primitive == crate::types::PrimitiveType::Bool,
         }
-        primitive == crate::types::PrimitiveType::Bool
     }
 }
 
