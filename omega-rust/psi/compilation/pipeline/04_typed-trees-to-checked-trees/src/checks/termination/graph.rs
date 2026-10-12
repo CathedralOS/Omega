@@ -20,6 +20,26 @@ pub(super) fn machine_has_cycle(
         .any(|(start, edges)| edges.contains(&start) || reaches_self(start, &adjacency))
 }
 
+/// An accepted proof entry call is a mathematical invocation whose exact
+/// source decrease was already judged. Its progress still belongs to call
+/// closure; it is not a second runtime state-cycle ranking obligation. Only
+/// retained exact occurrences are removed, so other state cycles remain due.
+pub(super) fn machine_has_cycle_after_proof_calls(
+    program: &dyn validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    self_call_descents: &[validation::ValidatedSelfCallDescent],
+) -> bool {
+    let adjacency = program
+        .machine_states(machine)
+        .iter()
+        .map(|state| outgoing_state_indices(program, machine, state.symbol, self_call_descents))
+        .collect::<Vec<_>>();
+    adjacency
+        .iter()
+        .enumerate()
+        .any(|(start, edges)| edges.contains(&start) || reaches_self(start, &adjacency))
+}
+
 /// Build the per-state adjacency list of the machine's transition graph. The
 /// index of each entry corresponds to the state's position in
 /// `program.machine_states(machine)`.
@@ -30,7 +50,7 @@ pub(crate) fn machine_adjacency(
     let states = program.machine_states(machine);
     states
         .iter()
-        .map(|state| outgoing_state_indices(program, machine, state.symbol))
+        .map(|state| outgoing_state_indices(program, machine, state.symbol, &[]))
         .collect()
 }
 
@@ -149,6 +169,7 @@ fn outgoing_state_indices(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state_symbol: symbols::SymbolHandle,
+    self_call_descents: &[validation::ValidatedSelfCallDescent],
 ) -> Vec<usize> {
     let states = program.machine_states(machine);
     let Some(state) = typed_trees::state::state_by_symbol(states, state_symbol) else {
@@ -168,6 +189,56 @@ fn outgoing_state_indices(
             _ => continue,
         };
         for target in targets {
+            let accepted_entry_call = self_call_descents.iter().any(|descent| {
+                if descent.machine != machine.symbol
+                    || descent.state != state.symbol
+                    || descent.statement_index != statement_index
+                    || program
+                        .machine_states(machine)
+                        .first()
+                        .is_none_or(|entry| descent.entry != entry.symbol)
+                {
+                    return false;
+                }
+                let Some(site) = validation::find_call_site(
+                    program,
+                    machine.symbol,
+                    state.symbol,
+                    statement_index,
+                    descent.call_ordinal,
+                ) else {
+                    return false;
+                };
+                match site {
+                    validation::CallSite::TransitionNamed { path, .. } => {
+                        (path.symbol == machine.symbol || path.symbol == descent.entry)
+                            && validation::transition_call_target(
+                                program,
+                                machine,
+                                state,
+                                statement_index,
+                                descent.call_ordinal,
+                            ) == Some(target)
+                    }
+                    validation::CallSite::Expression { expression, call } => {
+                        let selected_expression = if target.is_valid() {
+                            match program.statement_table.transition_target(target) {
+                                TransitionTargetNode::Value(value) => Some(*value),
+                                _ => None,
+                            }
+                        } else {
+                            statement.as_expression().copied()
+                        };
+                        selected_expression == Some(expression)
+                            && (call.target_symbol == machine.symbol
+                                || call.target_symbol == descent.entry)
+                    }
+                    validation::CallSite::Statement(_) => false,
+                }
+            });
+            if accepted_entry_call {
+                continue;
+            }
             if let Some((destination, _)) =
                 source_state_transfer(program, machine, state, statement_index, target)
                 && let Some(index) = states.iter().position(|state| state.symbol == destination)
