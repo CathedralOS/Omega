@@ -11,7 +11,7 @@ pub(super) fn transfer(
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     block: BlockId,
     node: u32,
-    live: &mut [LiveReference],
+    live: &mut Vec<LiveReference>,
     root: &abstract_operations::StructuralWindowRoot,
     path: &[StructuralPathSegment],
     field: Option<semantic_vocabulary::StructuralFieldId>,
@@ -19,6 +19,7 @@ pub(super) fn transfer(
     value_type: StructuralTypeId,
     value: PlaceId,
     extracting: bool,
+    replace_existing: bool,
 ) -> Result<(), OptimizationUnitValidationError> {
     let fail = |reason| invalid(function, block, Some(node), reason);
     let hole = window_hole(
@@ -100,11 +101,21 @@ pub(super) fn transfer(
             if identity.place == reference.carrier && identity.path == reference.carrier_path)
         })
     };
+    let ancestors = live
+        .iter()
+        .filter(|reference| is_dependency(reference))
+        .map(|reference| reference.identity.clone())
+        .collect::<Vec<_>>();
     for region in &regions {
-        let selected = ReferenceOrigin::IngressLeaf(region.clone());
-        if live.iter().any(|reference| {
-            !is_dependency(reference) && origins_overlap(&reference.root, &selected)
-        }) {
+        if !access_paths::descriptor_storage_available(
+            function,
+            types,
+            live,
+            region.place,
+            &region.path,
+            &ancestors,
+            access,
+        ) {
             return Err(fail("restoration window accesses suspended storage"));
         }
     }
@@ -136,7 +147,27 @@ pub(super) fn transfer(
     } else {
         (&whole_value, region)
     };
-    if live.iter().any(|reference| {
+    let copies_storage = !extracting
+        && structural_source_contract(function, value).is_some_and(|contract| {
+            contract.access == StructuralAccess::Owned
+                && contract.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+        });
+    // Discarding shared descriptors settles only this resident cohort. Stage
+    // closure and transfer together so a failed incoming roster changes none
+    // of the caller's custody. Captured backing and external copies stay live.
+    let mut staged = live.clone();
+    if replace_existing {
+        discard_subtree(
+            function,
+            types,
+            block,
+            &mut staged,
+            destination.place,
+            &destination.path,
+        )?;
+    }
+    let staged_live = &mut staged;
+    if staged_live.iter().any(|reference| {
         reference.carrier == destination.place
             && terminal_semantics::structural_paths_may_overlap(
                 &reference.carrier_path,
@@ -147,23 +178,30 @@ pub(super) fn transfer(
     }
     let mut relocations = Vec::new();
     for leaf in expected {
+        if copies_storage
+            && leaf_type(types, value_type, &leaf)
+                .and_then(|identity| reference_access(types, identity))
+                != Some(StructuralAccess::SharedBorrow)
+        {
+            return Err(fail("window copy requires shared descriptor leaves"));
+        }
         let mut source_path = source.path.clone();
         source_path.extend_from_slice(&leaf);
-        let mut matching = live.iter().enumerate().filter(|(_, reference)| {
+        let mut matching = staged_live.iter().enumerate().filter(|(_, reference)| {
             reference.carrier == source.place && reference.carrier_path == source_path
         });
         let (position, reference) = matching
             .next()
             .ok_or_else(|| fail("window source reference leaf is absent"))?;
         if matching.next().is_some()
-            || live.iter().any(|child| matches!(&child.parent, ReferenceParent::Reference(parent) if parent == &reference.identity)) {
+            || staged_live.iter().any(|child| matches!(&child.parent, ReferenceParent::Reference(parent) if parent == &reference.identity)) {
             return Err(fail("window source reference leaf is ambiguous or suspended"));
         }
         let mut destination_path = destination.path.clone();
         destination_path.extend(leaf);
         relocations.push((position, destination_path));
     }
-    if live.iter().enumerate().any(|(position, reference)| {
+    if staged_live.iter().enumerate().any(|(position, reference)| {
         reference.carrier == source.place
             && reference.carrier_path.starts_with(&source.path)
             && !relocations
@@ -172,16 +210,43 @@ pub(super) fn transfer(
     }) {
         return Err(fail("window source reference roster differs from its type"));
     }
-    let source_region = ReferenceOrigin::IngressLeaf(source.clone());
-    if live.iter().any(|reference| {
-        !is_dependency(reference) && origins_overlap(&reference.root, &source_region)
-    }) {
+    if !access_paths::descriptor_storage_available(
+        function,
+        types,
+        staged_live,
+        source.place,
+        &source.path,
+        &ancestors,
+        if copies_storage {
+            StructuralAccess::SharedBorrow
+        } else {
+            StructuralAccess::Owned
+        },
+    ) {
         return Err(fail("window source storage has an outstanding loan"));
     }
     // Publish only after the complete roster and both regions were checked.
     for (position, path) in relocations {
-        live[position].carrier = destination.place;
-        live[position].carrier_path = path;
+        if copies_storage {
+            let mut copied = staged_live[position].clone();
+            copied.identity = ReferenceIdentity {
+                place: destination.place,
+                path: path.clone(),
+            };
+            if staged_live
+                .iter()
+                .any(|reference| reference.identity == copied.identity)
+            {
+                return Err(fail("window copy destination identity is already live"));
+            }
+            copied.carrier = destination.place;
+            copied.carrier_path = path;
+            staged_live.push(copied);
+        } else {
+            staged_live[position].carrier = destination.place;
+            staged_live[position].carrier_path = path;
+        }
     }
+    *live = staged;
     Ok(())
 }

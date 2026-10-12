@@ -197,6 +197,33 @@ pub(crate) fn projected_borrowed_path(
     )
 }
 
+/// Select the lent endpoint, retaining each stored-pointer crossing beside its
+/// type. Call operands use this after ordinary geometry resolution regardless
+/// of whether their home came from a parameter, local or completed producer.
+/// View descriptors already name their carriers and never gain a pointer hop.
+pub(crate) fn borrowed_argument_endpoint(
+    program: &dyn ::validation::CheckingInput,
+    mut selected: TypeReferenceHandle,
+    mut path: Vec<CheckedUnitStructuralPathSegment>,
+    formal: TypeReferenceHandle,
+) -> Option<(TypeReferenceHandle, Vec<CheckedUnitStructuralPathSegment>)> {
+    let Some(requested) = validation::reference_shell(program, formal) else {
+        return Some((selected, path));
+    };
+    while let Some(shell) = validation::reference_shell(program, selected)
+        && validation::stores_reference_shape(program, selected, &[])
+    {
+        if shell.access != requested.access
+            && shell.access != language_semantics::ReferenceAccess::Mutable
+        {
+            return None;
+        }
+        path.push(CheckedUnitStructuralPathSegment::Referent);
+        selected = shell.referee;
+    }
+    Some((selected, path))
+}
+
 /// `projected_borrowed_path` for an observation of a runtime-selected
 /// element, whose selector may also be an immutable scalar local:
 /// `local_selector` resolves one selector expression to its `Local` position

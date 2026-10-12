@@ -29,6 +29,7 @@ struct WriteOnlyRoot {
     receiver_machine: SymbolHandle,
     name: String,
     referee: TypeReferenceHandle,
+    access: ReferenceAccess,
 }
 
 pub(crate) fn validate_checked_write_only_slice(
@@ -59,6 +60,7 @@ pub(crate) fn validate_checked_write_only_slice(
                         receiver_machine: { SymbolHandle::invalid() },
                         name: parameter.name.as_str().to_owned(),
                         referee: *referee,
+                        access: ReferenceAccess::WriteOnly,
                     })
                 })
                 .collect::<Vec<_>>();
@@ -84,6 +86,7 @@ pub(crate) fn validate_checked_write_only_slice(
                             receiver_machine: SymbolHandle::invalid(),
                             name: local.name.as_str().to_owned(),
                             referee: *referee,
+                            access: ReferenceAccess::WriteOnly,
                         })
                     }),
             );
@@ -321,8 +324,9 @@ fn write_only_record(
 }
 
 /// Displacing this complete value executes no hook and settles no conserved
-/// claim or stored loan. Reuse the source contents judgment that publishes
-/// `no_code_affine_cleanup`; incoming affine values still transfer once.
+/// claim. Shared descriptors may end only through the retained replacement
+/// custody transaction; their referents remain untouched. These exact source
+/// judgments publish distinct resource-free and shared-descriptor authorities.
 fn is_discardable_write_only_data(
     program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
@@ -333,6 +337,12 @@ fn is_discardable_write_only_data(
             definition,
             &[],
             crate::ContentsRequirement::RepresentedOwned,
+        )
+        || crate::data_has_contents(
+            program,
+            definition,
+            &[],
+            crate::ContentsRequirement::OwnedOrSharedView,
         )
 }
 
@@ -553,6 +563,7 @@ fn mutable_formation_sources(
                     receiver_machine,
                     name: parameter.name.as_str().to_owned(),
                     referee,
+                    access: ReferenceAccess::Mutable,
                 })
             }),
     );
@@ -591,6 +602,7 @@ fn mutable_formation_sources(
                     receiver_machine: SymbolHandle::invalid(),
                     name: source.name.as_str().to_owned(),
                     referee,
+                    access: ReferenceAccess::Mutable,
                 })
             }),
     );

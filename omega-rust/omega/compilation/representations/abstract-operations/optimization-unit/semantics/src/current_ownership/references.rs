@@ -1180,6 +1180,7 @@ pub(super) fn apply_operation(
                 result.structural_type,
                 result.place,
                 true,
+                false,
             );
         }
         O::StoreStructuralField {
@@ -1213,6 +1214,7 @@ pub(super) fn apply_operation(
                 value_type,
                 value.place,
                 false,
+                *disposition == terminal_psi::StructuralStoreDisposition::ReplaceDiscardable,
             );
         }
         O::StructuralLeafCopy {

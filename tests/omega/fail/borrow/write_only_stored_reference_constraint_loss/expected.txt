@@ -1,0 +1,2 @@
+write-only formation must preserve the declared constraint atoms exactly
+write-only subloan must preserve the callee-declared constraint atoms exactly

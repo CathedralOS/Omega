@@ -7,7 +7,7 @@
 
 use crate::execution::terminal_unit::calls::argument_paths::{
     fixed_byte_array_range_path, open_byte_range_path, projected_argument_path,
-    projected_argument_path_for_identity, projected_borrowed_path, projected_evaluated_path,
+    projected_borrowed_path, projected_evaluated_path,
 };
 use crate::execution::terminal_unit::calls::argument_presentation::ArgumentPresentation;
 use crate::execution::terminal_unit::calls::boundary_admission::fixed_byte_array_view_is_admitted;
@@ -335,13 +335,22 @@ impl ParameterArgument<'_> {
     }
 
     fn exact_projection_path(self) -> Option<ArgumentPath> {
-        projected_argument_path_for_identity(
+        let (selected, path) = projected_argument_path(
             self.program,
             self.state,
             self.statement_index,
             self.place,
-            self.target_identity,
-        )
+            None,
+            None,
+        )?;
+        let (selected, path) = super::argument_paths::borrowed_argument_endpoint(
+            self.program,
+            selected,
+            path,
+            self.target,
+        )?;
+        (base_type_identity(self.program, selected, &[], &[])? == self.target_identity)
+            .then_some(path)
     }
 
     /// A projection at the formal's identity, or a fixed array lent as the
@@ -355,6 +364,8 @@ impl ParameterArgument<'_> {
             self.statement_index,
             self.place,
         )?;
+        let (projected, path) =
+            super::argument_paths::borrowed_argument_endpoint(program, projected, path, target)?;
         let presentation = super::argument_presentation::classify(
             program,
             projected,
@@ -381,6 +392,8 @@ impl ParameterArgument<'_> {
             None,
             None,
         )?;
+        let (projected, path) =
+            super::argument_paths::borrowed_argument_endpoint(program, projected, path, target)?;
         super::argument_presentation::classify(
             program,
             projected,

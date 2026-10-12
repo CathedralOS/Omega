@@ -270,6 +270,7 @@ mod tests {
         let types = [
             StructuralTypeDeclaration {
                 no_code_affine_cleanup: false,
+                shared_descriptor_cleanup: false,
                 scalar_restriction: None,
                 id: identity(1),
                 identity: terminal_psi::TerminalIdentityIndex(3),
@@ -290,6 +291,7 @@ mod tests {
             },
             StructuralTypeDeclaration {
                 no_code_affine_cleanup: false,
+                shared_descriptor_cleanup: false,
                 scalar_restriction: None,
                 id: identity(2),
                 identity: terminal_psi::TerminalIdentityIndex(2),
@@ -321,6 +323,7 @@ mod tests {
     fn fragmented_fields_do_not_hide_the_record_extent_or_invent_a_scalar_address() {
         let types = [StructuralTypeDeclaration {
             no_code_affine_cleanup: false,
+            shared_descriptor_cleanup: false,
             scalar_restriction: None,
             id: identity(1),
             identity: terminal_psi::TerminalIdentityIndex(1),

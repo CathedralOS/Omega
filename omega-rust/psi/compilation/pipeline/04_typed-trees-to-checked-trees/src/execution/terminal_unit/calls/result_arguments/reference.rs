@@ -57,6 +57,12 @@ pub(crate) fn argument(
         path.extend(suffix);
         selected
     };
+    let (selected, path) = super::super::argument_paths::borrowed_argument_endpoint(
+        program,
+        selected,
+        path,
+        parameter.type_reference,
+    )?;
     if base_type_identity(program, selected, &[], &[])? != target_identity {
         return None;
     }

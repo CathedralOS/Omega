@@ -1,4 +1,6 @@
-//! Content-independent receiver addresses through closed fields and fixed arrays.
+//! Resolve receiver addresses while retaining access at each pointer crossing.
+//! A readable carrier can supply a stored mutable pointer before attenuation.
+//! A write-only referent cannot: following its stored pointer would read content.
 
 use super::super::{
     TypeReferenceHandle, direct_write_only_root, fixed_discardable_write_only_array_shape,
@@ -53,7 +55,9 @@ pub(in crate::value_custody::write_only_borrows) fn projected<'roots>(
             }
             (root, field.type_reference, false)
         };
+    let mut access = root.access;
     for projection in projections.into_iter().rev() {
+        referee = projected_referee(program, referee, &mut access)?;
         match program.expression_table.expression(projection) {
             ExpressionNode::Member(member) => {
                 let field = if attached_root {
@@ -74,9 +78,8 @@ pub(in crate::value_custody::write_only_borrows) fn projected<'roots>(
                 referee = field.type_reference;
             }
             ExpressionNode::Indexed(indexed) => {
-                // Do not peel a reference stored in the referent: following
-                // that pointer would observe prior contents. The array shape
-                // and its element address must come from the declared type.
+                // Pointer crossings above require readable mutable storage;
+                // the array coordinates themselves come from its declared shape.
                 let (element, length) = fixed_discardable_write_only_array_shape(program, referee)?;
                 if !program.expression_table.expression_is_valid(indexed.index)
                     || !admit_selector(indexed.index, length)
@@ -97,5 +100,30 @@ pub(in crate::value_custody::write_only_borrows) fn projected<'roots>(
         }
         attached_root = false;
     }
+    referee = projected_referee(program, referee, &mut access)?;
     Some((root, referee, attached_root))
+}
+
+/// Follow only readable mutable descriptors. Access never widens, and a stored
+/// pointer in write-only storage cannot become address-computation evidence.
+fn projected_referee(
+    program: &dyn crate::CheckingInput,
+    mut referee: TypeReferenceHandle,
+    access: &mut language_semantics::ReferenceAccess,
+) -> Option<TypeReferenceHandle> {
+    use language_semantics::ReferenceAccess;
+    use typed_trees::types::TypeReferenceNode;
+    while let TypeReferenceNode::Reference {
+        referee: target,
+        access: target_access,
+        ..
+    } = program.type_reference_table.type_reference(referee)
+    {
+        if *access != ReferenceAccess::Mutable || *target_access != ReferenceAccess::Mutable {
+            return None;
+        }
+        *access = *target_access;
+        referee = *target;
+    }
+    Some(referee)
 }

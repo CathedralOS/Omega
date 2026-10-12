@@ -267,6 +267,12 @@ pub(super) fn store_field(
     } else {
         (destination.place(), custody_path)
     };
+    if *disposition == terminal_psi::StructuralStoreDisposition::ReplaceDiscardable {
+        // Source-free admission proved exact shared-descriptor disposal and
+        // child closure. End those resident keys before installing new ones;
+        // code generation still emits only the incoming value's store.
+        super::references::discard_subtree(function, types, live, storage, &custody_path)?;
+    }
     if live
         .references
         .keys()

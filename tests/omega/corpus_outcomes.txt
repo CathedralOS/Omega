@@ -6436,3 +6436,28 @@ fail/borrows/reference_aggregate_replacement_detached_loan rejected 303ms expect
 fail/borrows/reference_aggregate_conditional_replacement_loan rejected 307ms expected @b886c487061b+wt
 	statement 5 mutates `main.left.value` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 6)
 pass/borrows/runtime_reference_aggregate_call_result_replacement_exit checked 2693ms check-target:macos_arm64 @b886c487061b+wt
+pass/borrow/runtime_write_only_reference_aggregate_call_exit checked 3862ms check-target:macos_arm64 @992d27dd3135+wt
+pass/borrow/runtime_write_only_reference_aggregate_alias_exit checked 3862ms check-target:macos_arm64 @992d27dd3135+wt
+pass/borrow/runtime_write_only_reference_aggregate_projected_exit checked 2813ms check-target:macos_arm64 @992d27dd3135+wt
+pass/borrow/runtime_write_only_reference_aggregate_array_alias_exit checked 3863ms check-target:macos_arm64 @992d27dd3135+wt
+pass/borrow/runtime_write_only_reference_aggregate_call_result_exit checked 2785ms check-target:macos_arm64 @992d27dd3135+wt
+pass/borrow/runtime_write_only_reference_aggregate_copy_exit checked 2786ms check-target:macos_arm64 @992d27dd3135+wt
+pass/borrow/runtime_write_only_reference_aggregate_detached_exit checked 2813ms check-target:macos_arm64 @992d27dd3135+wt
+fail/borrow/write_only_reference_aggregate_conditional_replacement_loan rejected 341ms expected @992d27dd3135+wt
+	machine `replace` stores a borrowed value without a complete normal-exit backing relation
+	call stores a borrowed value without a complete destination/backing relation
+	statement 5 mutates `main.left.value` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 6)
+fail/borrow/write_only_reference_aggregate_replacement_detached_loan rejected 320ms expected @992d27dd3135+wt
+	statement 6 mutates `main.left.value` while local borrow `old` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/borrow/write_only_reference_aggregate_replacement_new_loan rejected 322ms expected @992d27dd3135+wt
+	statement 6 mutates `main.right.value` while local borrow `held` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/borrow/write_only_stored_pointer_observation rejected 133ms expected @992d27dd3135+wt
+	machine `replace` state `entry` forms `&write` from an unsupported projection or computed expression; the current checked slice supports explicit attenuation of a whole parameter, an exact direct-reborrow local, or a content-independent path through eligible relevant record fields and proven-in-bounds fixed-array indexes with non-observing selectors whose declared `&write` referee carries exactly the same type
+fail/borrow/write_only_stored_shared_widening rejected 116ms expected @992d27dd3135+wt
+	machine `replace` state `entry` forms `&write` from an unsupported projection or computed expression; the current checked slice supports explicit attenuation of a whole parameter, an exact direct-reborrow local, or a content-independent path through eligible relevant record fields and proven-in-bounds fixed-array indexes with non-observing selectors whose declared `&write` referee carries exactly the same type
+	write-only argument `slot` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
+fail/borrow/write_only_stored_reference_constraint_loss rejected 115ms expected @992d27dd3135+wt
+	machine `replace` state `entry` lends `slot.value` of type `i32[0..=9]` as `&write` to a parameter declared `&write i32`; a write-only subloan must preserve the callee-declared constraint atoms exactly, so a weaker, stronger, or different referee remains rejected
+	machine `capture` state `entry` captures `slot.value` of type `i32[0..=9]` as `&write i32`; a write-only formation must preserve the declared constraint atoms exactly, so a weaker, stronger, or different referee remains rejected
+	argument `value` for state `entry` expects `&write i32`, got `member access`
+pass/borrow/runtime_write_only_reference_aggregate_capture_exit checked 2785ms check-target:macos_arm64 @992d27dd3135+wt

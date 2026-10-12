@@ -4358,7 +4358,7 @@ and `mapped` need matching-host measurements, including the full-i32 status.
     before original-backing foreign output transport. Source checking rejects
     them today; preserve `fail/borrow/opaque_write_only_boundary`. ABI shape and
     a host output offer do not prove native non-observation;
-  - aggregate replacement carrying retained reference resources or conserved
+  - aggregate replacement carrying mutable reference resources or conserved
     displaced custody, preserving whole-value validity without observing old
     contents through write-only access. Preserve the mutable controls
     `borrows/runtime_reference_aggregate_{call,alias,projected,array_alias,call_result}_replacement_exit`
@@ -4383,6 +4383,14 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   and empty byte-field replacement restore declared encoding membership across
   a write-only call and subsequent state forwarding. Unqualified incoming bytes
   still fail the destination's domain obligation.
+
+  Keep `borrow/runtime_write_only_reference_aggregate_{call,alias,projected,array_alias,call_result,copy,detached,capture}_exit`
+  (0): discard exact old shared descriptor cohorts before installing incoming
+  storage, preserving detached copies, copied incoming values and stored-pointer
+  projections. Conditional replacement retains the old loan; new and detached
+  loans still prevent conflicting writes. Write-only stored pointers remain
+  unreadable, shared pointers cannot widen to exclusive access, and reference
+  constraints survive projection and capture.
 
   Coordinate sequencing with **STATE-LOCAL-VALUE-FRONTIER**, reference identity
   with **STRUCTURAL-BORROW-IDENTITY**, mutable dynamic dispatch with

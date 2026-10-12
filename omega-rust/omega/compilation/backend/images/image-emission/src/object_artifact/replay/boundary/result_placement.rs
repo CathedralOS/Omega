@@ -100,6 +100,7 @@ pub(crate) fn test_byte_read_declaration(
 ) -> terminal_psi::StructuralTypeDeclaration {
     terminal_psi::StructuralTypeDeclaration {
         no_code_affine_cleanup: false,
+        shared_descriptor_cleanup: false,
         scalar_restriction: None,
         id,
         identity: terminal_psi::TerminalIdentityIndex(1),

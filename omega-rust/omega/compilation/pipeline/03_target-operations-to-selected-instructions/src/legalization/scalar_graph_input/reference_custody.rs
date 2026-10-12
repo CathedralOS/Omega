@@ -1899,6 +1899,11 @@ pub(in crate::legalization) fn apply(
                 &extent.path,
                 disposition.required_access(),
             )?;
+            if *disposition == terminal_psi::StructuralStoreDisposition::ReplaceDiscardable {
+                // End only this exact shared descriptor cohort. The independent
+                // child-closure check forbids retiring a live external child.
+                discard_subtree(function, custody, types, place, &path)?;
+            }
             relocate_subtree_leaves(
                 custody,
                 function,

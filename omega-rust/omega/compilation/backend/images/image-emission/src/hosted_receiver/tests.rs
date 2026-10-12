@@ -89,6 +89,7 @@ fn retained_service_leaf_cannot_be_zero_filled_or_omit_its_establishment() {
     let declarations = [
         StructuralTypeDeclaration {
             no_code_affine_cleanup: false,
+            shared_descriptor_cleanup: false,
             scalar_restriction: None,
             id: root,
             identity: terminal_psi::TerminalIdentityIndex(2),
@@ -99,6 +100,7 @@ fn retained_service_leaf_cannot_be_zero_filled_or_omit_its_establishment() {
         },
         StructuralTypeDeclaration {
             no_code_affine_cleanup: false,
+            shared_descriptor_cleanup: false,
             scalar_restriction: None,
             id: service,
             identity: terminal_psi::TerminalIdentityIndex(3),
@@ -184,6 +186,7 @@ fn zero_filled_receiver_byte_fields_require_owned_backing_or_a_shared_view() {
         let declarations = [
             StructuralTypeDeclaration {
                 no_code_affine_cleanup: false,
+                shared_descriptor_cleanup: false,
                 scalar_restriction: None,
                 id: root,
                 identity: terminal_psi::TerminalIdentityIndex(6),
@@ -194,6 +197,7 @@ fn zero_filled_receiver_byte_fields_require_owned_backing_or_a_shared_view() {
             },
             StructuralTypeDeclaration {
                 no_code_affine_cleanup: false,
+                shared_descriptor_cleanup: false,
                 scalar_restriction: None,
                 id: child,
                 identity: terminal_psi::TerminalIdentityIndex(7),
@@ -249,6 +253,7 @@ fn nested_receiver_storage_rejects_missing_cyclic_erased_and_zero_excluded_leave
     let declarations = vec![
         StructuralTypeDeclaration {
             no_code_affine_cleanup: false,
+            shared_descriptor_cleanup: false,
             scalar_restriction: None,
             id: root,
             identity: terminal_psi::TerminalIdentityIndex(6),
@@ -259,6 +264,7 @@ fn nested_receiver_storage_rejects_missing_cyclic_erased_and_zero_excluded_leave
         },
         StructuralTypeDeclaration {
             no_code_affine_cleanup: false,
+            shared_descriptor_cleanup: false,
             scalar_restriction: None,
             id: child,
             identity: terminal_psi::TerminalIdentityIndex(7),
@@ -365,6 +371,7 @@ fn nested_receiver_storage_follows_the_zero_tag_sum_case() {
     };
     let sum_declaration = |fields: Vec<StructuralFieldDeclaration>| StructuralTypeDeclaration {
         no_code_affine_cleanup: false,
+        shared_descriptor_cleanup: false,
         scalar_restriction: None,
         id: sum,
         identity: terminal_psi::TerminalIdentityIndex(11),
@@ -385,6 +392,7 @@ fn nested_receiver_storage_follows_the_zero_tag_sum_case() {
         vec![
             StructuralTypeDeclaration {
                 no_code_affine_cleanup: false,
+                shared_descriptor_cleanup: false,
                 scalar_restriction: None,
                 id: root,
                 identity: terminal_psi::TerminalIdentityIndex(6),
@@ -511,6 +519,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
         let mut declarations = vec![
             StructuralTypeDeclaration {
                 no_code_affine_cleanup: false,
+                shared_descriptor_cleanup: false,
                 scalar_restriction: None,
                 id: root,
                 identity: terminal_psi::TerminalIdentityIndex(6),
@@ -521,6 +530,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
             },
             StructuralTypeDeclaration {
                 no_code_affine_cleanup: false,
+                shared_descriptor_cleanup: false,
                 scalar_restriction: None,
                 id: array,
                 identity: terminal_psi::TerminalIdentityIndex(15),
@@ -528,6 +538,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
             },
             StructuralTypeDeclaration {
                 no_code_affine_cleanup: false,
+                shared_descriptor_cleanup: false,
                 scalar_restriction: None,
                 id: element,
                 identity: terminal_psi::TerminalIdentityIndex(16),
@@ -543,6 +554,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
             declarations[2].id = nested_array;
             declarations.push(StructuralTypeDeclaration {
                 no_code_affine_cleanup: false,
+                shared_descriptor_cleanup: false,
                 scalar_restriction: None,
                 id: leaf,
                 identity: terminal_psi::TerminalIdentityIndex(17),
@@ -579,6 +591,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
         let declarations = vec![
             StructuralTypeDeclaration {
                 no_code_affine_cleanup: false,
+                shared_descriptor_cleanup: false,
                 scalar_restriction: None,
                 id: root,
                 identity: terminal_psi::TerminalIdentityIndex(6),
@@ -589,6 +602,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
             },
             StructuralTypeDeclaration {
                 no_code_affine_cleanup: false,
+                shared_descriptor_cleanup: false,
                 scalar_restriction: None,
                 id: array,
                 identity: terminal_psi::TerminalIdentityIndex(15),
@@ -596,6 +610,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
             },
             StructuralTypeDeclaration {
                 no_code_affine_cleanup: false,
+                shared_descriptor_cleanup: false,
                 scalar_restriction: None,
                 id: element,
                 identity: terminal_psi::TerminalIdentityIndex(16),
@@ -612,6 +627,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
     let cyclic = vec![
         StructuralTypeDeclaration {
             no_code_affine_cleanup: false,
+            shared_descriptor_cleanup: false,
             scalar_restriction: None,
             id: root,
             identity: terminal_psi::TerminalIdentityIndex(6),
@@ -622,6 +638,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
         },
         StructuralTypeDeclaration {
             no_code_affine_cleanup: false,
+            shared_descriptor_cleanup: false,
             scalar_restriction: None,
             id: array,
             identity: terminal_psi::TerminalIdentityIndex(15),
@@ -641,6 +658,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
     let mixed_declaration =
         |common: Vec<StructuralFieldDeclaration>, case_fields| StructuralTypeDeclaration {
             no_code_affine_cleanup: false,
+            shared_descriptor_cleanup: false,
             scalar_restriction: None,
             id: mixed,
             identity: terminal_psi::TerminalIdentityIndex(18),
@@ -666,6 +684,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
         vec![
             StructuralTypeDeclaration {
                 no_code_affine_cleanup: false,
+                shared_descriptor_cleanup: false,
                 scalar_restriction: None,
                 id: root,
                 identity: terminal_psi::TerminalIdentityIndex(6),

@@ -894,3 +894,11 @@ pass/borrows/runtime_reference_aggregate_alias_replacement_exit built 3856ms exi
 pass/borrows/runtime_reference_aggregate_projected_replacement_exit built 2798ms exit:0 interpreter-exit:0 interpreter:agrees @b886c487061b+wt
 pass/borrows/runtime_reference_aggregate_array_alias_replacement_exit built 3939ms exit:0 interpreter-exit:0 interpreter:agrees @b886c487061b+wt
 pass/borrows/runtime_reference_aggregate_call_result_replacement_exit built 2798ms exit:0 interpreter-exit:0 interpreter:agrees @b886c487061b+wt
+pass/borrow/runtime_write_only_reference_aggregate_call_exit built 3857ms exit:0 interpreter-exit:0 interpreter:agrees @992d27dd3135+wt
+pass/borrow/runtime_write_only_reference_aggregate_alias_exit built 3935ms exit:0 interpreter-exit:0 interpreter:agrees @992d27dd3135+wt
+pass/borrow/runtime_write_only_reference_aggregate_projected_exit built 2875ms exit:0 interpreter-exit:0 interpreter:agrees @992d27dd3135+wt
+pass/borrow/runtime_write_only_reference_aggregate_array_alias_exit built 4017ms exit:0 interpreter-exit:0 interpreter:agrees @992d27dd3135+wt
+pass/borrow/runtime_write_only_reference_aggregate_call_result_exit built 2923ms exit:0 interpreter-exit:0 interpreter:agrees @992d27dd3135+wt
+pass/borrow/runtime_write_only_reference_aggregate_copy_exit built 2919ms exit:0 interpreter-exit:0 interpreter:agrees @992d27dd3135+wt
+pass/borrow/runtime_write_only_reference_aggregate_detached_exit built 2867ms exit:0 interpreter-exit:0 interpreter:agrees @992d27dd3135+wt
+pass/borrow/runtime_write_only_reference_aggregate_capture_exit built 2929ms exit:0 interpreter-exit:0 interpreter:agrees @992d27dd3135+wt

@@ -430,8 +430,10 @@ fn walk_state_write_prefix_inner(
         parameters
             .iter()
             .filter_map(|parameter| {
-                let reference =
-                    reference_subjects::carrier_storage_type(program, parameter.type_reference)?;
+                let reference = reference_subjects::carrier_storage_declaration(
+                    program,
+                    parameter.type_reference,
+                )?;
                 let mut origins = stored_origins::declared_origins_for_query(
                     program,
                     parameter.symbol,

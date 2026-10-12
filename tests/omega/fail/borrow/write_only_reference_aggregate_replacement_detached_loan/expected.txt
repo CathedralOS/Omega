@@ -1,0 +1,1 @@
+mutates `main.left.value` while local borrow `old` is still active

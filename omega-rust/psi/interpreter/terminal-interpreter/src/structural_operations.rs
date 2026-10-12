@@ -886,6 +886,21 @@ impl TerminalExecution<'_> {
         ) {
             return Err(malformed());
         }
+        let copies_storage = machine
+            .structural_parameter(value.place)
+            .map(|parameter| parameter.multiplicity)
+            .or_else(|| {
+                machine
+                    .producing_operation(value.place)
+                    .and_then(|(operation, _)| {
+                        operation
+                            .result
+                            .structural()
+                            .map(|result| result.multiplicity)
+                    })
+            })
+            .ok_or_else(malformed)?
+            == StructuralMultiplicity::Unrestricted;
         let selected =
             self.structural_window_hole(destination, path, field, disposition.required_access())?;
         let field_type = selected.structural_type;
@@ -966,13 +981,24 @@ impl TerminalExecution<'_> {
             }
         };
         if let Some(child) = placed {
-            self.relocate_subtree(&StructuralRuntimePlace::from(&child), &hole);
+            // The checked disposition has already established shared-descriptor
+            // closure. Transplant stages the incoming cells, retires only the
+            // destination's resident keys, and installs the replacement without
+            // following or reading displaced referents. External copies retain
+            // their own descriptor keys and the same backing storage.
+            self.transplant_subtree(
+                &StructuralRuntimePlace::from(&child),
+                &hole,
+                !copies_storage,
+            );
         } else {
             storage.publish(self);
         }
         self.structural_values.extend(memberships);
-        self.structural_values.remove(&value.place);
-        self.scalar_array_values.remove(&value.place);
+        if !copies_storage {
+            self.structural_values.remove(&value.place);
+            self.scalar_array_values.remove(&value.place);
+        }
         self.live_affine_frontier = frontier;
         self.live_claims = claims;
         Ok(OperationFlow::Advance)

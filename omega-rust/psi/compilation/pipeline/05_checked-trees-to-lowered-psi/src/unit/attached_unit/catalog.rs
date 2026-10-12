@@ -511,6 +511,7 @@ pub(super) fn lower_unit_structural_types_including(
             identity_ids.push((identity_id, id));
             declarations.push(StructuralTypeDeclaration {
                 no_code_affine_cleanup: false,
+                shared_descriptor_cleanup: false,
                 scalar_restriction: None,
                 id,
                 identity: identities.intern(identity),
@@ -890,6 +891,7 @@ pub(crate) fn lower_unit_structural_type_roots(
         };
         declarations.push(StructuralTypeDeclaration {
             no_code_affine_cleanup: plan.no_code_affine_cleanup,
+            shared_descriptor_cleanup: plan.shared_descriptor_cleanup,
             scalar_restriction: plan
                 .scalar_restriction
                 .as_ref()

@@ -108,6 +108,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                 result: None,
                 structural_types: vec![StructuralTypeDeclaration {
                     no_code_affine_cleanup: false,
+                    shared_descriptor_cleanup: false,
                     scalar_restriction: None,
                     id: extent_type,
                     identity: terminal_psi::TerminalIdentityIndex(1),

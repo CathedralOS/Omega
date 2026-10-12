@@ -40,6 +40,7 @@ fn field(
 fn declaration(raw: u64, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
     StructuralTypeDeclaration {
         no_code_affine_cleanup: false,
+        shared_descriptor_cleanup: false,
         scalar_restriction: None,
         id: type_id(raw),
         identity: terminal_psi::TerminalIdentityIndex(10 + raw as u32),

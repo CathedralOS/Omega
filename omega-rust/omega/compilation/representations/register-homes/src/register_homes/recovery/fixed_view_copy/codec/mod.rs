@@ -26,7 +26,7 @@ const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
 // Version 62 commits original callable coordinates of installed provider rows.
 // Version 63 retains each registrar's synchronous callback invocation edge.
 // Version 64 retains checked no-code affine cleanup authority on structural types.
-const VERSION: u32 = 64;
+const VERSION: u32 = 65;
 impl FixedViewCopyPlan {
     /// Canonical self-authenticating artifact. Decoding returns plain content;
     /// independent fixed-view-copy validation is still required for custody.

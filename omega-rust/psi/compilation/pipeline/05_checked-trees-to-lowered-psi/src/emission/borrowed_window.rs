@@ -521,7 +521,9 @@ impl BorrowedWindowLedger {
         let discardable = multiplicity == Some(StructuralMultiplicity::Unrestricted)
             || multiplicity == Some(StructuralMultiplicity::Affine)
                 && structural_types.iter().any(|declaration| {
-                    declaration.id == value.structural_type && declaration.no_code_affine_cleanup
+                    declaration.id == value.structural_type
+                        && (declaration.no_code_affine_cleanup
+                            || declaration.shared_descriptor_cleanup)
                 });
         if index.is_none()
             && ((place.restoration_required && !discardable)
@@ -563,15 +565,20 @@ impl BorrowedWindowLedger {
                     .filter(|result| result.place == value.place)
                     .map(|result| (&result.qualifications, &result.projected_qualifications))
             }))
-            .chain(operations.structural_values.iter().filter_map(
-                |(_, binding)| {
-                    binding.operation_result().ok().filter(|result| {
-                        result.place == value.place
-                    }).map(|result| {
-                        (&result.qualifications, &result.projected_qualifications)
-                    })
-                },
-            ))
+            .chain(
+                operations
+                    .structural_values
+                    .iter()
+                    .filter_map(|(_, binding)| {
+                        binding
+                            .operation_result()
+                            .ok()
+                            .filter(|result| result.place == value.place)
+                            .map(|result| {
+                                (&result.qualifications, &result.projected_qualifications)
+                            })
+                    }),
+            )
             .next()
             .ok_or_else(|| {
                 unpinned(

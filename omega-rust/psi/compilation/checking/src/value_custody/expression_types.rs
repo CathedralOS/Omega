@@ -252,6 +252,27 @@ fn argument_matches_type_reference_using(
                 TypeReferenceNode::Reference { .. }
             )
         {
+            // Explicit attenuation changes access, not the selected referent.
+            // Bare forwarding still uses reference correspondence below and
+            // cannot silently acquire write-only authority. Formation and loan
+            // checking independently require a writable, non-observing path.
+            if *access == language_semantics::ReferenceAccess::WriteOnly
+                && let TypeReferenceNode::Reference {
+                    referee: actual_referee,
+                    access: language_semantics::ReferenceAccess::Mutable,
+                    ..
+                } = program.type_reference_table.type_reference(actual)
+            {
+                return program.type_identity(TypeIdentityRequest {
+                    substitutions: &substitutions,
+                    ..TypeIdentityRequest::ordinary(*actual_referee)
+                }) == program.type_identity_with_simultaneous_substitutions(
+                    TypeIdentityRequest {
+                        substitutions: required_substitutions,
+                        ..TypeIdentityRequest::ordinary(*referee)
+                    },
+                );
+            }
             return correspondence(
                 program,
                 actual,

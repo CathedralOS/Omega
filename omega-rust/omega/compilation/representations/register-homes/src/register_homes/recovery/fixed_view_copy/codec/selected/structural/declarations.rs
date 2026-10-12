@@ -55,6 +55,7 @@ pub(super) fn encode_type(
     crate::codec_bytes::push_encoded(bytes, declaration.id.get().to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, declaration.identity.0.to_le_bytes());
     bytes.push(u8::from(declaration.no_code_affine_cleanup));
+    bytes.push(u8::from(declaration.shared_descriptor_cleanup));
     match &declaration.shape {
         StructuralTypeShape::BindingCarrier => bytes.push(11),
         StructuralTypeShape::Reference { referent, access } => {
@@ -125,6 +126,7 @@ pub(super) fn decode_type(
     let id = decode_id(cursor, StructuralTypeId::new)?;
     let identity = terminal_psi::TerminalIdentityIndex(cursor.u32()?);
     let no_code_affine_cleanup = decode_bool(cursor)?;
+    let shared_descriptor_cleanup = decode_bool(cursor)?;
     let mut scalar_restriction = None;
     let shape = match cursor.byte()? {
         11 => StructuralTypeShape::BindingCarrier,
@@ -186,6 +188,7 @@ pub(super) fn decode_type(
     };
     Ok(StructuralTypeDeclaration {
         no_code_affine_cleanup,
+        shared_descriptor_cleanup,
         scalar_restriction,
         id,
         identity,

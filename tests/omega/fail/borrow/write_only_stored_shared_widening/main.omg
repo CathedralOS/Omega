@@ -1,0 +1,4 @@
+data Cell { value: i64; }
+data Slot { value: &Cell; }
+machine set(value: &write i64) { value = 23; }
+machine replace(slot: &mut Slot) { set(&write slot.value.value); }

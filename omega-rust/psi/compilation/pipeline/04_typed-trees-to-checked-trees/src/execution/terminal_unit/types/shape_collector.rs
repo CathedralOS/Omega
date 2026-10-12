@@ -12,6 +12,9 @@
 //! skipped alternative still owns the value; the graph's existing custody
 //! solver needs this independent authority to settle that live complement.
 //! Nominal hooks, linear descendants and stored loans never gain this capability.
+//! Shared descriptors have a separate exact-type disposal judgment. A replacement
+//! must settle their resident cohort and preserve external loans before installing
+//! the incoming roster; this bit never permits ordinary resource-free cleanup.
 //!
 //! A stored reference owns its pointer carrier, not its referent's storage.
 //! Record its exact type edge without collecting the target's fields. Root
@@ -230,6 +233,7 @@ impl<'program> ShapeCollector<'program> {
         let plan = CheckedUnitStructuralTypePlan {
             scalar_restriction: None,
             no_code_affine_cleanup: false,
+            shared_descriptor_cleanup: false,
             identity: identity,
             shape: CheckedUnitStructuralTypeShape::Record {
                 storage: checked_trees::CheckedUnitRecordStorage::Packed,
@@ -374,6 +378,7 @@ impl<'program> ShapeCollector<'program> {
         let plan = CheckedUnitStructuralTypePlan {
             scalar_restriction: None,
             no_code_affine_cleanup: false,
+            shared_descriptor_cleanup: access == CheckedStructuralAccess::SharedBorrow,
             identity: identity,
             shape: CheckedUnitStructuralTypeShape::Reference {
                 referent_identity,
@@ -482,6 +487,12 @@ impl<'program> ShapeCollector<'program> {
             substitutions,
             validation::ContentsRequirement::RepresentedOwned,
         );
+        let shared_descriptor_cleanup = validation::has_contents(
+            self.program,
+            validation::structural_identity_type(self.program, type_reference, substitutions),
+            substitutions,
+            validation::ContentsRequirement::OwnedOrSharedView,
+        );
         if let Some(carrier) = byte_sequence_carrier(self.program, type_reference, substitutions) {
             // Byte views and bounded byte carriers spell their implicit
             // element through the collection establishment operation. The
@@ -525,6 +536,7 @@ impl<'program> ShapeCollector<'program> {
             }
             let plan = CheckedUnitStructuralTypePlan {
                 scalar_restriction: None,
+                shared_descriptor_cleanup: false,
                 no_code_affine_cleanup: no_code_affine_cleanup
                     && matches!(
                         carrier,
@@ -559,6 +571,7 @@ impl<'program> ShapeCollector<'program> {
             let plan = CheckedUnitStructuralTypePlan {
                 scalar_restriction: None,
                 no_code_affine_cleanup: false,
+                shared_descriptor_cleanup: false,
                 identity: identity,
                 shape: CheckedUnitStructuralTypeShape::BorrowedSliceView {
                     element_type_identity: element_type_identity?,
@@ -600,6 +613,7 @@ impl<'program> ShapeCollector<'program> {
                 CheckedUnitStructuralTypePlan {
                     scalar_restriction,
                     no_code_affine_cleanup,
+                    shared_descriptor_cleanup,
                     identity: identity,
                     shape: CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive),
                 },
@@ -681,6 +695,7 @@ impl<'program> ShapeCollector<'program> {
                 CheckedUnitStructuralTypePlan {
                     scalar_restriction: None,
                     no_code_affine_cleanup,
+                    shared_descriptor_cleanup,
                     identity: identity,
                     shape: CheckedUnitStructuralTypeShape::FixedArray {
                         element_type_identity,
@@ -812,6 +827,12 @@ impl<'program> ShapeCollector<'program> {
             &substitutions,
             validation::ContentsRequirement::RepresentedOwned,
         );
+        let shared_descriptor_cleanup = validation::data_has_contents(
+            self.program,
+            &data,
+            &substitutions,
+            validation::ContentsRequirement::OwnedOrSharedView,
+        );
         let members = self.program.data_members(&data).to_vec();
         if data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
             || !matches!(
@@ -894,6 +915,7 @@ impl<'program> ShapeCollector<'program> {
                 CheckedUnitStructuralTypePlan {
                     scalar_restriction: None,
                     no_code_affine_cleanup,
+                    shared_descriptor_cleanup,
                     identity: identity,
                     shape: if matches!(shape_kind, DataShapeKind::Mixed) {
                         CheckedUnitStructuralTypeShape::Mixed { fields, cases }
@@ -956,6 +978,7 @@ impl<'program> ShapeCollector<'program> {
             CheckedUnitStructuralTypePlan {
                 scalar_restriction: None,
                 no_code_affine_cleanup,
+                shared_descriptor_cleanup,
                 identity: identity,
                 shape: CheckedUnitStructuralTypeShape::Record {
                     fields,
@@ -1115,6 +1138,7 @@ impl<'program> ShapeCollector<'program> {
         let plan = CheckedUnitStructuralTypePlan {
             scalar_restriction: None,
             no_code_affine_cleanup: false,
+            shared_descriptor_cleanup: false,
             identity: identity,
             shape: CheckedUnitStructuralTypeShape::BindingCarrier,
         };

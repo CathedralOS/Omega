@@ -440,7 +440,7 @@ pub(crate) fn borrowed_storage_argument(
             root_type_identity: shapes.add_type(reference, &[], &[])?,
         };
     }
-    let (mut reference, mut path) = if place.segments.is_empty() {
+    let (reference, path) = if place.segments.is_empty() {
         (reference, Vec::new())
     } else {
         projected_evaluated_path(
@@ -452,18 +452,12 @@ pub(crate) fn borrowed_storage_argument(
             selectors,
         )?
     };
-    // The selected storage and the callee's referent are different endpoints
-    // when the storage contains a reference. Normalize type and address in
-    // lockstep: type-only normalization would pass the descriptor as its
-    // referent. Root formal loans were already represented by their referent
-    // above; only reference shells still present here require a crossing.
-    while let Some(shell) = validation::reference_shell(program, reference) {
-        if !borrowed_access_supplies(shell.access, target_shell.access) {
-            return None;
-        }
-        path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
-        reference = shell.referee;
-    }
+    let (reference, path) = super::argument_paths::borrowed_argument_endpoint(
+        program,
+        reference,
+        path,
+        target.type_reference,
+    )?;
     // Access belongs to the exact checked loan below, not just the root's
     // mutability. An immutable aggregate can own a mutable descriptor whose
     // backing is loaned by this call; borrowing that descriptor's storage or

@@ -346,6 +346,11 @@ impl Builder<'_, '_> {
                 _ => return None,
             }
         } else if validation::reference_shell(self.program, expected).is_some()
+            // A runtime slice establishes or transports a pointer and captured
+            // extent through the view producer below. Ordinary reference
+            // capture lends sized storage, including fixed byte arrays; it
+            // cannot replace a slice's authored range with a whole-root loan.
+            && validation::slice_view_shell(self.program, expected, &[]).is_none()
             && match self.program.expression_table.expression(expression) {
                 // Borrowed formals denote ingress referents; unlike retained
                 // locals, they do not own stored descriptor values to move.

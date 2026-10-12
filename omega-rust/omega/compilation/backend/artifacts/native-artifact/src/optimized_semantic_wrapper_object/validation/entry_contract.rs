@@ -263,6 +263,7 @@ mod service_tests {
         let service = StructuralTypeId::new(1).unwrap();
         let declaration = StructuralTypeDeclaration {
             no_code_affine_cleanup: false,
+            shared_descriptor_cleanup: false,
             scalar_restriction: None,
             id: service,
             identity: terminal_psi::TerminalIdentityIndex(1),

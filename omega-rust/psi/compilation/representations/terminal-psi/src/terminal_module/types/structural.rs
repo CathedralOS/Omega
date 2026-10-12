@@ -11,6 +11,10 @@ pub struct StructuralTypeDeclaration {
     /// Checked authority that disposing represented owned contents requires no
     /// executable cleanup. This does not remove claims, loans, or access checks.
     pub no_code_affine_cleanup: bool,
+    /// Checked authority to retire contained shared descriptors without
+    /// observing old payloads or executing nominal cleanup. Exact live
+    /// custody and child closure remain obligations of each replacement.
+    pub shared_descriptor_cleanup: bool,
     pub shape: StructuralTypeShape,
     /// Closed scalar declaration predicate, independent from physical carrier
     /// geometry. Only BoundedInteger and RefinedScalar are admitted, and only
@@ -804,6 +808,7 @@ mod tests {
         let types = vec![
             StructuralTypeDeclaration {
                 no_code_affine_cleanup: false,
+                shared_descriptor_cleanup: false,
                 scalar_restriction: None,
                 id: reference,
                 identity: crate::TerminalIdentityIndex(1),
@@ -814,6 +819,7 @@ mod tests {
             },
             StructuralTypeDeclaration {
                 no_code_affine_cleanup: false,
+                shared_descriptor_cleanup: false,
                 scalar_restriction: None,
                 id: referent,
                 identity: crate::TerminalIdentityIndex(2),
@@ -821,6 +827,7 @@ mod tests {
             },
             StructuralTypeDeclaration {
                 no_code_affine_cleanup: false,
+                shared_descriptor_cleanup: false,
                 scalar_restriction: None,
                 id: element,
                 identity: crate::TerminalIdentityIndex(3),
@@ -837,6 +844,7 @@ mod tests {
             },
             StructuralTypeDeclaration {
                 no_code_affine_cleanup: false,
+                shared_descriptor_cleanup: false,
                 scalar_restriction: None,
                 id: array,
                 identity: crate::TerminalIdentityIndex(5),

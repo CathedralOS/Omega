@@ -30,11 +30,24 @@ pub(in crate::machine_calls::calls::write_frames) fn statement_exposes_frozen_bi
             program, machine, state, call, stored, aliases, symbols, inference,
         );
     }
+    // Capturing a descriptor in a local does not invoke the authority it
+    // carries. The declaration transfer retains its backing for later uses.
+    // Nested calls still contribute their own frames below; an unknown call
+    // cannot hide behind this empty consumer effect.
+    let consumer_writes: Option<&[String]> = statement.as_local_data().map(|_| &[][..]);
     statement_value_expression_roots(program, statement)
         .into_iter()
         .any(|expression| {
-            expression_exposes_frozen_binding(
-                program, machine, state, expression, stored, aliases, symbols, inference,
+            expression_exposes(
+                program,
+                machine,
+                state,
+                expression,
+                stored,
+                aliases,
+                symbols,
+                inference,
+                consumer_writes,
             )
         })
 }

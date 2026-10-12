@@ -138,8 +138,10 @@ fn destination_inventory(
         {
             continue;
         }
-        let reference =
-            super::reference_subjects::carrier_storage_type(program, parameter.type_reference)?;
+        let reference = super::reference_subjects::carrier_storage_declaration(
+            program,
+            parameter.type_reference,
+        )?;
         let inventory = stored_origins::declared_origins_for_query(
             program,
             parameter.symbol,
@@ -502,14 +504,37 @@ fn instantiate(
     if parameters.len() != arguments.len() || !context.divergent.is_empty() {
         return None;
     }
-    let substitute = |root, segments: &[PlaceSegment]| {
+    let substitute = |root, segments: &[PlaceSegment], inference: &mut FrameInference| {
         let index = typed_trees::signature::state_parameter_position(parameters, root)?;
         let actual = *arguments.get(index)?;
         if super::caller_aliases::expression_has_calls(program, actual) {
             return None;
         }
-        let base = stored_origins::binding_source(program, actual, &context.aliases)?;
-        if !base.root.is_valid() || !base.builtin_coordinates {
+        // Resolve the actual's referent before appending the callee's slot.
+        // Appending first could follow the very descriptor being replaced,
+        // while a raw binding path would leave stores under a pointer carrier.
+        let base = argument_origin(
+            program,
+            machine,
+            &parameters[index],
+            actual,
+            context,
+            symbols,
+            inference,
+        )?
+        .source;
+        if !base.root.is_valid()
+            || base.is_static()
+            || !base.builtin_coordinates
+            || base.segments.iter().any(|segment| {
+                !matches!(
+                    segment,
+                    PlaceSegment::Field { .. }
+                        | PlaceSegment::Case { .. }
+                        | PlaceSegment::FixedIndex { .. }
+                )
+            })
+        {
             return None;
         }
         Some(base.append_relative(&FrameSourcePlace {
@@ -523,7 +548,7 @@ fn instantiate(
     };
     let mut output = Vec::new();
     for effect in relative {
-        let destination = substitute(effect.root, &effect.segments)?;
+        let destination = substitute(effect.root, &effect.segments, inference)?;
         let mut sources = Vec::new();
         for source in &effect.sources {
             let candidates = if source.source.is_static() {

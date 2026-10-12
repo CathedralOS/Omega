@@ -24,18 +24,33 @@ mod results;
 /// whose binding survives every statement before the query.
 pub(super) fn carrier_storage_type(
     program: &dyn crate::CheckingInput,
-    mut reference: TypeReferenceHandle,
+    reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
-    reference = program
+    let unconstrained = program
         .type_reference_table
         .unconstrained_type_reference(reference);
-    if let TypeReferenceNode::Reference {
-        access, referee, ..
-    } = program.type_reference_table.type_reference(reference)
+    if let TypeReferenceNode::Reference { access, .. } =
+        program.type_reference_table.type_reference(unconstrained)
+        && !access.is_readable()
     {
-        if !access.is_readable() {
-            return None;
-        }
+        return None;
+    }
+    carrier_storage_declaration(program, reference)
+}
+
+/// Inventory declared descriptor slots for write effects without reading them.
+/// A write-only formal retains its incoming slot identities so a later store
+/// can replace their loans; these rows grant no observation or pointer access.
+pub(super) fn carrier_storage_declaration(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    let mut reference = program
+        .type_reference_table
+        .unconstrained_type_reference(reference);
+    if let TypeReferenceNode::Reference { referee, .. } =
+        program.type_reference_table.type_reference(reference)
+    {
         reference = *referee;
     }
     (reference.is_valid() && !type_reference_is_reference(program, reference)).then_some(reference)

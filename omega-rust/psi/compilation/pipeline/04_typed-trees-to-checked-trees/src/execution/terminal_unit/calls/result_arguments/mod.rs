@@ -232,9 +232,18 @@ fn argument_contract(
     // one of its windows; presentation checks the selected storage instead.
     // Resolve that storage and path once for every projected loan.
     let borrowed_storage = if projected_borrow {
-        byte_window.or_else(|| {
-            projected_borrowed_path(program, machine, state, call.statement_index, place)
-        })
+        byte_window
+            .or_else(|| {
+                projected_borrowed_path(program, machine, state, call.statement_index, place)
+            })
+            .and_then(|(selected, path)| {
+                super::argument_paths::borrowed_argument_endpoint(
+                    program,
+                    selected,
+                    path,
+                    parameter.type_reference,
+                )
+            })
     } else {
         None
     };

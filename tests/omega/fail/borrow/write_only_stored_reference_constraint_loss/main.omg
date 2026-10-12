@@ -1,0 +1,7 @@
+data Slot { value: &mut i32 [0..=9]; }
+machine set(value: &write i32) { value = 23; }
+machine replace(slot: &mut Slot) { set(&write slot.value); }
+machine capture(slot: &mut Slot) {
+    let value: &write i32 = &write slot.value;
+    value = 23;
+}

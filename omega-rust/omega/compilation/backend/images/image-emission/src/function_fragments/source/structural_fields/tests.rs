@@ -55,6 +55,7 @@ fn borrowed_block_reads_retain_declarations_independently_of_native_carrier() {
     target.graph.blocks[0].structural_parameters = vec![parameter];
     target.graph.structural_types = vec![StructuralTypeDeclaration {
         no_code_affine_cleanup: false,
+        shared_descriptor_cleanup: false,
         scalar_restriction: None,
         id: identity,
         identity: terminal_psi::TerminalIdentityIndex(1),
@@ -486,6 +487,7 @@ fn local_byte_length_membership_requires_the_exact_owned_home() {
         let mut stored_target = target.clone();
         stored_target.graph.structural_types = vec![terminal_psi::StructuralTypeDeclaration {
             no_code_affine_cleanup: false,
+            shared_descriptor_cleanup: false,
             scalar_restriction: None,
             id: owner.structural_type,
             identity: terminal_psi::TerminalIdentityIndex(10),
@@ -633,6 +635,7 @@ fn whole_byte_replacement_rejoins_qualified_entry_and_arrival_storage() {
         target.graph.parameters[0].access = parameter.access;
         target.graph.structural_types = vec![StructuralTypeDeclaration {
             no_code_affine_cleanup: false,
+            shared_descriptor_cleanup: false,
             scalar_restriction: None,
             id: parameter.structural_type,
             identity: terminal_psi::TerminalIdentityIndex(12),
@@ -911,6 +914,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
     target.graph.structural_types = vec![
         StructuralTypeDeclaration {
             no_code_affine_cleanup: false,
+            shared_descriptor_cleanup: false,
             scalar_restriction: None,
             id: root_type,
             identity: terminal_psi::TerminalIdentityIndex(14),
@@ -927,6 +931,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
         },
         StructuralTypeDeclaration {
             no_code_affine_cleanup: false,
+            shared_descriptor_cleanup: false,
             scalar_restriction: None,
             id: reference_type,
             identity: terminal_psi::TerminalIdentityIndex(15),
@@ -937,6 +942,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
         },
         StructuralTypeDeclaration {
             no_code_affine_cleanup: false,
+            shared_descriptor_cleanup: false,
             scalar_restriction: None,
             id: holder_type,
             identity: terminal_psi::TerminalIdentityIndex(16),
@@ -1358,6 +1364,7 @@ fn returned_and_parameter_bounded_owners_use_inline_payload_offset() {
     ];
     let structural_types = vec![StructuralTypeDeclaration {
         no_code_affine_cleanup: false,
+        shared_descriptor_cleanup: false,
         scalar_restriction: None,
         id: structural_type,
         identity: terminal_psi::TerminalIdentityIndex(19),
@@ -1608,6 +1615,7 @@ fn nested_field_membership_reconstructs_parent_local_carrier_identity() {
         }
         target.graph.structural_types = vec![terminal_psi::StructuralTypeDeclaration {
             no_code_affine_cleanup: false,
+            shared_descriptor_cleanup: false,
             scalar_restriction: None,
             id: function.structural_parameters[0].structural_type,
             identity: terminal_psi::TerminalIdentityIndex(20),
@@ -1629,6 +1637,7 @@ fn nested_field_membership_reconstructs_parent_local_carrier_identity() {
             .make_mut()
             .push(terminal_psi::StructuralTypeDeclaration {
                 no_code_affine_cleanup: false,
+                shared_descriptor_cleanup: false,
                 scalar_restriction: None,
                 id: child,
                 identity: terminal_psi::TerminalIdentityIndex(22),
@@ -1683,6 +1692,7 @@ fn indexed_field_membership_reconstructs_fixed_array_carrier_identity() {
         target.graph.structural_types = vec![
             terminal_psi::StructuralTypeDeclaration {
                 no_code_affine_cleanup: false,
+                shared_descriptor_cleanup: false,
                 scalar_restriction: None,
                 id: function.structural_parameters[0].structural_type,
                 identity: terminal_psi::TerminalIdentityIndex(20),
@@ -1699,6 +1709,7 @@ fn indexed_field_membership_reconstructs_fixed_array_carrier_identity() {
             },
             terminal_psi::StructuralTypeDeclaration {
                 no_code_affine_cleanup: false,
+                shared_descriptor_cleanup: false,
                 scalar_restriction: None,
                 id: array,
                 identity: terminal_psi::TerminalIdentityIndex(26),
@@ -1706,6 +1717,7 @@ fn indexed_field_membership_reconstructs_fixed_array_carrier_identity() {
             },
             terminal_psi::StructuralTypeDeclaration {
                 no_code_affine_cleanup: false,
+                shared_descriptor_cleanup: false,
                 scalar_restriction: None,
                 id: element,
                 identity: terminal_psi::TerminalIdentityIndex(27),

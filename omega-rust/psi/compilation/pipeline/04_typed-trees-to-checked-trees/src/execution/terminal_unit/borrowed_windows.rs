@@ -848,7 +848,10 @@ impl OpenWindows {
                         && shapes
                             .types
                             .get(&produced.type_identity)
-                            .is_some_and(|declaration| declaration.no_code_affine_cleanup);
+                            .is_some_and(|declaration| {
+                                declaration.no_code_affine_cleanup
+                                    || declaration.shared_descriptor_cleanup
+                            });
                 let needs_displacement = opening_binding.is_none() && !freely_discardable;
                 (
                     place.source,
