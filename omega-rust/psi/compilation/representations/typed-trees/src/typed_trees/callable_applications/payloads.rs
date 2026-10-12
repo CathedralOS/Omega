@@ -15,6 +15,10 @@ impl CallableApplication {
         if !original.is_valid() {
             return Ok(original);
         }
+        if self.type_payload_visits.contains(&original) {
+            return Err("callable type payload has a cyclic original application graph");
+        }
+        self.type_payload_visits.push(original);
         let owner = program
             .type_reference_table
             .operand_lifetime_owner(original);
@@ -30,9 +34,12 @@ impl CallableApplication {
             let applied = self.type_payload(program, original);
             self.lifetimes = lifetimes;
             self.elided_lifetimes = elided_lifetimes;
+            self.type_payload_visits.pop();
             return applied;
         }
-        self.type_payload(program, original)
+        let applied = self.type_payload(program, original);
+        self.type_payload_visits.pop();
+        applied
     }
 
     fn type_payload(
@@ -280,6 +287,18 @@ impl CallableApplication {
             program
                 .type_reference_table
                 .retain_completed_const_result(applied, Some(value));
+        }
+        // A normalized carrier's own full tuple is semantic custody, not the
+        // shared declaration's first instance. Apply that graph through this
+        // same supplying prefix and retain it on the corresponding copy.
+        let origin = program
+            .type_reference_table
+            .data_application_origin(original);
+        if origin.is_valid() {
+            let origin = self.type_reference(program, origin)?;
+            program
+                .type_reference_table
+                .retain_data_application_origin(applied, origin);
         }
         Ok(applied)
     }

@@ -158,6 +158,19 @@ impl TypedTrees {
         self.trait_application_arguments(trait_symbol, &application)
     }
 
+    /// Materialize every original supplying frame with the shared complete
+    /// typed payload copier. This is construction scratch: declaration-owned
+    /// scope boundaries still identify each simultaneous telescope. Actual
+    /// graphs receive their own resolved region owner before header copying;
+    /// no receiving signature or body supplies a missing region declaration.
+    pub fn materialize_trait_application_substitutions(
+        &mut self,
+        environment: &crate::trait_definition::TraitApplicationEnvironment,
+    ) -> Result<Vec<(SymbolHandle, crate::types::TypeReferenceHandle)>, &'static str> {
+        self.materialize_trait_application(environment)
+            .map(|application| application.types)
+    }
+
     fn materialize_trait_application(
         &mut self,
         environment: &crate::trait_definition::TraitApplicationEnvironment,

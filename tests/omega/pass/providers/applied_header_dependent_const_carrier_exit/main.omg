@@ -1,0 +1,42 @@
+// Expected exit: 0. The inherited u64 Type operand completes Count's declared
+// carrier before its original signature predicate is copied. Direct and nested
+// borrowed calls preserve the same authored Child provider selection.
+use omega::language::core::binding;
+
+pub boundary trait Parent<Value, const Count: Value> {
+    machine read() -> i32 requires Count == Count;
+}
+pub boundary trait Child: Parent<u64, 4> { machine choose() -> i32; }
+
+ChildMap satisfies Child {
+    Parent::read = read;
+    Child::choose = choose;
+}
+machine read() -> i32 { 37 }
+machine choose() -> i32 { 19 }
+
+data TargetProviders {}
+macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<Child, ChildMap>(defaults);
+}
+
+data Session { parent: Binding<Parent<u64, 4>>; }
+data Main<'record> {
+    parent: Binding<Parent<u64, 4>>;
+    session: Session;
+}
+
+machine observed<'borrow>(parent: &'borrow Binding<Parent<u64, 4>>) -> i32 reaches Parent {
+    parent.read()
+}
+machine Main::main<'activation>(main: &'activation mut Main<'activation>)
+reaches Child + Parent crashes Trap {
+    let direct: i32 = observed(&main.parent);
+    let nested: i32 = observed(&main.session.parent);
+    let chosen: i32 = Child::choose();
+    transition direct == 37 && nested == 37 && chosen == 19 {
+        true -> done() _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
