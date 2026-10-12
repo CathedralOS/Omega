@@ -683,6 +683,11 @@ fn membership_subject_matches_owner(
     }) else {
         return false;
     };
+    if program.closed_data_definition(subject_type).is_some() {
+        return program
+            .closed_data_constructor_definition(subject_type, owner.symbol)
+            .is_some();
+    }
     // Only nominal subjects match. In particular, type_symbol() also walks
     // array/slice element types, which cannot establish a collection's tag.
     match program.type_reference_table.type_reference(subject_type) {
