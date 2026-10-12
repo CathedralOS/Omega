@@ -12,6 +12,38 @@ pub(in crate::checks::borrows) struct ResolvedAlias {
     pub(in crate::checks::borrows) lineage: Vec<Handle<BorrowLoanFact>>,
 }
 
+impl ResolvedAlias {
+    /// Lineage names descriptor occurrences, each of which may retain several
+    /// alternative origins. Comparing one origin with another origin of that
+    /// same descriptor must not treat them as simultaneous exclusive loans.
+    /// The producer groups a completed descriptor by storage, statement and
+    /// leaf path; match arms may have distinct formation expressions. A later
+    /// replacement, another leaf or a child descriptor is a different occurrence.
+    pub(in crate::checks::borrows) fn retains_loan(
+        &self,
+        borrow: &BorrowFacts,
+        handle: Handle<BorrowLoanFact>,
+    ) -> bool {
+        let loan = borrow.loans.get(handle);
+        self.lineage.iter().any(|ancestor| {
+            if *ancestor == handle {
+                return true;
+            }
+            let ancestor = borrow.loans.get(*ancestor);
+            let path = borrow.loan_owner_path(loan);
+            loan.owner_symbol.is_valid()
+                && loan.storage_owner.is_valid()
+                && ancestor.owner_symbol == loan.owner_symbol
+                && ancestor.storage_owner == loan.storage_owner
+                && ancestor.statement_index == loan.statement_index
+                && borrow.loan_owner_path(ancestor) == path
+                // A wildcard can describe several coexisting array slots;
+                // matching wildcard paths do not identify one descriptor.
+                && !path.contains(&checked_trees::BorrowLoanOwnerSegment::DynamicIndex)
+        })
+    }
+}
+
 pub(in crate::checks::borrows) struct ResolvedPlace {
     pub(in crate::checks::borrows) place: CapturedPlace,
     pub(in crate::checks::borrows) local_loan: Handle<BorrowLoanFact>,

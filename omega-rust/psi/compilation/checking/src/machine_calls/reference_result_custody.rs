@@ -2516,13 +2516,17 @@ fn reference_sources_parameter(
 }
 
 /// Borrow the complete loan group that checking produced for this call's
-/// local result. Source admission already established its lifetime relation,
+/// result occurrence. Source admission already established its lifetime relation,
 /// captured places and access. Do not replay argument initializers here or
 /// choose one possible origin: the published facts own those decisions.
 ///
-/// Borrow production appends each statement's local loans contiguously. The
-/// span retains every candidate without a second allocation; malformed or
-/// incomplete grouping fails closed rather than silently dropping a source.
+/// Receiving syntax is not identity: a call may initialize a local directly,
+/// feed a selected arm or be captured inside a construction. The loan producer
+/// retains that exact formation expression, independently of the enclosing
+/// statement's initializer and call ordinal. Join those records, not a second
+/// recognizer for direct immutable `let` calls. The span retains every candidate
+/// without a second allocation; interleaved groups fail rather than silently
+/// dropping a source or including a different call's loans.
 pub fn result_loans(
     program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
@@ -2558,8 +2562,7 @@ pub fn result_loans(
         .statement_table
         .statements(state.statement_nodes)
         .get(result.statement_index as usize)?;
-    let local = match statement {
-        StatementNode::LocalData(local) => local,
+    match statement {
         StatementNode::Call(authored)
             if authored.discards_result
                 && !call.authored_expression.is_valid()
@@ -2569,9 +2572,20 @@ pub fn result_loans(
         {
             return Some(arena::HandleSpan::empty());
         }
-        _ => return None,
-    };
-    let shell = crate::reference_shell(program, local.type_reference)?;
+        _ => {}
+    }
+    if !call.authored_expression.is_valid()
+        || call.statement_index != result.statement_index as usize
+        || program
+            .expression_table
+            .call_node(call.authored_expression)?
+            .target_symbol
+            != call.target_symbol
+    {
+        return None;
+    }
+    let destination = program.state_by_symbol(call.target_symbol)?;
+    let shell = crate::reference_shell(program, destination.return_type)?;
     let expected_kind = match shell.access {
         language_semantics::ReferenceAccess::Shared => checked_trees::BorrowAccessKind::Read,
         language_semantics::ReferenceAccess::Mutable => checked_trees::BorrowAccessKind::Mutable,
@@ -2579,17 +2593,6 @@ pub fn result_loans(
             checked_trees::BorrowAccessKind::WriteOnly
         }
     };
-    let Some(expression) = program.expression_table.call_node(local.initial_value) else {
-        return None;
-    };
-    if local.is_mutable
-        || expression.target_symbol != call.target_symbol
-        || call.authored_expression != local.initial_value
-        || call.statement_index != result.statement_index as usize
-        || call.call_ordinal != 0
-    {
-        return None;
-    }
     let mut states = facts
         .borrow
         .states
@@ -2602,13 +2605,24 @@ pub fn result_loans(
     if states.next().is_some() {
         return None;
     }
-    let group = facts
-        .borrow
-        .local_loans(borrowing, local.symbol, call.statement_index)?;
-    if !facts.borrow.loan_group(group)?.all(|(_, loan)| {
-        loan.kind == expected_kind && facts.borrow.loan_owner_path(loan).is_empty()
-    }) {
-        return None;
+    let mut group = arena::HandleSpan::empty();
+    for (handle, loan) in facts.borrow.loan_group(borrowing.loans)? {
+        if loan.statement_index != call.statement_index
+            || loan.formation_expression != call.authored_expression
+        {
+            continue;
+        }
+        if expected_kind.direct_reborrow_effect(&loan.kind).is_none()
+            || (!group.is_empty() && !group.is_followed_by(handle))
+        {
+            return None;
+        }
+        let start = if group.is_empty() {
+            handle
+        } else {
+            group.start()
+        };
+        group = arena::HandleSpan::from_parts(start, group.count().checked_add(1)?);
     }
     (!group.is_empty()).then_some(group)
 }

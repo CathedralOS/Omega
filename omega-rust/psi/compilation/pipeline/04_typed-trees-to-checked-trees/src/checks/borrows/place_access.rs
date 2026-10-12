@@ -75,7 +75,7 @@ pub(in crate::checks::borrows) fn access_interferes<'p>(
     // derive from, not only the projected leaf recorded as `lent`.
     let covered = call_result_operand_places(program, loan, loan_place);
     !backings.iter().all(|backing| {
-        backing.lineage.contains(&loan_handle)
+        backing.retains_loan(borrow, loan_handle)
             || covered.iter().all(|loan_place| {
                 captured_place_compatibility(
                     program,
@@ -120,13 +120,11 @@ fn call_result_operand_places(
     for operand in operands {
         if operand != call.receiver {
             match program.expression_table.expression(operand) {
-                ExpressionNode::Borrow(borrow)
-                    if borrow.access != ReferenceAccess::Shared => {}
+                ExpressionNode::Borrow(borrow) if borrow.access != ReferenceAccess::Shared => {}
                 _ => continue,
             }
         }
-        let Some(place) = validation::canonical_place_from_expression(program, operand)
-        else {
+        let Some(place) = validation::canonical_place_from_expression(program, operand) else {
             continue;
         };
         let place = CapturedPlace {

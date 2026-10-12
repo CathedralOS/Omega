@@ -3416,7 +3416,9 @@ of a check the same flow already performed, not the check itself.
   (including pinned debt, not 124 new regressions). The remaining wrong-reason
   control is `checked_boundary_operator_const_application_unselected`: an earlier
   constant-recipe failure still masks its intended obligation; resolve it without
-  repinning to that failure. The accepted
+  repinning to that failure. Its portable recipe dependency remains with
+  **PROVIDER-SELECTION-AFTER-TERMINAL**; target-selected folds must not become
+  checking inputs. The accepted
   `shared_subslice_state_cannot_lend_mutable` depends on
   `bare-range-reference-access` in `OWNER_QUESTIONS.md`; only that language rule
   is OWNER-BLOCKED, not the remaining qualification.

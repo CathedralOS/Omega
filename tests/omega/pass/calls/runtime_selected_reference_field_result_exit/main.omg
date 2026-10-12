@@ -29,6 +29,17 @@ machine observe_outer(outer: &mut Outer, second: bool) -> u64 {
     selected.value
 }
 
+// A joined descriptor has one selected origin even when its alternatives
+// complete at different expressions, or the descriptor moves through a local.
+machine observe_join(outer: &mut Outer, second: bool) -> u64 {
+    let selected: &mut Node = match second {
+        true -> relay(&mut outer.pair, true),
+        false -> relay(&mut outer.pair, false)
+    };
+    let forwarded: &mut Node = selected;
+    forwarded.value
+}
+
 machine main() crashes Trap {
     let mut pair: Pair = Pair { left: Node { value: 17 }, right: Node { value: 43 } };
     let right: u64 = observe(&mut pair, true);
@@ -41,9 +52,12 @@ machine main() crashes Trap {
     };
     let nested_right: u64 = observe_outer(&mut outer, true);
     let nested_left: u64 = observe_outer(&mut outer, false);
+    let joined_right: u64 = observe_join(&mut outer, true);
+    let joined_left: u64 = observe_join(&mut outer, false);
     transition right == 43 && left == 17
         && pair.left.value == 18 && pair.right.value == 44
-        && nested_left == 101 && nested_right == 103 && outer.anchor == 91 {
+        && nested_left == 101 && nested_right == 103 && outer.anchor == 91
+        && joined_left == 101 && joined_right == 103 {
         true -> passed()
         false -> failed()
     }

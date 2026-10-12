@@ -624,6 +624,9 @@ fail/borrows/selected_reference_child_live_source_write rejected 1990ms expected
 fail/borrows/selected_reference_field_wrong_arm_carrier rejected 891ms expected @a9ae30e1c334+wt
 	construction of `Held` field `target` expects reference `&Cell`, but the source does not supply its carrier and access
 	match arms produce incompatible values
+fail/borrows/selected_reference_live_child_read rejected 359ms expected @ea5159342987+wt
+	statement 2 reads `selected.value` while local borrow `child` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 reads `selected.value` while local borrow `child` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/borrows/selected_reference_live_nested_parent_write rejected 1878ms expected @a9ae30e1c334+wt
 	statement 4 mutates `second_parent` while local borrow `nested` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
 fail/borrows/selected_reference_live_reborrow_parent_write rejected 1680ms expected @a9ae30e1c334+wt
