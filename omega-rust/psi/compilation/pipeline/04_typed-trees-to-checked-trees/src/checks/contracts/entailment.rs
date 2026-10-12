@@ -376,8 +376,7 @@ fn isolated_proof_values(
                 .span_or_empty(state.calls)
                 .iter()
                 .all(|call| {
-                    program
-                        .state_by_symbol(call.target_symbol)
+                    validation::call_target_state(program, call.target_symbol)
                         .is_some_and(isolated_parameters)
                 })
         })
