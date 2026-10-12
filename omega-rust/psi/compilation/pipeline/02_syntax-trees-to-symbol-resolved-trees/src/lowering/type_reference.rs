@@ -380,19 +380,31 @@ pub(crate) fn lower_fixed_array_length(
     }
 }
 
-fn lower_type_reference_child(
+pub(crate) fn lower_type_reference_child(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     type_reference: syntax::types::TypeReferenceHandle,
 ) -> Result<arena::Handle<TypeReference>, Diagnostic> {
-    let type_reference = lower_type_reference_handle(lowerer, syntax_trees, type_reference)?;
-
-    Ok(lowerer
+    let selection_start = lowerer.pending_const_argument_selections.len();
+    let lowered = lower_type_reference_handle(lowerer, syntax_trees, type_reference)?;
+    let arguments = lowerer
         .symbol_resolved_trees
         .tables
         .declarations
         .child_type_references
-        .append(type_reference))
+        .insert_many([lowered]);
+    let argument = arguments.handles().next().expect("single lowered child");
+    retain_const_argument_slots(
+        lowerer,
+        syntax_trees,
+        [(
+            type_reference,
+            argument,
+            crate::resolution::lowerer::PendingConstArgumentReceiving::OriginalOperand { argument },
+        )],
+        selection_start,
+    );
+    Ok(argument)
 }
 
 pub(crate) fn lower_child_type_references(
@@ -425,7 +437,28 @@ pub(crate) fn lower_child_type_references(
         .declarations
         .child_type_references
         .insert_many(lowered);
-    retain_const_argument_slots(lowerer, syntax_trees, arguments, lowered, selection_start);
+    retain_const_argument_slots(
+        lowerer,
+        syntax_trees,
+        syntax_trees
+            .type_references
+            .type_reference_handles(arguments)
+            .iter()
+            .copied()
+            .enumerate()
+            .zip(lowered.handles())
+            .map(|((ordinal, source), argument)| {
+                (
+                    source,
+                    argument,
+                    crate::resolution::lowerer::PendingConstArgumentReceiving::Generic {
+                        arguments: lowered,
+                        ordinal,
+                    },
+                )
+            }),
+        selection_start,
+    );
     Ok(lowered)
 }
 
@@ -492,27 +525,25 @@ fn lower_type_constraint_handle(
     }
 }
 
-// Every static application owns its exact argument span, including indexed
-// domain arguments at casts and membership facts. Carry that relationship
-// through resolution;
-// source names and equal encoded atoms cannot reconstruct a receiving slot.
+// Static applications own their exact argument spans; standalone operands own
+// their exact child handles. Carry those relationships through resolution.
+// Source names and equal encoded atoms cannot reconstruct a receiving slot.
 fn retain_const_argument_slots(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
-    arguments: HandleSpan<syntax::types::TypeReferenceHandle>,
-    lowered_arguments: HandleSpan<TypeReference>,
+    arguments: impl IntoIterator<
+        Item = (
+            syntax::types::TypeReferenceHandle,
+            arena::Handle<TypeReference>,
+            crate::resolution::lowerer::PendingConstArgumentReceiving,
+        ),
+    >,
     selection_start: usize,
 ) {
-    for ((ordinal, argument), lowered_argument) in syntax_trees
-        .type_references
-        .type_reference_handles(arguments)
-        .iter()
-        .enumerate()
-        .zip(lowered_arguments.handles())
-    {
+    for (argument, lowered_argument, receiving) in arguments {
         let Some(normalization) = syntax_trees
             .type_references
-            .const_argument_normalization(*argument)
+            .const_argument_normalization(argument)
         else {
             continue;
         };
@@ -525,9 +556,9 @@ fn retain_const_argument_slots(
                 argument: lowered_argument,
                 canonical_result_encoding: normalization.canonical_result_encoding.clone(),
             });
-        // The actual application owns this immutable child span. Nested
-        // applications carry their own spans; equal value encodings
-        // never establish which parent parameter received a value.
+        // Retain the actual child relation. Generic receivers keep their own
+        // spans; standalone original operands do not invent a receiving
+        // telescope from equal value encodings.
         for selected in syntax_trees
             .type_references
             .const_argument_origins(normalization.selections)
@@ -542,8 +573,7 @@ fn retain_const_argument_slots(
                     lowerer.pending_const_argument_slots.push(
                         crate::resolution::lowerer::PendingConstArgumentSlot {
                             selection,
-                            arguments: lowered_arguments,
-                            ordinal,
+                            receiving,
                         },
                     );
                 }
