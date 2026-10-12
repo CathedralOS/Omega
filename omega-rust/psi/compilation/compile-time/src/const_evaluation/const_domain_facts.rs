@@ -78,7 +78,12 @@ pub(crate) fn source_constant_demands(
     demands: &mut crate::source_constants::SourceConstantDemands,
 ) {
     for pending in pending_memberships(typed, domain) {
-        membership::source_constant_demands(typed, pending.membership.domain_symbol, demands, &mut Vec::new());
+        membership::source_constant_demands(
+            typed,
+            pending.membership.domain_symbol,
+            demands,
+            &mut Vec::new(),
+        );
     }
 }
 
@@ -123,6 +128,7 @@ pub fn evaluate_const_domain_facts(
         selection_authority,
         crate::SelectedBuildTimeOperators::default(),
         &EvaluationDomain::all(),
+        &mut Vec::new(),
     )
 }
 
@@ -138,6 +144,8 @@ pub(crate) fn evaluate_selected_domain_facts(
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     selected: crate::SelectedBuildTimeOperators<'_>,
     domain: &EvaluationDomain,
+
+    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
 ) -> Result<(), Vec<Diagnostic>> {
     let pending = pending_memberships(typed, domain);
     if pending.is_empty() {
@@ -147,14 +155,22 @@ pub(crate) fn evaluate_selected_domain_facts(
     let mut demands = crate::source_constants::SourceConstantDemands::default();
     for row in &pending {
         membership::source_constant_demands(
-            typed, row.membership.domain_symbol, &mut demands, &mut Vec::new(),
+            typed,
+            row.membership.domain_symbol,
+            &mut demands,
+            &mut Vec::new(),
         );
     }
     let mut roots = demands.machines;
     roots.extend(pending.iter().map(|row| row.membership.domain_symbol));
     let (prepared, admission) = crate::const_evaluation::prepared_admission(
-        typed, selected.provider_bodies, selected.operators, selection_authority,
-        domain, &roots, selected.admission,
+        typed,
+        selected.provider_bodies,
+        selected.operators,
+        selection_authority,
+        domain,
+        &roots,
+        selected.admission,
     )?;
     let execution = prepared.typed();
     let mut replacements = Vec::new();
@@ -162,7 +178,8 @@ pub(crate) fn evaluate_selected_domain_facts(
     let mut diagnostics = Vec::new();
 
     for pending in &pending {
-        match evaluate_membership(execution, &admission, pending) {
+        let input_frontier = inputs.len();
+        match evaluate_membership(execution, &admission, pending, inputs) {
             Ok(Some(true)) => {
                 replacements.push(pending.fact);
                 affected_data.push(pending.data_symbol);
@@ -171,7 +188,9 @@ pub(crate) fn evaluate_selected_domain_facts(
                 "const fact for generic instance `{}` is false",
                 pending.instance_name
             ))),
-            Ok(None) => {}
+            Ok(None) => {
+                inputs.truncate(input_frontier);
+            }
             Err(reason) => diagnostics.push(Diagnostic::error(format!(
                 "const domain fact evaluation for generic instance `{}` failed: {reason}",
                 pending.instance_name

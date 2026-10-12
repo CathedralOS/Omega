@@ -738,7 +738,7 @@ impl BuildTimeAdmissionPlan {
         )
     }
 
-    fn evaluate_const_evaluable_invocation_measured(
+    pub(crate) fn evaluate_const_evaluable_invocation_measured(
         &self,
         program: &TypedTrees,
         machine_symbol: SymbolHandle,
