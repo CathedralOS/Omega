@@ -15,6 +15,12 @@ machine forward<'input>(value: &'input Envelope<i32>) -> &'input Envelope<i32> {
     outer.payload.payload
 }
 
+// A returned carrier lends its own temporary home; its nested reference still
+// names the caller's input. The callee's region is not a caller declaration.
+machine wrap<'returned>(value: &'returned Envelope<i32>) -> Envelope<&'returned Envelope<i32>> {
+    Envelope { payload: value }
+}
+
 machine indexed<'input>(first: &'input Envelope<i32>, second: &'input Envelope<i32>, position: u64 [0..=1]) -> &'input Envelope<i32> {
     let values: &Pair = &Pair {
         prefix: 31i32,
@@ -55,9 +61,11 @@ machine main() crashes Trap {
     let first: Envelope<i32> = Envelope { payload: 17i32 };
     let second: Envelope<i32> = Envelope { payload: 23i32 };
     let nested: &Envelope<i32> = forward(&first);
+    let produced: &Envelope<&Envelope<&Envelope<i32>>> = &Envelope { payload: &wrap(&second) };
     let left: &Envelope<i32> = indexed(&first, &second, 0);
     let right: &Envelope<i32> = indexed(&first, &second, 1);
-    transition nested.payload == 17 && left.payload == 17 && right.payload == 23
+    transition nested.payload == 17 && produced.payload.payload.payload == 23
+        && left.payload == 17 && right.payload == 23
         && selected(true, false) == 17 && selected(false, true) == 23
         && selected(false, false) == 31 && selected_view(true) == 1
         && selected_view(false) == 2 {

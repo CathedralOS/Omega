@@ -270,8 +270,7 @@ impl OperationFrame<'_, '_> {
             ) => {
                 if matches!(self.results, StructuralResults::Dense(_)) {
                     self.operations
-                        .structural_values
-                        .push((binding.binding_ordinal, returned.into()));
+                        .bind_structural_value(binding.binding_ordinal, returned.into());
                 }
                 self.publish_result(operation, binding, declaration, *discard_result_on_return)
             }

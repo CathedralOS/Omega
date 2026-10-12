@@ -218,7 +218,13 @@ fn result_type(
                 }
                 _ => None,
             };
-            let declared_result = scoped_requirement_result
+            let retained = program
+                .expression_table
+                .constructed_value_type_reference(expression);
+            let declared_result = retained
+                .is_valid()
+                .then_some(retained)
+                .or(scoped_requirement_result)
                 .or_else(|| crate::machine_calls::calls::resolved_call_result_type(program, call));
             // Keep known ordinary results cheap. Only generic result binding,
             // semantic overload selection or an actual float policy adaptation

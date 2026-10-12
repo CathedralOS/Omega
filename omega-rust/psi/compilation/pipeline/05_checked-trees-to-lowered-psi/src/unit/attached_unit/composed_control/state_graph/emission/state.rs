@@ -912,7 +912,7 @@ impl StateGraphEmission<'_, '_> {
                     &evaluation,
                     &operations,
                 )?;
-                super::super::cleanup::selection(state, &evaluation, &operations, &mut regions)?;
+                super::super::cleanup::selection(&evaluation, &operations, &mut regions)?;
                 // Capture the authored result before hooks run. Private cleanup
                 // edges transport that value, never evaluate the result again.
                 let return_position = scalar_return.map(|value| {

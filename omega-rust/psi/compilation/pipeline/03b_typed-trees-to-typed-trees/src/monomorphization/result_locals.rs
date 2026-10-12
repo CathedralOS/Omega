@@ -16,14 +16,12 @@
 
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
 use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::TypeReferenceHandle;
 
 mod operand_captures;
 mod reference_observations;
-mod region_application;
 pub(super) use reference_observations::materialize as materialize_reference_observations;
 
 #[derive(Clone, Copy)]
@@ -250,245 +248,73 @@ pub(super) fn refresh_generic_call_results(
 
 pub(super) fn refresh(
     program: &mut TypedTrees,
+    unavailable: &[crate::constructed_results::UnavailableValueType],
 ) -> Result<Vec<SymbolHandle>, Vec<diagnostics::Diagnostic>> {
-    let mut selected_returns = program
-        .machines()
-        .iter()
-        .filter(|machine| !machine.has_specialization_parameters())
-        .flat_map(|machine| program.machine_states(machine))
-        .map(|state| (state.symbol, state.return_type))
-        .collect::<Vec<_>>();
-    selected_returns.extend(
-        program
-            .data_type_parameters
-            .iter()
-            .filter_map(|(_, parameter)| {
-                program
-                    .machine_parameter_signature(parameter.symbol)
-                    .map(|(_, signature)| (signature.symbol, signature.return_type))
-            }),
-    );
-    let bodies = program
-        .machines()
-        .iter()
-        .flat_map(|machine| {
-            program
-                .machine_states(machine)
-                .iter()
-                .map(move |state| (machine, state))
-        })
-        .collect::<Vec<_>>();
     let mut updates = Vec::new();
-    for (machine, state) in bodies {
-        let owner = machine.symbol;
-        let body = state.statement_nodes;
-        for (offset, statement) in program.statement_table.indexed_statements(body) {
-            let Some(local) = statement.as_local_data() else {
-                continue;
-            };
-            if !local.type_is_inferred || local.role != language_core::LocalBindingRole::Value {
-                continue;
-            }
-            let Some(call) = program.expression_table.call_node(local.initial_value) else {
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for (offset, statement) in program
+                .statement_table
+                .indexed_statements(state.statement_nodes)
+            {
+                let Some(local) = statement.as_local_data() else {
+                    continue;
+                };
+                if !local.type_is_inferred || local.role != language_core::LocalBindingRole::Value {
+                    continue;
+                }
+                let is_call = program
+                    .expression_table
+                    .call_node(local.initial_value)
+                    .is_some();
                 let needs_inference = matches!(
                     program
                         .type_reference_table
                         .type_reference(local.type_reference),
                     typed_trees::types::TypeReferenceNode::Unit
                 );
-                if !local.is_operand_capture && !needs_inference {
+                if !is_call && !local.is_operand_capture && !needs_inference {
                     continue;
                 }
-                if let Some(return_type) = validation::expression_result_type_reference(
-                    program,
-                    machine,
-                    state,
-                    local.initial_value,
-                ) {
-                    // Computed selector inference can carry a proved range
-                    // richer than the expression's carrier. Only reference
-                    // operands need renewed contextual storage adaptation;
-                    // settled non-call scalar types retain their metadata.
-                    if !needs_inference
-                        && validation::reference_shell(program, return_type).is_none()
+                let reference = if is_call {
+                    if let Some(unavailable) = unavailable
+                        .iter()
+                        .find(|unavailable| unavailable.expression == local.initial_value)
                     {
-                        continue;
+                        return Err(unavailable.diagnostics.clone());
                     }
-                    updates.push((
-                        owner,
-                        body,
-                        offset,
-                        SymbolHandle::invalid(),
-                        Vec::new(),
-                        return_type,
-                        Vec::new(),
-                    ));
-                }
-                continue;
-            };
-            if call.target_symbol.is_valid()
-                && let Some((_, return_type)) =
-                    selected_returns.iter().find(|(state, return_type)| {
-                        *state == call.target_symbol && return_type.is_valid()
-                    })
-            {
-                // Retain the initializer occurrence and its evaluation point.
-                // Only its inferred destination follows the selected instance.
-                updates.push((
-                    owner,
-                    body,
-                    offset,
-                    call.target_symbol,
-                    program
+                    let retained = program
                         .expression_table
-                        .expression_handles(call.arguments)
-                        .to_vec(),
-                    *return_type,
-                    region_application::bindings(program, machine, state, call)?,
-                ));
-            }
-        }
-    }
-    let mut inferred_updates = Vec::new();
-    for (owner, body, offset, target, arguments, return_type, lifetimes) in updates {
-        let return_type = apply_result_type(program, target, &arguments, return_type, &lifetimes)?;
-        inferred_updates.push(InferredUpdate {
-            owner,
-            body,
-            offset,
-            type_reference: return_type,
-        });
-    }
-    Ok(apply_updates(program, inferred_updates))
-}
-
-/// Result storage belongs to the caller's occurrence, never the callee's
-/// declaration telescope. Inference and explicit reference observations share
-/// this region and runtime-bound application before installing a local type.
-fn apply_result_type(
-    program: &mut TypedTrees,
-    target: SymbolHandle,
-    arguments: &[ExpressionHandle],
-    return_type: TypeReferenceHandle,
-    lifetimes: &[(
-        typed_trees::name::Identifier,
-        Option<typed_trees::name::Identifier>,
-    )],
-) -> Result<TypeReferenceHandle, Vec<diagnostics::Diagnostic>> {
-    let return_type = if lifetimes.is_empty() {
-        return_type
-    } else {
-        program
-            .apply_callable_result_type(return_type, lifetimes, target)
-            .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?
-    };
-    Ok(substitute_runtime_bound_result_bounds(
-        program,
-        target,
-        arguments,
-        return_type,
-    ))
-}
-
-/// A specialized callee's result range can name the realized trailing
-/// parameter that carries a runtime-bound `Value` subject
-/// (`-> u64[0..=Bound]`). Retyping the caller's inferred local with the raw
-/// declaration would install a dead binder under a foreign scope: copy the
-/// declared type and substitute each parameter-named leaf in a range endpoint
-/// with the paired call argument, so the destination's index IS the captured
-/// subject (`u64[0..=n]`). Return types whose endpoints name no parameter
-/// keep the shared reference — ordinary calls allocate nothing.
-fn substitute_runtime_bound_result_bounds(
-    program: &mut TypedTrees,
-    callee_state: SymbolHandle,
-    arguments: &[ExpressionHandle],
-    return_type: TypeReferenceHandle,
-) -> TypeReferenceHandle {
-    let Some(state) = crate::monomorphization::selection::state_by_symbol(program, callee_state)
-    else {
-        return return_type;
-    };
-    let substitutions = arguments
-        .iter()
-        .copied()
-        .zip(
-            program
-                .state_parameters(state)
-                .iter()
-                .map(|parameter| parameter.symbol),
-        )
-        .map(|(argument, symbol)| (symbol, argument))
-        .collect::<Vec<_>>();
-    if !range_endpoints_name_parameters(program, return_type, &substitutions) {
-        return return_type;
-    }
-    let copied =
-        crate::monomorphization::body_cloning::copy_type_reference(None, program, return_type, &[]);
-    substitute_named_endpoints(program, copied, &substitutions);
-    copied
-}
-
-/// True when any range endpoint under `root` names one of the callee's state
-/// parameters — the shape the runtime-bound specialization writes into its
-/// signature.
-fn range_endpoints_name_parameters(
-    program: &dyn ::validation::CheckingInput,
-    root: TypeReferenceHandle,
-    substitutions: &[(SymbolHandle, ExpressionHandle)],
-) -> bool {
-    crate::monomorphization::for_each_type_reference(
-        program,
-        &[root],
-        |_, _| false,
-        |program, minimum, maximum| {
-            [minimum, maximum].into_iter().any(|endpoint| {
-                let mut tree = Vec::new();
-                validation::expression_traversal::collect_expression_tree(
-                    program, endpoint, &mut tree,
-                );
-                tree.into_iter().any(|handle| {
-                    matches!(
-                        program.expression_table.expression(handle),
-                        ExpressionNode::Name(path)
-                            if substitutions
-                                .iter()
-                                .any(|(symbol, _)| *symbol == path.symbol)
+                        .constructed_value_type_reference(local.initial_value);
+                    retained.is_valid().then_some(retained)
+                } else {
+                    validation::expression_result_type_reference(
+                        program,
+                        machine,
+                        state,
+                        local.initial_value,
                     )
-                })
-            })
-        },
-    )
-}
-
-/// Replace every name leaf inside the copied type's range endpoints that
-/// names a callee parameter with the paired call argument's node payload. The
-/// caller's argument subtree is shared read-only structure — reusing its
-/// payload in the copied endpoint is the same reference reuse
-/// `copy_expression` performs between arenas.
-fn substitute_named_endpoints(
-    program: &mut TypedTrees,
-    root: TypeReferenceHandle,
-    substitutions: &[(SymbolHandle, ExpressionHandle)],
-) {
-    let endpoints = crate::monomorphization::type_reference_endpoints(program, root);
-    for endpoint in endpoints
-        .into_iter()
-        .flat_map(|(minimum, maximum)| [minimum, maximum])
-    {
-        let mut tree = Vec::new();
-        validation::expression_traversal::collect_expression_tree(program, endpoint, &mut tree);
-        for member in tree {
-            let replacement = match program.expression_table.expression(member) {
-                ExpressionNode::Name(path) => substitutions
-                    .iter()
-                    .find(|(symbol, _)| *symbol == path.symbol)
-                    .map(|(_, argument)| *argument),
-                _ => None,
-            };
-            if let Some(argument) = replacement {
-                let payload = program.expression_table.expression(argument).clone();
-                *program.expression_table.expression_mut(member) = payload;
+                };
+                let Some(type_reference) = reference else {
+                    continue;
+                };
+                // A settled scalar selector may carry a stronger checked range.
+                // Calls follow their prepared result; reference operands also
+                // renew their contextual storage adaptation.
+                if !is_call
+                    && !needs_inference
+                    && validation::reference_shell(program, type_reference).is_none()
+                {
+                    continue;
+                }
+                updates.push(InferredUpdate {
+                    owner: machine.symbol,
+                    body: state.statement_nodes,
+                    offset,
+                    type_reference,
+                });
             }
         }
     }
+    Ok(apply_updates(program, updates))
 }

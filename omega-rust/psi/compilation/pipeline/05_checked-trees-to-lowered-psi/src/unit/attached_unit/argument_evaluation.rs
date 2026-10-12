@@ -520,9 +520,7 @@ impl Evaluation {
                 value: produced.operation_result()?.clone(),
             });
         }
-        operations
-            .structural_values
-            .push((result.binding_ordinal, produced));
+        operations.bind_structural_value(result.binding_ordinal, produced);
         Ok(())
     }
 

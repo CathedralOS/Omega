@@ -270,7 +270,7 @@ impl StateGraphEmission<'_, '_> {
                 &arm_evaluation,
                 operations,
             )?;
-            super::super::cleanup::selection(state, &arm_evaluation, operations, &mut regions)?;
+            super::super::cleanup::selection(&arm_evaluation, operations, &mut regions)?;
             let temporary_discards = dispatch_discards
                 .iter()
                 .copied()

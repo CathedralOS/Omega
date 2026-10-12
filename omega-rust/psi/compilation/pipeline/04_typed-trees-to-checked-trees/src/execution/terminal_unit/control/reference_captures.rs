@@ -55,6 +55,15 @@ pub(in crate::execution::terminal_unit) fn plan(
         local.type_reference,
         &selector,
     )?;
+    // This direct establishment can only borrow an existing home. Computed
+    // backing belongs to the structural value graph, which retains and
+    // establishes its producer before the reference and retires it afterward.
+    if matches!(
+        capture.source.source,
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }
+    ) {
+        return None;
+    }
     // Primitive homes have their own existing local producer. A structural
     // capture must not steal those bindings merely because it can name a leaf.
     super::super::types::base_type_identity(program, capture.backing_type, &[], &[])?;

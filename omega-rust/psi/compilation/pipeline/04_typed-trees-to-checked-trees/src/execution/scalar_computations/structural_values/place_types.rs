@@ -72,10 +72,10 @@ pub(super) fn projected_leaf_type(
 }
 
 /// The place shape a shared-borrow arm target must canonicalize to: a named
-/// root reached through record fields and literal fixed indexes only. That is
-/// exactly the carrier `borrowed_place` can rebuild into a `SharedBorrow`
-/// source -- a computed root cannot be re-derived at replay, and a dynamic
-/// index or range segment has no statically checkable ordinal.
+/// root reached through record fields and literal fixed indexes only. This is
+/// the shape static type queries can resolve without an evaluation owner.
+/// Computed roots and dynamic selectors instead retain their producers in
+/// the structural value graph through the common reference-source capture.
 pub(in crate::execution::scalar_computations) fn canonical_place_is_borrowable(
     place: &validation::CanonicalPlace,
 ) -> bool {

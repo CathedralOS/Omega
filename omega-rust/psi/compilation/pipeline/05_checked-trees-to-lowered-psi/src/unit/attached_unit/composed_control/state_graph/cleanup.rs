@@ -72,7 +72,7 @@ pub(super) fn scalar_returns(
                 evaluation,
                 operations,
             )?;
-            selection(state, evaluation, operations, &mut actions)?;
+            selection(evaluation, operations, &mut actions)?;
             Ok(ScalarReturnCleanup {
                 destination,
                 actions,
@@ -81,31 +81,22 @@ pub(super) fn scalar_returns(
         .collect()
 }
 
-/// Replace selected-owner source rows at their original establishment positions.
-/// Returns and private scalar completion edges share this receipt substitution;
-/// action groups stay intact instead of regrouping nominal and residual work.
-
+/// Merge exit dispositions in reverse establishment order, including anonymous
+/// producers inside a checked value. A reference local alone is not the full
+/// roster: its backing can itself hold another temporary's descriptor. Retain
+/// each owner's authored action order and substitute selected storage at that
+/// same position. This grants no disposal authority to a production row.
 pub(super) fn selection(
-    state: &CheckedComposedUnitControlStatePlan,
     evaluation: &Evaluation,
     operations: &OperationBuffer,
     actions: &mut Vec<CleanupRegion>,
 ) -> Result<(), LoweringError> {
-    if evaluation.selection_cleanups.is_empty() {
-        return Ok(());
-    }
     let mut roots = Vec::new();
-    for operation in state.operations.iter().rev() {
-        if let Some((result, _)) = operation.discardable_structural_result() {
-            let place =
-                super::case_emission::result(state, result.binding_ordinal, operations)?.place();
-            // The operation roster supplies order, not disposition authority:
-            // one arm may consume a local that another arm must clean up.
-            let disposed = actions
-                .iter()
-                .any(|region| region.action.place() == evaluation.current_structural_place(place));
-            roots.push((place, disposed));
-        }
+    for place in operations.structural_establishments.iter().copied().rev() {
+        let disposed = actions
+            .iter()
+            .any(|region| region.action.place() == evaluation.current_structural_place(place));
+        roots.push((place, disposed));
     }
     roots.extend(
         evaluation
@@ -175,41 +166,39 @@ pub(super) fn coordinate(
 
 /// Carriers a deferred reference release leaves for this exit to retire.
 ///
-/// Stage 04 schedules a loan whose last use is the state's transition one
-/// statement past the authored body, where the per-statement emitter has no
-/// position, so the selected edge owns the disposal (`result_custody` states
-/// the same division: only loans whose last use belongs to a transition remain
-/// for the selected edge to drop). Ordinary releases instead reach the body as
-/// an emitted `ReleaseReference` and need nothing here.
+/// The selected edge owns loans used by transition evaluation and the backing
+/// descriptors that cannot retire until those loans do. This includes stored
+/// fields, not only whole reference locals. The completed stage-04 schedule
+/// supplies dependency order and selected storage; lowering must retain both.
+/// Ordinary releases reach the body as an emitted `ReleaseReference` and need
+/// nothing here.
 ///
-/// These carriers precede the exit's owned roots. `ownership.md` requires that
-/// "an owner cannot die before cleanup depending on its borrow", and the
-/// borrowed owner dies on this same edge; a carrier left for a later exit
-/// outlives the storage it names.
+/// Each carrier must precede the storage it borrows, not every owned root:
+/// an outer aggregate may itself hold the reference lending this backing.
+/// The common establishment roster interleaves these actions with the exit's
+/// owned dispositions while preserving each home's exact cleanup partition.
 fn deferred_carrier_releases(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     state: &CheckedComposedUnitControlStatePlan,
+    parameters: &[StructuralParameterDeclaration],
     evaluation: &Evaluation,
     operations: &OperationBuffer,
-) -> Result<Vec<TerminalAffineCleanupAction>, LoweringError> {
+) -> Result<Vec<CleanupRegion>, LoweringError> {
     let mut carriers = Vec::new();
-    // Reverse operation order is reverse declaration order: the last carrier
-    // established is the first retired.
-    for operation in state.operations.iter().rev() {
+    // Stage 04 already orders releases by actual holder dependencies. Reversing
+    // that schedule would retire backing before the descriptors borrowing it.
+    for operation in &state.operations {
         let CheckedUnitEffectOperationPlan::ReleaseReference {
             source,
             path,
+            select_evaluated_storage,
             defer_to_exit: true,
             ..
         } = operation
         else {
             continue;
         };
-        if !path.is_empty() {
-            return Err(LoweringError::Unsupported(
-                "deferred reference release is not its whole carrier",
-            ));
-        }
-        let (place, _) = evaluation.cleanup_storage(source, &[], |binding| {
+        let (place, root_type) = evaluation.cleanup_storage(source, parameters, |binding| {
             let (_, result) = operations
                 .structural_values
                 .iter()
@@ -219,14 +208,45 @@ fn deferred_carrier_releases(
                 ))?;
             Ok((result.place(), result.structural_type()))
         })?;
-        if !carriers.contains(&place) {
-            carriers.push(place);
+        let path =
+            crate::expression_preparation::bindings::structural_paths::lower_structural_path(
+                identities, path,
+            )?;
+        let action = if path.is_empty() {
+            evaluation.descriptor_retirement(place, operations)?
+        } else {
+            let leaf = terminal_semantics::runtime_structural_path_tip(
+                evaluation.structural_types.iter(),
+                root_type,
+                &path,
+            )
+            .ok_or(LoweringError::Unsupported(
+                "deferred release lost its carrier path",
+            ))?;
+            TerminalAffineCleanupAction::DiscardResidual(terminal_psi::StructuralAffineDiscard {
+                place,
+                path: path.clone(),
+                structural_type: leaf.id,
+            })
+        };
+        if !carriers
+            .iter()
+            .any(|region: &CleanupRegion| region.action == action)
+        {
+            carriers.push(CleanupRegion {
+                selected_region: select_evaluated_storage.then(|| {
+                    terminal_psi::StructuralArgument {
+                        place,
+                        path,
+                        access: terminal_psi::StructuralAccess::Owned,
+                    }
+                }),
+                conditions: Vec::new(),
+                action,
+            });
         }
     }
-    carriers
-        .into_iter()
-        .map(|place| evaluation.descriptor_retirement(place, operations))
-        .collect()
+    Ok(carriers)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -306,15 +326,19 @@ pub(super) fn for_exit_regions(
             Ok(action)
         },
     )?;
-    let mut actions = deferred_carrier_releases(state, evaluation, operations)?
-        .into_iter()
-        .map(CleanupRegion::unconditional)
-        .collect::<Vec<_>>();
-    actions.retain(|carrier| {
-        !rows
-            .iter()
-            .any(|row| row.action.place() == carrier.action.place())
-    });
-    actions.extend(rows);
+    let mut actions =
+        deferred_carrier_releases(identities, state, parameters, evaluation, operations)?;
+    // A whole carrier's authored disposition occupies its scheduled release
+    // position, rather than moving behind a backing leaf retired on this edge.
+    let mut remaining = rows;
+    for carrier in &mut actions {
+        if let Some(position) = remaining.iter().position(|row| {
+            row.action.place() == carrier.action.place()
+                && row.action.path() == carrier.action.path()
+        }) {
+            *carrier = remaining.remove(position);
+        }
+    }
+    actions.extend(remaining);
     Ok(actions)
 }

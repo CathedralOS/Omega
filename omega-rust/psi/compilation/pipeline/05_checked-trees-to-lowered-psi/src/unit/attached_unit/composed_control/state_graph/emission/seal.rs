@@ -75,7 +75,7 @@ impl StateGraphEmission<'_, '_> {
                 &evaluation,
                 &operations,
             )?;
-            super::super::cleanup::selection(state, &evaluation, &operations, &mut regions)?;
+            super::super::cleanup::selection(&evaluation, &operations, &mut regions)?;
             let mut values = Vec::new();
             if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                 binding_ordinal,

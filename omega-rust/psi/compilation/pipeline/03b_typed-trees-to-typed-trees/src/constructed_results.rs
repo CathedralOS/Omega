@@ -13,11 +13,24 @@
 //! A declared place query loses constructed targets and silently leaves their
 //! borrowers unprepared. Result types grant no storage or loan permission.
 //! Reborrowing lends the existing referent, not the reference carrier itself.
+//! Calls apply their declared result to the caller in that same postorder.
+//! Retyping only inferred locals leaves nested operands carrying undeclared
+//! callee regions, so no parent construction can derive its complete type.
 
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::TypeReferenceHandle;
 use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
+
+mod call_results;
+
+/// A value-type query is not source admission. Preserve its refusal for an
+/// inferred declaration that requires this result, without masking independent
+/// source errors in a body whose explicit declarations already supply types.
+pub(crate) struct UnavailableValueType {
+    pub(crate) expression: ExpressionHandle,
+    pub(crate) diagnostics: Vec<diagnostics::Diagnostic>,
+}
 
 fn occurrences(
     program: &TypedTrees,
@@ -109,16 +122,31 @@ fn retain_borrow_result_type(
     })
 }
 
-pub(crate) fn retain_constructed_result_types(program: &mut TypedTrees) {
+pub(crate) fn retain_constructed_result_types(
+    program: &mut TypedTrees,
+) -> Vec<UnavailableValueType> {
+    let mut unavailable = Vec::new();
     for (machine_symbol, state_symbol, expression) in occurrences(program, |node| {
         matches!(
             node,
             ExpressionNode::ArrayLiteral(_)
                 | ExpressionNode::StructLiteral(_)
                 | ExpressionNode::Borrow(_)
+                | ExpressionNode::Call(_)
         )
     }) {
-        let reference = if program
+        let reference = if program.expression_table.call_node(expression).is_some() {
+            match call_results::retain(program, machine_symbol, state_symbol, expression) {
+                Ok(reference) => reference,
+                Err(diagnostics) => {
+                    unavailable.push(UnavailableValueType {
+                        expression,
+                        diagnostics,
+                    });
+                    None
+                }
+            }
+        } else if program
             .expression_table
             .borrow_expression(expression)
             .is_some()
@@ -183,6 +211,7 @@ pub(crate) fn retain_constructed_result_types(program: &mut TypedTrees) {
             .expression_table
             .set_constructed_value_type_reference(expression, reference);
     }
+    unavailable
 }
 
 /// A constructor's selected declaration supplies its telescope; completed

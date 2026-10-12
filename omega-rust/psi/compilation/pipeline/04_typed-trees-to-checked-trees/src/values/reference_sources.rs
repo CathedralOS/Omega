@@ -76,7 +76,6 @@ pub(crate) fn capture(
         statement_index,
         target,
     )?;
-    let root = place.root.as_symbol()?;
     let (backing_type, mut path) = calls::projected_evaluated_path(
         program,
         machine.symbol,
@@ -104,6 +103,7 @@ pub(crate) fn capture(
     // A whole borrowed formal denotes ingress referent storage, not a stored
     // pointer value. Only subsequent reference shells are physical crossings.
     if place.segments.is_empty()
+        && let facts::PlaceRoot::Symbol(root) = place.root
         && program.state_parameter_by_symbol(state, root).is_some()
         && let Some(shell) = validation::reference_shell(program, endpoint)
     {
@@ -131,93 +131,104 @@ pub(crate) fn capture(
         return None;
     }
 
-    let source = if let Some(parameter) = program.state_parameter_by_symbol(state, root) {
-        if parameter.is_const || parameter.relevance.is_erased() {
-            return None;
+    let source = match place.root {
+        // The value owner must establish this producer before lending it.
+        // Its captured path and storage interpretation are otherwise the same
+        // as a named home's; source spelling does not select another planner.
+        facts::PlaceRoot::Expression(expression) => {
+            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression }
         }
-        if program
-            .primitive_type_reference(parameter.type_reference)
-            .is_some()
-        {
-            // Immutable scalar ingress can lend its one stable home. A
-            // mutable formal instead observes live storage established by
-            // its body; homing an ingress snapshot would miss later writes.
-            if parameter.is_mutable || access != CheckedStructuralAccess::SharedBorrow {
-                return None;
-            }
-            let position = program
-                .state_parameters(state)
-                .iter()
-                .filter(|parameter| {
-                    !parameter.is_const
-                        && !parameter.relevance.is_erased()
-                        && program
-                            .primitive_type_reference(parameter.type_reference)
-                            .is_some()
-                })
-                .position(|parameter| parameter.symbol == root)?;
-            CheckedUnitStructuralArgumentSourcePlan::ScalarParameter {
-                parameter_index: u32::try_from(position).ok()?,
-            }
-        } else {
-            let position = program
-                .state_parameters(state)
-                .iter()
-                .filter(|parameter| {
-                    !parameter.is_const
-                        && !parameter.relevance.is_erased()
-                        && program
-                            .primitive_type_reference(parameter.type_reference)
-                            .is_none()
-                })
-                .position(|parameter| parameter.symbol == root)?;
-            CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                parameter_index: u32::try_from(position).ok()?,
-            }
-        }
-    } else {
-        let (declaration_index, owner) = program.state_local_declaration(state, root)?;
-        if declaration_index >= statement_index || owner.relevance.is_erased() {
-            return None;
-        }
-        if let Some(shell) = validation::reference_shell(program, owner.type_reference) {
-            let supplied = CheckedStructuralAccess::from(shell.access);
-            if !matches!(
-                (supplied, access),
-                (CheckedStructuralAccess::MutableBorrow, _)
-                    | (
-                        CheckedStructuralAccess::SharedBorrow,
-                        CheckedStructuralAccess::SharedBorrow
-                    )
-                    | (
-                        CheckedStructuralAccess::WriteOnlyBorrow,
-                        CheckedStructuralAccess::WriteOnlyBorrow
-                    )
-            ) {
-                return None;
-            }
-            CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow {
-                symbol: root,
-                root_type_identity: validation::structural_type_identity(
-                    program,
-                    shell.referee,
-                    &[],
-                    &[],
-                ),
-            }
-        } else {
-            // Owned contents lend their admitted access independently of
-            // permission to replace the source binding.
-            if owner.is_mutable
-                && program
-                    .primitive_type_reference(owner.type_reference)
+        facts::PlaceRoot::Symbol(root) => {
+            if let Some(parameter) = program.state_parameter_by_symbol(state, root) {
+                if parameter.is_const || parameter.relevance.is_erased() {
+                    return None;
+                }
+                if program
+                    .primitive_type_reference(parameter.type_reference)
                     .is_some()
-            {
-                CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol: root }
+                {
+                    // Immutable scalar ingress can lend its one stable home. A
+                    // mutable formal instead observes live storage established by
+                    // its body; homing an ingress snapshot would miss later writes.
+                    if parameter.is_mutable || access != CheckedStructuralAccess::SharedBorrow {
+                        return None;
+                    }
+                    let position = program
+                        .state_parameters(state)
+                        .iter()
+                        .filter(|parameter| {
+                            !parameter.is_const
+                                && !parameter.relevance.is_erased()
+                                && program
+                                    .primitive_type_reference(parameter.type_reference)
+                                    .is_some()
+                        })
+                        .position(|parameter| parameter.symbol == root)?;
+                    CheckedUnitStructuralArgumentSourcePlan::ScalarParameter {
+                        parameter_index: u32::try_from(position).ok()?,
+                    }
+                } else {
+                    let position = program
+                        .state_parameters(state)
+                        .iter()
+                        .filter(|parameter| {
+                            !parameter.is_const
+                                && !parameter.relevance.is_erased()
+                                && program
+                                    .primitive_type_reference(parameter.type_reference)
+                                    .is_none()
+                        })
+                        .position(|parameter| parameter.symbol == root)?;
+                    CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                        parameter_index: u32::try_from(position).ok()?,
+                    }
+                }
             } else {
-                CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: root }
+                let (declaration_index, owner) = program.state_local_declaration(state, root)?;
+                if declaration_index >= statement_index || owner.relevance.is_erased() {
+                    return None;
+                }
+                if let Some(shell) = validation::reference_shell(program, owner.type_reference) {
+                    let supplied = CheckedStructuralAccess::from(shell.access);
+                    if !matches!(
+                        (supplied, access),
+                        (CheckedStructuralAccess::MutableBorrow, _)
+                            | (
+                                CheckedStructuralAccess::SharedBorrow,
+                                CheckedStructuralAccess::SharedBorrow
+                            )
+                            | (
+                                CheckedStructuralAccess::WriteOnlyBorrow,
+                                CheckedStructuralAccess::WriteOnlyBorrow
+                            )
+                    ) {
+                        return None;
+                    }
+                    CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow {
+                        symbol: root,
+                        root_type_identity: validation::structural_type_identity(
+                            program,
+                            shell.referee,
+                            &[],
+                            &[],
+                        ),
+                    }
+                } else {
+                    // Owned contents lend their admitted access independently of
+                    // permission to replace the source binding.
+                    if owner.is_mutable
+                        && program
+                            .primitive_type_reference(owner.type_reference)
+                            .is_some()
+                    {
+                        CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol: root }
+                    } else {
+                        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: root }
+                    }
+                }
             }
         }
+        _ => return None,
     };
     let storage = if is_view {
         let stored_scalar = if let Some(primitive) = program.primitive_type_reference(referent) {

@@ -44,6 +44,7 @@ pub(crate) use selection::infer_static_bindings;
 mod body_rewriting;
 pub(crate) use body_rewriting::{collect_evidence_requirement_closure, insert_subject_name};
 mod body_cloning;
+pub(crate) use body_cloning::copy_type_reference;
 mod const_arguments;
 mod dynamic_families;
 pub(crate) use dynamic_families::generate_dynamic_family_specializations;
@@ -190,7 +191,8 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
     loop {
         // Provider clones may restore old inferred types even when this round
         // discovers no further ordinary specialization.
-        changed_owners.extend(result_locals::refresh(program)?);
+        let unavailable = crate::constructed_results::retain_constructed_result_types(program);
+        changed_owners.extend(result_locals::refresh(program, &unavailable)?);
         changed_owners.extend(result_locals::materialize_reference_observations(program)?);
         materialize_static_argument_types(program);
         changed_owners.extend(contextual_calls::close(program)?);

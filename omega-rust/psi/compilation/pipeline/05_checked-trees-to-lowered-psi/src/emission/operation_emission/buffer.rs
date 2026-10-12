@@ -203,6 +203,10 @@ pub(crate) struct OperationBuffer {
     /// Authored structural bindings may complete at a control join rather than
     /// a call operation. Keep those places in the same state-local namespace.
     pub(crate) structural_values: Vec<(u32, StructuralBinding)>,
+    /// Physical homes in establishment order, including anonymous operands and
+    /// completed joins. Cleanup uses this chronology, never local declarations
+    /// alone; each selected exit still supplies its own disposal authority.
+    pub(crate) structural_establishments: Vec<PlaceId>,
     /// Value-establishment obligations accompany the exact private arrival.
     pub(crate) scalar_block_invariants: Vec<terminal_psi::ScalarBlockInvariant>,
     pub(crate) selected_ieee_float_comparisons:
@@ -263,7 +267,19 @@ impl OperationBuffer {
                     }),
             );
         }
+        if let Some(result) = operation.result.structural() {
+            self.structural_establishments.push(result.place);
+        }
         self.operations.push(operation);
+    }
+
+    pub(crate) fn bind_structural_value(&mut self, ordinal: u32, value: StructuralBinding) {
+        // A control join or literal can complete without producing an operation.
+        // Aliases name existing storage and do not establish another home.
+        if value.path().is_empty() && !self.structural_establishments.contains(&value.place()) {
+            self.structural_establishments.push(value.place());
+        }
+        self.structural_values.push((ordinal, value));
     }
 
     /// Publish the claims transported by completed constructor operands.
@@ -313,6 +329,7 @@ impl OperationBuffer {
             external_completion: None,
             dynamic_dispatch,
             structural_values: Vec::new(),
+            structural_establishments: Vec::new(),
             scalar_block_invariants: Vec::new(),
             next_identity: identity_base
                 .checked_add(1)

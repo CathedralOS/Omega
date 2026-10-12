@@ -57,20 +57,7 @@ pub(in crate::monomorphization) fn materialize(
                         local.type_reference,
                     ) != actual
                 {
-                    let call = program
-                        .expression_table
-                        .call_node(local.initial_value)
-                        .unwrap();
-                    insertions.push((
-                        offset,
-                        actual,
-                        call.target_symbol,
-                        program
-                            .expression_table
-                            .expression_handles(call.arguments)
-                            .to_vec(),
-                        super::region_application::bindings(program, machine, state, call)?,
-                    ));
+                    insertions.push((offset, actual));
                 }
             }
             if !insertions.is_empty() {
@@ -86,11 +73,8 @@ pub(in crate::monomorphization) fn materialize(
             .to_vec();
         let mut body = HandleSpan::empty();
         for (offset, mut statement) in statements.into_iter().enumerate() {
-            if let Some((_, actual, target, arguments, lifetimes)) =
-                insertions.iter().find(|(position, ..)| *position == offset)
+            if let Some((_, actual)) = insertions.iter().find(|(position, ..)| *position == offset)
             {
-                let actual =
-                    super::apply_result_type(program, *target, arguments, *actual, lifetimes)?;
                 let StatementNode::LocalData(local) = &mut statement else {
                     unreachable!();
                 };
@@ -117,7 +101,7 @@ pub(in crate::monomorphization) fn materialize(
                     StatementNode::LocalData(TableLocalData {
                         symbol,
                         name,
-                        type_reference: actual,
+                        type_reference: *actual,
                         initial_value: local.initial_value,
                         type_is_inferred: true,
                         ..Default::default()

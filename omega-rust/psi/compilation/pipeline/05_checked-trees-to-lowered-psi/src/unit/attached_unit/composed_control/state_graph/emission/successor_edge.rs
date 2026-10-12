@@ -15,8 +15,8 @@ use super::super::super::super::{
 };
 use super::super::super::LoweringError;
 use super::super::{
-    CheckedStructuralControlSuccessorPlan, case_emission, case_leaf_copy, ranking, result_custody,
-    scalars, subslices,
+    CheckedStructuralControlSuccessorPlan, case_emission, case_leaf_copy, ranking, scalars,
+    subslices,
 };
 use super::StateGraphEmission;
 use crate::emission::operation_emission::buffer::{CollectionLengthObservations, OperationBuffer};
@@ -830,38 +830,7 @@ impl StateGraphEmission<'_, '_> {
             &edge_evaluation,
             operations,
         )?;
-        if !edge_evaluation.selection_cleanups.is_empty() {
-            let selected = result_custody::selection_edge_discards(
-                checked,
-                owner,
-                state,
-                edge,
-                operations,
-                &edge_evaluation,
-            )?;
-            let previous = std::mem::take(&mut cleanup_regions);
-            for place in &selected {
-                let mut retained = previous
-                    .iter()
-                    .filter(|region| region.action.place() == *place)
-                    .peekable();
-                if retained.peek().is_some() {
-                    cleanup_regions.extend(retained.cloned());
-                } else {
-                    cleanup_regions.extend(
-                        edge_evaluation
-                            .normal_discard_regions(*place, &edge_evaluation.structural_types)?,
-                    );
-                }
-            }
-            cleanup_regions.extend(previous.into_iter().filter(|region| {
-                !selected.contains(&region.action.place())
-                    && !edge_evaluation
-                        .selection_cleanups
-                        .iter()
-                        .any(|cleanup| cleanup.sources.contains(&region.action.place()))
-            }));
-        }
+        super::super::cleanup::selection(&edge_evaluation, operations, &mut cleanup_regions)?;
         // Proof-only actuals never evaluate: each checked erased row
         // lowers to a term over the emitting state's scalar values and
         // erased formals, in the target's erased-roster order.

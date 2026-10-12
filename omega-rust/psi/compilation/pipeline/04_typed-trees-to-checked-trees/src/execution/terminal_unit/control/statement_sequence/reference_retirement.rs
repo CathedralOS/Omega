@@ -149,7 +149,10 @@ impl Retirement<'_> {
                         source: source.source.source,
                         path: source.path,
                         select_evaluated_storage: true,
-                        defer_to_exit: false,
+                        // Exit scheduling may depend on carriers retired by
+                        // the selected edge. Their backing must follow that
+                        // edge too, after its condition and operands run.
+                        defer_to_exit: self.at_exit,
                         loans,
                         selection_complements: Vec::new(),
                     });

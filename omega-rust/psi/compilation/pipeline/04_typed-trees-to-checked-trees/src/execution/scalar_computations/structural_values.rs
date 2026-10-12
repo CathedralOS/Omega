@@ -368,6 +368,7 @@ impl Builder<'_, '_> {
                 .machine_by_symbol(self.machine)
                 .and_then(|machine| self.program.state_in_machine(machine, self.state))?;
             let mut selectors = Vec::new();
+            let mut source_value = CheckedStructuralValueHandle::invalid();
             if let Some(formation) =
                 validation::reference_formation_source(self.program, expression)
             {
@@ -377,6 +378,21 @@ impl Builder<'_, '_> {
                     self.statement_index,
                     formation.source,
                 )?;
+                // Retain the complete anonymous producer before its selectors.
+                // The reference lends its selected path, not a detached copy
+                // of that child; the normal value schedule owns its cleanup.
+                if let facts::PlaceRoot::Expression(root) = place.root {
+                    let root_reference = validation::canonical_place_type_reference(
+                        self.program,
+                        self.state,
+                        self.statement_index,
+                        &validation::CanonicalPlace {
+                            root: place.root,
+                            segments: Vec::new(),
+                        },
+                    )?;
+                    source_value = self.structural_value(root, root_reference)?;
+                }
                 for segment in place.segments {
                     if let facts::PlaceSegment::Index { expression } = segment {
                         selectors.push((expression, self.index_selector(expression)?));
@@ -432,7 +448,7 @@ impl Builder<'_, '_> {
                 source,
                 storage,
                 backing_type,
-                source_value: CheckedStructuralValueHandle::invalid(),
+                source_value,
             }
         } else if matches!(
             self.program.expression_table.expression(expression),
@@ -555,8 +571,6 @@ impl Builder<'_, '_> {
                 type_identity: self.program.normalized_type_identity(expected),
                 access: checked_trees::CheckedStructuralAccess::Owned,
             })
-        } else if let Some(borrowed) = self.borrowed_place(expression, expected) {
-            borrowed
         } else {
             let ExpressionNode::Match(dispatch) =
                 self.program.expression_table.expression(expression).clone()

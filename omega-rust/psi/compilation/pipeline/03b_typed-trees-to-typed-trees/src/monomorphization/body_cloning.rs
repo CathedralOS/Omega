@@ -944,7 +944,7 @@ fn copy_static_argument_type_payloads(
     }
 }
 
-pub(super) fn copy_type_reference(
+pub(crate) fn copy_type_reference(
     source: Option<&dyn ::validation::CheckingInput>,
     program: &mut TypedTrees,
     type_reference: TypeReferenceHandle,

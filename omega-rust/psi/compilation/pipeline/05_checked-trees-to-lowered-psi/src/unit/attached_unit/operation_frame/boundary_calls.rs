@@ -149,8 +149,7 @@ impl OperationFrame<'_, '_> {
         // state registers it, with its local, when publishing.
         if matches!(self.results, StructuralResults::Dense(_)) {
             self.operations
-                .structural_values
-                .push((result.binding_ordinal, returned.into()));
+                .bind_structural_value(result.binding_ordinal, returned.into());
         }
         self.publish_result(
             operation,

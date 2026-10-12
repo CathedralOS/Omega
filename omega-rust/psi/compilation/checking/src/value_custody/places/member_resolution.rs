@@ -466,8 +466,16 @@ pub(super) fn expression_type_position(
         // checked interpreter lowers the node the same way), so the position
         // is the operand's position rather than an opaque leaf.
         ExpressionNode::Atomic(atomic) => expression_type_position(program, atomic.value),
-        ExpressionNode::Call(call) => crate::call_target_return_type(program, call.target_symbol)
-            .map(MemberPosition::Reference),
+        ExpressionNode::Call(call) => {
+            let retained = program
+                .expression_table
+                .constructed_value_type_reference(expression);
+            retained
+                .is_valid()
+                .then_some(retained)
+                .or_else(|| crate::call_target_return_type(program, call.target_symbol))
+                .map(MemberPosition::Reference)
+        }
         ExpressionNode::Name(path) => {
             let symbol = first_valid_name_path_symbol(path, &program.expression_table)?;
             symbol_type_position(program, symbol)

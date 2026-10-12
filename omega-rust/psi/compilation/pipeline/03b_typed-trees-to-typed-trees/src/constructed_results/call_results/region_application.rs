@@ -1,4 +1,4 @@
-//! Inferred result regions are operands of the initializer occurrence.
+//! Result regions are operands of each call occurrence.
 //! Parameter-position inference includes anonymous references; copying a fresh
 //! callable binder into its caller would manufacture an undeclared lifetime.
 //! The source signature remains intact for independent loan-source admission.

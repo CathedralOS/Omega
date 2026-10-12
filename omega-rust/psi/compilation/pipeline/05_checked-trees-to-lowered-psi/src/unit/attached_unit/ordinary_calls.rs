@@ -430,9 +430,7 @@ pub(super) fn emit_structural(
         return unsupported("structural call result was published twice");
     }
     if register_binding {
-        operations
-            .structural_values
-            .push((result.binding_ordinal, returned.into()));
+        operations.bind_structural_value(result.binding_ordinal, returned.into());
     }
     Ok(StructuralPlaceDeclaration {
         id: place,

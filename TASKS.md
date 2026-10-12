@@ -3464,11 +3464,13 @@ of a check the same flow already performed, not the check itself.
 
   Remaining: qualify exact erased applications, clone correspondence and
   lexical owners through folding and substitution against the full check
-  corpus and focused native cohort. The original 113-case cohort at fixed
-  producer `8ec8362fcf0` has 34 checked, 69 rejected and ten incomplete;
-  25 negative controls lack their intended fragment; that old harness also
-  masked source acceptance behind a native missing-entry refusal. The focused
-  source-acceptance frontier remains
+  corpus and focused native cohort. Attribute the full 4,035-fixture check at
+  fixed producer `327898162b6`: 19 wrong-reason controls, five accepted negatives
+  and 124 unsatisfied success obligations (including pinned debt, not 124 new
+  regressions). Revalidate `zii_range_excludes_zero_rejected`,
+  `method_view_receiver_unrelated_field_write`, `local_record_view_result_holds_loan`
+  and `artifact_only_rollback_overlay_refused` on the repaired producer before
+  attributing their acceptance. The fifth is
   `shared_subslice_state_cannot_lend_mutable`. Attribute
   contextual slice formation here: its bare-range access rule is OWNER-BLOCKED
   on `bare-range-reference-access` in `OWNER_QUESTIONS.md`, not the remaining
@@ -3481,8 +3483,7 @@ of a check the same flow already performed, not the check itself.
   Entry-bearing native refusals and
   sponsored Build controls must retain their intended diagnostics without
   replaying the accepted source compilation.
-  The two excluded float cases now have one checked and one timeout at 360s
-  on that producer. Revalidate historical reds before full qualification;
+  Revalidate historical reds before full qualification;
   fixed-producer evidence is not latest-main acceptance. Retain borrowed
   temporary projection execution and its missing sibling-disposition refusal
   in full qualification; each loan keeps the complete producer and selected
