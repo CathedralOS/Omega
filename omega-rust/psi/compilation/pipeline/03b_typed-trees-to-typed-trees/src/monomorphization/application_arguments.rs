@@ -243,6 +243,33 @@ pub(crate) fn intern_closed_const_with_meaning(
 /// normalization neither admits a carrier nor invents a runtime subject.
 pub(super) fn materialize_const_type_arguments(program: &mut TypedTrees) {
     let mut sites = Vec::new();
+    fn collect_static_graphs(
+        arguments: &[StaticMachineArgument],
+        sites: &mut Vec<TypeReferenceHandle>,
+    ) {
+        for argument in arguments {
+            if argument.type_reference.is_valid() {
+                sites.push(argument.type_reference);
+            }
+            if let Some(application) = &argument.application {
+                collect_static_graphs(&application.arguments, sites);
+            }
+        }
+    }
+    for (_, expression) in program.expression_table.iter_expressions() {
+        if let typed_trees::expression::ExpressionNode::Call(call) = expression {
+            collect_static_graphs(&call.machine_arguments, &mut sites);
+        }
+    }
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                if let Some(call) = statement.as_call() {
+                    collect_static_graphs(&call.machine_arguments, &mut sites);
+                }
+            }
+        }
+    }
     for (_, reference) in program.type_reference_table.type_reference_rows() {
         let (base_symbol, arguments) = match reference {
             TypeReferenceNode::Generic {
