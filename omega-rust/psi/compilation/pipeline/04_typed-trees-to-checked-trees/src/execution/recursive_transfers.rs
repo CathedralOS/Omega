@@ -142,7 +142,7 @@ fn retain_state_calls(
                 continue;
             }
             if let Some(is_continuation) = transfer_arm(program, facts, state, call_handle, call)
-                && successor_matches(facts, control, call, is_continuation)
+                && successor_matches(program, facts, control, call, is_continuation)
             {
                 continue;
             }
@@ -246,14 +246,22 @@ fn selected_arm(
 }
 
 fn successor_matches(
+    program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
     control: StateControl<'_>,
     call: &FlowCallFact,
     is_continuation: bool,
 ) -> bool {
+    // Flow retains the selected callable symbol. Composed successors retain
+    // the exact entered state: a free machine head and its entry are distinct
+    // symbols. Rejoin through the shared call destination relation, as the
+    // successor producer does, without treating an ordinary call as a jump.
+    let Some(target) = validation::call_target_state(program, call.target_symbol) else {
+        return false;
+    };
     let matches = |successor: &CheckedStructuralControlSuccessorPlan| {
         successor.statement_ordinal as usize == call.statement_index
-            && successor.target_state == call.target_symbol
+            && successor.target_state == target.symbol
             && successor.is_continuation == is_continuation
     };
     let destination_matches = |destination: &CheckedScalarBranchDestination| matches!(destination, CheckedScalarBranchDestination::Jump(successor) if matches(successor));
