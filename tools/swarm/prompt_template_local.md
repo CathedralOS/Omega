@@ -30,6 +30,19 @@ compiler work; never edit the coordinator's main checkout.
 commands (`{build_tool} check`, `{build_tool} nextest run`); `cargo fmt` and
 `cargo clean` stay direct Cargo invocations.
 
+Read `.agents/skills/local-swarm/host-setup.md`. All slots share this machine's
+CPU, memory, disks and MBX storage; your worktree is source isolation, not an
+independent resource budget. Follow the coordinator's expensive-build admission
+plan before starting builds. Report a changed resource limit or missing native
+tool rather than guessing a jobs cap. Keep targets independent; do not override
+`CARGO_TARGET_DIR` to another agent's target to manufacture cache hits.
+
+Close delegated build/compiler stdin. On macOS/Linux use the configured guard
+or `< /dev/null`; on Windows use a verified native launcher or
+`subprocess.run(..., stdin=subprocess.DEVNULL)`. A POSIX `dup2`/`execvp` wrapper
+is not a qualified Windows entrypoint. Native coverage belongs to this host's
+actual architecture, not every OS supported by the repository.
+
 ## Coordination
 
 From the repository root (`{repository}`):
@@ -79,8 +92,10 @@ checkpoint with remaining acceptance retains ownership.
   dependencies burns it. Claim the queue only when your rebase will be a
   no-op: validate, `git fetch origin && git rebase origin/main`, re-validate
   if anything moved, then claim.
-- On "No space left on device" during builds, reclaim the shared build cache
-  first (`mbx gc` when `mbx` is present) before reducing scope.
+- Check actual free disk before builds. On pressure, coordinate supported MBX
+  GC with the coordinator; inspect `mbx gc --dry-run` first. Cache budgets do not
+  bound unmanaged outputs. Do not delete another slot's active targets,
+  unpublished work or ignored package-review state to make room.
 - Refetch `origin/main` before enqueueing. If the item's acceptance has
   already landed, verify and report `superseded`. A changed board paragraph
   alone is not completion or a reason to abandon the outcome.

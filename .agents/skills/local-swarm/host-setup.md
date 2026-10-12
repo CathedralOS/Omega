@@ -1,0 +1,141 @@
+# Local swarm: one session, one measured host
+
+This guide prepares **in-session subagents**, not separate Devin cloud VMs.
+Read [the local-swarm skill](SKILL.md), [AGENTS.md](../../../AGENTS.md) and the
+repository's testing/landing rules. Setup is not authority to launch a swarm.
+Every editing agent owns an isolated worktree and an outcome through acceptance.
+
+## Discover before asking
+
+Recover outcome, stopping point, model/effort and authorized agent width from
+the request, standing preferences and actual runtime controls. Ask only for a
+missing real decision. A prompt cannot select a model; inherited or unavailable
+effort controls must be reported honestly. Inspect live claims and retained
+agent handles before resuming or dispatching. Do not hijack another outcome.
+
+Inventory the actual host before invoking tools that may auto-install runtimes:
+
+| Record | Why it matters |
+| --- | --- |
+| OS/version and architecture | Local agents cannot provide other hosts' native coverage |
+| CPU affinity/quota and visible CPUs | Cargo's per-process jobs setting is not a host-wide resource budget |
+| Available RAM and enforced memory limit | Other agents, linkers and tests share it |
+| Free disk on checkout/cache/target volumes | A managed-cache limit does not bound the entire disk |
+| Pinned Rust, native linker/SDK, MBX, nextest, Python | Successful setup must match the executing shell/interpreter |
+| Existing producers and cache roots | Reuse valid source/profile/toolchain receipts instead of cold rebuilding |
+| Running builds, ownership and actual agent capacity | Agent slots are different from expensive-build slots |
+
+Discover paths; do not assume Ubuntu directories everywhere. Check source
+revision, dirty state, target, profile/flags, toolchain, binary hash and bundled
+library root before reusing a compiler. Warmth does not qualify newer source.
+
+## Native host readiness
+
+| Host | Verify | Respect |
+| --- | --- | --- |
+| Linux | Native linker/development libraries, pinned tools, cgroup/affinity CPU and memory limits | XDG cache/config, mounted volumes, actual interpreter |
+| Windows | Rust target, MSVC `link.exe` and SDK/developer environment, supported Python, Git long-path readiness | Git Bash versus PowerShell, native AppData paths, drive volumes, native child stdin |
+| macOS | Architecture, Xcode/CLT, SDK/clang target, Rustup shims and repo pin, supported Python | Homebrew/native Library paths; ARM64 and Intel are different host claims |
+
+A worker's implicit Rustup download is not a base-image prerequisite. If setup
+must be persisted, read the effective blueprint and test missing-tool bootstrap
+in an isolated tool home. Never uninstall active global tools as a probe.
+Use documented installation routes and request approval for persistent changes.
+Bound installer diagnostics; a witnessed external feed/SDK failure is not a
+compiler regression or permission to bypass access/security controls.
+
+Windows builders need a native EOF-producing entrypoint. Use a verified launcher
+or Python `subprocess.run(..., stdin=subprocess.DEVNULL)`; the POSIX
+`os.dup2`/`os.execvp` route was not suitable in the measured Windows environment.
+On Linux/macOS use the configured guard or `< /dev/null`. Select the same Python
+interpreter for package installation and project scripts. Use shell-native
+syntax; a `.ps1` is not itself macOS support. Do not globally change Git config.
+
+## Admit builds, not just agents
+
+1. Reuse a valid baseline producer, or warm it once for the required source and
+   profile. Keep one shared **MBX action cache**, with independent managed
+   targets/worktrees. Do not share `CARGO_TARGET_DIR` or another agent's checkout.
+2. Separate authorized agent width from expensive-build width. With no shared
+   contention evidence, start one expensive build at a time; this is a conservative
+   baseline, not a measured optimum. Other slots continue useful work on their
+   assigned outcomes. Do not invent filler audits to keep slots occupied.
+3. Include coordinator, Rust compilation, native linking, corpus execution and
+   other resident processes in the CPU/memory envelope. Build admission applies
+   across agents, not just within one Cargo invocation. Use an existing scheduler
+   only after verifying what it coordinates across processes.
+4. If overlap is justified, compare one versus a small higher build width on the
+   same host/source/profile and comparable cache state. Record wall/CPU, peak RAM,
+   queue delay, disk/cache growth and required behavior. Adopt only a real gain
+   in useful outcome throughput without unacceptable E2E latency or pressure.
+   Stop the experiment once the adequate envelope is established.
+5. Keep worktree paths stable during an ongoing outcome. Reuse a completed slot
+   only after preserving its branch/artifacts and verifying completion or an
+   explicit handoff. Never reset, stash or clean another owner's state.
+
+Use optimized dev (`CARGO_PROFILE_DEV_OPT_LEVEL=1`) for active Rust edit/rebuild
+work. Release is useful for repeated execution and final qualification; do not
+change repository profile defaults. Run focused checks before broad suites.
+Build unique compiler edits against their actual source, not a peer's binary.
+
+### Evidence, not universal presets
+
+Devin host measurements at compiler revision
+`f2acd8ecd41a20318368d18028be7e01b2739e9c`:
+
+| Observed host | Same-checkout no-op | New optimized-dev worktree | Interpretation |
+| --- | ---: | ---: | --- |
+| Ubuntu x86_64, 8 vCPU / 31 GiB | 0.58 s release | 278 s, 120 hits / 82 misses | Path/workspace reuse remains partial |
+| Windows x64, 8 CPU / ~32 GiB | 0.95 s release | 251 s, 148 hits / 56 misses | One jobs=4 comparison took 442 s; no case for forcing a lower cap on this host |
+| macOS ARM64, 12 visible CPU / 16 GiB | 0.90 s release | 107 s, 147 hits / 55 misses | Jobs comparisons were warmth-confounded; no universal cap established |
+
+These were single-build host measurements, **not concurrent local-swarm
+throughput tests**. CPU count alone does not establish the best agent/build
+width. Reuse relevant receipts; do not rerun the entire qualification campaign
+for every wave or present these machines as required hardware.
+
+Evidence: [Ubuntu worker](https://app.devin.ai/sessions/3aed8451c84649e19fce5ebbf456702b),
+[Windows worker](https://app.devin.ai/sessions/4bb030fb07c74a2494c396b1a3940259),
+[macOS worker](https://app.devin.ai/sessions/6907dd86375e4a2a883615e50958a54e).
+
+## Bound the shared disk safely
+
+Read the effective MBX config and distinguish the action-cache cap from the
+combined managed-storage cap. `max_total_size` is the combined cap; `max_size`
+alone is not. Active/recent state and unmanaged outputs still need free space.
+The qualified workers use a **30 GiB starting managed budget**, not a universal
+optimum; discover each machine's disk and working set before applying it.
+
+Use the configured pressure guard when present. The tested Linux/macOS starting
+thresholds warn below 20 GiB free and refuse builds below 2 GiB after supported
+collection; adapt policy only with host evidence. Coordinate pressure handling
+across slots, preview with `mbx gc --dry-run`, and use supported GC. Help/dry-run
+commands must not trigger deletion. A GC failure is not permission for manual
+cache-directory deletion. Preserve active worktrees, unpublished source and
+package-review receipts; remove only outcome-owned, verified disposable state.
+
+## Dispatch, validate and finish
+
+Use `tools/swarm/launch.py local --manifest <file> --create-worktrees` only when
+authorized. It renders prompts/worktrees; it does not spawn agents. Use actual
+in-session agent tools and returned handles if exposed. If unavailable, report
+that limitation; do not substitute cloud sessions or detached shell agents.
+
+Handoff outcome, acceptance, DRI, exact worktree/base, model controls, retained
+receipts, next action, dependencies, build-admission plan and publication
+authority. Keep real agent states through `tools/swarm/fill.py` and the local
+skill. Coalesce redundant baseline qualification, not checks for unique edits.
+
+Required behavior is native execution agreeing with Terminal Psi plus relevant
+invalid controls. Test-injected admission does not qualify the public CLI.
+Never rewrite fixtures, copy stale locks or blanket-accept package authority.
+Affected target/ABI/runtime changes need affected-host validation; local agents
+on one VM cannot establish other OSes' native parity. Batch frozen-revision
+cross-OS checks through authorized hosts. Release requires the repo's complete
+host/architecture matrix, including Linux ARM64 where required.
+
+At the stopping point, stop refilling, drain evidence, preserve unresolved work
+and follow normal landing rules. Report one short readiness table: host/tools,
+authorized agent width, measured build width, cache/disk policy, accepted outcomes
+and remaining gaps. Never claim fleet or local concurrency qualification from
+no-op timings alone.
