@@ -103,10 +103,8 @@ fn source_application(
         return None;
     }
     let selected_interface = scope.declaration.symbol;
-    let argument_owner = scope.argument_owner;
     let outer_parameters = program.trait_type_parameters(scope.declaration).to_vec();
-    let substitutions = scope.substitutions.clone();
-    let scope_starts = scope.substitution_scope_starts.clone();
+    let environment = scope.environment();
     let previous = if program
         .expression_table
         .static_machine_application_is_valid(source.application)
@@ -136,12 +134,7 @@ fn source_application(
             .to_vec()
     });
     let outer_arguments = program
-        .materialize_trait_application_arguments(
-            selected_interface,
-            &substitutions,
-            &scope_starts,
-            argument_owner,
-        )
+        .materialize_trait_application_arguments(&environment)
         .ok()?;
     program
         .require_closed_application_operands(&outer_arguments)
