@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 2.95, "load1_start": 2.86, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 4.97, "load1_start": 5.23, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 835ms expected @a9ae30e1c334+wt
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -3426,6 +3426,8 @@ fail/text/concatenation_into_borrowed_view_rejected rejected 5565ms expected @a9
 	the concatenation stored into `out_line` in Main::main establishes owned bytes, but `out_line` is a borrowed `&[u8]` view that cannot hold them; store the concatenation into a bounded `[u8; N]` carrier whose capacity bounds both operands
 fail/text/element_guard_other_index_unbounded rejected 812ms expected @a9ae30e1c334+wt
 	exact arithmetic in machine `digit` state `entry` return value may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
+fail/text/inline_byte_case_requires_field_domain rejected 415ms expected @4dc4eabb2a0d+wt
+	construction of `Reply` field `content` is not proven in domain `[u8; N]::Ascii`; a field declared `in [u8; N]::Ascii` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
 fail/text/later_arm_guard_read_unbounded rejected 1517ms expected @a9ae30e1c334+wt
 	cannot prove index `index` is within unknown slice length of `text` in at_space::entry
 fail/text/local_record_byte_field_replacement_breaks_domain rejected 5052ms expected @a9ae30e1c334+wt
@@ -6151,6 +6153,7 @@ pass/text/runtime_chained_string_append_exit checked 11544ms check-target:macos_
 pass/text/runtime_decimal_scalar_across_output_alternate_exit checked 11958ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/text/runtime_decimal_scalar_across_output_exit checked 11543ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/text/runtime_element_guard_bounds_parse_exit checked 11540ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/text/runtime_inline_byte_case_values_exit checked 3383ms check-target:macos_arm64 @4dc4eabb2a0d+wt
 pass/text/runtime_later_arm_guard_reads_exit checked 12030ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/runtime_mixed_byte_field_equality_exit checked 11442ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/runtime_mutable_string_parameter_concat_write_line incomplete 5817ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt

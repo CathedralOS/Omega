@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 2.15, "load1_start": 1.99, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 3.31, "load1_start": 3.51, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/closed_call_transition_return_proves_exact_sum_exit built 2645ms exit:112 interpreter-exit:112 interpreter:agrees @1152c1496b39
 pass/arithmetic/full_width_integer_literals_compose_exit built 3129ms exit:0 interpreter-exit:0 interpreter:agrees @d0e40a213f35
 pass/arithmetic/qualified_cast_in_entry_body_exit built 1326ms exit:0 interpreter-exit:0 interpreter:agrees @2e29bd5fedcf
@@ -663,6 +663,7 @@ pass/text/qualified_byte_state_snapshot_exit built 1726ms exit:70 interpreter-ex
 pass/text/qualified_byte_value_forwarding_exit built 1779ms exit:70 interpreter-exit:70 interpreter:agrees @d633d9554974+wt
 pass/text/runtime_bounded_carrier_copy_exit built 5768ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @4ebb8b7f818f+wt
 pass/text/runtime_byte_field_dynamic_view_exit built 4539ms exit:0 interpreter-exit:0 interpreter:agrees @4ebb8b7f818f+wt
+pass/text/runtime_inline_byte_case_values_exit built 3390ms exit:0 interpreter-exit:0 interpreter:agrees @4dc4eabb2a0d+wt
 pass/text/runtime_number_to_decimal_exit built 2784ms exit:70 interpreter-exit:70 interpreter:agrees @cba4ef8c9ab1
 pass/text/runtime_slice_indexed_string_guard_exit built 2006ms exit:70 interpreter-exit:70 interpreter:agrees @1152c1496b39
 pass/text/runtime_string_concat_two_fields_exit built 5718ms exit:70 interpreter-exit:70 interpreter:agrees @4ebb8b7f818f+wt
