@@ -253,6 +253,28 @@ pub(crate) fn bind_boundary_operator_application_demands(
             ));
             continue;
         };
+        if program
+            .public_trait_requirement_signature(requirement_use.requirement_symbol)
+            .is_some()
+        {
+            // Ordinary trait calls retain their complete public application in
+            // the checked boundary-machine/call plans. The shared selected-use
+            // roster also serves constant execution, but it cannot turn that
+            // application into an empty operator demand or a machine entry.
+            let public = program.selected_public_trait_requirement_signature(
+                call.target_symbol,
+                call.authored_machine_application,
+            );
+            if public.is_none_or(|public| {
+                !public.owner.is_boundary
+                    || public.signature.symbol != requirement_use.requirement_symbol
+            }) {
+                diagnostics.push(diagnostics::Diagnostic::error(
+                    "retained direct requirement use lost its original public application",
+                ));
+            }
+            continue;
+        }
         let rejoins = program
             .machine_by_symbol(requirement_use.requirement_symbol)
             .is_some_and(|requirement| {
