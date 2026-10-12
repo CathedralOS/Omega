@@ -97,6 +97,7 @@ pass/borrows/runtime_nested_carrier_bounded_reference_read_exit built 4554ms exi
 pass/borrows/runtime_nested_carrier_reference_read_exit built 4466ms exit:70 interpreter-exit:70 interpreter:agrees @056c1343fac1+wt
 pass/borrows/runtime_nested_reference_array_bounded_read_exit built 1991ms exit:70 interpreter-exit:70 interpreter:agrees @15c77983aab0+wt
 pass/borrows/runtime_nested_reference_record_direct_payload_restoration_exit built 2548ms exit:70 interpreter-exit:70 interpreter:agrees @681c48c0cebc+wt
+pass/borrows/runtime_projected_fixed_byte_array_local_exit built 5174ms exit:0 interpreter-exit:0 interpreter:agrees @77acc22653d9
 pass/borrows/runtime_projected_reference_call_return_exit built 11410ms exit:0 interpreter-exit:0 interpreter:agrees @2001bffe7901+wt
 pass/borrows/runtime_qualified_byte_argument_snapshot_exit built 3275ms exit:70 interpreter-exit:70 interpreter:agrees @cfbb6c8709b4+wt
 pass/borrows/runtime_recast_mut_loan_field_write_exit built 1309ms exit:0 interpreter-exit:0 interpreter:agrees @7d0f77ba72b8+wt
@@ -713,8 +714,10 @@ pass/borrow/runtime_write_only_call_result_observation_exit built 3502ms exit:0 
 pass/control_flow/runtime_bounded_scalar_storage_exit built 3433ms exit:0 interpreter-exit:0 interpreter:agrees @83ed80e91feb
 pass/control_flow/runtime_completed_readonly_home_replacement_exit built 3499ms exit:0 interpreter-exit:0 interpreter:agrees @83ed80e91feb
 pass/storage/runtime_bounded_effectful_initializer_exit built 3410ms exit:0 interpreter-exit:0 interpreter:agrees @83ed80e91feb
+pass/termination/measure_field_rank_endpoint built 4972ms exit:0 interpreter-exit:0 interpreter:agrees @77acc22653d9
 pass/termination/rank_arrival_captured_record_fields_exit built 3481ms exit:0 interpreter-exit:0 interpreter:agrees @83ed80e91feb
 pass/termination/rank_arrival_same_carrier_fields_exit built 3479ms exit:0 interpreter-exit:0 interpreter:agrees @83ed80e91feb
+pass/termination/rank_arrival_unobserved_array_extent_compile built 5045ms exit:0 interpreter-exit:0 interpreter:agrees @77acc22653d9
 pass/termination/runtime_joint_rank_computed_copy_exit built 3411ms exit:0 interpreter-exit:0 interpreter:agrees @83ed80e91feb
 pass/termination/runtime_nested_borrowed_rank_carrier_exit built 3503ms exit:0 interpreter-exit:0 interpreter:agrees @83ed80e91feb
 pass/termination/runtime_rank_state_constraint_disjoint_write_exit built 3505ms exit:0 interpreter-exit:0 interpreter:agrees @83ed80e91feb

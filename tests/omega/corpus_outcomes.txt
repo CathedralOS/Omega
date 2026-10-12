@@ -531,6 +531,8 @@ fail/borrows/plain_read_during_live_exclusive_loan rejected 1820ms expected @a9a
 	statement 2 reads `cell.value` while local borrow `selection` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/borrows/primitive_aggregate_live_owner_read rejected 1701ms expected @a9ae30e1c334+wt
 	state `observe` receives `value` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/borrows/projected_fixed_array_shared_source_mutable_local rejected 178ms expected @77acc22653d9
+	machine `violate` state `entry` local `requested` requires mutable source access; shared or immutable storage cannot supply it
 fail/borrows/projected_descriptor_retains_backing_loan rejected 1869ms expected @a9ae30e1c334+wt
 	statement 2 mutates `cells[1].value` while local borrow `envelope` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/borrows/qualified_byte_element_mutable_call_rejected rejected 1636ms expected @a9ae30e1c334+wt
@@ -3821,6 +3823,7 @@ pass/borrows/runtime_nested_carrier_bounded_reference_read_exit checked 11146ms 
 pass/borrows/runtime_nested_carrier_reference_read_exit checked 11084ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_nested_reference_array_bounded_read_exit checked 10949ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_nested_reference_record_direct_payload_restoration_exit checked 11079ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_projected_fixed_byte_array_local_exit checked 4988ms check-target:macos_arm64 @77acc22653d9
 pass/borrows/runtime_projected_reference_call_return_exit checked 10339ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_qualified_byte_argument_snapshot_exit checked 11337ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_reassigned_view_capture_exit checked 4224ms check-target:macos_arm64 @eee96af606fc+wt
@@ -5984,7 +5987,7 @@ pass/termination/measure_field_named_arrival checked 1753ms @a9ae30e1c334+wt
 pass/termination/measure_field_pinned_limit checked 1593ms @a9ae30e1c334+wt
 pass/termination/measure_field_projection checked 1544ms @a9ae30e1c334+wt
 pass/termination/measure_field_rank_arithmetic checked 1549ms @a9ae30e1c334+wt
-pass/termination/measure_field_rank_endpoint checked 1657ms @a9ae30e1c334+wt
+pass/termination/measure_field_rank_endpoint checked 4814ms check-target:macos_arm64 @77acc22653d9
 pass/termination/measure_field_rank_range checked 2581ms @a9ae30e1c334+wt
 pass/termination/measure_field_rank_step checked 1631ms @a9ae30e1c334+wt
 pass/termination/measure_field_relational_range checked 2022ms @a9ae30e1c334+wt
@@ -5998,7 +6001,7 @@ pass/termination/quotient_endpoint_call_component checked 1728ms @a9ae30e1c334+w
 pass/termination/rank_arrival_captured_record_fields_exit checked 10901ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/termination/rank_arrival_fresh_nested_owner checked 4536ms check-target:macos_arm64 @40ca79be5457
 pass/termination/rank_arrival_same_carrier_fields_exit checked 10987ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/termination/rank_arrival_unobserved_array_extent_compile checked 1881ms @a9ae30e1c334+wt
+pass/termination/rank_arrival_unobserved_array_extent_compile checked 5034ms check-target:macos_arm64 @77acc22653d9
 pass/termination/rank_endpoint_borrows_recovery checked 11205ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/termination/rank_range_call_component checked 4794ms check-target:macos_arm64 @c1125926bef7
 pass/termination/rank_range_call_declared_step_copy checked 1587ms @a9ae30e1c334+wt
