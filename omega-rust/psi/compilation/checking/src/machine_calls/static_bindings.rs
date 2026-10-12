@@ -106,7 +106,23 @@ pub fn validate_static_machine_bindings(
                     declaration.bind_lifetimes(program.typed_program(), handle)
                 });
             if let Err(reason) = source_lifetimes {
-                diagnostics.push(Diagnostic::error(reason));
+                let describe = |symbol: SymbolHandle| {
+                    if symbol.is_valid() {
+                        format!(
+                            "{} ({:?})",
+                            program.symbols.display_path(symbol, "::"),
+                            program.symbols.get(symbol).kind
+                        )
+                    } else {
+                        "<absent>".to_owned()
+                    }
+                };
+                diagnostics.push(Diagnostic::error(format!(
+                    "{reason}: original callable `{}`, registration {}, binding declaration {}, selected interface {}, lexical owner {}",
+                    application.target.as_str(), describe(application.registration_operation),
+                    describe(application.binding_declaration), describe(application.selected_interface),
+                    describe(application.lexical_owner),
+                )));
                 continue;
             }
         }
