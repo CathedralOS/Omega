@@ -26,6 +26,7 @@ use std::sync::Arc;
 /// installation consumes it with the artifact to settle the selected
 /// execution. None of its fields re-enter checking or rewrite the program.
 pub(crate) struct SelectedProviderCustody {
+    pub(crate) original_input: Arc<psi_compiler::OriginalCheckedSourceInput>,
     pub(crate) checked: CheckedProviderProgram,
     pub(crate) settlement: provider_planning::ProviderSettlement,
     pub(crate) selected_provider_provenance:
@@ -219,6 +220,7 @@ pub(crate) fn select_product_providers(
     })?;
     let (checked, settlement, provenance, entry, x86) = selection;
     Ok(SelectedProviderCustody {
+        original_input: Arc::clone(&source.original_input),
         checked,
         settlement,
         selected_provider_provenance: provenance,
@@ -245,6 +247,7 @@ pub(crate) fn install_selected_target(
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
     let source_map = selection.checked.program.typed.symbols.source_map();
     let SelectedProviderCustody {
+        original_input,
         checked,
         settlement,
         selected_provider_provenance,
@@ -289,6 +292,7 @@ pub(crate) fn install_selected_target(
         .map(|settled| {
             CheckedCompilation::from_settled_execution(
                 CheckedCompilationInputs {
+                    original_input,
                     settled,
                     build,
                     build_admission,

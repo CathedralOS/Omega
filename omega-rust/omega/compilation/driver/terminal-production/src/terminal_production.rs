@@ -14,6 +14,9 @@ pub use psi_compiler::{ProgramEntryTerminalReceiptError, TerminalArtifactProduct
 
 /// Checked source and exact machine selection for product compilation.
 pub struct TerminalProductionRequest<'a> {
+    /// Original successful source input for compilation-local content retention.
+    /// This does not cross the canonical Terminal artifact boundary.
+    pub original_source_input: Option<&'a psi_compiler::OriginalCheckedSourceInput>,
     pub checked: &'a CheckedTrees,
     pub exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
     pub machine: TerminalMachineSelection<'a>,
@@ -28,12 +31,23 @@ impl<'a> TerminalProductionRequest<'a> {
         exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
     ) -> Self {
         Self {
+            original_source_input: None,
             checked,
             exact_toolchain_sources,
             machine,
             roots: psi_compiler::TerminalProgramRoots::default(),
             optimization_selections: optimization::PsiOptimizationSelections::default(),
         }
+    }
+
+    /// Retain the actual original input beside this production request. It is
+    /// not a certificate that a pruned/lowered artifact contains every input.
+    pub fn with_original_source_input(
+        mut self,
+        input: &'a psi_compiler::OriginalCheckedSourceInput,
+    ) -> Self {
+        self.original_source_input = Some(input);
+        self
     }
 
     /// Publish through the same Psi operation compile-time jobs can consume,
@@ -60,6 +74,7 @@ impl<'a> TerminalProductionRequest<'a> {
             })
             .collect();
         let produced = psi_compiler::TerminalProductionRequest {
+            original_source_input: self.original_source_input,
             checked: self.checked,
             exact_toolchain_sources: self.exact_toolchain_sources,
             machine: self.machine,
