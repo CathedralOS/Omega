@@ -261,6 +261,43 @@ impl SelectedCheckedRequirementRow<'_> {
                 instances.push(application.signature.symbol);
             }
         }
+        // Ordinary top-level machine specialization has its own checked
+        // association owner. It does not publish a trait application header.
+        // Join only the selected source lineage; another provider's receipt
+        // cannot add demand or supply to this plan row.
+        if self.program.machine(self.requirement_template).is_some() {
+            for row in self.check_facts.provider_closed_requirements.iter() {
+                if row.template == self.requirement_template
+                    && row.selecting_declaration == row.provider
+                    && self.is_source_machine_instance(row.provider)
+                    && !instances.contains(&row.closed_requirement)
+                {
+                    instances.push(row.closed_requirement);
+                }
+            }
+        }
+        if std::env::var_os("OMEGA_SOURCE_CONSTANT_INPUT_TRACE").is_some()
+            && self.program.machine(self.requirement_template).is_some()
+        {
+            eprintln!(
+                "TRACE_SELECTED_MACHINE_APPLICATION template={:?} source={:?} instances={:?}",
+                self.requirement_template, self.source_template, instances
+            );
+            for row in self
+                .check_facts
+                .provider_closed_requirements
+                .iter()
+                .filter(|row| row.template == self.requirement_template)
+            {
+                eprintln!(
+                    "TRACE_SELECTED_MACHINE_APPLICATION_ROW provider={:?} selecting={:?} closed={:?} source_lineage={}",
+                    row.provider,
+                    row.selecting_declaration,
+                    row.closed_requirement,
+                    self.is_source_machine_instance(row.provider)
+                );
+            }
+        }
         if self.directly_closed() && !self.adapter.has_specialization_parameters() {
             instances.insert(0, self.requirement_template);
         }
@@ -315,6 +352,11 @@ impl SelectedCheckedRequirementRow<'_> {
             .is_some()
         {
             return self.finite_application(requirement_instance);
+        }
+        if requirement_instance != self.requirement_template
+            && self.program.machine(self.requirement_template).is_some()
+        {
+            return self.checked_machine_application(requirement_instance);
         }
         let mut source_conformance = arena::Handle::invalid();
         let mut instance_conformance = arena::Handle::invalid();
@@ -443,6 +485,130 @@ impl SelectedCheckedRequirementRow<'_> {
             instance_conformance,
             named_conformance: self.named_conformance,
             realization_state,
+        })
+    }
+
+    fn is_source_machine_instance(&self, instance: SymbolHandle) -> bool {
+        let mut receipts = self
+            .program
+            .machine_specializations
+            .iter()
+            .filter(|receipt| receipt.instance == instance);
+        receipts.next().is_some_and(|receipt| {
+            receipt.template == self.source_template && receipt.binding_application.is_valid()
+        }) && receipts.next().is_none()
+    }
+
+    /// Consume checking's exact closed machine/refinement association. This
+    /// is the ordinary machine receipt class beside public trait applications;
+    /// its actual tuple was already judged by the checking producer.
+    fn checked_machine_application(
+        &self,
+        requirement_instance: SymbolHandle,
+    ) -> Result<SelectedCheckedRequirementApplication, Diagnostic> {
+        let failure = || {
+            Diagnostic::error(
+                "selected checked machine application lost its exact source association",
+            )
+        };
+        if self.named_conformance.is_valid() {
+            return Err(failure());
+        }
+        let mut rows = self
+            .check_facts
+            .provider_closed_requirements
+            .iter()
+            .filter(|row| {
+                row.template == self.requirement_template
+                    && row.closed_requirement == requirement_instance
+                    && row.selecting_declaration == row.provider
+                    && self.is_source_machine_instance(row.provider)
+            });
+        let row = rows.next().ok_or_else(failure)?;
+        if rows.next().is_some()
+            || row.receiving_application.is_valid()
+            || self
+                .check_facts
+                .provider_closed_requirements
+                .receiving_regions(row)
+                .is_none_or(|regions| !regions.is_empty())
+        {
+            return Err(failure());
+        }
+        let mut requirements = self
+            .program
+            .machine_specializations
+            .iter()
+            .filter(|receipt| receipt.instance == requirement_instance);
+        if !requirements.next().is_some_and(|receipt| {
+            receipt.template == self.requirement_template && receipt.binding_application.is_valid()
+        }) || requirements.next().is_some()
+        {
+            return Err(failure());
+        }
+        let requirement = self
+            .program
+            .machine(requirement_instance)
+            .ok_or_else(failure)?;
+        if requirement.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement
+            || requirement.has_specialization_parameters()
+        {
+            return Err(failure());
+        }
+        let source = self
+            .program
+            .machine(self.source_template)
+            .ok_or_else(failure)?;
+        let implementation = self.program.machine(row.provider).ok_or_else(failure)?;
+        let source_clause = |machine: &checked_trees::typed_trees::machine::Machine| {
+            let mut clauses = self
+                .program
+                .machine_trait_conformances(machine)
+                .iter()
+                .enumerate()
+                .filter(|(_, clause)| {
+                    clause.symbol == self.requirement_template
+                        && clause.requirement_symbol == self.requirement_template
+                        && clause.external_binding.is_none()
+                });
+            let (ordinal, _) = clauses.next()?;
+            if clauses.next().is_some() {
+                return None;
+            }
+            Some(machine.satisfies.handle_at(u32::try_from(ordinal).ok()?))
+        };
+        let source_conformance = source_clause(source).ok_or_else(failure)?;
+        let instance_conformance = source_clause(implementation).ok_or_else(failure)?;
+        let implementation = crate::target_machines::realized_machine(
+            self.program,
+            implementation,
+            if self.plan.target.is_empty() {
+                target::TargetProfile::host()
+            } else {
+                target::TargetProfile::from_canonical_target_name(&self.plan.target)
+                    .map_err(|_| failure())?
+            },
+        )
+        .ok_or_else(failure)?;
+        if implementation.has_specialization_parameters()
+            || !implementation.supplies_checked_body()
+            || self
+                .check_facts
+                .contract_plans
+                .for_machine(implementation.symbol)
+                .is_none()
+        {
+            return Err(failure());
+        }
+        Ok(SelectedCheckedRequirementApplication {
+            requirement_template: self.requirement_template,
+            requirement_instance,
+            realization_template: self.adapter.symbol,
+            realization_instance: implementation.symbol,
+            source_conformance,
+            instance_conformance,
+            named_conformance: Default::default(),
+            realization_state: Default::default(),
         })
     }
 
