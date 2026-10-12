@@ -61,6 +61,13 @@ impl SelectedCheckedRequirementApplication {
     }
 }
 
+/// The two existing source issuers for applied top-level requirements.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum MachineApplicationReceipt {
+    DemandedRealization,
+    OrdinarySpecialization,
+}
+
 /// One selected source row and its original checking owner. Consumers borrow
 /// this view for both direct and produced applications; the selected plan is
 /// never reconstructed from an instantiated body or runtime signature.
@@ -355,6 +362,8 @@ impl SelectedCheckedRequirementRow<'_> {
         }
         if requirement_instance != self.requirement_template
             && self.program.machine(self.requirement_template).is_some()
+            && self.machine_application_receipt(requirement_instance)?
+                == MachineApplicationReceipt::OrdinarySpecialization
         {
             return self.checked_machine_application(requirement_instance);
         }
@@ -486,6 +495,64 @@ impl SelectedCheckedRequirementRow<'_> {
             named_conformance: self.named_conformance,
             realization_state,
         })
+    }
+
+    /// Join positive issuer custody before choosing its existing consumer.
+    /// Neither issuer is a recovery route for a rejected or malformed receipt.
+    fn machine_application_receipt(
+        &self,
+        requirement_instance: SymbolHandle,
+    ) -> Result<MachineApplicationReceipt, Diagnostic> {
+        let failure = || {
+            Diagnostic::error(
+                "selected checked machine application has missing or conflicting source issuers",
+            )
+        };
+        let mut demands = self
+            .program
+            .instantiated_requirement_realizations
+            .iter()
+            .filter(|(_, row)| {
+                row.requirement_template == self.requirement_template
+                    && row.requirement_instance == requirement_instance
+                    && row.provider_template == self.source_template
+                    && row.named_conformance == self.named_conformance
+            });
+        let demand = demands.next().map(|(_, row)| row);
+        if demands.next().is_some() {
+            return Err(failure());
+        }
+        let mut checked = self
+            .check_facts
+            .provider_closed_requirements
+            .iter()
+            .filter(|row| {
+                row.template == self.requirement_template
+                    && row.closed_requirement == requirement_instance
+                    && row.selecting_declaration == row.provider
+                    && self.is_source_machine_instance(row.provider)
+            });
+        let checked_row = checked.next();
+        if checked.next().is_some() {
+            return Err(failure());
+        }
+        if let Some(row) = checked_row {
+            if row.receiving_application.is_valid()
+                || self
+                    .check_facts
+                    .provider_closed_requirements
+                    .receiving_regions(row)
+                    .is_none_or(|regions| !regions.is_empty())
+                || demand.is_some_and(|demand| demand.provider_instance != row.provider)
+            {
+                return Err(failure());
+            }
+        }
+        match (demand, checked_row) {
+            (Some(_), _) => Ok(MachineApplicationReceipt::DemandedRealization),
+            (None, Some(_)) => Ok(MachineApplicationReceipt::OrdinarySpecialization),
+            (None, None) => Err(failure()),
+        }
     }
 
     fn is_source_machine_instance(&self, instance: SymbolHandle) -> bool {
