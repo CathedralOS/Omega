@@ -6222,3 +6222,7 @@ fail/arithmetic/widened_result_predicate_invalid_write rejected 173ms expected @
 	machine `corrupt` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/calls/state_arrival_call_result_above_bound rejected 421ms expected @a0a35c7bbb43+wt
 	cannot prove requires contract for call visit from main: index <= 3 (needs fact `index <= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/termination/nested_field_without_predicate_cannot_bound_result rejected 418ms expected @2430f497a77c+wt
+	cannot prove ensures contract for exit from Engine::observe at statement 0: result <= 8
+fail/termination/rank_range_mutable_endpoint_overflow_after_write rejected 152ms expected @2430f497a77c+wt
+	exact arithmetic in machine `walk` state `entry` local `endpoint` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).

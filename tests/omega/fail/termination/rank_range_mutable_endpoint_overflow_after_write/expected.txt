@@ -1,0 +1,1 @@
+exact arithmetic in machine `walk` state `entry` local `endpoint` may overflow `u64`

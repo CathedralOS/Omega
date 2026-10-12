@@ -874,3 +874,5 @@ pass/control_flow/runtime_owned_state_parallel_swap_exit built 6282ms exit:70 in
 pass/arithmetic/runtime_widened_result_predicates_exit built 6400ms exit:70 interpreter-exit:70 interpreter:agrees @44e66b7d2fb4+wt
 pass/host/runtime_console_byte_payload_bounds_exit built 5280ms exit:70 interpreter-exit:70 interpreter:agrees @afccbf17d92b+wt
 pass/calls/runtime_dispatch_binary_call_argument_exit built 5355ms exit:70 interpreter-exit:70 interpreter:agrees @a0a35c7bbb43+wt
+pass/termination/rank_endpoint_borrows_recovery built 5679ms exit:0 interpreter-exit:0 interpreter:agrees @2430f497a77c+wt
+pass/termination/ranked_callee_projected_receiver_compile built 5681ms exit:70 interpreter-exit:70 interpreter:agrees @2430f497a77c+wt

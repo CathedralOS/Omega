@@ -1645,9 +1645,8 @@ defines the complete product bar.
     formation; state results into enclosing postconditions. Customers:
     `pass/calls/nested_value_call_arg_compile`,
     `pass/arithmetic/anonymous_rational_arguments`,
-    `pass/proofs/accumulator_guarantee_exit`,
-    `pass/termination/ranked_callee_projected_receiver_compile` (still has
-    suffixes). A mutable parameter's `requires` constrains arrival where the old
+    `pass/proofs/accumulator_guarantee_exit`.
+    A mutable parameter's `requires` constrains arrival where the old
     suffix was store-enforced: re-prove dependent reads after a write
     (`pass/termination/rank_range_mutable_bounded_endpoint` plus negative
     mutation controls). Keep `pass/dependent/runtime_state_dependent_index_forward_exit`
@@ -1658,6 +1657,11 @@ defines the complete product bar.
   `fail/calls/state_arrival_call_result_above_bound` (guarded re-entry satisfies
   the ordinary state arrival requirement; a guaranteed call result above the
   bound does not),
+  `pass/termination/ranked_callee_projected_receiver_compile`,
+  `pass/termination/rank_endpoint_borrows_recovery` and
+  `fail/termination/{nested_field_without_predicate_cannot_bound_result,rank_range_mutable_endpoint_overflow_after_write,rank_range_subject_intervening_write}`
+  (declaration-owned nested field bounds and ranked loan transport survive;
+  neither matching field names nor stale mutable arrival facts grant bounds),
   `pass/host/runtime_console_bounded_line_{lf,full,partial_eof,middle_window}_exit`
   and `pass/host/runtime_console_byte_payload_bounds_exit`
   and `fail/host/console_byte_payload_{negative,above_byte}` (active i32 payload

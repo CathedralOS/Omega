@@ -1,91 +1,43 @@
-//! Direct owned projections contribute storage bounds under their exact owner.
+//! Declaration-owned storage bounds follow the shared readable field path.
+//!
+//! The bound belongs to the selected field, not the number of member hops in
+//! its source spelling. Canonical coordinates and the structural declaration
+//! walk retain each owner, reference crossing and field identity. This query
+//! establishes no value, case membership or read permission; those remain
+//! obligations of the observation. Mutable arrival facts are never recovered.
 
-use symbols::SymbolKind;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::TypeReferenceHandle;
 
 pub(super) fn type_reference(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
-    // When true, a mutable receiver still contributes the field's declared
-    // storage bounds: every store maintains them, so they hold at every
-    // evaluation. When false, mutable places are opaque.
     declared_mutable_leaves: bool,
 ) -> Option<TypeReferenceHandle> {
-    let member = program.expression_table.member_node(expression)?;
-    let Some(receiver) = program.expression_table.name_path_node(member.receiver) else {
-        return None;
-    };
-    // One member: the receiver is a bare binding occurrence, not a chain.
-    // Which binding it is comes from the resolved symbol below, so the
-    // spelling itself is only diagnostic payload here.
-    let [_] = program.expression_table.name_path_members(receiver.members) else {
-        return None;
-    };
-    // Which parameter carries the machine's data record, under either
-    // spelling. The exemptions below are about the machine's OWN storage, not
-    // about the keyword that used to name it.
+    let place = crate::canonical_place_from_expression(program, expression)?;
+    let root = place.root.as_symbol()?;
     let parameters = program.state_parameters(state);
-    let subject = program
+    let parameter = program.state_parameter_by_symbol(state, root)?;
+    // Invocation-fixed queries retain the existing immutable-input rule.
+    // The machine's attached storage is different: its own field writes owe
+    // the declared predicates, independently of its exclusive binding.
+    let owned_storage = program
         .data_binding_position(machine.attached_data_symbol, parameters)
-        .map(|position| parameters[position].symbol);
-    let is_subject = |parameter: &typed_trees::signature::StateParameter| {
-        parameter.symbol.is_valid() && Some(parameter.symbol) == subject
-    };
-    let parameter = parameters.iter().find(|parameter| {
-        let symbol_match = receiver.symbol.is_valid()
-            && receiver.symbol == receiver.head_symbol
-            && parameter.symbol == receiver.symbol;
-        symbol_match
-            // The machine's own field storage enforces its declared bounds on
-            // every write, so `self.k` keeps them even through a `&mut self`
-            // receiver — the read is of storage, not of a snapshot-only value.
-            // A named subject is that same storage, so it keeps them too.
-            && (declared_mutable_leaves || !parameter.is_mutable || is_subject(parameter))
-            && !parameter.is_const
-    })?;
-    // The machine's own field storage enforces its declared bounds on every
-    // write, so `self.k` keeps them even through a `&mut self` receiver. Peel
-    // the receiver's self reference (the `Self` alias carries the field
-    // parent), and resolve the record declaration through the machine's
-    // attached data. An ordinary reference or generic receiver still needs
-    // load or instantiated-field evidence; a named record contributes only
-    // its stored field's own enforced bounds.
-    let mut owner_type = parameter.type_reference;
-    if is_subject(parameter) {
-        owner_type = program
-            .type_reference_table
-            .peeled_type_reference(owner_type);
-    }
-    let TypeReferenceNode::Named { symbol: owner, .. } =
-        program.type_reference_table.type_reference(owner_type)
-    else {
-        return None;
-    };
-    let declaration = {
-        program
-            .data_definitions()
-            .iter()
-            .find(|declaration| owner.is_valid() && declaration.symbol == *owner)?
-    };
-    let selected = program.symbols.get(member.member_symbol);
-    if !member.member_symbol.is_valid()
-        || selected.kind != SymbolKind::Field
-        || selected.parent != *owner
-        || member.case_variant.is_some()
-    {
+        .is_some_and(|position| parameters[position].symbol == root);
+    if parameter.is_const || (parameter.is_mutable && !declared_mutable_leaves && !owned_storage) {
         return None;
     }
-    crate::value_custody::places::exact_data_member_field(
+    let field =
+        crate::structural_scalar_field_at_coordinate(program, parameters, root, &place.segments)?;
+    let reference = crate::value_custody::places::declared_place_type_raw(
         program,
-        declaration,
-        member.member_symbol,
-        member.member.as_str(),
-        None,
-    )
-    .map(|field| field.type_reference)
+        machine,
+        Some(state),
+        expression,
+    )?;
+    (program.primitive_type_reference(reference) == Some(field.primitive_type)).then_some(reference)
 }

@@ -16,10 +16,11 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
-data Wrap { remaining: u64 [4..=500]; }
+data Wrap where remaining >= 4, remaining <= 500 { remaining: u64; }
 data Indirect { target: &mut Wrap; }
 
-machine walk(n: u64 [0..=4], indirect: Indirect)
+machine walk(n: u64, indirect: Indirect)
+requires n <= 4
 terminates by n -> Nat::Descending in 0..=indirect.target.remaining;
 -> u64 {
     transition n > 0 {

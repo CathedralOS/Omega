@@ -130,6 +130,34 @@ and a mutation leaving invalid timestamp storage reject. Clock-dependent
 hosted consumers named in that witness; a pure arithmetic run alone does not
 qualify their host bindings.
 
+## Audited ranked borrowed-field customers
+
+The six `[0..=8]` declarations in
+`termination/ranked_callee_projected_receiver_compile` at `8f93c866a3`
+are reconciled in its [runtime witness inventory](../../../tests/omega/pass/termination/ranked_callee_projected_receiver_compile/README.md#historical-scalar-declarations).
+The full caller observes the callee's write through the nested cursor and
+exits 70 in both engines. The bound lookup now follows the common readable
+declaration path instead of requiring a one-field source spelling. The
+absent-predicate control refuses; matching names supply no interval authority.
+
+The two declarations recovered from
+`c60792d7bdd^:omega-rust/omega/compiler/compiler/tests/rank_endpoint_borrows.rs`
+live in `termination/rank_endpoint_borrows_recovery`: `Wrap.remaining`
+retains `u64 [4..=500]` as data `where remaining >= 4, remaining <= 500`,
+and `walk.n` retains `u64 [0..=4]` as `requires n <= 4`. The complete program
+carries an exclusive reference in an owned record across ranked recursive
+calls and exits zero in both engines. The rank range expression is unchanged;
+it is not a scalar type suffix or a storage capacity.
+
+The `limit: u64 [0..=10]` declaration in
+`termination/rank_range_subject_intervening_write` at `8894bb375de` now
+contributes `limit <= 10` to the machine's existing `requires`. Its subject
+write still invalidates the rank premise and rejects. A mutable parameter's
+arrival requirement is not store enforcement: the separately canonical
+`rank_range_mutable_bounded_endpoint` preserves its premise because its
+prefix does not write the bound; `rank_range_mutable_endpoint_overflow_after_write`
+rejects Exact endpoint arithmetic after replacing the bound with `u64::MAX`.
+
 ## Audited calling vocabulary counts
 
 The 11 scalar suffixes in `source/library/std/calling.omg` at `c1303f89d4`

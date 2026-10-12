@@ -57,10 +57,11 @@ fn exact_integer_primitive(
 }
 
 /// Bound a literal or builtin arithmetic tree over exact immutable primitive
-/// parameters or their direct owned integer fields. No initializer, caller flow
-/// fact, callee body, or mutable place is read: the interval is valid independently
-/// of the evaluation snapshot. A parameter's own `requires` bounds are arrival
-/// facts, not snapshot facts, so they are read.
+/// parameters or declaration-checked integer field paths. No initializer,
+/// caller flow fact or callee body is replayed: field bounds come from the
+/// selected storage declaration and its standing predicates, not a captured
+/// value. A parameter's own `requires` bounds are arrival facts, not snapshot
+/// facts, and mutable parameter arrival facts are excluded.
 pub fn immutable_integer_expression_bounds(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
