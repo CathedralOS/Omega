@@ -1,0 +1,23 @@
+{
+  "source_only_unexecuted": true,
+  "intent": "Exact generic closed public Calling projection to a genuine macOS host import, distinct Count4/8 static identities and complete named provider map; accepted plan must retain original authored Aapcs64 CallReturn policy and MachO locator.",
+  "target": "macos_arm64",
+  "mode": "native",
+  "authored_native_exit": 0,
+  "source_assertion": "first > 0 && first == second; otherwise Trap",
+  "terminal_support": "not claimed; no Terminal oracle authored",
+  "donors": {
+    "calling_policy": "tests/omega/fail/providers/kernel_entry_host_calling_policy/main.omg",
+    "foreign_locator": "tests/omega/pass/providers/original_nongeneric_import_preserved/main.omg"
+  },
+  "changes": [
+    "target provider LinuxARM64\u2192macOSARM64",
+    "Syscall172\u2192exact original _getpid binding machine",
+    "Build target/application label",
+    "diagnostic comments only"
+  ],
+  "original_invalid_controls_unchanged": [
+    "fail/providers/kernel_entry_host_calling_policy",
+    "fail/providers/import_entry_kernel_calling_policy"
+  ]
+}
