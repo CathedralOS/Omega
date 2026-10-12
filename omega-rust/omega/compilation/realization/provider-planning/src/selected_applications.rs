@@ -283,28 +283,6 @@ impl SelectedCheckedRequirementRow<'_> {
                 }
             }
         }
-        if std::env::var_os("OMEGA_SOURCE_CONSTANT_INPUT_TRACE").is_some()
-            && self.program.machine(self.requirement_template).is_some()
-        {
-            eprintln!(
-                "TRACE_SELECTED_MACHINE_APPLICATION template={:?} source={:?} instances={:?}",
-                self.requirement_template, self.source_template, instances
-            );
-            for row in self
-                .check_facts
-                .provider_closed_requirements
-                .iter()
-                .filter(|row| row.template == self.requirement_template)
-            {
-                eprintln!(
-                    "TRACE_SELECTED_MACHINE_APPLICATION_ROW provider={:?} selecting={:?} closed={:?} source_lineage={}",
-                    row.provider,
-                    row.selecting_declaration,
-                    row.closed_requirement,
-                    self.is_source_machine_instance(row.provider)
-                );
-            }
-        }
         if self.directly_closed() && !self.adapter.has_specialization_parameters() {
             instances.insert(0, self.requirement_template);
         }

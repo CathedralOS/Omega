@@ -382,46 +382,6 @@ fn retain_interface_applications(
                 .is_empty()
             && signature.lifetime_parameters.is_empty()
         {
-            if std::env::var_os("OMEGA_SOURCE_CONSTANT_INPUT_TRACE").is_some() {
-                eprintln!(
-                    "TRACE_INTERFACE_COMPLETION selected={selected_interface:?} scope={:?} owner={owner:?} member={member:?}",
-                    scope.application_identity(&checked.typed),
-                );
-                for (_, header) in checked
-                    .typed
-                    .instantiated_requirement_signatures
-                    .iter()
-                    .filter(|(_, header)| header.requirement_template == member)
-                {
-                    let symbol = checked
-                        .typed
-                        .trait_machine_signatures
-                        .get(header.signature)
-                        .symbol;
-                    eprintln!(
-                        "TRACE_INTERFACE_COMPLETION_HEADER symbol={symbol:?} header={header:?} roster={:?} identity={:?}",
-                        checked
-                            .typed
-                            .requirement_interface_applications
-                            .span(header.interface_applications),
-                        closed_interface_scope(checked, header)
-                            .and_then(|scope| scope.application_identity(&checked.typed))
-                    );
-                }
-                for application in checked
-                    .typed
-                    .closed_requirement_applications()
-                    .filter(|application| application.template == member)
-                {
-                    eprintln!(
-                        "TRACE_INTERFACE_COMPLETION_FINITE symbol={:?} declaring={:?} arguments={:?} identity={:?}",
-                        application.signature.symbol,
-                        application.declaring_trait,
-                        application.trait_arguments,
-                        application.trait_application_identity
-                    );
-                }
-            }
             return unsupported(
                 "closed boundary interface has no checked application for an original member",
             );

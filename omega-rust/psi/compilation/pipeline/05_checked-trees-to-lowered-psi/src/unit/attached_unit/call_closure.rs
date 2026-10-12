@@ -91,16 +91,6 @@ pub(super) fn unique_unit_boundary(
         .iter()
         .filter(|plan| plan.machine == symbol);
     let plan = matches.next().ok_or_else(|| {
-        if std::env::var_os("OMEGA_BOUNDARY_PLAN_TRACE").is_some() {
-            eprintln!(
-                "TRACE_BOUNDARY_PLAN_MISSING symbol={symbol:?} available={:?}",
-                plans
-                    .boundary_machines()
-                    .iter()
-                    .map(|plan| plan.machine)
-                    .collect::<Vec<_>>()
-            );
-        }
         LoweringError::Unsupported(
             "attached Unit closure is missing a checked boundary machine plan",
         )

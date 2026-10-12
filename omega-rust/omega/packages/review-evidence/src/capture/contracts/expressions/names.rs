@@ -139,12 +139,6 @@ pub(crate) fn project_contract_name_expression(
                 context.subject_kind, context.subject_name
             ))]);
         }
-        if std::env::var_os("OMEGA_MAIN21_SCOPE_TRACE").is_some() {
-            eprintln!(
-                "main21-contract-name expression={expression:?} root={root_symbol:?} resolved={:?} members={members:?} binders={binders:?}",
-                path.symbol
-            );
-        }
         if !path.symbol.is_valid() {
             return Err(vec![Diagnostic::error(format!(
                 "reviewed {} `{}` contract contains an unresolved name expression",

@@ -201,22 +201,7 @@ pub fn canonical_place_source_type_application(
         },
     )?;
     let mut applications = Vec::new();
-    let trace = std::env::var_os("OMEGA_LIFETIME_CORRESPONDENCE_TRACE").is_some();
-    if trace {
-        eprintln!(
-            "source-place root={:?} reference={:?} type={}",
-            place.root,
-            reference,
-            program.display_type_reference(reference)
-        );
-    }
     for segment in &place.segments {
-        if trace {
-            eprintln!(
-                "source-place segment={segment:?} reference={reference:?} type={} frames={applications:?}",
-                program.display_type_reference(reference)
-            );
-        }
         let (projected, frames) =
             program.project_enclosing_data_type_reference(reference, &applications)?;
         reference = projected;
@@ -233,13 +218,6 @@ pub fn canonical_place_source_type_application(
                     .type_symbol(&program.type_reference_table);
                 let declaration = program.unique_data_definition_by_symbol(owner)?;
                 applications.push(parent);
-                if trace {
-                    eprintln!(
-                        "source-field owner={owner:?} declaration={} members={:?} selected={symbol:?}",
-                        declaration.name,
-                        program.data_members(declaration)
-                    );
-                }
                 reference = data_field_type_reference(program, declaration, *symbol)?;
             }
             facts::PlaceSegment::Case { .. } => {}

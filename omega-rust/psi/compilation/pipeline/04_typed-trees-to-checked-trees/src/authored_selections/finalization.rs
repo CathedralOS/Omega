@@ -517,28 +517,6 @@ pub(crate) fn finalize_checked_authored_selections(
             ))
             .with_source_span(selection.source_span()));
         }
-        if std::env::var_os("OMEGA_SOURCE_CONSTANT_INPUT_TRACE").is_some() {
-            let references = typed_trees::references::collect_program_references(program);
-            eprintln!(
-                "UNRESOLVED_SELECTION occurrence={} rooted={} excluded={} span={:?}",
-                selection.occurrence_id().ordinal(),
-                references
-                    .authored_selection_occurrences
-                    .contains(&selection.occurrence_id()),
-                descriptor_occurrences.contains(&selection.occurrence_id()),
-                selection.source_span()
-            );
-            for (expression, node) in expressions.iter_expressions().filter(|(expression, _)| {
-                expressions
-                    .authored_selection_occurrences(*expression)
-                    .any(|occurrence| occurrence == selection.occurrence_id())
-            }) {
-                eprintln!(
-                    "UNRESOLVED_SELECTION expression={expression:?} rooted={} node={node:?}",
-                    references.expressions.contains(&expression)
-                );
-            }
-        }
         let location = program
             .symbols
             .source_file(selection.source_span())

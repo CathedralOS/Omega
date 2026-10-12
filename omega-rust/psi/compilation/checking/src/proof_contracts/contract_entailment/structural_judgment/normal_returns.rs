@@ -199,25 +199,6 @@ impl<'program> StructuralJudge<'program> {
             &mut Vec::new(),
             environment_epoch,
         );
-        if outcomes.is_none() && super::super::struct_trace() {
-            eprintln!(
-                "STRUCT normal-path unavailable machine={} state={} expression={:?} value={} return={:?} source_target={:?} mathematical={} environment={:?}",
-                scope.0.name,
-                scope.1.name,
-                expression,
-                self.program.expression_table.display_name(expression),
-                scope.2,
-                self.program
-                    .expression_table
-                    .source_call_node(expression)
-                    .map(|call| call.target_symbol),
-                self.program
-                    .expression_table
-                    .source_call_node(expression)
-                    .is_some_and(|call| call_has_mathematical_denotation(self.program, call)),
-                environment
-            );
-        }
         outcomes
     }
 
@@ -371,7 +352,6 @@ impl<'program> StructuralJudge<'program> {
         for &(child, reference) in operands {
             let mut next = Vec::new();
             for (context, inputs) in contexts {
-                let context_program = context.program;
                 let outcomes = context.evaluate_normal_paths(
                     child,
                     environment,
@@ -381,17 +361,6 @@ impl<'program> StructuralJudge<'program> {
                     entries,
                     environment_epoch,
                 );
-                if outcomes.is_none() && super::super::struct_trace() {
-                    eprintln!(
-                        "STRUCT normal-operand unavailable machine={} state={} expression={:?} value={} expected={:?} environment={:?}",
-                        scope.0.name,
-                        scope.1.name,
-                        child,
-                        context_program.expression_table.display_name(child),
-                        reference,
-                        environment
-                    );
-                }
                 for path in outcomes? {
                     let mut inputs = inputs.clone();
                     inputs.push((child, path.value));
@@ -759,11 +728,6 @@ impl<'program> StructuralJudge<'program> {
                         )?,
                     }
                 } else {
-                    if super::super::struct_trace() {
-                        eprintln!("STRUCT normal-term unavailable machine={} state={} expression={:?} value={} runtime={} mathematical={} environment={:?}",
-                            scope.0.name, scope.1.name, expression, program.expression_table.display_name(expression), judge.runtime_body_values,
-                            program.expression_table.source_call_node(expression).is_some_and(|call| call_has_mathematical_denotation(program, call)), live_environment);
-                    }
                     return None;
                 };
                 if let (StructuralTerm::Application { arguments, .. }, Some(inputs)) =
