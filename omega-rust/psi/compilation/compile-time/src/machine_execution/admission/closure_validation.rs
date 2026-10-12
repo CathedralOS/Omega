@@ -15,6 +15,7 @@ pub(super) fn checked_closure_violation(
     program: &TypedTrees,
     root: &Machine,
     discharge_authored_requires: bool,
+    selected_operators: &[crate::SelectedBuildTimeBinaryOperator],
 ) -> Option<String> {
     let mut completed = Vec::new();
     let mut active = Vec::new();
@@ -27,6 +28,7 @@ pub(super) fn checked_closure_violation(
         &mut active,
         &mut path,
         discharge_authored_requires,
+        selected_operators,
     )
 }
 
@@ -226,6 +228,7 @@ fn machine_termination_violation(
     active: &mut Vec<SymbolHandle>,
     path: &mut Vec<String>,
     discharge_authored_requires: bool,
+    selected_operators: &[crate::SelectedBuildTimeBinaryOperator],
 ) -> Option<String> {
     if completed.contains(&machine_symbol) {
         return None;
@@ -306,6 +309,25 @@ fn machine_termination_violation(
             None
         };
         if let Some(target_machine_symbol) = target_machine_symbol {
+            // Interpretation consumes a selected primitive at this exact
+            // occurrence, even when ordinary checking retains its public
+            // requirement-call spelling. The requirement is still a public
+            // envelope, not an ordinary body or a donated termination receipt.
+            if is_selected_kernel_call(call, selected_operators) {
+                let requirement = program.machine(target_machine_symbol)?;
+                path.push(requirement.name.as_str().to_owned());
+                let violation = (!discharge_authored_requires)
+                    .then(|| machine_precondition_violation(program, requirement, path))
+                    .flatten()
+                    .or_else(|| machine_linear_carrier_violation(program, requirement, path));
+                path.pop();
+                if violation.is_some() {
+                    active.retain(|active_symbol| *active_symbol != machine_symbol);
+                    path.pop();
+                    return violation;
+                }
+                continue;
+            }
             if let Some(violation) = machine_termination_violation(
                 call_edges,
                 program,
@@ -314,6 +336,7 @@ fn machine_termination_violation(
                 active,
                 path,
                 discharge_authored_requires,
+                selected_operators,
             ) {
                 active.retain(|active_symbol| *active_symbol != machine_symbol);
                 path.pop();
@@ -335,6 +358,28 @@ fn machine_termination_violation(
     completed.push(machine_symbol);
     path.pop();
     None
+}
+
+/// Supplied rows were independently authenticated against the current typed
+/// operands before this walk. Join the actual checked occurrence as well;
+/// another call to the same requirement cannot borrow its primitive meaning.
+fn is_selected_kernel_call(
+    call: &BuildTimeCallEdge,
+    selected: &[crate::SelectedBuildTimeBinaryOperator],
+) -> bool {
+    if !call.authored_expression.is_valid() {
+        return false;
+    }
+    let mut matching = selected.iter().filter(|row| {
+        row.expression == call.authored_expression
+            && row.requirement == call.target_machine_symbol
+            && matches!(row.origin, checked_trees::CheckedValueOrigin::StateStatement {
+                machine_symbol, state_symbol, statement_index, ..
+            } if machine_symbol == call.source_machine_symbol
+                && state_symbol == call.source_state_symbol
+                && statement_index == call.statement_index)
+    });
+    matching.next().is_some() && matching.next().is_none()
 }
 
 fn machine_precondition_violation(
