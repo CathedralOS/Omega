@@ -26,7 +26,7 @@ impl BoundaryField {
         else {
             return false;
         };
-        if typed.closed_requirement_application(target).is_some() {
+        if has_public_application(typed, target) {
             return typed.requirement_application_matches_scope(target, &scope);
         }
         typed
@@ -72,7 +72,7 @@ impl BoundaryField {
         if scope.declaration.symbol != self.trait_symbol {
             return false;
         }
-        if typed.closed_requirement_application(requirement).is_some() {
+        if has_public_application(typed, requirement) {
             return typed.requirement_application_matches_scope(requirement, &scope);
         }
         typed
@@ -82,6 +82,17 @@ impl BoundaryField {
                     && scope.declaring_scope(typed, owner.symbol).is_some()
             })
     }
+}
+
+/// Both finite instances and demanded public headers retain an issued
+/// application. Their complete receiver telescope is owned by the shared
+/// scope join; treating a demanded header as an unapplied declaration loses
+/// inherited Type/Const/region operands. Logical-only source contracts supply
+/// no executable row, and ambiguous or malformed producers remain absent.
+fn has_public_application(typed: &TypedTrees, requirement: symbols::SymbolHandle) -> bool {
+    typed
+        .public_trait_requirement_signature(requirement)
+        .is_some_and(|public| public.application.is_valid())
 }
 
 pub(crate) fn exact_boundary_trait<'typed>(
