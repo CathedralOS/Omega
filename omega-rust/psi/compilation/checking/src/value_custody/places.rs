@@ -346,11 +346,21 @@ pub fn declared_place_type_raw(
             Some(member_resolution::MemberPosition::Reference(receiver)),
             member,
         );
-        return project_type_reference_from_segments(
+        let projected = project_type_reference_from_segments(
             program,
             receiver,
             &[facts::PlaceSegment::Field { symbol }],
         );
+        if std::env::var_os("OMEGA_MAIN21_SCOPE_TRACE").is_some() {
+            eprintln!(
+                "main21-member expression={handle:?} member={} retained={:?} selected={symbol:?} receiver={receiver:?} receiver-type={} projected={projected:?} projected-type={:?}",
+                member.member,
+                member.member_symbol,
+                program.display_type_reference(receiver),
+                projected.map(|reference| program.display_type_reference(reference))
+            );
+        }
+        return projected;
     }
     if let Some(members) = collect_member_path(program, handle) {
         return declared_member_path_type(program, current_machine, current_state, &members);
