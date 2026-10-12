@@ -26,6 +26,9 @@ use typed_trees::types::TypeReferenceHandle;
 /// handle as its referent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ReferenceCustodyRow {
+    /// Exact input classified by the producer. Zero identifies only absence,
+    /// including an unoccupied interior row; default Affine is no evidence.
+    pub type_reference: TypeReferenceHandle,
     /// The primitive referent beneath an exclusive stored `&mut` leaf — the
     /// whole-return reference-result shape. Invalid when the carrier is not
     /// that shape.
@@ -55,6 +58,7 @@ impl Default for ReferenceCustodyRow {
     /// a handle it does not name.
     fn default() -> Self {
         Self {
+            type_reference: TypeReferenceHandle::invalid(),
             primitive_loan_referent: TypeReferenceHandle::invalid(),
             stored_loan_referent: TypeReferenceHandle::invalid(),
             stored_loan_access: CheckedStructuralAccess::Owned,
@@ -108,6 +112,14 @@ impl ReferenceCustodyFacts {
             .or_else(|| self.rows.first())
             .copied()
             .unwrap_or_default()
+    }
+
+    /// The recorded classification of this exact original input. Consumers
+    /// building evidence must distinguish an absent row from genuine Affine
+    /// custody; ordinary conservative queries keep using `custody`.
+    pub fn recorded_custody(&self, reference: TypeReferenceHandle) -> Option<ReferenceCustodyRow> {
+        let row = self.rows.get(reference.arena_index() as usize)?;
+        (reference.is_valid() && row.type_reference == reference).then_some(*row)
     }
 
     /// How many arena indices the classification names. Zero before checking
