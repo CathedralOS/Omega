@@ -187,6 +187,12 @@ pub(crate) fn hoist_terminal_value_machine_call(
     expression: ExpressionHandle,
     hoisted: &mut Vec<Statement>,
 ) -> ExpressionHandle {
+    // Both terminal source positions use the same checked return route.
+    // A synthetic local would turn an admitted whole tail call into an
+    // initializer and destroy its source tail position before checking.
+    if is_scalar_return_computation(lowerer, expression) {
+        return expression;
+    }
     let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
     let Some(call) = expressions.call_node(expression) else {
         return expression;
