@@ -55,7 +55,13 @@ work only with an integration DRI. Do not mine tasks to keep a slot occupied.
 
 Choose the capability by its source-to-execution acceptance: "a helper mutates
 the caller's field and the caller observes it after return," stated as the
-program's observable behavior. Trace the remaining producer and consumer
+program's observable behavior. Acceptance covers the capability's
+variants, not one spelling: before landing, run mechanical variations of the
+program -- the value through a local, a field, a parameter or a call result;
+the operation in another state, machine or target body; an equivalent
+spelling -- and make them work through the same repair. A variant that still
+fails shows the repair recognized a shape instead of generalizing the
+operation; fix the operation, never by adding the variant's shape. Trace the remaining producer and consumer
 dependencies before the first repair. Own the outcome through the program
 running; when the next missing stage appears, that stage is the next step of
 the same assignment. Intermediate code checkpoints are fine; the assignment

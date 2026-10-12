@@ -321,6 +321,11 @@ Commit messages carry no tool attribution: no "Generated with ..." line, no
   or mode with cleanup deferred to a task. Preserve genuine semantic and ABI
   distinctions. Optional optimization specialization requires a correct general
   path. See [compositional lowering](omega-rust/pipeline.md#compositional-lowering).
+  A repair is accepted only when mechanical variants of its program work too
+  (through a local, field, parameter or call result; in another state,
+  machine or target body; an equivalent spelling). A failing variant means the
+  repair matched a shape; generalize the operation instead of adding the
+  variant.
 - **Verify at trust boundaries, not after every stage.** Foreign package review
   and untrusted build-script execution verify; a stage never re-validates,
   replays or rebuilds output the same compile just produced. Verifiers stay
