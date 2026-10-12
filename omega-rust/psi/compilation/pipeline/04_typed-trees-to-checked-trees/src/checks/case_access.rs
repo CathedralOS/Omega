@@ -40,9 +40,12 @@ pub(super) fn check(
                     subject,
                 )
             }) {
-                diagnostics.push(Diagnostic::error(
-                    "cannot prove selected case for payload access",
-                ));
+                diagnostics.push(Diagnostic::error(format!(
+                    "cannot prove selected case for payload access `{}` in `{}` at statement {}",
+                    program.expression_table.display_name(access.expression),
+                    program.symbols.display_path(state.state_symbol, "::"),
+                    access.statement_index,
+                )));
             }
         }
     }
