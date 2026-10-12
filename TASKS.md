@@ -3523,22 +3523,12 @@ of a check the same flow already performed, not the check itself.
   is unchanged.
 
 - **RED-WINDOWS-HOST.** (new-scope)
-  Reproduce two `package-source` failures on Windows:
-  `local::recovery::tests::byte_identical_content_does_not_cross_local_origins`
-  in `src/local/recovery/tests.rs`, and
-  `tree::filesystem::read_tests::missing_file_identity_rejects_without_panicking`
-  in `src/tree/filesystem/read_tests.rs`, under
-  `omega-rust/omega/packages/source-acquisition/`.
-
-  Preserve origin isolation and missing-identity refusal on both hosts.
-  The recorded Windows failures are cross-origin cache recovery and a result
-  other than `LocalSourceChanged`, respectively. Fix the implementation or
-  a demonstrably incorrect host assumption in the test; do not platform-gate
-  away the security obligation merely to obtain a green run.
-  Acceptance: `mbx nextest run -p package-source --no-fail-fast` has no
-  failures on Windows and macOS. The missing-file-identity test is already
-  Windows-specific (`cfg(windows)`); run it there and retain the ordinary
-  cross-origin refusal control on both hosts.
+  Windows leg landed `ab6ba3198a5`+`289501b5c2f`: both named failures were
+  incorrect host assumptions in the tests, fixed without `cfg` gating —
+  `mbx nextest run -p package-source --no-fail-fast` is 93/93 green on
+  Windows x86-64. Remaining: run the same command on macOS to complete the
+  two-host acceptance; the repairs are host-portable by construction
+  (`MAIN_SEPARATOR` traversal, `DirEntry::metadata` identity source).
 
 ## PCC removal
 
