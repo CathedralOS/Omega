@@ -2554,40 +2554,35 @@ crash and native exit behavior.
     `expression_preparation/bindings/` and
     `scalar_lowering/computations/fields.rs`. Reuse the shared source-place
     and view-narrowing operations; do not add local-specific call or range routes.
-  - State: shared descriptor copies retain the original occurrence and its
-    complete immediate parents, with independent retirement. Selected owned
-    parameters retain every incoming formation and backing origin; unrelated
-    live custody agrees exactly across current post-transfer/post-cleanup edges.
-    Keep the public commands in the
+  - State: demonstrated on macOS arm64 (e7-m2, e2e-seven-20261012/m2 candidate
+    on 44e66b7d2f, unlanded): the
     [cohort fixture](tests/omega/pass/borrows/runtime_selected_shared_reference_cohort_exit/README.md)
     and [selected helper fixture](tests/omega/pass/borrows/runtime_selected_reference_record_helper_exit/README.md)
-    at 0 in both engines on macOS arm64 after ordinary package review: both
-    selections and both descriptor retirement orders restore mutation only
-    after the complete cohort ends. The live-copy write and only-one-arm
-    transfer controls remain rejected. Keep distinct shared input backings and
-    parent sets through
-    returned record/field selection, helper substitution, named-state forwarding
-    and copied descriptors; reject a helper-local source in any result arm and
-    mutation of an unselected same-lifetime input while the result remains live.
-    Every reconstructed returned source must belong to the declared result
-    lifetime relation; an unrelated-lifetime input is not a fallback candidate.
-    Retirement separately retains possible transfers and
-    proves which source paths transfer on every arm.
+    hold 0 under native execution and Terminal checking after ordinary package
+    review, and the live-copy write plus only-one-arm transfer controls reject
+    on their authored diagnostics. Call-result loans now cover each exclusive
+    operand's and the receiver's local root through
+    `checks/borrows/place_access.rs`; `lent` keeps the selected leaf for
+    result-origin identity, so shared `&` operands never acquire receiver
+    custody and unselected same-lifetime inputs stay writable.
+    `view_subslice` admits `&mut` views over immutable owned locals as
+    collection storage, and the view-descriptor edge gate accepts backing
+    storage proved by `storage_backs_view_parameter`. Every named control
+    below holds its authored exit natively and
+    `samples/cli/systems/descriptor_walk` returns 50 in both engines after
+    `omega update` local review.
     Remaining: runtime-indexed shared constrained-field reads still require
     cross-host execution coverage
     under **PLACED-ACCESS-NATIVE-OPS**; preserve the
     [unchanged authored witness](tests/omega/pass/layouts/runtime_indexed_restricted_field_read/README.md).
-    Preserve the slice-return controls below at their authored exits, including
-    live captured range endpoints through returned views.
-    Preserve current-occurrence selection
-    availability: a whole-local refill after selection installs a new carrier
-    without reviving the consumed one; its new backing stays protected until
-    that carrier's last read. The consumed-source RHS, partial-child refill and
-    early-new-backing write controls must reject. Preserve exact receiving-holder
-    correspondence and leaf-only retirement
-    across replacement, copied suppliers and anonymous selection complements.
-    Borrowed call results nested in constructors and projections retain their
-    receiving leaf groups; do not restore the whole-initializer call recognizer.
+    The current-occurrence refill and leaf-only retirement conditions
+    (whole-local refill installs a new carrier without reviving the consumed
+    one; consumed-source RHS, partial-child refill and early-new-backing write
+    must reject; receiving-holder correspondence across replacement, copied
+    suppliers and anonymous complements; nested borrowed call results keep
+    receiving leaf groups) stay as frontier until their controls are
+    re-exercised on this base, and the whole item needs Ubuntu and Windows
+    host coverage before deletion.
   - Constraints: shared loans cannot gain mutation authority by widening the
     exclusive `receiver_aliases` match. Keep the local symbol as the loan
     subject and compose its captured projection at use; substituting the root
