@@ -478,9 +478,9 @@ fn realize_data_instance(
             .join(", ")
     );
     if let Some(existing) = typed.data_definitions().iter().find(|definition| {
-        definition.generic_instance.is_some_and(|origin| {
-            instance_origin_matches(typed, origin, base_symbol, &argument_handles)
-        })
+        definition
+            .generic_instance
+            .is_some_and(|origin| instance_origin_matches(typed, origin, site, base_symbol))
     }) {
         return Some((existing.symbol, synthetic_name));
     }
@@ -650,115 +650,39 @@ fn argument_slug(typed: &TypedTrees, reference: TypeReferenceHandle) -> Option<S
 fn instance_origin_matches(
     typed: &TypedTrees,
     origin: TypeReferenceHandle,
+    site: TypeReferenceHandle,
     base_symbol: SymbolHandle,
-    arguments: &[TypeReferenceHandle],
 ) -> bool {
+    use typed_trees::type_identity::{
+        AppliedTypeIdentityOwner, TypeIdentityQualification, applied_type_identity,
+    };
     let TypeReferenceNode::Generic {
         base_symbol: origin_base,
-        arguments: origin_arguments,
         ..
     } = typed.type_reference_table.type_reference(origin)
     else {
         return false;
     };
-    let origin_handles = typed
-        .type_reference_table
-        .type_reference_handles(*origin_arguments);
-    *origin_base == base_symbol
-        && origin_handles.len() == arguments.len()
-        && origin_handles
-            .iter()
-            .zip(arguments)
-            .all(|(origin, argument)| closed_argument_eq(typed, *origin, *argument))
-}
-
-fn closed_argument_eq(
-    typed: &TypedTrees,
-    left: TypeReferenceHandle,
-    right: TypeReferenceHandle,
-) -> bool {
-    match (
-        typed.type_reference_table.type_reference(left),
-        typed.type_reference_table.type_reference(right),
-    ) {
-        (
-            TypeReferenceNode::Named {
-                symbol: left_symbol,
-                name: left_name,
-            },
-            TypeReferenceNode::Named {
-                symbol: right_symbol,
-                name: right_name,
-            },
-        ) => {
-            if left_symbol.is_valid() && right_symbol.is_valid() {
-                left_symbol == right_symbol
-            } else {
-                left_name == right_name
-            }
-        }
-        (
-            TypeReferenceNode::Generic {
-                base_symbol: left_base,
-                arguments: left_arguments,
-                ..
-            },
-            TypeReferenceNode::Generic {
-                base_symbol: right_base,
-                arguments: right_arguments,
-                ..
-            },
-        ) => {
-            let left_handles = typed
-                .type_reference_table
-                .type_reference_handles(*left_arguments);
-            let right_handles = typed
-                .type_reference_table
-                .type_reference_handles(*right_arguments);
-            left_base == right_base
-                && left_handles.len() == right_handles.len()
-                && left_handles
-                    .iter()
-                    .zip(right_handles)
-                    .all(|(left, right)| closed_argument_eq(typed, *left, *right))
-        }
-        (
-            TypeReferenceNode::FixedArray {
-                element_type: left_element,
-                length: left_length,
-            },
-            TypeReferenceNode::FixedArray {
-                element_type: right_element,
-                length: right_length,
-            },
-        ) => {
-            left_length == right_length && closed_argument_eq(typed, *left_element, *right_element)
-        }
-        (
-            TypeReferenceNode::Slice {
-                element_type: left_element,
-            },
-            TypeReferenceNode::Slice {
-                element_type: right_element,
-            },
-        ) => closed_argument_eq(typed, *left_element, *right_element),
-        (
-            TypeReferenceNode::Reference {
-                referee: left_referee,
-                access: left_access,
-                lifetime: left_lifetime,
-            },
-            TypeReferenceNode::Reference {
-                referee: right_referee,
-                access: right_access,
-                lifetime: right_lifetime,
-            },
-        ) => {
-            left_access == right_access
-                && left_lifetime == right_lifetime
-                && closed_argument_eq(typed, *left_referee, *right_referee)
-        }
-        (TypeReferenceNode::Unit, TypeReferenceNode::Unit) => true,
+    if *origin_base != base_symbol {
+        return false;
+    }
+    // A completed source call and an authored literal can have different
+    // source graphs and integer origins. Their original declared slot owns
+    // landing identity; private Identifier equality must not create a second
+    // nominal for that same admitted application. The shared normalizer keeps
+    // full carrier, policy, nominal and region coordinates and declines missing
+    // custody rather than donating an instance by rendered value.
+    let identity = |reference| {
+        applied_type_identity(
+            typed,
+            reference,
+            AppliedTypeIdentityOwner::Declaration(SymbolHandle::invalid()),
+            &[],
+            TypeIdentityQualification::Ordinary,
+        )
+    };
+    match (identity(origin), identity(site)) {
+        (Some(origin), Some(site)) => origin.is_valid() && site.is_valid() && origin == site,
         _ => false,
     }
 }
