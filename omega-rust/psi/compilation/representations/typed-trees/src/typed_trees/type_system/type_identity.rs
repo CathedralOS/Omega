@@ -641,34 +641,82 @@ impl TypedTrees {
         if authored == instance.symbol {
             return Some(instance);
         }
-        // An occurrence-specific field view may apply regions to an already
-        // specialized nominal carrier. Its generic_instance then names that
-        // carrier, not the authored template. Constructor provenance belongs
-        // to the nominal declaration; field types still come from this exact
-        // occurrence's prepared view. Reopening the region-erased origin as a
-        // closed application would demand lifetime operands it does not own.
-        // Either side can retain the template: a scoped prepared field view
-        // keeps it while an authored constructor may already select a closed
-        // nominal instance. Join both through their retained application, not
-        // only the template-to-instance direction. A sibling application must
-        // still match this exact receiving type before its members correspond.
-        let identity = self.normalized_type_identity(reference);
-        let declaration = |symbol| {
-            let nominal = self.unique_data_definition_by_symbol(symbol)?;
-            let Some(origin) = nominal.generic_instance else {
-                return Some(symbol);
-            };
-            if !self.type_reference_table.contains_type_reference(origin) {
-                return None;
+        // A prepared occurrence retains a chain of exact nominal applications:
+        // scoped view -> closed layout -> authored declaration. Selecting a
+        // member on one of those actual ancestors needs no region-erased
+        // identity reconstruction. A sibling instance, however, owes a real
+        // full application identity; unavailable identities never match.
+        let lineage = |mut symbol: SymbolHandle| -> Option<Vec<SymbolHandle>> {
+            let mut ancestors = Vec::new();
+            loop {
+                if ancestors.contains(&symbol) {
+                    return None;
+                }
+                ancestors.push(symbol);
+                let nominal = self.unique_data_definition_by_symbol(symbol)?;
+                let Some(origin) = nominal.generic_instance else {
+                    return Some(ancestors);
+                };
+                if !self.type_reference_table.contains_type_reference(origin) {
+                    return None;
+                }
+                let crate::types::TypeReferenceNode::Generic { base_symbol, .. } =
+                    self.type_reference_table.type_reference(origin)
+                else {
+                    return None;
+                };
+                symbol = *base_symbol;
             }
-            let crate::types::TypeReferenceNode::Generic { base_symbol, .. } =
-                self.type_reference_table.type_reference(origin)
-            else {
-                return None;
-            };
-            (self.normalized_type_identity(origin) == identity).then_some(*base_symbol)
         };
-        (declaration(instance.symbol)? == declaration(authored)?).then_some(instance)
+        let receiving = lineage(instance.symbol)?;
+        if receiving.contains(&authored) {
+            return Some(instance);
+        }
+        let supplying = lineage(authored)?;
+        if receiving.last() != supplying.last() {
+            return None;
+        }
+        let source = self.unique_data_definition_by_symbol(authored)?;
+        let origin = source.generic_instance?;
+        let receiving_identity = self.normalized_type_identity(reference)?;
+        let supplying_identity = self.normalized_type_identity(origin)?;
+        (receiving_identity == supplying_identity).then_some(instance)
+    }
+
+    /// Translate a selected case at its original declaration ordinal into the
+    /// exact receiver namespace. This relates tag names, not tag evidence: the
+    /// caller must still own a live observation of that same saved value.
+    pub fn closed_data_case_symbol(
+        &self,
+        reference: TypeReferenceHandle,
+        retained: SymbolHandle,
+    ) -> Option<SymbolHandle> {
+        if !retained.is_valid() || self.symbols.get(retained).kind != symbols::SymbolKind::Variant {
+            return None;
+        }
+        let source_owner = self.symbols.get(retained).parent;
+        let instance = self.closed_data_constructor_definition(reference, source_owner)?;
+        let source = self.unique_data_definition_by_symbol(source_owner)?;
+        let (ordinal, original) =
+            self.data_members(source)
+                .iter()
+                .enumerate()
+                .find_map(|(ordinal, member)| {
+                    let crate::data::DataMember::Variant(variant) = member else {
+                        return None;
+                    };
+                    (variant.symbol == retained).then_some((ordinal, variant))
+                })?;
+        let crate::data::DataMember::Variant(selected) =
+            self.data_members(instance).get(ordinal)?
+        else {
+            return None;
+        };
+        (original.name == selected.name
+            && original.identity == selected.identity
+            && selected.symbol.is_valid()
+            && self.symbols.get(selected.symbol).parent == instance.symbol)
+            .then_some(selected.symbol)
     }
 
     /// Select a constructor child through the exact closed declaration's
@@ -752,60 +800,60 @@ impl TypedTrees {
         retained: SymbolHandle,
         member_name: &str,
     ) -> Option<&crate::data::DataField> {
+        self.closed_data_projected_field(reference, retained, member_name, None)
+    }
+
+    /// Common and case-qualified projections share the receiver's original
+    /// member correspondence. The source qualification chooses a case; a
+    /// retained selector must rejoin that exact field rather than another
+    /// same-spelled payload or a sibling application.
+    pub fn closed_data_projected_field(
+        &self,
+        reference: TypeReferenceHandle,
+        retained: SymbolHandle,
+        member_name: &str,
+        case_name: Option<&str>,
+    ) -> Option<&crate::data::DataField> {
         let instance = self.closed_data_definition(reference)?;
-        let mut fields =
-            self.data_members(instance)
-                .iter()
-                .enumerate()
-                .filter_map(|(ordinal, member)| {
-                    let crate::data::DataMember::Field(field) = member else {
-                        return None;
-                    };
-                    (field.name.as_str() == member_name).then_some((ordinal, field))
-                });
-        let (ordinal, field) = fields.next()?;
-        if fields.next().is_some() {
-            return None;
-        }
-        if !field.symbol.is_valid()
+        let mut fields = self
+            .data_members(instance)
+            .iter()
+            .flat_map(|member| match (member, case_name) {
+                (crate::data::DataMember::Field(field), None) => std::slice::from_ref(field),
+                (crate::data::DataMember::Variant(variant), Some(name))
+                    if variant.name.as_str() == name =>
+                {
+                    self.data_payload_fields(variant)
+                }
+                _ => &[],
+            })
+            .filter(|field| field.name.as_str() == member_name);
+        let selected = fields.next()?;
+        if fields.next().is_some()
+            || !selected.symbol.is_valid()
             || !self
                 .type_reference_table
-                .contains_type_reference(field.type_reference)
-            || self.symbols.get(field.symbol).parent != instance.symbol
+                .contains_type_reference(selected.type_reference)
         {
             return None;
         }
-        // An already resolved instance field needs no template translation.
-        // Reopening an erased layout origin here loses region-bearing views
-        // and rejects finite recursive applications. Only translating a
-        // different retained selector owes the origin/member correspondence.
-        if retained == field.symbol {
-            return Some(field);
-        }
-        let origin = instance.generic_instance?;
-        if !self.type_reference_table.contains_type_reference(origin) {
+        let parent = self.symbols.get(selected.symbol).parent;
+        if match case_name {
+            None => parent != instance.symbol,
+            Some(_) => {
+                !parent.is_valid()
+                    || self.symbols.get(parent).kind != symbols::SymbolKind::Variant
+                    || self.symbols.get(parent).parent != instance.symbol
+            }
+        } {
             return None;
         }
-        let crate::types::TypeReferenceNode::Generic { base_symbol, .. } =
-            self.type_reference_table.type_reference(origin)
-        else {
-            return None;
-        };
-        if self.closed_data_definition(origin)?.symbol != instance.symbol {
-            return None;
+        if !retained.is_valid() || retained == selected.symbol {
+            return Some(selected);
         }
-        let template = self.unique_data_definition_by_symbol(*base_symbol)?;
-        let crate::data::DataMember::Field(original) = self.data_members(template).get(ordinal)?
-        else {
-            return None;
-        };
-        (field.name == original.name
-            && field.identity == original.identity
-            && field.relevance == original.relevance
-            && original.symbol.is_valid()
-            && self.symbols.get(original.symbol).parent == template.symbol
-            && (!retained.is_valid() || retained == field.symbol || retained == original.symbol))
-            .then_some(field)
+        let corresponding =
+            self.closed_data_constructor_field(reference, instance.symbol, retained)?;
+        (corresponding.symbol == selected.symbol).then_some(selected)
     }
 
     /// Canonical identity for an exact resolved declaration that may cross a

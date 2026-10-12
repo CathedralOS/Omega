@@ -159,11 +159,9 @@ pub(crate) fn place_case_has_value(
                     )
                     .as_ref()
                         == Some(subject)
-                        && variant.is_valid()
-                        && program.symbols.get(variant).kind == symbols::SymbolKind::Variant
-                        && program.symbols.get(case).kind == symbols::SymbolKind::Variant
-                        && program.symbols.get(variant).parent == program.symbols.get(case).parent
-                        && (variant == case) == required
+                        && query
+                            .case_relation(subject, variant, case)
+                            .is_some_and(|equal| equal == required)
                 }
                 _ => false,
             })
@@ -191,6 +189,44 @@ struct CaseAccess<'program> {
 }
 
 impl CaseAccess<'_> {
+    fn case_relation(
+        &self,
+        subject: &CanonicalPlace,
+        observed: SymbolHandle,
+        required: SymbolHandle,
+    ) -> Option<bool> {
+        if !observed.is_valid()
+            || !required.is_valid()
+            || self.program.symbols.get(observed).kind != symbols::SymbolKind::Variant
+            || self.program.symbols.get(required).kind != symbols::SymbolKind::Variant
+        {
+            return None;
+        }
+        // An exact declaration namespace already identifies both cases; this
+        // preserves ordinary open-source facts without equating missing type
+        // identities. Crossing namespaces requires the receiver's actual view.
+        if self.program.symbols.get(observed).parent == self.program.symbols.get(required).parent {
+            return Some(observed == required);
+        }
+        let reference = validation::canonical_place_type_reference(
+            self.program,
+            self.state.symbol,
+            self.statement_index,
+            subject,
+        )?;
+        let reference = self
+            .program
+            .type_reference_table
+            .peeled_type_reference(reference);
+        if self.program.closed_data_definition(reference).is_some() {
+            let observed = self.program.closed_data_case_symbol(reference, observed)?;
+            let required = self.program.closed_data_case_symbol(reference, required)?;
+            return Some(observed == required);
+        }
+        // Distinct open namespaces cannot borrow each other's case facts.
+        None
+    }
+
     fn predicate(
         &self,
         expression: ExpressionHandle,
@@ -270,13 +306,15 @@ impl CaseAccess<'_> {
                 )
                 .as_ref()
                     == Some(subject)
-                    && self.program.symbols.get(observed.symbol).parent
-                        == self.program.symbols.get(case).parent
-                    && if value {
-                        (observed.symbol == case) == required
-                    } else {
-                        observed.symbol == case && !required
-                    }
+                    && self
+                        .case_relation(subject, observed.symbol, case)
+                        .is_some_and(|equal| {
+                            if value {
+                                equal == required
+                            } else {
+                                equal && !required
+                            }
+                        })
             }
             _ => false,
         }
