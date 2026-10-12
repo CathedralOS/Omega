@@ -133,6 +133,31 @@ pub(super) fn validate_call_dynamic(
             {
                 break;
             }
+            for (member, actual) in candidate.family_tuple.iter().zip(family_actuals) {
+                use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType};
+                use terminal_psi::TerminalDynamicFamilyValue;
+                let fits = match (member.value, super::declared_scalar_type(machine, *actual)) {
+                    (TerminalDynamicFamilyValue::Boolean(_), Some(ScalarType::Boolean)) => true,
+                    (
+                        TerminalDynamicFamilyValue::Integer(value),
+                        Some(ScalarType::Integer(integer)),
+                    ) => {
+                        let value = match integer.sign() {
+                            IntegerSign::Signed => Some(IntegerValue::Signed(value)),
+                            IntegerSign::Unsigned => {
+                                u128::try_from(value).ok().map(IntegerValue::Unsigned)
+                            }
+                        };
+                        !integer.is_address() && value.is_some_and(|value| integer.admits(value))
+                    }
+                    _ => false,
+                };
+                if !fits {
+                    return malformed(
+                        "dynamic family member does not fit its actual's scalar type",
+                    );
+                }
+            }
             roster.push(&candidate.family_tuple);
         }
         if roster.is_empty()
@@ -140,9 +165,15 @@ pub(super) fn validate_call_dynamic(
                 .iter()
                 .any(|tuple| tuple.len() != family_actuals.len())
             || {
-                let mut ordered = roster.clone();
-                ordered.sort();
-                ordered.windows(2).any(|pair| pair[0] >= pair[1])
+                // Identity encodings are opaque. Two different encodings may
+                // not publish the same executable tuple and make row choice
+                // depend on roster traversal order.
+                let mut values: Vec<Vec<_>> = roster
+                    .iter()
+                    .map(|tuple| tuple.iter().map(|member| member.value).collect())
+                    .collect();
+                values.sort();
+                values.windows(2).any(|pair| pair[0] == pair[1])
             }
         {
             return malformed("dynamic family call disagrees with its slot roster");
