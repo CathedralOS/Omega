@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "samples/cli/independent/spectral_power/validation",
+    "samples/cli/independent/spatial_diffusion/validation",
     "samples/cli/independent/travel_time_tomography/validation/terminal",
     "samples/cli/independent/spectrometer_attribution",
     "omega-rust/omega/application/cli",
