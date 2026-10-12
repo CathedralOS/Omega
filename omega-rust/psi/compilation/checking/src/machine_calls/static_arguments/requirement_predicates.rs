@@ -109,6 +109,7 @@ pub(super) fn validate(
                 lifetimes: &[],
             },
         )
+        .map(|scope| (scope, false))
     } else {
         context
             .and_then(|(machine, state)| {
@@ -136,15 +137,42 @@ pub(super) fn validate(
                 .ok()
                 .flatten()
                 .filter(|dynamic| dynamic.signature.symbol == target)
-                .map(|dynamic| dynamic.application)
+                .map(|dynamic| (dynamic.application, true))
             })
             .or_else(|| {
                 program
                     .trait_type_parameters(owner)
                     .is_empty()
-                    .then(|| AppliedTraitScope::abstract_scope(owner))
+                    .then(|| (AppliedTraitScope::abstract_scope(owner), false))
             })
     };
+    let (scope, resolved_dynamically) = match scope {
+        Some((scope, dynamic)) => (Some(scope), dynamic),
+        None => (None, false),
+    };
+    // A selector call through `dyn` whose applied tuple is complete, closed,
+    // and outside the declared roster belongs to the dynamic-family roster
+    // validator, which rejects it with the membership diagnostic; runtime
+    // subjects stay here so this judgment can discharge their membership
+    // through the caller's requires (or reject it unproved).
+    if resolved_dynamically
+        && let typed_trees::finite_family::FamilyProbe::Finite { arity, tuples } =
+            program.finite_signature_family(source)
+    {
+        let applied = arguments
+            .iter()
+            .map(|argument| program.static_const_argument_identity(argument))
+            .collect::<Option<Vec<_>>>();
+        let closed_non_member = applied.is_some_and(|identities| {
+            identities.len() == arity
+                && !tuples
+                    .iter()
+                    .any(|tuple| tuple.identities.as_ref() == identities)
+        });
+        if closed_non_member {
+            return;
+        }
+    }
     let signature = scope
         .as_ref()
         .and_then(|scope| program.applied_callable_signature(scope, target));

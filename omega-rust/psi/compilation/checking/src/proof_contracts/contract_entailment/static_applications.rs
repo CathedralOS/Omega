@@ -128,8 +128,13 @@ enum ConstantValue {
 }
 
 /// A static binder is immutable across every state and effect in an invocation.
-/// Only its exact lexical declaration can create its mathematical atom. Runtime
-/// Value binders deliberately do not enter this roster.
+/// Only its exact lexical declaration can create its mathematical atom.
+/// Immutable data parameters are equally fixed for the invocation: each one
+/// contributes a shared private atom so an ordinary runtime subject bound to
+/// it can prove a fact the caller's Requires already establishes about that
+/// parameter -- the same membership discharge the finite-family roster needs.
+/// Mutable and non-integer parameters mint no atom; their value can change or
+/// leave the integer language, and requires facts over them stay inadmissible.
 fn immutable_caller_requires(
     program: &dyn crate::CheckingInput,
     owner: SymbolHandle,
@@ -160,6 +165,34 @@ fn immutable_caller_requires(
                 binder: ScopedArithmeticBinder::Symbol(parameter.symbol),
                 value: ScopedArithmeticValue::Atom {
                     identity: format!("\0static-const:{:?}", parameter.symbol),
+                    unsigned: !primitive.is_signed_integer(),
+                },
+            });
+        }
+    }
+    for state in program.machine_states(machine) {
+        for parameter in program
+            .state_parameters
+            .span_or_empty(state.parameters)
+            .iter()
+        {
+            if parameter.is_mutable
+                || !parameter.symbol.is_valid()
+                || symbols.contains(&parameter.symbol)
+            {
+                continue;
+            }
+            let Some(primitive) = program
+                .primitive_type_reference(parameter.type_reference)
+                .filter(|primitive| primitive.is_fixed_integer())
+            else {
+                continue;
+            };
+            symbols.push(parameter.symbol);
+            bindings.push(ScopedArithmeticBinding {
+                binder: ScopedArithmeticBinder::Symbol(parameter.symbol),
+                value: ScopedArithmeticValue::Atom {
+                    identity: format!("\0runtime-subject:{:?}", parameter.symbol),
                     unsigned: !primitive.is_signed_integer(),
                 },
             });

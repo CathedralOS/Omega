@@ -140,9 +140,13 @@ pub(super) fn validate_dynamic_selector_arguments(
 }
 
 /// A selected table holds one row per roster tuple of a finite generic
-/// requirement, so the call must name exactly one complete closed tuple: a
-/// runtime value cannot select a family row. A requirement without a finite
-/// family takes no static machine arguments through a selector.
+/// requirement, so the call must name exactly one complete tuple. A closed
+/// static tuple selects its row here; an argument that is an ordinary runtime
+/// subject (the same shape RUNTIME-VALUE-GENERICS' `Value` binders admit)
+/// defers membership to the call's runtime discharge, which must prove the
+/// argument belongs to the roster -- there is no JIT or fallback. A
+/// requirement without a finite family takes no static machine arguments
+/// through a selector.
 fn validate_family_tuple(
     program: &dyn crate::CheckingInput,
     call: &DynamicSelectorCall<'_>,
@@ -153,6 +157,13 @@ fn validate_family_tuple(
     let requirement = &call.signature.name;
     match program.finite_signature_family(call.signature) {
         typed_trees::finite_family::FamilyProbe::Finite { arity, tuples } => {
+            let roster = || {
+                tuples
+                    .iter()
+                    .map(|tuple| format!("({})", tuple.display.join(", ")))
+                    .collect::<Vec<_>>()
+                    .join(" or ")
+            };
             let tuple_identities: Option<Vec<String>> = machine_arguments
                 .iter()
                 .map(|argument| program.static_const_argument_identity(argument))
@@ -163,14 +174,28 @@ fn validate_family_tuple(
                         .iter()
                         .any(|tuple| tuple.identities.as_ref() == identities)
             });
-            if !selects_exact_tuple {
-                let roster = tuples
-                    .iter()
-                    .map(|tuple| format!("({})", tuple.display.join(", ")))
-                    .collect::<Vec<_>>()
-                    .join(" or ");
+            if selects_exact_tuple {
+                return;
+            }
+            // One runtime subject (or several) makes the call runtime-capable:
+            // every position must then be a closed const or an ordinary
+            // runtime subject, and the complete tuple membership is proved at
+            // the call's runtime discharge instead of here.
+            let runtime_capable = machine_arguments.len() == arity
+                && machine_arguments.iter().any(|argument| {
+                    crate::machine_calls::static_arguments::is_runtime_value_subject(
+                        program, argument,
+                    )
+                })
+                && machine_arguments.iter().all(|argument| {
+                    crate::machine_calls::static_arguments::is_runtime_value_subject(
+                        program, argument,
+                    ) || program.static_const_argument_identity(argument).is_some()
+                });
+            if !runtime_capable {
                 diagnostics.push(Diagnostic::error(format!(
-                    "dynamic family call `{declaring}::{requirement}` requires exactly one closed roster tuple ({roster}); a runtime value cannot select a family row"
+                    "dynamic family call `{declaring}::{requirement}` requires exactly one closed roster tuple ({}); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof",
+                    roster()
                 )));
             }
         }
