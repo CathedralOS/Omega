@@ -307,8 +307,8 @@ enum ConstantValue {
 /// contributes a shared private atom so an ordinary runtime subject bound to
 /// it can prove a fact the caller's Requires already establishes about that
 /// parameter -- the same membership discharge the finite-family roster needs.
-/// Mutable and non-integer parameters mint no atom; their value can change or
-/// leave the integer language, and requires facts over them stay inadmissible.
+/// Immutable integer and Boolean subjects retain distinct symbolic atoms.
+/// Mutable parameters and other carriers supply no predicate authority.
 fn immutable_caller_requires(
     program: &dyn crate::CheckingInput,
     owner: SymbolHandle,
@@ -372,11 +372,18 @@ fn immutable_caller_requires(
             }
             let Some(primitive) = program
                 .primitive_type_reference(parameter.type_reference)
-                .filter(|primitive| primitive.is_fixed_integer())
+                .filter(|primitive| {
+                    primitive.is_fixed_integer()
+                        || *primitive == typed_trees::types::PrimitiveType::Bool
+                })
             else {
                 continue;
             };
             symbols.push(parameter.symbol);
+            if primitive == typed_trees::types::PrimitiveType::Bool {
+                booleans.push((parameter.symbol, BooleanValue::Symbol(parameter.symbol)));
+                continue;
+            }
             bindings.push(ScopedArithmeticBinding {
                 binder: ScopedArithmeticBinder::Symbol(parameter.symbol),
                 value: ScopedArithmeticValue::Atom {
