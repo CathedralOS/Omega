@@ -27,6 +27,8 @@
 //! the selected executable entry, complete relationship identity and consent.
 //! Structural content retains the already checked positional correspondence,
 //! custody decisions and original public/calling applications for later consent.
+//! Domain authority joins exact authored demand coordinates and source-backed
+//! issuer declarations to the existing seal; it supplies no fresh call receipt.
 
 mod application_content;
 pub use application_content::AssumedBindingApplicationContent;
@@ -41,6 +43,9 @@ pub use declaration_revisions::{
 };
 mod dependencies;
 mod domain_authority;
+pub use domain_authority::{
+    AssumedBindingDomainAuthorityContent, retain_assumed_binding_domain_authority,
+};
 mod mathematical_dependencies;
 mod physical_dependencies;
 mod proof_content;
@@ -141,6 +146,7 @@ pub struct PreparedAssumedBindingRelationship {
     semantic_content: Option<AssumedBindingSemanticContent>,
     supplier_dependencies: AssumedBindingSupplierDependencies,
     domain_demands: Vec<AssumedBindingDomainDemand>,
+    domain_authority_content: Option<AssumedBindingDomainAuthorityContent>,
     physical_dependencies: Option<arena::Arena<AssumedBindingPhysicalProviderDependency>>,
 }
 
@@ -251,6 +257,13 @@ impl PreparedAssumedBindingRelationship {
         &self,
     ) -> Option<&arena::Arena<AssumedBindingPhysicalProviderDependency>> {
         self.physical_dependencies.as_ref()
+    }
+
+    /// Portable source-backed issuer authority for the exact public subjects.
+    /// Missing original custody remains unavailable. This component neither
+    /// issues a domain claim nor grants root or receiving consent.
+    pub const fn domain_authority_content(&self) -> Option<AssumedBindingDomainAuthorityContent> {
+        self.domain_authority_content
     }
 
     pub fn domain_demands(&self) -> &[AssumedBindingDomainDemand] {
@@ -489,6 +502,7 @@ pub fn prepare_assumed_binding_relationships(
                 semantic_content,
                 supplier_dependencies,
                 domain_demands,
+                domain_authority_content: None,
                 physical_dependencies: None,
             })
         };
