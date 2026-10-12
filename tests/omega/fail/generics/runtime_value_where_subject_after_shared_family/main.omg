@@ -1,0 +1,15 @@
+// Both applications have the same u32 Value carrier. The first subject is
+// inside the declared family; the second must owe its own original where check.
+// A shared executable family key cannot reuse the first subject as its value.
+machine bounded<Count: u32>(base: u32) -> u32
+where Count <= 10
+{
+    Count
+}
+
+machine main() {
+    let allowed: u32 = 3;
+    let first: u32 = bounded<allowed>(7);
+    let forbidden: u32 = 11;
+    let second: u32 = bounded<forbidden>(7);
+}
