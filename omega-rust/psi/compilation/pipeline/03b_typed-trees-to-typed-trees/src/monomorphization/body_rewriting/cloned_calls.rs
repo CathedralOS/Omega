@@ -4,8 +4,9 @@ use crate::monomorphization::application_arguments::substitute_forwarded_machine
 use crate::monomorphization::application_calls::{
     ApplicationCallRewrites, rewrite_application_target_and_arguments,
 };
+use crate::monomorphization::body_rewriting::insert_subject_names;
 use crate::monomorphization::{
-    Candidate, ExpressionNode, Handle, HandleSpan, StatementNode, SymbolHandle, TypedTrees,
+    Candidate, Handle, HandleSpan, StatementNode, SymbolHandle, TypedTrees,
 };
 
 pub(crate) fn statement_span_handles(
