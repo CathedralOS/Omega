@@ -207,6 +207,16 @@ pub(crate) fn finalize(
 pub(crate) fn finalize_operator_obligations(
     lowerer: &mut crate::resolution::lowerer::Lowerer,
 ) -> Result<(), Vec<Diagnostic>> {
+    if std::env::var_os("OMEGA_TRACE_NORMALIZED_OPERATORS").is_some() {
+        eprintln!(
+            "TRACE_NORMALIZED_OPERATOR_PHASE structural_equations_pending={} initializer_receipts={} normalized_operations={:?} active_scope={:?} derived_original_expressions={:?}",
+            lowerer.structural_type_equations_pending,
+            lowerer.pending_const_initializers.len(),
+            lowerer.pending_const_operator_obligations,
+            lowerer.lowering_const_operator_expressions,
+            lowerer.derived_const_argument_expressions,
+        );
+    }
     initializer_normalization::finalize_operator_obligations(
         &mut lowerer.symbol_resolved_trees,
         &lowerer.pending_const_initializers,
