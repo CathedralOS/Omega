@@ -457,7 +457,9 @@ pub(super) fn selected_declaration<'resolved>(
                     eprintln!(
                         "TRACE_MISSING_CONST_LEXICAL_CANDIDATE expression={expression:?} origin={:?} path={path:?} members={members:?} occurrences={:?}",
                         table.expression_source_origin(expression),
-                        table.authored_selection_occurrences(expression)
+                        table
+                            .authored_selection_occurrences(expression)
+                            .collect::<Vec<_>>()
                     );
                 }
             }
