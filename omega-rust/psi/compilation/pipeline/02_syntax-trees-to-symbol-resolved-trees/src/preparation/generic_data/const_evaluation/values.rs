@@ -222,6 +222,7 @@ pub(super) fn canonicalize_selected_index_expression_with_warnings(
     expression: ExpressionHandle,
     selection: Option<&ConstantSelection>,
     warnings: &mut Vec<diagnostics::Diagnostic>,
+    builtin_operators: &mut Vec<(ExpressionHandle, source::SourceSpan)>,
 ) -> Result<CanonicalConstValue, String> {
     let mut landings = Vec::new();
     let value = canonicalize_selected_index_expression_with_landings(
@@ -232,6 +233,9 @@ pub(super) fn canonicalize_selected_index_expression_with_warnings(
         selection,
         &mut landings,
     )?;
+    for landing in &landings {
+        builtin_operators.extend_from_slice(&landing.builtin_operators);
+    }
     warnings.extend(
         landings
             .iter()
@@ -1177,7 +1181,7 @@ fn canonicalize_const_expression_with_landings(
                 // normalization delivers it to the original warnings owner.
                 let landing = value.into_integer_landing()?;
                 let integer = landing.integer;
-                if landing.has_fractional_intermediate() {
+                if landing.has_fractional_intermediate() || !landing.builtin_operators.is_empty() {
                     landings.push(landing);
                 }
                 integer

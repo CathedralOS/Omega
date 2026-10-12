@@ -461,17 +461,25 @@ pub(in crate::preparation::generic_data) fn normalize_template_type_reference(
                     .type_reference(argument)
                     .clone();
                 if let TypeReferenceNode::ConstExpression(expression) = node {
-                    let placeholder = evaluate_const_argument_expression(
-                        syntax,
-                        expression,
-                        const_values,
-                        &HashMap::new(),
-                        symbolic_parameters,
-                        integer_types.get(index).copied().flatten(),
-                        warnings,
-                    )?;
+                    let mut builtin_operators = Vec::new();
+                    let placeholder =
+                        super::arguments::evaluate_const_argument_expression_with_operators(
+                            syntax,
+                            expression,
+                            const_values,
+                            &HashMap::new(),
+                            symbolic_parameters,
+                            integer_types.get(index).copied().flatten(),
+                            warnings,
+                            &mut builtin_operators,
+                        )?;
                     if let EvaluatedConst::Concrete(value) = placeholder {
-                        super::replace_integer_argument(syntax, argument, value);
+                        super::replace_integer_argument_with_operators(
+                            syntax,
+                            argument,
+                            value,
+                            builtin_operators,
+                        );
                     }
                     // A symbolic result is still the original expression;
                     // diagnostic text cannot become its semantic operand.
@@ -488,7 +496,8 @@ pub(in crate::preparation::generic_data) fn normalize_template_type_reference(
             Ok(())
         }
         TypeReferenceNode::ConstExpression(expression) => {
-            let placeholder = evaluate_const_argument_expression(
+            let mut builtin_operators = Vec::new();
+            let placeholder = super::arguments::evaluate_const_argument_expression_with_operators(
                 syntax,
                 expression,
                 const_values,
@@ -496,9 +505,15 @@ pub(in crate::preparation::generic_data) fn normalize_template_type_reference(
                 symbolic_parameters,
                 None,
                 warnings,
+                &mut builtin_operators,
             )?;
             if let EvaluatedConst::Concrete(value) = placeholder {
-                super::replace_integer_argument(syntax, type_reference, value);
+                super::replace_integer_argument_with_operators(
+                    syntax,
+                    type_reference,
+                    value,
+                    builtin_operators,
+                );
             }
             Ok(())
         }

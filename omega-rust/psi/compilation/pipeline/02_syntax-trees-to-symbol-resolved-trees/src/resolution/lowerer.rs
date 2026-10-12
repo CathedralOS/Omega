@@ -146,7 +146,10 @@ pub(crate) struct Lowerer {
     /// One normalization entrance shares its authored graph with its value operand.
     pub(crate) lowering_const_argument_expressions:
         Vec<(syntax_trees::expression::ExpressionHandle, ExpressionHandle)>,
-    pub(crate) derived_const_argument_builtin_operators: Vec<source::SourceSpan>,
+    /// Evaluated syntax operations are visible only while their owning original
+    /// normalization graph lowers. The result roster uses actual lowered handles.
+    pub(crate) lowering_const_operator_expressions: Vec<syntax_trees::expression::ExpressionHandle>,
+    pub(crate) pending_const_operator_obligations: Vec<ExpressionHandle>,
     pub(crate) pending_const_selections: Vec<PendingConstSelection>,
     /// Newly authored initializer roots awaiting declaration-side resolution.
     /// Retained base roots are already resolved and must not enter this list.
@@ -291,7 +294,8 @@ impl Lowerer {
             pending_const_argument_expressions: Vec::new(),
             lowering_const_argument_expressions: Vec::new(),
             lowering_const_match_selections: Vec::new(),
-            derived_const_argument_builtin_operators: Vec::new(),
+            lowering_const_operator_expressions: Vec::new(),
+            pending_const_operator_obligations: Vec::new(),
             current_compiler_selection_partition: None,
             sources,
             source_scoped_top_level_bindings,
