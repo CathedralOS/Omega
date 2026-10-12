@@ -1,0 +1,1 @@
+after `selected.receipt` was transferred or consumed

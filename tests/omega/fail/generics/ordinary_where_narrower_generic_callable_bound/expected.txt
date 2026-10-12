@@ -1,0 +1,1 @@
+machine argument `selected` for `invoke` does not refine `Procedure`: its declared where facts are not entailed by the complete required callable contract
