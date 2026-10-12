@@ -6,8 +6,13 @@ checks as `recovery.py`. It has no network client, daemon, provider endpoint,
 credentials, permission bypass, worker launcher or resource deleter. The coordinator executes the emitted tool requests through the runtime it actually
 has. An authorized advance runs through required tests, commit/push, verified
 ancestry and cleanup. Bounded report turns continue automatically under that
-authority; report turns do not add routine parent sign-off or a separate reviewer.
+authority; bounded reports require no routine parent sign-off or separate reviewer.
 Independent review required by the user or assignment remains mandatory.
+Apply the [law of completion](../../AGENTS.md#law-of-completion). Durable
+checkpoints and bounded tool/report turns preserve the same owner's work;
+they never complete an unfinished implementation or transfer its necessary
+compiler/library repairs to another agent. Completion requires the entire
+assigned acceptance and authorized landing verified on remote main.
 `launch.py`'s legacy Devin transport and manifests are unchanged; this controller
 is the portable dot/cloud tool adapter, not an alternate claims registry.
 

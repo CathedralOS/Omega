@@ -13,6 +13,13 @@ Devin transport and mass-wave mechanics with the actual native agent tools.
 [testing](../../../tools/testing.md), [claims](../../../tools/claims.md), and
 [landing](../../../tools/landing.md) contracts govern repository work.
 
+Apply the [law of completion](../../../AGENTS.md#law-of-completion).
+Each implementation owner keeps context through complete acceptance, required
+review and authorized verified main landing. It finishes necessary prerequisite
+repairs itself rather than waiting for another agent or ending at a handoff.
+Read-only diagnostic assignments remain read-only.
+Follow the concrete path through completion; let working programs reveal design.
+
 ## Install and invoke
 
 Keep this whole directory at `.agents/skills/dot-swarm/` in an Omega checkout.
@@ -191,16 +198,16 @@ regression, affected crate checks/tests, and corpus/native checks when applicabl
 Use `mbx` when present and record revision, command, host, exit, and counts.
 Run one host build at a time; the shared computer is not six independent VMs.
 
-Workers never edit board files or publish independently unless explicitly
-assigned that responsibility. This is the contributor default: an explicitly
-authorized end-to-end outcome owner carries normal publication through landing,
-while the coordinator integrates contributor candidates and board evidence.
+Authorized end-to-end owners finish and publish their complete paths through
+the normal landing protocol. Do not downgrade them into contributor-only roles
+without the user's instruction. Keep board evidence scoped to the assigned
+outcome; coordinator ledger work does not replace acceptance or landing.
 Retain the assignment's required independent review; report turns add no approval
 gate. Keep commits semantically whole and follow the
 repository's current commit conventions. Format changed code before committing;
-report superseded changes instead of landing duplicates. A source checkpoint may
-be reported before a long gate finishes, but an unrun/unfinished gate never
-becomes passing evidence or permission to publish.
+report superseded changes instead of landing duplicates. Intermediate status
+does not end the assignment. The same owner finishes all required gates before
+claiming completion or publishing its path.
 
 Return a compact verdict (JSON or equally explicit prose) with:
 `worker`, `item`, `mode`, `result`, `base`, `branch`, `commits`, `claim_ticket`,

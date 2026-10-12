@@ -8,6 +8,24 @@ Read `AGENTS.md` fully, then run the `advance` skill
 (`.agents/skills/advance/SKILL.md`) restricted to this item. Do not select
 another item.
 
+## Complete outcome ownership
+
+Apply the law of completion in `AGENTS.md`. Your superhuman advantage is
+carrying the entire difficult task end to end. Difficulty calls for
+investigation and persistence, never an invented earlier finish line.
+Retain ownership and context through complete acceptance, required independent
+review and authorized landing verified on remote main. Finish the necessary
+compiler, library and prerequisite repairs in this worktree; do not wait for
+another agent to implement them. Checkpoints and artifact handoffs preserve
+evidence, not completion. Do not publish half-finished functionality.
+Genuine external authority or environment blockers leave the outcome unfinished;
+retain ownership and continue feasible work without bypassing any gate.
+An explicitly read-only probe remains read-only.
+
+Follow the river to its end; do not carve every possible branch along the way.
+Working paths reveal the design. Build and validate what this journey needs;
+adjacent journeys will reveal their own needs when undertaken.
+
 {suggested_first_slice_block}
 
 {probe_block}
@@ -37,8 +55,8 @@ Renew before expiry. A checkpoint does not end ownership.
 
 Keep a short assignment record: outcome, acceptance, current failure, next
 necessary action and dependencies. Reread it after compaction. New obstacles
-normally belong to this outcome; do not manufacture residual tasks or switch
-to profiling/testing work without completing or handing off the assignment.
+belong to this outcome; do not manufacture residual tasks or switch
+to profiling/testing work before completing the assignment.
 
 Exit 3 means coordination timed out, not a live conflict. Keep the pending
 claim record, report the outage, and continue the assigned work in isolation.
@@ -82,16 +100,16 @@ and `claim` — rebase onto the reserved base); an expired head leaves your
 commit intact — re-enqueue it after the queue clears.
 Give `publish` the model that produced the change: `--provenance "agent=<tool> model=<name> effort=<level>"`
 (or export `OMEGA_PROVENANCE` once). Commit messages carry no attribution; this note is the only record.
-Keep checkpoints bounded, but retain the assigned customer through producer and
-consumer repairs. Rerun its outer command after relevant changes; helper tests
+Retain the assigned customer through complete producer and consumer repairs.
+Rerun its outer command after relevant changes; helper tests
 alone do not complete the assignment or justify claiming native execution.
 
 ## Budget
 
-`max_acu_limit` is {max_acu_limit}. If you approach it without a landable
-improvement, stop and put the witnessed failure, tested revision, command,
-host, and next acceptance in the structured output. Board-only churn is not an
-improvement.
+`max_acu_limit` is {max_acu_limit}. If it is exhausted, preserve the witnessed
+failure, tested revision, command, host and next acceptance for continuation by
+the same owner. Report `budget_exhausted`, not completed work; do not land a
+partial improvement to fit the budget. Board-only churn is not an improvement.
 
 ## Commits and reasoning
 
@@ -112,6 +130,9 @@ When you finish, for any result, fill this schema exactly:
 `result` is one of `landed`, `verification_only`, `blocked`, `superseded`,
 `budget_exhausted`, `aborted`. Choose it by the evidence, not by why you
 stopped:
+
+- `landed`: the full assigned acceptance is complete, required review is satisfied
+  and the authorized path is verified on remote main, not merely a landed slice.
 
 - `verification_only`: investigation produced evidence but no implementation.
   Name the exact missing dependency and next acceptance. This is the planned

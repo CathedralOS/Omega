@@ -44,6 +44,48 @@ the time goes and remove the cause rather than waiting on it or working around i
   may invoke, stamp, compare, and report but never parse, lower, manufacture
   semantic evidence, or decide trust.
 
+## Law of completion
+
+Our superhuman advantage is carrying the entire difficult task end to end.
+Difficulty is a reason to investigate and persist, not to abandon the work,
+lose confidence without evidence, or redefine done. Confidence is demonstrated
+by working behavior, not by declaring success.
+
+We are capable of taking an uncompilable sample through every necessary compiler
+layer to a compilable, executable, validated program landed on main. The agent
+owns that entire transformation, not just the first repair. Treat the hard
+remaining steps as engineering to finish, not evidence that the task is beyond
+reach.
+
+Follow the river to its end; do not carve every possible branch along the way.
+Working paths reveal the design. Build and validate what this journey needs;
+adjacent journeys will reveal their own needs when undertaken.
+
+Unfinished work loses the context that made it tractable when its owner moves
+on. Preserve that context by keeping the same outcome owner through complete
+acceptance, integration, required review, authorized landing and remote
+verification on main. A checkpoint, component pass, archive, JSON report or
+handoff document preserves evidence; none completes the assigned outcome.
+
+Each implementation owner finishes the entire assigned path, including its
+necessary compiler, library and prerequisite repairs. Do not manufacture
+dependencies on other agents by dividing one outcome into stages or waiting
+for another worker to finish missing functionality. Reuse available repairs
+when practical; otherwise continue necessary work in the isolated worktree.
+Overlapping edits and merge conflicts are expected and reconciled at landing.
+
+When the user authorizes end-to-end publication, the owner carries the completed
+path through the normal landing protocol; returning a partial candidate to a
+coordinator is not a substitute. Do not publish half-finished functionality or
+an unfinished workflow. Read-only investigations remain read-only.
+
+Persistence does not authorize fabricated results, narrowed customer acceptance,
+permission changes, custody bypasses or weakened review and validation gates.
+Raise genuine external authorization or environment blockers precisely, retain
+ownership and an unfinished status, and continue all feasible engineering.
+A user stop or exhausted runtime budget preserves work for the same owner's
+continuation; it does not turn the unfinished assignment into completion.
+
 ## Commands
 
 The Rust toolchain is pinned in `rust-toolchain.toml`; `rustup` selects it.
@@ -191,8 +233,8 @@ are byte-sensitive.
 - Keep a short assignment record in the claim note or session handoff: outcome,
   acceptance, current failure, next necessary action and dependencies. Reread it
   after context compaction and before changing direction. A checkpoint is not
-  completion; continue the outcome or explicitly hand it off. A user stop or
-  exhausted budget preserves the frontier without claiming success.
+  completion; continue with the same owner under the law of completion. A user
+  stop or exhausted budget preserves the frontier without claiming success.
 - A newly discovered obstacle normally belongs to the current outcome. Update
   its frontier rather than spawning a task. Split only independently assignable
   work; the original DRI still owns integration. Shared blockers are recorded
@@ -211,14 +253,14 @@ are byte-sensitive.
   schedule ([testing](tools/testing.md#corpus-outcome-gate)). A regression it
   reports is bisected to its first bad commit and recorded on the owning item
   the same day; the owner repairs it before landing more capability work.
-- After an outcome or an explicit handoff, an agent may claim a bounded
+- After completing an outcome, an agent may claim a bounded
   iteration-performance or test-environment outcome based on an experienced
   obstruction. Record the workflow and adequate target before repair; return
   to product work when it meets that target. No incidental profiling detours.
 - Report outcome acceptance, not activity or commit counts. Missing implementation
   and file overlap are work to resolve, not blockers. An actual missing owner
-  decision, inaccessible environment or external dependency may require a handoff
-  or idle slot; unrelated busywork is not a substitute.
+  decision, inaccessible environment or external dependency may require a pause
+  while retaining ownership; unrelated busywork is not a substitute.
 - Language/architecture decisions go in `OWNER_QUESTIONS.md` with the
   dependency referenced on the owning task; engineering decisions stay with
   the implementer. Gates pass on real behavior. The accepted bootstrap
@@ -236,18 +278,19 @@ are byte-sensitive.
   worktrees. Assignments carry acceptance, governing design, dependencies and
   an integration owner. Keep distinct outcomes rather than partitioning files.
 - State publication and review responsibility in the assignment. An authorized
-  end-to-end owner completes normal landing; a contributor returns its candidate
-  to the integration DRI. Read-only review/scouting does not authorize writes or
+  end-to-end owner completes normal landing. Do not downgrade an implementation
+  assignment into a contributor-only handoff without the user's instruction.
+  Read-only review/scouting does not authorize writes or
   publication. User-required independent review remains required; a bounded
   report turn does not itself add another approval or reviewer gate.
 - Workers report through `python tools/claims.py note --ticket` and the
-  session report; the coordinator integrates its workers' board updates,
-  without claiming the board or blocking other sessions' updates. A slice
+  session report; the coordinator reconciles board evidence without replacing
+  outcome ownership or blocking other sessions' updates. A slice
   that reaches a sibling's implementation path reports the overlap and continues
   necessary work. Reuse a shared repair when practical; do not wait for permission
   to touch files. Reconcile competing changes into one implementation at landing.
-- Continue implementation when the design answers the question; hand off
-  the exact missing dependency when it does not.
+- Continue implementation when the design answers the question; escalate
+  the exact missing owner decision when it does not, retaining the outcome.
 
 ## Commit naming
 

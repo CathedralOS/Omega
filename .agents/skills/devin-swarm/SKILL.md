@@ -1,6 +1,6 @@
 ---
 name: devin-swarm
-description: Coordinate a requested Devin swarm with persistent outcome owners, isolated worktrees, bounded reporting and verified publication. Use for Devin cloud sessions or a Devin swarm; not local agents, a single advance or ordinary feature work.
+description: Coordinate a requested Devin swarm with complete end-to-end outcome ownership, isolated worktrees and verified main landing. Use for Devin cloud sessions or a Devin swarm; not local agents, a single advance or ordinary feature work.
 ---
 
 # Devin outcome coordination
@@ -10,6 +10,13 @@ One DRI owns each outcome through acceptance and integration. Follow
 [claims](../../../tools/claims.md), [testing](../../../tools/testing.md) and
 [landing](../../../tools/landing.md). The user sets scope, width and stopping
 condition. Editing this skill does not launch a swarm.
+
+Apply the [law of completion](../../../AGENTS.md#law-of-completion).
+Each implementation owner retains context and finishes its complete assigned
+path through acceptance, required review and authorized verified main landing.
+The coordinator coordinates; it does not replace an owner's unfinished
+engineering or introduce an artifact-only finish line.
+Follow the concrete path through completion; let working programs reveal design.
 
 ## Assign outcomes, not territory
 
@@ -24,9 +31,10 @@ Consult in-flight assignments too: claims can lag dispatch. Distinct outcomes
 may edit the same files in isolated worktrees. Notify peers, reuse repairs where
 practical and reconcile at publication. No file fences or waiting for path leases.
 
-A new obstacle normally stays in the assignment. Delegate independent parts only
-with an integration DRI. Keep the worker on its outcome through checkpoints;
-complete, explicitly hand off or park on a genuine external prerequisite.
+A new obstacle stays in the assignment. Do not split its necessary stages or
+prerequisite repairs into dependencies on other workers. Keep the worker on its
+outcome through checkpoints and complete acceptance and authorized landing.
+For a genuine external prerequisite, retain the owner and unfinished status.
 Do not turn unfinished work into a list of speculative residuals.
 
 ## Dispatch and resume
@@ -48,7 +56,7 @@ with neither and recorded Jev unavailable
 Use `notify_on_response=true` where supported; re-arm on follow-ups because
 notifications are one-shot. Inspect existing events before retrying an uncertain
 create/resume. Retain actual returned IDs. A settled turn is not a completed
-outcome; new work requires completion or explicit handoff.
+outcome; new work requires completion of the existing assignment.
 
 Retain page cursors; get_messages can return oldest-first. Reconcile handles
 after notifications, long commands and before ending a coordinator turn. Drain
@@ -71,11 +79,13 @@ Two advisories order that verification: `tools/jev_attribute.py` ranks a
 commit window for a failing signature before a bisect, and
 `corpus_gate.py --jev` gives the record-safety verdict before any `--record`
 (tools/testing.md).
-Shared executors use local worktrees. Independent executors publish through the
-same queue or return candidates through authorized artifact transport; do not
+Shared executors use local worktrees. Authorized end-to-end owners on independent
+executors publish completed paths through the same queue; do not
 invent remote worker branches or force-push workflows.
 
-The integration owner retains the candidate until accepted and published.
+Artifact transport supports review and recovery, not completion or transfer of
+unfinished implementation. The outcome owner retains its context until the
+accepted path is landed and verified on remote main.
 Board edits replace the remaining frontier, link blockers once and delete
 completed work. Never union-merge histories or create one task per diagnostic.
 

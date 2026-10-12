@@ -57,6 +57,60 @@ def manifest(session_overrides=None, **overrides):
     return record
 
 
+class OutcomeOwnershipTests(unittest.TestCase):
+    def test_generated_prompts_keep_complete_outcome_ownership(self):
+        module = load_launch()
+        record = manifest()
+        session = record['sessions'][0]
+        repository = LAUNCH.parents[2]
+        state = {'worktree': repository / 'build' / 'test-owner',
+                 'branch': 'swarm/w9-alpha', 'ahead': 0}
+        prompts = {
+            'cloud': module.render_prompt(TEMPLATE.read_text(encoding='utf-8'),
+                                          record, session),
+            'local': module.render_local_prompt(
+                TEMPLATE.with_name('prompt_template_local.md').read_text(
+                    encoding='utf-8'), record, session, repository, state),
+        }
+        for transport, prompt in prompts.items():
+            with self.subTest(transport=transport):
+                prompt = ' '.join(prompt.split())
+                self.assertIn('law of completion in `AGENTS.md`', prompt)
+                self.assertIn('authorized landing verified on remote main', prompt)
+                self.assertIn('do not wait for another agent', prompt)
+                self.assertIn('Do not publish half-finished functionality', prompt)
+                self.assertIn('without bypassing any gate', prompt)
+                self.assertIn('explicitly read-only probe remains read-only', prompt)
+                self.assertIn('Working paths reveal the design', prompt)
+                self.assertNotIn('without completing or handing off', prompt)
+
+    def test_legacy_hints_and_readonly_probes_do_not_change_completion(self):
+        module = load_launch()
+        hint = 'ONE bounded leg; return a handoff only'
+        block, probe = module.session_blocks({'suggested_first_slice': hint})
+        self.assertIn(hint, block)
+        self.assertIn('not a finish line', block)
+        self.assertIn('superseded by AGENTS.md', block)
+        self.assertEqual(probe, '')
+        block, probe = module.session_blocks({'probe_only': True})
+        self.assertEqual(block, '')
+        self.assertIn('explicitly read-only', probe)
+        self.assertIn('Do not edit or publish code', probe)
+        self.assertIn('not a completed implementation', probe)
+
+    def test_canonical_skills_reference_the_completion_law(self):
+        repository = LAUNCH.parents[2]
+        agents = (repository / 'AGENTS.md').read_text(encoding='utf-8')
+        self.assertIn('## Law of completion', agents)
+        self.assertIn('uncompilable sample through every necessary compiler', agents)
+        for name in ('advance', 'devin-swarm', 'local-swarm', 'codex-swarm',
+                     'dot-swarm'):
+            with self.subTest(skill=name):
+                skill = repository / '.agents' / 'skills' / name / 'SKILL.md'
+                self.assertIn('AGENTS.md#law-of-completion',
+                              skill.read_text(encoding='utf-8'))
+
+
 class SwarmTests(unittest.TestCase):
     def setUp(self):
         self.module = load_launch()

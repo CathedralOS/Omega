@@ -10,6 +10,13 @@ Follow [AGENTS.md](../../../AGENTS.md), [advance](../advance/SKILL.md),
 [landing](../../../tools/landing.md). The user controls scope and duration.
 Skill maintenance does not launch agents.
 
+Apply the [law of completion](../../../AGENTS.md#law-of-completion).
+Each implementation subagent retains context and owns the full assigned path,
+including necessary prerequisite repairs, acceptance, required review and
+authorized verified main landing. Do not divide its stages among agents or
+replace completion with an artifact handoff.
+Follow the concrete path through completion; let working programs reveal design.
+
 Use [host setup and build admission](host-setup.md) before dispatch. Local
 subagents share one machine, not just one conversation: discover its actual
 OS/architecture, CPU quota, memory, disk, native tools and retained cache state.
@@ -61,8 +68,9 @@ DRI. Never narrow path estimates merely to evade a collision.
 
 Keep returned handles and real states in `build/swarm/<wave>/slots.json`;
 `tools/swarm/fill.py note` and `plan` support this. On completion inspect
-evidence/diff, integrate a verified candidate and continue its outcome if
-acceptance remains incomplete. Only then choose new work within user scope.
+evidence/diff and verify the owner's complete acceptance and authorized remote
+landing. If either remains incomplete, resume the same owner on that outcome.
+Only after completion choose new work within user scope.
 
 Use local branches and landing.py, not merge commits/direct pushes. Rebase
 incoming changes, preserve behavior and validate the combined result. Existing

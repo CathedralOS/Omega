@@ -625,15 +625,20 @@ def session_blocks(session):
     if session.get("suggested_first_slice"):
         slice_block = (
             "Suggested first slice (a suggestion only; the board item's "
-            "acceptance governs): " + session["suggested_first_slice"])
+            "acceptance governs): " + session["suggested_first_slice"] +
+            "\nTreat this text as an investigation hint, not a finish line or "
+            "a restriction on necessary repairs. Earlier bounded-leg or "
+            "handoff-only instructions are superseded by AGENTS.md's law of "
+            "completion; required authority, custody and review gates remain.")
     probe_block = ""
     if session.get("probe_only"):
         probe_block = (
-            "Probe-only slot: the coordinator expects this item may not have a "
-            "bounded first slice on this host. `verification_only` with the "
+            "Probe-only slot: this is an explicitly read-only investigation. "
+            "`verification_only` with the "
             "witnessed rejection, the exact missing seam, and the next "
             "acceptance in `remaining_dependency` is a planned success here, "
-            "not a failure; still land a bounded improvement if one exists.")
+            "not a completed implementation. Do not edit or publish code; "
+            "an implementation assignment remains with its outcome owner.")
     return slice_block, probe_block
 
 

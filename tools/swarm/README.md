@@ -12,6 +12,12 @@ the launcher creates one session per entry, and each session runs the ordinary
 shared claims registry ([tools/claims](../claims.md)) and landing through
 `tools/landing.py`.
 
+Apply the [law of completion](../../AGENTS.md#law-of-completion): each
+implementation session retains context through its complete assigned acceptance,
+necessary cross-layer repairs, required review and authorized landing verified
+on remote main. Checkpoints, bounded report turns and transferred artifacts
+preserve evidence; they are not finish lines or implementation handoffs.
+
 The launcher writes no board text, holds no landing claim, creates no Git refs,
 and keeps receipts only under the ignored `build/swarm/<wave>/` directory.
 Partitioning lives in the manifest, checked against the claims registry's live
@@ -187,10 +193,12 @@ per-host block generated from `platform` (Intel macOS gets the
 ### Layers
 
 Sessions may carry `"layer": N` (default 0) for dependency ordering. Launch
-layer N only after layer N-1 has fully landed or parked — each layer builds on
+layer N only after layer N-1 has fully landed — each layer builds on
 `origin/main` containing the previous layer's published work, so dependency
-order follows required producer results. Shared paths are allowed within and
-across layers; outcome identity, not a directory, determines ownership. `--layer N` on `plan`, `launch`, and `local` selects one layer, and
+order follows required producer results. Layers never partition a single
+assigned outcome's prerequisite repairs among workers. Shared paths are allowed
+within and across layers; outcome identity, not a directory, determines ownership.
+`--layer N` on `plan`, `launch`, and `local` selects one layer, and
 composes with `local --sessions` for partial relaunches.
 
 ### Coordinator runbook
@@ -245,8 +253,8 @@ coordinator-side:
 ## Coordinator selection rules
 
 Prioritize immediate customer outcomes within the requested scope, not the ease
-of producing a helper commit. Give one session the bounded end-to-end slice and
-its application command; several pipeline crates can belong to that one slice.
+of producing a helper commit. Give one session the complete end-to-end outcome
+and its application command; all necessary pipeline crates belong to that owner.
 Check live outcome assignments; shared paths do not require partitioning.
 An exclusion applies to its wave, not all future work: reassess it when preparing
 a new wave and retain it only for a current conflict or concrete blocker. Do not

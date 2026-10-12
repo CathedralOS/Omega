@@ -8,7 +8,14 @@ description: Coordinate compiler advancement through reusable Codex cloud sessio
 Run the requested compiler workload through a persistent pool of Codex sessions.
 Each worker keeps its own cloud executor, checkout, build cache and outcome chain.
 Reuse a settled session for its next dependency-ready assignment. The coordinator
-selects programs, reconciles ownership, collects evidence and integrates results.
+selects programs, reconciles ownership and verifies complete results.
+
+Apply the [law of completion](../../../AGENTS.md#law-of-completion).
+Each implementation owner retains context through full acceptance, required
+review and authorized verified main landing, including its necessary compiler,
+library and prerequisite repairs. Do not split these stages into dependencies
+on other workers or substitute artifact handoffs for completion.
+Follow the concrete path through completion; let working programs reveal design.
 
 Read [AGENTS.md](../../../AGENTS.md), [advance](../advance/SKILL.md),
 [testing](../../../tools/testing.md), [claims](../../../tools/claims.md), and
@@ -122,8 +129,9 @@ create another session merely because a worker ended its turn or became idle.
 When create or follow-up has an uncertain result, preserve the operation identity
 and read the existing task before retrying. Do not duplicate a worker under the
 same logical slot. A capacity error is not permission for a resume-cap loophole.
-Keep blocked source checkpoints and route the session onto independent ready
-work only within the user's wave scope.
+Keep blocked source checkpoints with the same owner and continue every feasible
+part of its assigned outcome. A genuine external gate leaves it unfinished;
+do not route that owner away from the outcome as an implicit handoff.
 
 Use the controller's durable step adapter for continuation: `prepare-step`
 records the exact operation and checkpoint, `dispatch-step` reserves its one
@@ -167,9 +175,10 @@ another machine is not accessible evidence. Verify artifact content and commit
 ancestry before integration. Keep independent proof, custody and trust checks.
 
 Drain each result promptly: inspect evidence and diff, reconcile claims, record
-the outcome, integrate a verified candidate through `landing.py`, and follow up
+the outcome, verify the owner's complete path through `landing.py`, and follow up
 with the next necessary step of the owned outcome on the same session.
-Choose another outcome only on completion or explicit handoff. Path overlap is
+Choose another outcome only after complete acceptance and authorized remote
+landing. Path overlap is
 not a blocker; reconcile changes rather than pivoting to peripheral work. Do not hold an idle session behind
 a coordinator gate unless its next program truly depends on that result.
 Update only board items justified by actual acceptance. A program that still

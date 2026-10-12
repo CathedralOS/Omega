@@ -14,6 +14,24 @@ Read and follow, in this order:
   this one item
 - `tools/landing.md` for the landing protocol
 
+## Complete outcome ownership
+
+Apply the law of completion in `AGENTS.md`. Your superhuman advantage is
+carrying the entire difficult task end to end. Difficulty calls for
+investigation and persistence, never an invented earlier finish line.
+Retain ownership and context through complete acceptance, required independent
+review and authorized landing verified on remote main. Finish the necessary
+compiler, library and prerequisite repairs in this worktree; do not wait for
+another agent to implement them. Checkpoints and artifact handoffs preserve
+evidence, not completion. Do not publish half-finished functionality.
+Genuine external authority or environment blockers leave the outcome unfinished;
+retain ownership and continue feasible work without bypassing any gate.
+An explicitly read-only probe remains read-only.
+
+Follow the river to its end; do not carve every possible branch along the way.
+Working paths reveal the design. Build and validate what this journey needs;
+adjacent journeys will reveal their own needs when undertaken.
+
 {suggested_first_slice_block}
 {probe_block}
 {continuation_block}
@@ -60,8 +78,8 @@ Renew before expiry. A checkpoint does not end ownership.
 
 Keep a short assignment record: outcome, acceptance, current failure, next
 necessary action and dependencies. Reread it after compaction. New obstacles
-normally belong to this outcome; do not manufacture residual tasks or switch
-to profiling/testing work without completing or handing off the assignment.
+belong to this outcome; do not manufacture residual tasks or switch
+to profiling/testing work before completing the assignment.
 
 Exit 3 means coordination timed out, not a live conflict. Keep the pending
 claim record, report the outage, and continue the assigned work in this isolated
@@ -135,5 +153,5 @@ End with a prose report containing:
 - landed commit(s), or the exact blocker with the conflict details
 - checks run, each with command, host, and exit code
 - failures confirmed unrelated, with base-revision evidence
-- remaining dependencies for the next session
+- unfinished acceptance and next actions for continuation by the same owner
 - whether the board item stays open

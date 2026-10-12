@@ -20,8 +20,8 @@ status and recent lane commits. If the starting checkout is clean and on main,
 fast-forward it with `git merge --ff-only origin/main` before reading its boards.
 Otherwise preserve it and read from an isolated worktree based on fetched main.
 
-For a continuation, retain the same outcome until acceptance, explicit handoff,
-or a user priority change. Missing implementation is part of the assignment,
+For a continuation, retain the same outcome through complete acceptance and
+authorized verified landing, unless the user changes priority. Missing implementation is part of the assignment,
 not a reason to move elsewhere. Without prior continuity, choose from
 `TASKS.md`, `TASKS_BOOTSTRAP.md`, or `TASKS_OPTIMIZER.md`; honor a named board.
 Choose a general capability that closes release requirements; real programs
@@ -31,7 +31,7 @@ regression `tools/native_watch.py` reports on main, a group of failing samples
 from `tools/sample_native_gate.py` with one demonstrated root cause, then a board
 item. When none is real, write new samples at the frontier and own what they
 reveal; do not split an item to stay busy. After a completed
-round or explicit handoff, measured iteration performance or test-environment
+outcome and authorized verified landing, measured iteration performance or test-environment
 friction may be the next owned outcome. Name its workflow, baseline and adequate
 target first; a minor incidental slowdown is not permission to abandon a feature.
 Check live assignments with `python tools/claims.py status`. Claim your item
@@ -119,7 +119,11 @@ recognizer. Carry the same program across the repair. Preserve language
 ownership, effect, mathematical proof and ABI obligations; do not resurrect
 the independently replayed PCC checks retired by the owning tasks.
 
-Carry the reproduction and source findings forward across handoffs.
+Apply the [law of completion](../../../AGENTS.md#law-of-completion).
+Retain the reproduction, source findings and outcome context through complete
+acceptance, required review and authorized verified main landing. Do not leave
+necessary compiler/library stages for another agent or treat a handoff as done.
+Follow the concrete path through completion; let working programs reveal design.
 
 Keep the outer command in the sample's README or owning design document and the
 current first failure in its existing board item. After a milestone, rerun the
@@ -222,7 +226,7 @@ reasoning this invocation had to reconstruct. Add what is missing in the
 touched design area and update what is stale; existing comments that already
 answer the question stay as they are.
 
-## Delegate a bounded assignment
+## Delegate without fragmenting the outcome
 
 Follow [delegation](../../../AGENTS.md#delegation). Give the worker its exact
 worktree/revision and canonical skill path, objective, design anchors, edit
@@ -231,8 +235,9 @@ ownership, dependencies, acceptance, and escalation conditions.
 For discoverability assignments, include the reader's question, the affected
 entry-to-operation route, and the orchestration requirement above.
 
-Give each worker a distinct question or edit responsibility. Independent review
-challenges assumptions and checks correctness.
+Give each implementation worker a distinct complete outcome, not one stage or
+file of this outcome. Necessary cross-layer repairs remain with its owner.
+Independent read-only review challenges assumptions and checks correctness.
 
 For contributor assignments, the coordinator owns board updates from returned
 evidence. An authorized end-to-end owner carries its assigned publication through
@@ -247,8 +252,9 @@ and evidence before integration. Worker IDs stay in the conversation.
 Evidence identifies revision, host, command, exit, and remaining dependencies.
 The assigned acceptance is the required capability demonstrated on the target,
 or the measured development workflow restored to its agreed bound; continue
-implementation when the design answers the next question, or hand off the exact
-missing dependency and next acceptance.
+implementation when the design answers the next question. Escalate genuine
+external decisions with the exact missing prerequisite and next acceptance,
+retaining ownership and continuing feasible engineering.
 
 ## Land and restore the checkout
 
@@ -301,7 +307,8 @@ dependency referenced on the owning task; engineering choices are the agent's.
 Do not switch assignments because a required file is shared, the next stage
 is unfinished or a checkpoint landed. Continue necessary work. A genuine owner
 decision, unavailable environment, budget limit or user stop may end this run;
-preserve the exact frontier and handoff without marking the outcome complete.
+preserve the exact frontier for the same owner's continuation without marking
+the outcome complete.
 
 Report the program's behavior before and after, commit/publication state,
 checks run, and remaining dependencies. For development-health work report the
