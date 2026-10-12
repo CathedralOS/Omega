@@ -1,8 +1,8 @@
 //! Preserve atomic accesses as events while resolving their scalar operands
 //! and aligned field locations. Splitting a fetch into a read and a store
 //! would lose the instruction-observed prior before instruction selection.
-//! This is the existing serial scalar-result route; fences and single-attempt
-//! exchange retain their explicit unsupported boundary.
+//! Fences retain their location-free ordering event; single-attempt exchange
+//! retains its explicit unsupported boundary.
 
 use super::{KnownUnitInteger, LiveDefinitions};
 use crate::LoweringError;
@@ -24,6 +24,14 @@ pub(super) fn lower(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
+    if let AbstractAtomicEvent::Fence { ordering } = event {
+        operations.push(TargetUnitOperation::AtomicFence {
+            psi_operation: operation,
+            ordering: *ordering,
+        });
+        provenance.operations.push(operation);
+        return Ok(());
+    }
     let location = event
         .location()
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;

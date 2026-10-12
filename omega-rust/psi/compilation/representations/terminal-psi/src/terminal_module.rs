@@ -36,7 +36,7 @@ pub use boundary::{
     program_local_root_introduction_compatibility_report_identity,
 };
 pub use control_flow::{
-    AtomicAccessEvent, AtomicReadModifyWrite, Block, CrashCause, ElementViewRegion,
+    AtomicAccessEvent, AtomicReadModifyWrite, Block, CrashCause, ElementViewRegion, FenceOrdering,
     FloatResultPolicy, MemoryOrdering, Operation, OperationKind, OperationResult,
     RecordFieldInitializer, RecordFieldValue, ReferenceStorageView, ScalarCaseField,
     StructuralCaseSuccessorEdge, StructuralOperationResult, StructuralResultClaimBinding,

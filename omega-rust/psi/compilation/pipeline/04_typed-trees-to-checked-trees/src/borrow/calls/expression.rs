@@ -26,9 +26,8 @@ pub(super) fn collect_expression_borrow_calls(
         ExpressionNode::Call(call) => {
             let (receiver_symbol, receiver_path) =
                 call_receiver_parts(collection.program, call.receiver);
-            let boundary_operator =
-                typed_trees::operator::resolve_named_expression_call(collection.program, call)
-                    .filter(|operator| operator.is_boundary);
+            let selected_operator =
+                typed_trees::operator::resolve_named_expression_call(collection.program, call);
             let selected_target = validation::call_target_symbol_for_origin(
                 program,
                 expression,
@@ -77,7 +76,7 @@ pub(super) fn collect_expression_borrow_calls(
                     } else {
                         call.target_symbol
                     },
-                    boundary_operator.map_or_else(
+                    selected_operator.map_or_else(
                         || {
                             call.receiver.is_valid()
                                 && collection.program.symbols.get(receiver_symbol).kind

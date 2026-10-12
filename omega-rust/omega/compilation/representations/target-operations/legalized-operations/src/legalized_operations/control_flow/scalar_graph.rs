@@ -283,6 +283,7 @@ impl LegalizedScalarInstruction {
                     visit(*end);
                 }
             }
+            LegalizedScalarInstructionKind::AtomicFence { .. } => {}
             LegalizedScalarInstructionKind::AtomicAccess { event, .. } => {
                 event.operands().into_iter().for_each(visit);
             }
@@ -364,6 +365,10 @@ impl LegalizedScalarInstruction {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarInstructionKind {
+    /// Preserve the requested language ordering through target refinement.
+    AtomicFence {
+        ordering: terminal_psi::FenceOrdering,
+    },
     /// Formation defines one unsigned word; the operation retains selector identity.
     SelectImplementation {
         table: u32,
@@ -958,6 +963,7 @@ impl LegalizedScalarInstructionKind {
             },
             Self::SelectImplementation { .. }
             | Self::FloatResultPolicy { .. }
+            | Self::AtomicFence { .. }
             | Self::AtomicAccess { .. }
             | Self::IeeeFloatCompare { .. }
             | Self::NearestIeeeFloatArithmetic { .. }

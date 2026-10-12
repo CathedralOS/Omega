@@ -220,6 +220,7 @@ impl OperationFrame<'_, '_> {
                 | CheckedUnitEffectOperationPlan::ContinuationCleanup { .. }
                 | checked_trees::byte_sequence_establishment_pattern!()
                 | checked_trees::reference_hold_pattern!()
+                | CheckedUnitEffectOperationPlan::AtomicFence { .. }
                 | CheckedUnitEffectOperationPlan::AtomicAccess(_)
         )
     }
@@ -292,6 +293,9 @@ impl OperationFrame<'_, '_> {
             ),
             CheckedUnitEffectOperationPlan::ReleaseReference { .. } => {
                 self.release_reference(identities, operation)
+            }
+            CheckedUnitEffectOperationPlan::AtomicFence { ordering, .. } => {
+                self.atomic_fence(*ordering)
             }
             CheckedUnitEffectOperationPlan::AtomicAccess(access) => {
                 self.atomic_access(identities, access)

@@ -168,7 +168,7 @@ pub fn call_target_parameters(
     if let Some(operator) = program
         .operators()
         .iter()
-        .find(|operator| operator.is_boundary && operator.symbol == target_state_symbol)
+        .find(|operator| operator.symbol == target_state_symbol)
     {
         return Some(program.operator_parameters(operator));
     }
@@ -209,7 +209,7 @@ pub fn call_target_type_parameters(
     if let Some(operator) = program
         .operators()
         .iter()
-        .find(|operator| operator.is_boundary && operator.symbol == target_state_symbol)
+        .find(|operator| operator.symbol == target_state_symbol)
     {
         return program.operator_type_parameters(operator);
     }
@@ -313,17 +313,17 @@ fn asm_intrinsic_result_type(
 /// The callee identity a typed call's flow occurrence keys on. A named
 /// `Namespace::requirement(...)` call keeps its authored receiver path and an
 /// invalid `target_symbol`; borrow discovery and flow rekey the occurrence by
-/// the selected boundary declaration's symbol (`resolve_named_expression_call`
+/// the selected operator declaration's symbol (`resolve_named_expression_call`
 /// returns the same declaration a spelled call would target). Any consumer
 /// that compares or dispatches on the occurrence's `target_symbol` must
-/// resolve the same identity — the raw leaf loses every named boundary call
+/// resolve the same identity — the raw leaf loses every named operator call
 /// to an empty match. A call this cannot name keeps its authored leaf and
 /// fails closed at whichever consumer reads it.
 pub fn call_target_symbol(
     program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
 ) -> SymbolHandle {
-    typed_trees::operator::selected_boundary_operator(program, call)
+    typed_trees::operator::resolve_named_expression_call(program, call)
         .map_or(call.target_symbol, |operator| operator.symbol)
 }
 

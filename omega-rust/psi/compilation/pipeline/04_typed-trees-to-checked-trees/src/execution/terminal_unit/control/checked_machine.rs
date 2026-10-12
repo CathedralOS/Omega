@@ -305,6 +305,7 @@ pub(crate) fn build_checked_machine_residual_parts(
                 checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { .. },
             )
             | CheckedUnitEffectOperationPlan::Store(_)
+            | CheckedUnitEffectOperationPlan::AtomicFence { .. }
             | CheckedUnitEffectOperationPlan::AtomicAccess(_)
             | checked_trees::structural_field_write_pattern!()
             | CheckedUnitEffectOperationPlan::EstablishLocal(

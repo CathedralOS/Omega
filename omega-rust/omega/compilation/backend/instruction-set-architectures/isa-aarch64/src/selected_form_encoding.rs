@@ -4,6 +4,7 @@
 //! words back and `encoding_types.rs` holds the carriers.
 
 pub(crate) mod atomic;
+pub(crate) mod atomic_fence;
 #[cfg(test)]
 mod boolean_materialization_tests;
 mod branch_forms;

@@ -150,3 +150,25 @@ fn decode_ordering(reader: &mut Reader<'_>) -> Result<MemoryOrdering, CodecError
         tag => return Err(CodecError::InvalidTag("MemoryOrdering", tag)),
     })
 }
+
+/// Fence tags are dedicated: the access-ordering space is not interchangeable.
+pub(super) fn encode_atomic_fence(writer: &mut Writer, ordering: terminal_psi::FenceOrdering) {
+    use terminal_psi::FenceOrdering;
+    writer.u8(operation_tags::ATOMIC_FENCE);
+    writer.u8(match ordering {
+        FenceOrdering::Receive => 1,
+        FenceOrdering::Publish => 2,
+        FenceOrdering::ReceivePublish => 3,
+    });
+}
+
+pub(super) fn decode_atomic_fence(reader: &mut Reader<'_>) -> Result<OperationKind, CodecError> {
+    use terminal_psi::FenceOrdering;
+    let ordering = match reader.u8()? {
+        1 => FenceOrdering::Receive,
+        2 => FenceOrdering::Publish,
+        3 => FenceOrdering::ReceivePublish,
+        tag => return Err(CodecError::InvalidTag("FenceOrdering", tag)),
+    };
+    Ok(OperationKind::AtomicFence { ordering })
+}

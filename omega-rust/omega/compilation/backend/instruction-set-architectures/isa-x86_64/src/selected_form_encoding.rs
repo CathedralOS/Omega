@@ -10,6 +10,7 @@
 //! those three and the machine-effect catalog share.
 
 pub(crate) mod atomic;
+pub(crate) mod atomic_fence;
 #[cfg(test)]
 mod boolean_materialization_tests;
 mod branch_forms;

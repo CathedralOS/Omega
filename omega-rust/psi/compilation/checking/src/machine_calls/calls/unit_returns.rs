@@ -81,6 +81,13 @@ pub(in crate::machine_calls::calls) fn call_returns_unit(
             && (target_state.return_type.is_valid()
                 || !has_inferred_value_return(program, target));
     }
+    if let Some(operator) = program
+        .operators()
+        .iter()
+        .find(|operator| operator.symbol == call.target_symbol)
+    {
+        return unit_type(program, operator.return_type);
+    }
     let requirement = match program.machine_parameter_signature(call.target_symbol) {
         Some((owner, signature)) if owner.symbol == machine.symbol => signature.symbol,
         Some(_) => return false,

@@ -1587,6 +1587,7 @@ impl MachineEmission<'_> {
         let kind = match operation {
             CheckedUnitEffectOperationPlan::PortWrite { .. }
             | CheckedUnitEffectOperationPlan::Store(_)
+            | CheckedUnitEffectOperationPlan::AtomicFence { .. }
             | CheckedUnitEffectOperationPlan::AtomicAccess(_)
             | CheckedUnitEffectOperationPlan::EstablishLocal(
                 checked_trees::CheckedUnitLocalBindingPlan::Scalar { .. },

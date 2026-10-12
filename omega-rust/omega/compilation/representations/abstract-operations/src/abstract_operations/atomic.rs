@@ -90,12 +90,7 @@ impl From<AbstractAtomicReadModifyWrite> for terminal_psi::AtomicReadModifyWrite
 /// `Receive | Publish | ReceivePublish`. The dedicated type keeps
 /// `NoOrdering` and `GlobalOrder` fences unrepresentable rather than
 /// rejected by a later check.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AbstractAtomicFenceOrdering {
-    Receive,
-    Publish,
-    ReceivePublish,
-}
+pub use language_core::atomic::FenceOrdering as AbstractAtomicFenceOrdering;
 
 /// The retained `reads_from` edge of one observing atomic event: which
 /// write in its place's modification order the event claims to have read.

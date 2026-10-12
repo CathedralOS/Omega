@@ -139,6 +139,7 @@ fn family_and_operand_count(
             MachineAlternativeFamily::FloatResultPolicy(form),
             form.operand_count() + 1,
         ),
+        SelectedInstructionKind::AtomicFence => (MachineAlternativeFamily::AtomicFence, 0),
         SelectedInstructionKind::Crash => (MachineAlternativeFamily::Crash, 0),
         SelectedInstructionKind::TrappingInteger { form } => (
             MachineAlternativeFamily::TrappingInteger(form),
@@ -416,6 +417,7 @@ fn encode_unchecked(
         SelectedInstructionKind::FloatResultPolicy { form } => {
             return super::float_result_policy::encode(form, registers);
         }
+        SelectedInstructionKind::AtomicFence => words.push(0xd503_3fbf),
         SelectedInstructionKind::Crash => words.push(0xd420_0000),
         SelectedInstructionKind::TrappingInteger { form } => {
             // The result and scratch are early-clobber outputs: each is

@@ -85,7 +85,8 @@ pub(super) fn admit(
                 }) => {}
             // An atomic event's root authority and operands rejoined at
             // mint; its observed prior is an ordinary dense scalar local.
-            CheckedUnitEffectOperationPlan::AtomicAccess(_) => {}
+            CheckedUnitEffectOperationPlan::AtomicFence { .. }
+            | CheckedUnitEffectOperationPlan::AtomicAccess(_) => {}
             // The window pair the sequencer itself joined — a move-out
             // binding the displaced field value and the exact restoration
             // into the opened hole — carries no new custody across the

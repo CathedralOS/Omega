@@ -283,6 +283,7 @@ pub(crate) fn map_obligations(
         | OperationKind::WrappingIntegerMultiply { .. }
         | OperationKind::SaturatingIntegerMultiply { .. }
         | OperationKind::TrappingInteger { .. }
+        | OperationKind::AtomicFence { .. }
         | OperationKind::AtomicAccess { .. } => {}
     }
 }

@@ -43,7 +43,8 @@ pub(super) fn admit_calls<'a>(
                 // names no callee.
                 | CheckedUnitEffectOperationPlan::Store(_)
                 // An atomic event names no callee.
-                | CheckedUnitEffectOperationPlan::AtomicAccess(_)
+                | CheckedUnitEffectOperationPlan::AtomicFence { .. }
+            | CheckedUnitEffectOperationPlan::AtomicAccess(_)
                 // The paired call carries the callee dependency; cleanup only
                 // disposes its discarded result.
                 | CheckedUnitEffectOperationPlan::ContinuationCleanup { .. }

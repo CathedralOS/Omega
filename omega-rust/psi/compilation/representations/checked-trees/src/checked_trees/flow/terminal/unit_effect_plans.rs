@@ -310,6 +310,16 @@ pub enum CheckedUnitEffectOperationPlan {
     /// source carrier's placeholder local and carrier assignment into one
     /// operation (see `atomic_plans.rs`).
     AtomicAccess(crate::CheckedAtomicAccessPlan),
+    /// A proof-static ordering event, after ordinary operand evaluation. It
+    /// accesses no resident and produces neither a value nor an observation.
+    AtomicFence {
+        statement_index: u32,
+        declaration: SymbolHandle,
+        ordering: language_core::atomic::FenceOrdering,
+        /// Evaluated source argument, retained for producer custody even
+        /// though the emitted event has no runtime value operand.
+        argument: CheckedUnitStructuralArgumentPlan,
+    },
     /// Move one whole structural field out of exclusive borrowed storage into
     /// a fresh owned binding, opening a repair window the body must close.
     /// The source retains its exact storage path; the result binds a named
@@ -715,6 +725,9 @@ impl CheckedUnitEffectOperationPlan {
             } => Some(*statement_index),
             Self::PortWrite { coordinate, .. } => Some(coordinate.statement_index),
             Self::AtomicAccess(access) => Some(access.statement_index),
+            Self::AtomicFence {
+                statement_index, ..
+            } => Some(*statement_index),
             Self::Store(store) => Some(store.statement_index),
             Self::ContinuationCleanup { .. }
             | Self::ReleaseReference { .. }
@@ -722,13 +735,15 @@ impl CheckedUnitEffectOperationPlan {
         }
     }
 
-    /// The authored structural arguments of an ordinary call — Unit, scalar,
-    /// structural or boundary — in argument order; empty for every other
-    /// operation. Selected-operator calls keep their own operand lanes.
+    /// Evaluated structural call arguments, including a primitive whose
+    /// proved argument is absent from its runtime event. Selected-operator
+    /// arithmetic keeps its own operand lanes.
     pub fn call_structural_arguments(&self) -> &[CheckedUnitStructuralArgumentPlan] {
-        self.call()
-            .map(|call| call.structural_arguments.as_slice())
-            .unwrap_or_default()
+        match self {
+            Self::Call(call) => &call.structural_arguments,
+            Self::AtomicFence { argument, .. } => std::slice::from_ref(argument),
+            _ => &[],
+        }
     }
 
     /// The ordinary or boundary call this operation performs; `None` for

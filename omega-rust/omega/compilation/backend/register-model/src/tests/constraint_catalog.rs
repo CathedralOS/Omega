@@ -129,19 +129,6 @@ fn constraint_catalog_rejects_unknown_or_unallocatable_operand_domains() {
             }
         )
     );
-
-    let mut empty = miniature_catalog();
-    let row = &mut empty.constraints[0];
-    row.operands.clear();
-    row.implicit_uses.clear();
-    row.implicit_defs.clear();
-    row.clobbers.clear();
-    assert_eq!(
-        validate_register_constraint_catalog(empty, &model),
-        Err(RegisterConstraintCatalogValidationError::EmptyConstraint(
-            RegisterConstraintId(0)
-        ))
-    );
 }
 
 #[test]
@@ -247,4 +234,16 @@ fn constraint_catalog_is_bound_to_the_validated_model_architecture() {
         validate_register_constraint_catalog(wrong_architecture, &validated_miniature_model()),
         Err(RegisterConstraintCatalogValidationError::ArchitectureMismatch)
     );
+}
+
+#[test]
+fn constraint_catalog_accepts_an_explicit_register_free_row() {
+    let model = validated_miniature_model();
+    let mut catalog = miniature_catalog();
+    let row = &mut catalog.constraints[0];
+    row.operands.clear();
+    row.implicit_uses.clear();
+    row.implicit_defs.clear();
+    row.clobbers.clear();
+    assert!(validate_register_constraint_catalog(catalog, &model).is_ok());
 }

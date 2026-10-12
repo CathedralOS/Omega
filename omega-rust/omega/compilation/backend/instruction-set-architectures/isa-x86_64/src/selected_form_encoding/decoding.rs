@@ -1075,6 +1075,9 @@ pub(crate) fn validate_decoded(
         }
         SelectedInstructionKind::NearestIeeeFloatArithmetic { .. }
         | SelectedInstructionKind::FloatResultPolicy { .. } => false,
+        SelectedInstructionKind::AtomicFence => {
+            registers.is_empty() && decoded == [DecodedInstruction::MemoryFence]
+        }
         SelectedInstructionKind::Crash => {
             registers.is_empty() && decoded == [DecodedInstruction::Crash]
         }
@@ -2019,7 +2022,9 @@ pub(crate) fn footprint(
         SelectedInstructionKind::AtomicAccess { .. } => {
             unreachable!("atomic footprint returned above")
         }
-        SelectedInstructionKind::Crash => (Vec::new(), Vec::new(), false),
+        SelectedInstructionKind::AtomicFence | SelectedInstructionKind::Crash => {
+            (Vec::new(), Vec::new(), false)
+        }
         SelectedInstructionKind::MaterializeBooleanEqual
         | SelectedInstructionKind::MaterializeBooleanU64LessThan
         | SelectedInstructionKind::MaterializeBooleanI64LessThan
@@ -2108,7 +2113,9 @@ pub(crate) fn footprint(
     };
     let physical = crate::x86_64_physical_register_model_ref();
     let units = |name: &str| physical.view_named(name).unwrap().units.clone();
-    let encoded = if kind == SelectedInstructionKind::Crash {
+    let encoded = if kind == SelectedInstructionKind::AtomicFence {
+        MachineEncodedEffects::atomic_fence_v1()
+    } else if kind == SelectedInstructionKind::Crash {
         selected_instructions::MachineEncodedEffects::crash_v1(&units("rip"))
     } else if let SelectedInstructionKind::AtomicAccess { .. } = kind {
         unreachable!("atomic footprint returned above");

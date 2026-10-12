@@ -337,6 +337,9 @@ pub(in crate::exit_contract) fn validate_non_return(
         ));
     }
     let memory_matches = match (kind, effects.memory, encoding.address) {
+        (SelectedInstructionKind::AtomicFence, MachineEncodedMemoryEffect::AtomicFenceV1, None) => {
+            effects == &selected_instructions::MachineEncodedEffects::atomic_fence_v1()
+        }
         (
             SelectedInstructionKind::NearestIeeeFloatArithmetic { .. },
             MachineEncodedMemoryEffect::TemporaryStackStorageV1 { .. },
@@ -654,6 +657,7 @@ pub(in crate::exit_contract) fn validate_non_return(
                 | SelectedInstructionKind::StoreEncodedScalar
                 | SelectedInstructionKind::CompareByteSequences
                 | SelectedInstructionKind::FloatResultPolicy { .. }
+                | SelectedInstructionKind::AtomicFence
                 | SelectedInstructionKind::AtomicAccess { .. }
                 | SelectedInstructionKind::SaveFloatingControl { .. }
                 | SelectedInstructionKind::RestoreFloatingControl { .. }

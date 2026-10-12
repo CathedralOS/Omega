@@ -962,3 +962,7 @@ pass/optimizer/rollback_dead_pure_scalar_elimination_selected built 3263ms rollb
 pass/optimizer/selected_comparison_demand_exit built 6652ms exit:70 interpreter-exit:70 interpreter:agrees @dfc9dc858b3e+wt
 pass/float/guarded_scalar_state_contract_exit built 7107ms exit:0 interpreter-exit:0 interpreter:agrees @cf645a79ddb2+wt
 pass/termination/runtime_float_requirement_integer_rank_exit built 7023ms exit:0 interpreter-exit:0 interpreter:agrees @cf645a79ddb2+wt
+pass/atomics/runtime_atomic_fence_captured_ordering_exit built 7215ms exit:0 interpreter-exit:0 interpreter:agrees @b2d763407d51+wt
+pass/atomics/runtime_atomic_fences_exit built 6937ms exit:0 interpreter-exit:0 interpreter:agrees @b2d763407d51+wt
+pass/atomics/runtime_authored_fence_name_exit built 7027ms exit:0 interpreter-exit:0 interpreter:agrees @b2d763407d51+wt
+pass/contracts/saved_call_case_guarantee_requires_exit built 4676ms exit:0 interpreter-exit:0 interpreter:agrees @b2d763407d51+wt

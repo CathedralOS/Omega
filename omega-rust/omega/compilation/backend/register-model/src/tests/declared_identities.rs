@@ -131,6 +131,7 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
     )
     .unwrap();
     let keys = TargetRegisterEnvironmentConstraintKeys {
+        atomic_fence: None,
         atomic_load: None,
         atomic_store: None,
         atomic_update: None,
@@ -305,6 +306,7 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
 
     for changed_keys in [
         TargetRegisterEnvironmentConstraintKeys {
+            atomic_fence: None,
             atomic_load: Some(instruction_key(781)),
             ..keys.clone()
         },

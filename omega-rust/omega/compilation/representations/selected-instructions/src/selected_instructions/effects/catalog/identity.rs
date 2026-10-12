@@ -43,10 +43,11 @@ pub fn machine_effect_catalog_identity(
     catalog: &MachineEffectCatalog,
 ) -> MachineEffectCatalogIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v31\0");
+    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v32\0");
     bytes.extend_from_slice(&catalog.target.identity_bytes());
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
     for key in [
+        catalog.selected_keys.atomic_fence,
         catalog.selected_keys.atomic_load,
         catalog.selected_keys.atomic_store,
         catalog.selected_keys.atomic_update,
@@ -101,6 +102,7 @@ pub fn machine_effect_catalog_identity(
         // with an older catalog identity.
         bytes.push(match declaration.memory {
             crate::MachineMemoryEffect::CopyBytesV1 => 6,
+            crate::MachineMemoryEffect::AtomicFenceV1 => 15,
             crate::MachineMemoryEffect::AtomicPointerV1 => 8,
             crate::MachineMemoryEffect::TemporaryStackStorageV1 => 9,
             crate::MachineMemoryEffect::NoneV1 => 0,
@@ -349,6 +351,7 @@ pub fn encode_machine_encoded_effects_identity<Sink: MachineIdentityBytes + ?Siz
             bytes.identity_bytes(&[7]);
             bytes.identity_bytes(&pointer_operand.to_le_bytes());
         }
+        MachineEncodedMemoryEffect::AtomicFenceV1 => bytes.identity_bytes(&[18]),
         MachineEncodedMemoryEffect::AtomicPointerV1 {
             pointer_operand,
             form,
@@ -584,6 +587,7 @@ macro_rules! effect_tag_arms {
                 saturating_family_tag(SaturatingOperation::Multiply, carrier)
             }
             $enum::TrappingInteger(form) => trapping_family_tag(form),
+            $enum::AtomicFence => 238,
             $enum::AtomicAccess(form) => form.machine_tag(),
             $enum::NearestIeeeFloatArithmetic(form) => form.machine_tag(),
             $enum::FloatResultPolicy(form) => form.machine_tag(),

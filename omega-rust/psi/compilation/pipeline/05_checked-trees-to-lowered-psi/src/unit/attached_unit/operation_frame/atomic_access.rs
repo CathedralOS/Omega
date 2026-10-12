@@ -21,6 +21,21 @@ use checked_trees::{CheckedAtomicAccessPlan, CheckedAtomicEvent, CheckedAtomicRe
 use terminal_psi::{AtomicAccessEvent, AtomicReadModifyWrite};
 
 impl OperationFrame<'_, '_> {
+    pub(super) fn atomic_fence(
+        &mut self,
+        ordering: language_core::atomic::FenceOrdering,
+    ) -> Result<(), LoweringError> {
+        let id = self.operations.allocate();
+        self.operations.push(Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id,
+            result: OperationResult::Unit,
+            kind: OperationKind::AtomicFence { ordering },
+        });
+        Ok(())
+    }
+
     pub(super) fn atomic_access(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,

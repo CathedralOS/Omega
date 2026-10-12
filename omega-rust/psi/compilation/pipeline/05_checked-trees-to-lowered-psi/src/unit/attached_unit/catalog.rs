@@ -1418,6 +1418,7 @@ pub(super) fn lower_unit_services_including(
                 | CheckedUnitEffectOperationPlan::AtomicAccess(_)
                 | checked_trees::structural_field_write_pattern!()
                 | CheckedUnitEffectOperationPlan::ContinuationCleanup { .. }
+                | CheckedUnitEffectOperationPlan::AtomicFence { .. }
                 | CheckedUnitEffectOperationPlan::Complete { .. } => {}
             }
         }

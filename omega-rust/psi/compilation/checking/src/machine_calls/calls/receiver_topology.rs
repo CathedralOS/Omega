@@ -187,14 +187,14 @@ pub fn resolve_state_call_target(
     if program.dynamic_slot_by_symbol(target_symbol).is_some() {
         return target_symbol;
     }
-    // A legacy boundary operator is a callable requirement, not a machine
-    // state. Keep its declaration identity in the ordinary call graph; the
-    // provider remains an Omega-side choice after Terminal publication.
+    // An operator declaration is callable without owning a machine state.
+    // Keep its exact identity and operand evaluations in the call graph;
+    // its supply category separately decides primitive or boundary execution.
     if target_symbol.is_valid()
         && program
             .operators()
             .iter()
-            .any(|operator| operator.is_boundary && operator.symbol == target_symbol)
+            .any(|operator| operator.symbol == target_symbol)
     {
         return target_symbol;
     }

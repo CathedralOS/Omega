@@ -149,6 +149,21 @@ pub(super) fn validate_operation(
             sources.push((result.value, Source::Home(*result_home)));
         }
         (
+            TargetUnitOperation::AtomicFence {
+                psi_operation,
+                ordering,
+            },
+            AbstractOperation::AtomicEvent {
+                psi_operation: expected_operation,
+                event:
+                    abstract_operations::AbstractAtomicEvent::Fence {
+                        ordering: expected_ordering,
+                    },
+                reads_from: None,
+                modification_after: None,
+            },
+        ) if psi_operation == expected_operation && ordering == expected_ordering => {}
+        (
             TargetUnitOperation::AtomicAccess {
                 psi_operation,
                 location,

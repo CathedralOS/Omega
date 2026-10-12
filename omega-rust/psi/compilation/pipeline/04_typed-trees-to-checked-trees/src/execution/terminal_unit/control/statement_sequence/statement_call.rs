@@ -150,6 +150,65 @@ pub(super) fn plan(
         trace,
         windows,
     )?;
+    if let Some(contract) = crate::checks::atomic_fences::contract(program, call) {
+        call_phase("statement sequence: call: atomic fence ordering");
+        if result.is_some() || structural_result.is_some() || !call_result_stores.is_empty() {
+            return None;
+        }
+        let flow_state = facts
+            .flow
+            .control
+            .states
+            .iter()
+            .find_map(|(_, candidate)| {
+                (candidate.machine_symbol == machine.symbol
+                    && candidate.state_symbol == state.symbol)
+                    .then_some(candidate)
+            })?;
+        let ordering =
+            crate::checks::atomic_fences::ordering(program, facts, flow_state, call, &contract)
+                .ok()?;
+        let declaration = program.operator_definition_by_symbol(contract.declaration)?;
+        let site = validation::find_call_site(
+            program,
+            machine.symbol,
+            state.symbol,
+            index,
+            call.call_ordinal,
+        )?;
+        // The language primitive has ordinary by-value argument custody. No
+        // provider boundary or fabricated executable callee is introduced.
+        let arguments = crate::execution::terminal_unit::calls::structural_call_arguments(
+            program,
+            facts,
+            call,
+            machine,
+            state,
+            structural_parameters,
+            trivial_affine_locals,
+            crate::execution::terminal_unit::calls::CallTarget {
+                parameters: program.operator_parameters(declaration),
+                return_type: declaration.return_type,
+                supply_mode: language_semantics::MachineSupplyMode::CheckedBody,
+                declaration: None,
+            },
+            &site,
+            index,
+            structural_results,
+            operations,
+            trace,
+        )?;
+        let [argument]: [_; 1] = arguments.try_into().ok()?;
+        let operation = CheckedUnitEffectOperationPlan::AtomicFence {
+            statement_index,
+            declaration: contract.declaration,
+            ordering,
+            argument,
+        };
+        consume_results(operations, &operation)?;
+        operations.push(operation);
+        return Some(());
+    }
     let mut structural_store_bindings = 0;
     if let Some(result) = &mut structural_result {
         result.binding_ordinal = u32::try_from(*structural_count).ok()?;

@@ -158,6 +158,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         // Trapping forms take 122 plus their dense ordinal, above every
         // other tag of this plan identity.
         SelectedInstructionKind::TrappingInteger { form } => crate::trapping_family_tag(form),
+        SelectedInstructionKind::AtomicFence => 238,
         SelectedInstructionKind::AtomicAccess { form } => form.machine_tag(),
         SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => form.machine_tag(),
         SelectedInstructionKind::FloatResultPolicy { form } => form.machine_tag(),
@@ -361,6 +362,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         | crate::saturating_add_or_subtract_pattern!()
         | SelectedInstructionKind::SaturatingMultiply { .. }
         | SelectedInstructionKind::TrappingInteger { .. }
+        | SelectedInstructionKind::AtomicFence
         | SelectedInstructionKind::AtomicAccess { .. }
         | SelectedInstructionKind::CompareI64
         | SelectedInstructionKind::CopyI64

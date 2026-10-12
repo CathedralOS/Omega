@@ -330,6 +330,7 @@ impl OperationKind {
             | Self::EstablishScalarCase { .. }
             | Self::EstablishByteSequenceLiteral { .. }
             | Self::EstablishTrivialAffineLocal { .. }
+            | Self::AtomicFence { .. }
             | call_and_scalar_constant_operations!()
             | scalar_predicate_operations!() => {}
         }
@@ -437,6 +438,7 @@ impl OperationKind {
             | Self::ByteSequenceStore { .. }
             | Self::ElementViewWrite { .. }
             | Self::EstablishTrivialAffineLocal { .. }
+            | Self::AtomicFence { .. }
             | call_and_scalar_constant_operations!()
             | Self::BooleanStructuralField { .. }
             | Self::ScalarStructuralField { .. }

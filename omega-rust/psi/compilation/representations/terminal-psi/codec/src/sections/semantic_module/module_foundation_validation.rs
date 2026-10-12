@@ -792,6 +792,11 @@ fn validate_operation_foundation(
         // The result shape follows the event: an observing event defines the
         // observed prior and a store defines nothing. The independent verifier
         // reconstructs location, authority, orderings, and types.
+        OperationKind::AtomicFence { .. } => {
+            if operation.result != OperationResult::Unit {
+                return malformed("atomic fence must define no value");
+            }
+        }
         OperationKind::AtomicAccess { event, .. } => {
             let shape_matches = match &operation.result {
                 OperationResult::Scalar(_) => event.observes_resident(),

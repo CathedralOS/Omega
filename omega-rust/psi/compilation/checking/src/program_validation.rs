@@ -188,6 +188,10 @@ fn validate(
         program,
         &mut diagnostics,
     );
+    crate::value_custody::atomic_fences::validate_atomic_fence_declarations(
+        program,
+        &mut diagnostics,
+    );
     let symbols = TopLevelSymbols::build(program, &mut diagnostics);
     standard_declarations::validate_calling_vocabulary_uniqueness(program, &mut diagnostics);
     let fact_plan = build_definition_fact_plan(program);
@@ -792,6 +796,10 @@ pub fn admit_prepared_program_effects(
     facts: &mut ProgramValidationFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
+    crate::value_custody::atomic_fences::validate_atomic_fence_declarations(
+        program,
+        &mut diagnostics,
+    );
     let symbols = TopLevelSymbols::build(program, &mut diagnostics);
     let service_reaches = infer_service_reaches(program, operational);
     validate_conformances(program, &service_reaches, &symbols, &mut diagnostics);

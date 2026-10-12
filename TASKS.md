@@ -971,10 +971,10 @@ defines the complete product bar.
     instruction-observed prior, never a separate load. Preserve
     observing/non-observing and decisive/single-attempt behavior, failure
     ordering, `Uncommitted` custody and target retry-work attribution.
-  - Source/Terminal event production for bounded atomic fields, fences and
-    single-attempt exchange: abstract fence/single-attempt carriers exist but
-    have no Terminal producers. A fence stays an event even when realization
-    emits no instruction.
+  - Source/Terminal event production for bounded atomic fields and
+    single-attempt exchange: the abstract single-attempt carrier has no
+    Terminal producer. Preserve the location-free fence event and its ordering
+    through target refinement, including any future instruction-free realization.
   - Checked `sequenced_before`, `reads_from`, `modification_order`,
     `synchronizes_with`, `happens_before` and `global_sequential_order`,
     fence synchronization and outcome-sensitive RMW obligations, keeping

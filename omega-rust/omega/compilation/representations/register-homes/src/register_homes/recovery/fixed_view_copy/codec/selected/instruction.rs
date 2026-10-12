@@ -84,6 +84,7 @@ pub(super) fn decode_instruction(
 
 fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
     let tag = match kind {
+        SelectedInstructionKind::AtomicFence => 238,
         SelectedInstructionKind::AtomicAccess { form } => form.machine_tag(),
         SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => form.machine_tag(),
         SelectedInstructionKind::FloatResultPolicy { form } => form.machine_tag(),
@@ -529,6 +530,7 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode_kind(
         234 => SelectedInstructionKind::CompareByteSequences,
         236 => SelectedInstructionKind::LoadEncodedScalar,
         237 => SelectedInstructionKind::StoreEncodedScalar,
+        238 => SelectedInstructionKind::AtomicFence,
         235 => SelectedInstructionKind::ZeroBytes,
         14 => SelectedInstructionKind::Jump,
         0 => SelectedInstructionKind::CompareI64Zero,

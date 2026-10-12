@@ -86,6 +86,14 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                         crate::codec_bytes::push_encoded(bytes, operand.get().to_le_bytes());
                     }
                 }
+                LegalizedScalarInstructionKind::AtomicFence { ordering } => {
+                    bytes.push(244);
+                    bytes.push(match ordering {
+                        terminal_psi::FenceOrdering::Receive => 1,
+                        terminal_psi::FenceOrdering::Publish => 2,
+                        terminal_psi::FenceOrdering::ReceivePublish => 3,
+                    });
+                }
                 LegalizedScalarInstructionKind::AtomicAccess {
                     location,
                     field,

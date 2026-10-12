@@ -25,6 +25,7 @@ mod result_arguments;
 mod service_forward;
 mod signatures;
 mod structural_arguments;
+pub(crate) use structural_arguments::structural_call_arguments;
 mod structural_result_call;
 mod trait_boundary_call;
 pub(crate) mod view_subslice;
@@ -103,6 +104,4 @@ pub(crate) use signatures::{
     free_structural_scalar_signature, free_structural_scalar_signature_traced,
     parameter_signatures, structural_scalar_signature_traced, structural_signature,
 };
-pub(crate) use structural_arguments::{
-    call_claim_transfers, computed_call_claim_transfers,
-};
+pub(crate) use structural_arguments::{call_claim_transfers, computed_call_claim_transfers};

@@ -743,9 +743,11 @@ pub(in crate::execution::terminal_unit) fn consume_results(
     operations: &mut [CheckedUnitEffectOperationPlan],
     consumer: &CheckedUnitEffectOperationPlan,
 ) -> Option<()> {
-    if let Some(call) = consumer.call() {
-        for (binding_ordinal, access, projected) in
-            call.structural_arguments.iter().filter_map(|argument| {
+    {
+        for (binding_ordinal, access, projected) in consumer
+            .call_structural_arguments()
+            .iter()
+            .filter_map(|argument| {
                 argument
                     .source_structural_result_binding_ordinal()
                     .map(|ordinal| (ordinal, argument.access, !argument.path.is_empty()))

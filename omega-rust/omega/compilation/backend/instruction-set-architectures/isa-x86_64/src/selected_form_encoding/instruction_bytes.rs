@@ -492,6 +492,7 @@ pub(crate) fn encode_unchecked(
         | SelectedInstructionKind::FloatResultPolicy { .. } => {
             return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
         }
+        SelectedInstructionKind::AtomicFence => bytes.extend_from_slice(&[0x0f, 0xae, 0xf0]),
         SelectedInstructionKind::Crash => bytes.extend_from_slice(&[0x0f, 0x0b]),
         SelectedInstructionKind::MaterializeI64 { value } => {
             bytes.extend([0x48 | (registers[0] >> 3), 0xb8 | (registers[0] & 7)]);

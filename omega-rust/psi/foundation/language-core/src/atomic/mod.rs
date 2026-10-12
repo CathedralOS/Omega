@@ -14,6 +14,17 @@ pub enum MemoryOrdering {
     GlobalOrder,
 }
 
+/// A place-free atomic fence's proof-static ordering. A fence cannot select
+/// `NoOrdering` or join global sequential order by itself. Its event remains
+/// present even when target refinement needs no instruction; synchronization
+/// additionally requires the matching atomic observation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum FenceOrdering {
+    Receive,
+    Publish,
+    ReceivePublish,
+}
+
 /// The operation-specific ordering commitment attached to an atomic source
 /// expression. This survives compiler-authored carrier lowering so later
 /// phases do not have to rediscover semantics from an expression shape.
@@ -461,6 +472,12 @@ impl MemoryOrdering {
         }
     }
 }
+
+/// The sealed declaration catalog's source boundary. Call consumers retain
+/// its selected symbol; these spellings serve only declaration admission.
+pub const ATOMIC_CORE_SOURCE: &str = "atomic.omg";
+pub const ATOMIC_FENCE_NAMESPACE: &str = "Atomic";
+pub const ATOMIC_FENCE_NAME: &str = "fence";
 
 #[cfg(test)]
 mod tests {

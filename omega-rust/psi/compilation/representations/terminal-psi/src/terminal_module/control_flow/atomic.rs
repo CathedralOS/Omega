@@ -51,13 +51,13 @@
 //!   borrow is refused; admitting the shared-receiver form needs that cell
 //!   identity first.
 //!
-//! A fence has no Terminal producer yet. It will be a separate place-free
-//! event, not an `AtomicAccess` with an empty place.
+//! `OperationKind::AtomicFence` is a separate place-free ordering event. It
+//! defines no resident observation and remains present through target selection.
 
 use language_core::atomic::AtomicOrderingPlan;
 /// The source ordering vocabulary is the Terminal vocabulary: re-exported so
 /// Terminal consumers name one ordering type without a second definition.
-pub use language_core::atomic::MemoryOrdering;
+pub use language_core::atomic::{FenceOrdering, MemoryOrdering};
 use semantic_vocabulary::ValueId;
 
 /// The fetch-family arithmetic one read-modify-write applies to the

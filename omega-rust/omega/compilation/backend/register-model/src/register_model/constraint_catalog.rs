@@ -72,6 +72,7 @@ pub fn encode_constraint_key(bytes: &mut Vec<u8>, key: RegisterConstraintKey) {
 /// environment. Named fields prevent positional key drift in its identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetRegisterEnvironmentConstraintKeys {
+    pub atomic_fence: Option<RegisterConstraintKey>,
     pub atomic_load: Option<RegisterConstraintKey>,
     pub atomic_store: Option<RegisterConstraintKey>,
     pub atomic_update: Option<RegisterConstraintKey>,
@@ -282,7 +283,6 @@ pub enum RegisterConstraintCatalogValidationError {
     NonCanonicalConstraintKeys,
     MissingRequiredConstraint(RegisterConstraintKey),
     UnexpectedConstraint(RegisterConstraintKey),
-    EmptyConstraint(RegisterConstraintId),
     NonCanonicalOperands(RegisterConstraintId),
     UnknownClass {
         constraint: RegisterConstraintId,
@@ -381,15 +381,9 @@ pub fn validate_register_constraint_catalog(
         .collect::<BTreeMap<_, _>>();
 
     for constraint in &catalog.constraints {
-        if constraint.operands.is_empty()
-            && constraint.implicit_uses.is_empty()
-            && constraint.implicit_defs.is_empty()
-            && constraint.clobbers.is_empty()
-        {
-            return Err(RegisterConstraintCatalogValidationError::EmptyConstraint(
-                constraint.id,
-            ));
-        }
+        // A register-free instruction can still have memory or ordering effects.
+        // This structural catalog checks declared register constraints; the target
+        // owner authenticates the exact keyed row and its machine effects.
         if constraint
             .operands
             .windows(2)

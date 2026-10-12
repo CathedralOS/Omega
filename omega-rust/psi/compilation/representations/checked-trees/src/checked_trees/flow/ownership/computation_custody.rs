@@ -512,6 +512,7 @@ impl<'facts> CallTransfers<'facts> {
                 .iter()
                 .map(|operand| self.scalar(operand))
                 .sum(),
+            CheckedUnitEffectOperationPlan::AtomicFence { argument, .. } => self.argument(argument),
             CheckedUnitEffectOperationPlan::ReleaseReference { .. }
             | CheckedUnitEffectOperationPlan::ContinuationCleanup { .. }
             | CheckedUnitEffectOperationPlan::PortWrite { .. }

@@ -237,3 +237,6 @@ pub(super) const RESTRICTED_WRITE_ONLY_PRIMITIVE_STORE: u8 = 116;
 
 /// Whole-value replacement of intact unrestricted storage.
 pub(super) const REPLACE_DISCARDABLE_STRUCTURAL_FIELD: u8 = 118;
+
+/// Place-free atomic ordering event.
+pub(super) const ATOMIC_FENCE: u8 = 119;

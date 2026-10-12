@@ -16,6 +16,7 @@ use selected_instructions::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum DecodedWord {
+    AtomicFence,
     Crash,
     /// `b.<condition> #8`: skip exactly the next word, the inline trap of a
     /// Trapping form, when the condition holds.
@@ -307,6 +308,9 @@ pub(crate) fn decode_words(
 }
 
 fn decode_word(word: u32) -> Result<DecodedWord, Aarch64SelectedFormEncodingError> {
+    if word == 0xd503_3fbf {
+        return Ok(DecodedWord::AtomicFence);
+    }
     if word == 0xd420_0000 {
         return Ok(DecodedWord::Crash);
     }
@@ -683,6 +687,9 @@ pub(crate) fn validate_decoded(
         // Float arithmetic bytes have their own field decoder.
         SelectedInstructionKind::NearestIeeeFloatArithmetic { .. } => false,
         SelectedInstructionKind::FloatResultPolicy { .. } => false,
+        SelectedInstructionKind::AtomicFence => {
+            registers.is_empty() && decoded == [DecodedWord::AtomicFence]
+        }
         SelectedInstructionKind::Crash => registers.is_empty() && decoded == [DecodedWord::Crash],
         SelectedInstructionKind::TrappingInteger { form } => {
             decoded == super::trapping_forms::realization(form, registers)
@@ -1037,7 +1044,9 @@ pub(crate) fn footprint(
         SelectedInstructionKind::FloatResultPolicy { form } => {
             return super::float_result_policy::footprint(form, operands);
         }
-        SelectedInstructionKind::Crash => (Vec::new(), Vec::new(), false),
+        SelectedInstructionKind::AtomicFence | SelectedInstructionKind::Crash => {
+            (Vec::new(), Vec::new(), false)
+        }
         // Every Trapping realization leaves NZCV unspecified; the encoded
         // effects below declare it clobbered rather than defined.
         SelectedInstructionKind::TrappingInteger { form } => (
@@ -1116,7 +1125,9 @@ pub(crate) fn footprint(
         .collect();
     let physical = aarch64_physical_register_model_ref();
     let units = |name: &str| physical.view_named(name).unwrap().units.clone();
-    let encoded = if kind == SelectedInstructionKind::Crash {
+    let encoded = if kind == SelectedInstructionKind::AtomicFence {
+        MachineEncodedEffects::atomic_fence_v1()
+    } else if kind == SelectedInstructionKind::Crash {
         selected_instructions::MachineEncodedEffects::crash_v1(&units("pc"))
     } else if let SelectedInstructionKind::TrappingInteger { .. } = kind {
         super::trapping_forms::effects(read_indices, write_indices)

@@ -12,8 +12,8 @@ use target::{Architecture, NativeTarget, ObjectFormat};
 
 mod memory;
 mod scalar_call;
-pub(crate) use scalar_call::{normalized_foreign_constraint, user_direct_call_effects};
 pub use scalar_call::x86_64_normalized_foreign_call_declaration;
+pub(crate) use scalar_call::{normalized_foreign_constraint, user_direct_call_effects};
 
 use scalar_call::declaration as scalar_call_declaration;
 
@@ -61,6 +61,11 @@ pub fn x86_64_machine_effect_catalog(
             .declaration_keys()
             .into_iter()
             .map(|(semantic, constraint)| {
+                if semantic == MachineSemanticKind::AtomicFence {
+                    return Ok(crate::selected_form_encoding::atomic_fence::declaration(
+                        constraint,
+                    ));
+                }
                 if semantic == MachineSemanticKind::Crash {
                     return Ok(crate::selected_form_encoding::crash::declaration(
                         constraints.catalog().constraint(constraint).ok_or(
@@ -246,6 +251,7 @@ fn selected_keys(
         X86_64SelectedAbi::Microsoft => X86_64_MICROSOFT_RETURN_UNIT,
     };
     Ok(SelectedConstraintKeys {
+        atomic_fence: Some(crate::X86_64_ATOMIC_FENCE),
         // LOCK is architectural on every x86-64 target; no feature custody
         // gates the family the way AArch64's LSE does.
         atomic_load: Some(crate::X86_64_ATOMIC_LOAD),
@@ -499,10 +505,7 @@ fn declaration(
 /// Two-input ops that define a third result home run the same four-way
 /// ladder: both operands aliased together, each operand aliased alone and
 /// the distinct-result variant. Only the encoded sizes differ per family.
-fn binary_alias_ladder(
-    semantic: MachineSemanticKind,
-    sizes: [u16; 4],
-) -> Vec<MachineAlternative> {
+fn binary_alias_ladder(semantic: MachineSemanticKind, sizes: [u16; 4]) -> Vec<MachineAlternative> {
     vec![
         alternative(
             semantic,
@@ -590,6 +593,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
             .id
     };
     let (reads, writes) = match semantic {
+        MachineSemanticKind::AtomicFence => return MachineEncodedEffects::atomic_fence_v1(),
         MachineSemanticKind::FloatResultPolicy(form) => {
             return crate::selected_form_encoding::float_result_policy::effects(form);
         }
@@ -887,6 +891,7 @@ fn saturating_form(semantic: MachineSemanticKind, carrier: SaturatingCarrier) ->
 
 fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
     match semantic {
+        MachineSemanticKind::AtomicFence => MachineSizeKnowledge::ExactBytes(3),
         MachineSemanticKind::FloatResultPolicy(form) => {
             crate::selected_form_encoding::float_result_policy::size(form)
         }

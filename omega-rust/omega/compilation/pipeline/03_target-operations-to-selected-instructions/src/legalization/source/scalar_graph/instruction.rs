@@ -37,6 +37,12 @@ pub(super) fn project(
             AbstractOperation::SelectImplementation { table, .. } => {
                 LegalizedScalarInstructionKind::SelectImplementation { table: *table }
             }
+            AbstractOperation::AtomicEvent {
+                event: abstract_operations::AbstractAtomicEvent::Fence { ordering },
+                ..
+            } => LegalizedScalarInstructionKind::AtomicFence {
+                ordering: *ordering,
+            },
             AbstractOperation::AtomicEvent { event, .. } => {
                 let access = scalar_graph_input::atomic_access::access(
                     event,

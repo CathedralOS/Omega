@@ -116,8 +116,8 @@ macro_rules! machine_semantic_kinds {
 
         impl MachineSemanticKind {
             #[allow(unused_assignments)]
-            const FIXED: [Self; 123] = {
-                let mut fixed = [Self::Crash; 123];
+            const FIXED: [Self; 124] = {
+                let mut fixed = [Self::Crash; 124];
                 let mut index = 0usize;
                 $( machine_semantic_kinds!(@entry (fixed, index) $kind $variant $(($payload))?); )*
                 fixed
@@ -230,6 +230,7 @@ machine_semantic_kinds! {
         /// cursor scratch is the only defined operand.
         fixed ZeroBytes
     },
+    { fixed AtomicFence },
     {
         /// One `Trapping` primitive at one carrier: the exact result, or an
         /// in-function architectural trap when the policy predicate holds.
@@ -292,6 +293,7 @@ impl MachineSemanticKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MachineAlternativeFamily {
+    AtomicFence,
     AtomicAccess(AtomicForm),
     Crash,
     CopyBytes,
@@ -487,6 +489,7 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::ExactRemainderI64 => Self::ExactRemainderI64,
             MachineSemanticKind::SaturatingMultiply(carrier) => Self::SaturatingMultiply(carrier),
             MachineSemanticKind::TrappingInteger(form) => Self::TrappingInteger(form),
+            MachineSemanticKind::AtomicFence => Self::AtomicFence,
             MachineSemanticKind::AtomicAccess(form) => Self::AtomicAccess(form),
             MachineSemanticKind::FloatResultPolicy(form) => Self::FloatResultPolicy(form),
             MachineSemanticKind::NearestIeeeFloatArithmetic(form) => {
@@ -535,6 +538,8 @@ pub enum MachineAlternativeApplicability {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineMemoryEffect {
+    /// Orders coherent memory without accessing a location.
+    AtomicFenceV1,
     /// Private aligned storage used and released within the form.
     TemporaryStackStorageV1,
     /// The semantic form owns one indivisible sequentially consistent access.
@@ -660,6 +665,13 @@ pub struct MachineEncodedEffects {
 }
 
 impl MachineEncodedEffects {
+    pub fn atomic_fence_v1() -> Self {
+        Self {
+            memory: MachineEncodedMemoryEffect::AtomicFenceV1,
+            ..Self::fallthrough_v1(Vec::new(), Vec::new())
+        }
+    }
+
     pub fn fallthrough_v1(
         external_operand_reads: Vec<u16>,
         external_operand_writes: Vec<u16>,
@@ -711,6 +723,8 @@ impl MachineEncodedEffects {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineEncodedMemoryEffect {
+    /// Full coherent-memory ordering, independently decoded from barrier bytes.
+    AtomicFenceV1,
     /// All accesses are confined to this newly reserved private region.
     TemporaryStackStorageV1 {
         stack_pointer: RegisterViewId,

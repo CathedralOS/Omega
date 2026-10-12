@@ -41,8 +41,7 @@ events on ordinary scalar storage.
 `StructuralFieldType::Atomic` retains dedicated-cell identity separately from
 its scalar carrier. Shared loans authorize these events, not ordinary stores
 or non-atomic snapshots. Atomic fields do not expose a plain scalar reference.
-Fences and single-attempt compare-exchange
-have no producer yet.
+Single-attempt compare-exchange has no producer yet.
 
 Omega's terminal-to-abstract lowering (`machine/operation/atomic_events.rs`)
 keeps each Terminal event as one `AbstractOperation::AtomicEvent` at the same
@@ -64,6 +63,24 @@ The event retains its block-local root and the ordinary shared receiver path,
 including stored-reference crossings. Arrival and local declarations supply
 access and layout through target lowering and independent native selection.
 Ambiguous edge bindings still refuse rather than guessing a storage identity.
+
+## Portable fence route
+
+The sealed `core/atomic.omg` declaration supplies `Atomic::fence` and its
+copy `FenceOrdering` cases. Checking selects one proved case from the argument's
+captured value at operand completion; runtime-unknown or overwritten case
+facts reject. Calls producing the ordering still execute once. Exact sealed
+symbol and case handles authorize the primitive; an authored machine with the
+same spelling keeps its ordinary body semantics.
+
+Terminal `AtomicFence` retains the ordering without a location, result or
+observation edge. Omega keeps that event through abstract, target and legalized
+operations. Selection uses a register-free external-effect instruction, emitting
+`DMB SY` on AArch64 and `MFENCE` on x86-64 for all three orderings. These full
+barriers conservatively implement the requested ordering; the effect catalog
+and independent byte decoder distinguish them from a no-op or storage access.
+Terminal interpretation advances the event without inventing concurrent
+participants or synchronization. A fence alone proves no publication.
 
 Instruction mappings and serial differential tests are not proofs of concurrent
 observations. Complete memory-model/fence axioms, target-refinement proofs,

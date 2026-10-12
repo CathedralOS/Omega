@@ -278,6 +278,7 @@ pub(super) fn retain_available(
                     checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { .. },
                 )
                 | CheckedUnitEffectOperationPlan::Store(_)
+                | CheckedUnitEffectOperationPlan::AtomicFence { .. }
                 | CheckedUnitEffectOperationPlan::AtomicAccess(_)
                 | checked_trees::structural_field_write_pattern!()
                 | CheckedUnitEffectOperationPlan::EstablishLocal(
@@ -396,7 +397,8 @@ pub(super) fn retain_available(
                     // are dense, and a sum field's copy or construction and
                     // its window repair stay in-frame.
                     CheckedUnitEffectOperationPlan::Store(_)
-                    | CheckedUnitEffectOperationPlan::AtomicAccess(_)
+                    | CheckedUnitEffectOperationPlan::AtomicFence { .. }
+            | CheckedUnitEffectOperationPlan::AtomicAccess(_)
                     | CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { .. })
                     // A borrowed reference binds storage already owned by the
                     // frame; establish/release carry no callee dependency.

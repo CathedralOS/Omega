@@ -1,0 +1,31 @@
+use omega::language::core::atomic;
+
+// Serial control: every admitted fence ordering remains an event between
+// atomic operations, including through a shared-parameter helper and a state.
+// This does not establish concurrent synchronization or a memory-model proof.
+data Cell { value: AtomicU32; }
+machine publish(cell: &Cell) {
+    cell.value.store(41, NoOrdering);
+    Atomic::fence(FenceOrdering::Publish);
+}
+machine main() crashes Trap {
+    let cell: Cell;
+    publish(&cell);
+    Atomic::fence(FenceOrdering::Receive);
+    let observed: u32 in Wrapping = cell.value.load(NoOrdering);
+    transition observed == 41 {
+        true -> finish(&cell)
+        false -> bad()
+    }
+    state finish(cell: &Cell) {
+        Atomic::fence(FenceOrdering::ReceivePublish);
+        let prior: u32 in Wrapping = cell.value.fetch_add(1, NoOrdering);
+        let updated: u32 in Wrapping = cell.value.load(NoOrdering);
+        transition prior == 41 && updated == 42 {
+            true -> done()
+            false -> bad()
+        }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

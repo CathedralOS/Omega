@@ -7,6 +7,7 @@ use crate::SelectedConstraintKeys;
 impl SelectedConstraintKeys {
     pub fn in_identity_order(&self) -> Vec<RegisterConstraintKey> {
         [
+            self.atomic_fence,
             self.atomic_load,
             self.atomic_store,
             self.atomic_update,
@@ -115,6 +116,7 @@ impl SelectedConstraintKeys {
         semantic: MachineSemanticKind,
     ) -> Option<RegisterConstraintKey> {
         Some(match semantic {
+            MachineSemanticKind::AtomicFence => return self.atomic_fence,
             MachineSemanticKind::AtomicAccess(form) => {
                 return match form.operation {
                     crate::AtomicOperation::Load => self.atomic_load,

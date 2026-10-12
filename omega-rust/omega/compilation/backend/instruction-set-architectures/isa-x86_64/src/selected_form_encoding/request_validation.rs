@@ -64,6 +64,7 @@ fn family_and_operand_count(
             form.operand_count() + 1,
             0..=0,
         ),
+        SelectedInstructionKind::AtomicFence => (MachineAlternativeFamily::AtomicFence, 0, 0..=0),
         SelectedInstructionKind::Crash => (MachineAlternativeFamily::Crash, 0, 0..=0),
         SelectedInstructionKind::CompareI64Zero => {
             (MachineAlternativeFamily::CompareI64Zero, 1, 0..=0)

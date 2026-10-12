@@ -48,6 +48,12 @@ pub(in crate::legalization) fn admit(
         ..
     } = &node.operation
     {
+        if matches!(
+            event,
+            abstract_operations::AbstractAtomicEvent::Fence { .. }
+        ) {
+            return Ok((*psi_operation, None));
+        }
         let (event, result) =
             super::atomic_access::event(event).ok_or(NodeRejection::UnsupportedFamily)?;
         if !event.ordering_is_legal() {
@@ -724,6 +730,15 @@ pub(super) fn validate(
             }
         }
         if let AbstractOperation::AtomicEvent { event, .. } = &node.operation {
+            if matches!(
+                event,
+                abstract_operations::AbstractAtomicEvent::Fence { .. }
+            ) {
+                if result.is_some() || !node.definitions.is_empty() {
+                    return Err(LegalizationError::custody());
+                }
+                continue;
+            }
             let (_, observed) =
                 super::atomic_access::event(event).ok_or(LegalizationError::custody())?;
             if observed.is_none() {

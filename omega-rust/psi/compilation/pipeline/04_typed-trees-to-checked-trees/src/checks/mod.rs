@@ -37,6 +37,7 @@
 // Call obligations: contract requirements and guarantees, and borrows.
 mod borrows;
 pub(crate) use borrows::{StorageSelectorFacts, storage_path_compatibility};
+pub(crate) mod atomic_fences;
 mod case_access;
 pub(crate) mod collection_extents;
 pub(crate) mod contracts;
@@ -115,6 +116,7 @@ pub(crate) fn check_checked_facts_recording(
     }
 
     case_access::check(program, facts, &mut diagnostics);
+    atomic_fences::check(program, facts, &mut diagnostics);
 
     match contracts::check_flow_call_contracts(
         program,

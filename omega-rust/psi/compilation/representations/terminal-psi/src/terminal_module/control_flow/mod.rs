@@ -11,7 +11,7 @@ mod target_families;
 mod termination;
 mod trapping_integer;
 
-pub use atomic::{AtomicAccessEvent, AtomicReadModifyWrite, MemoryOrdering};
+pub use atomic::{AtomicAccessEvent, AtomicReadModifyWrite, FenceOrdering, MemoryOrdering};
 pub use float_result_policy::FloatResultPolicy;
 pub use machines::{Block, TerminalMachine, structural_parameter_position};
 pub use operations::{

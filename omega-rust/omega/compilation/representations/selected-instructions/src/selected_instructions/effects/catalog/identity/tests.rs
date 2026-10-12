@@ -46,6 +46,7 @@ fn crash_identity_tags_do_not_alias_other_instruction_families() {
 
 fn keys() -> SelectedConstraintKeys {
     SelectedConstraintKeys {
+        atomic_fence: Some(instruction(800)),
         atomic_load: Some(instruction(54)),
         atomic_store: Some(instruction(55)),
         atomic_update: Some(instruction(56)),
@@ -782,7 +783,8 @@ fn identity_distinguishes_narrow_load_keys_and_semantics() {
 /// [`MachineSemanticKind::ALL`]. These bytes are the identity of an
 /// alternative in every catalog, program, physical-instruction and
 /// machine-code artifact, so this table changing is always a defect.
-const PINNED_ALTERNATIVE_FAMILY_TAGS: [(MachineAlternativeFamily, u8); 123] = [
+const PINNED_ALTERNATIVE_FAMILY_TAGS: [(MachineAlternativeFamily, u8); 124] = [
+    (MachineAlternativeFamily::AtomicFence, 238),
     (MachineAlternativeFamily::Crash, 111),
     (MachineAlternativeFamily::CopyBytes, 59),
     (MachineAlternativeFamily::BitwiseAndI64, 51),
@@ -1666,4 +1668,23 @@ fn float_result_policy_identities_and_constraint_selection_are_exact() {
         machine_effect_catalog_identity(&trapping_only),
         machine_effect_catalog_identity(&saturating_only)
     );
+}
+
+#[test]
+fn atomic_fence_identity_tags_do_not_alias_other_instruction_families() {
+    for semantic in MachineSemanticKind::ALL {
+        if semantic == MachineSemanticKind::AtomicFence {
+            continue;
+        }
+        assert_ne!(
+            semantic_kind_tag(MachineSemanticKind::AtomicFence),
+            semantic_kind_tag(semantic),
+            "{semantic:?}"
+        );
+        assert_ne!(
+            alternative_family_tag(MachineAlternativeFamily::AtomicFence),
+            alternative_family_tag(semantic.into()),
+            "{semantic:?}"
+        );
+    }
 }

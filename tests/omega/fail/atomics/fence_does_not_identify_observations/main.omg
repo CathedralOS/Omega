@@ -1,0 +1,10 @@
+use omega::language::core::atomic;
+data Cell { value: AtomicU32; }
+machine same(before: u32 in Wrapping, after: u32 in Wrapping)
+requires before == after {}
+machine observe(cell: &Cell) {
+    let before: u32 in Wrapping = cell.value.load(NoOrdering);
+    Atomic::fence(FenceOrdering::ReceivePublish);
+    let after: u32 in Wrapping = cell.value.load(NoOrdering);
+    same(before, after);
+}

@@ -40,6 +40,7 @@ pub(super) fn decode_instruction(
         11 => MachineMemoryEffect::CompareByteSequencesV1,
         12 => MachineMemoryEffect::ZeroBytesV1,
         4 => MachineMemoryEffect::WritePointerV1,
+        15 => MachineMemoryEffect::AtomicFenceV1,
         8 => MachineMemoryEffect::AtomicPointerV1,
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
@@ -156,6 +157,7 @@ fn decode_kind(
         234 => SelectedInstructionKind::CompareByteSequences,
         236 => SelectedInstructionKind::LoadEncodedScalar,
         237 => SelectedInstructionKind::StoreEncodedScalar,
+        238 => SelectedInstructionKind::AtomicFence,
         235 => SelectedInstructionKind::ZeroBytes,
         2 => SelectedInstructionKind::CopyI64,
         26 => SelectedInstructionKind::Float32ToBits,
@@ -537,6 +539,7 @@ fn decode_alternative_for_version(
         234 => MachineAlternativeFamily::CompareByteSequences,
         236 => MachineAlternativeFamily::LoadEncodedScalar,
         237 => MachineAlternativeFamily::StoreEncodedScalar,
+        238 => MachineAlternativeFamily::AtomicFence,
         235 => MachineAlternativeFamily::ZeroBytes,
         2 => MachineAlternativeFamily::CopyI64,
         26 => MachineAlternativeFamily::Float32ToBits,
@@ -711,6 +714,7 @@ fn decode_encoded_effects(
             byte_count: cursor.u16()?,
         },
 
+        18 => MachineEncodedMemoryEffect::AtomicFenceV1,
         11 => MachineEncodedMemoryEffect::AtomicPointerV1 {
             pointer_operand: cursor.u16()?,
             form: crate::AtomicForm::from_ordinal(cursor.byte()?)

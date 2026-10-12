@@ -690,6 +690,9 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
         OperationKind::FloatResultPolicy { policy } => {
             scalar_operations::encode_float_result_policy(writer, &policy)?;
         }
+        OperationKind::AtomicFence { ordering } => {
+            atomic_operations::encode_atomic_fence(writer, ordering);
+        }
         OperationKind::AtomicAccess {
             place,
             path,
@@ -1006,6 +1009,7 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
         operation_tags::FLOAT_RESULT_POLICY => {
             scalar_operations::decode_float_result_policy(reader)?
         }
+        operation_tags::ATOMIC_FENCE => atomic_operations::decode_atomic_fence(reader)?,
         operation_tags::ATOMIC_ACCESS => atomic_operations::decode_atomic_access(reader)?,
         tag => return Err(CodecError::InvalidTag("OperationKind", tag)),
     };

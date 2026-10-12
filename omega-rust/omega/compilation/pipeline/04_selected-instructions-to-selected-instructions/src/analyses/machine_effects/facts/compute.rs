@@ -111,6 +111,7 @@ fn terminal_selected_keys(
     keys: &TargetRegisterEnvironmentConstraintKeys,
 ) -> SelectedConstraintKeys {
     SelectedConstraintKeys {
+        atomic_fence: keys.atomic_fence,
         atomic_load: keys.atomic_load,
         atomic_store: keys.atomic_store,
         atomic_update: keys.atomic_update,
@@ -298,6 +299,7 @@ fn exact_declaration<'a>(
 
 pub(crate) fn machine_semantic_kind(kind: SelectedInstructionKind) -> MachineSemanticKind {
     match kind {
+        SelectedInstructionKind::AtomicFence => MachineSemanticKind::AtomicFence,
         SelectedInstructionKind::AtomicAccess { form } => MachineSemanticKind::AtomicAccess(form),
         SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => {
             MachineSemanticKind::NearestIeeeFloatArithmetic(form)

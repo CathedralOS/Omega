@@ -63,6 +63,7 @@ pub(super) fn selected_environment_keys(
     keys: SelectedConstraintKeys,
 ) -> TargetRegisterEnvironmentConstraintKeys {
     TargetRegisterEnvironmentConstraintKeys {
+        atomic_fence: keys.atomic_fence,
         atomic_load: keys.atomic_load,
         atomic_store: keys.atomic_store,
         atomic_update: keys.atomic_update,
@@ -184,6 +185,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
         // the hosted syscall encodings differ, and those select by exact target.
         (Architecture::X86_64, ObjectFormat::Elf | ObjectFormat::MachO) => {
             Some(SelectedConstraintKeys {
+                atomic_fence: Some(isa_x86_64::X86_64_ATOMIC_FENCE),
                 atomic_load: Some(isa_x86_64::X86_64_ATOMIC_LOAD),
                 atomic_store: Some(isa_x86_64::X86_64_ATOMIC_STORE),
                 atomic_update: Some(isa_x86_64::X86_64_ATOMIC_UPDATE),
@@ -285,6 +287,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             })
         }
         (Architecture::X86_64, ObjectFormat::Coff) => Some(SelectedConstraintKeys {
+            atomic_fence: Some(isa_x86_64::X86_64_ATOMIC_FENCE),
             atomic_load: Some(isa_x86_64::X86_64_ATOMIC_LOAD),
             atomic_store: Some(isa_x86_64::X86_64_ATOMIC_STORE),
             atomic_update: Some(isa_x86_64::X86_64_ATOMIC_UPDATE),
@@ -389,6 +392,7 @@ fn aarch64_selected_constraint_keys(target: NativeTarget) -> SelectedConstraintK
             NativeTarget::linux_arm64()
         };
     SelectedConstraintKeys {
+        atomic_fence: Some(isa_aarch64::AARCH64_ATOMIC_FENCE),
         atomic_load: (target == NativeTarget::macos_arm64())
             .then_some(isa_aarch64::AARCH64_ATOMIC_LOAD),
         atomic_store: (target == NativeTarget::macos_arm64())

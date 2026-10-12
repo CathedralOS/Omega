@@ -346,6 +346,10 @@ pub const X86_64_TRAPPING_CONVERT: RegisterConstraintKey = RegisterConstraintKey
 
 /// Atomic load of every width: `MOVZX`/`MOV` into the observed result;
 /// acquire ordering is free under TSO. Never writes RFLAGS.
+pub const X86_64_ATOMIC_FENCE: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 801,
+};
 pub const X86_64_ATOMIC_LOAD: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 71,
@@ -467,7 +471,7 @@ pub const X86_64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub(crate) const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 99] = [
+pub(crate) const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 100] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
@@ -633,4 +637,5 @@ pub(crate) const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 9
     X86_64_FLOAT_RESULT_SATURATING,
     X86_64_BYTE_LITERAL_IMAGE_ADDRESS,
     X86_64_IEEE_FLOAT_DIRECTED_BINARY,
+    X86_64_ATOMIC_FENCE,
 ];

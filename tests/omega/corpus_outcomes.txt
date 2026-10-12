@@ -6433,3 +6433,20 @@ fail/termination/float_requirement_stale_field_arrival rejected 1060ms expected 
 	cannot prove requires contract for call countdown from countdown: reading.value >= 0.0 && count - 1 <= 4 (needs fact `reading.value >= 0.0 && count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 	terminating machine countdown: cannot prove rank range `0..=4` for the rank produced by the selected view
 pass/termination/runtime_float_requirement_integer_rank_exit checked 6962ms check-target:macos_arm64 @cf645a79ddb2+wt
+fail/atomics/fence_authored_bodyless_lookalike rejected 10ms expected @b2d763407d51+wt
+	`Atomic::fence` names a compiler primitive, but only the sealed toolchain declaration supplies it; merely naming a declaration `Atomic::fence` grants no primitive implementation or proof authority
+fail/atomics/fence_false_result_case rejected 375ms expected @b2d763407d51+wt
+	cannot prove ensures contract for exit from wrong at statement 0: result == FenceOrdering::Publish
+fail/atomics/fence_no_ordering rejected 167ms expected @b2d763407d51+wt
+	machine `fence_invalid` state `entry` uses `NoOrdering`, which is not a declared local, parameter, field, or type in this state (check the spelling)
+fail/atomics/fence_returned_view_case_invalidated rejected 418ms expected @b2d763407d51+wt
+	Atomic::fence requires one proof-static FenceOrdering case at operand completion: no live ordering case is proved
+fail/atomics/fence_runtime_ordering rejected 448ms expected @b2d763407d51+wt
+	Atomic::fence requires one proof-static FenceOrdering case at operand completion: no live ordering case is proved
+fail/atomics/fence_stale_ordering_case rejected 423ms expected @b2d763407d51+wt
+	Atomic::fence requires one proof-static FenceOrdering case at operand completion: no live ordering case is proved
+pass/atomics/runtime_atomic_fence_captured_ordering_exit checked 4305ms check-target:macos_arm64 @b2d763407d51+wt
+pass/atomics/runtime_atomic_fences_exit checked 4314ms check-target:macos_arm64 @b2d763407d51+wt
+pass/atomics/runtime_authored_fence_name_exit checked 4288ms check-target:macos_arm64 @b2d763407d51+wt
+fail/atomics/fence_does_not_identify_observations rejected 413ms expected @289501b5c2fe+wt
+	cannot prove requires contract for call same from observe: before == after (needs fact `before == after` here; establish it before the call via a prior contract guarantee, domain membership, or guard)

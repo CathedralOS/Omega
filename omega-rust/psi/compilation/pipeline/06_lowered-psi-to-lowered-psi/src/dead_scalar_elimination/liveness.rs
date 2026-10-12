@@ -234,7 +234,8 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
         | O::EstablishStructuralLocal { .. }
         | O::EstablishStructuralArray { .. }
         | O::ReleaseReference { .. }
-        | O::PortWrite { .. } => {}
+        | O::PortWrite { .. }
+        | O::AtomicFence { .. } => {}
         O::EstablishReference { storage, .. } => {
             // The carrier captures its storage offset at formation. Keeping
             // structural custody also keeps this scalar geometry alive, even

@@ -255,14 +255,18 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                         | AbstractAtomicEvent::Store { .. }
                         | AbstractAtomicEvent::ReadModifyWrite { .. }
                         | AbstractAtomicEvent::Swap { .. }
-                        | AbstractAtomicEvent::CompareExchange { .. },
+                        | AbstractAtomicEvent::CompareExchange { .. }
+                        | AbstractAtomicEvent::Fence { .. },
                     ..
                 } => {
                     // Mandatory source/physical replay above binds the exact
                     // location, ordering, operands and instruction-observed
                     // result. Keep that graph evidence on the published object;
                     // ordinary load/store records cannot witness an atomic RMW.
-                    // Fences and single-attempt outcomes remain unsupported.
+                    // A fence instead binds its location-free ordering and the
+                    // register-free barrier through that same replay. It has no
+                    // storage footprint or observed result to invent here.
+                    // Single-attempt outcomes remain unsupported.
                     true
                 }
                 AbstractOperation::StructuralByteSequenceFieldByteStore { .. } => {

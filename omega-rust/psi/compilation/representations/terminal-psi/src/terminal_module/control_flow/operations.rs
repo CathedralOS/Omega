@@ -1042,6 +1042,11 @@ pub enum OperationKind {
         field: StructuralFieldId,
         event: crate::AtomicAccessEvent,
     },
+    /// A place-free ordering event. It defines no value, reads no resident,
+    /// and grants no synchronization without a matching atomic observation.
+    AtomicFence {
+        ordering: language_core::atomic::FenceOrdering,
+    },
 }
 
 impl OperationKind {
@@ -1283,6 +1288,7 @@ impl OperationKind {
             | Self::EstablishTrivialAffineLocal { .. }
             | Self::CallStructural { .. }
             | Self::PortWrite { .. }
+            | Self::AtomicFence { .. }
             | Self::IntegerConstant { .. }
             | Self::BooleanConstant { .. }
             | Self::IeeeFloatConstant { .. }

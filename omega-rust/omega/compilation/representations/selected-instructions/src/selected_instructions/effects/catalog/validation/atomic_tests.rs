@@ -208,3 +208,59 @@ fn retry_fixed_output_requires_every_input_to_have_a_distinct_fixed_home() {
         );
     }
 }
+
+#[test]
+fn atomic_fence_requires_ordering_without_register_or_storage_effects() {
+    let (mut constraint, mut original) = declaration(AtomicForm::ALL[0]);
+    constraint.operands.clear();
+    original.semantic = MachineSemanticKind::AtomicFence;
+    original.memory = MachineMemoryEffect::AtomicFenceV1;
+    original.trap = MachineTrapBehavior::NeverV1;
+    original.alternatives[0].key.family = MachineAlternativeFamily::AtomicFence;
+    original.alternatives[0].encoded = MachineEncodedEffects::atomic_fence_v1();
+    for architecture in [target::Architecture::Aarch64, target::Architecture::X86_64] {
+        validate_declaration(architecture, &constraint, &original).unwrap();
+        for mutation in 0..10 {
+            let mut changed = original.clone();
+            let mut changed_constraint = constraint.clone();
+            match mutation {
+                0 => changed.barrier = MachineBarrier::None,
+                1 => changed.memory = MachineMemoryEffect::NoneV1,
+                2 => changed.alternatives[0].encoded.memory = MachineEncodedMemoryEffect::NoneV1,
+                3 => {
+                    changed.alternatives[0].encoded.memory =
+                        MachineEncodedMemoryEffect::ReadPointerV1 {
+                            pointer_operand: 0,
+                            byte_count: 8,
+                        }
+                }
+                4 => changed.alternatives[0]
+                    .encoded
+                    .external_operand_reads
+                    .push(0),
+                5 => changed.alternatives[0]
+                    .encoded
+                    .external_operand_writes
+                    .push(0),
+                6 => {
+                    changed.alternatives[0].encoded.trap =
+                        MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+                }
+                7 => changed_constraint
+                    .implicit_uses
+                    .push(register_model::RegisterUnitId(0)),
+                8 => changed_constraint
+                    .implicit_defs
+                    .push(register_model::RegisterUnitId(0)),
+                9 => changed_constraint
+                    .clobbers
+                    .push(register_model::RegisterUnitId(0)),
+                _ => unreachable!(),
+            }
+            assert!(
+                validate_declaration(architecture, &changed_constraint, &changed).is_err(),
+                "{architecture:?}, mutation {mutation}"
+            );
+        }
+    }
+}

@@ -13,6 +13,7 @@ use typed_trees::proposition::PropositionLabels;
 mod parameters;
 mod payload;
 mod places;
+mod result_cases;
 pub(crate) use parameters::{contract_parameter_position, projected_argument_place};
 pub(crate) use places::contract_fact_place;
 
@@ -766,6 +767,9 @@ fn append_call_semantic_contract_refs(
             payload,
         });
         facts.append_ref(refs, fact);
+        if origin == FactOrigin::CallEnsures {
+            result_cases::append(program, facts, call, contract, point, evidence, refs);
+        }
         // A Boolean postcondition's outer expression is not its storage
         // dependency. Retain each exact instantiated operand in the same
         // context so the shared mutation filter retires the whole promise

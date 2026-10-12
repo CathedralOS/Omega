@@ -510,6 +510,16 @@ pub(super) fn lower(
         | OperationKind::ExactIntegerShiftRight { .. } => shifts::lower(operation, value_types),
         terminal_psi::integer_arithmetic_operations!() => arithmetic::lower(operation),
         OperationKind::TrappingInteger { .. } => trapping_integer::lower(operation, value_types),
+        OperationKind::AtomicFence { ordering } => {
+            Ok(abstract_operations::AbstractOperation::AtomicEvent {
+                psi_operation: operation.id,
+                event: abstract_operations::AbstractAtomicEvent::Fence {
+                    ordering: *ordering,
+                },
+                reads_from: None,
+                modification_after: None,
+            })
+        }
         OperationKind::AtomicAccess { .. } => {
             atomic_events::lower(operation, machine, structural_types)
         }

@@ -74,6 +74,7 @@ pub(super) fn validate_declaration(
                 | MachineSemanticKind::RestoreFloatingControl
                 | MachineSemanticKind::HostedWriteByteI32
                 | MachineSemanticKind::HostedExitProcessI32
+                | MachineSemanticKind::AtomicFence
                 | MachineSemanticKind::AtomicAccess(_)
         ) {
         MachineBarrier::ExternalEffect
@@ -119,8 +120,22 @@ pub(super) fn validate_declaration(
     // have, fails admission instead of reaching canonical replay.
     let temporary_stack = architecture == target::Architecture::X86_64
         && matches!(semantic, MachineSemanticKind::NearestIeeeFloatArithmetic(form) if form.operation.rounding_direction().is_some());
+    if semantic == MachineSemanticKind::AtomicFence
+        && (!constraint.operands.is_empty()
+            || !constraint.implicit_uses.is_empty()
+            || !constraint.implicit_defs.is_empty()
+            || !constraint.clobbers.is_empty()
+            || declaration.alternatives.iter().any(|alternative| {
+                alternative.encoded != crate::MachineEncodedEffects::atomic_fence_v1()
+            }))
+    {
+        return Err(MachineEffectCatalogValidationError::BarrierMismatch(
+            semantic,
+        ));
+    }
     let expected_memory = match semantic {
         _ if temporary_stack => crate::MachineMemoryEffect::TemporaryStackStorageV1,
+        MachineSemanticKind::AtomicFence => crate::MachineMemoryEffect::AtomicFenceV1,
         MachineSemanticKind::AtomicAccess(_) => crate::MachineMemoryEffect::AtomicPointerV1,
         MachineSemanticKind::CopyBytes => crate::MachineMemoryEffect::CopyBytesV1,
         MachineSemanticKind::ZeroBytes => crate::MachineMemoryEffect::ZeroBytesV1,
@@ -717,6 +732,7 @@ fn validate_encoded_effects(
                 declaration.semantic,
                 MachineSemanticKind::SaveFloatingControl
                     | MachineSemanticKind::RestoreFloatingControl
+                    | MachineSemanticKind::AtomicFence
                     | MachineSemanticKind::AtomicAccess(_)
             ) =>
         {
@@ -1113,6 +1129,14 @@ fn validate_encoded_effects(
             && declaration.memory == crate::MachineMemoryEffect::NoneV1
             && declaration.trap == crate::MachineTrapBehavior::TrappingIntegerV1
             && encoded.control == MachineEncodedControlEffect::FallThroughOrTrapV1 => {}
+        (
+            MachineEncodedMemoryEffect::AtomicFenceV1,
+            MachineEncodedStackEffect::UnchangedV1,
+            MachineEncodedTrapBehavior::NeverV1,
+        ) if declaration.semantic == MachineSemanticKind::AtomicFence
+            && declaration.memory == crate::MachineMemoryEffect::AtomicFenceV1
+            && encoded == &crate::MachineEncodedEffects::atomic_fence_v1()
+            && constraint.operands.is_empty() => {}
         (
             MachineEncodedMemoryEffect::AtomicPointerV1 {
                 pointer_operand: 0,

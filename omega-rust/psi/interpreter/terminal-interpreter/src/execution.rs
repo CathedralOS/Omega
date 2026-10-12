@@ -692,6 +692,12 @@ impl<'artifact> TerminalExecution<'artifact> {
                                         self.execute_primitive_store(operation, destination, value, path)?;
                                         OperationFlow::Advance
                                     }
+                                    OperationKind::AtomicFence { .. } => {
+                                        // The core executes one ordered event at a time. A fence
+                                        // consumes this normal operation step without observing
+                                        // storage or manufacturing synchronization evidence.
+                                        OperationFlow::Advance
+                                    }
                                     OperationKind::AtomicAccess {
                                         place,
                                         ref path,

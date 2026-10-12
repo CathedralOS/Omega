@@ -69,6 +69,7 @@ impl TerminalFuelSchedule {
             | OperationKind::EstablishPrimitiveLocal { .. }
             | OperationKind::PrimitiveScalarRead { .. }
             | OperationKind::AtomicAccess { .. }
+            | OperationKind::AtomicFence { .. }
             | OperationKind::StructuralScalarFieldStore { .. }
             | terminal_psi::move_or_store_structural_field_pattern!()
             | OperationKind::ByteSequenceStore { .. }

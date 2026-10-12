@@ -496,3 +496,7 @@ pub(crate) fn classify_type_references<R: Clone, F>(
     }
     with_rows(rows)
 }
+
+pub use value_custody::atomic_fences::{
+    AtomicFenceContract, exact_toolchain_atomic_fence_contract,
+};

@@ -291,6 +291,23 @@ fn select_function(
             {
                 continue;
             }
+            if let LegalizedScalarInstructionKind::AtomicFence { .. } = operation.kind {
+                if operation.result.is_some() {
+                    return Err(invalid());
+                }
+                let key = builder.constraints.keys.atomic_fence.ok_or_else(invalid)?;
+                builder.emit(
+                    SelectedInstructionKind::AtomicFence,
+                    key,
+                    &[],
+                    SelectedInstructionProvenance {
+                        operations: vec![operation.operation],
+                        fuel: operation.fuel.clone(),
+                        ..Default::default()
+                    },
+                )?;
+                continue;
+            }
             if atomic_access::emit(function, source, operation, &mut builder)? {
                 continue;
             }
@@ -344,7 +361,8 @@ fn select_function(
                         )?;
                         output
                     }
-                    LegalizedScalarInstructionKind::AtomicAccess { .. } => {
+                    LegalizedScalarInstructionKind::AtomicFence { .. }
+                    | LegalizedScalarInstructionKind::AtomicAccess { .. } => {
                         return Err(invalid());
                     }
                     LegalizedScalarInstructionKind::IeeeFloatCompare { .. } => {

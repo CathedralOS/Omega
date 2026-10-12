@@ -134,6 +134,9 @@ pub(crate) fn lower_bare_bodyless_signature(
     let entry = syntax_trees.items.state(*entry);
     match family {
         CatalogFamily::FloatProjection => {}
+        CatalogFamily::AtomicFence => {
+            require_exact_atomic_fence_row(syntax_trees, machine, entry)?;
+        }
         CatalogFamily::FloatSemantics => {
             require_exact_semantic_row(syntax_trees, machine, entry, namespace, leaf)?;
         }
@@ -187,6 +190,8 @@ pub(crate) fn lower_bare_bodyless_signature(
 /// spelling alone selects nothing.
 #[derive(Clone, Copy)]
 enum CatalogFamily {
+    /// Place-free portable fence (`atomic.omg`).
+    AtomicFence,
     /// `Float::meaning32` / `Float::meaning64` (`float_operations.omg`).
     FloatProjection,
     /// `FloatSemantics::<name>` rows (`float_operations.omg`), keyed on the
@@ -199,6 +204,11 @@ enum CatalogFamily {
 
 impl CatalogFamily {
     fn naming(namespace: &str, leaf: &str) -> Option<Self> {
+        if namespace == language_core::atomic::ATOMIC_FENCE_NAMESPACE
+            && leaf == language_core::atomic::ATOMIC_FENCE_NAME
+        {
+            return Some(Self::AtomicFence);
+        }
         if numerics::float_projection::FloatProjectionOperation::from_source_identity(
             namespace, leaf,
         )
@@ -215,6 +225,7 @@ impl CatalogFamily {
 
     fn sealed_source(self) -> &'static str {
         match self {
+            Self::AtomicFence => language_core::atomic::ATOMIC_CORE_SOURCE,
             Self::FloatProjection | Self::FloatSemantics => {
                 numerics::float_projection::FLOAT_PROJECTION_CORE_SOURCE
             }
@@ -357,4 +368,33 @@ fn require_exact_semantic_row(
             ))
         },
     )
+}
+
+fn require_exact_atomic_fence_row(
+    syntax_trees: &SyntaxTrees,
+    machine: &syntax::item::Machine,
+    entry: &syntax::item::StateNode,
+) -> Result<(), Diagnostic> {
+    let valid_parameter = match syntax_trees.items.state_parameters(entry.parameters) {
+        [parameter] => {
+            let parameter = syntax_trees.items.state_parameter(*parameter);
+            !parameter.is_const
+                && !parameter.is_mutable
+                && !parameter.relevance.is_erased()
+                && matches!(syntax_trees.tables.type_references.type_reference(parameter.type_reference),
+                    syntax::types::TypeReferenceNode::Named(name) if name.as_str() == "FenceOrdering")
+        }
+        _ => false,
+    };
+    if !machine.is_public
+        || machine.spelling.is_some()
+        || !machine.type_parameters.is_empty()
+        || !machine.lifetime_parameters.is_empty()
+        || !machine.contracts.is_empty()
+        || entry.return_type.is_valid()
+        || !valid_parameter
+    {
+        return Err(Diagnostic::error("the sealed atomic fence declaration must be exactly `pub machine Atomic::fence(ordering: FenceOrdering);`").with_source_span(machine.name.source_span()));
+    }
+    Ok(())
 }

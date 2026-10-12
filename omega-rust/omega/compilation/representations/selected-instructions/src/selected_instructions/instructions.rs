@@ -106,6 +106,8 @@ impl SelectedImageAddressReference {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedInstructionKind {
+    /// Full coherent-memory barrier, with no address or value operands.
+    AtomicFence,
     /// An indivisible sequentially consistent access. Address is operand 0;
     /// value inputs follow it, then the observed prior (absent for Store).
     /// Input registers are preserved; the observed output is early-clobber.

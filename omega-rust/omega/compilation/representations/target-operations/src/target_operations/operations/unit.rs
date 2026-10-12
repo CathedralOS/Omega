@@ -83,6 +83,11 @@ impl TargetFloatResultPolicy {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetUnitOperation {
+    /// A portable ordering event without an accessed location or result.
+    AtomicFence {
+        psi_operation: OperationId,
+        ordering: terminal_psi::FenceOrdering,
+    },
     /// Define an opaque selector word naming one complete immutable table.
     SelectImplementation {
         result_home: TargetUnitScalarHomeRequirement,
