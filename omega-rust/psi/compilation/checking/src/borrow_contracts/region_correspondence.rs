@@ -45,6 +45,10 @@ impl RegionEnvironment<'_> {
 #[derive(Clone, Copy)]
 struct RegionScope<'scope> {
     declaration: SymbolHandle,
+    // Only a declaration application quantifies these original formals. A
+    // callable's supplied operand still re-enters its rigid capture normally.
+    formal_declaration: SymbolHandle,
+    formal_regions: &'scope [(String, RegionIdentity)],
     substitutions: &'scope [(SymbolHandle, TypeReferenceHandle)],
     starts: &'scope [usize],
     applications: &'scope [Vec<(String, RegionIdentity)>],
@@ -91,7 +95,9 @@ impl TypeRegionScope for RegionScope<'_> {
             let owner = program
                 .type_reference_table
                 .operand_lifetime_owner(reference);
-            if owner.is_valid() {
+            if owner.is_valid() && owner == self.formal_declaration {
+                self.regions = RegionEnvironment::Resolved(self.formal_regions);
+            } else if owner.is_valid() {
                 self.regions = RegionEnvironment::Captured(owner);
                 self.output_elisions = &[];
                 if program.lifetime_declaration_owner(owner)
@@ -155,6 +161,8 @@ fn contract_scope<'scope>(
 ) -> RegionScope<'scope> {
     RegionScope {
         declaration: contract.lexical_owner,
+        formal_declaration: SymbolHandle::invalid(),
+        formal_regions: &[],
         substitutions: contract.substitutions,
         starts: contract.substitution_scope_starts,
         applications: &regions.applications,
@@ -163,6 +171,153 @@ fn contract_scope<'scope>(
         arguments: RegionEnvironment::Resolved(&regions.arguments),
         output_elisions: &[],
     }
+}
+
+/// Input-established application of one original declaration's lifetime slot.
+/// Invocation coordinates remain distinct from captured source declarations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InputLifetimeArgument {
+    Captured(typed_trees::type_identity::LifetimeParameterIdentity),
+    Invocation(usize),
+    AnonymousInvocation(typed_trees::type_identity::LifetimeParameterIdentity),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InputLifetimeBinding {
+    pub parameter: Identifier,
+    pub argument: InputLifetimeArgument,
+}
+
+/// A declaration application inspects original type inputs, without inventing
+/// runtime parameters. Supplied operand subtrees retain their own owner; only
+/// this declaration's original lifetime formals are quantified for application.
+pub struct InputTypeRegionScope<'scope> {
+    pub declaration: SymbolHandle,
+    pub lifetime_parameters: &'scope [Identifier],
+    pub substitutions: &'scope [(SymbolHandle, TypeReferenceHandle)],
+    pub argument_owner: SymbolHandle,
+}
+
+pub fn infer_type_input_lifetime_application(
+    program: &dyn crate::CheckingInput,
+    actual: InputTypeRegionScope<'_>,
+    required_owner: SymbolHandle,
+    inputs: &[(TypeReferenceHandle, TypeReferenceHandle)],
+    invocation_count: usize,
+    constraints: &[(usize, InputLifetimeArgument)],
+) -> Result<Vec<InputLifetimeBinding>, &'static str> {
+    let mut actual_names = captured_lifetimes(program, actual.declaration);
+    actual_names.extend(actual.lifetime_parameters.iter().enumerate().map(
+        |(ordinal, parameter)| {
+            (
+                parameter.as_str().to_owned(),
+                RegionIdentity::Fresh(ordinal),
+            )
+        },
+    ));
+    let required_names = captured_lifetimes(program, required_owner);
+    let starts = [0];
+    let actual_scope = RegionScope {
+        declaration: actual.declaration,
+        formal_declaration: actual.declaration,
+        formal_regions: &actual_names,
+        substitutions: actual.substitutions,
+        starts: &starts,
+        applications: &[],
+        binders: &[],
+        regions: RegionEnvironment::Resolved(&actual_names),
+        arguments: RegionEnvironment::Captured(actual.argument_owner),
+        output_elisions: &[],
+    };
+    let required_scope = RegionScope {
+        declaration: required_owner,
+        formal_declaration: SymbolHandle::invalid(),
+        formal_regions: &[],
+        substitutions: &[],
+        starts: &[],
+        applications: &[],
+        binders: &[],
+        regions: RegionEnvironment::Resolved(&required_names),
+        arguments: RegionEnvironment::Captured(required_owner),
+        output_elisions: &[],
+    };
+    let mut initial = InputRegionApplication::default();
+    for (ordinal, argument) in constraints {
+        if *ordinal >= actual.lifetime_parameters.len()
+            || !initial.constrain(
+                0,
+                TypeReferenceHandle::invalid(),
+                Some(RegionIdentity::Fresh(*ordinal)),
+                argument.region(),
+            )
+        {
+            return Err("declaration input region constraints conflict");
+        }
+    }
+    let application = infer_correspondences(
+        program,
+        inputs,
+        actual_scope,
+        required_scope,
+        &[],
+        actual.lifetime_parameters.len(),
+        invocation_count,
+        initial,
+    )?;
+    project_application(actual.lifetime_parameters, &application)
+}
+
+impl InputLifetimeArgument {
+    fn region(&self) -> RegionIdentity {
+        match self {
+            Self::Captured(identity) => {
+                RegionIdentity::Captured(identity.declaration, identity.ordinal)
+            }
+            Self::Invocation(ordinal) => RegionIdentity::Fresh(*ordinal),
+            Self::AnonymousInvocation(identity) => {
+                RegionIdentity::AnonymousInvocation(identity.declaration, identity.ordinal)
+            }
+        }
+    }
+}
+
+pub(super) fn project_application(
+    parameters: &[Identifier],
+    application: &InputRegionApplication,
+) -> Result<Vec<InputLifetimeBinding>, &'static str> {
+    parameters
+        .iter()
+        .enumerate()
+        .map(|(ordinal, parameter)| {
+            let argument = match application
+                .fresh_argument(ordinal)
+                .ok_or("input lifetime application lost a declared slot")?
+            {
+                RegionIdentity::Fresh(ordinal) => InputLifetimeArgument::Invocation(*ordinal),
+                RegionIdentity::Captured(declaration, ordinal) => InputLifetimeArgument::Captured(
+                    typed_trees::type_identity::LifetimeParameterIdentity {
+                        declaration: *declaration,
+                        ordinal: *ordinal,
+                    },
+                ),
+                RegionIdentity::AnonymousInvocation(declaration, ordinal) => {
+                    InputLifetimeArgument::AnonymousInvocation(
+                        typed_trees::type_identity::LifetimeParameterIdentity {
+                            declaration: *declaration,
+                            ordinal: *ordinal,
+                        },
+                    )
+                }
+                RegionIdentity::Declared(_) => {
+                    return Err("input lifetime has no declaration custody");
+                }
+            };
+            Ok(InputLifetimeBinding {
+                parameter: parameter.clone(),
+                argument,
+            })
+        })
+        .collect()
 }
 
 pub(super) fn infer_inputs(
@@ -176,13 +331,37 @@ pub(super) fn infer_inputs(
     if required.parameters.len() != actual.parameters.len() {
         return Err("callable input arity does not match its requirement");
     }
-    let mut applications = vec![InputRegionApplication::default()];
-    for (ordinal, (required_parameter, actual_parameter)) in required
+    let inputs = actual
         .parameters
         .iter()
-        .zip(actual.parameters)
-        .enumerate()
-    {
+        .zip(required.parameters)
+        .map(|(actual, required)| (actual.type_reference, required.type_reference))
+        .collect::<Vec<_>>();
+    infer_correspondences(
+        program,
+        &inputs,
+        contract_scope(actual, actual_regions),
+        contract_scope(required, required_regions),
+        actual_inputs,
+        actual_regions.fresh_count,
+        required_regions.fresh_count,
+        InputRegionApplication::default(),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn infer_correspondences(
+    program: &dyn crate::CheckingInput,
+    inputs: &[(TypeReferenceHandle, TypeReferenceHandle)],
+    actual_scope: RegionScope<'_>,
+    required_scope: RegionScope<'_>,
+    actual_inputs: &[Vec<CarriedLifetime>],
+    actual_count: usize,
+    required_count: usize,
+    initial: InputRegionApplication,
+) -> Result<InputRegionApplication, &'static str> {
+    let mut applications = vec![initial];
+    for (ordinal, (actual_type, required_type)) in inputs.iter().copied().enumerate() {
         let mut failure = "callable input does not preserve its region identity";
         let mut constrain = |application: &mut InputRegionApplication,
                              actual_scope: RegionScope<'_>,
@@ -246,10 +425,10 @@ pub(super) fn infer_inputs(
         };
         if !type_reference_region_applications(
             program,
-            actual_parameter.type_reference,
-            required_parameter.type_reference,
-            contract_scope(actual, actual_regions),
-            contract_scope(required, required_regions),
+            actual_type,
+            required_type,
+            actual_scope,
+            required_scope,
             TypeRegionRelationship::CallableRefinement,
             &mut applications,
             &mut constrain,
@@ -263,7 +442,7 @@ pub(super) fn infer_inputs(
     let mut completed = Vec::new();
     let mut failure = "callable input regions do not determine one application";
     for mut application in applications {
-        match application.finish(actual_regions.fresh_count, required_regions.fresh_count) {
+        match application.finish(actual_count, required_count) {
             Ok(()) if !completed.contains(&application) => completed.push(application),
             Ok(()) => {}
             Err(reason) => failure = reason,
