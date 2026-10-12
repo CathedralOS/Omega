@@ -2813,6 +2813,11 @@ crash and native exit behavior.
   - `TypedTrees::target_machine_families` records member handles;
     `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols/target_siblings.rs`
     binds same-target calls.
+  - Repair cross-package resolution of public generated family heads under
+    ordinary import and visibility rules; do not require a second authored
+    head. Exercise filesystem `read_dir_count`, `read_dir_nth`,
+    `remove_dir_all`, `open_with` and `lock` from a consumer package, retaining
+    private-name refusals and exact target-member dispatch.
   - The common lowering route retains runtime bodies and opaque contracts,
     including unreachable members and uncatalogued tags, in Terminal family
     rows; inspection exposes tags and exact callable ids. Semantic conformance
@@ -2972,6 +2977,12 @@ crash and native exit behavior.
   - `BuildConfig` is still largely global. Finish authored rows and retain/check
     unrequested rows. Direct `CompileRequest` Product checking and source-custody
     sealing run once; package batches still need the same shared checked product.
+    Separate target-invariant opaque-receipt derivation and pending evaluation
+    from genuinely target-keyed inputs. Reuse requires exact semantic inputs
+    and preserves each occurrence's authority and custody; equal result values
+    alone do not authorize reuse. Provider-folded constants obey the existing
+    same-provider rule in multi-target configuration. This is implementation
+    work, not an owner decision on whether sharing is allowed.
   - The duplicate preliminary whole-program check is gone for equal inputs:
     sibling occurrence rows of one invocation now consult a shared
     `sibling_build_checks` pool before `prepare_checked_build`, and an
@@ -3460,7 +3471,8 @@ of a check the same flow already performed, not the check itself.
   source-acceptance frontier remains
   `shared_subslice_state_cannot_lend_mutable`. Attribute
   contextual slice formation here: its bare-range access rule is OWNER-BLOCKED
-  on Q16 (`bare-range-reference-access`), not the remaining qualification.
+  on `bare-range-reference-access` in `OWNER_QUESTIONS.md`, not the remaining
+  qualification.
   Keep portable callback refinement with
   **PSI-TARGET-FAMILIES**. Full qualification must retain the portable callback's
   first-member-only guarantee refusal and the inverted-distance
@@ -3635,6 +3647,12 @@ deletions, which the commit lists.
     local-refinement and inferred arrival obligations, and conditional cleanup
     prerequisites. Keep call/cleanup contracts and mathematical proofs distinct
     from primitive operation conditions.
+    The synthetic initial edge may use the machine's already-established entry
+    premises under exact argument substitution; retain that correspondence
+    rather than enumerating callers. Reentry and strengthened invariants still
+    need their own arrival proofs. Missing occurrence transport is engineering,
+    not authority to re-prove the same checked condition on the compile path;
+    follow [verification placement](omega-rust/pipeline.md#verification-placement).
   - Preserve non-Exact division's nonzero obligation, domain and custody
     checks, and intermediate-write requirements; a final value contract cannot
     authorize opaque intermediate operations. Public layout literals remain
