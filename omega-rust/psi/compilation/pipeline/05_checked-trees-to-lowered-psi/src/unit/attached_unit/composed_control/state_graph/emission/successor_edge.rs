@@ -646,6 +646,46 @@ impl StateGraphEmission<'_, '_> {
                             == StructuralMultiplicity::Affine
                             || backing.is_some();
                         if needs_home && (position != 0 || self.entry_reentered) {
+                            if std::env::var_os("OMEGA_TRACE_UNIT_LOAN_HOME").is_some() {
+                                let result_shape = terminal_psi::find_structural_type(
+                                    &self.catalogs.structural_types,
+                                    result.structural_type(),
+                                )
+                                .map(|declaration| &declaration.shape);
+                                eprintln!(
+                                    "TRACE_UNIT_LOAN_HOME state={:?} statement={} position={} target={:?} target_position={} target_parameter={} entry_reentered={} source={:?} target_contract={:?} binding={} emitted_place={:?} emitted_type={:?} emitted_shape={:?} multiplicity={:?} path={:?} claims={:?} argument_place={:?} argument_path={:?} captured_backing={:?} view_backing={:?} target_aliases={:?}",
+                                    state.state,
+                                    edge.statement_ordinal,
+                                    position,
+                                    edge.target_state,
+                                    target,
+                                    target_index,
+                                    self.entry_reentered,
+                                    transfer.source,
+                                    target_parameter,
+                                    binding_ordinal,
+                                    result.place(),
+                                    result.structural_type(),
+                                    result_shape,
+                                    result.multiplicity(),
+                                    result.path(),
+                                    result.claims(),
+                                    place,
+                                    argument_path,
+                                    captured_backing,
+                                    backing.as_ref().map(|(binding, home)| (
+                                        *binding,
+                                        home.place(),
+                                        home.structural_type(),
+                                        home.multiplicity()
+                                    )),
+                                    self.admitted.entry_aliases.get(target),
+                                );
+                                eprintln!(
+                                    "TRACE_UNIT_LOAN_HOME_SOURCE_OPERATIONS {:?}",
+                                    state.operations
+                                );
+                            }
                             return unsupported(
                                 "Unit graph local loan requires an activation entry home",
                             );
