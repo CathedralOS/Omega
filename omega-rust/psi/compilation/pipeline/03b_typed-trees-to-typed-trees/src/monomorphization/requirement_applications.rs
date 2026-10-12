@@ -28,7 +28,8 @@ mod trait_providers;
 
 pub(crate) fn instantiate_boundary_requirement_families(
     program: &mut TypedTrees,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<usize, Vec<Diagnostic>> {
+    let previous = program.closed_requirement_applications().count();
     let demands = demands::collect(program);
     for demand in demands {
         let requirement = demand.requirement;
@@ -121,8 +122,8 @@ pub(crate) fn instantiate_boundary_requirement_families(
                 .map_err(|message| vec![Diagnostic::error(message)])?;
         }
     }
-    calls::retarget(program)?;
-    Ok(())
+    let retargeted = calls::retarget(program)?;
+    Ok(program.closed_requirement_applications().count() - previous + retargeted)
 }
 
 fn tuple_argument(

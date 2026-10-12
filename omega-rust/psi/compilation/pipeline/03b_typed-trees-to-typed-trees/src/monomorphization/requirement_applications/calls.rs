@@ -282,7 +282,7 @@ fn instance(
     row.signature.symbol
 }
 
-pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
+pub(super) fn retarget(program: &mut TypedTrees) -> Result<usize, Vec<Diagnostic>> {
     let mut expression_sources = Vec::new();
     let mut statement_sources = Vec::new();
     for machine in program.machines() {
@@ -374,21 +374,28 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
+    let mut changed = 0usize;
     for (handle, selected, application, _) in expression_updates {
         if let typed_trees::expression::ExpressionNode::Call(call) =
             program.expression_table.expression_mut(handle)
         {
-            call.target_symbol = selected;
-            call.authored_machine_application = application;
+            if call.target_symbol != selected || call.authored_machine_application != application {
+                call.target_symbol = selected;
+                call.authored_machine_application = application;
+                changed += 1;
+            }
         }
     }
     for (handle, selected, application) in statement_updates {
         if let typed_trees::statement::StatementNode::Call(call) =
             program.statement_table.statement_mut(handle)
         {
-            call.target_symbol = selected;
-            call.authored_machine_application = application;
+            if call.target_symbol != selected || call.authored_machine_application != application {
+                call.target_symbol = selected;
+                call.authored_machine_application = application;
+                changed += 1;
+            }
         }
     }
-    Ok(())
+    Ok(changed)
 }

@@ -268,26 +268,29 @@ pub fn prepare_typed_trees(
         }
         materialized +=
             crate::operators::bind_selected_operator_calls(&mut program, &changed_roots)?;
-        if materialized == 0 {
-            break;
+        if materialized != 0 {
+            continue;
         }
+        // Receiver fields read the settled source result graph. A finite
+        // requirement then publishes its exact original caller application;
+        // any new header/edge returns through this same ordinary closure loop.
+        settle_value_destinations(&mut program)?;
+        default_domain_zero::refine_default_domain_zero(&mut program);
+        retain_value_application_results(
+            &mut program,
+            &mut crate::monomorphization::call_results::ResultDerivations::default(),
+        )?;
+        // A projected receiver reads its elaborated field telescope. Binding it
+        // before that producer would borrow the declaration's open field instead
+        // of the caller's exact application. This is the ordinary dependency order,
+        // not a separate path for nested Binding carriers.
+        validation::resolve_dynamic_call_targets(&mut program)?;
+        crate::monomorphization::instantiate_dynamic_slots(&mut program)?;
+        if crate::monomorphization::instantiate_boundary_requirement_families(&mut program)? != 0 {
+            continue;
+        }
+        break;
     }
-    settle_value_destinations(&mut program)?;
-    default_domain_zero::refine_default_domain_zero(&mut program);
-    // Constructed result types finish the source roster that field elaboration reads;
-    // substituted member edges do not become new application demands.
-    crate::constructed_results::retain_constructed_result_types(
-        &mut program,
-        &mut crate::monomorphization::call_results::ResultDerivations::default(),
-    );
-    data_applications::elaborate(&mut program)?;
-    // A projected receiver reads its elaborated field telescope. Binding it
-    // before that producer would borrow the declaration's open field instead
-    // of the caller's exact application. This is the ordinary dependency order,
-    // not a separate path for nested Binding carriers.
-    validation::resolve_dynamic_call_targets(&mut program)?;
-    crate::monomorphization::instantiate_dynamic_slots(&mut program)?;
-    crate::monomorphization::instantiate_boundary_requirement_families(&mut program)?;
     product_applications::retain(&mut program)?;
     Ok((
         program.into(),
@@ -302,6 +305,34 @@ pub fn prepare_typed_trees(
                 ),
         },
     ))
+}
+
+/// Settle actual field telescopes and constructed values before call inference.
+/// A field view can complete a borrow or constructor; that value can in turn
+/// expose another applied receiver. Publication changes, rather than a fixed
+/// number of sweeps, close these dependencies in the same typed program.
+/// No region binding, loan or source obligation is granted by this closure.
+pub(crate) fn retain_value_application_results(
+    program: &mut TypedTrees,
+    derivations: &mut crate::monomorphization::call_results::ResultDerivations,
+) -> Result<crate::constructed_results::ConstructedResultPublication, Vec<diagnostics::Diagnostic>>
+{
+    let mut changed = false;
+    let mut changed_owners = Vec::new();
+    loop {
+        let fields_changed = data_applications::elaborate(program)?;
+        let publication =
+            crate::constructed_results::retain_constructed_result_types(program, derivations);
+        changed |= fields_changed || publication.changed;
+        changed_owners.extend(publication.changed_owners);
+        if !fields_changed && !publication.changed {
+            return Ok(crate::constructed_results::ConstructedResultPublication {
+                changed,
+                changed_owners,
+                unavailable: publication.unavailable,
+            });
+        }
+    }
 }
 
 /// Calls establish destinations before anonymous values can round. Full source
@@ -384,10 +415,10 @@ pub fn prepare_constant_execution(
     validation::resolve_dynamic_call_targets(&mut program)?;
     specialize_static_machine_calls(&mut program)?;
     settle_value_destinations(&mut program)?;
-    crate::constructed_results::retain_constructed_result_types(
+    retain_value_application_results(
         &mut program,
         &mut crate::monomorphization::call_results::ResultDerivations::default(),
-    );
+    )?;
     Ok(program)
 }
 

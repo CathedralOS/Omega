@@ -142,6 +142,7 @@ fn retain_borrow_result_type(
 }
 
 pub(crate) struct ConstructedResultPublication {
+    pub(crate) changed: bool,
     pub(crate) changed_owners: Vec<symbols::SymbolHandle>,
     pub(crate) unavailable: Vec<UnavailableValueType>,
 }
@@ -253,6 +254,7 @@ pub(crate) fn retain_constructed_result_types(
         }
     }
     ConstructedResultPublication {
+        changed: !changed_owners.is_empty(),
         changed_owners,
         unavailable,
     }
