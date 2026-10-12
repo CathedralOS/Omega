@@ -430,6 +430,48 @@ pub(crate) fn finalize_operator_obligations(
             }
         }
     }
+    if std::env::var_os("OMEGA_TRACE_NORMALIZED_OPERATORS").is_some() {
+        for selection in program
+            .authored_declaration_selections()
+            .iter()
+            .filter(|selection| {
+                selection.kind() == Kind::Operator
+                    && matches!(
+                        selection.target(),
+                        Target::LateBound(LateBinding::CheckedOperator)
+                    )
+            })
+        {
+            let covered_group = usize::try_from(selection.occurrence_id().ordinal())
+                .ok()
+                .and_then(|ordinal| coverage.get(ordinal));
+            eprintln!(
+                "TRACE_NORMALIZED_OPERATOR_GROUP occurrence={} source={:?} exposure={:?} partition={:?} coverage={:?}",
+                selection.occurrence_id().ordinal(),
+                selection.source_span(),
+                selection.exposure(),
+                selection.compiler_partition(),
+                covered_group,
+            );
+            for (expression, node) in expressions.iter_expressions().filter(|(expression, _)| {
+                expressions
+                    .authored_selection_occurrences(*expression)
+                    .any(|occurrence| occurrence == selection.occurrence_id())
+            }) {
+                eprintln!(
+                    "TRACE_NORMALIZED_OPERATOR_ATTACHMENT occurrence={} expression={:?} covered={} source={:?} original={:?} exposure={:?} partition={:?} node={:?}",
+                    selection.occurrence_id().ordinal(),
+                    expression,
+                    covered.contains(&expression),
+                    expressions.source_span(expression),
+                    expressions.expression_source_origin(expression),
+                    expressions.authored_expression_exposure(expression),
+                    expressions.compiler_selection_partition(expression),
+                    node,
+                );
+            }
+        }
+    }
     let occurrences = program
         .authored_declaration_selections()
         .iter()
