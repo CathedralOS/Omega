@@ -1,0 +1,35 @@
+// Intended refusal: scan has no proof of the complete correlated family.
+// The false/16 runtime call is outside both rows; no Cartesian tuple exists.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Packet { flag: bool; width: u32; marker: u32; }
+data Item { marker: u32; }
+trait Shape<T> {
+    machine code<Flag: bool, Width: u32>(subject: &T) -> Packet
+    where (Flag == true && Width == 16) || (Flag == false && Width == 32);
+}
+machine Item::code<Flag: bool, Width: u32>(item: &Item) -> Packet
+satisfies Shape<Item>::code {
+    Packet { flag: Flag, width: Width, marker: item.marker }
+}
+Primary satisfies Shape<Item> { Shape::code = Item::code; }
+
+machine scan(selected: dyn Shape<Item>, item: &Item, flag: bool, width: u32) -> Packet
+{
+    Shape::code<flag, width>(selected, item)
+}
+
+data Main { console: Binding<Console>; item: Item; }
+machine Main::main(main: &mut Main) reaches Console {
+    main.item.marker = 101;
+    let selected: dyn Shape<Item> = Primary as dyn Shape<Item>;
+    let first: Packet = scan(selected, &main.item, false, 16);
+    let second: Packet = scan(selected, &main.item, false, 32);
+    transition first.flag == true && first.width == 16 && first.marker == 101
+        && second.flag == false && second.width == 32 && second.marker == 101 {
+        true -> good(main) false -> bad(main)
+    }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
+}
