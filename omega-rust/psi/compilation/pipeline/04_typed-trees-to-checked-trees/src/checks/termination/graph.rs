@@ -156,33 +156,73 @@ fn outgoing_state_indices(
     };
     let mut outgoing = Vec::new();
 
-    for target in program
+    for (statement_index, statement) in program
         .statement_table
-        .transition_targets(state.statement_nodes)
+        .indexed_statements(state.statement_nodes)
     {
-        if let Some(index) = target_state_index(
-            program,
-            machine,
-            program.statement_table.transition_target(target),
-        ) {
-            outgoing.push(index);
+        let targets = match statement {
+            typed_trees::statement::StatementNode::Transition(transition) => {
+                transition.targets().collect::<Vec<_>>()
+            }
+            typed_trees::statement::StatementNode::Expression(_) => vec![Default::default()],
+            _ => continue,
+        };
+        for target in targets {
+            if let Some((destination, _)) =
+                source_state_transfer(program, machine, state, statement_index, target)
+                && let Some(index) = states.iter().position(|state| state.symbol == destination)
+            {
+                outgoing.push(index);
+            }
         }
     }
 
     outgoing
 }
 
-fn target_state_index(
-    program: &dyn ::validation::CheckingInput,
+/// Exact source control operands, before checked Flow retains their captures.
+/// The original whole call stays available to all application/ranking/loan
+/// judgments; this query adds no authority or claimed decrease.
+pub(crate) fn source_state_transfer<'program>(
+    program: &'program dyn validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
-    target: &TransitionTargetNode,
-) -> Option<usize> {
-    let target_symbol = match target {
-        TransitionTargetNode::Named { path, .. } => path.symbol,
-        TransitionTargetNode::Value(_) | TransitionTargetNode::Terminal => return None,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    target: typed_trees::statement::TransitionTargetHandle,
+) -> Option<(
+    symbols::SymbolHandle,
+    &'program [typed_trees::expression::ExpressionHandle],
+)> {
+    let expression = if target.is_valid() {
+        match program.statement_table.transition_target(target) {
+            TransitionTargetNode::Named {
+                path, arguments, ..
+            } => {
+                let destination =
+                    named_transition_target_state_index(program, machine, path.symbol)?;
+                return Some((
+                    program.machine_states(machine).get(destination)?.symbol,
+                    program.statement_table.expression_handles(*arguments),
+                ));
+            }
+            TransitionTargetNode::Value(expression) => *expression,
+            TransitionTargetNode::Terminal => return None,
+        }
+    } else {
+        *program
+            .statement_table
+            .statement_at(state, statement_index)?
+            .as_expression()?
     };
-
-    named_transition_target_state_index(program, machine, target_symbol)
+    let call = validation::source_tail_call(program, state, statement_index, expression)?;
+    let entry = program.machine_states(machine).first()?;
+    if call.target_symbol != machine.symbol && call.target_symbol != entry.symbol {
+        return None;
+    }
+    Some((
+        program.machine_states(machine).first()?.symbol,
+        program.expression_table.expression_handles(call.arguments),
+    ))
 }
 
 /// Resolve one named transition target to its state index inside `machine`.

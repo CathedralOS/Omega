@@ -58,7 +58,7 @@ pub(in crate::machine_calls::calls::write_frames) fn local_backing_survives_jump
         let state = program.state_in_machine(machine, arrival.state)?;
         let (last, prefixes) =
             stored_reference_transfer(program, machine, state, symbols, &mut inference)?;
-        let mut has_transition = false;
+        let mut has_state_exit = false;
         for (index, statement) in program
             .statement_table
             .indexed_statements(state.statement_nodes)
@@ -71,31 +71,52 @@ pub(in crate::machine_calls::calls::write_frames) fn local_backing_survives_jump
             {
                 return None;
             }
-            let StatementNode::Transition(transition) = statement else {
-                continue;
-            };
-            has_transition = true;
-            if transition.exit != TransitionExit::Ordinary {
-                continue;
-            }
-            for edge in transition.targets() {
-                let (target, arguments) = match program.statement_table.transition_target(edge) {
-                    TransitionTargetNode::Named { arguments, .. } => {
+            let mut transfers = Vec::new();
+            match statement {
+                StatementNode::Expression(expression) => {
+                    if let Some(transfer) =
+                        super::super::transition_topology::expression_state_transfer(
+                            program,
+                            machine,
+                            state,
+                            index,
+                            *expression,
+                        )
+                    {
+                        has_state_exit = true;
+                        transfers.push(transfer);
+                    }
+                }
+                StatementNode::Transition(transition) => {
+                    has_state_exit = true;
+                    if transition.exit != TransitionExit::Ordinary {
+                        continue;
+                    }
+                    for edge in transition.targets() {
                         if super::super::terminal_calls::target(program, machine, edge).is_valid() {
                             return None;
                         }
-                        (
-                            super::super::transition_topology::named_transition_target_state(
-                                program, machine, state, edge,
-                            )?,
-                            program.statement_table.expression_handles(*arguments),
-                        )
+                        if let Some(transfer) =
+                            super::super::transition_topology::transition_state_transfer(
+                                program, machine, state, index, edge,
+                            )
+                        {
+                            transfers.push(transfer);
+                        } else {
+                            match program.statement_table.transition_target(edge) {
+                                TransitionTargetNode::Named { .. } => return None,
+                                TransitionTargetNode::Terminal | TransitionTargetNode::Value(_) => {
+                                    check_exit(program, state, &prefix.stored, &arrival.slots)?;
+                                }
+                            }
+                        }
                     }
-                    TransitionTargetNode::Terminal | TransitionTargetNode::Value(_) => {
-                        check_exit(program, state, &prefix.stored, &arrival.slots)?;
-                        continue;
-                    }
-                };
+                }
+                _ => {}
+            }
+            for transfer in transfers {
+                let target = transfer.target;
+                let arguments = transfer.arguments;
                 let next = Arrival {
                     state: target.symbol,
                     slots: transferred_slots(
@@ -114,7 +135,7 @@ pub(in crate::machine_calls::calls::write_frames) fn local_backing_survives_jump
                 }
             }
         }
-        if !has_transition {
+        if !has_state_exit {
             check_exit(program, state, &last.stored, &arrival.slots)?;
         }
     }

@@ -249,3 +249,19 @@ pub struct FlowStateFact {
     pub suspension: SuspensionSummary,
     pub blocking: BlockingSummary,
 }
+
+/// One whole admitted source call realized as an activation-reusing transfer.
+/// The call row retains the original application, public obligations and exact
+/// operand captures. It is not retired by choosing a jump. A zero transition
+/// coordinate denotes the state's final expression statement.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowTailTransferFact {
+    pub machine_symbol: SymbolHandle,
+    pub state_symbol: SymbolHandle,
+    pub statement_index: usize,
+    pub transition_target: typed_trees::statement::TransitionTargetHandle,
+    pub expression: typed_trees::expression::ExpressionHandle,
+    pub target_state: SymbolHandle,
+    pub call: arena::Handle<FlowCallFact>,
+    pub operands: HandleSpan<super::FlowOperandFact>,
+}

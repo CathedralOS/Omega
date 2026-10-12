@@ -88,16 +88,19 @@ mod guarded_exits;
 /// Every state's ordered guarded exits and fallback, for every machine.
 pub(crate) fn build_checked_guarded_exit_plans(
     program: &dyn ::validation::CheckingInput,
+    flow: &checked_trees::FlowFacts,
     expressions: &checked_trees::CheckedScalarExpressionPlans,
     computations: &checked_trees::CheckedScalarComputationPlans,
 ) -> checked_trees::CheckedGuardedExitPlans {
-    let (exits, tails) = guarded_exits::build(program, expressions, computations);
+    let (exits, tails) = guarded_exits::build(program, flow, expressions, computations);
     checked_trees::CheckedGuardedExitPlans { exits, tails }
 }
 
 fn checked_successor(
     program: &dyn ::validation::CheckingInput,
+    flow: &checked_trees::FlowFacts,
     machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     statement_ordinal: u32,
     transition: &typed_trees::statement::TableTransition,
     is_continuation: bool,
@@ -105,31 +108,32 @@ fn checked_successor(
     if transition.exit != TransitionExit::Ordinary {
         return None;
     }
-    let TransitionTargetNode::Named { path, .. } =
-        program
-            .statement_table
-            .transition_target(if is_continuation {
-                transition.continuation
-            } else {
-                transition.target
-            })
-    else {
-        return None;
-    };
+    let selected = crate::execution::tail_transfers::transition(
+        program,
+        flow,
+        machine,
+        state,
+        statement_ordinal as usize,
+        if is_continuation {
+            transition.continuation
+        } else {
+            transition.target
+        },
+    )?;
     // An authored machine-name backedge denotes its entry child. Reuse the
     // same identity normalization as ranking and structural state forwarding.
     let target = if let Some(target_index) =
         crate::checks::termination::named_transition_target_state_index(
             program,
             machine,
-            path.symbol,
+            selected.symbol,
         ) {
         program.machine_states(machine).get(target_index)?.symbol
     } else {
         // A free name may retain the machine head while a qualified call
         // names its entry child. Both denote the same exact first state;
         // neither grants access to a foreign machine's interior states.
-        validation::find_machine_head(program, path.symbol)?
+        validation::find_machine_head(program, selected.symbol)?
             .1
             .symbol
     };
@@ -153,6 +157,7 @@ pub(super) fn checked_terminator(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
+    flow: &checked_trees::FlowFacts,
     expressions: &checked_trees::CheckedScalarExpressionPlans,
     binding_count: usize,
 ) -> Option<CheckedScalarStateTerminator> {
@@ -161,9 +166,31 @@ pub(super) fn checked_terminator(
     let reachable =
         typed_trees::statement::reachable_transition_prefix(&statements[binding_count..]);
     Some(match reachable {
-        [StatementNode::Expression(_)] => CheckedScalarStateTerminator::Return {
-            statement_ordinal: terminator_ordinal,
-        },
+        [StatementNode::Expression(_)] => {
+            if let Some(tail) = crate::execution::tail_transfers::tail(
+                program,
+                flow,
+                machine,
+                state,
+                binding_count,
+                Default::default(),
+            ) {
+                CheckedScalarStateTerminator::Jump(CheckedStructuralControlSuccessorPlan::new(
+                    terminator_ordinal,
+                    tail.symbol,
+                    false,
+                    Vec::new(),
+                    Vec::new(),
+                    Vec::new(),
+                    Vec::new(),
+                    Vec::new(),
+                ))
+            } else {
+                CheckedScalarStateTerminator::Return {
+                    statement_ordinal: terminator_ordinal,
+                }
+            }
+        }
         [StatementNode::Transition(transition)]
             if transition.exit == TransitionExit::Ordinary
                 && transition.guard == TransitionGuardNode::Always
@@ -171,7 +198,16 @@ pub(super) fn checked_terminator(
                 && matches!(
                     program.statement_table.transition_target(transition.target),
                     TransitionTargetNode::Value(_)
-                ) =>
+                )
+                && crate::execution::tail_transfers::transition(
+                    program,
+                    flow,
+                    machine,
+                    state,
+                    binding_count,
+                    transition.target,
+                )
+                .is_none() =>
         {
             CheckedScalarStateTerminator::Return {
                 statement_ordinal: terminator_ordinal,
@@ -221,14 +257,18 @@ pub(super) fn checked_terminator(
                 guard_statement_ordinal: terminator_ordinal,
                 when_true: checked_branch_destination(
                     program,
+                    flow,
                     machine,
+                    state,
                     terminator_ordinal,
                     when_true,
                     false,
                 )?,
                 when_false: checked_branch_destination(
                     program,
+                    flow,
                     machine,
+                    state,
                     terminator_ordinal.checked_add(1)?,
                     when_false,
                     false,
@@ -243,14 +283,18 @@ pub(super) fn checked_terminator(
                 guard_statement_ordinal: terminator_ordinal,
                 when_true: checked_branch_destination(
                     program,
+                    flow,
                     machine,
+                    state,
                     terminator_ordinal,
                     transition,
                     false,
                 )?,
                 when_false: checked_branch_destination(
                     program,
+                    flow,
                     machine,
+                    state,
                     terminator_ordinal,
                     transition,
                     true,
@@ -267,14 +311,38 @@ pub(super) fn checked_terminator(
                 guard_statement_ordinal: terminator_ordinal,
                 when_true: checked_branch_destination(
                     program,
+                    flow,
                     machine,
+                    state,
                     terminator_ordinal,
                     transition,
                     false,
                 )?,
-                when_false: CheckedScalarBranchDestination::Return {
-                    statement_ordinal: terminator_ordinal.checked_add(1)?,
-                    is_continuation: false,
+                when_false: if let Some(tail) = crate::execution::tail_transfers::tail(
+                    program,
+                    flow,
+                    machine,
+                    state,
+                    binding_count + 1,
+                    Default::default(),
+                ) {
+                    CheckedScalarBranchDestination::Jump(
+                        CheckedStructuralControlSuccessorPlan::new(
+                            terminator_ordinal.checked_add(1)?,
+                            tail.symbol,
+                            false,
+                            Vec::new(),
+                            Vec::new(),
+                            Vec::new(),
+                            Vec::new(),
+                            Vec::new(),
+                        ),
+                    )
+                } else {
+                    CheckedScalarBranchDestination::Return {
+                        statement_ordinal: terminator_ordinal.checked_add(1)?,
+                        is_continuation: false,
+                    }
                 },
             }
         }
@@ -284,7 +352,9 @@ pub(super) fn checked_terminator(
         {
             CheckedScalarStateTerminator::Jump(checked_successor(
                 program,
+                flow,
                 machine,
+                state,
                 terminator_ordinal,
                 transition,
                 false,
@@ -296,7 +366,9 @@ pub(super) fn checked_terminator(
 
 fn checked_branch_destination(
     program: &dyn ::validation::CheckingInput,
+    flow: &checked_trees::FlowFacts,
     machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     statement_ordinal: u32,
     transition: &typed_trees::statement::TableTransition,
     is_continuation: bool,
@@ -318,6 +390,27 @@ fn checked_branch_destination(
     } else {
         transition.target
     };
+    if crate::execution::tail_transfers::transition(
+        program,
+        flow,
+        machine,
+        state,
+        statement_ordinal as usize,
+        target,
+    )
+    .is_some()
+    {
+        return checked_successor(
+            program,
+            flow,
+            machine,
+            state,
+            statement_ordinal,
+            transition,
+            is_continuation,
+        )
+        .map(CheckedScalarBranchDestination::Jump);
+    }
     match program.statement_table.transition_target(target) {
         // This shared roster retains completion coordinates, not a promise
         // of a scalar value. Unit consumers replay ordinary Terminal exits;
@@ -342,7 +435,9 @@ fn checked_branch_destination(
         }
         TransitionTargetNode::Named { .. } => checked_successor(
             program,
+            flow,
             machine,
+            state,
             statement_ordinal,
             transition,
             is_continuation,

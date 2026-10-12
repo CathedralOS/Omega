@@ -568,13 +568,25 @@ pub(super) fn local_jump<'program>(
         call.statement_index,
         call.call_ordinal,
     )?;
-    let validation::CallSite::TransitionNamed { path, .. } = &site else {
-        return None;
+    let local = match &site {
+        validation::CallSite::TransitionNamed { path, .. } => {
+            path.members.count() == 1 && path.head_symbol == target.symbol
+        }
+        validation::CallSite::Expression { expression, .. } => {
+            let machine = program.machine_by_symbol(flow.machine_symbol)?;
+            let state = find_state_in_machine(program, flow.machine_symbol, flow.state_symbol)?;
+            validation::current_entry_tail_call(
+                program,
+                machine,
+                state,
+                call.statement_index,
+                *expression,
+            )
+            .is_some()
+        }
+        _ => false,
     };
-    // A local state name has no explicit receiver; its head is the target
-    // symbol, not a borrowed receiver alias.
-    (path.members.count() == 1 && path.head_symbol == target.symbol)
-        .then_some(LocalJump { target, site })
+    local.then_some(LocalJump { target, site })
 }
 
 /// A named jump enters another state only after the caller's local scope ends.

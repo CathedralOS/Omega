@@ -154,16 +154,30 @@ pub(super) fn target_run(
     let Some(target) = find_state_in_machine(program, machine_symbol, call.target_symbol) else {
         return TargetRun::Whole;
     };
-    if !matches!(
-        find_call_site(
-            program,
-            machine_symbol,
-            state_symbol,
-            call.statement_index,
-            call.call_ordinal
-        ),
-        Some(CallSite::TransitionNamed { .. })
-    ) {
+    let site = find_call_site(
+        program,
+        machine_symbol,
+        state_symbol,
+        call.statement_index,
+        call.call_ordinal,
+    );
+    let tail = match site {
+        Some(CallSite::Expression { expression, .. }) => program
+            .machine_by_symbol(machine_symbol)
+            .zip(find_state_in_machine(program, machine_symbol, state_symbol))
+            .is_some_and(|(machine, state)| {
+                validation::current_entry_tail_call(
+                    program,
+                    machine,
+                    state,
+                    call.statement_index,
+                    expression,
+                )
+                .is_some()
+            }),
+        _ => false,
+    };
+    if !tail && !matches!(site, Some(CallSite::TransitionNamed { .. })) {
         return TargetRun::Whole;
     }
     let caller = find_state_in_machine(program, machine_symbol, state_symbol);

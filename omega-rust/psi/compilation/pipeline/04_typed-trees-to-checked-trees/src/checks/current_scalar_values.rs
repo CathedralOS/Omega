@@ -251,15 +251,17 @@ impl<'program> CurrentScalarValues<'program> {
                 values.assume(program, machine, state, guard, transition.target == target);
             }
         }
-        if target.is_valid() {
-            if let typed_trees::statement::TransitionTargetNode::Named { arguments, .. } =
-                program.statement_table.transition_target(target)
-            {
-                for argument in program.statement_table.expression_handles(*arguments) {
-                    values.invalidate_operand_writes(
-                        frames.map(|frames| frames.expression_write_frame(machine, *argument)),
-                    );
-                }
+        if let Some((_, arguments)) = crate::checks::termination::source_state_transfer(
+            program,
+            machine,
+            state,
+            statement_index,
+            target,
+        ) {
+            for argument in arguments {
+                values.invalidate_operand_writes(
+                    frames.map(|frames| frames.expression_write_frame(machine, *argument)),
+                );
             }
         }
         Some(values)
