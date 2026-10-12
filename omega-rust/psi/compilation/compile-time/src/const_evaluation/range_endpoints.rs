@@ -80,7 +80,10 @@
 //! borrowed to interpret the caller's expression.
 //! The evaluator reads an immutable prepared tree. Whole endpoint literals
 //! and their deferral marks publish transactionally; the working tree supplies
-//! previously folded signature bounds between rounds.
+//! previously folded signature bounds between rounds. Each published value
+//! retains the original expression graph through the shared table operation.
+//! Narrowing the next checking closure can then account for every nested
+//! authored selection; the literal itself grants no builtin operator meaning.
 
 use crate::SelectedBuildTimeOperators;
 use crate::build_time_evaluation::EvaluationDomain;
@@ -446,7 +449,7 @@ pub(crate) fn evaluate_selected_range_endpoints(
 /// rollback must restore both parts of the original obligation.
 struct PublishedEndpointFold {
     expression: ExpressionHandle,
-    original: ExpressionNode,
+    original_source: ExpressionHandle,
     marked: Vec<ExpressionHandle>,
 }
 
@@ -456,7 +459,9 @@ fn publish_endpoint_fold(
     expression: ExpressionHandle,
     folded: ExpressionNode,
 ) -> PublishedEndpointFold {
-    let original = std::mem::replace(typed.expression_table.expression_mut(expression), folded);
+    let original_source = typed
+        .expression_table
+        .publish_completed_expression(expression, folded);
     let mut marked = plan
         .calls
         .iter()
@@ -473,14 +478,16 @@ fn publish_endpoint_fold(
     }
     PublishedEndpointFold {
         expression,
-        original,
+        original_source,
         marked,
     }
 }
 
 fn restore_endpoint_folds(typed: &mut TypedTrees, published: Vec<PublishedEndpointFold>) {
     for fold in published.into_iter().rev() {
-        *typed.expression_table.expression_mut(fold.expression) = fold.original;
+        typed
+            .expression_table
+            .restore_completed_expression(fold.expression, fold.original_source);
         typed.pending_const_range_endpoints.extend(fold.marked);
     }
 }
