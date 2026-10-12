@@ -132,6 +132,35 @@ impl TypedTrees {
 }
 
 impl CallableApplication {
+    /// Copy a supplied const into expression scratch without applying the
+    /// receiving telescope. Completed operands use the same original-meaning
+    /// projection as static call arguments; unavailable integer meaning is
+    /// never reconstructed from the receiving parameter's carrier.
+    pub(super) fn selected_const_expression(
+        program: &mut TypedTrees,
+        reference: types::TypeReferenceHandle,
+    ) -> Result<expression::ExpressionHandle, &'static str> {
+        if !reference.is_valid() || !program.type_reference_table.contains_type_reference(reference) {
+            return Err("applied callable const has no retained type payload");
+        }
+        if let types::TypeReferenceNode::ConstExpression(value) =
+            program.type_reference_table.type_reference(reference)
+        {
+            let value = *value;
+            return Ok(program.expression_table.insert_copy(value));
+        }
+        let selected = program.static_operand_from_type_reference(reference)?;
+        let applied = Self::selected_argument_reference(program, &selected)?;
+        let types::TypeReferenceNode::ConstExpression(value) =
+            program.type_reference_table.type_reference(applied)
+        else {
+            return Err("nominal callable expression application needs an expression-valued argument");
+        };
+        // This materialization already copied the declaration initializer or
+        // emitted the original literal/Boolean operand into invocation scratch.
+        Ok(*value)
+    }
+
     pub(super) fn selected_argument_reference(
         program: &mut TypedTrees,
         selected: &expression::StaticMachineArgument,

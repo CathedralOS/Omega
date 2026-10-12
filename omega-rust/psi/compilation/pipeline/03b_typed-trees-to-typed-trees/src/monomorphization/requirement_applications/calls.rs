@@ -388,8 +388,13 @@ fn source_application(
         .materialize_trait_application_arguments(&environment)
         .ok()?;
     observation.phase = "outer-operand-closure";
+    // Materialized operands are statically closed but their named regions
+    // still belong to the original supplying application. Preserve that exact
+    // owner through the existing receiving closure judgment; an ownerless
+    // region-free identity cannot judge a captured source operand.
+    let receiving_scope = environment.scope(program)?;
     program
-        .require_closed_application_operands(&outer_arguments)
+        .require_receiving_application_operands(&outer_arguments, &receiving_scope)
         .ok()?;
     observation.phase = "outer-binder-values";
     let mut bindings = Vec::new();
