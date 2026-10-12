@@ -1,4 +1,5 @@
 //! The shared type-reference tree walk: every nested reference enqueues once,
+//! the node hook retains the occurrence handle beside its payload,
 //! each `Range` constraint's endpoints report to the caller's hook, and either
 //! hook may stop the walk early.
 
@@ -19,7 +20,7 @@ pub(crate) fn type_reference_endpoints(
     for_each_type_reference(
         program,
         &[root],
-        |_, _| false,
+        |_, _, _| false,
         |_, minimum, maximum| {
             endpoints.push((minimum, maximum));
             false
@@ -31,7 +32,11 @@ pub(crate) fn type_reference_endpoints(
 pub(crate) fn for_each_type_reference(
     program: &dyn ::validation::CheckingInput,
     roots: &[TypeReferenceHandle],
-    mut on_node: impl FnMut(&dyn ::validation::CheckingInput, &TypeReferenceNode) -> bool,
+    mut on_node: impl FnMut(
+        &dyn ::validation::CheckingInput,
+        TypeReferenceHandle,
+        &TypeReferenceNode,
+    ) -> bool,
     mut on_range: impl FnMut(
         &dyn ::validation::CheckingInput,
         ExpressionHandle,
@@ -49,7 +54,7 @@ pub(crate) fn for_each_type_reference(
             pending.push(original);
         }
         let node = program.type_reference_table.type_reference(handle);
-        if on_node(program, node) {
+        if on_node(program, handle, node) {
             return true;
         }
         match node {
