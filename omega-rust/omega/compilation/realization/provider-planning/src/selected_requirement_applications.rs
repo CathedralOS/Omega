@@ -117,6 +117,22 @@ pub(crate) fn project_selected_requirement_applications<'program>(
                             && public.application == application
                     })
                     .ok_or_else(|| {
+                        if std::env::var_os("OMEGA_SOURCE_CONSTANT_INPUT_TRACE").is_some() {
+                            let payload = program.expression_table
+                                .static_machine_application_is_valid(application)
+                                .then(|| program.expression_table.static_machine_application(application));
+                            let public = program.public_trait_requirement_signature(symbol)
+                                .map(|row| (row.owner.symbol, row.declaration.symbol,
+                                    row.signature.symbol, row.application, row.selected_interface));
+                            let headers = program.instantiated_requirement_signatures.iter()
+                                .filter(|(_, row)| program.trait_machine_signatures.get(row.signature).symbol == symbol)
+                                .map(|(_, row)| (row.requirement_template, row.declaring_trait,
+                                    row.binding_application, row.selected_interface))
+                                .collect::<Vec<_>>();
+                            let identity = checked_trees::typed_trees::static_applications::static_application_identities_equal(
+                                program, application, program, application);
+                            eprintln!("PUBLIC REQUIREMENT producer target={symbol:?} original={:?} owner={:?} application={application:?} public={public:?} headers={headers:?} payload={payload:?} self_identity={identity:?}", original.symbol, owner.symbol);
+                        }
                         vec![Diagnostic::error(
                             "selected requirement application lost its original public producer",
                         )]
