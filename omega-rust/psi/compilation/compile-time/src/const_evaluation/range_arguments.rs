@@ -22,6 +22,7 @@ pub(crate) fn evaluate(
     sources: Option<Arc<SourceMap>>,
     bindings: &[SourceScopedTopLevelBinding],
     authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
+    inputs: &mut Vec<crate::CheckedConstantInput>,
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
     let mut pending = syntax.type_references.generic_nodes();
     for (_, expression) in syntax.expressions.iter_expressions() {
@@ -228,17 +229,25 @@ pub(crate) fn evaluate(
     // diagnostic belongs to the typed stage, and here it simply has no
     // canonical range to retain.
     let mut evaluated = typed.clone();
-    let _ = crate::const_evaluation::range_endpoints::evaluate_selected_range_endpoints(
-        &mut evaluated,
-        authority.clone(),
-        crate::SelectedBuildTimeOperators {
-            operators: &[],
-            provider_bodies: &[],
-            admission: Default::default(),
-        },
-        &evaluation_domain,
-        &mut Vec::new(),
-    );
+    let input_frontier = inputs.len();
+    let evaluated_endpoints =
+        crate::const_evaluation::range_endpoints::evaluate_selected_range_endpoints(
+            &mut evaluated,
+            authority.clone(),
+            crate::SelectedBuildTimeOperators {
+                operators: &[],
+                provider_bodies: &[],
+                admission: Default::default(),
+            },
+            &evaluation_domain,
+            inputs,
+        );
+    if evaluated_endpoints.is_err() {
+        // The shared evaluator restores its folds after a failed round. This
+        // optional early attempt must also discard successful observations
+        // made before that failure, while retaining preceding source inputs.
+        inputs.truncate(input_frontier);
+    }
     // A whole bound folds only after all authored calls pass static admission.
     // Selective execution may skip some of them; this records admission, not
     // execution. Origin custody continues to read every original occurrence.
