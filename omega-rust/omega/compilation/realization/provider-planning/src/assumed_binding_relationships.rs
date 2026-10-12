@@ -49,6 +49,11 @@ pub use proof_content::AssumedBindingMathematicalJudgmentContent;
 pub use root_scope::{
     AssumedBindingRootOwner, AssumedBindingRootScope, retain_assumed_binding_root_scopes,
 };
+mod selected_implementation;
+pub use selected_implementation::{
+    AssumedBindingSelectedImplementationSource,
+    retain_assumed_binding_selected_implementation_sources,
+};
 mod semantic_content;
 mod semantic_obligations;
 mod structural_content;
@@ -117,6 +122,7 @@ pub struct PreparedAssumedBindingRelationship {
     supplied_declaration_coordinate: declaration_revisions::DeclarationCoordinate,
     declaration_revisions: Option<AssumedBindingDeclarationRevisions>,
     root_scope: Option<AssumedBindingRootScope>,
+    selected_implementation_source: Option<AssumedBindingSelectedImplementationSource>,
     required_public_contract: [u8; 32],
     supplied_public_contract: [u8; 32],
     required_signature: MaterializedBoundarySignature,
@@ -210,6 +216,15 @@ impl PreparedAssumedBindingRelationship {
     /// This is compatibility evidence, not an assumed relationship receipt.
     pub const fn calling_compatibility(&self) -> AssumedBindingCallingCompatibility {
         self.calling_compatibility
+    }
+
+    /// Selected checked source code and complete canonical callable application.
+    /// None denotes unavailable source ownership or a physical supplier leaf;
+    /// this is not complete semantic closure, installation or consent.
+    pub const fn selected_implementation_source(
+        &self,
+    ) -> Option<AssumedBindingSelectedImplementationSource> {
+        self.selected_implementation_source
     }
 
     pub fn selected_supplier(&self) -> &SelectedProviderReviewProvenance {
@@ -458,6 +473,7 @@ pub fn prepare_assumed_binding_relationships(
                     declaration_revisions::DeclarationCoordinate::capture(&supplied),
                 declaration_revisions: None,
                 root_scope: None,
+                selected_implementation_source: None,
                 required_public_contract,
                 supplied_public_contract,
                 required_signature,
