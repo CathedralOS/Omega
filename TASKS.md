@@ -1674,6 +1674,11 @@ defines the complete product bar.
   `fail/layouts/placement_policy_unproved_callee_premise` and
   `pass/filesystem/native_crud` (policy admission keeps each concrete callee
   premise without checking unrelated unfinished runtime layouts),
+  `pass/calling/calling_count_boundaries_exit` and
+  `fail/calling/{native_field_path_empty,call_plan_count_invalid_handback}`
+  (canonical count predicates keep active-case lower bounds, nested placement
+  counts and mutation handback; whole-value edge snapshots use private frame
+  storage rather than keeping every aggregate word resident),
   `fail/wire/wire_policy_plan_disagrees`,
   `pass/termination/runtime_ranked_assignment_call_prefix_exit` and
   `fail/termination/ranked_{assignment,index}_call_prefix_write` (complete
@@ -1682,6 +1687,13 @@ defines the complete product bar.
   `pass/arithmetic/runtime_guard_narrowed_transition_arg_exit`,
   `pass/arithmetic/runtime_exact_guarded_shift_count_exit`,
   `pass/termination/rank_range_{declared_step_copies,call_declared_step_copy}`.
+
+  The 16 recursive filesystem parameter suffixes remain unmigrated. Their
+  `pass/filesystem/dir_walk_wrappers_exit` customer currently refuses unresolved
+  `read_dir_count` / qualified `remove_dir_all` routes; its portable binding
+  dependency is **FILESYSTEM-PLATFORM-SERVICES** and Q1 in
+  [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md). Continue the other customer groups
+  without manufacturing an implicit re-export or provider-name fallback.
 
   Acceptance: spec/guide/compiler docs, bundled libraries, samples,
   `source/psi`, the corpus, `bootstrap/5_omega/parser.epsilon` and

@@ -90,3 +90,26 @@ including inactive field slots whose alignment is one, not zero. The
 extent; `schema_identity_payload_predicate` checks a different active payload
 predicate against a smaller authored schema roster. Existing native plan-laid
 array writes and placed-view policies constrain field-key and padding transport.
+
+## Audited calling vocabulary counts
+
+The 11 scalar suffixes in `source/library/std/calling.omg` at `c1303f89d4`
+retain their original bounds as ordinary data and active-case predicates.
+The carriers remain `u64`, so zero lower bounds need no additional predicate.
+These counts describe authored values; they do not authorize an ABI placement.
+
+| Declaration and fields | Original suffix | Canonical predicate |
+|---|---|---|
+| `NativePlace::Field.field_path_count` | `[1..=16]` | active case count `>= 1, <= 16` |
+| `BoundarySignature.shape_count`, `field_count` | `[0..=256]` | each count `<= 256` |
+| `BoundarySignature.parameter_count`, `native_parameter_count`, `callback_binder_count`, `callback_demand_count` | `[0..=32]` | each count `<= 32` |
+| `ValuePlacement.location_count` | `[0..=16]` | `location_count <= 16` |
+| `RegisterSet.register_count` | `[0..=64]` | `register_count <= 64` |
+| `CallPlan.parameter_count`, `callback_materialization_count` | `[0..=32]` | each count `<= 32` |
+
+`calling/calling_count_boundaries_exit` returns complete signature and call-plan
+aggregates and observes the exact upper bounds, including nested placements.
+`calling/native_field_path_empty` rejects the zero active payload count;
+`calling/call_plan_count_invalid_handback` rejects a mutable write above the
+declared count. Existing mutable-descriptor and nested case/array host programs
+constrain ordinary ABI transport of this vocabulary.
