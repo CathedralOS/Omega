@@ -45,7 +45,7 @@ impl SelectedConstantEvaluation {
         self,
         typed: &mut TypedTrees,
         pending: Vec<PreCheckEvaluation>,
-        inputs: &mut Vec<build_time_evaluation::ExecutedCheckedConstantInput>,
+        inputs: &mut Vec<build_time_evaluation::CheckedConstantInput>,
     ) -> Result<(), Vec<Diagnostic>> {
         provider_planning::data_layout_queries::fold_data_layout_queries(
             typed,
