@@ -505,25 +505,25 @@ fn measured_span_reads(
                 .ok_or(invalid())?
         }
         ByteSequenceOperand::Whole { source, .. } => {
-            if crate::selection::byte_concatenation_input::owner_layout_type(function, *source)
-                .is_some()
-            {
-                8
+            let (geometry, shape) =
+                super::descriptor_operands::source_geometry(function, source).ok_or(invalid())?;
+            if shape.is_bounded_owned_byte_sequence() {
+                geometry.byte_offset.checked_add(8).ok_or(invalid())?
             } else {
-                0
+                geometry.byte_offset
             }
         }
     };
     let roots = match operand {
-        ByteSequenceOperand::Whole { source, length } => {
+        ByteSequenceOperand::Whole { source, length } if source.path.is_empty() => {
             crate::selection::byte_view_homes::view_backing_roots(
                 function,
                 &builder.transport.views,
-                *source,
+                source.place,
                 *length,
             )?
         }
-        ByteSequenceOperand::Field { .. } => None,
+        ByteSequenceOperand::Whole { .. } | ByteSequenceOperand::Field { .. } => None,
     };
     for (root, length) in roots.unwrap_or_else(|| vec![(operand.source(), operand.length())]) {
         memory(

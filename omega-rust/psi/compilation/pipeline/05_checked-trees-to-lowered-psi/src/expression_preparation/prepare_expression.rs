@@ -18,12 +18,14 @@ use crate::emission::operation_emission::integer::{
 use crate::emission::scalar_types::{
     integer_landing_scalar_type, integer_value, terminal_scalar_type,
 };
-use crate::expression_preparation::bindings::structural_fields::CasePayloadRead;
-use crate::expression_preparation::bindings::view_locals::{self, ViewCarrier, ViewLocalBinding};
+use crate::expression_preparation::bindings::structural_fields::{
+    CasePayloadRead, sequence_home, sequence_length,
+};
+use crate::expression_preparation::bindings::view_locals::{ViewCarrier, ViewLocalBinding};
 use crate::expression_preparation::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
-    CheckedScalarExpression, LoweringError, PlaceId, PrimitiveType, ScalarType, StructuralAccess,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeId, unsupported,
+    CheckedScalarExpression, LoweringError, PlaceId, PrimitiveType, ScalarType,
+    StructuralParameterDeclaration, StructuralTypeId, unsupported,
 };
 
 pub(crate) fn lower_checked_scalar_expression(
@@ -44,78 +46,6 @@ pub(crate) fn lower_checked_scalar_expression(
         None,
         proven_indexes,
     )
-}
-
-/// The exact whole sequence parameter for a live length, element or predicate
-/// observation. An owned bounded sequence reads its own storage; shared and
-/// mutable loans read their retained referent. A write-only loan supplies no
-/// observation. Carrier selection remains with the checked read and catalog.
-fn readable_sequence_parameter(
-    position: u32,
-    parameters: &[(u32, StructuralParameterDeclaration)],
-) -> Result<&StructuralParameterDeclaration, LoweringError> {
-    let parameter = parameters
-        .iter()
-        .find_map(|(source_position, parameter)| {
-            (*source_position == position).then_some(parameter)
-        })
-        .ok_or(LoweringError::Unsupported(
-            "sequence observation has no exact structural parameter",
-        ))?;
-    if !matches!(
-        parameter.access,
-        StructuralAccess::Owned | terminal_psi::borrowed_access_pair_pattern!()
-    ) || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-    {
-        return unsupported(
-            "sequence observation requires readable access to an unrestricted whole carrier",
-        );
-    }
-    Ok(parameter)
-}
-
-/// The view family of a whole view parameter: an element view when its type
-/// is one, a byte view otherwise.
-fn parameter_view_carrier(
-    element_views: &std::collections::BTreeMap<StructuralTypeId, Option<ScalarType>>,
-    structural_type: StructuralTypeId,
-) -> ViewCarrier {
-    match element_views.get(&structural_type) {
-        Some(element) => ViewCarrier::Elements { element: *element },
-        None => ViewCarrier::Bytes,
-    }
-}
-
-/// A view local is observed whole, at the place its establishment published.
-fn view_local_observation(
-    view_locals: &[ViewLocalBinding],
-    symbol: symbols::SymbolHandle,
-    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
-) -> Result<(PlaceId, ViewCarrier), LoweringError> {
-    if !path.is_empty() {
-        return unsupported("a view local is observed whole, never through a projection");
-    }
-    let local = view_locals::resolve(view_locals, symbol)?;
-    Ok((local.place, local.carrier))
-}
-
-/// The place an owned structural local's establishment published, for scalar
-/// observations (element reads) rooted at it.
-fn owned_local_observation(
-    structural_locals: &[crate::expression_preparation::bindings::StructuralLocalBinding],
-    symbol: symbols::SymbolHandle,
-) -> Result<PlaceId, LoweringError> {
-    let Some(crate::expression_preparation::bindings::StructuralLocalBinding {
-        argument: source,
-        ..
-    }) = crate::expression_preparation::bindings::structural_local_by_root(
-        structural_locals,
-        facts::PlaceRoot::Symbol(symbol),
-    )
-    else {
-        return unsupported("owned local observation lost its established place");
-    };
-    Ok(source.place)
 }
 
 /// Range checking publishes these handles in arena-position/generation order.
@@ -163,55 +93,18 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                     "field length requires a live byte or element descriptor",
                 ));
             }
-            if let Some(bindings) = scalar_bindings
-                && let Some((home, structural_type)) = bindings.captured_storage_home(*root)?
-            {
-                return captured_sequence_length(bindings, &home, structural_type, count_type);
-            }
-            let (source, carrier) = match *root {
-                checked_trees::CheckedStorageRoot::Parameter {
-                    index: parameter_position,
-                } => {
-                    let parameter =
-                        readable_sequence_parameter(parameter_position, structural_parameters)?;
-                    (
-                        parameter.place,
-                        parameter_view_carrier(element_views, parameter.structural_type),
-                    )
-                }
-                checked_trees::CheckedStorageRoot::ViewLocal { symbol } => {
-                    view_local_observation(view_locals, symbol, path)?
-                }
-                checked_trees::CheckedStorageRoot::OwnedLocal { symbol } => {
-                    let source = owned_local_observation(structural_locals, symbol)?;
-                    let local = crate::expression_preparation::bindings::view_locals::resolve(
-                        view_locals,
-                        symbol,
-                    )?;
-                    if !path.is_empty()
-                        || local.place != source
-                        || local.carrier != ViewCarrier::Bytes
-                    {
-                        return unsupported("owned byte length lost its established carrier");
-                    }
-                    (source, ViewCarrier::Bytes)
-                }
-            };
-            Ok(match carrier {
-                ViewCarrier::Bytes => LoweredDirectExpression::ByteSequenceLength {
-                    source,
-                    path: Vec::new(),
-                    access: terminal_psi::StructuralAccess::SharedBorrow,
-                    scalar_type: count_type,
-                },
-                ViewCarrier::Elements { .. } => LoweredDirectExpression::ElementViewLength {
-                    source,
-                    path: Vec::new(),
-                    access: terminal_psi::StructuralAccess::SharedBorrow,
-                    scalar_type: count_type,
-                },
-            })
+            let (home, structural_type) = observation_home(
+                structural_fields,
+                structural_locals,
+                view_locals,
+                scalar_bindings,
+                *root,
+            )?;
+            let (home, carrier) =
+                sequence_home(home, structural_type, structural_fields.declarations())?;
+            Ok(sequence_length(&home, carrier, count_type))
         }
+
         CheckedScalarExpression::StorageRead {
             symbol,
             primitive_type,
@@ -554,77 +447,6 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                     bound_decided,
                 });
             }
-            let whole_carrier = if path.is_empty() {
-                match *root {
-                    checked_trees::CheckedStorageRoot::Parameter { index: position } => {
-                        let parameter = structural_parameters
-                            .iter()
-                            .find(|(candidate, _)| *candidate == position)
-                            .map(|(_, parameter)| parameter)
-                            .ok_or(LoweringError::Unsupported(
-                                "indexed read lost its parameter home",
-                            ))?;
-                        if element_views.contains_key(&parameter.structural_type)
-                            || structural_fields.declarations().iter().any(|row| {
-                                row.id == parameter.structural_type
-                                    && matches!(
-                                        row.shape,
-                                        terminal_psi::StructuralTypeShape::ByteSequence(_)
-                                    )
-                            })
-                        {
-                            Some((
-                                parameter.place,
-                                parameter_view_carrier(element_views, parameter.structural_type),
-                            ))
-                        } else {
-                            None
-                        }
-                    }
-                    checked_trees::CheckedStorageRoot::ViewLocal { symbol } => {
-                        let (_, structural_type) = structural_fields.observation_source(
-                            *root,
-                            structural_locals,
-                            view_locals,
-                        )?;
-                        match ViewCarrier::of(structural_type, structural_fields.declarations()) {
-                            Some(_) => Some(view_local_observation(view_locals, symbol, path)?),
-                            // A retained reference to a fixed collection is not
-                            // a live-extent sequence descriptor. Its declaration
-                            // supplies the explicit Referent projection below.
-                            None => None,
-                        }
-                    }
-                    // A bounded byte owner reads at its current home, which a
-                    // rebinding may have replaced since the view registry
-                    // recorded its establishment.
-                    checked_trees::CheckedStorageRoot::OwnedLocal { symbol } => {
-                        if view_locals.iter().any(|local| {
-                            local.symbol == symbol && local.carrier == ViewCarrier::Bytes
-                        }) {
-                            Some((
-                                owned_local_observation(structural_locals, symbol)?,
-                                ViewCarrier::Bytes,
-                            ))
-                        } else {
-                            None
-                        }
-                    }
-                }
-            } else {
-                None
-            };
-            if let Some((source, ViewCarrier::Bytes)) = whole_carrier {
-                if !element_path.is_empty() || *primitive_type != PrimitiveType::U8 {
-                    return unsupported("a byte read requires a primitive byte endpoint");
-                }
-                return Ok(LoweredDirectExpression::ByteSequenceRead {
-                    source,
-                    index,
-                    scalar_type: terminal_scalar_type(*primitive_type)?,
-                    bound_decided,
-                });
-            }
             // Geometry needs selector positions, not their expressions or proof
             // identities. Scratch markers associate each declaration walk step
             // with the read's ordered, evaluated selector, never emitted authority.
@@ -655,14 +477,15 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                     }
                 })
                 .collect::<Vec<_>>();
-            // Every established root shares the storage roster. The sequence
-            // registry above selects live-extent observations only; record and
-            // fixed-array references retain their stored descriptor and let
-            // this declaration walk expose each pointer crossing.
-            let (source, structural_type) =
-                structural_fields.observation_source(*root, structural_locals, view_locals)?;
+            let (home, structural_type) = observation_home(
+                structural_fields,
+                structural_locals,
+                view_locals,
+                scalar_bindings,
+                *root,
+            )?;
             let observation =
-                crate::expression_preparation::bindings::structural_fields::resolve_indexed_element(identities, structural_fields, source, structural_type, path, &geometry)?;
+                crate::expression_preparation::bindings::structural_fields::resolve_indexed_element(identities, structural_fields, &home, structural_type, path, &geometry)?;
             let crate::expression_preparation::bindings::structural_fields::IndexedElementObservation {
                 source, path, element_path: explicit_path, scalar_type, extent,
             } = observation;
@@ -916,7 +739,6 @@ fn lower_checked_boolean_expression_with_parameters(
         } => {
             let operand = byte_sequence_observation(
                 identities,
-                structural_parameters,
                 structural_fields,
                 structural_locals,
                 view_locals,
@@ -937,7 +759,6 @@ fn lower_checked_boolean_expression_with_parameters(
                  operand: &checked_trees::CheckedByteSequenceOperand| {
                     byte_sequence_observation(
                         builder,
-                        structural_parameters,
                         structural_fields,
                         structural_locals,
                         view_locals,
@@ -1030,93 +851,30 @@ fn lower_checked_boolean_expression_with_parameters(
     })
 }
 
-/// A completed descriptor may be a whole home or one exact field below its
-/// captured prefix. The storage declaration selects the existing descriptor
-/// observation operation; the actual's source expression is not replayed.
-fn captured_sequence_length(
-    bindings: &crate::expression_preparation::bindings::ScalarBindings,
-    home: &terminal_psi::StructuralArgument,
-    structural_type: StructuralTypeId,
-    scalar_type: ScalarType,
-) -> Result<LoweredDirectExpression, LoweringError> {
-    let declaration =
-        terminal_psi::find_structural_type(bindings.structural_declarations(), structural_type)
-            .ok_or(LoweringError::Unsupported(
-                "captured sequence observation has no descriptor declaration",
-            ))?;
-    if matches!(
-        declaration.shape,
-        terminal_psi::StructuralTypeShape::ElementView { .. }
-    ) {
-        return Ok(LoweredDirectExpression::ElementViewLength {
-            source: home.place,
-            path: home
-                .path
-                .iter()
-                .cloned()
-                .map(LoweredElementPathSegment::Static)
-                .collect(),
-            access: home.access,
-            scalar_type,
-        });
-    }
-    if home.path.is_empty() {
-        return match declaration.shape {
-            terminal_psi::StructuralTypeShape::ByteSequence(_) => {
-                Ok(LoweredDirectExpression::ByteSequenceLength {
-                    source: home.place,
-                    path: Vec::new(),
-                    access: terminal_psi::StructuralAccess::SharedBorrow,
-                    scalar_type,
-                })
-            }
-            _ => unsupported("captured length requires a sequence descriptor"),
-        };
-    }
-    if !matches!(
-        declaration.shape,
-        terminal_psi::StructuralTypeShape::ByteSequence(_)
-    ) {
-        return unsupported("captured length requires a sequence descriptor");
-    }
-    let Some((terminal_psi::StructuralPathSegment::Field(identity), prefix)) =
-        home.path.split_last()
-    else {
-        return unsupported("captured sequence descriptor has no field observation geometry");
+/// Captured actuals and current locals retain the same complete storage home.
+/// An endpoint declaration never replaces the declaration of its physical root.
+fn observation_home(
+    fields: &crate::expression_preparation::bindings::StructuralFieldBindings,
+    structural_locals: &[crate::expression_preparation::bindings::StructuralLocalBinding],
+    view_locals: &[ViewLocalBinding],
+    bindings: Option<&crate::expression_preparation::bindings::ScalarBindings>,
+    root: checked_trees::CheckedStorageRoot,
+) -> Result<(terminal_psi::StructuralArgument, StructuralTypeId), LoweringError> {
+    let captured = bindings
+        .map(|bindings| bindings.captured_storage_home(root))
+        .transpose()?
+        .flatten();
+    let (home, structural_type) = match captured {
+        Some(home) => home,
+        None => fields.observation_home(root, structural_locals, view_locals)?,
     };
-    let root = bindings
-        .structural_place_type(home.place)
-        .ok_or(LoweringError::Unsupported(
-            "captured sequence observation lost its backing declaration",
-        ))?;
-    let parent = terminal_semantics::runtime_structural_path_tip(
-        bindings.structural_declarations().iter(),
-        root,
-        prefix,
-    )
-    .ok_or(LoweringError::Unsupported(
-        "captured sequence observation lost its backing prefix",
-    ))?;
-    let field = parent
-        .shape
-        .direct_fields()
-        .and_then(|fields| terminal_psi::live_field(fields, *identity))
-        .ok_or(LoweringError::Unsupported(
-            "captured sequence observation lost its descriptor field",
-        ))?;
-    if field.field_type.as_structural() != Some(structural_type) {
-        return unsupported("captured sequence observation changes its declared field type");
+    if !matches!(
+        home.access,
+        terminal_psi::StructuralAccess::Owned | terminal_psi::reading_borrow_pair_pattern!()
+    ) {
+        return unsupported("storage observation requires readable access");
     }
-    Ok(LoweredDirectExpression::ByteSequenceFieldLength {
-        source: home.place,
-        path: prefix
-            .iter()
-            .cloned()
-            .map(LoweredElementPathSegment::Static)
-            .collect(),
-        field: field.id,
-        scalar_type,
-    })
+    Ok((home, structural_type))
 }
 
 /// Predicates and comparisons observe the same completed descriptor. The
@@ -1124,7 +882,6 @@ fn captured_sequence_length(
 /// A local observation is never re-rooted onto an entry parameter.
 fn byte_sequence_observation(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-    parameters: &[(u32, StructuralParameterDeclaration)],
     fields: &crate::expression_preparation::bindings::StructuralFieldBindings,
     structural_locals: &[crate::expression_preparation::bindings::StructuralLocalBinding],
     view_locals: &[ViewLocalBinding],
@@ -1153,25 +910,19 @@ fn byte_sequence_observation(
             field: Some(field),
         });
     }
-    let source = match root {
-        checked_trees::CheckedStorageRoot::Parameter { index } => {
-            readable_sequence_parameter(index, parameters)?.place
-        }
-        checked_trees::CheckedStorageRoot::ViewLocal { symbol } => {
-            view_local_observation(view_locals, symbol, path)?.0
-        }
-        checked_trees::CheckedStorageRoot::OwnedLocal { symbol } => {
-            let source = owned_local_observation(structural_locals, symbol)?;
-            let local = view_locals::resolve(view_locals, symbol)?;
-            if local.place != source || local.carrier != ViewCarrier::Bytes {
-                return unsupported("byte observation lost its established byte carrier");
-            }
-            source
-        }
-    };
+    let (home, structural_type) =
+        observation_home(fields, structural_locals, view_locals, bindings, root)?;
+    let (home, carrier) = sequence_home(home, structural_type, fields.declarations())?;
+    if carrier != ViewCarrier::Bytes {
+        return unsupported("byte observation requires a byte descriptor");
+    }
     Ok(LoweredByteSequenceOperand {
-        source,
-        path: Vec::new(),
+        source: home.place,
+        path: home
+            .path
+            .into_iter()
+            .map(LoweredElementPathSegment::Static)
+            .collect(),
         field: None,
     })
 }
@@ -1224,24 +975,8 @@ fn sequence_field_observation(
 ) -> Result<Option<LoweredDirectExpression>, LoweringError> {
     use crate::emission::runtime_elements::ProjectionStep;
     let path_endpoint = path.last();
-    let captured = bindings
-        .map(|bindings| bindings.captured_storage_home(root))
-        .transpose()?
-        .flatten();
-    let (home, structural_type) = if let Some(captured) = captured {
-        captured
-    } else {
-        let (source, structural_type) =
-            fields.observation_source(root, structural_locals, view_locals)?;
-        (
-            terminal_psi::StructuralArgument {
-                place: source,
-                path: Vec::new(),
-                access: terminal_psi::StructuralAccess::SharedBorrow,
-            },
-            structural_type,
-        )
-    };
+    let (home, structural_type) =
+        observation_home(fields, structural_locals, view_locals, bindings, root)?;
     let source = home.place;
     let Some((source, steps, field, carrier)) =
         crate::expression_preparation::bindings::structural_fields::resolve_sequence_projection(

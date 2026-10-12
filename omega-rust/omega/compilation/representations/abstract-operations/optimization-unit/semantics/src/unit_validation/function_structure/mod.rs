@@ -127,6 +127,11 @@ pub(crate) fn validate_function(
         &control_flow.predecessors,
     )?;
     byte_field_freshness::validate(function, structural_types, &control_flow.predecessors)?;
+    descriptor_sources::validate_whole_freshness(
+        function,
+        structural_types,
+        &control_flow.predecessors,
+    )?;
     case_arguments::validate(function, structural_types, &control_flow.predecessors)?;
     byte_predicates::validate_indexed_byte_stores(
         unit,

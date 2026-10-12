@@ -506,9 +506,12 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 114 | ElementViewSubslice | source place id + structural access + structural path + start value id + end value id + length value id + obligation id |
 | 115 | ByteSequenceLength | source place id + structural access + structural path |
 
-A byte-sequence operand is `u8` 0 + whole source place id + length value id,
+A byte-sequence operand is `u8` 2 + whole source structural argument + length value id,
 or `u8` 1 + source place id + structural access + structural path + field id
-+ length value id. Other operand tags reject. A view-field store without a
++ length value id. Tag 0's retired whole-place operand rejects. Whole operands
+retain the same place, access and path as their exact length observation; no
+projection is inferred from the root's declaration. Other operand tags reject.
+A view-field store without a
 predicate obligation retains tag 100's existing payload; tag 106 carries the
 additional exact-source obligation. Its decoder never infers a proof from an
 unqualified store or interprets equality's tag 105 as a field store.
@@ -610,7 +613,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 149 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 150 + `u16` vocabulary
 marker 123 + the entry machine id, followed by the module's counted tables in
 the declaration order below and ending with boundary-application candidates.
 
@@ -1817,7 +1820,7 @@ table. The installation record `PSIINST\0` is emitted outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 148 | yes |
+| semantic module | `PSITERM\0` | 150 | yes |
 | proof bundle | `PSIPRF\0\0` | 34 | no |
 | sealed proof section | `PSIPSC\0\0` | 1 | yes |
 | obligation ledger | `PSIOBLG\0` | 3 | yes |

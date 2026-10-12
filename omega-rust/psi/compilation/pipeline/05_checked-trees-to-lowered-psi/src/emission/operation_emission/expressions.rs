@@ -120,15 +120,6 @@ pub(crate) enum LoweredDirectExpression {
         field: StructuralFieldId,
         scalar_type: ScalarType,
     },
-    ByteSequenceRead {
-        source: PlaceId,
-        index: Box<LoweredDirectExpression>,
-        scalar_type: ScalarType,
-        /// Checking proved this read's source `[]` index within the live
-        /// length; emission records its bound obligation as source-checked.
-        /// Every read lowering synthesizes leaves this false.
-        bound_decided: bool,
-    },
     ByteSequenceFieldRead {
         source: PlaceId,
         path: Vec<LoweredElementPathSegment>,
@@ -293,7 +284,6 @@ impl LoweredDirectExpression {
             | Self::StructuralField { scalar_type, .. }
             | Self::ByteSequenceLength { scalar_type, .. }
             | Self::ByteSequenceFieldLength { scalar_type, .. }
-            | Self::ByteSequenceRead { scalar_type, .. }
             | Self::ByteSequenceFieldRead { scalar_type, .. }
             | Self::IndexedPrimitiveRead { scalar_type, .. }
             | Self::ElementViewLength { scalar_type, .. }
@@ -661,45 +651,6 @@ pub(crate) fn emit_direct_expression(
                 .push((*source, path.clone(), *field, value));
             value
         }
-        LoweredDirectExpression::ByteSequenceRead {
-            source,
-            index,
-            scalar_type,
-            bound_decided,
-        } => {
-            let index = emit_direct_expression(index, parameters, next_value_identity, operations);
-            let length = operations
-                .length_observations
-                .bytes
-                .iter()
-                .rev()
-                .find_map(|(place, value)| (*place == *source).then_some(*value))
-                .unwrap_or_else(|| {
-                    emit_byte_length(
-                        terminal_psi::StructuralArgument::whole(
-                            *source,
-                            terminal_psi::StructuralAccess::SharedBorrow,
-                        ),
-                        next_value_identity,
-                        operations,
-                    )
-                });
-            // A missing dominating observation may still form a valid read
-            // shape. Its canonical bounds certificate must then be produced;
-            // constructing a fresh length does not prove the read is in bounds.
-            let obligation = operations.push_read_obligation(*bound_decided);
-            emit_scalar_leaf(
-                OperationKind::ByteSequenceRead {
-                    source: *source,
-                    index,
-                    length,
-                    obligation,
-                },
-                *scalar_type,
-                next_value_identity,
-                operations,
-            )
-        }
         LoweredDirectExpression::ByteSequenceFieldRead {
             source,
             path,
@@ -771,10 +722,24 @@ pub(crate) fn emit_direct_expression(
                 emit_direct_expression(extent, parameters, next_value_identity, operations);
             }
             let index = emit_direct_expression(index, parameters, next_value_identity, operations);
-            let element_path =
-                emit_prepared_path(element_path, 0, parameters, next_value_identity, operations);
+            let prefix_selectors = path
+                .iter()
+                .filter(|step| {
+                    matches!(
+                        step,
+                        terminal_psi::StructuralPathSegment::RuntimeIndex { .. }
+                    )
+                })
+                .count();
+            let element_path = emit_prepared_path(
+                element_path,
+                prefix_selectors,
+                parameters,
+                next_value_identity,
+                operations,
+            );
             let obligation = operations.push_read_obligation(*bound_decided);
-            let mut path = path.clone();
+            let mut path = path_with_current_bounds(path, operations.next_identity);
             path.push(terminal_psi::StructuralPathSegment::RuntimeIndex { index, obligation });
             path.extend(element_path);
             emit_scalar_leaf(

@@ -473,17 +473,6 @@ pub(crate) fn substitute_direct(
                 scalar_type,
             },
         },
-        Direct::ByteSequenceRead {
-            source,
-            index,
-            scalar_type,
-            bound_decided,
-        } => Direct::ByteSequenceRead {
-            source,
-            index: Box::new(substitute_direct(*index, bound)),
-            scalar_type,
-            bound_decided,
-        },
         Direct::ElementViewRead {
             source,
             index,
@@ -764,7 +753,6 @@ fn collect_direct_case_reads(
         Direct::StructuralField { source, path, .. } => {
             collect_source_case_reads(source, path, reads);
         }
-        Direct::ByteSequenceRead { index, .. } => collect_direct_case_reads(index, reads),
         Direct::ElementViewRead { index, path, .. } => {
             collect_direct_case_reads(index, reads);
             collect_path_case_reads(path, reads);

@@ -11,11 +11,9 @@
 
 use super::{Emission, LoweringError, PlaceId, StructuralTypeShape, ValueContinuation};
 use super::{lookup_type_id, unsupported};
+use crate::expression_preparation::bindings::LoanAccess;
 use crate::expression_preparation::bindings::structural_paths::{
     PreparedStructuralPathSegment, emit_captured_argument_path, prepare_structural_argument_path,
-};
-use crate::expression_preparation::bindings::{
-    LoanAccess, ScalarBindings, StructuralScalarFieldBinding,
 };
 use checked_trees::CheckedUnitStructuralArgumentPlan;
 
@@ -29,10 +27,14 @@ impl Emission<'_, '_, '_> {
         storage: checked_trees::CheckedReferenceStorage,
         continuation: Option<&ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
-        let has_primitive_home = self.evaluation.prepare_immutable_local_borrow(
+        // Address demand belongs to the original source, including a scalar
+        // formal. Reuse ordinary argument preparation so representation views
+        // lend that home's bits rather than creating storage of the viewed type.
+        self.evaluation.prepare_borrowed_argument(
+            identities,
             self.checked,
             self.state,
-            source.structural_storage_root(),
+            source,
             self.values,
             self.structural_types,
             self.next_place,
@@ -83,19 +85,35 @@ impl Emission<'_, '_, '_> {
                 },
             );
         }
-        let bindings = ScalarBindings::new(self.values.iter().map(|value| value.scalar_type))
+        let bindings = self
+            .evaluation
+            .scalar_bindings
+            .clone()
+            .with_computation_operands(0, self.values.iter().map(|value| value.scalar_type))
             .with_structural_parameters(&self.evaluation.structural_parameters)
             .with_structural_locals(&self.evaluation.structural_locals)
             .with_view_locals(&self.evaluation.view_locals)
             .with_structural_observations(self.structural_types)
             .with_primitive_storage(&self.evaluation.primitive_storage);
         let argument = match referent.shape {
+            StructuralTypeShape::PrimitiveScalar(_)
+                if matches!(
+                    source.source,
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. }
+                ) =>
+            {
+                bindings.scalar_parameter_borrow(
+                    identities,
+                    self.checked,
+                    source,
+                    self.structural_types,
+                )?
+            }
             StructuralTypeShape::PrimitiveScalar(scalar_type)
-                if !has_primitive_home
-                    && matches!(
-                        source.source,
-                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
-                    ) =>
+                if matches!(
+                    source.source,
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
+                ) =>
             {
                 bindings.primitive_borrow(
                     identities,
@@ -128,71 +146,9 @@ impl Emission<'_, '_, '_> {
                     .map(PreparedStructuralPathSegment::Static)
                     .chain(suffix)
                     .collect::<Vec<_>>();
-                let fields = StructuralScalarFieldBinding::collect(
-                    &self.evaluation.structural_parameters,
-                    self.structural_types,
-                );
-                let source_count = self.values.len();
-                let mut computation_ordinal = 0u32;
-                for segment in &source.path {
-                    match segment {
-                        checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(value) => {
-                            let selector = self.scalar(
-                                identities,
-                                checked_trees::CheckedScalarExpressionRole::StructuralValueSelector {
-                                    expression: formation.expression,
-                                    selector_ordinal: computation_ordinal,
-                                },
-                                *value,
-                                source_count,
-                            )?;
-                            computation_ordinal = computation_ordinal.checked_add(1).ok_or(
-                                LoweringError::Unsupported("reference selector ordinal overflow"),
-                            )?;
-                            self.values.push(selector);
-                        }
-                        checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
-                            checked_trees::CheckedRuntimeIndex::StructuralField(_),
-                        ) => {
-                            let selected =
-                                super::super::super::parameters::mint_runtime_index_selectors(
-                                    identities,
-                                    &[checked_trees::CheckedUnitStructuralArgumentPlan {
-                                        path: vec![segment.clone()],
-                                        ..source.clone()
-                                    }],
-                                    &fields,
-                                    self.values.as_slice(),
-                                    self.next_value,
-                                    self.operations,
-                                )?;
-                            for id in selected {
-                                let value = self
-                                    .operations
-                                    .iter()
-                                    .rev()
-                                    .filter_map(|operation| operation.result.scalar())
-                                    .find(|value| value.id == id)
-                                    .or_else(|| {
-                                        self.values.iter().find(|value| value.id == id).copied()
-                                    })
-                                    .ok_or(LoweringError::Unsupported(
-                                        "reference field selector lost its evaluated value",
-                                    ))?;
-                                self.values.push(value);
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-                // Private selector control flow transports the earlier saved
-                // values. Read their final identities after all evaluations.
-                let captured = self.values[source_count..]
-                    .iter()
-                    .map(|value| value.id)
-                    .collect::<Vec<_>>();
-                self.values.truncate(source_count);
-                let mut selectors = captured.into_iter();
+                let mut selectors = self
+                    .capture_projection_selectors(identities, formation.expression, source)?
+                    .into_iter();
                 argument.place = self.evaluation.current_structural_place(argument.place);
                 // A view lends from its current descriptor. Its live extent
                 // and captured selectors belong to this reference formation's

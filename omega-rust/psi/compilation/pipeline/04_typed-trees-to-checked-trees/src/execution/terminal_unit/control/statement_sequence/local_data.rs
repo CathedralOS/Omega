@@ -404,7 +404,13 @@ pub(super) fn plan(
         });
         return Some(LocalPlan::Planned);
     }
-    if let Some(capture) = reference_capture {
+    // The retained value owns both the carrier and its evaluation schedule.
+    // A place capture is only the establishment route when no value was
+    // retained; selecting it first would replace a copied descriptor with a
+    // reference to its storage and discard captured selector computations.
+    if structural_root.is_none()
+        && let Some(capture) = reference_capture
+    {
         local_phase("statement sequence: local data: reference capture");
         // A recast's backing is a separate catalog root from its logical
         // reference type. Enroll the actual projected endpoint even when no

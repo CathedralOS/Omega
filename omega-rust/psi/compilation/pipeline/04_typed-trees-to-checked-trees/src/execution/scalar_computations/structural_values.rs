@@ -310,7 +310,7 @@ impl Builder<'_, '_> {
                     == self.program.normalized_type_identity(expected))
             .then_some(root.root);
         }
-        let kind = if let Some(value) = self.computed_shared_reborrow(expression, expected) {
+        let kind = if let Some(value) = self.shared_carrier_reborrow(expression, expected) {
             value
         } else if matches!(
             self.program.expression_table.expression(expression),

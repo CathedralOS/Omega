@@ -104,6 +104,14 @@ pub(crate) struct PrimitiveLoan {
     pub(crate) referent: TerminalStructuralValue,
 }
 
+/// A resolved byte endpoint is storage, not a newly formed loan. Loan formation
+/// supplies its declared primitive type; ordinary observations consume only the
+/// endpoint and its existing descriptor/window authority.
+struct ByteElementStorage {
+    storage: PrimitiveStorage,
+    referent: TerminalStructuralValue,
+}
+
 fn local_type(machine: &TerminalMachine, place: PlaceId) -> Option<StructuralTypeId> {
     let declaration = machine.structural_place(place)?;
     let (producer, structural_type) = declaration.kind.as_operation_result()?;
@@ -204,12 +212,15 @@ impl TerminalExecution<'_> {
                 expected,
                 parameter.access == StructuralAccess::SharedBorrow,
             )
-        } else if let Some(loan) = self.capture_byte_element_loan(parameter, argument)? {
+        } else if let Some(mut element) = self.byte_element_storage(argument)? {
+            element.referent.structural_type = parameter.structural_type;
             (
-                loan.referent,
-                loan.storage,
-                loan.scalar_type,
-                loan.shared_view,
+                element.referent,
+                element.storage,
+                ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| malformed())?,
+                ),
+                parameter.access == StructuralAccess::SharedBorrow,
             )
         } else if self.scalar_array_values.contains_key(&argument.place) {
             let (storage, scalar_type, shared_view) = self.primitive_access(
@@ -273,12 +284,10 @@ impl TerminalExecution<'_> {
     /// Byte loans select a descriptor coordinate, then its live window. The
     /// descriptor may be a root or an inline field; neither creates scalar
     /// storage or copies the byte when passed to another activation.
-    fn capture_byte_element_loan(
+    fn byte_element_storage(
         &self,
-        parameter: &StructuralParameterDeclaration,
         argument: &StructuralArgument,
-    ) -> Result<Option<PrimitiveLoan>, TerminalInterpretError> {
-        use crate::byte_sequences::binding::ByteSequenceBinding;
+    ) -> Result<Option<ByteElementStorage>, TerminalInterpretError> {
         let Some((StructuralPathSegment::FixedIndex(index), prefix)) = argument.path.split_last()
         else {
             return Ok(None);
@@ -300,46 +309,63 @@ impl TerminalExecution<'_> {
         self.validate_descriptor_borrow(&source, argument.access)?;
         let descriptor = self.resolve_live_projection(source.place, prefix, source.access)?;
         let binding = self.byte_descriptor_binding(&source, &descriptor)?;
-        if *index >= self.byte_descriptor_length(&binding, &descriptor)? {
+        self.bound_byte_element_storage(&descriptor, &binding, *index, argument.access)
+            .map(Some)
+    }
+
+    /// Current and suspended activations resolve their own descriptor binding,
+    /// then share the same live-window and original-backing judgment.
+    fn bound_byte_element_storage(
+        &self,
+        descriptor: &TerminalStructuralValue,
+        binding: &crate::byte_sequences::binding::ByteSequenceBinding,
+        index: u64,
+        access: StructuralAccess,
+    ) -> Result<ByteElementStorage, TerminalInterpretError> {
+        use crate::byte_sequences::binding::ByteSequenceBinding;
+        if index >= self.byte_descriptor_length(binding, descriptor)? {
             return Err(malformed());
         }
         let mut referent = descriptor.clone();
-        referent.structural_type = parameter.structural_type;
         referent.qualifications.clear();
         referent.projected_qualifications.clear();
-        referent
-            .path
-            .push(StructuralPathSegment::FixedIndex(*index));
+        referent.path.push(StructuralPathSegment::FixedIndex(index));
         let endpoint = match binding {
-            ByteSequenceBinding::Immutable(bytes)
-                if argument.access == StructuralAccess::SharedBorrow =>
-            {
+            ByteSequenceBinding::Immutable(bytes) if access == StructuralAccess::SharedBorrow => {
                 PrimitiveStorageEndpoint::ViewByte {
-                    bytes,
-                    index: usize::try_from(*index).map_err(|_| malformed())?,
+                    bytes: bytes.clone(),
+                    index: usize::try_from(index).map_err(|_| malformed())?,
                 }
             }
-            ByteSequenceBinding::MutableArray { array, offset, .. } => {
-                let index = offset.checked_add(*index).ok_or_else(malformed)?;
+            ByteSequenceBinding::MutableArray {
+                array,
+                array_type,
+                offset,
+                ..
+            } => {
+                let extent = crate::structural_inputs::byte_arrays::byte_array_length(
+                    &self.program.structural_types(),
+                    *array_type,
+                )
+                .ok_or_else(malformed)?;
+                if self.stored_byte_array_length(array)? as u128 != u128::from(extent) {
+                    return Err(malformed());
+                }
+                let index = offset.checked_add(index).ok_or_else(malformed)?;
                 referent.opaque_identity = array.referent.opaque_identity;
                 referent.path = array.referent.path.clone();
                 referent.path.push(StructuralPathSegment::FixedIndex(index));
                 PrimitiveStorageEndpoint::ArrayElement {
-                    array,
+                    array: array.clone(),
                     index: usize::try_from(index).map_err(|_| malformed())?,
                 }
             }
             _ => return Err(malformed()),
         };
-        Ok(Some(PrimitiveLoan {
+        Ok(ByteElementStorage {
             storage: PrimitiveStorage::canonical(endpoint),
-            scalar_type: ScalarType::Integer(
-                IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| malformed())?,
-            ),
-            shared_view: argument.access == StructuralAccess::SharedBorrow,
-            access: argument.access,
             referent,
-        }))
+        })
     }
 
     /// Initialized arrays carry their own payload instead of an opaque row.
@@ -736,6 +762,29 @@ impl TerminalExecution<'_> {
         if machine_id != home.machine {
             return Err(malformed());
         }
+        // Resolve current descriptor projections before canonical scalar paths:
+        // a reference to a byte view names its descriptor, whose element lives
+        // in the captured byte window, not a scalar cell below that descriptor.
+        if home.depth == self.call_stack.len()
+            && let Some(element) = self.byte_element_storage(&StructuralArgument {
+                place,
+                path: path.to_vec(),
+                access: if writing {
+                    StructuralAccess::MutableBorrow
+                } else {
+                    StructuralAccess::SharedBorrow
+                },
+            })?
+        {
+            let (_, shared_view) = self.primitive_home_contract(home, writing, path)?;
+            return Ok((
+                element.storage,
+                ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| malformed())?,
+                ),
+                shared_view,
+            ));
+        }
         if path.contains(&StructuralPathSegment::Referent) {
             self.primitive_home_contract(home, writing, path)?;
             let owner = structural_values.get(&place).ok_or_else(malformed)?;
@@ -805,76 +854,32 @@ impl TerminalExecution<'_> {
             )?;
             return Ok((storage, scalar_type, shared_view));
         }
-        // Array loans are presented to callees as bounded byte views. Their
-        // indices are relative to the loan window, not a second scalar store.
-        if let Some(
-            binding @ crate::byte_sequences::binding::ByteSequenceBinding::MutableArray {
-                array,
-                array_type,
-                offset,
-                length,
-                ..
-            },
-        ) = byte_sequence_values.get(&place)
-        {
-            let value = structural_values.get(&place).ok_or_else(malformed)?;
-            binding.validate_mutable_referent(self, value)?;
+        // Suspended activations retain their original descriptor namespace.
+        // Reuse the same endpoint judgment without interpreting that PlaceId
+        // in the current callee's frame.
+        if let Some(binding) = byte_sequence_values.get(&place) {
+            let descriptor = structural_values.get(&place).ok_or_else(malformed)?;
             let [StructuralPathSegment::FixedIndex(index)] = path else {
                 return Err(malformed());
             };
             let scalar_type = self.byte_element_scalar(structural_type, path)?;
             let byte_type = IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| malformed())?;
-            let extent = crate::structural_inputs::byte_arrays::byte_array_length(
-                &self.program.structural_types(),
-                *array_type,
-            )
-            .ok_or_else(malformed)?;
-            if value.structural_type != structural_type
+            if descriptor.structural_type != structural_type
                 || scalar_type != ScalarType::Integer(byte_type)
-                || *index >= *length
-                || self.stored_byte_array_length(array)? as u128 != u128::from(extent)
             {
                 return Err(malformed());
             }
-            let index = usize::try_from(offset.checked_add(*index).ok_or_else(malformed)?)
-                .map_err(|_| malformed())?;
-            return Ok((
-                PrimitiveStorage::canonical(PrimitiveStorageEndpoint::ArrayElement {
-                    array: array.clone(),
-                    index,
-                }),
-                scalar_type,
-                shared_view,
-            ));
-        }
-        // A shared byte view's element is a byte of the immutable backing the
-        // view observes; that backing cannot change while the loan lives.
-        if let Some(crate::byte_sequences::binding::ByteSequenceBinding::Immutable(bytes)) =
-            byte_sequence_values.get(&place)
-        {
-            let value = structural_values.get(&place).ok_or_else(malformed)?;
-            let [StructuralPathSegment::FixedIndex(index)] = path else {
-                return Err(malformed());
-            };
-            let scalar_type = self.byte_element_scalar(structural_type, path)?;
-            let byte_type = IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| malformed())?;
-            let index = usize::try_from(*index).map_err(|_| malformed())?;
-            if writing
-                || value.structural_type != structural_type
-                || !bytes.matches_descriptor_home(value)
-                || scalar_type != ScalarType::Integer(byte_type)
-                || index >= bytes.len()
-            {
-                return Err(malformed());
-            }
-            return Ok((
-                PrimitiveStorage::canonical(PrimitiveStorageEndpoint::ViewByte {
-                    bytes: bytes.clone(),
-                    index,
-                }),
-                scalar_type,
-                shared_view,
-            ));
+            let element = self.bound_byte_element_storage(
+                descriptor,
+                binding,
+                *index,
+                if writing {
+                    StructuralAccess::MutableBorrow
+                } else {
+                    StructuralAccess::SharedBorrow
+                },
+            )?;
+            return Ok((element.storage, scalar_type, shared_view));
         }
         // Read geometry can retain a selected payload without copying its
         // owner. Writes keep the narrower storage-formation contract. The

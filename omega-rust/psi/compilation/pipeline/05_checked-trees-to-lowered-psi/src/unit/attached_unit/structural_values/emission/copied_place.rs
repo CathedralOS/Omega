@@ -5,7 +5,7 @@
 use super::{Emission, LoweringError, StructuralAccess, StructuralArgument};
 use crate::emission::operation_emission::expressions::{emit_element_length, emit_scalar_leaf};
 use crate::expression_preparation::bindings::{ScalarBindings, StructuralScalarFieldBinding};
-use checked_trees::{CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralPathSegment};
+use checked_trees::CheckedUnitStructuralArgumentPlan;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use terminal_psi::{OperationKind, StructuralPathSegment, StructuralTypeShape};
 
@@ -15,7 +15,7 @@ impl Emission<'_, '_, '_> {
     pub(super) fn copied_place_argument(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-
+        expression: checked_trees::expression::ExpressionHandle,
         source: &CheckedUnitStructuralArgumentPlan,
     ) -> Result<StructuralArgument, LoweringError> {
         if source.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
@@ -27,28 +27,13 @@ impl Emission<'_, '_, '_> {
             .with_structural_locals(&self.evaluation.structural_locals)
             .with_structural_observations(self.structural_types);
         let parameters = self.checked.state_parameters(authored.1);
-        if !source.path.iter().any(|segment| {
-            matches!(
-                segment,
-                CheckedUnitStructuralPathSegment::RuntimeIndex(_)
-                    | CheckedUnitStructuralPathSegment::FixedIndex(_)
-            )
-        }) {
-            return bindings.shared_structural_argument(
-                identities,
-                self.checked,
-                source,
-                authored.0,
-                parameters,
-            );
-        }
         let home = bindings.borrowed_structural_home(source, authored.0, parameters)?;
         let root = bindings
             .structural_argument_type(&home)
             .ok_or(LoweringError::Unsupported(
                 "indexed copy lost its published root type",
             ))?;
-        let mut prepared =
+        let prepared =
             crate::expression_preparation::bindings::structural_paths::prepare_structural_argument_path(
                 identities,
                 self.checked,
@@ -56,44 +41,103 @@ impl Emission<'_, '_, '_> {
                 root,
                 bindings.structural_declarations(),
             )?;
-        // An index into a root view observes its live length first.
-        // `copied_place_path` owns that observation for the copy: it reads
-        // the root's dominating length and turns a literal offset into the
-        // runtime index its proof names. A view nested below the root keeps
-        // its marker, which the frame cannot discharge here.
-        if matches!(
-            prepared.first(),
-            Some(crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::ViewExtent { .. })
-        ) {
-            prepared.remove(0);
-        }
+        let mut selectors = self
+            .capture_projection_selectors(identities, expression, source)?
+            .into_iter();
+        let place = self.evaluation.current_structural_place(home.place);
+        let prepared = home.path.into_iter().map(
+            crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::Static,
+        ).chain(prepared).collect::<Vec<_>>();
+        let path =
+            crate::expression_preparation::bindings::structural_paths::emit_captured_argument_path(
+                &prepared,
+                place,
+                Some(self.values.as_slice()),
+                &mut selectors,
+                Some(&mut *self.calls),
+                Some((&mut *self.next_value, &mut *self.operations)),
+            )?;
+        Ok(StructuralArgument {
+            place,
+            path,
+            access: StructuralAccess::SharedBorrow,
+        })
+    }
+
+    /// Copies and reference formation evaluate the same retained projection
+    /// operands in order. Later selector control flow transports earlier saved
+    /// values; no consumer replays their source expressions after capture.
+    pub(super) fn capture_projection_selectors(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        expression: checked_trees::expression::ExpressionHandle,
+        source: &CheckedUnitStructuralArgumentPlan,
+    ) -> Result<Vec<semantic_vocabulary::ValueId>, LoweringError> {
         let fields = StructuralScalarFieldBinding::collect(
             &self.evaluation.structural_parameters,
             self.structural_types,
         );
-        let mut selector_values = super::super::super::parameters::mint_runtime_index_selectors(
-            identities,
-            std::slice::from_ref(source),
-            &fields,
-            self.values.as_slice(),
-            self.next_value,
-            self.operations,
-        )?
-        .into_iter();
-        let mut path = home.path;
-        path.extend(
-            crate::expression_preparation::bindings::structural_paths::emit_argument_path(
-                &prepared,
-                Some(self.values.as_slice()),
-                &mut selector_values,
-                Some(&mut *self.calls),
-            )?,
-        );
-        Ok(StructuralArgument {
-            place: home.place,
-            path,
-            access: StructuralAccess::SharedBorrow,
-        })
+        let source_count = self.values.len();
+        let mut computation_ordinal = 0u32;
+        for segment in &source.path {
+            match segment {
+                checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(value) => {
+                    let selector = self.scalar(
+                        identities,
+                        checked_trees::CheckedScalarExpressionRole::StructuralValueSelector {
+                            expression,
+                            selector_ordinal: computation_ordinal,
+                        },
+                        *value,
+                        source_count,
+                    )?;
+                    computation_ordinal =
+                        computation_ordinal
+                            .checked_add(1)
+                            .ok_or(LoweringError::Unsupported(
+                                "projection selector ordinal overflow",
+                            ))?;
+                    self.values.push(selector);
+                }
+                checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
+                    checked_trees::CheckedRuntimeIndex::StructuralField(_),
+                ) => {
+                    let selected = super::super::super::parameters::mint_runtime_index_selectors(
+                        identities,
+                        &[checked_trees::CheckedUnitStructuralArgumentPlan {
+                            path: vec![segment.clone()],
+                            ..source.clone()
+                        }],
+                        &fields,
+                        self.values.as_slice(),
+                        self.next_value,
+                        self.operations,
+                    )?;
+                    for id in selected {
+                        let value = self
+                            .operations
+                            .iter()
+                            .rev()
+                            .filter_map(|operation| operation.result.scalar())
+                            .find(|value| value.id == id)
+                            .or_else(|| self.values.iter().find(|value| value.id == id).copied())
+                            .ok_or(LoweringError::Unsupported(
+                                "projection field selector lost its evaluated value",
+                            ))?;
+                        self.values.push(value);
+                    }
+                }
+                _ => {}
+            }
+        }
+        // Private selector control flow transports the earlier saved
+        // values. Read their final identities after all evaluations.
+        let captured = self.values[source_count..]
+            .iter()
+            .map(|value| value.id)
+            .collect::<Vec<_>>();
+        self.values.truncate(source_count);
+        Ok(captured)
     }
 
     /// Only root views have a length observation in the receiving projection

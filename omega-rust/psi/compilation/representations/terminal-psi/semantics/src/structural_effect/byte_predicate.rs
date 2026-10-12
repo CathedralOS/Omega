@@ -5,7 +5,6 @@ use super::StructuralEffectObservation;
 use semantic_vocabulary::{Proposition, ScalarTerm, ScalarType, StructuralTypeId};
 use terminal_psi::{
     StructuralTypeDeclaration, StructuralTypeShape, control_flow::ByteSequenceOperand,
-    find_structural_type,
 };
 
 /// Reconstruct the Boolean denotation after independently validating the
@@ -28,11 +27,15 @@ pub fn byte_predicate_equation(
     };
     let (root, path) = match operand {
         ByteSequenceOperand::Whole { source, .. } => {
-            let declaration = find_structural_type(structural_types, root_type)?;
+            let (path, declaration) = crate::canonical_static_projection(
+                structural_types.iter(),
+                root_type,
+                &source.path,
+            )?;
             if !matches!(declaration.shape, StructuralTypeShape::ByteSequence(_)) {
                 return None;
             }
-            (*source, Vec::new())
+            (source.place, path)
         }
         ByteSequenceOperand::Field { .. } => {
             super::byte_sequence_field_path(operand, root_type, structural_types)?

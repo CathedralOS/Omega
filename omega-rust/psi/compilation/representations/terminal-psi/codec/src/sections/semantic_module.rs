@@ -74,7 +74,8 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // State-exit reborrow certificates are not an executable Terminal product.
 // Provider candidates retain checked receiving applications and ordered regions.
 // Descriptor cleanup admits exclusive pointers without disposal of their referees.
-pub(crate) const FORMAT_MARKER: u16 = 149;
+// Whole byte operands retain their exact descriptor projection and access.
+pub(crate) const FORMAT_MARKER: u16 = 150;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

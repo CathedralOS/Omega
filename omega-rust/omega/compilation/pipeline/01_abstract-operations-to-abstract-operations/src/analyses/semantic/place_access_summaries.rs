@@ -617,7 +617,7 @@ fn scan_operation(
         }
         O::ByteSequencePredicate { operand, .. } => match operand {
             ByteSequenceOperand::Whole { source, .. } => {
-                pending.attribute(context, *source, Vec::new(), AccessKind::Read);
+                pending.attribute_argument(context, source, true, false);
             }
             ByteSequenceOperand::Field { source, field, .. } => {
                 let mut view = runtime_prefix(&source.path);
@@ -748,7 +748,7 @@ fn scan_operation(
             for operand in [left, right] {
                 match operand {
                     ByteSequenceOperand::Whole { source, .. } => {
-                        pending.attribute(context, *source, Vec::new(), AccessKind::Read);
+                        pending.attribute_argument(context, source, true, false);
                     }
                     ByteSequenceOperand::Field { source, field, .. } => {
                         let mut view = runtime_prefix(&source.path);

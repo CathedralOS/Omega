@@ -143,7 +143,10 @@ impl ByteLiteral {
                 },
             );
             Ok(ByteSequenceOperand::Whole {
-                source: place,
+                source: terminal_psi::StructuralArgument::whole(
+                    place,
+                    terminal_psi::StructuralAccess::SharedBorrow,
+                ),
                 length,
             })
         };
@@ -540,15 +543,16 @@ pub(crate) fn emit_content_store(
     let (operand, capacity) = emitter.emit(identities, value.root, 0)?;
     let (source, length) = match operand {
         ByteSequenceOperand::Whole { source, length }
-            if !matches!(
-                value.nodes.get(value.root),
-                ByteValue::Whole {
-                    root: checked_trees::CheckedStoreRoot::Local { .. },
-                    ..
-                }
-            ) =>
+            if source.path.is_empty()
+                && !matches!(
+                    value.nodes.get(value.root),
+                    ByteValue::Whole {
+                        root: checked_trees::CheckedStoreRoot::Local { .. },
+                        ..
+                    }
+                ) =>
         {
-            (source, length)
+            (source.place, length)
         }
         source => {
             // Local owners and fields must be snapshotted before the
@@ -976,7 +980,16 @@ impl ByteEmission<'_> {
                 terminal_psi::StructuralAccess::SharedBorrow,
             ),
         })?;
-        Ok((ByteSequenceOperand::Whole { source, length }, capacity))
+        Ok((
+            ByteSequenceOperand::Whole {
+                source: terminal_psi::StructuralArgument::whole(
+                    source,
+                    terminal_psi::StructuralAccess::SharedBorrow,
+                ),
+                length,
+            },
+            capacity,
+        ))
     }
 
     /// Materialize `left` then `right` into fresh owned backing of
@@ -1237,7 +1250,16 @@ impl ValueEmitter<'_> {
                         terminal_psi::StructuralAccess::SharedBorrow,
                     ),
                 })?;
-                Ok((ByteSequenceOperand::Whole { source, length }, *capacity))
+                Ok((
+                    ByteSequenceOperand::Whole {
+                        source: terminal_psi::StructuralArgument::whole(
+                            source,
+                            terminal_psi::StructuralAccess::SharedBorrow,
+                        ),
+                        length,
+                    },
+                    *capacity,
+                ))
             }
             ByteValue::Whole { root, capacity } => {
                 let (source, structural_type) = match *root {
@@ -1293,7 +1315,16 @@ impl ValueEmitter<'_> {
                         terminal_psi::StructuralAccess::SharedBorrow,
                     ),
                 })?;
-                Ok((ByteSequenceOperand::Whole { source, length }, *capacity))
+                Ok((
+                    ByteSequenceOperand::Whole {
+                        source: terminal_psi::StructuralArgument::whole(
+                            source,
+                            terminal_psi::StructuralAccess::SharedBorrow,
+                        ),
+                        length,
+                    },
+                    *capacity,
+                ))
             }
             ByteValue::Field {
                 root,
@@ -1354,7 +1385,16 @@ impl ValueEmitter<'_> {
                     );
                 }
                 let (source, length) = self.owned(identities, left, right, *capacity)?;
-                Ok((ByteSequenceOperand::Whole { source, length }, *capacity))
+                Ok((
+                    ByteSequenceOperand::Whole {
+                        source: terminal_psi::StructuralArgument::whole(
+                            source,
+                            terminal_psi::StructuralAccess::SharedBorrow,
+                        ),
+                        length,
+                    },
+                    *capacity,
+                ))
             }
         }
     }

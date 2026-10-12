@@ -1380,7 +1380,7 @@ fn encode_byte_operand(
     match operand {
         terminal_psi::control_flow::ByteSequenceOperand::Whole { source, length } => {
             bytes.push(0);
-            crate::codec_bytes::push_encoded(bytes, source.get().to_le_bytes());
+            super::structural_types::encode_structural_argument(bytes, source);
             crate::codec_bytes::push_encoded(bytes, length.get().to_le_bytes());
         }
         terminal_psi::control_flow::ByteSequenceOperand::Field {

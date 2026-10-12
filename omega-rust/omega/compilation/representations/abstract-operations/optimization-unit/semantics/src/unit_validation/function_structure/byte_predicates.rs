@@ -227,11 +227,15 @@ fn concatenation_predicates(
     };
     let operand = |operand: &terminal_psi::control_flow::ByteSequenceOperand| match operand {
         terminal_psi::control_flow::ByteSequenceOperand::Whole { source, .. } => {
-            whole_source_predicates(
-                unit.structural_types.iter(),
-                unit.structural_domains.iter(),
+            descriptor_source_predicates(
+                &Catalogs {
+                    types: unit.structural_types.iter(),
+                    domains: unit.structural_domains.iter(),
+                },
                 function,
-                *source,
+                source,
+                function.structural_places.len().saturating_add(1),
+                &mut Vec::new(),
             )
         }
         terminal_psi::control_flow::ByteSequenceOperand::Field { source, field, .. }
@@ -536,6 +540,46 @@ where
     result
 }
 
+/// A projected whole operand names the selected descriptor, never its root's
+/// unrelated predicate roster. Reference crossings retain only the predicates
+/// declared on the selected field; a plain referent contributes no refinement.
+fn descriptor_source_predicates<'t, 'd, Types, Domains>(
+    catalogs: &Catalogs<Types, Domains>,
+    function: &PsiOptimizationFunction,
+    source: &terminal_psi::StructuralArgument,
+    remaining: usize,
+    memo: &mut Vec<(PlaceId, Option<ByteSequencePredicateSet>)>,
+) -> Option<ByteSequencePredicateSet>
+where
+    Types: Iterator<Item = &'t StructuralTypeDeclaration> + Clone,
+    Domains: Iterator<Item = &'d terminal_psi::StructuralDomainDeclaration> + Clone,
+{
+    if source.path.is_empty() {
+        return source_predicates(catalogs, function, source.place, remaining, memo);
+    }
+    let (root, access) = super::byte_field_freshness::byte_field_root(function, source.place)?;
+    if access == StructuralAccess::WriteOnlyBorrow {
+        return None;
+    }
+    let selected = terminal_semantics::runtime_structural_path_tip(
+        catalogs.types.clone(),
+        root,
+        &source.path,
+    )?;
+    if !matches!(
+        selected.shape,
+        terminal_psi::StructuralTypeShape::ByteSequence(_)
+    ) {
+        return None;
+    }
+    Some(
+        terminal_semantics::runtime_structural_field(catalogs.types.clone(), root, &source.path)
+            .map_or(ByteSequencePredicateSet::EMPTY, |field| {
+                field.field_type.byte_predicates()
+            }),
+    )
+}
+
 fn derive_source_predicates<'t, 'd, Types, Domains>(
     catalogs: &Catalogs<Types, Domains>,
     function: &PsiOptimizationFunction,
@@ -699,7 +743,7 @@ where
             let mut operand =
                 |operand: &terminal_psi::control_flow::ByteSequenceOperand| match operand {
                     terminal_psi::control_flow::ByteSequenceOperand::Whole { source, .. } => {
-                        source_predicates(catalogs, function, *source, remaining, memo)
+                        descriptor_source_predicates(catalogs, function, source, remaining, memo)
                     }
                     terminal_psi::control_flow::ByteSequenceOperand::Field {
                         source,

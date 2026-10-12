@@ -26,7 +26,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
                 match operand {
                     terminal_psi::control_flow::ByteSequenceOperand::Whole { source, length } => {
                         bytes.u8(0);
-                        bytes.id(*source);
+                        encode_structural_argument(bytes, source);
                         bytes.id(*length);
                     }
                     terminal_psi::control_flow::ByteSequenceOperand::Field {

@@ -595,7 +595,7 @@ fn operation_observations(
     let mut observe_byte_operand =
         |operand: &terminal_psi::control_flow::ByteSequenceOperand| match operand {
             terminal_psi::control_flow::ByteSequenceOperand::Whole { source, .. } => {
-                retain(*source, Projection::new(&[]))
+                retain(source.place, projected(source.place, &source.path, None))
             }
             terminal_psi::control_flow::ByteSequenceOperand::Field { source, field, .. } => retain(
                 source.place,

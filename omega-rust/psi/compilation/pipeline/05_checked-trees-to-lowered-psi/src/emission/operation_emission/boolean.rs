@@ -364,16 +364,27 @@ fn byte_sequence_operand(
                 length,
             }
         }
-        None => terminal_psi::control_flow::ByteSequenceOperand::Whole {
-            source,
-            length: super::expressions::emit_byte_length(
-                terminal_psi::StructuralArgument::whole(
-                    source,
-                    terminal_psi::StructuralAccess::SharedBorrow,
-                ),
+        None => {
+            let path = super::expressions::emit_prepared_path(
+                path,
+                0,
+                parameters,
                 next_value_identity,
                 operations,
-            ),
-        },
+            );
+            let path =
+                super::expressions::path_with_current_bounds(&path, operations.next_identity);
+            let source = terminal_psi::StructuralArgument {
+                place: source,
+                path,
+                access: terminal_psi::StructuralAccess::SharedBorrow,
+            };
+            let length = super::expressions::emit_byte_length(
+                source.clone(),
+                next_value_identity,
+                operations,
+            );
+            terminal_psi::control_flow::ByteSequenceOperand::Whole { source, length }
+        }
     }
 }

@@ -470,12 +470,7 @@ helper that passes does not close an item.
     fields and locals must lend views without copying their elements; returned
     views retain their backing loan (`fail/slices/noncopy_array_view_keeps_backing_loan`). Preserve
     the selected requirement, returned loan custody and bounds; do not
-    substitute builtin slicing. Keep `pass/borrows/runtime_computed_shared_view_reborrow_exit`
-    at exit 0 (macOS at `c2e6db4328a` rejects in lowering with
-    `view observation names no established view local`): reborrowing a
-    produced or stored descriptor must retain its
-    actual extent through guarded calls and value joins; backing mutation
-    must reject (`fail/borrows/reborrowed_call_view_keeps_backing_loan`).
+    substitute builtin slicing.
     `pass/modules/runtime_public_generic_dependency_exit` must keep
     executing the public template's selected range bodies; macOS at
     `c2e6db4328a` rejects its entry fields with `lost its retained storage

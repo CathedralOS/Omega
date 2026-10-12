@@ -23,9 +23,9 @@ pub(super) struct ReferenceAddress {
     pub(super) load_codec: bool,
     pub(super) codec: Option<runtime_abi::ScalarStorageCodec>,
     pub(super) storage: Option<terminal_psi::ReferenceStorageView>,
-    pub(super) descriptor_offsets: Vec<(u32, std::ops::Range<usize>)>,
+    pub(super) pointer_slots:
+        Vec<crate::structural_inputs::structural_reference_input::PointerSlot>,
     pub(super) indices: Vec<legalized_operations::LegalizedRuntimeIndexOperand>,
-    pub(super) leaf_index: usize,
 }
 
 pub(in crate::selection) fn borrowed_scalar_source(
@@ -124,15 +124,6 @@ pub(super) fn establishment(
     ) {
         return None;
     }
-    let leaf_index = geometry
-        .pointer_slots
-        .last()
-        .map_or(0, |slot| slot.indices.end);
-    let descriptor_offsets = geometry
-        .pointer_slots
-        .into_iter()
-        .map(|slot| (slot.byte_offset, slot.indices))
-        .collect();
     for (position, segment) in path.iter().enumerate() {
         if *segment != StructuralPathSegment::Referent {
             continue;
@@ -201,9 +192,8 @@ pub(super) fn establishment(
         load_codec,
         codec,
         storage: *storage,
-        descriptor_offsets,
+        pointer_slots: geometry.pointer_slots,
         indices: indices.clone(),
-        leaf_index,
     })
 }
 

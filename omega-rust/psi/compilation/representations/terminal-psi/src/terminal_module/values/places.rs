@@ -347,16 +347,11 @@ impl OperationKind {
             Self::EstablishByteSequenceConcatenation { left, right, .. }
             | Self::ByteSequenceEqual { left, right } => {
                 for operand in [left, right] {
-                    if let crate::control_flow::ByteSequenceOperand::Field { source, .. } = operand
-                    {
-                        projections.push(argument_projection(source));
-                    }
+                    projections.push(argument_projection(operand.argument()));
                 }
             }
             Self::ByteSequencePredicate { operand, .. } => {
-                if let crate::control_flow::ByteSequenceOperand::Field { source, .. } = operand {
-                    projections.push(argument_projection(source));
-                }
+                projections.push(argument_projection(operand.argument()));
             }
             Self::EstablishReference { source, .. }
             | Self::EstablishElementView { source, .. }
@@ -459,17 +454,11 @@ impl OperationKind {
             Self::EstablishByteSequenceConcatenation { left, right, .. }
             | Self::ByteSequenceEqual { left, right } => {
                 for operand in [left, right] {
-                    if let crate::control_flow::ByteSequenceOperand::Field { source, .. } = operand
-                    {
-                        paths.push(&mut source.path);
-                    }
+                    paths.push(&mut operand.argument_mut().path);
                 }
             }
-            Self::ByteSequencePredicate {
-                operand: crate::control_flow::ByteSequenceOperand::Field { source, .. },
-                ..
-            } => {
-                paths.push(&mut source.path);
+            Self::ByteSequencePredicate { operand, .. } => {
+                paths.push(&mut operand.argument_mut().path);
             }
             Self::EstablishReference { source, .. }
             | Self::EstablishElementView { source, .. }
@@ -540,20 +529,13 @@ fn argument_projection(argument: &crate::StructuralArgument) -> OperationProject
     }
 }
 
-/// The shared read demand of a `ByteSequenceOperand`: a whole operand reads
-/// its root directly while a field operand reads through its spelled access.
+/// Both byte operand forms retain their exact root, path and spelled access.
 fn map_byte_sequence_operand(
     operand: &mut crate::control_flow::ByteSequenceOperand,
     map: &mut impl FnMut(PlaceId, StructuralAccess) -> PlaceId,
 ) {
-    match operand {
-        crate::control_flow::ByteSequenceOperand::Whole { source, .. } => {
-            *source = map(*source, StructuralAccess::SharedBorrow);
-        }
-        crate::control_flow::ByteSequenceOperand::Field { source, .. } => {
-            source.place = map(source.place, source.access);
-        }
-    }
+    let source = operand.argument_mut();
+    source.place = map(source.place, source.access);
 }
 
 #[cfg(test)]
@@ -645,7 +627,7 @@ mod tests {
 
         let mut concatenation = OperationKind::EstablishByteSequenceConcatenation {
             left: ByteSequenceOperand::Whole {
-                source: place(1),
+                source: argument(1),
                 length: scalar,
             },
             right: ByteSequenceOperand::Field {
@@ -659,7 +641,7 @@ mod tests {
         if let OperationKind::EstablishByteSequenceConcatenation { left, right, .. } = &mut expected
         {
             *left = ByteSequenceOperand::Whole {
-                source: place(11),
+                source: argument(11),
                 length: scalar,
             };
             if let ByteSequenceOperand::Field { source, .. } = right {

@@ -11,7 +11,9 @@ use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 
 mod access_paths;
-pub(crate) use access_paths::{access_path_type, access_referent_tail, call_source_type};
+pub(crate) use access_paths::{
+    access_path_type, access_referent_tail, call_source_type, project_referent_tail,
+};
 
 /// Stable loan identity: the place and path where the carrier was formed.
 /// Owned moves relocate the carrier, never this identity.

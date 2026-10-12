@@ -17,6 +17,10 @@ pub(super) fn valid(
     function: &PsiOptimizationFunction,
     operation: &Operation,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    domains: &BTreeMap<
+        semantic_vocabulary::StructuralDomainId,
+        &terminal_psi::StructuralDomainDeclaration,
+    >,
 ) -> bool {
     let (source, bytes, cut) = match operation {
         Operation::ByteSequenceLength { source, .. } => (source, true, None),
@@ -44,40 +48,7 @@ pub(super) fn valid(
         }
         _ => StructuralAccess::SharedBorrow,
     };
-    if !covers(source.access, requested) {
-        return false;
-    }
-    let mut borrow = source.clone();
-    // A readable owned arrival may observe its carrier without transferring
-    // ownership. Attenuating for projection does not change the retained operand.
-    borrow.access = requested;
-    let Some((root, prefix)) =
-        crate::unit_validation::references::access_referent_tail(function, types, &borrow)
-    else {
-        return false;
-    };
-    let Some(selected) = structural_borrowed_storage_projection(
-        types.values().copied(),
-        root,
-        &source.path[prefix..],
-        requested,
-    ) else {
-        return false;
-    };
-    let shape = match selected {
-        StructuralStorageProjection::Endpoint(identity) => types
-            .get(&identity)
-            .map(|declaration| declaration.shape.clone()),
-        StructuralStorageProjection::ByteField { carrier, .. } => {
-            if matches!(carrier, ByteSequenceCarrier::BorrowedView { access: Some(access) } | ByteSequenceCarrier::BoundedView { access: Some(access), .. } if !covers(access, requested))
-            {
-                return false;
-            }
-            Some(StructuralTypeShape::ByteSequence(carrier))
-        }
-        StructuralStorageProjection::ByteWindow { .. } => None,
-    };
-    let Some(shape) = shape else {
+    let Some(shape) = source_shape(function, types, domains, source, requested) else {
         return false;
     };
     if !matches!(
@@ -144,4 +115,160 @@ fn covers(actual: StructuralAccess, requested: StructuralAccess) -> bool {
     actual == requested
         || actual == StructuralAccess::Owned
         || actual == StructuralAccess::MutableBorrow && requested == StructuralAccess::SharedBorrow
+}
+
+/// Read the complete selected descriptor and pair it with its own observation.
+/// Scalar dominance and current carrier custody are checked independently.
+pub(super) fn valid_whole(
+    function: &PsiOptimizationFunction,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    domains: &BTreeMap<
+        semantic_vocabulary::StructuralDomainId,
+        &terminal_psi::StructuralDomainDeclaration,
+    >,
+    source: &terminal_psi::StructuralArgument,
+    length: semantic_vocabulary::ValueId,
+) -> bool {
+    source.access == StructuralAccess::SharedBorrow
+        && matches!(source_shape(function, types, domains, source, StructuralAccess::SharedBorrow),
+        Some(StructuralTypeShape::ByteSequence(_)))
+        && function.block_nodes().any(|node| matches!(&node.operation,
+            Operation::ByteSequenceLength { source: measured, result, .. }
+            if result.value == length && terminal_semantics::same_descriptor_coordinate(measured, source)))
+}
+
+fn source_shape(
+    function: &PsiOptimizationFunction,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    domains: &BTreeMap<
+        semantic_vocabulary::StructuralDomainId,
+        &terminal_psi::StructuralDomainDeclaration,
+    >,
+    source: &terminal_psi::StructuralArgument,
+    requested: StructuralAccess,
+) -> Option<StructuralTypeShape> {
+    if !covers(source.access, requested) {
+        return None;
+    }
+    let mut borrow = source.clone();
+    // A readable owned arrival may observe its carrier without transferring
+    // ownership. Attenuating for projection does not change the retained operand.
+    borrow.access = requested;
+    let signature = crate::unit_validation::operation_contracts::structural_source_contract(
+        function,
+        source.place,
+    )?;
+    let byte_qualified = types
+        .get(&signature.structural_type)
+        .is_some_and(|declaration| {
+            matches!(declaration.shape, StructuralTypeShape::ByteSequence(_))
+        })
+        && signature.declared_byte_predicates(domains).is_some();
+    if signature.multiplicity == StructuralMultiplicity::Linear
+        || signature.has_result_evidence()
+        || !(signature.is_unqualified() || byte_qualified)
+    {
+        return None;
+    }
+    let (root, prefix) = crate::unit_validation::references::project_referent_tail(
+        types,
+        signature.structural_type,
+        signature.backing_access(types),
+        &borrow,
+    )?;
+    let selected = structural_borrowed_storage_projection(
+        types.values().copied(),
+        root,
+        &source.path[prefix..],
+        requested,
+    )?;
+    match selected {
+        StructuralStorageProjection::Endpoint(identity) => types
+            .get(&identity)
+            .map(|declaration| declaration.shape.clone()),
+        StructuralStorageProjection::ByteField { carrier, .. } => {
+            if matches!(carrier, ByteSequenceCarrier::BorrowedView { access: Some(access) } | ByteSequenceCarrier::BoundedView { access: Some(access), .. } if !covers(access, requested))
+            {
+                return None;
+            }
+            Some(StructuralTypeShape::ByteSequence(carrier))
+        }
+        StructuralStorageProjection::ByteWindow { .. } => None,
+    }
+}
+
+/// A count observes the current selected descriptor, not an immutable snapshot
+/// of its old pointer words. Reuse the CFG metadata frontier for every complete
+/// byte operand, including projected descriptors reached through references.
+pub(super) fn validate_whole_freshness(
+    function: &PsiOptimizationFunction,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    predecessors: &BTreeMap<
+        semantic_vocabulary::BlockId,
+        std::collections::BTreeSet<semantic_vocabulary::BlockId>,
+    >,
+) -> Result<(), crate::OptimizationUnitValidationError> {
+    for (block_position, block) in function.blocks.iter().enumerate() {
+        for (node_position, node) in block.nodes.iter().enumerate() {
+            let operands = match &node.operation {
+                Operation::EstablishByteSequenceConcatenation { left, right, .. }
+                | Operation::ByteSequenceEqual { left, right, .. } => [Some(left), Some(right)],
+                Operation::ByteSequencePredicate { operand, .. } => [Some(operand), None],
+                _ => continue,
+            };
+            for operand in operands.into_iter().flatten() {
+                let terminal_psi::control_flow::ByteSequenceOperand::Whole { source, length } =
+                    operand
+                else {
+                    continue;
+                };
+                let invalid = || crate::unit_validation::catalog_mismatch(function);
+                let names = crate::unit_validation::arrival_storage::storage_names(
+                    function,
+                    block.id,
+                    source.place,
+                );
+                let (producer, producer_root) = function.blocks.iter().enumerate().find_map(|(owner, block)| {
+                    names.in_block(block.id).find_map(|name| {
+                        block.nodes.iter().position(|candidate| matches!(&candidate.operation,
+                            Operation::ByteSequenceLength { source: observed, result, .. }
+                            if observed.place == name
+                                && terminal_semantics::structural_paths_select_same_location(&observed.path, &source.path)
+                                && result.value == *length
+                        )).map(|position| ((owner, position), name))
+                    })
+                }).ok_or_else(invalid)?;
+                if !super::structural_freshness::unchanged_since(
+                    function,
+                    predecessors,
+                    producer,
+                    producer_root,
+                    (block_position, node_position),
+                    source.place,
+                    |operation, root| {
+                        // A different carrier name cannot establish disjointness
+                        // from storage reached through an opaque reference.
+                        source
+                            .path
+                            .contains(&terminal_psi::StructuralPathSegment::Referent)
+                            && matches!(
+                                operation,
+                                Operation::ByteSequenceStore { .. }
+                                    | Operation::StructuralByteSequenceFieldStore { .. }
+                            )
+                            || super::structural_freshness::structural_metadata_may_change(
+                                function,
+                                types,
+                                root,
+                                &source.path,
+                                operation,
+                            )
+                    },
+                ) {
+                    return Err(invalid());
+                }
+            }
+        }
+    }
+    Ok(())
 }

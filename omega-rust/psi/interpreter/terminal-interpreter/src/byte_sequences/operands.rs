@@ -15,12 +15,25 @@ impl TerminalExecution<'_> {
         operand: &ByteSequenceOperand,
     ) -> Result<ByteSequenceView, TerminalInterpretError> {
         let bytes = match operand {
-            ByteSequenceOperand::Whole { source, .. } => self
-                .byte_sequence_values
-                .get(source)
-                .ok_or_else(malformed)?
-                .immutable()?
-                .clone(),
+            ByteSequenceOperand::Whole { source, .. } => {
+                if source.access != terminal_psi::StructuralAccess::SharedBorrow {
+                    return Err(malformed());
+                }
+                self.validate_descriptor_borrow(
+                    source,
+                    terminal_psi::StructuralAccess::SharedBorrow,
+                )?;
+                let selected = self.resolve_live_projection(
+                    source.place,
+                    &source.path,
+                    terminal_psi::StructuralAccess::SharedBorrow,
+                )?;
+                let binding = self.byte_descriptor_binding(source, &selected)?;
+                // The resolved binding and extent belong to this descriptor,
+                // not to the pointer carrier at the operand's root place.
+                self.byte_descriptor_length(&binding, &selected)?;
+                binding.immutable()?.clone()
+            }
             ByteSequenceOperand::Field { source, field, .. } => {
                 let (key, capacity) =
                     self.readable_byte_field(source.place, &source.path, *field)?;

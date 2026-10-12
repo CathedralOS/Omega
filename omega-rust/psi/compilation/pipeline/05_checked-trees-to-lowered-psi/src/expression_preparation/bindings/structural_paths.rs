@@ -138,6 +138,7 @@ pub(crate) fn prepare_structural_argument_path(
         published_root,
         types,
     )
+    .map(|(path, _)| path)
 }
 
 /// A final call addresses the completed value. Its range producer has already
@@ -150,26 +151,66 @@ pub(crate) fn prepare_call_argument_path(
     published_root: semantic_vocabulary::StructuralTypeId,
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<Vec<PreparedStructuralPathSegment>, LoweringError> {
-    prepare_structural_argument_projection(
+    let (mut path, mut tip) = prepare_structural_argument_projection(
         identities,
         checked,
         argument,
         argument.call_projection(),
         published_root,
         types,
-    )
+    )?;
+    let expected = identities.intern(
+        &checked
+            .type_identity_text(argument.type_identity)
+            .unwrap_or_default(),
+    );
+    let access = terminal_access(argument.access);
+    // A call lends its declared endpoint. A stored reference is a carrier for
+    // that endpoint; preserve every crossing instead of passing its wrapper.
+    // Owned transport keeps the descriptor itself and never performs this read.
+    if access == StructuralAccess::Owned {
+        return Ok(path);
+    }
+    let mut crossed = Vec::new();
+    while let PreparedArgumentTip::Declaration(declaration) = tip {
+        if declaration.identity == expected {
+            break;
+        }
+        let terminal_psi::StructuralTypeShape::Reference {
+            referent,
+            access: supplied,
+        } = declaration.shape
+        else {
+            break;
+        };
+        if !structural_access_can_supply(supplied, access) || crossed.contains(&declaration.id) {
+            return Err(LoweringError::Unsupported(
+                "call argument crosses an unreadable or cyclic reference",
+            ));
+        }
+        crossed.push(declaration.id);
+        tip = PreparedArgumentTip::Declaration(
+            terminal_psi::find_structural_type(types, referent).ok_or(
+                LoweringError::Unsupported("call argument reference lost its referent declaration"),
+            )?,
+        );
+        path.push(PreparedStructuralPathSegment::Static(
+            StructuralPathSegment::Referent,
+        ));
+    }
+    Ok(path)
 }
 
-fn prepare_structural_argument_projection(
+fn prepare_structural_argument_projection<'a>(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
     argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     projection: &[CheckedUnitStructuralPathSegment],
     published_root: semantic_vocabulary::StructuralTypeId,
-    types: &[terminal_psi::StructuralTypeDeclaration],
-) -> Result<Vec<PreparedStructuralPathSegment>, LoweringError> {
+    types: &'a [terminal_psi::StructuralTypeDeclaration],
+) -> Result<(Vec<PreparedStructuralPathSegment>, PreparedArgumentTip<'a>), LoweringError> {
     let Some(identity) = argument.borrowed_root_type_identity() else {
-        return prepare_argument_path(identities, projection, published_root, types);
+        return prepare_argument_projection(identities, projection, published_root, types);
     };
     let mut roots = types.iter().filter(|row| {
         row.identity == identities.intern(&checked.type_identity_text(identity).unwrap_or_default())
@@ -247,13 +288,9 @@ fn prepare_structural_argument_projection(
             remainder = &remainder[1..];
         }
     }
-    prepared.extend(prepare_argument_path(
-        identities,
-        remainder,
-        logical_root.id,
-        types,
-    )?);
-    Ok(prepared)
+    let (suffix, tip) = prepare_argument_projection(identities, remainder, logical_root.id, types)?;
+    prepared.extend(suffix);
+    Ok((prepared, tip))
 }
 
 /// Resolve the path against its original source declaration. Only runtime
@@ -264,6 +301,15 @@ pub(crate) fn prepare_argument_path(
     root: semantic_vocabulary::StructuralTypeId,
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<Vec<PreparedStructuralPathSegment>, LoweringError> {
+    prepare_argument_projection(identities, path, root, types).map(|(path, _)| path)
+}
+
+fn prepare_argument_projection<'a>(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    path: &[CheckedUnitStructuralPathSegment],
+    root: semantic_vocabulary::StructuralTypeId,
+    types: &'a [terminal_psi::StructuralTypeDeclaration],
+) -> Result<(Vec<PreparedStructuralPathSegment>, PreparedArgumentTip<'a>), LoweringError> {
     use PreparedArgumentTip as Tip;
     use terminal_psi::{ByteSequenceCarrier, StructuralFieldType, StructuralTypeShape};
     let declaration = |id| {
@@ -477,7 +523,7 @@ pub(crate) fn prepare_argument_path(
             "argument case has no payload field",
         ));
     }
-    Ok(prepared)
+    Ok((prepared, tip))
 }
 
 pub(crate) fn prepare_unscoped_path(

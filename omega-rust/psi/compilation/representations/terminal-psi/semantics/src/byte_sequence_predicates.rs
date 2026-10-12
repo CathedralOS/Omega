@@ -491,7 +491,31 @@ fn concatenation_operand_predicates(
 ) -> Option<ByteSequencePredicateSet> {
     match operand {
         terminal_psi::control_flow::ByteSequenceOperand::Whole { source, .. } => {
-            resolve_whole(*source)
+            if source.access != StructuralAccess::SharedBorrow {
+                return None;
+            }
+            if source.path.is_empty() {
+                return resolve_whole(source.place);
+            }
+            let (root, _) = byte_field_root(machine, source.place)?;
+            let selected = crate::runtime_structural_path_tip(
+                module.structural_types.iter(),
+                root,
+                &source.path,
+            )?;
+            if !matches!(selected.shape, StructuralTypeShape::ByteSequence(_)) {
+                return None;
+            }
+            // A projection retains its own contents. Root predicates cannot
+            // be donated across a reference crossing or descriptor selection;
+            // current-content proofs remain the receiving operation's duty.
+            Some(
+                crate::runtime_structural_field(module.structural_types.iter(), root, &source.path)
+                    .filter(|field| field.field_type.byte_sequence_carrier().is_some())
+                    .map_or(ByteSequencePredicateSet::EMPTY, |field| {
+                        field.field_type.byte_predicates()
+                    }),
+            )
         }
         terminal_psi::control_flow::ByteSequenceOperand::Field { source, field, .. } => {
             let (structural_type, access) = byte_field_root(machine, source.place)?;

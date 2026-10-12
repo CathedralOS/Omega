@@ -60,8 +60,26 @@ pub(crate) fn access_referent_tail(
     {
         return None;
     }
-    let mut current = signature.structural_type;
-    let mut authority = signature.backing_access(types);
+    project_referent_tail(
+        types,
+        signature.structural_type,
+        signature.backing_access(types),
+        source,
+    )
+}
+
+/// Project a declared carrier under its already authenticated access ceiling.
+/// Callers retain responsibility for qualifications and result evidence; this
+/// shared walk only attenuates permission at each explicit reference crossing.
+pub(crate) fn project_referent_tail(
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    mut current: StructuralTypeId,
+    mut authority: terminal_psi::StructuralAccess,
+    source: &terminal_psi::StructuralArgument,
+) -> Option<(StructuralTypeId, usize)> {
+    if source.access == terminal_psi::StructuralAccess::Owned {
+        return None;
+    }
     let mut prefix_start = 0;
     for (position, segment) in source.path.iter().enumerate() {
         match segment {

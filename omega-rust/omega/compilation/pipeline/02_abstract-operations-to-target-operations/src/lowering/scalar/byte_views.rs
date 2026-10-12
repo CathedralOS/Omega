@@ -167,10 +167,8 @@ pub(in crate::lowering) fn lower_byte_observation_with_lengths(
         validate_whole_operand(
             function,
             structural_types,
-            parameters,
             backings,
             values,
-            lengths,
             operand,
             &invalid,
         )?;
@@ -202,10 +200,8 @@ pub(in crate::lowering) fn lower_byte_observation_with_lengths(
             validate_whole_operand(
                 function,
                 structural_types,
-                parameters,
                 backings,
                 values,
-                lengths,
                 operand,
                 &invalid,
             )?;
@@ -695,25 +691,25 @@ pub(in crate::lowering) fn descriptor_result<'a>(
 fn validate_whole_operand(
     function: &AbstractFunction,
     structural_types: &StructuralTypeLookup<'_>,
-    parameters: &[TargetStructuralParameter],
     backings: super::element_views::ElementViewBackings<'_>,
     values: &BTreeMap<ValueId, KnownScalar>,
-    lengths: &BTreeMap<ValueId, PlaceId>,
     operand: &terminal_psi::control_flow::ByteSequenceOperand,
     invalid: &dyn Fn() -> LoweringError,
 ) -> Result<(), LoweringError> {
     if let terminal_psi::control_flow::ByteSequenceOperand::Whole { source, length } = operand {
-        let (_view, _) = resolve_byte_view(
+        let (selected, indices) = super::descriptor_operands::descriptor_projection(
             function,
             structural_types,
-            parameters,
             backings,
-            values,
-            lengths,
-            *source,
-            &mut Vec::new(),
+            source,
         )?;
-        if !observes_length(values, lengths, *length, *source) {
+        if source.access != terminal_psi::StructuralAccess::SharedBorrow
+            || !indices.is_empty()
+            || !structural_types.get(&selected).is_some_and(|declaration| {
+                matches!(declaration.shape, StructuralTypeShape::ByteSequence(_))
+            })
+            || !super::descriptor_operands::observes_count(function, values, *length, source, true)
+        {
             return Err(invalid());
         }
     }

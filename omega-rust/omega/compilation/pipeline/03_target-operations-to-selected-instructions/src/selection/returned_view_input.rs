@@ -203,12 +203,7 @@ fn byte_coordinate(
     operand: &terminal_psi::control_flow::ByteSequenceOperand,
 ) -> Result<terminal_psi::StructuralArgument, SelectedInstructionError> {
     match operand {
-        terminal_psi::control_flow::ByteSequenceOperand::Whole { source, .. } => {
-            Ok(terminal_psi::StructuralArgument::whole(
-                *source,
-                terminal_psi::StructuralAccess::SharedBorrow,
-            ))
-        }
+        terminal_psi::control_flow::ByteSequenceOperand::Whole { source, .. } => Ok(source.clone()),
         terminal_psi::control_flow::ByteSequenceOperand::Field { source, field, .. } => {
             field_coordinate(function, source, Some(*field))
         }

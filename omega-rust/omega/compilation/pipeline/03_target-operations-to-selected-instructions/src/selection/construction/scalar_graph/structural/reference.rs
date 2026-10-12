@@ -29,58 +29,39 @@ pub(super) fn establish(
     {
         return Err(invalid());
     }
-    // Geometry owns every descriptor crossing, including a view's backing
-    // pointer. Begin at the carrier's home: resolving its payload here first
-    // would make the first geometry load reinterpret element bytes as a pointer.
-    // Inline ABI fragments receive a home through the ordinary address owner.
-    // An element referent rides on its view's backing pointer like a borrowed
-    // element call argument does; it owns no slot of its own.
-    let view_referent = crate::selection::established_view_input::element_view_type(
-        source,
-        address.place,
-    )
-    .is_some()
-        || crate::selection::established_view_input::view_type(source, address.place).is_some();
-    let mut input = if view_referent {
-        super::view_element_pointer(source, builder, row, address.place, 0)?
+    // Borrowing a descriptor retains its home. Only a declared pointer crossing
+    // enters its backing; root carrier shape alone cannot choose that address.
+    let (input, slots) = if address.pointer_slots.is_empty() {
+        (
+            place_pointer(builder, row, address.place, 0)?,
+            address.pointer_slots.as_slice(),
+        )
     } else {
-        place_pointer(builder, row, address.place, 0)?
+        let (input, slots) = super::runtime_address::projection_origin(
+            source,
+            builder,
+            row,
+            address.place,
+            address.byte_offset,
+            &address.pointer_slots,
+        )?;
+        (input.ok_or_else(invalid)?, slots)
     };
-    // The view's own descriptor word is already resolved by the view's backing
-    // machinery; replaying its stored word here would read element bytes as a
-    // pointer. Later descriptor crossings still load their stored words.
-    for (offset, indices) in address
-        .descriptor_offsets
-        .iter()
-        .skip(usize::from(view_referent))
-    {
-        input = super::runtime_address::scale(
-            builder,
-            row,
-            address.place,
-            *offset,
-            input,
-            &address.indices[indices.clone()],
-        )?;
-        let loaded = transport_register(builder, result.place, *offset)?;
-        memory(
-            builder,
-            row,
-            address.place,
-            *offset,
-            8,
-            SelectedMemoryAccessRole::ReadPlace,
-        )?;
-        builder.emit_load64(*offset, input, loaded, provenance(row))?;
-        input = loaded;
-    }
+    let (mut input, leaf_index) = super::runtime_address::cross_references(
+        builder,
+        row,
+        address.place,
+        input,
+        &address.indices,
+        slots,
+    )?;
     input = super::runtime_address::scale(
         builder,
         row,
         address.place,
         address.byte_offset,
         input,
-        &address.indices[address.leaf_index..],
+        &address.indices[leaf_index..],
     )?;
     if address.byte_offset != 0 {
         let projected = transport_register(builder, result.place, address.byte_offset)?;

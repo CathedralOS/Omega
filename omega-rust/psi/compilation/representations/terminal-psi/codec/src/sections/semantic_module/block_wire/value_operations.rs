@@ -325,8 +325,13 @@ fn encode_byte_sequence_operand(
     use terminal_psi::control_flow::ByteSequenceOperand;
     match operand {
         ByteSequenceOperand::Whole { source, length } => {
-            writer.u8(0);
-            writer.id(source);
+            writer.u8(2);
+            writer.id(source.place);
+            super::super::structural_signature_wire::encode_structural_access(
+                writer,
+                source.access,
+            );
+            encode_structural_path(writer, "byte sequence operand path", &source.path)?;
             writer.id(length);
         }
         ByteSequenceOperand::Field {
@@ -353,8 +358,12 @@ fn decode_byte_sequence_operand(
 ) -> Result<terminal_psi::control_flow::ByteSequenceOperand, CodecError> {
     use terminal_psi::control_flow::ByteSequenceOperand;
     match reader.u8()? {
-        0 => Ok(ByteSequenceOperand::Whole {
-            source: reader.id("PlaceId")?,
+        2 => Ok(ByteSequenceOperand::Whole {
+            source: terminal_psi::StructuralArgument {
+                place: reader.id("PlaceId")?,
+                access: super::super::structural_signature_wire::decode_structural_access(reader)?,
+                path: decode_structural_path(reader)?,
+            },
             length: reader.id("ValueId")?,
         }),
         1 => Ok(ByteSequenceOperand::Field {

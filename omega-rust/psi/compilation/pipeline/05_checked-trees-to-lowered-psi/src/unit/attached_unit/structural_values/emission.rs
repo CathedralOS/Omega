@@ -1451,7 +1451,11 @@ impl Emission<'_, '_, '_> {
                     // creates affine residuals. Source replay has rejoined the
                     // copied root independently; retain its complete path when
                     // appending the projection and publish one fresh leaf.
-                    let mut argument = self.copied_place_argument(identities, copied)?;
+                    let mut argument = self.copied_place_argument(
+                        identities,
+                        structural_values(self.checked).nodes.get(source).expression,
+                        copied,
+                    )?;
                     argument
                         .path
                         .extend(lower_structural_path(identities, &path)?);
@@ -1506,7 +1510,7 @@ impl Emission<'_, '_, '_> {
                 Ok(continuation.place)
             }
             CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => {
-                let argument = self.copied_place_argument(identities, &source)?;
+                let argument = self.copied_place_argument(identities, node.expression, &source)?;
                 self.copied_leaf_place(
                     identities,
                     &argument,

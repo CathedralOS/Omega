@@ -44,17 +44,29 @@ pub(super) fn lower(
     for operand in [left, right] {
         let (source, length) = match operand {
             ByteSequenceOperand::Whole { source, length } => {
-                if live.lengths.get(length) != Some(source)
-                    || !(live.views.contains_key(source)
-                        || live.block_views.contains(source)
-                        || prepared.parameter(*source).is_some()
-                        || super::observations::bounded_owner_storage(
-                            function, types, live, *source,
-                        ))
+                let (selected, indices) =
+                    crate::lowering::scalar::descriptor_operands::descriptor_projection(
+                        function,
+                        types,
+                        live.element_view_backings(),
+                        source,
+                    )?;
+                let values = super::observations::scalar_values(live, &prepared.scalar_parameters)?;
+                if source.access != StructuralAccess::SharedBorrow
+                    || !indices.is_empty()
+                    || !types.get(&selected).is_some_and(|declaration| {
+                        matches!(
+                            declaration.shape,
+                            terminal_psi::StructuralTypeShape::ByteSequence(_)
+                        )
+                    })
+                    || !crate::lowering::scalar::descriptor_operands::observes_count(
+                        function, &values, *length, source, true,
+                    )
                 {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
-                (*source, *length)
+                (source.place, *length)
             }
             ByteSequenceOperand::Field {
                 source,

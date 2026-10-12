@@ -13,12 +13,12 @@ use checked_trees::CheckedStructuralValueKind;
 use typed_trees::types::TypeReferenceHandle;
 
 impl Builder<'_, '_> {
-    /// A computed shared reference with the same unrestricted carrier retains
+    /// A shared reference with the same unrestricted carrier retains
     /// its descriptor on reborrow. It does not reconstruct a view from the
     /// loan's backing: that would lose the producer's actual range and effects.
-    /// Existing stored places keep their loan route; access attenuation and
-    /// affine carriers need their own ordinary reference establishment.
-    pub(super) fn computed_shared_reborrow(
+    /// Stored and computed sources use their ordinary value producer before
+    /// this reborrow. Access attenuation and affine carriers remain references.
+    pub(super) fn shared_carrier_reborrow(
         &mut self,
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
@@ -47,9 +47,6 @@ impl Builder<'_, '_> {
             self.statement_index,
             target,
         )?;
-        if place.root.as_expression().is_none() || !place.segments.is_empty() {
-            return None;
-        }
         let actual = validation::canonical_place_type_reference(
             self.program,
             self.state,
@@ -123,14 +120,26 @@ impl Builder<'_, '_> {
         // the computation's scalar namespace, including captured immutable
         // locals, rather than replaying the selector's original storage read.
         // The retained coordinate grants no bounds or copy permission.
+        let mut selectors = Vec::new();
+        for segment in &place.segments {
+            if let facts::PlaceSegment::Index { expression } = segment {
+                selectors.push((*expression, self.index_selector(*expression)?));
+            }
+        }
         let (projected, mut path) =
-            crate::execution::terminal_unit::calls::projected_selected_path(
+            crate::execution::terminal_unit::calls::projected_argument_path(
                 self.program,
-                self.machine,
                 self.state,
                 self.statement_index,
                 &place,
-                &|selector| self.local_selector(selector),
+                Some(self.machine),
+                Some(&|expression| {
+                    selectors.iter().find_map(|(selector, value)| {
+                        (*selector == expression).then_some(
+                            checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(*value),
+                        )
+                    })
+                }),
             )?;
         // A local owns its descriptor, whereas a borrowed formal already
         // denotes its referent. Selecting below the local crosses that stored
@@ -164,15 +173,24 @@ impl Builder<'_, '_> {
         // and bounded-byte shapes follow the same registry rule as owned values.
         let type_identity =
             validation::stored_structural_type_identity(self.program, projected, &[], &[]);
-        Some((
-            checked_trees::CheckedUnitStructuralArgumentPlan {
-                source,
-                path,
-                type_identity,
-                access: checked_trees::CheckedStructuralAccess::SharedBorrow,
-            },
-            projected,
-        ))
+        let source = checked_trees::CheckedUnitStructuralArgumentPlan {
+            source,
+            path,
+            type_identity,
+            access: checked_trees::CheckedStructuralAccess::SharedBorrow,
+        };
+        // Only selectors that survive typed constant folding are executable.
+        // Their roles belong to this copied value's exact evaluation occurrence.
+        for (ordinal, value) in source.computation_operands().enumerate() {
+            self.push_scalar_root(
+                checked_trees::CheckedScalarExpressionRole::StructuralValueSelector {
+                    expression,
+                    selector_ordinal: u32::try_from(ordinal).ok()?,
+                },
+                value,
+            )?;
+        }
+        Some((source, projected))
     }
 
     /// One projected owned child of an existing owner. The checked ownership

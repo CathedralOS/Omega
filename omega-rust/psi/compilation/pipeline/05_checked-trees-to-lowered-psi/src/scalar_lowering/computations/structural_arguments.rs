@@ -63,7 +63,7 @@ pub(super) fn lower(
                         selector_positions: Vec::new(),
                         place: slot.place,
                         root_type: Some(slot.structural_type),
-                        path: crate::expression_preparation::bindings::structural_paths::prepare_argument_path(identities, &argument.path, slot.structural_type, structural_types)?,
+                        path: crate::expression_preparation::bindings::structural_paths::prepare_call_argument_path(identities, checked, argument, slot.structural_type, structural_types)?,
                         access: match argument.access {
                             checked_trees::CheckedStructuralAccess::Owned => StructuralAccess::Owned,
                             access => borrowed_access(access).ok_or(
@@ -137,7 +137,7 @@ pub(super) fn lower(
                 let mut path = source.path.into_iter().map(
                     crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::Static,
                 ).collect::<Vec<_>>();
-                path.extend(crate::expression_preparation::bindings::structural_paths::prepare_structural_argument_path(identities, checked, argument, root_type, structural_types)?);
+                path.extend(crate::expression_preparation::bindings::structural_paths::prepare_call_argument_path(identities, checked, argument, root_type, structural_types)?);
                 return Ok(PreparedStructuralArgument {
                     selector_positions: Vec::new(),
                     place: source.place,

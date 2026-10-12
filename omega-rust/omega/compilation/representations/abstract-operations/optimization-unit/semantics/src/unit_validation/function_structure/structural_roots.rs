@@ -314,7 +314,40 @@ pub(crate) fn validate_structural_root_operations(
                         function,
                         &node.operation,
                         structural_types,
+                        structural_domains,
                     ) {
+                        return Err(catalog_mismatch(function));
+                    }
+                }
+                O::ByteSequenceEqual { left, right, .. } => {
+                    for operand in [left, right] {
+                        if let terminal_psi::control_flow::ByteSequenceOperand::Whole {
+                            source,
+                            length,
+                        } = operand
+                            && !super::descriptor_sources::valid_whole(
+                                function,
+                                structural_types,
+                                structural_domains,
+                                source,
+                                *length,
+                            )
+                        {
+                            return Err(catalog_mismatch(function));
+                        }
+                    }
+                }
+                O::ByteSequencePredicate { operand, .. } => {
+                    if let terminal_psi::control_flow::ByteSequenceOperand::Whole { source, length } =
+                        operand
+                        && !super::descriptor_sources::valid_whole(
+                            function,
+                            structural_types,
+                            structural_domains,
+                            source,
+                            *length,
+                        )
+                    {
                         return Err(catalog_mismatch(function));
                     }
                 }

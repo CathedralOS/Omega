@@ -108,7 +108,19 @@ pub(super) fn capacity(
         }
         match operand {
             ByteSequenceOperand::Whole { source, .. } => {
-                super::established_view_input::readable_byte_type(function, *source)?;
+                let root = super::reference_input::root_type(function, source.place)?;
+                let geometry = crate::structural_inputs::structural_reference_input::descriptor_source_geometry(
+                    root, &source.path, &signature.structural_types,
+                )?;
+                if source.access == StructuralAccess::WriteOnlyBorrow
+                    || !geometry.readable
+                    || !matches!(
+                        signature.structural_type(geometry.selected)?.shape,
+                        StructuralTypeShape::ByteSequence(_)
+                    )
+                {
+                    return None;
+                }
             }
             ByteSequenceOperand::Field { .. } => {
                 field_offset(function, operand)?;

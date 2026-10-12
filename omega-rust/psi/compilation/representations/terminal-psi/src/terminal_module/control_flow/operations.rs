@@ -35,7 +35,7 @@ use semantic_vocabulary::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ByteSequenceOperand {
     Whole {
-        source: PlaceId,
+        source: StructuralArgument,
         length: ValueId,
     },
     Field {
@@ -54,8 +54,20 @@ impl ByteSequenceOperand {
 
     pub const fn source(&self) -> PlaceId {
         match self {
-            Self::Whole { source, .. } => *source,
-            Self::Field { source, .. } => source.place,
+            Self::Whole { source, .. } | Self::Field { source, .. } => source.place,
+        }
+    }
+
+    /// Exact descriptor or containing-field projection, including its access.
+    pub const fn argument(&self) -> &StructuralArgument {
+        match self {
+            Self::Whole { source, .. } | Self::Field { source, .. } => source,
+        }
+    }
+
+    pub fn argument_mut(&mut self) -> &mut StructuralArgument {
+        match self {
+            Self::Whole { source, .. } | Self::Field { source, .. } => source,
         }
     }
 

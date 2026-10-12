@@ -176,11 +176,17 @@ fn concatenation_publication_retains_ordered_sources_result_and_bound() {
         claims: Vec::new(),
     };
     let left = ByteSequenceOperand::Whole {
-        source: PlaceId::new(1).unwrap(),
+        source: terminal_psi::StructuralArgument::whole(
+            PlaceId::new(1).unwrap(),
+            terminal_psi::StructuralAccess::SharedBorrow,
+        ),
         length: ValueId::new(1).unwrap(),
     };
     let right = ByteSequenceOperand::Whole {
-        source: PlaceId::new(2).unwrap(),
+        source: terminal_psi::StructuralArgument::whole(
+            PlaceId::new(2).unwrap(),
+            terminal_psi::StructuralAccess::SharedBorrow,
+        ),
         length: ValueId::new(2).unwrap(),
     };
     let obligation = ObligationId::new(1).unwrap();

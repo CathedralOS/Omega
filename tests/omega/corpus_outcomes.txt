@@ -3856,7 +3856,7 @@ pass/borrows/runtime_carrier_reference_store_exit checked 11057ms check-target:m
 pass/borrows/runtime_case_payload_partial_transfer_exit checked 10506ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_case_return_parameter_order_exit checked 10245ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_computed_backing_reference_copy_exit checked 10544ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/borrows/runtime_computed_shared_view_reborrow_exit checked 10320ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_computed_shared_view_reborrow_exit checked 3460ms check-target:macos_arm64 @54d47902d575+wt
 pass/borrows/runtime_constructed_reference_array_restoration_exit checked 11074ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_copied_byte_distinct_epochs_exit checked 10345ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_copied_byte_predicate_snapshot_exit checked 10420ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6377,3 +6377,5 @@ fail/borrows/imported_range_retains_backing_loan rejected 580ms expected @71e65a
 	statement 1 mutates `main.bytes` while local borrow `view` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 fail/providers/checked_view_provider_wrong_extent rejected 271ms expected @71e65af3059c+wt
 	provider machine `Provider::at` for top-level boundary requirement `Window::at` does not refine `Window::at`: its requires facts are not a conservative refinement
+pass/borrows/runtime_computed_view_observation_composition_exit checked 3631ms check-target:macos_arm64 @54d47902d575+wt
+pass/borrows/runtime_projected_view_observations_exit checked 3460ms check-target:macos_arm64 @54d47902d575+wt

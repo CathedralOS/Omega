@@ -497,13 +497,15 @@ impl TerminalExecution<'_> {
             // owner; a shared shape alone cannot recategorize that authority.
             return Ok(None);
         }
-        let Some(root) = self.structural_values.get(&argument.place) else {
+        if !self.structural_values.contains_key(&argument.place) {
             return Ok(None);
-        };
-        let Ok(value) = crate::custody::project_structural_value(
-            &self.program.structural_types(),
-            root,
+        }
+        // A stored reference lends the descriptor at its live referent. The
+        // pure inline projection cannot cross that retained pointer identity.
+        let Ok(value) = self.resolve_live_projection(
+            argument.place,
             &argument.path,
+            argument.access,
         ) else {
             return Ok(None);
         };

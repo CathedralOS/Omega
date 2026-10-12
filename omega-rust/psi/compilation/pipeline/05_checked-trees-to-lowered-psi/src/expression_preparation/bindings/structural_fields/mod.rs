@@ -35,6 +35,7 @@ pub(crate) use case_observation::prepare as prepare_case_observation;
 pub(crate) struct StructuralScalarFieldBinding {
     source_position: u32,
     source: PlaceId,
+    access: StructuralAccess,
     structural_type: StructuralTypeId,
     declarations: std::sync::Arc<[StructuralTypeDeclaration]>,
     /// Payload values a dominating `StructuralCase` dispatch bound for this root.
@@ -97,37 +98,37 @@ impl StructuralFieldBindings {
         }
     }
 
-    /// Locals resolve through the evaluation's one owned-local roster, the
-    /// same mapping moves, rebinds and retirements update; a parallel field
-    /// map here went stale whenever an establishment route forgot to mirror
-    /// it. A projected alias names a subtree of its root's place, so its
-    /// fields sit under the alias path rather than at the place's own
-    /// layout; leave it out so a field read refuses instead of addressing the
-    /// root's layout. A view local that owns no structural result (a
-    /// collection view a call opener lends, `let view = items.as_slice()`)
-    /// resolves through the view-local roster that registered its descriptor.
-    pub(crate) fn observation_source(
+    /// All observations retain the established home, including a projected
+    /// alias prefix. The endpoint declaration describes that prefix, never the
+    /// physical root. Moves and rebindings update this same local roster.
+    pub(crate) fn observation_home(
         &self,
         root: checked_trees::CheckedStorageRoot,
         structural_locals: &[super::StructuralLocalBinding],
         view_locals: &[super::view_locals::ViewLocalBinding],
-    ) -> Result<(PlaceId, StructuralTypeId), LoweringError> {
+    ) -> Result<(terminal_psi::StructuralArgument, StructuralTypeId), LoweringError> {
         let candidates: Vec<_> = match root {
             checked_trees::CheckedStorageRoot::Parameter { index } => self
                 .roots
                 .iter()
                 .filter(|binding| binding.source_position == index)
-                .map(|binding| (binding.source, binding.structural_type))
+                .map(|binding| {
+                    (
+                        terminal_psi::StructuralArgument {
+                            place: binding.source,
+                            path: Vec::new(),
+                            access: binding.access,
+                        },
+                        binding.structural_type,
+                    )
+                })
                 .collect(),
             checked_trees::CheckedStorageRoot::ViewLocal { symbol }
             | checked_trees::CheckedStorageRoot::OwnedLocal { symbol } => {
                 let owned = structural_locals
                     .iter()
-                    .filter(|local| {
-                        local.root == facts::PlaceRoot::Symbol(symbol)
-                            && local.argument.path.is_empty()
-                    })
-                    .map(|local| (local.argument.place, local.structural_type))
+                    .filter(|local| local.root == facts::PlaceRoot::Symbol(symbol))
+                    .map(|local| (local.argument.clone(), local.structural_type))
                     .collect::<Vec<_>>();
                 if owned.is_empty()
                     && matches!(root, checked_trees::CheckedStorageRoot::ViewLocal { .. })
@@ -135,7 +136,16 @@ impl StructuralFieldBindings {
                     view_locals
                         .iter()
                         .filter(|local| local.symbol == symbol)
-                        .map(|local| (local.place, local.structural_type))
+                        .map(|local| {
+                            (
+                                terminal_psi::StructuralArgument {
+                                    place: local.place,
+                                    path: Vec::new(),
+                                    access: local.access,
+                                },
+                                local.structural_type,
+                            )
+                        })
                         .collect()
                 } else {
                     owned
@@ -143,7 +153,7 @@ impl StructuralFieldBindings {
             }
         };
         match candidates.as_slice() {
-            [source] => Ok(*source),
+            [home] => Ok(home.clone()),
             _ => unsupported("field observation lost its unique established root"),
         }
     }
@@ -238,6 +248,7 @@ impl StructuralScalarFieldBinding {
             bindings.push(StructuralScalarFieldBinding {
                 source_position: *position,
                 source: parameter.place,
+                access: parameter.access,
                 structural_type: parameter.structural_type,
                 declarations: std::sync::Arc::clone(&declarations),
                 case_payloads: Vec::new(),
@@ -722,6 +733,7 @@ pub(crate) fn plan_case_payload_leaf(
     let projected = StructuralScalarFieldBinding {
         source_position: position,
         source: binding.source,
+        access: binding.access,
         structural_type: member_type,
         declarations: std::sync::Arc::clone(&binding.declarations),
         case_payloads: Vec::new(),
@@ -822,6 +834,67 @@ pub(crate) fn resolve_sequence_projection(
     Ok(Some((source, path, field.id, carrier)))
 }
 
+/// Resolve a readable sequence through the same declared reference crossings
+/// used by field and indexed observations. Preserve the completed actual prefix.
+pub(crate) fn sequence_home(
+    mut home: terminal_psi::StructuralArgument,
+    structural_type: StructuralTypeId,
+    declarations: &[StructuralTypeDeclaration],
+) -> Result<
+    (
+        terminal_psi::StructuralArgument,
+        super::view_locals::ViewCarrier,
+    ),
+    LoweringError,
+> {
+    if !matches!(
+        home.access,
+        StructuralAccess::Owned | terminal_psi::reading_borrow_pair_pattern!()
+    ) {
+        return unsupported("sequence observation requires readable storage");
+    }
+    let (declaration, crossings) =
+        observation_paths::readable_carrier(structural_type, declarations)?;
+    let carrier = super::view_locals::ViewCarrier::of(declaration.id, declarations).ok_or(
+        LoweringError::Unsupported("sequence observation requires a descriptor"),
+    )?;
+    home.path.extend(std::iter::repeat_n(
+        terminal_psi::StructuralPathSegment::Referent,
+        crossings,
+    ));
+    home.access = StructuralAccess::SharedBorrow;
+    Ok((home, carrier))
+}
+
+pub(crate) fn sequence_length(
+    home: &terminal_psi::StructuralArgument,
+    carrier: super::view_locals::ViewCarrier,
+    scalar_type: ScalarType,
+) -> LoweredDirectExpression {
+    let path = home
+        .path
+        .iter()
+        .cloned()
+        .map(LoweredElementPathSegment::Static)
+        .collect();
+    match carrier {
+        super::view_locals::ViewCarrier::Bytes => LoweredDirectExpression::ByteSequenceLength {
+            source: home.place,
+            path,
+            access: StructuralAccess::SharedBorrow,
+            scalar_type,
+        },
+        super::view_locals::ViewCarrier::Elements { .. } => {
+            LoweredDirectExpression::ElementViewLength {
+                source: home.place,
+                path,
+                access: StructuralAccess::SharedBorrow,
+                scalar_type,
+            }
+        }
+    }
+}
+
 /// Declared collection geometry and its independent live descriptor extent.
 pub(crate) struct IndexedElementObservation {
     pub(crate) source: PlaceId,
@@ -838,33 +911,46 @@ pub(crate) struct IndexedElementObservation {
 pub(crate) fn resolve_indexed_element(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     fields: &StructuralFieldBindings,
-    source: PlaceId,
+    home: &terminal_psi::StructuralArgument,
     structural_type: StructuralTypeId,
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
     element_path: &[checked_trees::CheckedStructuralPredicatePathSegment],
 ) -> Result<IndexedElementObservation, LoweringError> {
     let projection =
         observation_paths::explicit_path(identities, structural_type, path, fields.declarations())?;
-    let (element, live_extent) = match &projection
-        .declaration
-        .ok_or(LoweringError::Unsupported(
-            "indexed observation lost its collection carrier",
-        ))?
-        .shape
-    {
-        StructuralTypeShape::FixedArray { element, .. } => (*element, false),
-        StructuralTypeShape::ElementView { element, .. } => (*element, true),
-        _ => return unsupported("indexed observation requires an element collection"),
+    let declaration = projection.declaration.ok_or(LoweringError::Unsupported(
+        "indexed observation lost its collection carrier",
+    ))?;
+    let (element_path, scalar_type, carrier) = match &declaration.shape {
+        StructuralTypeShape::FixedArray { element, .. }
+        | StructuralTypeShape::ElementView { element, .. } => {
+            let element_projection = observation_paths::explicit_path(
+                identities,
+                *element,
+                element_path,
+                fields.declarations(),
+            )?;
+            let scalar_type = crate::emission::primitive_store::indexed_element_scalar_type(
+                identities,
+                *element,
+                &element_projection.segments,
+                fields.declarations(),
+            )?;
+            (
+                element_projection.segments,
+                scalar_type,
+                super::view_locals::ViewCarrier::of(declaration.id, fields.declarations()),
+            )
+        }
+        StructuralTypeShape::ByteSequence(_) if element_path.is_empty() => (
+            Vec::new(),
+            crate::emission::scalar_types::terminal_scalar_type(
+                typed_trees::types::PrimitiveType::U8,
+            )?,
+            Some(super::view_locals::ViewCarrier::Bytes),
+        ),
+        _ => return unsupported("indexed observation requires a scalar collection endpoint"),
     };
-    let element_projection =
-        observation_paths::explicit_path(identities, element, element_path, fields.declarations())?;
-    let element_path = element_projection.segments;
-    let scalar_type = crate::emission::primitive_store::indexed_element_scalar_type(
-        identities,
-        element,
-        &element_path,
-        fields.declarations(),
-    )?;
     let path = super::structural_paths::prepare_argument_path(
         identities,
         &projection.segments,
@@ -877,29 +963,43 @@ pub(crate) fn resolve_indexed_element(
         _ => unsupported("indexed collection prefix requires static projections"),
     })
     .collect::<Result<Vec<_>, _>>()?;
-    // Keep selected-case geometry on the original read. Copying the collection
-    // would duplicate affine element siblings just to observe a scalar leaf.
-    // A descriptor is already established at this exact projected home. Read
-    // its count before indexing its backing; neither a whole parameter nor an
-    // unrelated view-local registry supplies the extent of a nested field.
-    let extent = if live_extent {
-        Some(Box::new(LoweredDirectExpression::ElementViewLength {
-            source,
-            path: path
-                .iter()
-                .cloned()
-                .map(LoweredElementPathSegment::Static)
-                .collect(),
-            access: StructuralAccess::SharedBorrow,
-            scalar_type: crate::emission::scalar_types::terminal_scalar_type(
-                typed_trees::types::PrimitiveType::U64,
-            )?,
-        }))
-    } else {
-        None
-    };
+    let path = home.path.iter().cloned().chain(path).collect::<Vec<_>>();
+    let selectors = path
+        .iter()
+        .filter(|step| {
+            matches!(
+                step,
+                terminal_psi::StructuralPathSegment::RuntimeIndex { .. }
+            )
+        })
+        .count()
+        + element_path
+            .iter()
+            .filter(|step| matches!(step, CheckedUnitStructuralPathSegment::RuntimeIndex(_)))
+            .count();
+    if selectors > crate::emission::operation_emission::expressions::TERMINAL_NESTED_SELECTOR_LIMIT
+    {
+        return unsupported("indexed read exceeds its selector namespace");
+    }
+    // The bound and read name the same descriptor, including every alias prefix
+    // and readable reference crossing. Capacity never substitutes for live count.
+    let extent = carrier
+        .map(|carrier| {
+            Ok::<_, LoweringError>(Box::new(sequence_length(
+                &terminal_psi::StructuralArgument {
+                    place: home.place,
+                    path: path.clone(),
+                    access: home.access,
+                },
+                carrier,
+                crate::emission::scalar_types::terminal_scalar_type(
+                    typed_trees::types::PrimitiveType::U64,
+                )?,
+            )))
+        })
+        .transpose()?;
     Ok(IndexedElementObservation {
-        source,
+        source: home.place,
         path,
         element_path,
         scalar_type,

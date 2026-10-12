@@ -1121,13 +1121,29 @@ pub(super) fn apply_operation(
                 },
             )?;
         }
-        O::EstablishByteSequenceConcatenation { left, right, .. } => {
-            // These operands name byte storage, not reference carriers whose
-            // own loan could authorize an observation through a referent.
-            for operand in [left, right] {
+        O::EstablishByteSequenceConcatenation { .. }
+        | O::ByteSequenceEqual { .. }
+        | O::ByteSequencePredicate { .. } => {
+            let operands = match operation {
+                O::EstablishByteSequenceConcatenation { left, right, .. }
+                | O::ByteSequenceEqual { left, right, .. } => [Some(left), Some(right)],
+                O::ByteSequencePredicate { operand, .. } => [Some(operand), None],
+                _ => unreachable!(),
+            };
+            for operand in operands.into_iter().flatten() {
                 match operand {
                     terminal_psi::control_flow::ByteSequenceOperand::Whole { source, .. } => {
-                        check_root_access(function, block, node, live, *source)?
+                        check_record_field_access(
+                            function,
+                            structural_types,
+                            block,
+                            node,
+                            live,
+                            source.place,
+                            &source.path,
+                            None,
+                            StructuralAccess::SharedBorrow,
+                        )?;
                     }
                     terminal_psi::control_flow::ByteSequenceOperand::Field {
                         source,

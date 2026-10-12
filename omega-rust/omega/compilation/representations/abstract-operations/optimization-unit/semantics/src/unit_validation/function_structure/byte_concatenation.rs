@@ -64,18 +64,11 @@ pub(super) fn validate(
                 }
                 match operand {
                     ByteSequenceOperand::Whole { source, length } => {
-                        let kind = function.structural_place(*source).map(|place| &place.kind);
-                        super::byte_views::validate_source(
-                            function,
-                            block.id,
-                            u32::try_from(node_position).map_err(|_| invalid())?,
-                            &node.operation,
-                            kind,
-                            types,
-                            domains,
-                            *source,
-                            Some(*length),
-                        )?;
+                        if !super::descriptor_sources::valid_whole(
+                            function, types, domains, source, *length,
+                        ) {
+                            return Err(invalid());
+                        }
                     }
                     ByteSequenceOperand::Field {
                         source,
