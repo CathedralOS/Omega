@@ -1,1 +1,1 @@
-different integer meaning
+integer literal landing conflicts with declared const component `u64`
