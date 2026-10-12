@@ -43,6 +43,7 @@ impl TerminalExecution<'_> {
             loan_completions: Vec::new(),
             values: std::mem::take(&mut self.values),
             structural_values: std::mem::take(&mut self.structural_values),
+            aggregate_argument_backings: std::mem::take(&mut self.aggregate_argument_backings),
             byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
             primitive_loan_values: std::mem::take(&mut self.primitive_loan_values),
             scalar_array_values: std::mem::take(&mut self.scalar_array_values),

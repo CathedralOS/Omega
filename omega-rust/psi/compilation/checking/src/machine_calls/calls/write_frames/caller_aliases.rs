@@ -209,6 +209,7 @@ pub(super) fn assignment_write_paths(
     match evidence.target {
         AssignmentWriteTarget::LocalBindingReplacement { path } => Some(vec![path]),
         AssignmentWriteTarget::Storage { paths } => close_over_origins(
+            program,
             paths,
             &evidence.aliases,
             &evidence.divergent,
@@ -470,16 +471,17 @@ impl CallOriginContext<'_> {
     /// Expand finite local referents before a state summary filters private
     /// roots. Do not back-map canonical writes to coarse aggregate aliases;
     /// that observer-only closure belongs to the public demand boundary.
-    pub fn close_paths(&self, paths: Vec<String>) -> Vec<String> {
+    pub fn close_paths(
+        &self,
+        program: &dyn crate::CheckingInput,
+        paths: Vec<String>,
+    ) -> Vec<String> {
         let mut expanded = Vec::new();
         for path in paths {
             let (root, suffix) = super::split_place_root(&path);
             if let Some((_, candidates)) = self.divergent.iter().find(|(name, _)| name == root) {
                 for candidate in candidates {
-                    let path = match candidate.precision {
-                        FramePathPrecision::Exact => append_place_suffix(&candidate.path, suffix),
-                        FramePathPrecision::CollectionCoarse => candidate.path.clone(),
-                    };
+                    let path = super::place_paths::project_write_path(program, candidate, suffix);
                     if !expanded.contains(&path) {
                         expanded.push(path);
                     }
@@ -604,7 +606,13 @@ pub(super) fn with_caller_origins(
         collections,
         |inference, prefix| {
             let written = resolve(inference, prefix)?;
-            close_over_origins(written, prefix.aliases, prefix.divergent, prefix.stored)
+            close_over_origins(
+                program,
+                written,
+                prefix.aliases,
+                prefix.divergent,
+                prefix.stored,
+            )
         },
     )
 }
@@ -672,12 +680,13 @@ fn preceding_isolated_locals(
 }
 
 fn close_over_origins(
+    program: &dyn crate::CheckingInput,
     written: Vec<String>,
     aliases: &[(String, FramePlaceOrigin)],
     divergent: &[(String, Vec<FramePlaceOrigin>)],
     stored: &[StoredLocalOrigins],
 ) -> Option<Vec<String>> {
-    let canonical = expand_write_paths(&written, aliases, stored)?
+    let canonical = expand_write_paths(program, &written, aliases, stored)?
         .into_iter()
         // A divergent binding's raw spelling names every referent it may
         // carry: keep the local name for fact invalidation and add each
@@ -693,13 +702,7 @@ fn close_over_origins(
                     candidates
                         .iter()
                         .map(|candidate| {
-                            if suffix.is_empty()
-                                || candidate.precision == FramePathPrecision::CollectionCoarse
-                            {
-                                candidate.path.clone()
-                            } else {
-                                append_place_suffix(&candidate.path, &suffix)
-                            }
+                            super::place_paths::project_write_path(program, candidate, &suffix)
                         })
                         .collect::<Vec<_>>()
                 })
@@ -743,7 +746,12 @@ fn close_over_origins(
             };
             let spelling = if let Some(suffix) = place_suffix(&origin.path, &path) {
                 match (origin.precision, local_coarse) {
-                    (FramePathPrecision::Exact, false) => append_place_suffix(alias, suffix),
+                    (FramePathPrecision::Exact, false) if origin.source.recasts.is_empty() => {
+                        append_place_suffix(alias, suffix)
+                    }
+                    // The canonical write already names precise backing.
+                    // Observer aliases use their logical view namespace; a
+                    // physical field suffix cannot be spliced into it.
                     _ => alias.clone(),
                 }
             } else if place_suffix(&path, &origin.path).is_some() {

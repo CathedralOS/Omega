@@ -120,11 +120,52 @@ fn argument_contract(
             source_state,
             call.statement_index,
             place,
-            local,
+            facts::PlaceRoot::Symbol(local.symbol),
+            local.type_reference,
             result,
             parameter,
             target_identity,
         );
+    }
+    // Anonymous value producers own their exact stored carrier as locals do.
+    // Rejoin the completed operation and value row, never infer a descriptor
+    // from the receiving formal or the source expression's backing place.
+    if let Some(owner) = place.root.as_expression() {
+        let mut producers = operations.iter().filter_map(|operation| {
+            let checked_trees::CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
+                    result: produced,
+                    value,
+                    ..
+                },
+            ) = operation
+            else {
+                return None;
+            };
+            if produced != result {
+                return None;
+            }
+            let node = facts.values.structural_values.nodes.get(*value);
+            (node.expression == owner && reference::is_carrier(program, node.type_reference))
+                .then_some(node.type_reference)
+        });
+        if let Some(reference) = producers.next() {
+            if producers.next().is_some() {
+                return None;
+            }
+            return reference::argument(
+                program,
+                machine,
+                source_state,
+                call.statement_index,
+                place,
+                facts::PlaceRoot::Expression(owner),
+                reference,
+                result,
+                parameter,
+                target_identity,
+            );
+        }
     }
     // A bounded byte owner local lends its whole carrier to a formal of the
     // same carrier; the loan leaves the owner in place.

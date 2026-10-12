@@ -694,6 +694,7 @@ impl TerminalExecution<'_> {
             byte_sequence_values,
             primitive_loan_values,
             element_view_values,
+            aggregate_argument_backings,
         ) = if home.depth == self.call_stack.len() {
             (
                 self.current_machine,
@@ -702,6 +703,7 @@ impl TerminalExecution<'_> {
                 &self.byte_sequence_values,
                 &self.primitive_loan_values,
                 &self.element_view_values,
+                &self.aggregate_argument_backings,
             )
         } else {
             let frame = self.call_stack.get(home.depth).ok_or_else(malformed)?;
@@ -712,6 +714,7 @@ impl TerminalExecution<'_> {
                 &frame.byte_sequence_values,
                 &frame.primitive_loan_values,
                 &frame.element_view_values,
+                &frame.aggregate_argument_backings,
             )
         };
         if machine_id != home.machine {
@@ -762,6 +765,20 @@ impl TerminalExecution<'_> {
             return Ok((loan.storage.clone(), loan.scalar_type, loan.shared_view));
         }
         let (structural_type, shared_view) = self.primitive_home_contract(home, writing, path)?;
+        if let Some(backing) = aggregate_argument_backings.get(&place) {
+            // The home contract has already authenticated this activation's
+            // access and logical path. Translate that path into its retained
+            // supplying declaration, exactly as a descriptor crossing does.
+            let (storage, scalar_type, _) = self.aggregate_view_primitive_access(
+                backing,
+                crate::reference::AggregateViewTip::Aggregate {
+                    view: structural_type,
+                    backing: backing.structural_type,
+                },
+                path,
+            )?;
+            return Ok((storage, scalar_type, shared_view));
+        }
         // Array loans are presented to callees as bounded byte views. Their
         // indices are relative to the loan window, not a second scalar store.
         if let Some(

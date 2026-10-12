@@ -67,6 +67,12 @@ pub enum CheckedStructuralValueKind {
     /// A record field consumes this carrier, never a scalar referent snapshot.
     Reference {
         source: crate::CheckedUnitStructuralArgumentPlan,
+        /// The checked source interpretation is independent of the logical
+        /// referee. A view retains its admitted storage codec at formation.
+        storage: crate::CheckedReferenceStorage,
+        /// Exact supplying type of the selected storage endpoint. A view's
+        /// logical referee cannot reconstruct this catalog dependency.
+        backing_type: TypeReferenceHandle,
         /// The backing producer when the source has no existing storage home.
         /// Zero names existing storage. Evaluation lends this child; it never
         /// transfers the child into the descriptor or its containing record.

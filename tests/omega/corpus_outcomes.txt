@@ -5400,8 +5400,7 @@ fail/recast/interior_slice_runtime_offset_non_tiling rejected 880ms expected @a9
 fail/recast/recast_borrow_polarity_escalation rejected 1014ms expected @a9ae30e1c334+wt
 	machine `Bits::escalate` state `escalate`: recast borrow polarity must agree -- use `&x as &T` for a shared view or `&mut x as &mut T` for a writable view
 	machine `Bits::escalate` state `escalate` local `v` requires mutable source access; shared or immutable storage cannot supply it
-fail/recast/recast_conflicting_backing_loan rejected 1660ms expected @a9ae30e1c334+wt
-	state `mix` receives `bits.x` as both mutable and read-only
+fail/recast/recast_conflicting_backing_loan rejected 292ms expected @2430f497a77c+wt
 	state `mix` receives `bits.x` as both mutable and read-only
 fail/recast/recast_mut_bool_as_unconstrained_byte rejected 830ms expected @a9ae30e1c334+wt
 	machine `Main::main` state `main`: a mutable recast must prove fact implication in BOTH directions; source and target constraints are not proven representation-equivalent
@@ -6226,3 +6225,19 @@ fail/termination/nested_field_without_predicate_cannot_bound_result rejected 418
 	cannot prove ensures contract for exit from Engine::observe at statement 0: result <= 8
 fail/termination/rank_range_mutable_endpoint_overflow_after_write rejected 152ms expected @2430f497a77c+wt
 	exact arithmetic in machine `walk` state `entry` local `endpoint` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/providers/inherited_boundary_private_field_postcondition rejected 1027ms expected @2430f497a77c+wt
+	cannot prove index `main.counter.count` is within length 4 in Main::main::main
+fail/recast/boundary_postcondition_aliased_write rejected 1036ms expected @2430f497a77c+wt
+	cannot prove index `main.source.first` is within length 8 in Main::main::main
+fail/recast/boundary_postcondition_nested_write rejected 1033ms expected @2430f497a77c+wt
+	cannot prove index `main.source.first` is within length 8 in Main::main::main
+fail/recast/boundary_postcondition_reinterpreted_scalar rejected 1036ms expected @2430f497a77c+wt
+	cannot prove index `main.source.first` is within length 8 in Main::main::main
+fail/recast/boundary_postcondition_wrong_backing_scalar rejected 982ms expected @2430f497a77c+wt
+	cannot prove index `main.source.count` is within length 8 in Main::main::main
+pass/providers/inherited_boundary_field_postcondition_exit checked 3376ms check-target:macos_arm64 @2430f497a77c+wt
+pass/recast/boundary_postcondition_backing_scalar_exit checked 3377ms check-target:macos_arm64 @2430f497a77c+wt
+pass/recast/boundary_postcondition_disjoint_aliased_write_exit checked 3345ms check-target:macos_arm64 @2430f497a77c+wt
+pass/recast/reference_view_helper_backing_write_exit checked 3343ms check-target:macos_arm64 @2430f497a77c+wt
+pass/recast/reference_view_shared_call_backing_exit checked 3329ms check-target:macos_arm64 @2430f497a77c+wt
+pass/recast/reference_view_shared_primitive_neighbor_exit checked 3328ms check-target:macos_arm64 @2430f497a77c+wt

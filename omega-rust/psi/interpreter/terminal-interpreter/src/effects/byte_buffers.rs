@@ -27,6 +27,7 @@ use writeback::{BoundaryByteBufferBinding, BoundaryByteWriteScope};
 pub(crate) struct BoundaryArguments {
     local_identity_cursor: Option<u64>,
     pub(crate) values: Vec<TerminalStructuralValue>,
+    aggregate_backings: Vec<Option<TerminalStructuralValue>>,
     pub(crate) bytes: Vec<Option<Vec<u8>>>,
     pub(crate) buffers: Vec<TerminalBoundaryByteBuffer>,
     pub(crate) storage_loans: BoundaryStorageLoans,
@@ -52,7 +53,10 @@ impl BoundaryArguments {
         mut self,
         parameters: &[StructuralParameterDeclaration],
     ) -> Result<StructuralCallArguments, TerminalInterpretError> {
-        if parameters.len() != self.byte_sequences.len() || parameters.len() != self.values.len() {
+        if parameters.len() != self.byte_sequences.len()
+            || parameters.len() != self.values.len()
+            || parameters.len() != self.aggregate_backings.len()
+        {
             return Err(malformed());
         }
         // An owned byte copy was checked against every domain its formal
@@ -68,6 +72,11 @@ impl BoundaryArguments {
             }
         }
         let values = bind_structural_arguments(parameters, &self.values)?;
+        let aggregate_backings = parameters
+            .iter()
+            .zip(self.aggregate_backings)
+            .filter_map(|(parameter, backing)| backing.map(|backing| (parameter.place, backing)))
+            .collect();
         let mut byte_sequences = BTreeMap::new();
         let mut primitive_loans = BTreeMap::new();
         for (parameter, loan) in parameters.iter().zip(self.primitive_loans) {
@@ -147,6 +156,7 @@ impl BoundaryArguments {
             }
         }
         Ok(StructuralCallArguments {
+            aggregate_backings,
             local_identity_cursor: self.local_identity_cursor,
             descriptor_parameters: parameters.to_vec(),
             values,
@@ -238,6 +248,7 @@ impl TerminalExecution<'_> {
                 &mut resolved.local_identity_cursor,
             )?;
             resolved.values.insert(argument_index, value);
+            resolved.aggregate_backings.insert(argument_index, None);
             resolved.byte_sequences.insert(argument_index, None);
             resolved.primitive_loans.insert(argument_index, None);
             resolved.element_views.insert(argument_index, None);
@@ -263,6 +274,17 @@ impl TerminalExecution<'_> {
                     .shape,
                 StructuralTypeShape::PrimitiveScalar(_)
             ) {
+                if resolved
+                    .aggregate_backings
+                    .get(argument_index)
+                    .is_some_and(Option::is_some)
+                {
+                    // Host replacement still requires an exact backing-cell
+                    // projection. Logical ingress alone cannot name its fields.
+                    return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                        "aggregate re-view host storage needs its backing field projection",
+                    ));
+                }
                 resolved.storage_loans.capture_fields(
                     self,
                     parameter,
@@ -321,6 +343,7 @@ impl TerminalExecution<'_> {
         let mut resolved = BoundaryArguments {
             local_identity_cursor: self.local_structural_identities.cursor(),
             values: Vec::with_capacity(arguments.len()),
+            aggregate_backings: Vec::with_capacity(arguments.len()),
             bytes: Vec::with_capacity(arguments.len()),
             buffers: Vec::new(),
             storage_loans: BoundaryStorageLoans::default(),
@@ -346,6 +369,7 @@ impl TerminalExecution<'_> {
                     &mut resolved.local_identity_cursor,
                 )?;
                 resolved.values.push(loan.referent.clone());
+                resolved.aggregate_backings.push(None);
                 resolved.primitive_loans.push(Some(loan));
                 resolved.byte_sequences.push(None);
                 resolved.element_views.push(None);
@@ -359,6 +383,7 @@ impl TerminalExecution<'_> {
                 &mut local_array_roots,
             )? {
                 resolved.values.push(referent);
+                resolved.aggregate_backings.push(None);
                 resolved.byte_sequences.push(None);
                 resolved.element_views.push(Some(loan));
                 continue;
@@ -370,15 +395,15 @@ impl TerminalExecution<'_> {
                 &mut local_array_roots,
             )? {
                 resolved.values.push(referent);
+                resolved.aggregate_backings.push(None);
                 resolved.byte_sequences.push(Some(binding));
                 resolved.element_views.push(None);
                 continue;
             }
-            let values = resolve_structural_arguments(
-                &self.program.structural_types(),
-                &self.structural_values,
-                std::slice::from_ref(argument),
-            )?;
+            let (value, backing) =
+                self.present_structural_argument(argument, parameter.structural_type)?;
+            let values = [value];
+            resolved.aggregate_backings.push(backing);
             let mut bytes = self.bind_byte_sequence_arguments(
                 std::slice::from_ref(parameter),
                 std::slice::from_ref(argument),

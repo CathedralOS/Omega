@@ -112,6 +112,25 @@ impl Builder<'_, '_> {
     ) -> Option<CheckedStructuralValueHandle> {
         let (expression, expected) =
             match self.program.type_reference_table.type_reference(expected) {
+                TypeReferenceNode::Reference { .. }
+                    if validation::reference_result_custody::stored_loan_parts(
+                        self.program,
+                        expected,
+                    )
+                    .is_some()
+                        && validation::reference_formation_source(self.program, expression)
+                            .is_some_and(|formation| formation.view_type.is_valid()) =>
+                {
+                    let machine = self.program.machine_by_symbol(self.machine)?;
+                    let state = self.program.state_by_symbol(self.state)?;
+                    let actual = crate::values::reference_sources::formed_view_type(
+                        self.program,
+                        machine,
+                        state,
+                        expression,
+                    )?;
+                    (expression, actual)
+                }
                 // A view carries a descriptor value, not an owned slice
                 // referent. Preserve its checked reference shell and loan.
                 TypeReferenceNode::Reference { .. }
@@ -329,9 +348,6 @@ impl Builder<'_, '_> {
         } else if validation::reference_result_custody::stored_loan_parts(self.program, expected)
             .is_some()
             && match self.program.expression_table.expression(expression) {
-                ExpressionNode::Borrow(borrow) => {
-                    borrow.access != language_semantics::ReferenceAccess::Shared
-                }
                 // Borrowed formals denote ingress referents; unlike retained
                 // locals, they do not own stored descriptor values to move.
                 ExpressionNode::Name(name) => {
@@ -344,7 +360,7 @@ impl Builder<'_, '_> {
                             .is_some()
                         })
                 }
-                _ => false,
+                _ => validation::reference_formation_source(self.program, expression).is_some(),
             }
         {
             let state = self
@@ -352,12 +368,14 @@ impl Builder<'_, '_> {
                 .machine_by_symbol(self.machine)
                 .and_then(|machine| self.program.state_in_machine(machine, self.state))?;
             let mut selectors = Vec::new();
-            if let Some(borrow) = self.program.expression_table.borrow_expression(expression) {
+            if let Some(formation) =
+                validation::reference_formation_source(self.program, expression)
+            {
                 let place = validation::canonical_place_from_expression_in_state(
                     self.program,
                     self.state,
                     self.statement_index,
-                    borrow.target,
+                    formation.source,
                 )?;
                 for segment in place.segments {
                     if let facts::PlaceSegment::Index { expression } = segment {
@@ -365,21 +383,40 @@ impl Builder<'_, '_> {
                     }
                 }
             }
-            let source = crate::values::reference_sources::plan(
-                self.program,
-                self.program.machine_by_symbol(self.machine)?,
-                state,
-                self.statement_index,
-                expression,
-                expected,
-                &|expression| {
-                    selectors.iter().find_map(|(selector, value)| {
-                        (*selector == expression).then_some(
-                            checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(*value),
-                        )
-                    })
-                },
-            )?;
+            let selector = |expression| {
+                selectors.iter().find_map(|(selector, value)| {
+                    (*selector == expression).then_some(
+                        checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(*value),
+                    )
+                })
+            };
+            let (source, storage, backing_type) =
+                if validation::reference_formation_source(self.program, expression).is_some() {
+                    let capture = crate::values::reference_sources::capture(
+                        self.program,
+                        self.program.machine_by_symbol(self.machine)?,
+                        state,
+                        self.statement_index,
+                        expression,
+                        expected,
+                        &selector,
+                    )?;
+                    (capture.source, capture.storage, capture.backing_type)
+                } else {
+                    (
+                        crate::values::reference_sources::plan(
+                            self.program,
+                            self.program.machine_by_symbol(self.machine)?,
+                            state,
+                            self.statement_index,
+                            expression,
+                            expected,
+                            &selector,
+                        )?,
+                        checked_trees::CheckedReferenceStorage::Declared,
+                        validation::reference_shell(self.program, expected)?.referee,
+                    )
+                };
             // The typed path can fold fixed selectors. Retain only the
             // remaining executable operands, in their formation order.
             for (ordinal, value) in source.computation_operands().enumerate() {
@@ -393,6 +430,8 @@ impl Builder<'_, '_> {
             }
             CheckedStructuralValueKind::Reference {
                 source,
+                storage,
+                backing_type,
                 source_value: CheckedStructuralValueHandle::invalid(),
             }
         } else if matches!(

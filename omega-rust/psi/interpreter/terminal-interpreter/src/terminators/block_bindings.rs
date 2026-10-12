@@ -42,6 +42,7 @@ use crate::values::{TerminalScalarValue, TerminalStructuralValue};
 pub(crate) struct BlockBindings {
     scalars: BTreeMap<ValueId, TerminalScalarValue>,
     structural: BTreeMap<PlaceId, TerminalStructuralValue>,
+    aggregate_backings: BTreeMap<PlaceId, TerminalStructuralValue>,
     scalar_arrays: BTreeMap<PlaceId, TerminalScalarArrayValue>,
     byte_sequences: BTreeMap<PlaceId, ByteSequenceBinding>,
     primitive_loans: BTreeMap<PlaceId, crate::primitive_storage::PrimitiveLoan>,
@@ -83,6 +84,7 @@ impl BlockBindings {
                 .live_claims
                 .retain(|_, claim| claim.place != Some(source));
             execution.structural_values.remove(&source);
+            execution.aggregate_argument_backings.remove(&source);
             execution.byte_sequence_values.remove(&source);
             execution.scalar_array_values.remove(&source);
             execution.element_view_values.remove(&source);
@@ -92,10 +94,12 @@ impl BlockBindings {
                 .retain(|entry| entry.place != source);
         }
         for destination in self.structural.keys() {
+            execution.aggregate_argument_backings.remove(destination);
             execution.scalar_array_values.remove(destination);
             execution.primitive_loan_values.remove(destination);
         }
         for destination in self.scalar_arrays.keys() {
+            execution.aggregate_argument_backings.remove(destination);
             execution.structural_values.remove(destination);
             execution.element_view_values.remove(destination);
             execution.primitive_loan_values.remove(destination);
@@ -103,6 +107,9 @@ impl BlockBindings {
         execution.live_claims.extend(self.claims);
         execution.values.extend(self.scalars);
         execution.structural_values.extend(self.structural);
+        execution
+            .aggregate_argument_backings
+            .extend(self.aggregate_backings);
         execution.scalar_array_values.extend(self.scalar_arrays);
         execution.byte_sequence_values.extend(self.byte_sequences);
         execution.primitive_loan_values.extend(self.primitive_loans);
@@ -277,6 +284,7 @@ impl TerminalExecution<'_> {
             });
         }
         let mut resolved_arguments = Vec::with_capacity(structural_arguments.len());
+        let mut aggregate_backings = BTreeMap::new();
         let contains_payloads = structural_arguments
             .iter()
             .any(|argument| self.scalar_array_values.contains_key(&argument.place));
@@ -542,11 +550,16 @@ impl TerminalExecution<'_> {
                     {
                         return Err(malformed());
                     }
-                    let view = self.resolve_live_projection(
-                        argument.place,
-                        &argument.path,
-                        argument.access,
-                    )?;
+                    let (view, backing) =
+                        self.present_structural_argument(argument, parameter.structural_type)?;
+                    if let Some(backing) = backing {
+                        if aggregate_backings
+                            .insert(parameter.place, backing)
+                            .is_some()
+                        {
+                            return Err(malformed());
+                        }
+                    }
                     if view.structural_type != parameter.structural_type {
                         return Err(TerminalInterpretError::StructuralArgumentType {
                             place: parameter.place,
@@ -595,11 +608,16 @@ impl TerminalExecution<'_> {
                     // primitive-scalar leaf. The loan moves no custody —
                     // the root either stays untracked or is still held as
                     // one whole frontier entry.
-                    let view = self.resolve_live_projection(
-                        argument.place,
-                        &argument.path,
-                        argument.access,
-                    )?;
+                    let (view, backing) =
+                        self.present_structural_argument(argument, parameter.structural_type)?;
+                    if let Some(backing) = backing {
+                        if aggregate_backings
+                            .insert(parameter.place, backing)
+                            .is_some()
+                        {
+                            return Err(malformed());
+                        }
+                    }
                     if view.structural_type != parameter.structural_type {
                         return Err(TerminalInterpretError::StructuralArgumentType {
                             place: parameter.place,
@@ -804,6 +822,7 @@ impl TerminalExecution<'_> {
         Ok(BlockBindings {
             scalars,
             structural,
+            aggregate_backings,
             scalar_arrays,
             byte_sequences,
             primitive_loans,

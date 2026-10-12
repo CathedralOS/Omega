@@ -24,6 +24,7 @@ pub(crate) fn emit(
     for effect in effects {
         match effect {
             LoweredScalarEffect::EstablishReference {
+                storage,
                 state,
                 statement,
                 expression,
@@ -31,6 +32,10 @@ pub(crate) fn emit(
                 structural_type,
                 source,
             } => {
+                let storage = crate::unit::attached_unit::reference_results::publish_storage(
+                    *storage, next_value, operations,
+                )?
+                .map(|(view, _)| view);
                 crate::unit::attached_unit::reference_results::emit_carrier(
                     crate::unit::attached_unit::reference_results::Formation {
                         checked,
@@ -40,7 +45,7 @@ pub(crate) fn emit(
                     },
                     *structural_type,
                     source.clone(),
-                    None,
+                    storage,
                     calls.structural_types,
                     *place,
                     operations,

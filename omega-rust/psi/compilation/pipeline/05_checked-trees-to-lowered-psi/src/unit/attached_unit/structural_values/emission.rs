@@ -165,6 +165,7 @@ pub(crate) fn emit(
         CheckedStructuralValueKind::Reference {
             source,
             source_value,
+            ..
         } if !source_value.is_valid()
             && lookup_type_id(type_ids, &source.type_identity)? == structural_type =>
         {
@@ -1380,6 +1381,8 @@ impl Emission<'_, '_, '_> {
             CheckedStructuralValueKind::Reference {
                 source,
                 source_value,
+                storage,
+                ..
             } => self.reference_value(
                 identities,
                 super::super::reference_results::Formation {
@@ -1390,6 +1393,7 @@ impl Emission<'_, '_, '_> {
                 },
                 &source,
                 source_value,
+                storage,
                 continuation,
             ),
             CheckedStructuralValueKind::Record { .. } => {

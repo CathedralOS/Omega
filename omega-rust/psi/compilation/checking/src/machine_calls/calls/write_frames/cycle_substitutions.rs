@@ -138,8 +138,11 @@ pub(super) fn substitutions_are_finite(
                     // a nonempty destination prefix or erased collection
                     // selector can grow the structured path.
                     let mut spelling = origin.clone();
-                    spelling.path =
-                        rebase_local_alias_path(&origin.path, &equation.local_alias_origins);
+                    spelling.path = rebase_local_alias_path(
+                        program,
+                        &origin.path,
+                        &equation.local_alias_origins,
+                    );
                     let (original_root, _) = split_place_root(&origin.path);
                     if equation.local_alias_origins.iter().any(|(name, alias)| {
                         name == original_root
@@ -147,9 +150,12 @@ pub(super) fn substitutions_are_finite(
                     }) {
                         spelling.precision = FramePathPrecision::CollectionCoarse;
                     }
-                    let Some(mut sources) =
-                        canonical_origins(&origin, &equation.local_alias_origins, &equation.stored)
-                    else {
+                    let Some(mut sources) = canonical_origins(
+                        program,
+                        &origin,
+                        &equation.local_alias_origins,
+                        &equation.stored,
+                    ) else {
                         return false;
                     };
                     sources.push(spelling);

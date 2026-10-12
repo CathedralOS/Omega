@@ -6,9 +6,7 @@
 //! Reference-leaf origin recovery shares the existing body evidence. There is
 //! no second frame traversal or diagnostic policy here.
 
-use super::place_paths::{
-    FramePathPrecision, FramePlaceOrigin, append_place_suffix, split_place_root,
-};
+use super::place_paths::{FramePathPrecision, FramePlaceOrigin, split_place_root};
 use crate::declarations::symbols::TopLevelSymbols;
 use crate::machine_calls::calls::write_frames::FrameInference;
 use crate::machine_calls::calls::write_frames::transparent_results::transparent_place_expression_origins;
@@ -66,10 +64,9 @@ pub(super) fn instantiate_written_path_for_origins(
     let (root, suffix) = split_place_root(relative);
     if is_self_receiver(root) {
         let base = receiver_base?;
-        return Some(vec![match base.precision {
-            FramePathPrecision::Exact => append_place_suffix(&base.path, suffix),
-            FramePathPrecision::CollectionCoarse => base.path.clone(),
-        }]);
+        return Some(vec![super::place_paths::project_write_path(
+            program, base, suffix,
+        )]);
     }
     if let Some((argument_index, parameter)) = parameters
         .iter()
@@ -107,10 +104,7 @@ pub(super) fn instantiate_written_path_for_origins(
             })?;
         let mut paths = Vec::new();
         for base in bases {
-            let path = match base.precision {
-                FramePathPrecision::Exact => append_place_suffix(&base.path, suffix),
-                FramePathPrecision::CollectionCoarse => base.path,
-            };
+            let path = super::place_paths::project_write_path(program, &base, suffix);
             if !paths.contains(&path) {
                 paths.push(path);
             }

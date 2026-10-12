@@ -30,6 +30,14 @@ impl RangeFacts<'_> {
             program,
             &mut owned_frames,
         );
+        // A published bound may name a backing field with no retained
+        // expression dependency. Use the same assignment frame as proof
+        // witnesses: writing an alias cannot preserve the backing's bound.
+        let bound_frame = (!self.proven_index_upper_bounds.is_empty()).then(|| {
+            shared_frames.map_or_else(facts::NormalizedWriteFrame::opaque, |frames| {
+                frames.assignment_write_frame(machine, statement)
+            })
+        });
         let writes = (!self.expression_dependencies.is_empty()
             || !self.scalar_binding_dependencies.is_empty()
             || self.has_descriptor_facts())
@@ -54,7 +62,16 @@ impl RangeFacts<'_> {
             .map(|name| name.as_str());
         let string_fallback = |name: &str| {
             !preserved.iter().any(|label| label == name)
-                && write_affects_bound(data_binding, name, &target)
+                && bound_frame.as_ref().map_or_else(
+                    || write_affects_bound(data_binding, name, &target),
+                    |frame| {
+                        frame.complete_paths().is_none_or(|paths| {
+                            paths
+                                .iter()
+                                .any(|path| write_affects_bound(data_binding, name, path))
+                        })
+                    },
+                )
         };
         let overlaps =
             |name: &str| affected.iter().any(|label| label == name) || string_fallback(name);

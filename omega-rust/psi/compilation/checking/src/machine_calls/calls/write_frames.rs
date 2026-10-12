@@ -67,10 +67,11 @@ pub(crate) use caller_aliases::expression_has_calls;
 pub use caller_aliases::{
     AssignmentWriteTarget, CallWriteOrigins, LocalWriteOrigin, LocalWriteSource, RecastSource,
 };
+pub use demand::CallFrameTables;
 pub(crate) use demand::statement_value_expression_roots;
 pub(crate) use demand::{CallFrameCaches, InvocationReferenceSubject};
-pub use demand::CallFrameTables;
 pub use demand::{CallFrameResolver, frame_paths_overlap, operand_call_plans};
+pub use place_paths::ScalarStorageCoordinate;
 pub use place_paths::frame_coordinate_path;
 pub use stored_calls::StoredReferenceEffect;
 pub(crate) use transition_topology::named_state_transition_subgraph_is_acyclic;

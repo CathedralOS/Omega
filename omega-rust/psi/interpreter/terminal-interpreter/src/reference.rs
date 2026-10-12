@@ -562,6 +562,23 @@ impl TerminalExecution<'_> {
             loan.access = access;
             Some(loan)
         } else {
+            if storage.is_none() {
+                let (backing, tip) =
+                    self.resolve_live_view_projection(source.place, &source.path, source.access)?;
+                if let Some(AggregateViewTip::Aggregate {
+                    view,
+                    backing: actual,
+                }) = tip
+                {
+                    if view != referent_type || actual != backing.structural_type {
+                        return Err(malformed());
+                    }
+                    // Reborrowing an ingress re-view keeps the supplying
+                    // declaration, just as crossing a stored descriptor does.
+                    aggregate_view = Some(view);
+                    region_referent = Some(backing);
+                }
+            }
             if let Some(storage) = storage {
                 if storage.stored_scalar.is_some() {
                     return Err(malformed());
@@ -801,6 +818,33 @@ impl TerminalExecution<'_> {
             .map(|(value, _)| value)
     }
 
+    /// Present the exact selected declaration at borrowed ingress while
+    /// retaining its supplying storage namespace. Calls and state edges use
+    /// the same projection; neither may turn a re-view into an owned copy.
+    pub(crate) fn present_structural_argument(
+        &self,
+        argument: &StructuralArgument,
+        expected: StructuralTypeId,
+    ) -> Result<(TerminalStructuralValue, Option<TerminalStructuralValue>), TerminalInterpretError>
+    {
+        let (mut value, tip) =
+            self.resolve_live_view_projection(argument.place, &argument.path, argument.access)?;
+        let backing = if let Some(AggregateViewTip::Aggregate { view, backing }) = tip {
+            if argument.access == StructuralAccess::Owned
+                || expected != view
+                || value.structural_type != backing
+            {
+                return Err(malformed());
+            }
+            let backing = value.clone();
+            value.structural_type = view;
+            Some(backing)
+        } else {
+            None
+        };
+        Ok((value, backing))
+    }
+
     /// Resolve a live projection and, when its final run crosses into an
     /// aggregate re-view, where that run ends in both declarations.
     pub(crate) fn resolve_live_view_projection(
@@ -861,7 +905,11 @@ impl TerminalExecution<'_> {
                 return Err(malformed());
             }
         }
-        self.resolve_reference_view_path_with_leaf_type(owner, path, access, leaf_type)?
+        let (backing, view) = match self.aggregate_argument_backings.get(&place) {
+            Some(backing) => (backing, Some(owner.structural_type)),
+            None => (owner, None),
+        };
+        self.resolve_reference_view_path_with_leaf_type(backing, path, access, leaf_type, view)?
             .ok_or_else(malformed)
     }
 
@@ -897,6 +945,7 @@ impl TerminalExecution<'_> {
             } else {
                 terminal_psi::StructuralFieldType::canonical_leaf_type
             },
+            None,
         )
         .map(|selected| selected.map(|projection| (projection.value, projection.view_tip)))
     }
@@ -909,11 +958,12 @@ impl TerminalExecution<'_> {
         leaf_type: fn(
             &terminal_psi::StructuralFieldType,
         ) -> Option<terminal_psi::StructuralFieldType>,
+        initial_view: Option<StructuralTypeId>,
     ) -> Result<Option<ResolvedStructuralProjection>, TerminalInterpretError> {
         let types = self.program.structural_types();
         let mut value = owner.clone();
         let mut remaining = path;
-        let mut aggregate_view = None;
+        let mut aggregate_view = initial_view;
         loop {
             // Inline geometry ends at each descriptor. Resolving the whole
             // suffix statically would either invent an extent or address the
@@ -1088,7 +1138,7 @@ impl TerminalExecution<'_> {
                 .map(|declaration| &declaration.shape),
             Some(StructuralTypeShape::Reference { .. })
         ) {
-            return Ok((value.clone(), None));
+            return self.resolve_live_view_projection(source, &[], StructuralAccess::SharedBorrow);
         }
         self.resolve_live_view_projection(
             source,

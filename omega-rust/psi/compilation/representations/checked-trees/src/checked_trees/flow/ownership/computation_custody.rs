@@ -399,6 +399,7 @@ impl CallTransfers<'_> {
             CheckedStructuralValueKind::Reference {
                 source,
                 source_value,
+                ..
             } => {
                 self.argument_evaluation(source)
                     + if source_value.is_valid() {

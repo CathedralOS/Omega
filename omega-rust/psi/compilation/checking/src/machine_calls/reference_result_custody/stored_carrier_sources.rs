@@ -70,6 +70,7 @@ fn select(
         CheckedStructuralValueKind::Reference {
             source,
             source_value,
+            ..
         } => {
             if selection.is_empty() {
                 output.push(StoredCarrierSource::Borrow {

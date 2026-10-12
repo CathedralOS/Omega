@@ -81,6 +81,7 @@ impl TerminalExecution<'_> {
         self.retire_plain_locals();
         self.values = caller.values;
         self.structural_values = caller.structural_values;
+        self.aggregate_argument_backings = caller.aggregate_argument_backings;
         self.scalar_array_values = caller.scalar_array_values;
         self.element_view_values = caller.element_view_values;
         self.byte_sequence_values = caller.byte_sequence_values;

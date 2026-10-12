@@ -2,7 +2,8 @@
 //! Walk declared value structure until a reference boundary; owned by-value
 //! storage is private, while coarse collection demand visits every element.
 
-use super::{FramePathPrecision, FramePlaceOrigin, append_place_suffix, split_place_root};
+use super::super::place_paths::append_place_suffix;
+use super::{FramePathPrecision, FramePlaceOrigin, split_place_root};
 use crate::declarations::symbols::TopLevelSymbols;
 use crate::machine_calls::calls::write_frames::FrameInference;
 use crate::machine_calls::calls::write_frames::isolation::{

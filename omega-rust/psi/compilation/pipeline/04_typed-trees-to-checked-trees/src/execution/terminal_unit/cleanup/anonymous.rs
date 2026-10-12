@@ -212,9 +212,9 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
             .call()
             .filter(|call| call.coordinate == coordinate)
     })?;
-    if call.is_boundary() {
-        return Some(());
-    }
+    // Normal completion retires an anonymous holder independently of the
+    // callee route. Boundary receipts settle claims, not a borrowed holder's
+    // physical carrier; whole transfers below still belong to the callee.
     let mut dying = Vec::new();
     let mut cleanup_actions = Vec::new();
     for (result, root) in results.iter().rev() {

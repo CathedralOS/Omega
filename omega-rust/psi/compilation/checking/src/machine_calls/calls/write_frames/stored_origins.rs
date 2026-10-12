@@ -427,6 +427,7 @@ pub(super) fn borrow_target_exposes_carrier_binding(
 }
 
 pub(super) fn canonical_origins(
+    program: &dyn crate::CheckingInput,
     origin: &FramePlaceOrigin,
     aliases: &[(String, FramePlaceOrigin)],
     stored: &[StoredLocalOrigins],
@@ -434,7 +435,7 @@ pub(super) fn canonical_origins(
     let (root, suffix) = split_place_root(&origin.path);
     let origin = aliases.iter().find(|(name, _)| name == root).map_or_else(
         || origin.clone(),
-        |(_, prior)| compose_origin(prior, suffix, origin.precision),
+        |(_, prior)| compose_origin(program, prior, suffix, origin.precision),
     );
     let mut origins = Vec::new();
     let mut includes_private = true;
@@ -462,9 +463,9 @@ pub(super) fn canonical_origins(
             } else {
                 origin.precision
             };
-            compose_origin(leaf.origin.as_ref()?, suffix, precision)
+            compose_origin(program, leaf.origin.as_ref()?, suffix, precision)
         } else if place_suffix(&origin.path, &leaf.local_path).is_some() {
-            compose_origin(leaf.origin.as_ref()?, "", origin.precision)
+            compose_origin(program, leaf.origin.as_ref()?, "", origin.precision)
         } else {
             continue;
         };
@@ -481,16 +482,14 @@ pub(super) fn canonical_origins(
 }
 
 fn compose_origin(
+    program: &dyn crate::CheckingInput,
     origin: &FramePlaceOrigin,
     suffix: &str,
     precision: FramePathPrecision,
 ) -> FramePlaceOrigin {
     FramePlaceOrigin {
         source: Default::default(),
-        path: match origin.precision {
-            FramePathPrecision::Exact => append_place_suffix(&origin.path, suffix),
-            FramePathPrecision::CollectionCoarse => origin.path.clone(),
-        },
+        path: super::place_paths::project_write_path(program, origin, suffix),
         precision: if origin.precision == FramePathPrecision::CollectionCoarse {
             origin.precision
         } else {
@@ -507,12 +506,14 @@ pub(super) fn place_suffix<'path>(root: &str, path: &'path str) -> Option<&'path
 /// Keep the local spelling for fact invalidation. Caller summaries remove it
 /// only after adding every overlapping external leaf.
 pub(super) fn expand_write_path(
+    program: &dyn crate::CheckingInput,
     path: &str,
     aliases: &[(String, FramePlaceOrigin)],
     stored: &[StoredLocalOrigins],
 ) -> Option<Vec<String>> {
-    let mut paths = vec![super::rebase_local_alias_path(path, aliases)];
+    let mut paths = vec![super::rebase_local_alias_path(program, path, aliases)];
     for origin in canonical_origins(
+        program,
         &FramePlaceOrigin {
             path: path.to_owned(),
             precision: FramePathPrecision::Exact,
@@ -531,13 +532,14 @@ pub(super) fn expand_write_path(
 /// Resolve every effect before any caller filters private local storage. An
 /// unresolved overlapping reference makes the entire effect set opaque.
 pub(super) fn expand_write_paths(
+    program: &dyn crate::CheckingInput,
     paths: &[String],
     aliases: &[(String, FramePlaceOrigin)],
     stored: &[StoredLocalOrigins],
 ) -> Option<Vec<String>> {
     let mut expanded = Vec::new();
     for path in paths {
-        expanded.extend(expand_write_path(path, aliases, stored)?);
+        expanded.extend(expand_write_path(program, path, aliases, stored)?);
     }
     Some(expanded)
 }

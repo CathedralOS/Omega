@@ -194,11 +194,25 @@ pub(super) fn exclusive_reference_origins(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) -> Option<Vec<FramePlaceOrigin>> {
-    let origins = match program.expression_table.expression(argument) {
-        ExpressionNode::Borrow(place) if place.access.is_exclusive() => {
-            declared_origin_root(program, current_machine, place.target)?;
-            vec![frame_place_path(program, place.target)?]
+    // Formation owns the borrow/re-view relation, including the outer borrow
+    // around a postfix cast. Its target is the logical referee, not another
+    // reference shell. Retain that interpretation beside original storage;
+    // neither frame inference nor this address query admits access or casts.
+    if let Some(formation) = crate::reference_formation_source(program, argument) {
+        if !formation.access.is_exclusive()
+            || (formation.view_type.is_valid()
+                && super::expression_is_effectful_for_transparent_result(program, formation.source))
+        {
+            return None;
         }
+        declared_origin_root(program, current_machine, formation.source)?;
+        let mut origin = frame_place_path(program, formation.source)?;
+        if formation.view_type.is_valid() {
+            origin.source.recast(formation.view_type);
+        }
+        return Some(vec![origin]);
+    }
+    let origins = match program.expression_table.expression(argument) {
         ExpressionNode::Name(_) => vec![
             exclusive_reference_binding_path(program, current_machine, argument)
                 .map(|path| FramePlaceOrigin {

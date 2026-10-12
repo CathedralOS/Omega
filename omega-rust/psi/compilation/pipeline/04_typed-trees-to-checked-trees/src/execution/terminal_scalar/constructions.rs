@@ -52,13 +52,15 @@ pub(crate) fn retain_shapes(
             if let checked_trees::CheckedStructuralValueKind::Reference {
                 source,
                 source_value,
+                backing_type,
+                ..
             } = &structural_values.nodes.get(value).kind
             {
                 retain_declarations(
                     shapes,
                     super::super::terminal_unit::reference_backing_shapes(
                         program,
-                        structural_values.nodes.get(value).type_reference,
+                        *backing_type,
                         source.type_identity,
                     )?,
                 )?;

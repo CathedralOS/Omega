@@ -632,7 +632,7 @@ pub(crate) fn stable_assignment_target_path(
     symbols: &TopLevelSymbols<'_>,
 ) -> Option<String> {
     if let Some(relative) = coarse_place_path(program, target) {
-        return Some(rebase_local_alias_path(&relative, aliases));
+        return Some(rebase_local_alias_path(program, &relative, aliases));
     }
     Some(
         stable_alias_initializer_origin(

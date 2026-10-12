@@ -34,7 +34,7 @@ use crate::machine_calls::calls::write_frames::isolation::type_is_caller_isolate
 use crate::machine_calls::calls::write_frames::known_call_written_paths_for_parts;
 use crate::machine_calls::calls::write_frames::local_aliases::expression_reborrows_unresolved_reference_binding;
 use crate::machine_calls::calls::write_frames::place_paths::{
-    FramePathPrecision, FramePlaceOrigin, append_place_suffix, coarse_place_path, split_place_root,
+    FramePlaceOrigin, coarse_place_path, split_place_root,
 };
 use crate::machine_calls::calls::write_frames::state_paths::{
     push_visible_frame_path, relative_state_path_is_visible,
@@ -739,14 +739,14 @@ fn walk_state_write_prefix_inner(
                         // overlapping external leaves.
                         let mut paths = Vec::new();
                         for origin in &divergent_alias_origins[position].1 {
-                            let composed = match origin.precision {
-                                FramePathPrecision::Exact => {
-                                    append_place_suffix(&origin.path, suffix)
-                                }
-                                FramePathPrecision::CollectionCoarse => origin.path.clone(),
-                            };
-                            for path in expand_write_path(&composed, &local_alias_origins, &stored)?
-                            {
+                            let composed =
+                                super::place_paths::project_write_path(program, origin, suffix);
+                            for path in expand_write_path(
+                                program,
+                                &composed,
+                                &local_alias_origins,
+                                &stored,
+                            )? {
                                 if !paths.contains(&path) {
                                     paths.push(path);
                                 }
@@ -829,7 +829,9 @@ fn walk_state_write_prefix_inner(
                 &mut expression_writes,
                 &origins,
             )?;
-            for relative in expand_write_paths(&expression_writes, &local_alias_origins, &stored)? {
+            for relative in
+                expand_write_paths(program, &expression_writes, &local_alias_origins, &stored)?
+            {
                 if relative_state_path_is_visible(&relative, parameters, &locals)?
                     && !written.contains(&relative)
                 {
@@ -929,7 +931,7 @@ fn walk_state_write_prefix_inner(
                     &local_alias_origins,
                     symbols,
                 )?;
-                let paths = expand_write_path(&relative, &local_alias_origins, &stored)?;
+                let paths = expand_write_path(program, &relative, &local_alias_origins, &stored)?;
                 push_queried_assignment_and_visible_paths(
                     queried_assignment,
                     &mut assignments,
@@ -1105,7 +1107,8 @@ fn walk_state_write_prefix_inner(
                     Vec::new()
                 };
                 for relative in expand_write_paths(
-                    &origins.close_paths(nested_writes),
+                    program,
+                    &origins.close_paths(program, nested_writes),
                     &local_alias_origins,
                     &stored,
                 )? {
@@ -1165,9 +1168,12 @@ fn walk_state_write_prefix_inner(
                         &origins,
                         &machine_symbols,
                     )?;
-                    for relative in
-                        expand_write_paths(&transition_writes, &local_alias_origins, &stored)?
-                    {
+                    for relative in expand_write_paths(
+                        program,
+                        &transition_writes,
+                        &local_alias_origins,
+                        &stored,
+                    )? {
                         if relative_state_path_is_visible(&relative, parameters, &locals)?
                             && !written.contains(&relative)
                         {

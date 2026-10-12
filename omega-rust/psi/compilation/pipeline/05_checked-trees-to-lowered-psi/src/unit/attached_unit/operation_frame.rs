@@ -366,37 +366,13 @@ impl OperationFrame<'_, '_> {
                     }),
                 )?
             };
-        let storage = match storage {
-            checked_trees::CheckedReferenceStorage::Declared => None,
-            checked_trees::CheckedReferenceStorage::View { stored_scalar } => {
-                // The source path already captures the actual byte endpoint.
-                // Publish its offset now, never replay the initializer later.
-                let byte_offset =
-                    crate::terminal_identities::value_id(allocate_dense(self.next_value)?);
-                let scalar_type =
-                    crate::unit::terminal_scalar_type(crate::unit::PrimitiveType::U64)?;
-                let value = ValueDeclaration {
-                    id: byte_offset,
-                    scalar_type,
-                    qualifications: Default::default(),
-                };
-                self.values.push(value.clone());
-                let id = self.operations.allocate();
-                self.operations.push(Operation {
-                    static_reach_binding: None,
-                    suspension_crossing: None,
-                    id,
-                    result: terminal_psi::OperationResult::Scalar(value.clone()),
-                    kind: OperationKind::IntegerConstant {
-                        value: semantic_vocabulary::IntegerValue::Unsigned(0),
-                    },
-                });
-                Some(terminal_psi::ReferenceStorageView {
-                    byte_offset,
-                    stored_scalar,
-                })
-            }
-        };
+        let storage =
+            reference_results::publish_storage(storage, self.next_value, self.operations)?.map(
+                |(view, value)| {
+                    self.values.push(value);
+                    view
+                },
+            );
         let declaration = reference_results::emit(
             reference_results::Formation {
                 checked: self.checked,

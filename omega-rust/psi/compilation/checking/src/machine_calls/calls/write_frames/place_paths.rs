@@ -2,13 +2,18 @@
 //!
 //! Indexed write footprints deliberately coarsen to their collection. That
 //! loss is absorbing in the string path; structural source selectors remain
-//! separate and retain later fields. This leaf owns only path recovery and
-//! composition; it performs no call resolution or frame traversal.
+//! separate and retain later fields. `scalar_coordinates` rejoins those
+//! captured selectors through normalized recast geometry. This owner performs
+//! no call resolution or frame traversal.
 
 use crate::proof_contracts::arithmetic_domains;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
+mod scalar_coordinates;
 mod source_places;
+mod write_coordinates;
+pub use scalar_coordinates::ScalarStorageCoordinate;
+pub(super) use write_coordinates::project_write_path;
 
 pub(super) use source_places::FrameSourcePlace;
 pub use source_places::RecastSource;

@@ -408,8 +408,7 @@ impl<'program> ShapeCollector<'program> {
             return (self.add_stored_type(reference, binders, &[])? == source_identity)
                 .then_some(());
         }
-        let shell = validation::reference_shell(self.program, reference)?;
-        let identity = self.add_stored_type(shell.referee, binders, &[])?;
+        let identity = self.add_type(reference, binders, &[])?;
         (identity == source_identity).then_some(())
     }
 
@@ -431,7 +430,7 @@ impl<'program> ShapeCollector<'program> {
     /// every other stored loan must retain a Reference shape. Keeping this
     /// distinction here prevents an aggregate boundary from inlining a referent
     /// or making an unsupported loan look like owned storage.
-    fn add_stored_type(
+    pub(in crate::execution::terminal_unit) fn add_stored_type(
         &mut self,
         reference: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],

@@ -877,3 +877,9 @@ pass/calls/runtime_dispatch_binary_call_argument_exit built 5355ms exit:70 inter
 pass/termination/rank_endpoint_borrows_recovery built 5679ms exit:0 interpreter-exit:0 interpreter:agrees @2430f497a77c+wt
 pass/termination/ranked_callee_projected_receiver_compile built 5681ms exit:70 interpreter-exit:70 interpreter:agrees @2430f497a77c+wt
 pass/termination/rank_range_record_snapshot_compile built 4734ms exit:0 interpreter-exit:0 interpreter:agrees @2ab552549670+wt
+pass/providers/inherited_boundary_field_postcondition_exit built 3576ms exit:0 interpreter-exit:0 interpreter:agrees @2430f497a77c+wt
+pass/recast/boundary_postcondition_backing_scalar_exit built 3666ms exit:0 interpreter-exit:0 interpreter:agrees @2430f497a77c+wt
+pass/recast/boundary_postcondition_disjoint_aliased_write_exit built 3445ms exit:0 interpreter-exit:0 interpreter:agrees @2430f497a77c+wt
+pass/recast/reference_view_helper_backing_write_exit built 3437ms exit:0 interpreter-exit:0 interpreter:agrees @2430f497a77c+wt
+pass/recast/reference_view_shared_call_backing_exit built 3462ms exit:0 interpreter-exit:0 interpreter:agrees @2430f497a77c+wt
+pass/recast/reference_view_shared_primitive_neighbor_exit built 3457ms exit:0 interpreter-exit:0 interpreter:agrees @2430f497a77c+wt

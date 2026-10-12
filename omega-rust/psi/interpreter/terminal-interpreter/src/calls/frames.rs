@@ -339,6 +339,7 @@ impl TerminalExecution<'_> {
             loan_completions,
             values: std::mem::take(&mut self.values),
             structural_values: caller_structural_values,
+            aggregate_argument_backings: std::mem::take(&mut self.aggregate_argument_backings),
             byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
             primitive_loan_values: std::mem::take(&mut self.primitive_loan_values),
             scalar_array_values: std::mem::take(&mut self.scalar_array_values),
@@ -352,6 +353,7 @@ impl TerminalExecution<'_> {
         });
         self.values = values;
         self.structural_values = structural_values;
+        self.aggregate_argument_backings = prepared_arguments.aggregate_backings;
         self.byte_sequence_values = byte_sequence_values;
         self.primitive_loan_values = prepared_arguments.primitive_loans;
         self.local_structural_identities

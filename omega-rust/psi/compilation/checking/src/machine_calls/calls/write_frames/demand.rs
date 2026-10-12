@@ -1209,7 +1209,7 @@ pub(super) fn collect_expression_call_written_paths(
                     symbols,
                 )
             })?;
-            for path in origins.close_paths(paths) {
+            for path in origins.close_paths(program, paths) {
                 if !written.contains(&path) {
                     written.push(path);
                 }

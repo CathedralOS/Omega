@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "inherited_boundary_field_postcondition_exit");
+    Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
+}

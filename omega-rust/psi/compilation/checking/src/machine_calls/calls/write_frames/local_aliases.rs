@@ -18,6 +18,7 @@ use typed_trees::state::State;
 use typed_trees::statement::StatementNode;
 
 pub(super) fn rebase_local_alias_path(
+    program: &dyn crate::CheckingInput,
     relative: &str,
     aliases: &[(String, FramePlaceOrigin)],
 ) -> String {
@@ -25,10 +26,7 @@ pub(super) fn rebase_local_alias_path(
     aliases
         .iter()
         .find_map(|(alias, origin)| {
-            (alias == root).then(|| match origin.precision {
-                FramePathPrecision::Exact => append_place_suffix(&origin.path, suffix),
-                FramePathPrecision::CollectionCoarse => origin.path.clone(),
-            })
+            (alias == root).then(|| super::place_paths::project_write_path(program, origin, suffix))
         })
         .unwrap_or_else(|| relative.to_owned())
 }

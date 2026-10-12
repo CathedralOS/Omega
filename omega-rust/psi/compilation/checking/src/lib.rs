@@ -180,8 +180,8 @@ pub use crate::machine_calls::call_cycles::{
 };
 pub use crate::machine_calls::calls::{
     AssignmentWriteTarget, CallFrameResolver, CallWriteOrigins, LocalWriteOrigin, LocalWriteSource,
-    RecastSource, ValidatedSelfCallDescent, frame_coordinate_path, frame_paths_overlap,
-    operand_call_plans, state_reference_parameter_binding_is_stable,
+    RecastSource, ScalarStorageCoordinate, ValidatedSelfCallDescent, frame_coordinate_path,
+    frame_paths_overlap, operand_call_plans, state_reference_parameter_binding_is_stable,
 };
 pub use crate::machine_calls::denotational_calls::{
     admit_specification_calls, expression_values_have_call_identity, normal_return_call_candidate,

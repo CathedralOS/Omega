@@ -46,6 +46,7 @@ pub(crate) fn collect_value_roots(
         checked_trees::CheckedStructuralValueKind::Reference {
             source,
             source_value,
+            ..
         } => {
             roots.push(source.type_identity);
             if source_value.is_valid() {

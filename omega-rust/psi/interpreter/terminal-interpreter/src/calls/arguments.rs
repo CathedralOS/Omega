@@ -6,22 +6,22 @@
 //! preserve this partition instead of reclassifying every parameter by type.
 //! Every constructed sum owns ordinary placed discriminator/payload storage.
 use crate::byte_sequences::binding::ByteSequenceBinding;
-use crate::custody::bind_structural_arguments;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::scalar_array::TerminalScalarArrayValue;
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::{MachineId, PlaceId, ValueId};
 use std::collections::BTreeMap;
-use terminal_psi::{
-    StructuralAccess, StructuralArgument, StructuralParameterDeclaration, StructuralTypeShape,
-};
+use terminal_psi::{StructuralAccess, StructuralArgument, StructuralParameterDeclaration};
 
 pub(crate) struct StructuralCallArguments {
     pub(crate) local_identity_cursor: Option<u64>,
     /// Ordered declarations for the opaque carriers, not the full signature.
     pub(crate) descriptor_parameters: Vec<StructuralParameterDeclaration>,
     pub(crate) values: BTreeMap<PlaceId, TerminalStructuralValue>,
+    /// Borrowed re-views keep their original storage declaration beside the
+    /// logical ingress carrier. Field projection consumes this association.
+    pub(crate) aggregate_backings: BTreeMap<PlaceId, TerminalStructuralValue>,
     pub(crate) byte_sequences: BTreeMap<PlaceId, ByteSequenceBinding>,
     pub(crate) primitive_loans: BTreeMap<PlaceId, crate::primitive_storage::PrimitiveLoan>,
     pub(crate) scalar_arrays: BTreeMap<PlaceId, TerminalScalarArrayValue>,
@@ -109,61 +109,12 @@ impl TerminalExecution<'_> {
                 opaque_arguments.push(argument.clone());
             }
         }
-        if opaque_parameters
-            .iter()
-            .zip(&opaque_arguments)
-            .any(|(parameter, _argument)| {
-                matches!(
-                    parameter.access,
-                    StructuralAccess::SharedBorrow
-                        | StructuralAccess::MutableBorrow
-                        | StructuralAccess::WriteOnlyBorrow
-                ) && self
-                    .program
-                    .structural_types()
-                    .get(&parameter.structural_type)
-                    .is_some_and(|declaration| {
-                        matches!(
-                            declaration.shape,
-                            StructuralTypeShape::PrimitiveScalar(_)
-                                | StructuralTypeShape::FixedArray { .. }
-                                | StructuralTypeShape::ElementView { .. }
-                        ) || declaration.shape.is_borrowed_byte_carrier()
-                            || declaration.shape.is_bounded_owned_byte_sequence()
-                    })
-            })
-        {
-            // Share only exact referent preparation. External buffer staging and
-            // replacement are not part of an ordinary call. Its result form
-            // does not change the borrowed input's referent or backing.
-            let mut prepared = self
-                .prepare_boundary_arguments(&opaque_parameters, &opaque_arguments)?
-                .into_call_arguments(&opaque_parameters)?;
-            prepared.scalar_arrays = scalar_arrays;
-            return Ok(prepared);
-        }
-        let mut values = self.resolve_reference_call_arguments(&opaque_arguments)?;
-        let byte_sequences =
-            self.bind_byte_sequence_arguments(&opaque_parameters, &opaque_arguments, &values)?;
-        // An owned byte copy was just checked against every domain its formal
-        // names, so the callee holds the copy under those domains.
-        for (value, parameter) in values.iter_mut().zip(&opaque_parameters) {
-            if parameter.access == StructuralAccess::Owned
-                && byte_sequences.contains_key(&parameter.place)
-            {
-                value.absorb_qualifications(&parameter.qualifications);
-            }
-        }
-        let element_views =
-            self.bind_element_view_arguments(&opaque_parameters, &opaque_arguments, &values)?;
-        Ok(StructuralCallArguments {
-            local_identity_cursor: self.local_structural_identities.cursor(),
-            values: bind_structural_arguments(&opaque_parameters, &values)?,
-            descriptor_parameters: opaque_parameters,
-            byte_sequences,
-            primitive_loans: BTreeMap::new(),
-            scalar_arrays,
-            element_views,
-        })
+        // One tuple preparation owns every descriptor, independent of its
+        // neighbors. External buffer staging is a separate later operation.
+        let mut prepared = self
+            .prepare_boundary_arguments(&opaque_parameters, &opaque_arguments)?
+            .into_call_arguments(&opaque_parameters)?;
+        prepared.scalar_arrays = scalar_arrays;
+        Ok(prepared)
     }
 }

@@ -9,11 +9,9 @@ pub(super) fn collect_place_evaluation_reads(
     expression: ExpressionHandle,
 ) {
     let program = collection.program;
-    if super::super::children::recurse_shared_children(program, expression, &mut |child| {
-        collect_read_accesses(collection, child);
-    }) {
-        return;
-    }
+    // Shared child traversal reads cast operands as values. A loan instead
+    // evaluates the place beneath its cast, retaining selectors and computed
+    // receivers without inventing another read of the lent referent.
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(_) => {}
         ExpressionNode::Member(member) => {
@@ -29,7 +27,13 @@ pub(super) fn collect_place_evaluation_reads(
         ExpressionNode::Cast(cast) => {
             collect_place_evaluation_reads(collection, cast.value);
         }
-        _ => collect_read_accesses(collection, expression),
+        _ => {
+            if !super::super::children::recurse_shared_children(program, expression, &mut |child| {
+                collect_read_accesses(collection, child)
+            }) {
+                collect_read_accesses(collection, expression);
+            }
+        }
     }
 }
 

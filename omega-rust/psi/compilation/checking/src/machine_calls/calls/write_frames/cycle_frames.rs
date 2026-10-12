@@ -160,6 +160,7 @@ pub(crate) fn summarize_state_written_paths_for_cycles<'program>(
                         &mut inference,
                     )?;
                     for instantiated in expand_write_paths(
+                        program,
                         &instantiated_paths,
                         &equation.local_alias_origins,
                         &equation.stored,
@@ -310,7 +311,9 @@ fn build_cycle_frame_equation<'program>(
                     stored: &stored,
                 },
             )?;
-            for relative in expand_write_paths(&expression_writes, &local_alias_origins, &stored)? {
+            for relative in
+                expand_write_paths(program, &expression_writes, &local_alias_origins, &stored)?
+            {
                 push_visible_frame_path(&mut direct_writes, relative, parameters, &locals)?;
             }
         }
@@ -370,7 +373,7 @@ fn build_cycle_frame_equation<'program>(
                     &local_alias_origins,
                     symbols,
                 )?;
-                for path in expand_write_path(&relative, &local_alias_origins, &stored)? {
+                for path in expand_write_path(program, &relative, &local_alias_origins, &stored)? {
                     push_visible_frame_path(&mut direct_writes, path, parameters, &locals)?;
                 }
                 if let Some(replacement) = replacement {
@@ -465,7 +468,9 @@ fn build_cycle_frame_equation<'program>(
                         )
                     })
                 }?;
-                for relative in expand_write_paths(&nested_writes, &local_alias_origins, &stored)? {
+                for relative in
+                    expand_write_paths(program, &nested_writes, &local_alias_origins, &stored)?
+                {
                     push_visible_frame_path(&mut direct_writes, relative, parameters, &locals)?;
                 }
             }
@@ -490,7 +495,8 @@ fn build_cycle_frame_equation<'program>(
                             &mut inference,
                             &origins,
                         )?;
-                        for relative in expand_write_paths(&writes, &local_alias_origins, &stored)?
+                        for relative in
+                            expand_write_paths(program, &writes, &local_alias_origins, &stored)?
                         {
                             push_visible_frame_path(
                                 &mut direct_writes,

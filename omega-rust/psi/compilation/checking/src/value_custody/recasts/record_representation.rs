@@ -437,6 +437,9 @@ pub struct RecastRecordSourceLeaf {
     pub path: Vec<RecastLeafSegment>,
     pub primitive: typed_trees::types::PrimitiveType,
     pub view_primitive: typed_trees::types::PrimitiveType,
+    /// Equal geometry alone does not preserve a scalar observation: a bit
+    /// recipe or another stored interpretation can decode different values.
+    pub preserves_scalar_value: bool,
 }
 
 /// Rejoin a typed record view's direct scalar field to the source leaf it
@@ -452,6 +455,36 @@ pub fn recast_record_source_leaf(
     target: TypeReferenceHandle,
     target_field: symbols::SymbolHandle,
 ) -> Option<RecastRecordSourceLeaf> {
+    recast_scalar_source_leaf(
+        program,
+        source,
+        target,
+        &[facts::PlaceSegment::Field {
+            symbol: target_field,
+        }],
+    )
+}
+
+/// Translate an exact scalar observation through the existing normalized
+/// representation relation. Geometry, not member spelling, selects its source
+/// leaf. Runtime selectors have no captured value in this query and therefore
+/// cannot be translated into a fixed leaf or a containing-region fact.
+pub fn recast_scalar_source_leaf(
+    program: &dyn crate::CheckingInput,
+    source: TypeReferenceHandle,
+    target: TypeReferenceHandle,
+    target_path: &[facts::PlaceSegment],
+) -> Option<RecastRecordSourceLeaf> {
+    let target_path = target_path
+        .iter()
+        .map(|segment| match segment {
+            facts::PlaceSegment::Field { symbol } => Some(RepresentationSegment::Field(*symbol)),
+            facts::PlaceSegment::FixedIndex { index } => {
+                Some(RepresentationSegment::Element(*index))
+            }
+            _ => None,
+        })
+        .collect::<Option<Vec<_>>>()?;
     let source_representation = type_representation(program, source)?;
     let target_representation = type_representation(program, target)?;
     if source_representation.size != target_representation.size
@@ -462,7 +495,7 @@ pub fn recast_record_source_leaf(
     let target_leaf = target_representation
         .leaves
         .iter()
-        .find(|leaf| leaf.path == [RepresentationSegment::Field(target_field)])?;
+        .find(|leaf| leaf.path == target_path)?;
     let mut matching = source_representation
         .leaves
         .iter()
@@ -482,6 +515,30 @@ pub fn recast_record_source_leaf(
             .collect(),
         primitive: source_leaf.primitive,
         view_primitive: target_leaf.primitive,
+        preserves_scalar_value: source_leaf.primitive == target_leaf.primitive
+            && source_leaf.byte_projection
+            && target_leaf.byte_projection
+            && stored_integer_interpretation(source_leaf)
+                == stored_integer_interpretation(target_leaf),
+    })
+}
+
+fn stored_integer_interpretation(
+    leaf: &MutableRecordLeaf,
+) -> Option<(u16, layout_plans::IntegerInterpretation)> {
+    leaf.stored_integer.or_else(|| {
+        let (sign, width) = leaf.primitive.integer_sign_bits()?;
+        Some((
+            width,
+            match sign {
+                semantic_vocabulary::IntegerSign::Signed => {
+                    layout_plans::IntegerInterpretation::Signed
+                }
+                semantic_vocabulary::IntegerSign::Unsigned => {
+                    layout_plans::IntegerInterpretation::Unsigned
+                }
+            },
+        ))
     })
 }
 

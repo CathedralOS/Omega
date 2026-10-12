@@ -72,16 +72,16 @@ pub(crate) use recursion::{
     validate_self_recursive_call_positions,
 };
 use result_use::validate_result_use;
+pub use write_frames::CallFrameTables;
 use write_frames::boundary_trait_call_signature;
 pub(crate) use write_frames::machine_state_by_symbol;
 pub(crate) use write_frames::named_state_transition_subgraph_is_acyclic;
 pub use write_frames::{
     AssignmentWriteTarget, CallFrameResolver, CallWriteOrigins, LocalWriteOrigin, LocalWriteSource,
-    RecastSource, frame_coordinate_path, frame_paths_overlap, operand_call_plans,
-    state_reference_parameter_binding_is_stable,
+    RecastSource, ScalarStorageCoordinate, frame_coordinate_path, frame_paths_overlap,
+    operand_call_plans, state_reference_parameter_binding_is_stable,
 };
 pub(crate) use write_frames::{CallFrameCaches, InvocationReferenceSubject};
-pub use write_frames::CallFrameTables;
 pub(crate) use write_frames::{
     boundary_trait_signature, expression_has_calls, free_machine_entry_state,
     statement_value_expression_roots,

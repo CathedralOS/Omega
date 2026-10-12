@@ -114,6 +114,18 @@ to erase the receiving field's invariant; atomic fields keep their distinct
 access protocol. Qualifiers, bounds, overlapping loans and reference crossings
 remain independently checked.
 
+Record re-views passed to ordinary or boundary calls retain their supplying
+storage beside the logical referee. Locals and anonymous argument formations
+use the same source capture and storage publisher; tuple neighbors do not choose
+another preparation route. Callee field observations and writes project through
+the original backing, including mutable-to-shared attenuation. The caller's
+write summary uses that backing namespace, not the view's field spelling.
+Public postconditions come from the exact bound requirement and establish
+scalar bounds only when every captured source agrees and its interpretation
+preserves the value. Writes need only matching geometry to invalidate those
+bounds. Unknown writes remain opaque, and a signed reinterpretation cannot
+transport an unsigned bound.
+
 A record-as-record view retains its source leaf at Terminal: stage 05 reads
 each view field at the same offset under the source's declaration
 (`recast_record_source_leaf`), which the identical-geometry judgment makes

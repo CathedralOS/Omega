@@ -54,7 +54,7 @@ fn resolve_origins(
     if !origin.source.root.is_valid() {
         // Existing path-only evidence can still conservatively invalidate
         // storage. It cannot later export an owned-formal reference boundary.
-        return super::canonical_origins(origin, aliases, stored)
+        return super::canonical_origins(program, origin, aliases, stored)
             .map(|origins| origins.into_iter().map(Some).collect())
             .unwrap_or_else(|| vec![None]);
     }
@@ -66,7 +66,7 @@ fn resolve_origins(
         crossed = Some(prior.source.segments.len());
         let (_, suffix) = super::split_place_root(&origin.path);
         let source = prior.source.append_source(&origin.source);
-        origin = compose_origin(prior, suffix, origin.precision);
+        origin = compose_origin(program, prior, suffix, origin.precision);
         origin.source = source;
     }
     let Some(local) = stored
@@ -89,7 +89,7 @@ fn resolve_origins(
             }
             continue;
         };
-        let mut source = compose_origin(captured, suffix, origin.precision);
+        let mut source = compose_origin(program, captured, suffix, origin.precision);
         source.source = captured
             .source
             .append_segments(&origin.source.segments[leaf.local_segments.len()..]);

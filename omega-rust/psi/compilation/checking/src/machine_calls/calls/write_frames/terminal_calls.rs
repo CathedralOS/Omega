@@ -144,5 +144,5 @@ pub(super) fn written_paths(
             )
         })
     }?;
-    Some(origins.close_paths(paths))
+    Some(origins.close_paths(program, paths))
 }

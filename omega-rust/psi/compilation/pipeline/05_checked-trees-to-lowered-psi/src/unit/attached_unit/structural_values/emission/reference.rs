@@ -23,6 +23,7 @@ impl Emission<'_, '_, '_> {
         formation: super::super::super::reference_results::Formation<'_>,
         source: &CheckedUnitStructuralArgumentPlan,
         source_value: checked_trees::CheckedStructuralValueHandle,
+        storage: checked_trees::CheckedReferenceStorage,
         continuation: Option<&ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
         let has_primitive_home = self.evaluation.prepare_immutable_local_borrow(
@@ -230,11 +231,20 @@ impl Emission<'_, '_, '_> {
                     "reference value type is missing",
                 ))?;
         if let StructuralTypeShape::Reference { .. } = &declaration.shape {
+            let storage = super::super::super::reference_results::publish_storage(
+                storage,
+                self.next_value,
+                self.operations,
+            )?
+            .map(|(view, value)| {
+                self.values.push(value);
+                view
+            });
             let carrier = super::super::super::reference_results::emit_carrier(
                 formation,
                 self.structural_type,
                 argument,
-                None,
+                storage,
                 &self.structural_types[..],
                 super::super::super::place_id(super::super::super::allocate_dense(
                     self.next_place,

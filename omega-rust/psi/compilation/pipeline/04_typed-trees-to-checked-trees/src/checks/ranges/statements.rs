@@ -278,40 +278,39 @@ fn field_plus_constant(
 }
 
 /// Resolve a call statement's BOUNDARY-TRAIT callee signature from the typed
-/// trees (receiver field's declared trait), then seed `ensures <param> <OP>
+/// trees (the bound requirement's applied contract), then seed `ensures <param> <OP>
 /// <literal>` conjuncts as index-upper-bound facts on the matching `&mut`
 /// argument places. Prior bounds for every `&mut`-written place are
 /// forgotten regardless, ensures or not.
-pub(super) fn seed_boundary_call_ensures_facts(
-    program: &dyn ::validation::CheckingInput,
-    machine: &Machine,
-    call: &typed_trees::statement::TableCall,
+pub(super) fn seed_boundary_call_ensures_facts<'program>(
+    program: &'program dyn ::validation::CheckingInput,
+    machine: &'program Machine,
+    state: &State,
+    call: &'program typed_trees::statement::TableCall,
+    call_frames: Option<&validation::CallFrameResolver<'program>>,
     facts: &mut RangeFacts<'_>,
 ) {
-    let arguments = program.statement_table.expression_handles(call.arguments);
     // Both callers apply the complete write frame before reaching this
     // postcondition publisher. Borrow syntax alone is not a write footprint.
-    // Receiver field -> declared trait -> called signature (the shared
-    // TypedTrees chain).
-    let Some(signature) = typed_trees::boundary::called_boundary_signature(program, machine, call)
+    // The bound requirement retains the complete applied contract. Receiver
+    // spelling or a field declaration cannot substitute another telescope.
+    let Some(signature) = typed_trees::boundary::called_boundary_signature(program, call) else {
+        return;
+    };
+    let Some(origins) = call_frames.and_then(|frames| frames.call_write_origins(machine, call))
     else {
         return;
     };
     for conjunct in validation::ensures_contract_expressions(program, signature) {
-        seed_ensures_bound_conjunct(
-            program,
-            program.state_signature_parameters(signature),
-            arguments,
-            conjunct,
-            facts,
-        );
+        seed_ensures_bound_conjunct(program, state, signature, &origins, conjunct, facts);
     }
 }
 
 fn seed_ensures_bound_conjunct(
     program: &dyn ::validation::CheckingInput,
-    parameters: &[typed_trees::signature::StateParameter],
-    arguments: &[ExpressionHandle],
+    state: &State,
+    signature: &typed_trees::signature::StateSignature,
+    origins: &validation::CallWriteOrigins,
     conjunct: ExpressionHandle,
     facts: &mut RangeFacts<'_>,
 ) {
@@ -319,8 +318,9 @@ fn seed_ensures_bound_conjunct(
     let mut comparisons = Vec::new();
     validation::collect_parameter_bound_comparisons(
         program,
-        parameters,
-        arguments,
+        state,
+        signature,
+        origins,
         conjunct,
         &mut comparisons,
     );

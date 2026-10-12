@@ -389,8 +389,14 @@ fn collect_bounded_assignment_obligation(
     // ensures prove for `&mut` argument places, live at THIS statement.
     // Resolved calls preserve bounds outside their shared R5 may-write frame;
     // opaque calls invalidate everything and overlapping writes drop a bound.
-    let ensures_witness_bounds =
-        ensures_witness_bounds_at(program, machine, statements, statement_index, call_frames);
+    let ensures_witness_bounds = ensures_witness_bounds_at(
+        program,
+        machine,
+        state,
+        statements,
+        statement_index,
+        call_frames,
+    );
     let target = assignment.target;
     let Some(target_type) = expression_type_reference(program, machine, state, target) else {
         return;
@@ -505,18 +511,35 @@ pub(crate) fn declared_integer_range(
 /// may-write frame; opaque calls invalidate everything. A boundary call then
 /// adds its own ensures-bounded `&mut` argument places. Assignments invalidate
 /// overlapping paths. (Sibling of the validation recast walk and the checker
-/// ranges walk; the signature chain is the shared
+/// ranges walk; the resolved requirement query is the shared
 /// `typed_trees::boundary::called_boundary_signature` -- validation's
 /// stays cache-based because it also covers `contains`-clause receivers.)
-pub(crate) fn ensures_witness_bounds_at(
-    program: &dyn ::validation::CheckingInput,
-    machine: &Machine,
-    statements: &[StatementNode],
+pub(crate) fn ensures_witness_bounds_at<'program>(
+    program: &'program dyn ::validation::CheckingInput,
+    machine: &'program Machine,
+    state: &State,
+    statements: &'program [StatementNode],
     upto: usize,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&validation::CallFrameResolver<'program>>,
 ) -> Vec<(String, i64)> {
     let mut witnesses: Vec<(String, i64)> = Vec::new();
     for statement in &statements[..upto] {
+        // Operand evaluation precedes the store or invocation. A nested
+        // mutating call can retire a witness even when the enclosing target
+        // writes unrelated storage or only initializes a local.
+        if !witnesses.is_empty() {
+            if let Some(written) = call_frames
+                .and_then(|frames| frames.statement_value_may_write_paths(machine, statement))
+            {
+                witnesses.retain(|(place, _)| {
+                    written
+                        .iter()
+                        .all(|written| !validation::frame_paths_overlap(place, written))
+                });
+            } else {
+                witnesses.clear();
+            }
+        }
         match statement {
             StatementNode::Call(call) => {
                 if let Some(written) =
@@ -531,27 +554,44 @@ pub(crate) fn ensures_witness_bounds_at(
                     witnesses.clear();
                 }
                 let Some(signature) =
-                    typed_trees::boundary::called_boundary_signature(program, machine, call)
+                    typed_trees::boundary::called_boundary_signature(program, call)
                 else {
                     continue;
                 };
-                let arguments = program.statement_table.expression_handles(call.arguments);
-                let parameters = program.state_signature_parameters(signature);
+                let Some(origins) =
+                    call_frames.and_then(|frames| frames.call_write_origins(machine, call))
+                else {
+                    continue;
+                };
                 for conjunct in validation::ensures_contract_expressions(program, signature) {
                     collect_witness_conjunct(
                         program,
-                        parameters,
-                        arguments,
+                        state,
+                        signature,
+                        &origins,
                         conjunct,
                         &mut witnesses,
                     );
                 }
             }
-            // Spelling the target costs a formatted name per assignment; with
-            // no witness to invalidate there is nothing to compare it to.
-            StatementNode::Assignment(assignment) if !witnesses.is_empty() => {
-                let target = program.expression_table.display_name(assignment.target);
-                witnesses.retain(|(place, _)| !validation::frame_paths_overlap(place, &target));
+            // Guarantees describe actual backing, not the alias spelling of
+            // a later store. The existing complete assignment frame owns that
+            // correspondence, including recasts and stored references.
+            StatementNode::Assignment(_) if !witnesses.is_empty() => {
+                let written = call_frames.and_then(|frames| {
+                    frames
+                        .assignment_write_frame(machine, statement)
+                        .into_complete_paths()
+                });
+                if let Some(written) = written {
+                    witnesses.retain(|(place, _)| {
+                        written
+                            .iter()
+                            .all(|written| !validation::frame_paths_overlap(place, written))
+                    });
+                } else {
+                    witnesses.clear();
+                }
             }
             _ => {}
         }
@@ -561,16 +601,18 @@ pub(crate) fn ensures_witness_bounds_at(
 
 fn collect_witness_conjunct(
     program: &dyn ::validation::CheckingInput,
-    parameters: &[StateParameter],
-    arguments: &[ExpressionHandle],
+    state: &State,
+    signature: &typed_trees::signature::StateSignature,
+    origins: &validation::CallWriteOrigins,
     conjunct: ExpressionHandle,
     witnesses: &mut Vec<(String, i64)>,
 ) {
     let mut comparisons = Vec::new();
     validation::collect_parameter_bound_comparisons(
         program,
-        parameters,
-        arguments,
+        state,
+        signature,
+        origins,
         conjunct,
         &mut comparisons,
     );

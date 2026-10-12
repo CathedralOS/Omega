@@ -88,6 +88,8 @@ impl Builder<'_, '_> {
             source.access = access;
             return Some(CheckedStructuralValueKind::Reference {
                 source,
+                storage: checked_trees::CheckedReferenceStorage::Declared,
+                backing_type: declared,
                 source_value: checked_trees::CheckedStructuralValueHandle::invalid(),
             });
         }

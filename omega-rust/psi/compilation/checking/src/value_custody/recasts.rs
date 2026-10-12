@@ -69,6 +69,7 @@ pub use record_representation::{
     RecastLeafSegment, RecastRecordSourceLeaf, RecastRuntimeIndexGeometry, RecastScalarGeometry,
     RecastScalarLayout, RecastScalarProjection, recast_record_source_leaf, recast_scalar_layout,
     recast_scalar_path_geometry, recast_scalar_path_projection, recast_scalar_projection,
+    recast_scalar_source_leaf,
 };
 mod representation_types;
 mod scalar_representation;

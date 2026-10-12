@@ -342,6 +342,8 @@ impl Builder<'_, '_> {
             return None;
         }
         Some(CheckedStructuralValueKind::Reference {
+            storage: checked_trees::CheckedReferenceStorage::Declared,
+            backing_type: projected,
             source_value,
             source: checked_trees::CheckedUnitStructuralArgumentPlan {
                 source,

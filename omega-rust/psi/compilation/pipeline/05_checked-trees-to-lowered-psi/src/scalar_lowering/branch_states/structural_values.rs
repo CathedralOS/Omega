@@ -483,6 +483,8 @@ impl Preparation<'_> {
         if let CheckedStructuralValueKind::Reference {
             source,
             source_value,
+            storage,
+            ..
         } = &node.kind
         {
             let argument = if source_value.is_valid() {
@@ -525,6 +527,7 @@ impl Preparation<'_> {
             let place = self.reserved.place(value)?;
             self.steps.push(Step::Establish {
                 effect: LoweredScalarEffect::EstablishReference {
+                    storage: *storage,
                     state: node.state,
                     statement: node.statement_index,
                     expression: node.expression,

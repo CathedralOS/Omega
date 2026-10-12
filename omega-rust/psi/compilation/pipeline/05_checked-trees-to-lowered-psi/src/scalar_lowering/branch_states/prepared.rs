@@ -271,6 +271,7 @@ pub(crate) fn scalar_state_emission_order(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum LoweredScalarEffect {
     EstablishReference {
+        storage: checked_trees::CheckedReferenceStorage,
         state: symbols::SymbolHandle,
         statement: u32,
         expression: checked_trees::expression::ExpressionHandle,

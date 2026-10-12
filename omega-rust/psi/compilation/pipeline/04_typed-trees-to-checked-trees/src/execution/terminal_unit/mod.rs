@@ -1129,6 +1129,7 @@ fn value_leaf_type_identities(
             checked_trees::CheckedStructuralValueKind::Reference {
                 source,
                 source_value,
+                ..
             } => {
                 identities.push(source.type_identity);
                 if source_value.is_valid() {

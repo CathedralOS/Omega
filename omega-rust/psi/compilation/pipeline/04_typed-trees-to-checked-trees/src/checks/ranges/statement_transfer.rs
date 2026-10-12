@@ -218,7 +218,7 @@ pub(super) fn transfer_statement_facts<'program>(
             // returns (the boundary model's citable fact). Any prior
             // upper-bound fact for a written place is dropped first; the
             // ensures then re-proves what it states.
-            seed_boundary_call_ensures_facts(program, machine, call, facts);
+            seed_boundary_call_ensures_facts(program, machine, state, call, call_frames, facts);
         }
         StatementNode::Expression(expression) => {
             sink.visit_expression(facts, *expression);

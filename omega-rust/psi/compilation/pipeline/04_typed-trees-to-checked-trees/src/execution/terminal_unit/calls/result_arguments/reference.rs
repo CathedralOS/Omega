@@ -14,7 +14,6 @@ use language_semantics::Multiplicity;
 use symbols::SymbolHandle;
 use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
-use typed_trees::statement::TableLocalData;
 use typed_trees::types::TypeReferenceHandle;
 use validation::reference_result_custody;
 
@@ -32,19 +31,20 @@ pub(crate) fn argument(
     state: &State,
     statement_index: usize,
     place: &validation::CanonicalPlace,
-    local: &TableLocalData,
+    owner: facts::PlaceRoot,
+    reference: TypeReferenceHandle,
     result: &CheckedUnitStructuralResultBindingPlan,
     parameter: &StateParameter,
     target_identity: typed_trees::type_identity::TypeIdentityId,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     let (referent, carrier_access) =
-        reference_result_custody::stored_loan_parts(program, local.type_reference)?;
+        reference_result_custody::stored_loan_parts(program, reference)?;
     let access = structural_access_for_type_reference(program, parameter.type_reference)?;
     if access == CheckedStructuralAccess::Owned
         || (carrier_access != CheckedStructuralAccess::MutableBorrow && carrier_access != access)
-        || place.root != facts::PlaceRoot::Symbol(local.symbol)
+        || place.root != owner
         || result.multiplicity != Multiplicity::Affine
-        || result.type_identity != program.normalized_type_identity(local.type_reference)
+        || result.type_identity != program.normalized_type_identity(reference)
     {
         return None;
     }

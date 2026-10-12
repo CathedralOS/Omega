@@ -1,12 +1,20 @@
-//! Ensures-clause shape queries over a called signature's contracts: which
-//! fact expressions carry the clause, and how a `parameter <OP> <literal>`
-//! conjunct resolves against one call's arguments. Both the ranges walk in
-//! typed-to-checked preparation and the proof obligation collector run this
-//! same recognition, so the shape lives here once.
+//! Public postconditions describe the call's current observation coordinates.
+//!
+//! The checked call origins own alias and representation custody. An exact
+//! formal root selects its positional actual, then its complete field path is
+//! composed in that coordinate owner. Recasts translate scalar leaves through
+//! existing normalized geometry; the same field spelling supplies no relation.
+//! The string bound consumers receive only exact, value-preserving coordinates.
+//! Unknown or runtime-selected storage supplies no shortcut fact. Callers apply
+//! the complete write frame first, and owned-copy guarantees never requalify
+//! the storage from which the copy was taken.
 
+use crate::{CallWriteOrigins, LocalWriteSource};
+use facts::PlaceRoot;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
-use typed_trees::signature::{SignatureContractKind, StateParameter, StateSignature};
+use typed_trees::signature::{SignatureContractKind, StateSignature};
+use typed_trees::state::State;
 
 /// Every `ProofFact::Expression` under `signature`'s `ensures` contracts, in
 /// declaration order.
@@ -26,16 +34,14 @@ pub fn ensures_contract_expressions<'program>(
         })
 }
 
-/// Collect each `parameter <OP> <literal>` comparison inside `conjunct`,
-/// descending `And` nodes, as `(place, operator, literal)` rows: `place` is
-/// the display name of the `&mut` argument bound to the signature parameter
-/// named on the comparison's left, `literal` the integer on its right.
-/// `parameters` are the called signature's state parameters and `arguments`
-/// the call's argument expressions, so row position follows the signature.
+/// Project integer bounds from the exact public signature onto captured live
+/// reference arguments. Several possible origins supply a fact only when
+/// their complete projected coordinates agree, never one fact per may route.
 pub fn collect_parameter_bound_comparisons(
     program: &dyn crate::CheckingInput,
-    parameters: &[StateParameter],
-    arguments: &[ExpressionHandle],
+    state: &State,
+    signature: &StateSignature,
+    origins: &CallWriteOrigins,
     conjunct: ExpressionHandle,
     comparisons: &mut Vec<(String, BinaryOperator, i64)>,
 ) {
@@ -45,47 +51,121 @@ pub fn collect_parameter_bound_comparisons(
     if comparison.operator == BinaryOperator::And {
         collect_parameter_bound_comparisons(
             program,
-            parameters,
-            arguments,
+            state,
+            signature,
+            origins,
             comparison.left,
             comparisons,
         );
         collect_parameter_bound_comparisons(
             program,
-            parameters,
-            arguments,
+            state,
+            signature,
+            origins,
             comparison.right,
             comparisons,
         );
         return;
     }
-    let Some(path) = program.expression_table.name_path_node(comparison.left) else {
+    let Some(place) = crate::canonical_place_from_expression(program, comparison.left) else {
         return;
     };
-    let [parameter_name] = program.expression_table.name_path_members(path.members) else {
+    let parameters = program.state_signature_parameters(signature);
+    let Some(position) = parameters
+        .iter()
+        .position(|parameter| place.root == PlaceRoot::Symbol(parameter.symbol))
+    else {
         return;
     };
+    let parameter = &parameters[position];
+    let Some(reference) = crate::reference_shell(program, parameter.type_reference) else {
+        return;
+    };
+    let Some(leaf) =
+        crate::project_type_reference_from_segments(program, reference.referee, &place.segments)
+    else {
+        return;
+    };
+    let Some(primitive) = program.primitive_type_reference(
+        crate::value_custody::places::assignment_value_type(program, leaf),
+    ) else {
+        return;
+    };
+    if primitive.integer_sign_bits().is_none() {
+        return;
+    }
+    let spelling = match comparison.operator {
+        BinaryOperator::Less => language_core::OperatorSpelling::Less,
+        BinaryOperator::LessOrEqual => language_core::OperatorSpelling::LessEqual,
+        BinaryOperator::Greater => language_core::OperatorSpelling::Greater,
+        BinaryOperator::GreaterOrEqual => language_core::OperatorSpelling::GreaterEqual,
+        _ => return,
+    };
+    let operand_types = [comparison.left, comparison.right].map(|operand| {
+        crate::parameter_expression_result_type_reference(
+            program,
+            signature.symbol,
+            parameters,
+            operand,
+        )
+    });
+    if !typed_trees::operator::has_builtin_spelled_expression_meaning(
+        program,
+        signature.symbol,
+        conjunct,
+        spelling,
+        &operand_types,
+    ) {
+        return;
+    }
     let Some(literal) = program.expression_table.integer_node(comparison.right) else {
         return;
     };
     let Some(value) = literal.value_i64() else {
         return;
     };
-    let Some(position) = parameters
-        .iter()
-        .position(|parameter| parameter.name.as_str() == parameter_name.as_str())
+    let Some(sources) = origins
+        .arguments
+        .get(position)
+        .and_then(|origins| origins.as_ref())
+        .filter(|origins| !origins.is_empty())
     else {
         return;
     };
-    let Some(argument) = arguments.get(position).copied() else {
+    let relative = LocalWriteSource {
+        root: parameter.symbol,
+        segments: place.segments,
+        representation: None,
+        recasts: Vec::new(),
+        path: String::new(),
+        collection_coarse: false,
+    };
+    let mut coordinate: Option<crate::ScalarStorageCoordinate> = None;
+    for source in sources {
+        let Some(projected) = source
+            .substitute_storage(&relative)
+            .and_then(|source| source.scalar_storage_coordinate(program, state))
+            .filter(|coordinate| {
+                coordinate.preserves_scalar_value
+                    && coordinate.source_primitive == primitive
+                    && coordinate.view_primitive == primitive
+            })
+        else {
+            return;
+        };
+        if coordinate
+            .as_ref()
+            .is_some_and(|existing| existing.place != projected.place)
+        {
+            return;
+        }
+        coordinate = Some(projected);
+    }
+    let Some(coordinate) = coordinate else {
         return;
     };
-    let Some(place) = program.expression_table.borrow_expression(argument) else {
+    let Some(path) = coordinate.label(program) else {
         return;
     };
-    comparisons.push((
-        program.expression_table.display_name(place.target),
-        comparison.operator,
-        value,
-    ));
+    comparisons.push((path, comparison.operator, value));
 }

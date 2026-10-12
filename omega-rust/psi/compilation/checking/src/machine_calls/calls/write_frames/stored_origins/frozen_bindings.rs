@@ -226,7 +226,7 @@ fn writes_may_replace_binding(
         {
             return true;
         }
-        let path = super::super::rebase_local_alias_path(path, aliases);
+        let path = super::super::rebase_local_alias_path(program, path, aliases);
         let (root, suffix) = split_place_root(&path);
         // Incoming by-value carriers can have an exposure ceiling without a
         // retained local inventory in this query. Missing inventory cannot

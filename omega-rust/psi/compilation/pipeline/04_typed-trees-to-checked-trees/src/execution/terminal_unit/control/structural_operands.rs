@@ -72,6 +72,24 @@ pub(in crate::execution::terminal_unit) fn evaluated_argument_root<'a>(
         .type_reference_table
         .type_reference(parameter.type_reference)
     {
+        typed_trees::types::TypeReferenceNode::Reference { .. }
+            if validation::reference_result_custody::stored_loan_parts(
+                program,
+                parameter.type_reference,
+            )
+            .is_some()
+                && validation::reference_formation_source(program, argument)
+                    .is_some_and(|formation| formation.view_type.is_valid()) =>
+        {
+            let machine = program.machine_by_symbol(machine)?;
+            let state = program.state_by_symbol(state)?;
+            (
+                argument,
+                crate::values::reference_sources::formed_view_type(
+                    program, machine, state, argument,
+                )?,
+            )
+        }
         // The descriptor is the view value; peeling its shell would look for
         // a nonexistent owned slice instead of the already checked loan.
         typed_trees::types::TypeReferenceNode::Reference { .. }
@@ -361,9 +379,11 @@ pub(in crate::execution::terminal_unit) fn value_calls(
             checked_trees::CheckedStructuralValueKind::Reference {
                 source,
                 source_value,
+                backing_type,
+                ..
             } => {
                 shapes.add_reference_backing(
-                    plans.nodes.get(value).type_reference,
+                    *backing_type,
                     source.type_identity,
                     &machine_binders(program, machine),
                 )?;
@@ -792,11 +812,14 @@ pub(in crate::execution::terminal_unit) fn plan_call_operands(
                     &calls,
                     root.root,
                 )?;
-                let multiplicity = program.type_multiplicity(root.type_reference);
+                let multiplicity = validation::reference_result_custody::result_multiplicity(
+                    program,
+                    root.type_reference,
+                );
                 let result = CheckedUnitStructuralResultBindingPlan {
                     statement_index,
                     binding_ordinal: u32::try_from(*structural_count).ok()?,
-                    type_identity: shapes.add_type(root.type_reference, &binders, &[])?,
+                    type_identity: shapes.add_stored_type(root.type_reference, &binders, &[])?,
                     multiplicity,
                     local: Default::default(),
                 };

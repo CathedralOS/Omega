@@ -1,0 +1,28 @@
+// Expected exit: 0. Shared attenuation reads the source-selected backing field.
+use omega::language::core::binding;
+pub data Counter { count: u64; pad: u64; }
+pub data Source { first: u64; count: u64; }
+pub boundary trait Parent {
+    machine reset(counter: &mut Counter) ensures counter.count <= 7u64;
+}
+pub boundary trait Child: Parent {}
+Good satisfies Child { Parent::reset = reset; }
+machine reset(counter: &mut Counter)
+ensures counter.count <= 7u64, counter.count <= 3u64
+{ counter.count = 3u64; }
+
+data TargetProviders {}
+macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<Child, Good>(defaults);
+}
+machine read(counter: &Counter) -> u64 { counter.count }
+
+data Main { source: Source; slot: Binding<Child>; values: [i32; 8]; }
+machine Main::main(main: &mut Main) reaches Child + Parent crashes Trap {
+    main.source.first = 37u64;
+    main.source.count = 8u64;
+    let observed: u64 = read(&mut main.source as &mut Counter);
+    transition observed == 37u64 && main.source.count == 8u64 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

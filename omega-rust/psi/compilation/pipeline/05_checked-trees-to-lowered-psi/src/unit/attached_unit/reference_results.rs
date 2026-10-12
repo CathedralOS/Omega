@@ -20,6 +20,49 @@ pub(crate) struct Formation<'checked> {
     pub(crate) expression: checked_trees::expression::ExpressionHandle,
 }
 
+/// Publish the source-selected storage interpretation once at formation.
+/// A projected backing already captures its byte endpoint, so a view's
+/// relative offset is zero. Callers that retain a scalar binding namespace
+/// keep the returned declaration there; the operation always owns its SSA row.
+pub(crate) fn publish_storage(
+    storage: checked_trees::CheckedReferenceStorage,
+    next_value: &mut u64,
+    operations: &mut OperationBuffer,
+) -> Result<
+    Option<(
+        terminal_psi::ReferenceStorageView,
+        terminal_psi::ValueDeclaration,
+    )>,
+    LoweringError,
+> {
+    let checked_trees::CheckedReferenceStorage::View { stored_scalar } = storage else {
+        return Ok(None);
+    };
+    let byte_offset = crate::terminal_identities::value_id(allocate_dense(next_value)?);
+    let value = terminal_psi::ValueDeclaration {
+        id: byte_offset,
+        scalar_type: crate::unit::terminal_scalar_type(crate::unit::PrimitiveType::U64)?,
+        qualifications: Default::default(),
+    };
+    let id = operations.allocate();
+    operations.push(Operation {
+        static_reach_binding: None,
+        suspension_crossing: None,
+        id,
+        result: terminal_psi::OperationResult::Scalar(value.clone()),
+        kind: OperationKind::IntegerConstant {
+            value: semantic_vocabulary::IntegerValue::Unsigned(0),
+        },
+    });
+    Ok(Some((
+        terminal_psi::ReferenceStorageView {
+            byte_offset,
+            stored_scalar,
+        },
+        value,
+    )))
+}
+
 pub(super) fn emit(
     formation: Formation<'_>,
     result: &CheckedUnitStructuralResultBindingPlan,

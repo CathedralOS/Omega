@@ -2872,6 +2872,14 @@ crash and native exit behavior.
     and unused property/const obligations must reject. Invocation-lifetime
     results retain their exact input loan and access; shared-to-mutable calls,
     unrelated returned sources and live-source writes must reject.
+    Keep `providers/inherited_boundary_field_postcondition_exit` and
+    `recast/boundary_postcondition_{backing_scalar,disjoint_aliased_write}_exit`
+    through both engines when extending region-bearing calls: public guarantees
+    follow original storage, never private guarantees or view field spelling.
+    Aliased and nested-call writes must retire overlapping bounds; signed
+    reinterpretation cannot transfer an unsigned bound. Preserve
+    `recast/reference_view_{helper_backing_write,shared_call_backing,shared_primitive_neighbor}_exit`
+    as same-backing and mixed-argument controls.
     Preserve `build/explicit_lifetime_entry_context_exit` through both engines:
     ordinary entry contexts use their retained closed data applications, without
     bypassing mutable access or ZII eligibility. This storage correspondence is
