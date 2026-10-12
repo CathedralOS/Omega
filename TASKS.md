@@ -3057,10 +3057,12 @@ crash and native exit behavior.
     remaining source/package assembly contracts to this facade.
     Package batches now share checked/pruned and Terminal storage through
     the compiler invocation; package-owned frontend/Pure Build/proof caches
-    and `compile_checked_reusing_builds` are removed. Still consolidate their
-    separate per-target source/Build/Product continuations: exact judgment
-    reuse is not one source completion. Preserve fresh occurrence admission
-    and charges without copying mutable typing state for each realization.
+    and `compile_checked_reusing_builds` are removed. Accepted target plans now
+    enter together; matching post-Build root continuations complete source once,
+    with separate target admission and receipts. Still consolidate dependency
+    Build preparation and demanded independent products across the closure:
+    root batching is not a single source/Build prefix. Preserve fresh occurrence
+    admission and charges without copying mutable typing state per realization.
   - Package review uses the compiler session's checked stop, with no
     `compile_to_checked` wrapper. Unify this session and `CompileRequest`
     into the same source-to-product request. Source preparation
@@ -3074,8 +3076,8 @@ crash and native exit behavior.
     Accepted package operations now supply dependency-ordered custody/consent
     plans: the compiler owns generated-output joins, Build continuations and
     independent-component publication. Remaining: stop returning
-    `CheckedCompilation` through package operations and consolidate per-target
-    plans before source completion. Check, compile, run and inspection must drive the same
+    `CheckedCompilation` through package operations. Check, compile, run and
+    inspection must drive the same
     source-to-product request, not just share product completion.
   - Keep each stage's independent representation and transformation crate,
     single-target command behavior, Build-effect custody and per-target

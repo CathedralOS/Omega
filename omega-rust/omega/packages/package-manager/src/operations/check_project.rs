@@ -1,7 +1,8 @@
 //! Checked inspection and reporting for one prepared package or application project.
 
-use super::accepted_compilation::{AcceptedCompilationRequest, compile_accepted_project};
-use super::prepare_project::PreparedProjectTarget;
+use super::accepted_compilation::{
+    AcceptedCompilationRequest, compile_accepted_project, compile_accepted_projects,
+};
 use super::{PrepareLocalProjectError, PreparedLocalProject};
 use crate::build_session::PackageBuildSession;
 use crate::review::CompileResolvedPackageReviewsError;
@@ -137,12 +138,13 @@ pub fn check_prepared_local_project_for_inspection(
     let mut session = PackageBuildSession::create(build_dir)?;
     let result = compile_accepted_project(
         AcceptedCompilationRequest {
-            closure: &source_closure.for_exact_target(target_profile),
+            closure: source_closure.for_exact_target(target_profile),
             accepted: accepted.as_ref(),
             entry: &entry_path,
             snapshot: None,
             verify: true,
             timings: false,
+            optimization_rollback: Default::default(),
         },
         &mut session,
     );
@@ -199,19 +201,38 @@ pub fn check_prepared_local_project_for_targets(
                 .collect();
         }
     };
+    let requests = targets
+        .iter()
+        .filter_map(|target| {
+            let accepted = target.accepted.as_ref().ok()?;
+            Some(AcceptedCompilationRequest {
+                closure: source_closure.for_exact_target(target.profile),
+                accepted: accepted.as_ref(),
+                entry: &entry_path,
+                snapshot: build_snapshot.as_ref(),
+                verify,
+                timings,
+                optimization_rollback: Default::default(),
+            })
+        })
+        .collect();
+    let mut checked = compile_accepted_projects(requests, &mut session).into_iter();
     let outcomes = targets
         .into_iter()
         .map(|prepared_target| {
             let profile = prepared_target.profile;
-            let result = check_one_prepared_target(
-                prepared_target,
-                &source_closure,
-                &entry_path,
-                build_snapshot.as_ref(),
-                verify,
-                timings,
-                &mut session,
-            );
+            let result = prepared_target
+                .accepted
+                .map_err(CheckPreparedLocalProjectError::Prepare)
+                .and_then(|_| {
+                    checked
+                        .next()
+                        .ok_or(CheckPreparedLocalProjectError::Report(
+                            "compiler lost a package target outcome",
+                        ))?
+                        .map_err(CheckPreparedLocalProjectError::Review)
+                })
+                .and_then(|checked| finish_checked_target(checked, &entry_path));
             CheckedProjectTargetOutcome {
                 target: profile,
                 result,
@@ -225,36 +246,10 @@ pub fn check_prepared_local_project_for_targets(
     outcomes
 }
 
-/// Check one prepared target, staging into `target_build_dir`. Checked
-/// reporting consumes the compile's generated sources, so it is an executor
-/// of the accepted policy, not an observational review: the target's own
-/// restricted-request checkpoint arms the pass, and a projected request the
-/// accepted rows do not grant rejects before its own build effect executes.
-fn check_one_prepared_target(
-    prepared_target: PreparedProjectTarget,
-    source_closure: &crate::resolution::graph::ResolvedPackageSourceClosure,
+fn finish_checked_target(
+    checked: compiler::CheckedCompilation,
     entry_path: &Path,
-    build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
-    verify: bool,
-    timings: bool,
-    session: &mut PackageBuildSession,
 ) -> Result<CompileReport, CheckPreparedLocalProjectError> {
-    let profile = prepared_target.profile;
-    let accepted_target = prepared_target
-        .accepted
-        .map_err(CheckPreparedLocalProjectError::Prepare)?;
-    let checked = compile_accepted_project(
-        AcceptedCompilationRequest {
-            closure: &source_closure.for_exact_target(profile),
-            accepted: accepted_target.as_ref(),
-            entry: entry_path,
-            snapshot: build_snapshot,
-            verify,
-            timings,
-        },
-        session,
-    )
-    .map_err(CheckPreparedLocalProjectError::Review)?;
     compiler::finish_compilation(vec![(
         checked,
         entry_path.to_path_buf(),

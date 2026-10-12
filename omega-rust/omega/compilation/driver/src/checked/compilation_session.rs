@@ -13,8 +13,7 @@
 
 use super::checking::compile_thread::run_on_compile_thread;
 use super::checking::{
-    check_completed_build, compile_checked_worker, prepare_checked_source,
-    prepare_package_build_worker,
+    compile_checked_worker, prepare_checked_source, prepare_package_build_worker,
 };
 use artifacts::compile_timings::counters;
 use compilation_products::{
@@ -30,7 +29,7 @@ pub struct CompilationSession {
     sources: Vec<PreparedSource>,
     pure_builds: build_evaluation::PureBuildCompilation,
     checks: RetainedCompilationChecks,
-    selections: psi_compiler::ProductSelections,
+    pub(super) selections: psi_compiler::ProductSelections,
 }
 
 struct PreparedSource {
@@ -80,24 +79,17 @@ impl CompilationSession {
 
     /// Resume the completed Build, never recreate its grants or execute it twice.
     pub(super) fn check_build(&mut self, build: PreparedPackageBuild) -> CheckedCompileOutcome {
-        counters::record_checked_compilation();
-        run_on_compile_thread(|| {
-            let (_, target, inputs, rollback, prepared) = build.into_continuation();
-            let outcome = check_completed_build(
-                prepared,
-                Some(target),
-                Some(&inputs),
-                &rollback,
-                false,
-                self.reuse(),
-                &mut self.selections,
-            );
-            if let Ok(checked) = &outcome.result {
-                self.retain(checked.settled_checks());
-            }
-            Ok::<_, CompileFailure>(outcome)
-        })
-        .unwrap_or_else(refusal)
+        self.check_build_batch(vec![build])
+            .into_iter()
+            .next()
+            .unwrap_or_else(|| {
+                refusal(
+                    vec![diagnostics::Diagnostic::error(
+                        "source batch lost its requested product",
+                    )]
+                    .into(),
+                )
+            })
     }
 
     fn prepare_source(
@@ -131,14 +123,14 @@ impl CompilationSession {
         Ok(source)
     }
 
-    fn reuse(&self) -> SettledCheckReuse {
+    pub(super) fn reuse(&self) -> SettledCheckReuse {
         SettledCheckReuse {
             prior: self.checks.clone(),
             retain: true,
         }
     }
 
-    fn retain(&mut self, checks: &RetainedCompilationChecks) {
+    pub(super) fn retain(&mut self, checks: &RetainedCompilationChecks) {
         if let Some(build) = &checks.build {
             retain_judgment(&mut self.checks.sibling_build_checks, build);
         }

@@ -45,16 +45,26 @@ whole-program request. Native production consumes each
 target's retained Terminal artifact without a second scheduling pass. Product
 reports belong to their product owners.
 
-Accepted package compilation supplies a dependency-ordered
-`PackageCompilationRequest` to the session's
-[`check_package`](src/checked/package_compilation.rs) entrance. That operation
+Accepted package compilation supplies dependency-ordered
+`PackageCompilationRequest`s together to the session's
+[`check_packages`](src/checked/package_compilation.rs) entrance. That operation
 joins generated dependency outputs, executes Builds and retains their pending
 Product continuations. It completes selected independent components before
 checking the root. Package code supplies custody, consent and staging, not
 per-Build compiler calls or continuation tables. Independent-component publication
 belongs to [package.rs](src/compiler/package.rs), including when review requests
-a description. Per-target package requests still need consolidation into one
-shared source completion; this ownership cut does not claim that work is done.
+a description. [Product batching](src/checked/product_batch.rs) partitions the
+admitted root continuations by complete source input and checks each partition
+once. Matching members borrow its checked program and sealed source custody;
+each retains its own Build receipts, charges, timings and target settlement.
+This is work partitioning within the submitted batch, not a historical cache.
+Opaque pending evaluation authorities must be the same retained authority;
+matching paths or settings alone never establish interchangeable continuations.
+`cargo run -p package-manager --example package_batch` measures two native
+products, one source completion and one shared Terminal allocation through the
+package route. Dependency Builds and demanded independent components still
+prepare per target; this does not claim a single source/Build prefix throughout
+the package closure.
 
 Checked-only consumers supply `CheckedCompileRequest` to `CompilationSession::check`.
 Package inputs, build staging and session sponsors are request

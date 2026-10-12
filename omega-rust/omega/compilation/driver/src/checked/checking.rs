@@ -260,7 +260,7 @@ pub(crate) fn prepare_product_source(
     complete_prepared_build(prepared, package_inputs).map_err(CompileFailure::from)
 }
 
-fn complete_prepared_build(
+pub(super) fn complete_prepared_build(
     prepared: PreparedBuild,
     package_inputs: Option<&PackageCompilationInputs>,
 ) -> Result<PreparedProductSource, Vec<Diagnostic>> {

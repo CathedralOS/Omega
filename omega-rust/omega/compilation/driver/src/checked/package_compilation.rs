@@ -36,13 +36,51 @@ struct OccurrenceProduct {
 }
 
 impl CompilationSession {
-    /// Execute one admitted source closure. Generated dependencies and component
-    /// descriptions travel forward; neither the root nor a component reruns a
-    /// dependency Build when it demands the retained Product continuation.
-    pub fn check_package(
+    /// Admit all target plans, then complete matching Product source once.
+    /// Generated dependencies and component descriptions travel forward; neither
+    /// a root nor a component reruns a Build to consume its continuation.
+    pub fn check_packages(
+        &mut self,
+        requests: Vec<PackageCompilationRequest>,
+    ) -> Vec<Result<CheckedCompilation, PackageCompileFailure>> {
+        let mut outcomes: Vec<_> = (0..requests.len()).map(|_| None).collect();
+        let mut positions = Vec::new();
+        let mut builds = Vec::new();
+        for (position, request) in requests.into_iter().enumerate() {
+            let root = request.occurrences.len().saturating_sub(1);
+            match self.prepare_package(request) {
+                Ok(build) => {
+                    positions.push((position, root));
+                    builds.push(build);
+                }
+                Err(error) => outcomes[position] = Some(Err(error)),
+            }
+        }
+        for ((position, root), checked) in positions.into_iter().zip(self.check_build_batch(builds))
+        {
+            outcomes[position] = Some(checked.result.map_err(|failure| PackageCompileFailure {
+                occurrence: root,
+                failure,
+            }));
+        }
+        outcomes
+            .into_iter()
+            .map(|outcome| {
+                outcome.unwrap_or_else(|| {
+                    Err(PackageCompileFailure {
+                        occurrence: 0,
+                        failure: vec![Diagnostic::error("package batch lost a requested target")]
+                            .into(),
+                    })
+                })
+            })
+            .collect()
+    }
+
+    fn prepare_package(
         &mut self,
         mut request: PackageCompilationRequest,
-    ) -> Result<CheckedCompilation, PackageCompileFailure> {
+    ) -> Result<PreparedPackageBuild, PackageCompileFailure> {
         validate_order(&request)?;
         let root = request
             .occurrences
@@ -69,7 +107,6 @@ impl CompilationSession {
             });
         }
         self.prepare_occurrence(root, &mut products)
-            .and_then(|prepared| self.check_build(prepared).result)
             .map_err(|failure| PackageCompileFailure {
                 occurrence: root_position,
                 failure,

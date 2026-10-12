@@ -165,7 +165,24 @@ impl CompileTimings {
         if !self.enabled {
             return;
         }
-        let phase = stage.label();
+        self.add_phase(stage.label(), microseconds, allocations);
+    }
+
+    /// Include shared pipeline work beside this request's own activation work.
+    /// Disabled reports stay disabled even when a sibling requested timings.
+    pub fn extend(&mut self, shared: &Self) {
+        if self.enabled {
+            for timing in &shared.phases {
+                self.add_phase(
+                    timing.phase.clone(),
+                    timing.microseconds,
+                    timing.allocations,
+                );
+            }
+        }
+    }
+
+    fn add_phase(&mut self, phase: String, microseconds: u128, allocations: AllocationDelta) {
         if let Some(existing) = self.phases.iter_mut().find(|timing| timing.phase == phase) {
             existing.microseconds = existing.microseconds.saturating_add(microseconds);
             existing.allocations.allocation_calls = existing
@@ -258,5 +275,19 @@ mod tests {
         );
         timings.add_completed(SOURCE_FILES_TO_TOKENS, 3, AllocationDelta::default());
         assert!(timings.phases().is_empty());
+    }
+
+    #[test]
+    fn shared_work_adds_to_local_measurements_without_enabling_collection() {
+        let mut shared = CompileTimings::enabled();
+        shared.add_completed(SOURCE_FILES_TO_TOKENS, 7, AllocationDelta::default());
+        let mut local = CompileTimings::enabled();
+        local.add_completed(SOURCE_FILES_TO_TOKENS, 3, AllocationDelta::default());
+        local.extend(&shared);
+        assert_eq!(local.phases()[0].microseconds, 10);
+        assert_eq!(shared.phases()[0].microseconds, 7);
+        let mut disabled = CompileTimings::default();
+        disabled.extend(&shared);
+        assert!(disabled.phases().is_empty());
     }
 }

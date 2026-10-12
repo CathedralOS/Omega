@@ -53,6 +53,20 @@ fn accepted_packages_supply_plans_not_compiler_continuations() {
 }
 
 #[test]
+fn package_target_batches_submit_source_work_together() {
+    for source in [
+        include_str!("../../../packages/package-manager/src/operations/check_project.rs"),
+        include_str!("../../../packages/package-manager/src/operations/compile_project.rs"),
+    ] {
+        assert!(source.contains("compile_accepted_projects(requests, &mut session)"));
+    }
+    let source =
+        include_str!("../../../packages/package-manager/src/operations/accepted_compilation.rs");
+    assert!(source.contains("session.compiler.check_packages(plans)"));
+    assert!(!source.contains(".check_package("));
+}
+
+#[test]
 fn native_product_consumes_terminal_without_producing_it() {
     let source = include_str!("native.rs");
     assert!(source.contains("terminal: compilation_products::RetainedTerminalArtifact"));

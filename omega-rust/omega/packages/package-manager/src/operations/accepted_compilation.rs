@@ -28,12 +28,13 @@ type Error = CompileResolvedPackageReviewsError;
 /// lock supplies no accepted bindings or restricted grants. It never triggers
 /// an inline audit or creates acceptance as a side effect of compilation.
 pub(super) struct AcceptedCompilationRequest<'request> {
-    pub closure: &'request ExactTargetPackageSourceClosure<'request>,
+    pub closure: ExactTargetPackageSourceClosure<'request>,
     pub accepted: Option<&'request PackageLockTarget>,
     pub entry: &'request Path,
     pub snapshot: Option<&'request build_evaluation::BuildSnapshotRequest>,
     pub verify: bool,
     pub timings: bool,
+    pub optimization_rollback: optimization_core::OptimizationRollback,
 }
 
 fn failure(package: &PackageKey, message: impl Into<String>) -> Error {
@@ -54,32 +55,81 @@ pub(super) fn compile_accepted_project(
     request: AcceptedCompilationRequest<'_>,
     session: &mut PackageBuildSession,
 ) -> Result<CheckedCompilation, Error> {
+    let root = request.closure.source_closure().graph().root().clone();
+    compile_accepted_projects(vec![request], session)
+        .into_iter()
+        .next()
+        .ok_or_else(|| failure(&root, "compiler lost the requested package outcome"))?
+}
+
+/// Submit every accepted target before completing Product source. Target-local
+/// input failures remain ordered outcomes; they do not discard valid siblings.
+pub(super) fn compile_accepted_projects(
+    requests: Vec<AcceptedCompilationRequest<'_>>,
+    session: &mut PackageBuildSession,
+) -> Vec<Result<CheckedCompilation, Error>> {
+    let mut outcomes: Vec<_> = (0..requests.len()).map(|_| None).collect();
+    let roots: Vec<_> = requests
+        .iter()
+        .map(|request| request.closure.source_closure().graph().root().clone())
+        .collect();
+    let mut positions = Vec::new();
+    let mut plans = Vec::new();
+    for (position, request) in requests.iter().enumerate() {
+        match prepare_accepted_project(request, session) {
+            Ok((plan, packages, identity)) => {
+                positions.push((position, packages, identity));
+                plans.push(plan);
+            }
+            Err(error) => outcomes[position] = Some(Err(error)),
+        }
+    }
+    let checked = session.compiler.check_packages(plans);
+    // Rust identity is immutable, but the external library can change during
+    // the batch. Never label mixed compiler inputs as accepted.
+    let current_identity = compiler_input_identity();
+    for ((position, packages, identity), checked) in positions.into_iter().zip(checked) {
+        let root = &roots[position];
+        let result = checked
+            .map_err(|error| Error::Compilation {
+                package: packages.get(error.occurrence).unwrap_or(root).clone(),
+                diagnostics: error.failure.into_diagnostics(),
+            })
+            .and_then(|checked| {
+                let current = current_identity
+                    .as_ref()
+                    .map_err(|error| failure(root, error.clone()))?;
+                if *current != identity {
+                    return Err(failure(
+                        root,
+                        "compiler library changed during compilation; run `omega update` for fresh review",
+                    ));
+                }
+                Ok(checked)
+            });
+        outcomes[position] = Some(result);
+    }
+    outcomes
+        .into_iter()
+        .zip(roots)
+        .map(|(outcome, root)| {
+            outcome.unwrap_or_else(|| Err(failure(&root, "compiler lost a package target outcome")))
+        })
+        .collect()
+}
+
+fn prepare_accepted_project(
+    request: &AcceptedCompilationRequest<'_>,
+    session: &mut PackageBuildSession,
+) -> Result<(PackageCompilationRequest, Vec<PackageKey>, [u8; 32]), Error> {
     let root = request.closure.source_closure().graph().root();
     let compiler_identity = compiler_input_identity().map_err(|error| failure(root, error))?;
     if let Some(accepted) = request.accepted {
-        identity::require_current_acceptance(request.closure, accepted, compiler_identity)
+        identity::require_current_acceptance(&request.closure, accepted, compiler_identity)
             .map_err(|error| failure(root, error))?;
     }
-    let (plan, packages) = prepare_occurrences(&request, session)?;
-    let result = session
-        .compiler
-        .check_package(plan)
-        .map_err(|error| Error::Compilation {
-            package: packages.get(error.occurrence).unwrap_or(root).clone(),
-            diagnostics: error.failure.into_diagnostics(),
-        });
-    // Loaded Rust identity is immutable; the external library is not. Reject
-    // edits during compilation instead of labeling mixed inputs as accepted.
-    result.and_then(|checked| {
-        let current = compiler_input_identity().map_err(|error| failure(root, error))?;
-        if current != compiler_identity {
-            return Err(failure(
-                root,
-                "compiler library changed during compilation; run `omega update` for fresh review",
-            ));
-        }
-        Ok(checked)
-    })
+    let (plan, packages) = prepare_occurrences(request, session)?;
+    Ok((plan, packages, compiler_identity))
 }
 
 fn prepare_occurrences(
@@ -90,13 +140,13 @@ fn prepare_occurrences(
     let graph = closure.graph();
     let root = graph.root();
     let source = CanonicalSourceClosureSubject::from_resolved(
-        request.closure,
+        &request.closure,
         CanonicalSourceClosureSubjectLimits::default(),
     )
     .map_err(|error| failure(root, error.to_string()))?;
     let roster = PackageOccurrenceRoster::derive(&source)
         .map_err(|error| failure(root, error.to_string()))?;
-    let snapshots = reconcile_build_inputs(request.closure, &roster, request.snapshot).map_err(
+    let snapshots = reconcile_build_inputs(&request.closure, &roster, request.snapshot).map_err(
         |diagnostics| Error::Compilation {
             package: root.clone(),
             diagnostics,
@@ -196,6 +246,7 @@ fn prepare_occurrences(
                     )) as Box<dyn compiler::RestrictedBuildGrants>
                 }),
                 collect_timings: request.timings,
+                optimization_rollback: request.optimization_rollback.clone(),
                 ..CheckedCompileRequest::new(&entry, Some(target.target_name()))
             };
             occurrences.push(compile_request);

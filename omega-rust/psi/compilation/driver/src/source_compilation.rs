@@ -123,6 +123,20 @@ impl SourceCompilationRequest {
 }
 
 impl SourceContinuation {
+    /// Whether two admitted Build continuations have exactly the same remaining
+    /// source work. A common pre-Build origin alone is insufficient: Build may
+    /// have elaborated declarations or consumed different evaluation obligations.
+    pub fn same_completion_input(&self, other: &Self) -> bool {
+        self.typing == other.typing
+            && self.pending_bodies == other.pending_bodies
+            && self.pending_pre_checks.len() == other.pending_pre_checks.len()
+            && self
+                .pending_pre_checks
+                .iter()
+                .zip(&other.pending_pre_checks)
+                .all(|(left, right)| left.same_pending_work(right))
+    }
+
     /// Borrow declaration descriptions for package custody; this is not executable input.
     pub fn typed(&self) -> &typed_trees::TypedTrees {
         self.typing.typed()

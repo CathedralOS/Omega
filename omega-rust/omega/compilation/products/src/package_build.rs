@@ -25,6 +25,42 @@ pub struct PreparedPackageBuild {
 }
 
 impl PreparedPackageBuild {
+    /// Compare complete source-completion inputs after each activation has
+    /// independently admitted and executed Build. Target stamps, grants and
+    /// independent-component descriptions are realization inputs, not source.
+    /// Pending typing/evaluation state must match, not merely Build's value.
+    pub fn same_product_source(&self, other: &Self) -> bool {
+        let build = &self.prepared.built.computed_build_config;
+        let other_build = &other.prepared.built.computed_build_config;
+        self.root_path == other.root_path
+            && self.rollback == other.rollback
+            && self.prepared.build_sources == other.prepared.build_sources
+            // Execution receipts and charges remain on each activation. They
+            // cannot partition source work, nor be replaced by a sibling's.
+            && build.config == other_build.config
+            && build.selected_build_machine_symbol == other_build.selected_build_machine_symbol
+            && build.generated_sources == other_build.generated_sources
+            && self.prepared.built.admission.application
+                == other.prepared.built.admission.application
+            && package_compilation::SourceAssemblyInputs::new(
+                Some(&self.inputs),
+                self.prepared.build_sources.build_execution_profile,
+            ) == package_compilation::SourceAssemblyInputs::new(
+                Some(&other.inputs),
+                other.prepared.build_sources.build_execution_profile,
+            )
+            && self.inputs.semantic_role_discovery() == other.inputs.semantic_role_discovery()
+            && self
+                .inputs
+                .accepted_semantic_bindings()
+                .eq(other.inputs.accepted_semantic_bindings())
+            && self
+                .prepared
+                .built
+                .source
+                .same_completion_input(&other.prepared.built.source)
+    }
+
     /// Bind one completed Build to its exact inputs and sealed output bytes.
     #[doc(hidden)]
     pub fn seal(

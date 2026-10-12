@@ -11,7 +11,7 @@ use typed_trees::references::DeclarationSelection;
 /// completed Build jobs but still needs shared toolchain declarations. Build
 /// execution instead keeps exactly its admitted roster: a Product descriptor
 /// operand must never promote a Product implementation into callable context.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub(crate) struct EvaluationDomain {
     work: DeclarationSelection,
     execution: DeclarationSelection,
@@ -325,6 +325,23 @@ pub struct PreCheckEvaluation {
 }
 
 impl PreCheckEvaluation {
+    /// Compare pending work from the same source-preparation owner. An authority
+    /// object is opaque: only a shared object can establish the same selection
+    /// context here. This is input matching, never permission to execute work.
+    pub fn same_pending_work(&self, other: &Self) -> bool {
+        self.domain == other.domain
+            && self.wire_schema_frontier == other.wire_schema_frontier
+            && self.placed_view_records == other.placed_view_records
+            && self.plan_laid_records == other.plan_laid_records
+            && self.selected_operators == other.selected_operators
+            && self.provider_bodies == other.provider_bodies
+            && match (&self.selection_authority, &other.selection_authority) {
+                (None, None) => true,
+                (Some(left), Some(right)) => Arc::ptr_eq(left, right),
+                _ => false,
+            }
+    }
+
     /// Retain the work owned by a declaration projection of this typed program.
     ///
     /// Syntax elaboration records precede symbol assignment. Join their generated

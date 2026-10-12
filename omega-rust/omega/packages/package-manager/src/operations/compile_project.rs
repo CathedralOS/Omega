@@ -5,9 +5,8 @@
 //! build grants. An existing lock must still match the source, compiler and
 //! target; its permission rows are checked before producing the native product.
 
-use super::accepted_compilation::{AcceptedCompilationRequest, compile_accepted_project};
+use super::accepted_compilation::{AcceptedCompilationRequest, compile_accepted_projects};
 
-use super::prepare_project::PreparedProjectTarget;
 use super::{PrepareLocalProjectError, PreparedLocalProject};
 use crate::build_session::PackageBuildSession;
 use crate::declarations::PackageKey;
@@ -202,6 +201,20 @@ pub fn compile_prepared_local_project_for_native_targets(
         .into_iter()
         .filter(|target| target_profiles.contains(&target.profile))
         .collect();
+    if source_closure.root_role() != crate::declarations::BuildDeclarationKind::Application {
+        return targets
+            .into_iter()
+            .map(|target| CompiledProjectTargetOutcome {
+                target: target.profile,
+                result: Err(CompilePreparedLocalProjectNativeError::Review(
+                    CompileResolvedPackageReviewsError::InvalidProductionRootRole {
+                        package: source_closure.graph().root().clone(),
+                        role: source_closure.root_role(),
+                    },
+                )),
+            })
+            .collect();
+    }
     // The whole batch borrows one invocation: sponsors, staging and the pure
     // Build store persist across targets rather than replenishing per compile.
     let mut session = match PackageBuildSession::create(&build_dir) {
@@ -222,21 +235,49 @@ pub fn compile_prepared_local_project_for_native_targets(
                 .collect();
         }
     };
+    let requests = targets
+        .iter()
+        .filter_map(|target| {
+            let accepted = target.accepted.as_ref().ok()?;
+            Some(AcceptedCompilationRequest {
+                closure: source_closure.for_exact_target(target.profile),
+                accepted: accepted.as_ref(),
+                entry: &entry_path,
+                snapshot: build_snapshot.as_ref(),
+                verify: false,
+                timings,
+                optimization_rollback: optimization_rollback.clone(),
+            })
+        })
+        .collect();
+    let mut checked = compile_accepted_projects(requests, &mut session).into_iter();
     let prepared = targets
         .into_iter()
         .map(|prepared_target| {
             let profile = prepared_target.profile;
-            let result = prepare_target_product(
-                prepared_target,
-                &source_closure,
-                &entry_path,
-                build_snapshot.as_ref(),
-                &optimization_rollback,
-                terminal_authority_policy.clone(),
-                receiving_terminal_authority_permission_policy.clone(),
-                timings,
-                &mut session,
-            );
+            let result = prepared_target
+                .accepted
+                .map_err(CompilePreparedLocalProjectNativeError::Prepare)
+                .and_then(|accepted| {
+                    let checked = checked
+                        .next()
+                        .ok_or_else(|| {
+                            CompilePreparedLocalProjectNativeError::Native(vec![Diagnostic::error(
+                                "compiler lost a package target outcome",
+                            )])
+                        })?
+                        .map_err(CompilePreparedLocalProjectNativeError::Review)?;
+                    prepare_target_product(
+                        checked,
+                        profile,
+                        accepted.as_ref(),
+                        &source_closure,
+                        &entry_path,
+                        &optimization_rollback,
+                        terminal_authority_policy.clone(),
+                        receiving_terminal_authority_permission_policy.clone(),
+                    )
+                });
             (profile, result)
         })
         .collect::<Vec<_>>();
@@ -287,15 +328,14 @@ pub fn compile_prepared_local_project_for_native_targets(
 /// realization.
 #[allow(clippy::too_many_arguments)]
 fn prepare_target_product(
-    prepared_target: PreparedProjectTarget,
+    checked: compiler::CheckedCompilation,
+    target_profile: target::TargetProfile,
+    accepted_target: Option<&crate::lock::PackageLockTarget>,
     source_closure: &crate::resolution::graph::ResolvedPackageSourceClosure,
     entry_path: &Path,
-    build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
     optimization_rollback: &OptimizationRollback,
     terminal_authority_policy: TerminalAuthorityPolicy,
     receiving_terminal_authority_permission_policy: Option<TerminalAuthorityPermissionPolicy>,
-    timings: bool,
-    session: &mut PackageBuildSession,
 ) -> Result<
     (
         compiler::CheckedCompilation,
@@ -304,31 +344,6 @@ fn prepare_target_product(
     ),
     CompilePreparedLocalProjectNativeError,
 > {
-    let target_profile = prepared_target.profile;
-    if source_closure.root_role() != crate::declarations::BuildDeclarationKind::Application {
-        return Err(CompilePreparedLocalProjectNativeError::Review(
-            CompileResolvedPackageReviewsError::InvalidProductionRootRole {
-                package: source_closure.graph().root().clone(),
-                role: source_closure.root_role(),
-            },
-        ));
-    }
-    let accepted_target = prepared_target
-        .accepted
-        .map_err(CompilePreparedLocalProjectNativeError::Prepare)?;
-    let target_closure = source_closure.for_exact_target(target_profile);
-    let checked = compile_accepted_project(
-        AcceptedCompilationRequest {
-            closure: &target_closure,
-            accepted: accepted_target.as_ref(),
-            entry: entry_path,
-            snapshot: build_snapshot,
-            verify: false,
-            timings,
-        },
-        session,
-    )
-    .map_err(CompilePreparedLocalProjectNativeError::Review)?;
     // Bind the permissions supplied by retained compilation inputs to this
     // root occurrence's consent before native production can consume them.
     // This projects only supplied permission meaning, not package review or
@@ -336,7 +351,7 @@ fn prepare_target_product(
     // this root's Product execution.
     // With no lock there are no supplied permissions to compare. Do not turn
     // a missing or invalid occurrence inside an existing lock into that case.
-    if let Some(accepted_target) = &accepted_target {
+    if let Some(accepted_target) = accepted_target {
         let root = source_closure.graph().root();
         let acceptance = accepted_target
             .occurrences()

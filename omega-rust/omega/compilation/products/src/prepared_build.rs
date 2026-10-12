@@ -44,6 +44,7 @@ pub struct PreparedProductSource {
 
 /// One source judgment shared by every realization in the invocation.
 /// The source checker produces this before any target provider is selected.
+#[derive(Clone)]
 pub struct CheckedProductSource {
     pub program: Arc<checked_trees::CheckedTrees>,
     /// All authored Product defaults, shared unchanged across target settlement.
