@@ -21,43 +21,50 @@ const TERMINAL_PRODUCTION_STAGE: StageMeta = StageMeta::new(
     TimingCategory::Pipeline,
 );
 
-/// The producing half's view into per-target realization custody. Standalone
-/// compilation produces between selection and installation; the package route
-/// arrives with the installed checked compilation already sealed. Both expose
-/// the same read set — production consumes nothing installation mints.
-pub(crate) enum TerminalProductionView<'a> {
-    Selection(&'a mut SelectedProviderCustody),
-    Installed(&'a mut CheckedCompilation),
+/// Production borrows precisely the source, entry and provider facts it reads.
+/// Review descriptions and new product selections supply this same view; the
+/// producer does not branch on the caller's installation history.
+pub(crate) struct TerminalProductionView<'a> {
+    program: &'a Arc<checked_trees::CheckedTrees>,
+    sources: &'a package_compilation::CheckedSourceCustody,
+    build: &'a compilation_products::ComputedBuildConfig,
+    provider_defaults: &'a [build_time_evaluation::provider_declarations::TargetProviderDefaults],
+    entry: Option<&'a provider_planning::program_entry::SelectedCompilerProgramEntry>,
+    provenance: &'a [provider_planning::SelectedProviderReviewProvenance],
+    plan_facts: &'a effects::SelectedProviderPlanFacts,
+    callbacks: &'a [provider_planning::calling_policy_plans::SelectedCallbackPlacement],
+    timings: &'a mut CompileTimings,
 }
 
-impl TerminalProductionView<'_> {
-    fn sources(&self) -> &package_compilation::CheckedSourceCustody {
-        match self {
-            Self::Selection(selection) => &*selection.sources,
-            Self::Installed(checked) => checked.sources(),
+impl<'a> TerminalProductionView<'a> {
+    pub(crate) fn selection(selection: &'a mut SelectedProviderCustody) -> Self {
+        Self {
+            program: &selection.checked.program,
+            sources: &selection.sources,
+            build: &selection.build,
+            provider_defaults: &selection.provider_defaults,
+            entry: selection.selected_program_entry.as_ref(),
+            provenance: &selection.selected_provider_provenance,
+            plan_facts: &selection.checked.selected_provider_plan_facts,
+            callbacks: &selection.checked.callback_placements,
+            timings: &mut selection.timings,
         }
     }
 
-    fn build(&self) -> &compilation_products::ComputedBuildConfig {
-        match self {
-            Self::Selection(selection) => &*selection.build,
-            Self::Installed(checked) => checked.build(),
-        }
-    }
-
-    fn provider_defaults(
-        &self,
-    ) -> &[build_time_evaluation::provider_declarations::TargetProviderDefaults] {
-        match self {
-            Self::Selection(selection) => &selection.provider_defaults,
-            Self::Installed(checked) => checked.provider_defaults(),
-        }
-    }
-
-    fn timings(&mut self) -> &mut CompileTimings {
-        match self {
-            Self::Selection(selection) => &mut selection.timings,
-            Self::Installed(checked) => checked.timings_mut(),
+    pub(crate) fn checked(
+        checked: &'a CheckedCompilation,
+        timings: &'a mut CompileTimings,
+    ) -> Self {
+        Self {
+            program: &checked.execution().program,
+            sources: checked.sources(),
+            build: checked.build(),
+            provider_defaults: checked.provider_defaults(),
+            entry: checked.execution().selected_program_entry.as_ref(),
+            provenance: &checked.execution().selected_provider_provenance,
+            plan_facts: &checked.execution().selected_provider_plan_facts,
+            callbacks: &checked.execution().callback_placements,
+            timings,
         }
     }
 }
@@ -90,17 +97,7 @@ pub(crate) fn produce_retained_terminal_artifacts(
     let entries: Vec<_> = requests
         .iter()
         .map(|request| {
-            let (entry, provenance) = match &request.view {
-                TerminalProductionView::Selection(selection) => (
-                    selection.selected_program_entry.as_ref(),
-                    selection.selected_provider_provenance.as_slice(),
-                ),
-                TerminalProductionView::Installed(checked) => (
-                    checked.execution().selected_program_entry.as_ref(),
-                    checked.execution().selected_provider_provenance.as_slice(),
-                ),
-            };
-            admit_terminal_production(entry, provenance).map(|entry| {
+            admit_terminal_production(request.view.entry, request.view.provenance).map(|entry| {
                 let selected_machine = entry.machine_symbol();
                 TerminalEntry {
                     selected_machine,
@@ -120,20 +117,11 @@ pub(crate) fn produce_retained_terminal_artifacts(
             continue;
         };
         let request = &requests[request_index];
-        let program_pointer = |view: &TerminalProductionView<'_>| match view {
-            TerminalProductionView::Selection(selection) => {
-                Arc::as_ptr(&selection.checked.program) as *const ()
-            }
-
-            TerminalProductionView::Installed(checked) => {
-                Arc::as_ptr(&checked.execution().program) as *const ()
-            }
-        };
         let group = groups.iter_mut().find(|group| {
             let first_index = group[0];
             let first = &requests[first_index];
-            program_pointer(&first.view) == program_pointer(&request.view)
-                && first.view.sources() == request.view.sources()
+            Arc::ptr_eq(first.view.program, request.view.program)
+                && first.view.sources == request.view.sources
                 && first.selections.project_psi() == request.selections.project_psi()
         });
         if let Some(group) = group {
@@ -145,21 +133,15 @@ pub(crate) fn produce_retained_terminal_artifacts(
 
     for group in groups {
         let first_index = group[0];
-        let mut timings = std::mem::take(requests[first_index].view.timings());
+        let mut timings = std::mem::take(&mut *requests[first_index].view.timings);
         timings.add_completed(TERMINAL_PRODUCTION_STAGE, 0, AllocationDelta::default());
         let started = std::time::Instant::now();
         let admission_roots: Vec<Vec<_>> = group
             .iter()
             .map(|&request_index| {
-                let placements = match &requests[request_index].view {
-                    TerminalProductionView::Selection(selection) => {
-                        &selection.checked.callback_placements
-                    }
-                    TerminalProductionView::Installed(checked) => {
-                        &checked.execution().callback_placements
-                    }
-                };
-                placements
+                requests[request_index]
+                    .view
+                    .callbacks
                     .iter()
                     .map(|placement| placement.selected_machine)
                     .collect()
@@ -169,16 +151,7 @@ pub(crate) fn produce_retained_terminal_artifacts(
             .iter()
             .zip(&admission_roots)
             .map(|(&request_index, admission_roots)| {
-                let (build, plan_facts) = match &requests[request_index].view {
-                    TerminalProductionView::Selection(selection) => (
-                        &*selection.build,
-                        &selection.checked.selected_provider_plan_facts,
-                    ),
-                    TerminalProductionView::Installed(checked) => (
-                        checked.build(),
-                        &checked.execution().selected_provider_plan_facts,
-                    ),
-                };
+                let view = &requests[request_index].view;
                 TerminalApplicationCustody {
                     admission_roots,
                     entry_identity: entries[request_index]
@@ -191,8 +164,8 @@ pub(crate) fn produce_retained_terminal_artifacts(
                         )
                     }),
                     behavior_exclusions: terminal_production::TerminalBehaviorExclusions::new(
-                        build.config.behavior_exclusions.as_slice(),
-                        plan_facts,
+                        view.build.config.behavior_exclusions.as_slice(),
+                        view.plan_facts,
                         entries[request_index]
                             .as_ref()
                             .map(|entry| entry.target)
@@ -206,15 +179,8 @@ pub(crate) fn produce_retained_terminal_artifacts(
         let produced = match &entries[first_index] {
             Ok(entry) => {
                 let first = &requests[first_index];
-                let (program_typed, checked_program) = match &first.view {
-                    TerminalProductionView::Selection(selection) => {
-                        (&selection.checked.program.typed, &selection.checked.program)
-                    }
-                    TerminalProductionView::Installed(checked) => (
-                        &checked.execution().program.typed,
-                        &checked.execution().program,
-                    ),
-                };
+                let checked_program = first.view.program;
+                let program_typed = &checked_program.typed;
                 let context = provider_planning::ProviderPlanningContext::new(
                     program_typed,
                     source::DependencyScope::Product,
@@ -223,13 +189,13 @@ pub(crate) fn produce_retained_terminal_artifacts(
                     context,
                     first
                         .view
-                        .provider_defaults()
+                        .provider_defaults
                         .iter()
                         .flat_map(|row| &row.selections)
-                        .chain(&first.view.build().config.provider_selections),
+                        .chain(&first.view.build.config.provider_selections),
                 )
                 .and_then(|boundary_roots| {
-                    let mut machines = first.view.build().config.program_roots();
+                    let mut machines = first.view.build.config.program_roots();
                     if machines.is_empty() {
                         machines.push(entry.selected_machine);
                     }
@@ -253,7 +219,7 @@ pub(crate) fn produce_retained_terminal_artifacts(
                         .map_or(default, |family| family.canonical);
                     terminal_production::TerminalProductionRequest {
                         checked: checked_program,
-                        exact_toolchain_sources: first.view.sources().exact_toolchain_sources(),
+                        exact_toolchain_sources: first.view.sources.exact_toolchain_sources(),
                         machine: terminal_production::TerminalMachineSelection::Symbol(default),
                         roots: terminal_production::TerminalProgramRoots {
                             machines: &machines,
@@ -281,11 +247,11 @@ pub(crate) fn produce_retained_terminal_artifacts(
             elapsed,
             AllocationDelta::default(),
         );
-        *requests[first_index].view.timings() = timings;
+        *requests[first_index].view.timings = timings;
         for &request_index in &group[1..] {
             // The shared cost is visible in each product report; per-leg rows
             // remain on the producing request, not fabricated executions.
-            requests[request_index].view.timings().add_completed(
+            requests[request_index].view.timings.add_completed(
                 TERMINAL_PRODUCTION_STAGE,
                 elapsed,
                 AllocationDelta::default(),

@@ -17,9 +17,10 @@ fn retained_terminal_artifact_from_checked_package(
 ) -> Result<(RetainedTerminalArtifact, CompileTimings), Vec<Diagnostic>> {
     crate::checked::run_on_compile_thread(move || {
         let selections = rollback.settle(&checked.build().config.settings.optimizations);
+        let mut timings = std::mem::take(checked.timings_mut());
         let produced = crate::terminal::produce_retained_terminal_artifacts(vec![
             crate::terminal::TerminalProductRequest {
-                view: crate::terminal::TerminalProductionView::Installed(&mut checked),
+                view: crate::terminal::TerminalProductionView::checked(&checked, &mut timings),
                 selections: selections.effective(),
             },
         ])
@@ -35,6 +36,6 @@ fn retained_terminal_artifact_from_checked_package(
             produced,
             selections.effective(),
         )?;
-        Ok((retained, std::mem::take(checked.timings_mut())))
+        Ok((retained, timings))
     })
 }

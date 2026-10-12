@@ -1118,8 +1118,8 @@ fn receive_stream(
 /// Check a refusal control once and continue only to its authored product.
 /// Entryless fixtures stop at checking: demanding a native entry after source
 /// acceptance would hide that acceptance behind the harness's own refusal.
-/// An entry-bearing fixture can pin later production failures, but consumes
-/// the checked compilation instead of repeating package preparation and Build.
+/// An entry-bearing or publication-bearing fixture can pin later production
+/// failures. It requests that product without repeating preparation or Build.
 /// Sponsors, rollback and output-effect controls belong to this one activation.
 fn check_fail_fixture(
     root_path: &Path,
@@ -1127,7 +1127,10 @@ fn check_fail_fixture(
     rollback: Option<&OptimizationRollback>,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let target_name = declared_realization_target(root_path);
-    let native_product = target_name.as_ref().map(|_| compilation_products::NativeProductRequest {
+    let publishes = root_path
+        .parent()
+        .is_some_and(|directory| directory.join("expected_published.txt").is_file());
+    let native_product = (target_name.is_some() || publishes).then(|| compilation_products::NativeProductRequest {
         terminal_authority_policy:
             terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
         terminal_authority_permission_policy: None,

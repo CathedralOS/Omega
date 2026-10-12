@@ -8,9 +8,7 @@
 use crate::checked::{
     check_product_source, prepare_checked_source, prepare_product_source, run_on_compile_thread,
 };
-use crate::execution_settlement::{
-    SelectedProviderCustody, install_selected_target, select_product_providers,
-};
+use crate::execution_settlement::SelectedProductTarget;
 use crate::native::produce_native_product;
 use crate::terminal::{
     TerminalProductRequest, TerminalProductionView, finish_terminal_application,
@@ -119,15 +117,10 @@ fn prepare_target(
     shared: &SharedCompileInputs,
     target: ValidatedTargetCompilation,
     source: &CheckedProductSource,
-) -> Result<(PendingRealization, PathBuf, CompilationProduct), Vec<Diagnostic>> {
+) -> Result<ProductRequest, Vec<Diagnostic>> {
     let root_path = shared.root_path.clone();
-    let custody = select_product_providers(source, target.profile(), target.package_inputs())?;
-    let realization = PendingRealization::Selection {
-        custody,
-        retained_checks: source.retained_checks.clone(),
-        package_inputs: target.package_inputs().cloned(),
-        permit_unsettled_fused_service_fields: false,
-    };
+    let realization =
+        SelectedProductTarget::select(source, target.profile(), target.package_inputs(), false)?;
 
     let product = match shared.requested_product {
         RequestedCompileProduct::Check => CompilationProduct::Check,
@@ -138,7 +131,7 @@ fn prepare_target(
             CompilationProduct::Native(target.into_native_product_request())
         }
     };
-    Ok((realization, root_path, product))
+    Ok((realization, root_path, product, None))
 }
 
 /// The remaining work after source checking. Native authority has no meaning
@@ -195,6 +188,12 @@ pub enum CompilationProductError {
     Production(Vec<Diagnostic>),
 }
 
+impl From<Vec<Diagnostic>> for CompilationProductError {
+    fn from(diagnostics: Vec<Diagnostic>) -> Self {
+        Self::Production(diagnostics)
+    }
+}
+
 impl CompilationProductError {
     pub fn into_diagnostics(self) -> Vec<Diagnostic> {
         match self {
@@ -203,72 +202,19 @@ impl CompilationProductError {
     }
 }
 
-/// Internal completion of a checked roster. Public callers submit desired
-/// products up front; no checked intermediate is returned for resubmission.
-pub(crate) fn finish_compilation(
-    requests: Vec<(CheckedCompilation, PathBuf, CompilationProduct)>,
-) -> Vec<Result<CompilationOutput, CompilationProductError>> {
-    finish_compilations(
-        requests
-            .into_iter()
-            .map(|(checked, root, product)| {
-                Ok((PendingRealization::Installed(checked), root, product))
-            })
-            .collect(),
-    )
-}
+/// One selected application and the complete output/consent request.
+type ProductRequest = (
+    SelectedProductTarget,
+    PathBuf,
+    CompilationProduct,
+    Option<package_evidence::permission_acceptance::TerminalPermissionAcceptance>,
+);
 
 struct PendingProduct {
     checked: CheckedCompilation,
     requested: CompilationProduct,
     settlement: CheckedProductReport,
     rollback: optimization_core::OptimizationRollbackSettlement,
-}
-
-/// How a target's checked compilation arrives at realization: a fresh
-/// selection custody the invocation installs after Terminal production, or an
-/// already-installed product the package route sealed itself.
-enum PendingRealization {
-    Selection {
-        custody: SelectedProviderCustody,
-        retained_checks: compilation_products::RetainedCompilationChecks,
-        package_inputs: Option<package_compilation::PackageCompilationInputs>,
-        permit_unsettled_fused_service_fields: bool,
-    },
-    Installed(CheckedCompilation),
-}
-
-impl PendingRealization {
-    fn view(&mut self) -> TerminalProductionView<'_> {
-        match self {
-            Self::Selection { custody, .. } => TerminalProductionView::Selection(custody),
-            Self::Installed(checked) => TerminalProductionView::Installed(checked),
-        }
-    }
-
-    fn build(&self) -> &compilation_products::ComputedBuildConfig {
-        match self {
-            Self::Selection { custody, .. } => &*custody.build,
-            Self::Installed(checked) => checked.build(),
-        }
-    }
-
-    fn install(self) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-        match self {
-            Self::Installed(checked) => Ok(checked),
-            Self::Selection {
-                custody,
-                retained_checks,
-                package_inputs,
-                permit_unsettled_fused_service_fields,
-            } => install_selected_target(
-                custody,
-                retained_checks,
-                package_inputs.as_ref(),
-                permit_unsettled_fused_service_fields,
-            ),
-        }
-    }
 }
 
 /// The settled optimization rollback production consumes before installation
@@ -290,17 +236,15 @@ fn settle_product_rollback(
 /// Keep ordering and refusal local to each target while sharing portable work.
 /// Selection settles first; the target-neutral artifact is produced for the
 /// complete roster before any target's installation consumes it.
-fn finish_compilations(
-    requests: Vec<
-        Result<(PendingRealization, PathBuf, CompilationProduct), CompilationProductError>,
-    >,
+pub(crate) fn finish_compilations(
+    requests: Vec<Result<ProductRequest, CompilationProductError>>,
 ) -> Vec<Result<CompilationOutput, CompilationProductError>> {
     let mut outcomes: Vec<_> = (0..requests.len()).map(|_| None).collect();
     let mut pending = Vec::new();
     for (request_index, request) in requests.into_iter().enumerate() {
         match request {
             Err(error) => outcomes[request_index] = Some(Err(error)),
-            Ok((realization, _, CompilationProduct::Inspection(machine))) => {
+            Ok((realization, _, CompilationProduct::Inspection(machine), _)) => {
                 outcomes[request_index] = Some(
                     realization
                         .install()
@@ -309,35 +253,41 @@ fn finish_compilations(
                         .map_err(CompilationProductError::Production),
                 );
             }
-            Ok((realization, root, requested)) => {
-                if matches!(requested, CompilationProduct::Check) {
-                    // Check products produce nothing: install now, keep the
-                    // report, and never join the production roster.
-                    let prepared = realization
-                        .install()
-                        .map_err(CompilationProductError::Production)
-                        .and_then(|checked| prepare_product(checked, root.clone(), requested));
-                    match prepared {
-                        Ok(product) => {
-                            if let CheckedProductReport::Complete(report) = product.settlement {
-                                outcomes[request_index] =
-                                    Some(Ok(CompilationOutput::Report(report)));
-                            } else {
-                                let rollback = product.rollback;
-                                pending.push((
-                                    request_index,
-                                    PendingRealization::Installed(product.checked),
-                                    root,
-                                    product.requested,
-                                    rollback,
-                                ));
-                            }
-                        }
-                        Err(error) => outcomes[request_index] = Some(Err(error)),
-                    }
+            Ok((realization, root, requested, permissions)) => {
+                if matches!(requested, CompilationProduct::Check)
+                    || realization.custody.build_admission.artifact_only()
+                {
+                    // These stops do not need a Terminal program. Complete the
+                    // actual requested report, without manufacturing an entry.
+                    outcomes[request_index] = Some(
+                        realization
+                            .install()
+                            .map_err(CompilationProductError::Production)
+                            .and_then(|checked| {
+                                admit_permissions(&checked, permissions.as_ref())?;
+                                prepare_product(checked, root, requested)
+                            })
+                            .and_then(|product| match product.settlement {
+                                CheckedProductReport::Complete(report) => {
+                                    Ok(CompilationOutput::Report(report))
+                                }
+                                _ => Err(CompilationProductError::Production(vec![
+                                    Diagnostic::error(
+                                        "non-executable product requested Terminal production",
+                                    ),
+                                ])),
+                            }),
+                    );
                 } else {
-                    let rollback = settle_product_rollback(&requested, realization.build());
-                    pending.push((request_index, realization, root, requested, rollback));
+                    let rollback = settle_product_rollback(&requested, &realization.custody.build);
+                    pending.push((
+                        request_index,
+                        realization,
+                        root,
+                        requested,
+                        rollback,
+                        permissions,
+                    ));
                 }
             }
         }
@@ -345,13 +295,15 @@ fn finish_compilations(
     let terminals = produce_retained_terminal_artifacts(
         pending
             .iter_mut()
-            .map(|(_, realization, _, _, rollback)| TerminalProductRequest {
-                view: realization.view(),
-                selections: rollback.effective(),
-            })
+            .map(
+                |(_, realization, _, _, rollback, _)| TerminalProductRequest {
+                    view: TerminalProductionView::selection(&mut realization.custody),
+                    selections: rollback.effective(),
+                },
+            )
             .collect(),
     );
-    for ((request_index, realization, root, requested, rollback), terminal) in
+    for ((request_index, realization, root, requested, rollback, permissions), terminal) in
         pending.into_iter().zip(terminals)
     {
         outcomes[request_index] = Some(
@@ -361,6 +313,7 @@ fn finish_compilations(
                     let checked = realization
                         .install()
                         .map_err(CompilationProductError::Production)?;
+                    admit_permissions(&checked, permissions.as_ref())?;
                     let product = prepare_product(checked, root, requested)?;
                     let terminal = finish_terminal_application(
                         &product.checked,
@@ -382,6 +335,18 @@ fn finish_compilations(
             })
         })
         .collect()
+}
+
+fn admit_permissions(
+    checked: &CheckedCompilation,
+    permissions: Option<&package_evidence::permission_acceptance::TerminalPermissionAcceptance>,
+) -> Result<(), CompilationProductError> {
+    if let Some(permissions) = permissions {
+        permissions
+            .validate(checked)
+            .map_err(CompilationProductError::TrustAdmission)?;
+    }
+    Ok(())
 }
 
 fn prepare_product(

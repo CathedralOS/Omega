@@ -79,6 +79,22 @@ fn native_product_consumes_terminal_without_producing_it() {
 }
 
 #[test]
+fn product_production_has_no_installed_checkpoint_mode() {
+    let compiler = include_str!("compiler.rs");
+    assert!(!compiler.contains("PendingRealization"));
+    assert!(!compiler.contains("fn finish_compilation("));
+    let production = include_str!("terminal/terminal_artifact.rs");
+    assert!(!production.contains("enum TerminalProductionView"));
+    assert!(!production.contains("TerminalProductionView::Installed"));
+    for source in [
+        include_str!("checked/compilation_session.rs"),
+        include_str!("checked/package_compilation.rs"),
+    ] {
+        assert!(source.contains("compiler::finish_compilations("));
+    }
+}
+
+#[test]
 fn selected_execution_does_not_copy_checked_programs() {
     for source in [
         include_str!("../../realization/selected-dispatch/src/selected_dispatch.rs"),

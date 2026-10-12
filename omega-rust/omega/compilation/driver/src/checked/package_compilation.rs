@@ -46,85 +46,93 @@ impl CompilationSession {
         &mut self,
         requests: Vec<PackageCompilationRequest>,
     ) -> Vec<Result<crate::CompilationOutput, PackageCompileFailure>> {
-        let mut outcomes: Vec<_> = (0..requests.len()).map(|_| None).collect();
-        let mut selections = Vec::new();
-        let mut builds = Vec::new();
-        for (position, mut request) in requests.into_iter().enumerate() {
-            let root = request.occurrences.len().saturating_sub(1);
-            let path = request
-                .occurrences
-                .last()
-                .map(|root| root.root_path.clone())
-                .unwrap_or_default();
-            for occurrence in &mut request.occurrences {
-                occurrence.optimization_rollback = request.product.optimization_rollback();
-            }
-            match self.prepare_package(request.occurrences) {
-                Ok(build) => {
-                    selections.push((
-                        position,
-                        root,
-                        path,
-                        request.product,
-                        request.terminal_permissions,
-                    ));
-                    builds.push(build);
+        let count = requests.len();
+        super::run_on_compile_thread(|| {
+            let mut outcomes: Vec<_> = (0..requests.len()).map(|_| None).collect();
+            let mut selections = Vec::new();
+            let mut builds = Vec::new();
+            for (position, mut request) in requests.into_iter().enumerate() {
+                let root = request.occurrences.len().saturating_sub(1);
+                let path = request
+                    .occurrences
+                    .last()
+                    .map(|root| root.root_path.clone())
+                    .unwrap_or_default();
+                for occurrence in &mut request.occurrences {
+                    occurrence.optimization_rollback = request.product.optimization_rollback();
                 }
-                Err(error) => outcomes[position] = Some(Err(error)),
+                match self.prepare_package(request.occurrences) {
+                    Ok(build) => {
+                        selections.push((
+                            position,
+                            root,
+                            path,
+                            request.product,
+                            request.terminal_permissions,
+                        ));
+                        builds.push(build);
+                    }
+                    Err(error) => outcomes[position] = Some(Err(error)),
+                }
             }
-        }
 
-        // All roots enter source completion together. Consent consumes the
-        // resulting declarations, before any requested native product exists.
-        let mut positions = Vec::new();
-        let mut products = Vec::new();
-        for (checked, (position, root, path, product, permissions)) in
-            self.check_build_batch(builds).into_iter().zip(selections)
-        {
-            let checked = checked.result.and_then(|checked| {
-                if let Some(permissions) = permissions {
-                    permissions
-                        .validate(&checked)
-                        .map_err(CompileFailure::from)?;
-                }
-                Ok(checked)
-            });
-            match checked {
-                Ok(checked) => {
-                    positions.push((position, root));
-                    products.push((checked, path, product));
-                }
-                Err(failure) => {
-                    outcomes[position] = Some(Err(PackageCompileFailure {
-                        occurrence: root,
-                        failure,
-                    }))
+            // All roots enter source completion together. Provider selection feeds
+            // the same Terminal-before-installation sequence as standalone builds.
+            // Permission consent travels to that sequence's admission boundary.
+            let mut positions = Vec::new();
+            let mut products = Vec::new();
+            for (selected, (position, root, path, product, permissions)) in
+                self.select_build_batch(builds).into_iter().zip(selections)
+            {
+                match selected.result {
+                    Ok(selected) => {
+                        positions.push((position, root));
+                        products.push(Ok((selected, path, product, permissions)));
+                    }
+                    Err(failure) => {
+                        outcomes[position] = Some(Err(PackageCompileFailure {
+                            occurrence: root,
+                            failure,
+                        }))
+                    }
                 }
             }
-        }
-        for ((position, root), product) in positions
-            .into_iter()
-            .zip(crate::compiler::finish_compilation(products))
-        {
-            outcomes[position] = Some(product.map_err(|error| PackageCompileFailure {
-                occurrence: root,
-                failure: error.into_diagnostics().into(),
-            }));
-        }
-        outcomes
-            .into_iter()
-            .map(|outcome| {
-                outcome.unwrap_or_else(|| {
+            for ((position, root), product) in positions
+                .into_iter()
+                .zip(crate::compiler::finish_compilations(products))
+            {
+                outcomes[position] = Some(product.map_err(|error| PackageCompileFailure {
+                    occurrence: root,
+                    failure: error.into_diagnostics().into(),
+                }));
+            }
+            Ok::<_, Vec<Diagnostic>>(
+                outcomes
+                    .into_iter()
+                    .map(|outcome| {
+                        outcome.unwrap_or_else(|| {
+                            Err(PackageCompileFailure {
+                                occurrence: 0,
+                                failure: vec![Diagnostic::error(
+                                    "package compilation lost a requested product",
+                                )]
+                                .into(),
+                            })
+                        })
+                    })
+                    .collect(),
+            )
+        })
+        .unwrap_or_else(|diagnostics| {
+            (0..count)
+                .map(|_| {
                     Err(PackageCompileFailure {
                         occurrence: 0,
-                        failure: vec![Diagnostic::error(
-                            "package compilation lost a requested product",
-                        )]
-                        .into(),
+                        failure: diagnostics.clone().into(),
                     })
                 })
-            })
-            .collect()
+                .collect()
+        })
     }
 
     fn prepare_package(

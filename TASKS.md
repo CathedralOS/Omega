@@ -3111,9 +3111,11 @@ crash and native exit behavior.
     Root Product permission consent is input, compared with fresh declarations
     inside compilation before native production. The compiler owns generated
     joins, Build continuations and independent-component publication.
+    Standalone/session products now share selection → Terminal → installation;
+    the installed-checkpoint completion route is removed. Review descriptions
+    borrow the same production facts without a second producer mode.
     Remaining: converge session and standalone source preparation, and move
-    provider settlement behind Terminal as required above. The private
-    installed-checkpoint completion route is not yet that final boundary.
+    source-aware provider selection itself behind Terminal as required above.
   - Keep each stage's independent representation and transformation crate,
     single-target command behavior, Build-effect custody and per-target
     publication.

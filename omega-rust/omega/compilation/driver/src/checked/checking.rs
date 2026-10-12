@@ -12,6 +12,7 @@ pub use compilation_products::{
 };
 pub use package_compilation::build_execution::RestrictedBuildGrants;
 
+use crate::execution_settlement::SelectedCompileOutcome;
 use artifacts::compile_timings::{
     BUILD_AND_CHECKED_CONTINUATION, CompileTimings, StageMeta, counters,
 };
@@ -145,13 +146,13 @@ pub(super) fn prepare_package_build_worker(
 
 /// The checked request's feed-forward route. Settlement and source-sealing
 /// failures retain completed Build observations beside the rejected outcome.
-pub(super) fn compile_checked_worker(
+pub(super) fn select_checked_worker(
     request: CheckedCompileRequest,
     prepared: PreparedCheckedSource,
     reuse: SettledCheckReuse,
     pure_build_compilation: &build_evaluation::PureBuildCompilation,
     selections: &mut psi_compiler::ProductSelections,
-) -> Result<CheckedCompileOutcome, CompileFailure> {
+) -> Result<SelectedCompileOutcome, CompileFailure> {
     // Target admission precedes source loading, including for fresh requests.
     let selected_target_profile = request
         .target_name
@@ -180,7 +181,7 @@ pub(super) fn compile_checked_worker(
         permit_unsettled_fused_service_fields: request.permit_unsettled_fused_service_fields,
         settled_check_reuse: reuse,
     };
-    check_prepared_source(
+    select_prepared_source(
         &request.root_path,
         prepared,
         child,
@@ -193,13 +194,13 @@ pub(super) fn compile_checked_worker(
 /// A product batch shares its completed source prefix. Sponsored review
 /// activations admit fresh and may consume an exactly matched completed Pure Build. Failures
 /// after Build retain discovery observations, never output or execution authority.
-pub(crate) fn check_prepared_source(
+pub(crate) fn select_prepared_source(
     root_path: &Path,
     source: PreparedCheckedSource,
     child: CheckedExecutionRequest<'_>,
     pure_build_compilation: Option<&build_evaluation::PureBuildCompilation>,
     selections: &mut psi_compiler::ProductSelections,
-) -> Result<CheckedCompileOutcome, CompileFailure> {
+) -> Result<SelectedCompileOutcome, CompileFailure> {
     let selected_target_profile = child.selected_target_profile;
     let package_inputs = child.package_inputs;
     let rollback = child.optimization_rollback.clone();
@@ -207,7 +208,7 @@ pub(crate) fn check_prepared_source(
     let settled_check_reuse = child.settled_check_reuse.clone();
 
     let prepared = prepare_build_source(root_path, source, child, pure_build_compilation)?;
-    Ok(check_completed_build(
+    Ok(select_completed_build(
         prepared,
         selected_target_profile,
         package_inputs,
@@ -293,7 +294,7 @@ pub(super) fn complete_prepared_build(
     })
 }
 
-pub(super) fn check_completed_build(
+pub(super) fn select_completed_build(
     prepared: PreparedBuild,
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
@@ -301,7 +302,7 @@ pub(super) fn check_completed_build(
     permit_unsettled_fused_service_fields: bool,
     settled_check_reuse: SettledCheckReuse,
     selections: &mut psi_compiler::ProductSelections,
-) -> CheckedCompileOutcome {
+) -> SelectedCompileOutcome {
     let independent_components = prepared
         .built
         .computed_build_config
@@ -315,13 +316,13 @@ pub(super) fn check_completed_build(
             selections,
         )
     }) {
-        Ok(source) => crate::execution_settlement::settle_product_target(
+        Ok(source) => crate::execution_settlement::select_product_target(
             &source,
             selected_target_profile,
             package_inputs,
             permit_unsettled_fused_service_fields,
         ),
-        Err(diagnostics) => CheckedCompileOutcome {
+        Err(diagnostics) => SelectedCompileOutcome {
             result: Err(CompileFailure::from(diagnostics)),
             independent_components,
         },

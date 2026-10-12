@@ -140,7 +140,11 @@ compiler owns generated-output joins, Build/Product continuations and independen
 component publication. Target plans enter together; matching post-Build root
 continuations share source completion. Package operations supply requested
 products and exact root permission consent, and receive reports or inspections,
-not checked activations to resume. Dependency Build preparation still repeats
+not checked activations to resume. Standalone and session products share
+selection, Terminal production, then installation; source checking no longer
+installs the package product ahead of that sequence. Review descriptions supply
+the same borrowed production facts without a second producer mode.
+Dependency Build preparation still repeats
 per target; the complete package closure does not yet have one source prefix:
 
 | Input → output | Owner |

@@ -10,6 +10,8 @@ autotests = false
 
 
 [dependencies]
+checked-trees = { path = "../../../psi/compilation/representations/checked-trees" }
+effects = { path = "../backend/plans/provider-evidence" }
 package-evidence = { path = "../../packages/review-evidence" }
 arena = { path = "../../../psi/foundation/arena" }
 native-production = { path = "../native-production" }
@@ -60,7 +62,6 @@ checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }
 syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }
 task-plans = { path = "../backend/runtime/task-plans" }
 source-files-to-tokens = { path = "../../../psi/compilation/pipeline/00_source-files-to-tokens" }
-effects = { path = "../backend/plans/provider-evidence" }
 installation-evidence = { path = "../backend/runtime/installation-evidence" }
 tokens-to-syntax-trees = { path = "../../../psi/compilation/pipeline/01_tokens-to-syntax-trees" }
 object-file = { path = "../backend/object/object-file" }

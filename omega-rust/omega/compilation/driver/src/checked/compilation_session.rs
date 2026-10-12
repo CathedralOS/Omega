@@ -13,8 +13,9 @@
 
 use super::checking::compile_thread::run_on_compile_thread;
 use super::checking::{
-    compile_checked_worker, prepare_checked_source, prepare_package_build_worker,
+    prepare_checked_source, prepare_package_build_worker, select_checked_worker,
 };
+use crate::execution_settlement::SelectedCompileOutcome;
 use artifacts::compile_timings::counters;
 use compilation_products::{
     CheckedCompileOutcome, CheckedCompileRequest, CompileFailure, IndependentComponentDiscovery,
@@ -46,39 +47,48 @@ impl CompilationSession {
         mut request: CheckedCompileRequest,
         product: crate::CompilationProduct,
     ) -> Result<crate::CompilationOutput, crate::CompilationProductError> {
-        let root = request.root_path.clone();
-        request.optimization_rollback = product.optimization_rollback();
-        let checked = self.check(request).result.map_err(|failure| {
-            crate::CompilationProductError::Production(failure.into_diagnostics())
-        })?;
-        crate::compiler::finish_compilation(vec![(checked, root, product)])
-            .into_iter()
-            .next()
-            .ok_or_else(|| {
-                crate::CompilationProductError::Production(vec![diagnostics::Diagnostic::error(
-                    "compiler lost the requested source product",
-                )])
-            })?
+        run_on_compile_thread(|| {
+            let root = request.root_path.clone();
+            request.optimization_rollback = product.optimization_rollback();
+            let selected = self.select(request).result.map_err(|failure| {
+                crate::CompilationProductError::Production(failure.into_diagnostics())
+            })?;
+            crate::compiler::finish_compilations(vec![Ok((selected, root, product, None))])
+                .into_iter()
+                .next()
+                .ok_or_else(|| {
+                    crate::CompilationProductError::Production(vec![
+                        diagnostics::Diagnostic::error(
+                            "compiler lost the requested source product",
+                        ),
+                    ])
+                })?
+        })
     }
 
     /// Check one complete source request without publishing native output.
     /// Discovery observations survive a target-settlement rejection.
     pub fn check(&mut self, request: CheckedCompileRequest) -> CheckedCompileOutcome {
+        run_on_compile_thread(|| Ok::<_, CompileFailure>(self.select(request).install()))
+            .unwrap_or_else(|failure| refusal(failure).install())
+    }
+
+    fn select(&mut self, request: CheckedCompileRequest) -> SelectedCompileOutcome {
         counters::record_checked_compilation();
-        run_on_compile_thread(|| {
+        (|| {
             let source = self.prepare_source(&request)?;
-            let outcome = compile_checked_worker(
+            let outcome = select_checked_worker(
                 request,
                 source,
                 self.reuse(),
                 &self.pure_builds,
                 &mut self.selections,
             )?;
-            if let Ok(checked) = &outcome.result {
-                self.retain(checked.settled_checks());
+            if let Ok(selected) = &outcome.result {
+                self.retain(&selected.retained_checks);
             }
             Ok::<_, CompileFailure>(outcome)
-        })
+        })()
         .unwrap_or_else(refusal)
     }
 
@@ -101,7 +111,8 @@ impl CompilationSession {
 
     /// Resume the completed Build, never recreate its grants or execute it twice.
     pub(super) fn check_build(&mut self, build: PreparedPackageBuild) -> CheckedCompileOutcome {
-        self.check_build_batch(vec![build])
+        let selected = self
+            .select_build_batch(vec![build])
             .into_iter()
             .next()
             .unwrap_or_else(|| {
@@ -111,7 +122,9 @@ impl CompilationSession {
                     )]
                     .into(),
                 )
-            })
+            });
+        run_on_compile_thread(|| Ok::<_, CompileFailure>(selected.install()))
+            .unwrap_or_else(|failure| refusal(failure).install())
     }
 
     fn prepare_source(
@@ -171,8 +184,8 @@ fn retain_judgment(
     }
 }
 
-fn refusal(failure: CompileFailure) -> CheckedCompileOutcome {
-    CheckedCompileOutcome {
+fn refusal(failure: CompileFailure) -> SelectedCompileOutcome {
+    SelectedCompileOutcome {
         result: Err(failure),
         independent_components: IndependentComponentDiscovery::default(),
     }

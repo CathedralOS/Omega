@@ -43,6 +43,59 @@ pub(crate) struct SelectedProviderCustody {
     pub(crate) timings: CompileTimings,
 }
 
+/// A checked source application ready for Terminal production and installation.
+/// Review can stop by installing it directly; executable products retain this
+/// same selection until the portable artifact has been produced.
+pub(crate) struct SelectedProductTarget {
+    pub(crate) custody: SelectedProviderCustody,
+    pub(crate) retained_checks: RetainedCompilationChecks,
+    package_inputs: Option<PackageCompilationInputs>,
+    permit_unsettled_fused_service_fields: bool,
+}
+
+impl SelectedProductTarget {
+    pub(crate) fn select(
+        source: &CheckedProductSource,
+        target: Option<target::TargetProfile>,
+        package_inputs: Option<&PackageCompilationInputs>,
+        permit_unsettled_fused_service_fields: bool,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        Ok(Self {
+            custody: select_product_providers(source, target, package_inputs)?,
+            retained_checks: source.retained_checks.clone(),
+            package_inputs: package_inputs.cloned(),
+            permit_unsettled_fused_service_fields,
+        })
+    }
+
+    pub(crate) fn install(self) -> Result<CheckedCompilation, Vec<Diagnostic>> {
+        install_selected_target(
+            self.custody,
+            self.retained_checks,
+            self.package_inputs.as_ref(),
+            self.permit_unsettled_fused_service_fields,
+        )
+    }
+}
+
+/// Discovery survives selection failure so package review can acquire the
+/// missing independent component without treating failure as authority.
+pub(crate) struct SelectedCompileOutcome {
+    pub(crate) result: Result<SelectedProductTarget, CompileFailure>,
+    pub(crate) independent_components: compilation_products::IndependentComponentDiscovery,
+}
+
+impl SelectedCompileOutcome {
+    pub(crate) fn install(self) -> CheckedCompileOutcome {
+        CheckedCompileOutcome {
+            result: self
+                .result
+                .and_then(|selected| selected.install().map_err(CompileFailure::from)),
+            independent_components: self.independent_components,
+        }
+    }
+}
+
 fn select_checked_providers(
     source: &CheckedProductSource,
     selected_target_profile: Option<target::TargetProfile>,
@@ -244,45 +297,22 @@ pub(crate) fn install_selected_target(
         })
 }
 
-/// Install one selected target and wrap the outcome for check-only callers.
-fn install_product_target(
-    source: &CheckedProductSource,
-    selection: SelectedProviderCustody,
-    package_inputs: Option<&PackageCompilationInputs>,
-    permit_unsettled_fused_service_fields: bool,
-) -> CheckedCompileOutcome {
-    let independent_components = source.computed_build_config.independent_components();
-    let result = install_selected_target(
-        selection,
-        source.retained_checks.clone(),
-        package_inputs,
-        permit_unsettled_fused_service_fields,
-    );
-    CheckedCompileOutcome {
-        result: result.map_err(CompileFailure::from),
-        independent_components,
-    }
-}
-
-/// Bind one target to shared checked source, never a resumable frontend.
-/// Build-time and check-only callers settle selection and installation in one
-/// pass; the product route produces the canonical artifact between them.
-pub(crate) fn settle_product_target(
+/// Select one target against the shared source judgment. The consumer chooses
+/// its actual stop; source checking never installs an executable as a side effect.
+pub(crate) fn select_product_target(
     source: &CheckedProductSource,
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
     permit_unsettled_fused_service_fields: bool,
-) -> CheckedCompileOutcome {
-    match select_product_providers(source, selected_target_profile, package_inputs) {
-        Ok(selection) => install_product_target(
+) -> SelectedCompileOutcome {
+    SelectedCompileOutcome {
+        result: SelectedProductTarget::select(
             source,
-            selection,
+            selected_target_profile,
             package_inputs,
             permit_unsettled_fused_service_fields,
-        ),
-        Err(diagnostics) => CheckedCompileOutcome {
-            result: Err(CompileFailure::from(diagnostics)),
-            independent_components: source.computed_build_config.independent_components(),
-        },
+        )
+        .map_err(CompileFailure::from),
+        independent_components: source.computed_build_config.independent_components(),
     }
 }

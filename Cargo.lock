@@ -430,6 +430,7 @@ dependencies = [
  "build-time-evaluation",
  "calling-conventions",
  "checked-interpreter",
+ "checked-trees",
  "compilation-products",
  "component-description",
  "diagnostics",

@@ -73,7 +73,11 @@ permissions with the exact root Product consent before native production,
 using the independent package-evidence projection owner. Inspection is an
 explicit product with no native authority. Standalone inspection and corpus
 production submit the same `CompilationProduct` through `CompilationSession::produce`;
-the checked-to-product continuation is private.
+source checking returns selected provider custody internally. Standalone and
+package products both produce Terminal before installation; there is no
+already-installed checked-to-product continuation. Check-only and artifact-only
+requests stop without Terminal production. Review descriptions borrow the same
+Terminal production inputs without making the producer branch on review history.
 
 Checked-only consumers supply `CheckedCompileRequest` to `CompilationSession::check`.
 Package inputs, build staging and session sponsors are request
@@ -106,7 +110,7 @@ Scratch never publishes, and a failed compilation returns no successful set. See
 The [checked entrance](src/checked/checking.rs) shows the lifecycle:
 [evaluate Build and continue generated source](src/checked/checking/build_continuation.rs),
 [check Product and seal source custody](src/checked/checking/source_checking.rs),
-then [settle each target](src/checked/checking/execution_settlement.rs).
+then [select and install each target](src/execution_settlement.rs).
 The Build coordinator calls the [Psi source continuation](../../../psi/compilation/driver/src/source_compilation.rs)
 for resolution, typing and generated-source completion. It owns package admission
 and Build authority, not the resolver/typing fixed points or their paired arenas.

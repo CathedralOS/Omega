@@ -8,14 +8,15 @@
 use super::CompilationSession;
 use super::checking::compile_thread::run_on_compile_thread;
 use super::checking::{check_product_source, complete_prepared_build};
-use compilation_products::{CheckedCompileOutcome, CompileFailure, PreparedPackageBuild};
+use crate::execution_settlement::SelectedCompileOutcome;
+use compilation_products::{CompileFailure, PreparedPackageBuild};
 use diagnostics::Diagnostic;
 
 impl CompilationSession {
-    pub(super) fn check_build_batch(
+    pub(super) fn select_build_batch(
         &mut self,
         builds: Vec<PreparedPackageBuild>,
-    ) -> Vec<CheckedCompileOutcome> {
+    ) -> Vec<SelectedCompileOutcome> {
         let count = builds.len();
         run_on_compile_thread(|| {
             let mut outcomes: Vec<_> = (0..builds.len()).map(|_| None).collect();
@@ -65,7 +66,7 @@ impl CompilationSession {
                         source.timings.extend(&completion_timings);
                         self.retain(&source.retained_checks);
                         outcomes[first_position] =
-                            Some(crate::execution_settlement::settle_product_target(
+                            Some(crate::execution_settlement::select_product_target(
                                 &source,
                                 Some(target),
                                 Some(&inputs),
@@ -83,7 +84,7 @@ impl CompilationSession {
                             application.timings = prepared.timings;
                             application.timings.extend(&completion_timings);
                             outcomes[position] =
-                                Some(crate::execution_settlement::settle_product_target(
+                                Some(crate::execution_settlement::select_product_target(
                                     &application,
                                     Some(target),
                                     Some(&inputs),
@@ -92,12 +93,12 @@ impl CompilationSession {
                         }
                     }
                     Err(diagnostics) => {
-                        outcomes[first_position] = Some(CheckedCompileOutcome {
+                        outcomes[first_position] = Some(SelectedCompileOutcome {
                             result: Err(CompileFailure::from(diagnostics.clone())),
                             independent_components: discovery,
                         });
                         for (position, member) in members {
-                            outcomes[position] = Some(CheckedCompileOutcome {
+                            outcomes[position] = Some(SelectedCompileOutcome {
                                 result: Err(CompileFailure::from(diagnostics.clone())),
                                 independent_components: member.build().independent_components(),
                             });
@@ -109,7 +110,7 @@ impl CompilationSession {
                 outcomes
                     .into_iter()
                     .map(|outcome| {
-                        outcome.unwrap_or_else(|| CheckedCompileOutcome {
+                        outcome.unwrap_or_else(|| SelectedCompileOutcome {
                             result: Err(vec![Diagnostic::error(
                                 "source batch lost a requested target",
                             )]
@@ -122,7 +123,7 @@ impl CompilationSession {
         })
         .unwrap_or_else(|diagnostics| {
             (0..count)
-                .map(|_| CheckedCompileOutcome {
+                .map(|_| SelectedCompileOutcome {
                     result: Err(CompileFailure::from(diagnostics.clone())),
                     independent_components: Default::default(),
                 })
