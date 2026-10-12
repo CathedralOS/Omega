@@ -52,6 +52,9 @@ pub(crate) enum SubstitutionSemantics {
 pub enum TypeIdentityQualification {
     #[default]
     Ordinary,
+    /// Exact nominal handles within one compilation. This key is local working
+    /// identity and must never be used as a portable artifact commitment.
+    CompilationLocal,
     PackageQualified,
 }
 
@@ -329,6 +332,24 @@ impl TypeIdentityContext<'_> {
         symbol: SymbolHandle,
         path: String,
     ) -> String {
+        if self.qualification == TypeIdentityQualification::CompilationLocal {
+            if let Some(builtin) = program.symbols.builtin_type_atom(symbol) {
+                return compound("compiler-type", [atom("atom", builtin.identity())]);
+            }
+            if symbol.is_valid() {
+                return compound(
+                    "local-nominal",
+                    [atom(
+                        "declaration",
+                        &format!("{}:{}", symbol.arena_index(), symbol.generation()),
+                    )],
+                );
+            }
+            if let Some(invalid) = self.invalid_application {
+                invalid.set(true);
+            }
+            return "missing-local-nominal".to_owned();
+        }
         // Toolchain declarations and authored declarations can have the same
         // visible path: lookup admits an authored `Source` beside Build's
         // toolchain `Source`. Erasing that namespace merges unrelated carriers
