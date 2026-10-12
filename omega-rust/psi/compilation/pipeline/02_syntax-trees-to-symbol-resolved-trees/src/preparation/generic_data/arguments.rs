@@ -61,6 +61,7 @@ pub(super) fn complete_argument_tuple(
         selection,
         warnings,
     )
+    .map(|completed| completed.references)
 }
 
 /// Diagnostic names for admitted closed arguments, not application identity.
