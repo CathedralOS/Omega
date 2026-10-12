@@ -613,13 +613,9 @@ pub(crate) fn emit_captured_argument_path(
     let mut dynamic_extent = false;
     for segment in path {
         if let PreparedStructuralPathSegment::ViewExtent { bytes } = segment {
-            // The existing live-length operations observe a whole descriptor.
-            // A nested descriptor requires its own retained descriptor home.
-            if !output.is_empty() {
-                return Err(LoweringError::Unsupported(
-                    "projected view extent has no retained descriptor home",
-                ));
-            }
+            // Observe the descriptor at this exact prefix, before indexing its
+            // backing. Projected descriptors remain in their original storage;
+            // the length emitter deliberately does not cache them by root.
             let Some((next_value, operations)) = emission.as_mut() else {
                 return Err(LoweringError::Unsupported(
                     "view projection has no operand emission frame",
@@ -627,8 +623,9 @@ pub(crate) fn emit_captured_argument_path(
             };
             if *bytes {
                 emit_byte_length(
-                    terminal_psi::StructuralArgument::whole(
+                    structural_argument(
                         source,
+                        output.clone(),
                         terminal_psi::StructuralAccess::SharedBorrow,
                     ),
                     next_value,
@@ -636,8 +633,9 @@ pub(crate) fn emit_captured_argument_path(
                 );
             } else {
                 emit_element_length(
-                    terminal_psi::StructuralArgument::whole(
+                    structural_argument(
                         source,
+                        output.clone(),
                         terminal_psi::StructuralAccess::SharedBorrow,
                     ),
                     next_value,

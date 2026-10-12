@@ -159,14 +159,8 @@ pub(super) fn reference_projection_regions<'path>(
         ) {
             continue;
         }
-        let selected = runtime_projection(
-            root,
-            &path[segment_start..position],
-            declarations,
-            &mut BTreeMap::new(),
-            &mut BTreeSet::new(),
-        )
-        .ok();
+        let selected =
+            runtime_descriptor_projection(root, &path[segment_start..position], declarations).ok();
         let Some((carrier, shape, byte_offset, indices)) = selected else {
             // Byte primitive endpoint geometry owns its noncanonical field
             // leaves. A reference crossing always requires a declared carrier.
@@ -1351,18 +1345,40 @@ pub(super) fn runtime_borrowed_projection(
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
 ) -> Result<RuntimeProjection, LoweringError> {
-    runtime_projection_with_leaf_type(
-        structural_type,
-        path,
+    let regions = reference_projection_regions(structural_type, path, declarations).ok_or(
+        LoweringError::UnsupportedStructuralReference(structural_type),
+    )?;
+    let (selected, shape, offset, leaf_indices) = runtime_projection_with_leaf_type(
+        regions.root,
+        regions.path,
         declarations,
         cache,
         active,
         if access == StructuralAccess::SharedBorrow {
-            StructuralFieldType::shared_observation_type
+            |field| {
+                // A shared stored view lends its descriptor in place. Its
+                // internal access belongs to the field's loan; the formal's
+                // carrier describes the same two words without that binder.
+                match field.byte_sequence_carrier() {
+                    Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: Some(StructuralAccess::SharedBorrow),
+                    }) => Some(StructuralFieldType::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView { access: None },
+                    )),
+                    _ => field.shared_observation_type(),
+                }
+            }
         } else {
             StructuralFieldType::canonical_leaf_type
         },
-    )
+    )?;
+    let indices = regions
+        .pointer_slots
+        .into_iter()
+        .flat_map(|slot| slot.indices)
+        .chain(leaf_indices)
+        .collect();
+    Ok((selected, shape, offset, indices))
 }
 
 fn runtime_projection_with_leaf_type(

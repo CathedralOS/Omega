@@ -434,6 +434,13 @@ pub(super) fn leaf_type(
     mut current: StructuralTypeId,
     fields: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
+    if let Some(primitive) = terminal_semantics::primitive_projection_declaration(
+        types.values().copied(),
+        current,
+        fields,
+    ) {
+        return Some(primitive);
+    }
     let mut case_fields = None;
     for segment in fields {
         if case_fields.is_some() && !matches!(segment, StructuralPathSegment::Field(_)) {

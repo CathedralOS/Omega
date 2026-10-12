@@ -6,7 +6,6 @@
 //! a completed nested operand can mutate a place before a later shared argument
 //! without supplying mutable access to the enclosing invocation.
 
-use crate::execution::terminal_unit::ScalarCalleeClosure;
 use crate::execution::terminal_unit::calls::argument_paths::byte_sequence_literal_argument;
 use crate::execution::terminal_unit::calls::computation_arguments;
 use crate::execution::terminal_unit::calls::parameter_argument_paths::{
@@ -16,7 +15,7 @@ use crate::execution::terminal_unit::calls::reference_forwarding;
 use crate::execution::terminal_unit::calls::result_arguments;
 use crate::execution::terminal_unit::calls::view_subslice;
 use crate::execution::terminal_unit::types::{
-    ShapeCollector, base_type_identity, is_unit, structural_access_for_type_reference,
+    base_type_identity, is_unit, structural_access_for_type_reference,
 };
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedStructuralAccess, CheckedTrivialAffineStructuralLocalPlan,
@@ -30,7 +29,6 @@ use crate::execution::terminal_unit::{
 pub(crate) fn structural_call_arguments(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    scalar_callees: Option<ScalarCalleeClosure>,
     call: &checked_trees::FlowCallFact,
     caller_machine: &typed_trees::machine::Machine,
     caller_state: &typed_trees::state::State,
@@ -229,33 +227,9 @@ pub(crate) fn structural_call_arguments(
             .iter()
             .find(|(_, root)| *root == place.root)
         {
-            // Result operands retain the same exact source, formal and
-            // custody contract whether this call has a body or a selected
-            // provider. The shared result planner below owns that admission.
-            if !callee.has_bodyless_signature()
-                && (callee.supply_mode != MachineSupplyMode::CheckedBody
-                    || (!is_unit(program, callee.return_type)
-                        && !validation::is_closed_primitive_array_type(
-                            program,
-                            callee.return_type,
-                        )
-                        && crate::execution::terminal_unit::control::checked_structural_result_type(
-                            program,
-                            &mut ShapeCollector::new(program),
-                            callee.return_type,
-                            &[],
-                        )
-                        .is_none()
-                        // A scalar-returning checked body is resolved by the
-                        // candidate closure, which selects a registered
-                        // producer or the callee's ordinary body; without a
-                        // catalog this pass keeps the registered rows only.
-                        && !program
-                            .primitive_type_reference(callee.return_type)
-                            .is_some_and(|_| scalar_callees.is_some())))
-            {
-                return None;
-            }
+            // Call construction has already admitted the result and supply.
+            // Operand custody depends on this source and formal, not whether
+            // the callee returns a scalar, descriptor or owned aggregate.
             let expression = *explicit_arguments.get(explicit_index.checked_sub(1)?)?;
             output.push(result_arguments::argument(
                 program,

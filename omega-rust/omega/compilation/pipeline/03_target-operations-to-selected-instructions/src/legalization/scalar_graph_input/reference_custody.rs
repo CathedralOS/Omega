@@ -431,87 +431,14 @@ fn leaf_referent(
 /// record or Mixed common member, never an inactive alternative's field.
 fn leaf_type(
     types: &[StructuralTypeDeclaration],
-    mut current: StructuralTypeId,
+    current: StructuralTypeId,
     fields: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
-    let mut case_fields = None;
-    for segment in fields {
-        if case_fields.is_some() && !matches!(segment, StructuralPathSegment::Field(_)) {
-            return None;
-        }
-        if let StructuralPathSegment::Case(case) = segment {
-            let declaration = find_structural_type(types, current)?;
-            let cases = declaration.shape.sum_cases()?;
-            case_fields = Some(
-                cases
-                    .iter()
-                    .find(|candidate| candidate.id == *case)?
-                    .fields
-                    .as_slice(),
-            );
-            continue;
-        }
-        if matches!(
-            segment,
-            StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. }
-        ) && matches!(
-            find_structural_type(types, current)?.shape,
-            StructuralTypeShape::ByteSequence(_)
-        ) {
-            current = terminal_semantics::primitive_projection_declaration(
-                types.iter(),
-                current,
-                std::slice::from_ref(segment),
-            )?;
-            continue;
-        }
-        if matches!(segment, StructuralPathSegment::RuntimeIndex { .. }) {
-            current = match &find_structural_type(types, current)?.shape {
-                StructuralTypeShape::FixedArray { element, .. }
-                | StructuralTypeShape::ElementView { element } => *element,
-                _ => return None,
-            };
-            continue;
-        }
-        if *segment == StructuralPathSegment::Referent {
-            let StructuralTypeShape::Reference { referent, .. } =
-                &find_structural_type(types, current)?.shape
-            else {
-                return None;
-            };
-            current = *referent;
-            continue;
-        }
-        if let StructuralPathSegment::FixedIndex(index) = segment {
-            let declaration = find_structural_type(types, current)?;
-            let StructuralTypeShape::FixedArray { element, length } = &declaration.shape else {
-                return None;
-            };
-            if index >= length {
-                return None;
-            }
-            current = *element;
-            continue;
-        }
-        let StructuralPathSegment::Field(identity) = segment else {
-            return None;
-        };
-        let declaration = find_structural_type(types, current)?;
-        let selected_fields = match case_fields.take() {
-            Some(fields) => fields,
-            None => declaration.shape.direct_fields()?,
-        };
-        let field = terminal_psi::live_field_by_identity(selected_fields, *identity)?;
-        current = match &field.field_type {
-            StructuralFieldType::Structural(child) => *child,
-            leaf => {
-                leaf.canonical_leaf_type()?
-                    .leaf_declaration(types.iter())?
-                    .id
-            }
-        };
-    }
-    case_fields.is_none().then_some(current)
+    terminal_semantics::runtime_structural_path_tip(types.iter(), current, fields)
+        .map(|declaration| declaration.id)
+        .or_else(|| {
+            terminal_semantics::primitive_projection_declaration(types.iter(), current, fields)
+        })
 }
 
 /// The structural contract a place currently carries: a signature parameter, a
@@ -903,19 +830,31 @@ fn call_arguments(
             if !access_covers(authority, argument.access) {
                 return Err(invalid());
             }
+            let contract =
+                source_contract(function, custody, argument.place).ok_or_else(|| invalid())?;
+            let selected = leaf_type(types, contract, &argument.path).ok_or_else(|| invalid())?;
+            // Scalar/descriptor-free elements retain runtime coordinates.
+            // Moving a reference-bearing element still needs a statically
+            // selected leaf roster; a dynamic index must not silently omit it.
+            if contains_reference(types, selected)
+                && argument
+                    .path
+                    .iter()
+                    .any(|segment| matches!(segment, StructuralPathSegment::RuntimeIndex { .. }))
+            {
+                return Err(invalid());
+            }
             if !argument.path.iter().all(|segment| {
                 matches!(
                     segment,
                     StructuralPathSegment::Case(_)
                         | StructuralPathSegment::Field(_)
                         | StructuralPathSegment::FixedIndex(_)
+                        | StructuralPathSegment::RuntimeIndex { .. }
                 )
             }) {
                 return Err(invalid());
             }
-            let contract =
-                source_contract(function, custody, argument.place).ok_or_else(|| invalid())?;
-            let selected = leaf_type(types, contract, &argument.path).ok_or_else(|| invalid())?;
             let storage = Root::Ingress(argument.place, argument.path.clone());
             // An ingress descriptor names external backing, not the carrier
             // bytes being transferred. Use the same declaration-derived

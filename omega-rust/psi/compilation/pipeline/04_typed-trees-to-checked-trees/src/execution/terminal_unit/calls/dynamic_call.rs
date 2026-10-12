@@ -17,7 +17,6 @@
 //! `requires` against these operands, and every selectable implementation
 //! refines it where its conformance is checked.
 
-use crate::execution::terminal_unit::ScalarCalleeClosure;
 use crate::execution::terminal_unit::calls::argument_paths::checked_call_scalar_arguments;
 use crate::execution::terminal_unit::calls::structural_arguments::{
     call_claim_transfers, structural_call_arguments,
@@ -38,7 +37,6 @@ use checked_trees::{
 pub(super) fn build(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    scalar_callees: Option<ScalarCalleeClosure>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     caller_parameters: &[CheckedUnitStructuralParameterPlan],
@@ -79,7 +77,6 @@ pub(super) fn build(
     let structural_arguments = structural_call_arguments(
         program,
         facts,
-        scalar_callees,
         call,
         machine,
         state,

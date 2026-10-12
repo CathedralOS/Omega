@@ -494,11 +494,10 @@ fn plain_scalar_field(field: &StructuralFieldType) -> Option<ScalarType> {
     }
 }
 
-/// The declared backing type a byte-carrier field projects: the unique
-/// declaration spelling that exact carrier. A field embeds its carrier
-/// inline, so the backing it names can only be identified by the carrier
-/// itself — the field's predicates and borrow access bind to the field,
-/// never to the backing type.
+/// The unique declaration describing an inline byte carrier. For a view this
+/// identifies descriptor geometry, not owned backing. Predicates and access
+/// stay attached to the original field; the path walker cannot canonicalize
+/// that borrowed crossing into owned storage.
 pub fn byte_carrier_field_declaration<'a>(
     declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     carrier: ByteSequenceCarrier,
@@ -514,16 +513,26 @@ pub fn byte_carrier_field_declaration<'a>(
     matching.next().is_none().then_some(declaration)
 }
 
-/// A field's byte carrier and a declaration's byte carrier name the same
-/// backing when their kind and extent agree; the borrow access a field
-/// binds belongs to the field, not to the backing type. Only the owned
-/// carrier projects a declared backing at all: a view field's descriptor is
-/// storage the record borrows, never a backing type the field names.
+/// Kind and extent identify carrier geometry; a field's access remains on
+/// the field rather than becoming part of the standalone declaration.
 fn same_byte_backing(field: ByteSequenceCarrier, declared: ByteSequenceCarrier) -> bool {
     match (field, declared) {
         (
             ByteSequenceCarrier::BoundedOwned { capacity: field },
             ByteSequenceCarrier::BoundedOwned { capacity: declared },
+        ) => field == declared,
+        (
+            ByteSequenceCarrier::BorrowedView { .. },
+            ByteSequenceCarrier::BorrowedView { access: None },
+        ) => true,
+        (
+            ByteSequenceCarrier::BoundedView {
+                capacity: field, ..
+            },
+            ByteSequenceCarrier::BoundedView {
+                capacity: declared,
+                access: None,
+            },
         ) => field == declared,
         _ => false,
     }
@@ -604,9 +613,17 @@ fn walk_primitive_projection<'a>(
                 match field.field_type {
                     StructuralFieldType::Structural(child) => Position::Declared(child),
                     _ => match field.field_type.byte_sequence_carrier() {
-                        Some(carrier) => Position::Declared(
-                            byte_carrier_field_declaration(declarations.clone(), carrier)?.id,
-                        ),
+                        Some(carrier) => {
+                            if !matches!(carrier, ByteSequenceCarrier::BoundedOwned { .. }) {
+                                // The descriptor belongs to the record; its
+                                // backing does not. Runtime geometry may cross
+                                // it, but no owned canonical path may do so.
+                                step(None);
+                            }
+                            Position::Declared(
+                                byte_carrier_field_declaration(declarations.clone(), carrier)?.id,
+                            )
+                        }
                         None => Position::ScalarField((
                             &field.field_type,
                             scalar_field(&field.field_type),

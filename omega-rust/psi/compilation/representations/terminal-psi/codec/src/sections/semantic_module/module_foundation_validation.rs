@@ -381,6 +381,15 @@ pub(crate) fn validate_structural_path(
     mut structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Result<StructuralTypeId, CodecError> {
+    // Runtime type coordinates include inline descriptors, whose original
+    // root/path retain custody. They do not create an owned canonical place.
+    if let Some(endpoint) = terminal_semantics::runtime_structural_path_tip(
+        module.structural_types.iter(),
+        structural_type,
+        path,
+    ) {
+        return Ok(endpoint.id);
+    }
     // Primitive projected storage uses the shared endpoint judgment, including
     // byte elements whose carrier is inline rather than a declared child.
     // Runtime selectors retain their owning operation's independent bounds.

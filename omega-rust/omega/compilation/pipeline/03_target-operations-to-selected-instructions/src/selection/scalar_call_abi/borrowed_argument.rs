@@ -40,6 +40,8 @@ pub(super) fn validate_borrowed_argument(
         .path
         .iter()
         .any(|segment| matches!(segment, terminal_psi::StructuralPathSegment::Referent))
+        || crate::selection::reference_input::borrowed_argument(source, semantic, target, indices)
+            .is_some()
     {
         return validate_reference_argument(
             source,
@@ -219,21 +221,6 @@ pub(super) fn validate_borrowed_argument(
     // view identity.
     let byte_field =
         crate::selection::byte_owner_input::view_argument(source, operation, semantic, target);
-    // A stored shared view field lends the descriptor it already holds: the
-    // pointer addresses that field, and the formal's view type is its referent.
-    let stored_view = signature
-        .parameters
-        .iter()
-        .find(|parameter| parameter.semantic.place == semantic.place)
-        .and_then(|parameter| {
-            crate::structural_inputs::structural_reference_input::stored_view_field_argument(
-                &parameter.semantic,
-                semantic,
-                target.structural_type,
-                &signature.structural_types,
-            )
-        })
-        .filter(|offset| *offset == target.source_byte_offset && indices.is_empty());
     let byte_owner = signature
         .parameters
         .iter()
@@ -421,7 +408,6 @@ pub(super) fn validate_borrowed_argument(
         && owner_home.is_none()
         && byte_view.is_none()
         && byte_field.is_none()
-        && stored_view.is_none()
         && byte_owner.is_none()
         && element_view.is_none()
         && established_view_loan.is_none()

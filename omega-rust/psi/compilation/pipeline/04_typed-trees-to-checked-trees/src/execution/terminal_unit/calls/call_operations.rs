@@ -274,7 +274,6 @@ pub(in crate::execution) fn build_call_operation(
         return super::dynamic_call::build(
             program,
             facts,
-            scalar_callees,
             machine,
             state,
             caller_parameters,
@@ -327,7 +326,6 @@ pub(in crate::execution) fn build_call_operation(
     let structural_arguments = structural_call_arguments(
         program,
         facts,
-        scalar_callees,
         call,
         machine,
         state,

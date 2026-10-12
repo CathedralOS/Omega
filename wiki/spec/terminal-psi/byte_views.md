@@ -130,12 +130,15 @@ it cannot replace a partial window by its whole backing.
 
 ## Calls and control transfers
 
-Ordinary helpers with Unit or scalar results and bodyless boundaries can receive
-whole views through the structural lane. The result kind does not restrict an
-argument to a machine parameter: established literals, dominating subslices,
+Ordinary helpers and bodyless boundaries can receive whole views through the
+structural lane, including helpers that return another view. The result kind
+does not restrict an argument to a machine parameter: established literals, dominating subslices,
 and available block parameters retain the same shared access and source custody.
 A stored shared view field lends its own descriptor through its owning root and
 field path; the callee borrows the stored view's backing, not the record.
+The containing record retains its cleanup obligations. Argument admission does
+not compare those obligations with the borrowed descriptor's cleanup profile;
+only owned transfers carry the selected storage's disposal obligation.
 Invocation storage preserves nested/repeated calls and their independent contents.
 Descriptors may share immutable backing; deriving a view does not require copying
 its bytes.

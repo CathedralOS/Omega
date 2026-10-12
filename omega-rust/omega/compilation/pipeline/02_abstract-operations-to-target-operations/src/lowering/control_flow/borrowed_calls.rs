@@ -424,7 +424,18 @@ pub(super) fn byte_argument(
         }
     }
     if !argument.path.is_empty() {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
+        // Fixed-array presentations above manufacture a call-local descriptor.
+        // Every other projection lends the descriptor already stored at that
+        // coordinate, using the same home and geometry as ordinary loans.
+        return self::argument(
+            argument,
+            declaration,
+            destination,
+            function,
+            prepared,
+            live,
+            types,
+        );
     }
     // A descriptor view carries pointer and extent; a bounded view over a
     // fixed array (`&[u8; N]`) carries only the pointer, its extent static.

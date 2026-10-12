@@ -242,6 +242,33 @@ impl TerminalExecution<'_> {
                 .map(|_| capture(binding))
                 .ok_or_else(malformed);
         }
+        // Inline byte fields have declaration-keyed cells rather than array
+        // cells. Resolve the parent first so reference crossings and captured
+        // selectors retain the same actual home as the descriptor observation.
+        if let Some((StructuralPathSegment::Field(identity), prefix)) = argument.path.split_last() {
+            let parent = self.resolve_live_projection(
+                argument.place,
+                prefix,
+                StructuralAccess::SharedBorrow,
+            )?;
+            let types = self.program.structural_types();
+            let fields = types
+                .get(&parent.structural_type)
+                .and_then(|row| row.shape.record_fields())
+                .ok_or_else(malformed)?;
+            let field =
+                terminal_psi::live_field_by_identity(fields, *identity).ok_or_else(malformed)?;
+            if field.field_type.byte_sequence_carrier().is_some() {
+                let (cell, _) = self.readable_byte_field(argument.place, prefix, field.id)?;
+                let bytes = self
+                    .structural_byte_sequence_fields
+                    .get(&cell)
+                    .ok_or_else(malformed)?;
+                return Ok(ByteSequenceBinding::Immutable(
+                    bytes.clone().with_descriptor_home(selected.clone()),
+                ));
+            }
+        }
         if let Some(bytes) = self
             .structural_byte_storage
             .get(&crate::values::StructuralRuntimePlace::from(selected))

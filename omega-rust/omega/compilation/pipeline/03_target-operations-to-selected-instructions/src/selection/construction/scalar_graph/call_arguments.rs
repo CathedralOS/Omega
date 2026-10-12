@@ -234,10 +234,18 @@ fn referent_pointer(
     target: &target_operations::TargetStructuralArgument,
     indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
 ) -> Result<PreparedReferent, SelectedInstructionError> {
-    let referent = semantic
+    let reference =
+        crate::selection::reference_input::borrowed_argument(source, semantic, target, indices);
+    let explicit_reference = semantic
         .path
         .iter()
         .any(|segment| matches!(segment, terminal_psi::StructuralPathSegment::Referent));
+    if explicit_reference && reference.is_none() {
+        return Err(SelectedInstructionError::custody());
+    }
+    // Stored views cross a pointer at an element selector, without an explicit
+    // Referent segment. Geometry owns both crossings and preserves their order.
+    let referent = reference.is_some();
     let thin_scalar = if target.shape.class == calling_conventions::ValueClass::BorrowedReference
         && !referent
         && semantic.path.is_empty()
@@ -269,14 +277,6 @@ fn referent_pointer(
             semantic,
             target,
         )
-    };
-    let reference = if referent {
-        Some(
-            crate::selection::reference_input::borrowed_argument(source, semantic, target, indices)
-                .ok_or_else(|| SelectedInstructionError::custody())?,
-        )
-    } else {
-        None
     };
     let pointer = if let Some(address) = &reference {
         structural::reference::borrowed_argument(builder, operation, semantic.place, address)?

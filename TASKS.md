@@ -3437,13 +3437,11 @@ of a check the same flow already performed, not the check itself.
   inactive payloads; retain the growing `Chain`, nested constructors and mixed-case
   controls in
   `runtime_case_qualified_reference_storage_exit`, including independent custody
-  auditing and named element references from local byte slices. Descriptor
+  auditing, named element references from local byte slices and empty/offset
+  stored byte views projected in helpers or forwarded through call results and
+  local bindings. Descriptor
   inventories distinguish known slots from opaque referents; unavailable
   subtrees must not become storage origins or complete return/effect summaries.
-  Extending `ChainHolder` with a stored byte view still needs projected extent
-  and field-argument execution: `holder.bytes.len` in a borrowed helper lacks a
-  retained descriptor home, while passing `&holder.bytes` to a slice helper
-  reaches unsupported target control flow in `lowering/control_flow/borrowed_calls.rs`.
   The native audit of `runtime_linear_constructor_instances_exit` also rejects
   its nominal-cleanup `ReturnUnit` as an unaccounted operation on macOS ARM64,
   including the retained `12b7f1b5bcd` producer; retain its exit-zero oracle.

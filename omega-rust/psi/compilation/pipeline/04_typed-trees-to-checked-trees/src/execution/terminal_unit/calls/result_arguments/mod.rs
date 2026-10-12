@@ -473,17 +473,13 @@ fn argument_contract(
         } else {
             base_type_identity(program, referent, &[], &[])? == result.type_identity
         };
-    // A projection selects the referent's type, not the containing owner's
-    // multiplicity: an affine owner can hold linear members. Its resolved
-    // storage/formal correspondence was checked by the presentation above;
-    // the local declaration separately rejoins the complete owner below.
-    // Whole operands retain their result contract. Compare materialized
-    // custody on both sides, not source-use multiplicity: an array of shared
-    // references is reusable at source but owns affine descriptor lifetimes.
-    // This is the same classification its producer used for the result.
-    let selected_multiplicity = if projected_borrow {
-        validation::reference_result_custody::result_multiplicity(program, storage_type?)
-    } else if projected {
+    // Only owned transfer carries the selected storage's disposal obligation.
+    // A loan retains its owner's custody; its source/formal presentation and
+    // exact access were checked above. In particular a stored slice descriptor
+    // is unrestricted while its unsized referent is not an owned result.
+    // Comparing those cleanup profiles would make borrowing depend on whether
+    // an unrelated sibling makes the containing record affine.
+    let transferred_multiplicity = if projected && access == CheckedStructuralAccess::Owned {
         validation::reference_result_custody::result_multiplicity(
             program,
             validation::canonical_place_type_reference(
@@ -497,14 +493,9 @@ fn argument_contract(
         result.multiplicity
     };
     if !storage_identity_matches
-        || (validation::reference_result_custody::result_multiplicity(program, referent)
-            != selected_multiplicity
-            // A shared loan presents unrestricted regardless of the referent's
-            // own cleanup profile: the viewed element is already rejoined by
-            // the projected path's identity check, and the binding stores
-            // only the unrestricted descriptor.
-            && !(access == CheckedStructuralAccess::SharedBorrow
-                && result.multiplicity == Multiplicity::Unrestricted))
+        || (access == CheckedStructuralAccess::Owned
+            && validation::reference_result_custody::result_multiplicity(program, referent)
+                != transferred_multiplicity)
         || usize::try_from(result.statement_index).ok()? > call.statement_index
     {
         return None;
