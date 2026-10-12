@@ -101,6 +101,22 @@ fn named_requirement_use_fact(
     origin: CheckedValueOrigin,
     call: &TableCallExpression,
 ) -> Option<CheckedNamedRequirementUseFact> {
+    if let Some(public) = program
+        .typed_program()
+        .selected_public_trait_requirement_signature(
+            call.target_symbol,
+            call.authored_machine_application,
+        )
+        && public.owner.is_boundary
+        && typed_trees::operator::resolve_named_expression_call(program, call).is_none()
+    {
+        return Some(CheckedNamedRequirementUseFact {
+            expression,
+            origin,
+            requirement_symbol: public.signature.symbol,
+            policy_adapter: CheckedArithmeticPolicyAdapter::None,
+        });
+    }
     let requirement = directly_callable_requirement(program, call.target_symbol).or_else(|| {
         // `min`/`max`/`sqrt` shorthand for a requirement-spelled
         // `F32::minimum`-family slot retains the same use the direct call does.
