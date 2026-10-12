@@ -16,7 +16,8 @@ use super::{
 };
 use crate::digest_encoder::DomainDigestEncoder;
 use checked_trees::CheckedTrees;
-use language_semantics::{BindingRelevance, Multiplicity};
+use language_core::BindingRelevance;
+use language_semantics::Multiplicity;
 
 /// Construction belongs to preparation after all independent compatibility
 /// checks. Missing original application content remains unavailable.
