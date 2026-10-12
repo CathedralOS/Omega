@@ -158,7 +158,9 @@ impl AppliedTraitScope<'_> {
             .trait_type_parameters(self.declaration)
             .iter()
             .find(|binder| binder.symbol == parameter)?;
-        self.parameter_application(parameter.symbol)?;
+        if !self.has_parameter_application(parameter.symbol) {
+            return None;
+        }
         self.with_identity_scopes(program, |scopes| {
             crate::type_identity::applied_static_parameter_identity(
                 program,
@@ -192,6 +194,14 @@ impl AppliedTraitScope<'_> {
                 })
                 .collect()
         })
+    }
+
+    fn has_parameter_application(&self, parameter: SymbolHandle) -> bool {
+        self.parameter_application(parameter).is_some()
+            || self.region_scopes.iter().any(|scope| {
+                scope.binding_application.is_valid()
+                    && scope.binding_parameters.contains(&parameter)
+            })
     }
 
     /// Borrow the actual and the number of preceding simultaneous scopes it
@@ -330,7 +340,7 @@ impl AppliedTraitScope<'_> {
                 .trait_type_parameters(self.declaration)
                 .iter()
                 .map(|parameter| {
-                    if self.parameter_application(parameter.symbol).is_none() {
+                    if !self.has_parameter_application(parameter.symbol) {
                         return program.normalized_nominal_type_identity(parameter.symbol);
                     }
                     // Identity follows the original declared category and full
