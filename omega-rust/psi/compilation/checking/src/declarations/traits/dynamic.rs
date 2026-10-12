@@ -701,13 +701,13 @@ fn resolved_dynamic_requirement_symbol(
     collect_dynamic_requirements_named(program, &receiver_scope, target, &mut matches);
     // A retained requirement may select an overload in this exact family,
     // but cannot be silently overwritten by an unrelated Binding's member.
-    let retained_application = program.closed_requirement_application(retained_target);
-    let template = retained_application.map_or(retained_target, |application| application.template);
+    let retained = program.public_trait_requirement_signature(retained_target);
+    let template = retained.map_or(retained_target, |selected| selected.declaration.symbol);
+    let has_retained_application = retained.is_some_and(|selected| selected.application.is_valid());
     let retained_matches = matches.iter().any(|(scope, requirement)| {
         requirement.symbol == template
-            && retained_application.is_none_or(|application| {
-                program.requirement_application_matches_scope(application.signature.symbol, scope)
-            })
+            && (!has_retained_application
+                || program.requirement_application_matches_scope(retained_target, scope))
     });
     if retained_target.is_valid() && !retained_matches {
         diagnostics.push(
@@ -717,7 +717,7 @@ fn resolved_dynamic_requirement_symbol(
         return None;
     }
     match matches.as_slice() {
-        [(_, requirement)] => Some(if retained_application.is_some() {
+        [(_, requirement)] => Some(if has_retained_application {
             retained_target
         } else {
             requirement.symbol
