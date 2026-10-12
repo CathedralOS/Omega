@@ -602,19 +602,23 @@ fn try_parse_static_argument<'tokens, 'source>(
     mut input: Input<'tokens, 'source>,
 ) -> Result<Option<(StaticMachineArgument, Input<'tokens, 'source>)>, ParseError> {
     let authored = input;
-    if input.at_punctuation(PunctuationKind::LeftBracket)
-        || input.at_punctuation(PunctuationKind::Ampersand)
+    if !input
+        .tokens
+        .first()
+        .is_some_and(crate::input::token_cursor::is_identifier_token_for_parser)
     {
-        return parse_static_type_argument(syntax_trees, input).map(Some);
-    }
-    if input.at_integer() {
-        let (literal, rest) = input.take_integer_literal()?;
+        // Structural and scalar operands use the same grammar inside every
+        // static application. In particular a nested nominal argument keeps
+        // its original arithmetic graph instead of requiring a literal-only
+        // child spelling. The selected declaration still decides binder kind.
+        let (type_reference, rest) =
+            crate::type_syntax::parse_type::parse_static_argument_handle(syntax_trees, input)?;
         return Ok(Some((
             StaticMachineArgument {
-                type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
+                type_reference,
                 path: Box::default(),
                 application: None,
-                const_literal: Some(literal),
+                const_literal: None,
                 evidence_projection: None,
             },
             rest,
