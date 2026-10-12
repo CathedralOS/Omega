@@ -61,6 +61,7 @@ pub enum InterpreterComparison {
 pub enum RunError {
     TemporaryStorage(std::io::Error),
     StandardInput(std::io::Error),
+    ReferenceOutput(std::io::Error),
     Compilation(Vec<Diagnostic>),
     Publication(String),
     Spawn {
@@ -77,6 +78,12 @@ impl std::fmt::Display for RunError {
             }
             Self::StandardInput(error) => {
                 write!(formatter, "cannot prepare run standard input: {error}")
+            }
+            Self::ReferenceOutput(error) => {
+                write!(
+                    formatter,
+                    "cannot retain Terminal reference output: {error}"
+                )
             }
             Self::Compilation(diagnostics) => {
                 write!(formatter, "native compile FAILED:")?;
@@ -142,6 +149,16 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
                 .output()
                 .map_err(|error| RunError::Spawn { executable, error })?;
             let exit = ProcessExitObservation::observe(&output.status);
+            // `--both --keep` retains the exact reference streams for callers
+            // that need to compare numerical bytes rather than exit alone.
+            if request.keep_artifacts
+                && let Some(Ok(reference)) = interpretation.as_ref()
+            {
+                std::fs::write(build_dir.join("terminal.stdout"), &reference.stdout)
+                    .map_err(RunError::ReferenceOutput)?;
+                std::fs::write(build_dir.join("terminal.stderr"), &reference.stderr)
+                    .map_err(RunError::ReferenceOutput)?;
+            }
             let comparison = compare_interpretation(exit, interpretation);
             ExecutionOutcome::Host {
                 output,
