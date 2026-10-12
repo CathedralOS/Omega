@@ -73,7 +73,19 @@ fn encode_unit(bytes: &mut CanonicalBytes, unit: &PsiOptimizationUnit) {
                 bytes.u32(slot.slot);
                 bytes.u32(slot.declaring_trait_identity.0);
                 bytes.u32(slot.requirement_identity.0);
-                bytes.slice(&slot.family_tuple, |bytes, value| bytes.string(value));
+                bytes.slice(&slot.family_tuple, |bytes, member| {
+                    bytes.string(&member.identity);
+                    match member.value {
+                        terminal_psi::TerminalDynamicFamilyValue::Integer(value) => {
+                            bytes.u8(0);
+                            bytes.bytes(&value.to_le_bytes());
+                        }
+                        terminal_psi::TerminalDynamicFamilyValue::Boolean(value) => {
+                            bytes.u8(1);
+                            bytes.boolean(value);
+                        }
+                    }
+                });
                 bytes.slice(&slot.scalar_parameters, |bytes, scalar_type| {
                     encode_scalar_type(bytes, *scalar_type);
                 });

@@ -27,8 +27,9 @@ pub use declarations::{
     find_boundary_machine, program_local_root_introduction_compatibility_report_identity,
 };
 pub use dynamic_dispatch::{
-    TerminalDynamicClaimPath, TerminalDynamicDispatchCatalog, TerminalDynamicInterface,
-    TerminalDynamicSlot, TerminalDynamicStructuralFormal, TerminalDynamicTable,
+    TerminalDynamicClaimPath, TerminalDynamicDispatchCatalog, TerminalDynamicFamilyMember,
+    TerminalDynamicFamilyValue, TerminalDynamicInterface, TerminalDynamicSlot,
+    TerminalDynamicStructuralFormal, TerminalDynamicTable,
 };
 pub use providers::{
     ProviderCandidateConformance, ProviderParameterRefinement, ProviderRefinement,
