@@ -1224,8 +1224,10 @@ impl TypedTrees {
             if application.binding_application.is_valid() {
                 let template = self.machine(application.template)?;
                 let template_identity = self.machine_callable_identity_text(template)?;
-                let tuple = crate::static_applications::static_application_identity_text(
+                let tuple = crate::static_applications::machine_family_application_identity_text(
                     self,
+                    template,
+                    machine,
                     application.binding_application,
                 )
                 .ok()?;
