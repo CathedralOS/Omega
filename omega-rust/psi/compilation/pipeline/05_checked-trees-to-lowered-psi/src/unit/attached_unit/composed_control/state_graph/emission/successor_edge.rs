@@ -23,6 +23,7 @@ use crate::emission::operation_emission::buffer::{CollectionLengthObservations, 
 use crate::expression_preparation::bindings::ScalarBindings;
 use crate::expression_preparation::bindings::structural_fields::EstablishedCasePayload;
 use crate::terminal_identities::lookup_domain_id_for_carrier;
+use crate::unit::attached_unit::argument_evaluation::Evaluation;
 
 impl StateGraphEmission<'_, '_> {
     /// Lower one edge leaving the state at `frame.position`: dispose of the
@@ -69,12 +70,6 @@ impl StateGraphEmission<'_, '_> {
             next_edge,
             edge_blocks,
         } = emitted;
-        // The source rank belongs to the dominating state's frame. Its
-        // observation can be a parameter of an earlier body continuation,
-        // whose declarations remain with the parent when this edge branches.
-        let source_rank_declaration = current_rank
-            .map(|rank| evaluation.completed_scalar_declaration(rank, values, operations))
-            .transpose()?;
         let current_parameters = evaluation.current_parameters(state_parameters);
         let state_parameters = current_parameters.as_ref();
         operations.length_observations.clone_from(inherited_lengths);
@@ -1148,9 +1143,9 @@ impl StateGraphEmission<'_, '_> {
             // exact target telescope here, before projected transfer or cleanup.
             let mut scalar_slots = Vec::with_capacity(arguments.len());
             for (argument, formal) in arguments.iter().zip(&target_state.scalar_parameters) {
-                let declaration = edge_evaluation.completed_scalar_declaration(
+                let declaration = Evaluation::completed_scalar_declaration(
                     *argument,
-                    &edge_values,
+                    &[(&*evaluation, values), (&edge_evaluation, &edge_values)],
                     operations,
                 )?;
                 scalar_slots.push((
@@ -1281,11 +1276,6 @@ impl StateGraphEmission<'_, '_> {
         // actuals, rank observations and evaluated selectors have their own
         // emitted declarations. Retain those exact results before any cleanup
         // continuation remaps the frame. Erased source formals remain erased.
-        if let Some(declaration) = source_rank_declaration
-            && !edge_values.iter().any(|value| value.id == declaration.id)
-        {
-            edge_values.push(declaration);
-        }
         let mut completed = arguments.clone();
         completed.extend(current_rank);
         completed.extend(arriving_rank);
@@ -1322,15 +1312,13 @@ impl StateGraphEmission<'_, '_> {
             }
         }
         for value in completed {
-            if !edge_values
-                .iter()
-                .any(|declaration| declaration.id == value)
-            {
-                edge_values.push(edge_evaluation.completed_scalar_declaration(
-                    value,
-                    &edge_values,
-                    operations,
-                )?);
+            let declaration = Evaluation::completed_scalar_declaration(
+                value,
+                &[(&*evaluation, values), (&edge_evaluation, &edge_values)],
+                operations,
+            )?;
+            if !edge_values.iter().any(|retained| retained.id == value) {
+                edge_values.push(declaration);
             }
         }
         // All operands and rank observations are already captured. Transfer

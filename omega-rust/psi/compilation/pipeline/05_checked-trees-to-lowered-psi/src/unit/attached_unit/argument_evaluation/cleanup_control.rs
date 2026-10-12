@@ -47,24 +47,34 @@ pub(crate) struct CapturedStructuralArgument {
 }
 
 impl Evaluation {
-    /// A completed operand may be an operation result rather than a source
-    /// local slot. Cleanup transports its actual qualified declaration; the
-    /// receiving signature cannot supply that declaration or its policy.
+    /// Query the actual producer frames of one completed scalar. A branch
+    /// keeps its parent's dominating values but owns new private continuations;
+    /// neither frame alone contains every declaration. Receiving signatures
+    /// supply no carrier or policy, and inventory membership grants no liveness.
     pub(crate) fn completed_scalar_declaration(
-        &self,
         value: semantic_vocabulary::ValueId,
-        values: &[ValueDeclaration],
+        frames: &[(&Evaluation, &[ValueDeclaration])],
         operations: &OperationBuffer,
     ) -> Result<ValueDeclaration, LoweringError> {
-        let mut declarations = values
+        let mut declarations = frames
             .iter()
-            .chain(&self.parameters)
-            .chain(self.blocks.iter().flat_map(|block| &block.parameters))
-            .copied()
+            .flat_map(|(frame, values)| {
+                values
+                    .iter()
+                    .chain(&frame.parameters)
+                    .chain(frame.blocks.iter().flat_map(|block| &block.parameters))
+                    .copied()
+                    .chain(
+                        frame
+                            .blocks
+                            .iter()
+                            .flat_map(|block| &block.operations)
+                            .filter_map(|operation| operation.result.scalar()),
+                    )
+            })
             .chain(
                 operations
                     .iter()
-                    .chain(self.blocks.iter().flat_map(|block| &block.operations))
                     .filter_map(|operation| operation.result.scalar()),
             )
             .filter(|declaration| declaration.id == value);
