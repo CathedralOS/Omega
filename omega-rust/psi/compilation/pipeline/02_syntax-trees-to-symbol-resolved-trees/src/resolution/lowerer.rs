@@ -93,6 +93,10 @@ pub(crate) enum ConstResolutionMode {
 pub(crate) struct Lowerer {
     pub(crate) defer_machine_bodies: bool,
     pub(crate) pending_machine_bodies: Vec<crate::lowering::machine::PendingMachineBody>,
+    /// One-shot raw static inputs excluded from runtime proof-fact storage.
+    /// Their exact producing declaration supplies the indexed lexical telescope.
+    pub(crate) pending_declaration_lexical_inputs:
+        Vec<crate::lowering::domain::DeclarationLexicalInputs>,
     pub(crate) pending_type_inputs: Vec<super::type_inputs::LoweredTypeInputs>,
     pub(crate) supplied_operand_owners: Vec<(
         syntax_trees::item::ItemHandle,
@@ -264,6 +268,7 @@ impl Lowerer {
         Self {
             defer_machine_bodies: false,
             pending_machine_bodies: Vec::new(),
+            pending_declaration_lexical_inputs: Vec::new(),
             pending_type_inputs: Vec::new(),
             supplied_operand_owners: Vec::new(),
             conformance_inputs: Vec::new(),

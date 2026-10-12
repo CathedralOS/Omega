@@ -567,6 +567,14 @@ pub(crate) fn assign_lexical_inputs(
     lowerer: &mut crate::resolution::lowerer::Lowerer,
     syntax: &syntax_trees::SyntaxTrees,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    let mut declaration_inputs = std::mem::take(&mut lowerer.pending_declaration_lexical_inputs);
+    let symbols = lowerer.symbol_resolved_trees.symbols.clone();
+    type_references::assign_declaration_lexical_input_symbols(
+        &mut lowerer.symbol_resolved_trees,
+        &symbols,
+        &mut declaration_inputs,
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
     let mut inputs = crate::lowering::machine::lower_pending_lexical_inputs(lowerer, syntax)
         .map_err(|diagnostic| vec![diagnostic])?;
     for input in &mut inputs {

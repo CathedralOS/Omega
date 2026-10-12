@@ -56,6 +56,35 @@ pub(crate) fn statement_type_inputs(
     inputs
 }
 
+/// The raw static type inputs of an authored proof fact. Structural equations
+/// use the same expression inventory as statements, without turning the fact
+/// into an executable expression or discharging its solver obligation.
+pub(crate) fn proof_fact_type_inputs(
+    syntax: &SyntaxTrees,
+    fact: &syntax_trees::item::ProofFact,
+) -> Vec<syntax_trees::types::TypeReferenceHandle> {
+    let mut inputs = Vec::new();
+    let mut expressions = ExpressionInventory::default();
+    match fact {
+        syntax_trees::item::ProofFact::Expression(expression) => {
+            collect_expression_handles(syntax, *expression, &mut expressions);
+        }
+        syntax_trees::item::ProofFact::Membership(membership) => {
+            inputs.extend_from_slice(
+                syntax
+                    .type_references
+                    .type_reference_handles(membership.domain_arguments),
+            );
+            collect_expression_handles(syntax, membership.value, &mut expressions);
+        }
+    }
+    for expression in expressions.handles {
+        visit_expression_type_inputs(syntax, expression, &mut |reference| inputs.push(reference));
+    }
+    inputs.retain(|reference| reference.is_valid());
+    inputs
+}
+
 pub(in crate::preparation::generic_data) fn visit_expression_type_inputs(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,

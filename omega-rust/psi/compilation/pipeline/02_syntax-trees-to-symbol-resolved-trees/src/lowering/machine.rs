@@ -238,11 +238,15 @@ pub(crate) fn lower_machine_into(
         language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
     };
     let where_facts = lowerer.with_authored_expression_exposure(predicate_exposure, |lowerer| {
+        let lexical_owner = crate::lowering::domain::DeclarationLexicalInputOwner::Machine(
+            lowerer.symbol_resolved_trees.machines.len(),
+        );
         crate::lowering::domain::lower_proof_facts_excluding(
             lowerer,
             syntax_trees,
             machine.where_facts,
             &where_classification.equation_offsets(),
+            Some(lexical_owner),
         )
     })?;
     if let Some(sources) = &mut lowerer.equation_sources
