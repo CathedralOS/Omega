@@ -189,10 +189,9 @@ pub(crate) fn prepare_selected_execution(
     validate_selected_provider_bodies(program, selected)?;
     validate_selected_operators(program, operators)?;
     if operators.iter().any(|operator| {
-        selected.iter().any(|body| {
-            body.expression == operator.expression
-                && body.origin.machine_symbol() == operator.origin.machine_symbol()
-        })
+        selected
+            .iter()
+            .any(|body| body.expression == operator.expression)
     }) {
         return Err("selected build-time expression has competing executable supplies".into());
     }
@@ -205,6 +204,13 @@ pub(crate) fn prepare_selected_execution(
         })
     {
         return Ok(None);
+    }
+    if selected.iter().enumerate().any(|(index, row)| {
+        selected[..index]
+            .iter()
+            .any(|prior| prior.expression == row.expression && prior.origin != row.origin)
+    }) {
+        return Err("selected source expression has competing original use frames".into());
     }
     let mut program = program.clone();
     // The source selected a requirement, not its executable replacement. Both
@@ -350,7 +356,7 @@ fn require_unique_operator_custody<T>(
     program: &TypedTrees,
     selected: &[T],
     object: &str,
-    custody: impl Fn(&T) -> Option<(ExpressionHandle, Option<symbols::SymbolHandle>)>,
+    custody: impl Fn(&T) -> Option<(ExpressionHandle, checked_trees::CheckedValueOrigin)>,
 ) -> Result<Option<checked_trees::CheckedOperatorFacts>, String> {
     if selected.is_empty() {
         return Ok(None);
@@ -360,6 +366,15 @@ fn require_unique_operator_custody<T>(
         let key = custody(row);
         if key.is_none() || selected[..index].iter().any(|prior| custody(prior) == key) {
             return Err(format!("{object} lacks unique exact provider custody"));
+        }
+        if selected[..index].iter().any(|prior| {
+            custody(prior)
+                .zip(key)
+                .is_some_and(|(prior, current)| prior.0 == current.0 && prior.1 != current.1)
+        }) {
+            return Err(format!(
+                "{object} shares an expression across distinct original use frames"
+            ));
         }
     }
     Ok(Some(facts))
@@ -375,7 +390,7 @@ pub fn validate_selected_provider_bodies(
         "selected build-time provider body",
         |row| {
             row.retains_provider_authority()
-                .then_some((row.expression, row.origin.machine_symbol()))
+                .then_some((row.expression, row.origin))
         },
     )?
     else {
@@ -391,23 +406,17 @@ pub fn validate_selected_provider_bodies(
             .filter(|(_, fact)| {
                 fact.expression == row.expression
                     && fact.occurrence == checked_trees::CheckedOperatorOccurrence::Expression
-                    && fact.origin.machine_symbol() == row.origin.machine_symbol()
+                    && fact.origin == row.origin
             })
             .count();
         let named_occurrences = facts
             .named_uses
             .iter()
-            .filter(|(_, fact)| {
-                fact.expression == row.expression
-                    && fact.origin.machine_symbol() == row.origin.machine_symbol()
-            })
+            .filter(|(_, fact)| fact.expression == row.expression && fact.origin == row.origin)
             .count();
         let requirement_occurrences = facts
             .named_requirement_uses()
-            .filter(|fact| {
-                fact.expression == row.expression
-                    && fact.origin.machine_symbol() == row.origin.machine_symbol()
-            })
+            .filter(|fact| fact.expression == row.expression && fact.origin == row.origin)
             .count();
         if spelled_occurrences + named_occurrences + requirement_occurrences != 1 {
             return Err(
@@ -739,7 +748,7 @@ pub fn validate_selected_operators(
         program,
         selected,
         "selected build-time operator",
-        |row| (!row.provider.is_empty()).then_some((row.expression, row.origin.machine_symbol())),
+        |row| (!row.provider.is_empty()).then_some((row.expression, row.origin)),
     )?
     else {
         return Ok(());
@@ -765,10 +774,7 @@ pub fn validate_selected_operators(
                     .named_requirement_uses()
                     .map(|fact| (fact.expression, fact.origin)),
             )
-            .filter(|(expression, origin)| {
-                *expression == row.expression
-                    && origin.machine_symbol() == row.origin.machine_symbol()
-            })
+            .filter(|(expression, origin)| *expression == row.expression && *origin == row.origin)
             .count();
         if occurrences != 1 {
             return Err(
