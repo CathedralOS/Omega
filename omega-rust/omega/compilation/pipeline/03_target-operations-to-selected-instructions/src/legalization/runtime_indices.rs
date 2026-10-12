@@ -134,10 +134,11 @@ pub(crate) fn reference_source(
         Some((terminal_psi::StructuralPathSegment::Referent, prefix)) => prefix,
         _ => source.path.as_slice(),
     };
-    let geometry = crate::structural_inputs::structural_reference_input::reference_source_geometry(
+    let geometry = crate::structural_inputs::structural_reference_input::borrowed_source_geometry(
         root,
         path,
         &unit.structural_types,
+        source.access,
     )
     .ok_or(LegalizationError::custody())?;
     operands(optimized, unit, operation, &geometry.elements)

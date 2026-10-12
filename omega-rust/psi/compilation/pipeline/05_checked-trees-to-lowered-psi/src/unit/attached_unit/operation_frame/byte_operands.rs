@@ -137,12 +137,9 @@ impl OperationFrame<'_, '_> {
             self.private_places.push(declaration);
             return Ok(destination);
         }
-        let (machine, state) = crate::declarations::state_declaration(self.checked, self.state)?;
-        let home = bindings.borrowed_structural_home(
-            source,
-            machine,
-            self.checked.state_parameters(state),
-        )?;
+        let (_, state) = crate::declarations::state_declaration(self.checked, self.state)?;
+        let home =
+            bindings.borrowed_structural_home(source, self.checked.state_parameters(state))?;
         let place = self.evaluation.current_structural_place(home.place);
         if source.path.is_empty() && home.path.is_empty() {
             return Ok(place);
@@ -155,6 +152,7 @@ impl OperationFrame<'_, '_> {
             identities,
             std::slice::from_ref(source),
             &fields,
+            &self.evaluation.contextual_bindings(),
             self.values.as_slice(),
             self.next_value,
             self.operations,

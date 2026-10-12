@@ -41,7 +41,7 @@ impl Emission<'_, '_, '_> {
             self.operations,
             self.temporary_places,
         )?;
-        let (machine, state) = crate::declarations::state_declaration(self.checked, self.state)?;
+        let (_, state) = crate::declarations::state_declaration(self.checked, self.state)?;
         let referent_type = lookup_type_id(self.type_ids, &source.type_identity)?;
         let referent = terminal_psi::find_structural_type(self.structural_types, referent_type)
             .ok_or(LoweringError::Unsupported(
@@ -121,14 +121,12 @@ impl Emission<'_, '_, '_> {
                     source,
                     scalar_type,
                     self.structural_types,
+                    self.checked.state_parameters(state),
                 )?
             }
             _ => {
-                let mut argument = bindings.borrowed_structural_home(
-                    source,
-                    machine,
-                    self.checked.state_parameters(state),
-                )?;
+                let mut argument = bindings
+                    .borrowed_structural_home(source, self.checked.state_parameters(state))?;
                 let root_type = bindings.structural_argument_type(&argument).ok_or(
                     LoweringError::Unsupported("reference source lost its published selected type"),
                 )?;

@@ -619,6 +619,15 @@ fn direct_storage_type(
     if !source.access.admits(access) || !unqualified {
         return None;
     }
+    if source.access == StructuralAccess::SharedBorrow
+        && let Some(observed) = terminal_semantics::shared_primitive_projection_declaration(
+            types.values().copied(),
+            structural_type,
+            &source.path,
+        )
+    {
+        return Some(observed);
+    }
     leaf_type(types, structural_type, &source.path)
 }
 

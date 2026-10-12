@@ -585,8 +585,12 @@ pub enum CheckedIntegerComparisonKind {
 /// before the operation (the caller's published requires for an entry
 /// parameter, a dominating guard, a stored field's snapshot). Restating an
 /// interval here would be a second, trusted copy of that evidence.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum CheckedRuntimeIndex {
+    /// Read one established mutable integer home at the selector's program
+    /// point. Loan formation snapshots this value; later writes to this home
+    /// cannot retarget that loan. It is not an immutable binding coordinate.
+    StorageRead { symbol: SymbolHandle },
     /// The dense direct scalar parameter position of the calling state -- the
     /// coordinate `CheckedScalarExpression::Parameter` uses.
     Parameter { position: u32 },
@@ -617,4 +621,39 @@ macro_rules! checked_boolean_triple_pattern {
             | $crate::CheckedBooleanExpression::And { $($fields)* }
             | $crate::CheckedBooleanExpression::Or { $($fields)* }
     };
+}
+
+impl PartialOrd for CheckedRuntimeIndex {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for CheckedRuntimeIndex {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let tag = |index: &Self| match index {
+            Self::Parameter { .. } => 0,
+            Self::AssignmentIndex { .. } => 1,
+            Self::StructuralField(_) => 2,
+            Self::Local { .. } => 3,
+            Self::StorageRead { .. } => 4,
+        };
+        match tag(self).cmp(&tag(other)) {
+            std::cmp::Ordering::Equal => match (self, other) {
+                (Self::Parameter { position: left }, Self::Parameter { position: right })
+                | (Self::Local { position: left }, Self::Local { position: right }) => {
+                    left.cmp(right)
+                }
+                (Self::AssignmentIndex { depth: left }, Self::AssignmentIndex { depth: right }) => {
+                    left.cmp(right)
+                }
+                (Self::StructuralField(left), Self::StructuralField(right)) => left.cmp(right),
+                (Self::StorageRead { symbol: left }, Self::StorageRead { symbol: right }) => {
+                    (left.arena_index(), left.generation())
+                        .cmp(&(right.arena_index(), right.generation()))
+                }
+                _ => unreachable!("equal coordinate tags retain their variant"),
+            },
+            order => order,
+        }
+    }
 }

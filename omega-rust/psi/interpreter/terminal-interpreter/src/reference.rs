@@ -338,7 +338,18 @@ impl TerminalExecution<'_> {
             // into differently represented primitives. The reference contract
             // below independently decides whether its declared view is valid.
             let root_type = self.live_structural_type(source.place)?;
-            let original_type = if let Some(tip) = terminal_semantics::runtime_structural_path_tip(
+            let observed = (source.access == StructuralAccess::SharedBorrow)
+                .then(|| {
+                    terminal_semantics::shared_primitive_projection_declaration(
+                        self.program.structural_types().values(),
+                        root_type,
+                        &source.path,
+                    )
+                })
+                .flatten();
+            let original_type = if let Some(observed) = observed {
+                observed
+            } else if let Some(tip) = terminal_semantics::runtime_structural_path_tip(
                 self.program.structural_types().values(),
                 root_type,
                 &source.path,

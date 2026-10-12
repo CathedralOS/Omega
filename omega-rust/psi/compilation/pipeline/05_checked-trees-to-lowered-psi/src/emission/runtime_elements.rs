@@ -60,6 +60,9 @@ pub(crate) enum ProjectionStep {
     /// state. The emitter mints the field read at the program point and
     /// selects with its value.
     RuntimeIndexField(checked_trees::CheckedStructuralParameterField),
+    RuntimeIndexStorage {
+        symbol: symbols::SymbolHandle,
+    },
 }
 
 /// The step one checked runtime element lowers through. Assignment selectors
@@ -68,6 +71,9 @@ pub(crate) enum ProjectionStep {
 /// selector emits the field read at the program point.
 pub(crate) fn selector_step(runtime: &checked_trees::CheckedRuntimeIndex) -> ProjectionStep {
     match runtime {
+        checked_trees::CheckedRuntimeIndex::StorageRead { symbol } => {
+            ProjectionStep::RuntimeIndexStorage { symbol: *symbol }
+        }
         checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth } => {
             ProjectionStep::AssignmentIndex { depth: *depth }
         }
@@ -99,7 +105,8 @@ pub(crate) fn static_segments(
             | ProjectionStep::RuntimeIndexLiteral { .. }
             | ProjectionStep::RuntimeIndexParameter { .. }
             | ProjectionStep::RuntimeIndexLocal { .. }
-            | ProjectionStep::RuntimeIndexField(_) => {
+            | ProjectionStep::RuntimeIndexField(_)
+            | ProjectionStep::RuntimeIndexStorage { .. } => {
                 unsupported("this route evaluates no assignment runtime element")
             }
         })
@@ -191,6 +198,15 @@ pub(crate) fn evaluate_selectors(
                 );
                 (value, scalar_type)
             }
+            ProjectionStep::RuntimeIndexStorage { symbol } => {
+                let observation = evaluation
+                    .contextual_bindings()
+                    .runtime_index_storage(*symbol)?;
+                let scalar_type = observation.scalar_type();
+                let index =
+                    super::emit_direct_expression(&observation, values, next_value, operations);
+                (index, scalar_type)
+            }
             ProjectionStep::RuntimeIndexField(field) => {
                 let observation =
                     crate::expression_preparation::bindings::structural_fields::resolve_typed(
@@ -245,7 +261,8 @@ pub(crate) fn complete_path(
             | ProjectionStep::RuntimeIndexLiteral { .. }
             | ProjectionStep::RuntimeIndexParameter { .. }
             | ProjectionStep::RuntimeIndexLocal { .. }
-            | ProjectionStep::RuntimeIndexField(_) => {
+            | ProjectionStep::RuntimeIndexField(_)
+            | ProjectionStep::RuntimeIndexStorage { .. } => {
                 let selector = indexes.next().ok_or(LoweringError::Unsupported(
                     "store path lost an evaluated runtime element",
                 ))?;

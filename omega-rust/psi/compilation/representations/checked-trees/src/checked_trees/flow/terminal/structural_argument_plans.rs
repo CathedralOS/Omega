@@ -199,6 +199,7 @@ impl CheckedUnitStructuralArgumentPlan {
                     super::CheckedUnitStructuralPathSegment::ComputedIndex(_)
                         | super::CheckedUnitStructuralPathSegment::RuntimeIndex(
                             super::CheckedRuntimeIndex::StructuralField(_)
+                                | super::CheckedRuntimeIndex::StorageRead { .. }
                         )
                 )
             })

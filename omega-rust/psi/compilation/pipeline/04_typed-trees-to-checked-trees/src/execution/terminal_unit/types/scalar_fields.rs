@@ -10,34 +10,36 @@ use super::{
 use numerics::bignum::BigInt;
 use semantic_vocabulary::{BoundedIntegerType, IntegerValue};
 
-/// Whether the record or case-payload field `field` keeps a scalar
-/// restriction in its Terminal declaration: a bound or predicate from its type
-/// or its owner's interval-only `where` facts, or an atomic cell. `leaf_type`
-/// is the field's type as the projecting place sees it.
-///
-/// Terminal keeps such restrictions out of borrowed shapes, so a restricted
-/// field never lends its storage to a reference carrier. Its observations and
-/// stores reach it through the owning record, where reads transport the
-/// declared invariant and writes re-prove it. This applies the same retention
-/// as shape collection; it is a predicate, not a second field catalog.
-pub(crate) fn field_retains_scalar_restriction(
+/// Whether lending a scalar field must remain an owning-record observation.
+/// Exclusive access retains its complete receiving restriction, and atomic
+/// storage never becomes an ordinary scalar reference. A shared loan may expose
+/// a bounded or refined scalar's carrier: it retains the exact backing and
+/// lifetime but supplies no store or invariant-establishment authority.
+pub(crate) fn field_requires_place_observation(
     program: &dyn ::validation::CheckingInput,
     field: SymbolHandle,
     leaf_type: TypeReferenceHandle,
+    access: checked_trees::CheckedStructuralAccess,
 ) -> bool {
     let Some(primitive) = program.primitive_type_reference(leaf_type) else {
         return false;
     };
-    !matches!(
-        retain_scalar_field(
-            program,
-            leaf_type,
-            &[],
-            primitive,
-            stated_field_interval(program, field),
-        ),
-        Some(CheckedUnitStructuralFieldType::Scalar(_))
-    )
+    match retain_scalar_field(
+        program,
+        leaf_type,
+        &[],
+        primitive,
+        stated_field_interval(program, field),
+    ) {
+        Some(CheckedUnitStructuralFieldType::Scalar(_)) => false,
+        Some(CheckedUnitStructuralFieldType::BoundedInteger(_))
+        | Some(CheckedUnitStructuralFieldType::RefinedScalar { .. })
+            if access == checked_trees::CheckedStructuralAccess::SharedBorrow =>
+        {
+            false
+        }
+        _ => true,
+    }
 }
 
 /// Whether primitive storage can retain the declaration's complete receiving

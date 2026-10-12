@@ -107,6 +107,8 @@ pub(crate) enum PreparedStructuralPathSegment {
     },
     RuntimeIndex(checked_trees::CheckedRuntimeIndex),
     ComputedIndex(checked_trees::CheckedScalarComputationHandle),
+    /// A silent alias keeps its declaration-time selector in original storage.
+    CapturedIndex(semantic_vocabulary::PlaceId),
 }
 
 /// The actual endpoint of a prepared projection, including inline carriers
@@ -650,7 +652,8 @@ pub(crate) fn emit_argument_path(
                 })
             }
             PreparedStructuralPathSegment::RuntimeIndex(
-                checked_trees::CheckedRuntimeIndex::StructuralField(_),
+                checked_trees::CheckedRuntimeIndex::StructuralField(_)
+                | checked_trees::CheckedRuntimeIndex::StorageRead { .. },
             )
             | PreparedStructuralPathSegment::ComputedIndex(_) => {
                 let Some(calls) = calls.as_deref_mut() else {
@@ -667,6 +670,9 @@ pub(crate) fn emit_argument_path(
             }
             PreparedStructuralPathSegment::RuntimeIndex(_) => Err(LoweringError::Unsupported(
                 "an assignment-index selector is owned by its store destination",
+            )),
+            PreparedStructuralPathSegment::CapturedIndex(_) => Err(LoweringError::Unsupported(
+                "captured loan selector requires its operand emission frame",
             )),
             PreparedStructuralPathSegment::ViewExtent { .. } => Err(LoweringError::Unsupported(
                 "a view element projection requires its emitting operand frame",
@@ -697,6 +703,38 @@ pub(crate) fn emit_captured_argument_path(
     let mut output = Vec::new();
     let mut dynamic_extent = false;
     for segment in path {
+        if let PreparedStructuralPathSegment::CapturedIndex(place) = segment {
+            let Some((next, operations)) = emission.as_mut() else {
+                return Err(LoweringError::Unsupported(
+                    "captured loan selector has no emitting frame",
+                ));
+            };
+            let scalar = ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    64,
+                )
+                .expect("u64"),
+            );
+            let index = emit_scalar_leaf(
+                terminal_psi::OperationKind::PrimitiveScalarRead {
+                    source: *place,
+                    path: Vec::new(),
+                },
+                scalar,
+                next,
+                operations,
+            );
+            let obligation = calls
+                .as_deref_mut()
+                .ok_or(LoweringError::Unsupported(
+                    "captured loan selector has no obligation frame",
+                ))?
+                .allocate_requirement()?;
+            output.push(StructuralPathSegment::RuntimeIndex { index, obligation });
+            dynamic_extent = false;
+            continue;
+        }
         if let PreparedStructuralPathSegment::ViewExtent { bytes } = segment {
             // Observe the descriptor at this exact prefix, before indexing its
             // backing. Projected descriptors remain in their original storage;

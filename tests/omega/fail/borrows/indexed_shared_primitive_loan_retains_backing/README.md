@@ -1,0 +1,1 @@
+A copied shared loan of a runtime-selected primitive retains its original caller backing. Mutating the exact selected cell before the copied loan’s last observation must reject on the live-borrow diagnostic.

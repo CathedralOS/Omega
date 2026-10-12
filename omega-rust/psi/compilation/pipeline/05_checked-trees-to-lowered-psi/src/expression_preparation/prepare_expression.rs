@@ -1027,6 +1027,9 @@ fn sequence_field_observation(
                 }
                 step => {
                     let selector = match step {
+                        ProjectionStep::RuntimeIndexStorage { symbol } => {
+                            checked_trees::CheckedRuntimeIndex::StorageRead { symbol }
+                        }
                         ProjectionStep::RuntimeIndexParameter { position } => {
                             checked_trees::CheckedRuntimeIndex::Parameter { position }
                         }
@@ -1113,6 +1116,11 @@ fn element_path_runtime_selector(
     index: &checked_trees::CheckedRuntimeIndex,
 ) -> Result<LoweredDirectExpression, LoweringError> {
     match index {
+        checked_trees::CheckedRuntimeIndex::StorageRead { symbol } => scalar_bindings
+            .ok_or(LoweringError::Unsupported(
+                "storage selector has no established scalar homes",
+            ))?
+            .runtime_index_storage(*symbol),
         checked_trees::CheckedRuntimeIndex::Parameter { position } => scalar_bindings
             .ok_or(LoweringError::Unsupported(
                 "element selector has no typed scalar namespace",

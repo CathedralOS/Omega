@@ -14,7 +14,7 @@ use semantic_vocabulary::{IeeeFloatFormat, IntegerSign, IntegerType, ScalarType}
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
 use crate::execution::terminal_unit::calls;
-use crate::execution::terminal_unit::types::field_retains_scalar_restriction;
+use crate::execution::terminal_unit::types::field_requires_place_observation;
 
 pub(crate) struct ReferenceCapture {
     pub(crate) source: CheckedUnitStructuralArgumentPlan,
@@ -89,13 +89,14 @@ pub(crate) fn capture(
         &place,
         Some(selector),
     )?;
-    // A field restricted by its type or its owner's `where` facts has no
-    // borrowed shape: Terminal keeps the restriction on the record field, not
-    // on a reference carrier. Its loans and views, including a `u8` bounded
-    // to 0/1 viewed as `bool`, keep the proved place observation, where reads
-    // transport the field invariant and writes re-prove it.
+    // An exclusive reference cannot erase a field's receiving restriction,
+    // and an atomic cell cannot become ordinary scalar storage. Shared scalar
+    // loans can attenuate to the declared carrier while retaining their exact
+    // captured source; every write still belongs to the owning record. Keep
+    // their selectors in this ordinary value producer rather than replaying
+    // mutable selector storage through a silent place alias.
     if let Some(facts::PlaceSegment::Field { symbol }) = place.segments.last()
-        && field_retains_scalar_restriction(program, *symbol, backing_type)
+        && field_requires_place_observation(program, *symbol, backing_type, access)
     {
         return None;
     }

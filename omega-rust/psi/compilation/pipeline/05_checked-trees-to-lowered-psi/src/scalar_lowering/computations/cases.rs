@@ -362,13 +362,10 @@ impl Expansion<'_> {
         let subject = match subject {
             CheckedScalarComputationStructuralArgument::Case(subject) => subject,
             CheckedScalarComputationStructuralArgument::Place(argument) => {
-                let (machine, state) =
-                    crate::declarations::state_declaration(self.checked, site.state)?;
-                let source = site.bindings.borrowed_structural_home(
-                    argument,
-                    machine,
-                    self.checked.state_parameters(state),
-                )?;
+                let (_, state) = crate::declarations::state_declaration(self.checked, site.state)?;
+                let source = site
+                    .bindings
+                    .borrowed_structural_home(argument, self.checked.state_parameters(state))?;
                 if !terminal_psi::StructuralAccess::SharedBorrow.admits(source.access) {
                     return unsupported("case observation requires readable source custody");
                 }

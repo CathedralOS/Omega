@@ -202,6 +202,29 @@ fn descriptor_leaf_type(field: &StructuralFieldType) -> Option<StructuralFieldTy
         .or_else(|| field.canonical_leaf_type())
 }
 
+/// A shared reference captures the field's observed carrier while retaining
+/// its physical declaration and every pointer/index boundary. Writable
+/// formation continues to require the complete receiving leaf contract.
+pub(crate) fn borrowed_source_geometry(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &[StructuralTypeDeclaration],
+    access: terminal_psi::StructuralAccess,
+) -> Option<ReferenceSourceGeometry> {
+    let leaf: fn(&StructuralFieldType) -> Option<StructuralFieldType> =
+        if access == terminal_psi::StructuralAccess::SharedBorrow {
+            |field| {
+                field
+                    .shared_observation_type()
+                    .filter(|observed| observed.scalar_type().is_some())
+                    .or_else(|| field.canonical_leaf_type())
+            }
+        } else {
+            StructuralFieldType::canonical_leaf_type
+        };
+    reference_source_geometry_with_leaf_type(root, path, declarations, leaf)
+}
+
 pub(crate) fn reference_source_geometry(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],

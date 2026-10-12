@@ -113,10 +113,11 @@ pub(super) fn establishment(
     };
     let mut projection_root = root;
     let mut segment_start = 0;
-    let geometry = crate::structural_inputs::structural_reference_input::reference_source_geometry(
+    let geometry = crate::structural_inputs::structural_reference_input::borrowed_source_geometry(
         root,
         path,
         declarations,
+        source.access,
     )?;
     if !crate::structural_inputs::structural_reference_input::runtime_indices_match(
         indices,

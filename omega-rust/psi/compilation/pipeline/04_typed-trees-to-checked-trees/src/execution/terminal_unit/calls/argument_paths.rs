@@ -618,9 +618,9 @@ pub(crate) fn borrowed_index_segment(
 
 /// A value projection consumes the same checked scalar operands as other
 /// values, not an assignment destination's pre-RHS capture slot. Dense
-/// parameter/local positions and declared field observations already carry
-/// their scalar namespace; this conversion never replays an initializer or
-/// substitutes a storage name for its evaluated value.
+/// parameter/local positions and declared field observations retain their
+/// scalar namespace. A storage source names the established home to read at
+/// this program point; it never substitutes the declaration's initializer.
 pub(crate) fn value_index_segment(
     program: &dyn ::validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
@@ -647,6 +647,9 @@ pub(crate) fn value_index_segment(
         primitive,
     )?;
     let runtime = match operand {
+        checked_trees::CheckedScalarExpression::StorageRead { symbol, .. } => {
+            checked_trees::CheckedRuntimeIndex::StorageRead { symbol }
+        }
         checked_trees::CheckedScalarExpression::Parameter { position, .. } => {
             checked_trees::CheckedRuntimeIndex::Parameter {
                 position: u32::try_from(position).ok()?,

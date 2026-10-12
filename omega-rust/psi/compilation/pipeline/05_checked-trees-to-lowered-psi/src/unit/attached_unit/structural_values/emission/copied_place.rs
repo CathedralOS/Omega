@@ -27,7 +27,7 @@ impl Emission<'_, '_, '_> {
             .with_structural_locals(&self.evaluation.structural_locals)
             .with_structural_observations(self.structural_types);
         let parameters = self.checked.state_parameters(authored.1);
-        let home = bindings.borrowed_structural_home(source, authored.0, parameters)?;
+        let home = bindings.borrowed_structural_home(source, parameters)?;
         let root = bindings
             .structural_argument_type(&home)
             .ok_or(LoweringError::Unsupported(
@@ -100,7 +100,8 @@ impl Emission<'_, '_, '_> {
                     self.values.push(selector);
                 }
                 checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
-                    checked_trees::CheckedRuntimeIndex::StructuralField(_),
+                    checked_trees::CheckedRuntimeIndex::StructuralField(_)
+                    | checked_trees::CheckedRuntimeIndex::StorageRead { .. },
                 ) => {
                     let selected = super::super::super::parameters::mint_runtime_index_selectors(
                         identities,
@@ -109,6 +110,7 @@ impl Emission<'_, '_, '_> {
                             ..source.clone()
                         }],
                         &fields,
+                        &self.evaluation.contextual_bindings(),
                         self.values.as_slice(),
                         self.next_value,
                         self.operations,

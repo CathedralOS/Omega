@@ -44,7 +44,7 @@ pub(in crate::capture::behavior) fn project_boolean_expression(
             path,
         } => PackageReviewBooleanExpression::StructuralParameterField {
             parameter_position: *parameter_position,
-            path: project_structural_path(path),
+            path: project_structural_path(path)?,
         },
         CheckedBooleanExpression::Not(operand) => {
             PackageReviewBooleanExpression::Not(Box::new(project_boolean_expression(operand)?))
@@ -87,8 +87,8 @@ pub(in crate::capture::behavior) fn project_boolean_expression(
                 }
             },
             primitive_type: project_primitive_type(*primitive_type),
-            left: project_structural_field(left),
-            right: project_structural_field(right),
+            left: project_structural_field(left)?,
+            right: project_structural_field(right)?,
         },
         CheckedBooleanExpression::ScalarIeeeFloatComparison { kind, left, right } => {
             PackageReviewBooleanExpression::ScalarIeeeFloatComparison {
@@ -118,20 +118,20 @@ pub(in crate::capture::behavior) fn project_boolean_expression(
         }
         CheckedBooleanExpression::ByteSequenceEqual { left, right } => {
             PackageReviewBooleanExpression::ByteSequenceEqual {
-                left: project_structural_field(&left.parameter_field()?),
-                right: project_structural_field(&right.parameter_field()?),
+                left: project_structural_field(&left.parameter_field()?)?,
+                right: project_structural_field(&right.parameter_field()?)?,
             }
         }
         CheckedBooleanExpression::PayloadlessSumEqual { left, right, cases } => {
             PackageReviewBooleanExpression::PayloadlessSumEqual {
-                left: project_structural_field(left),
-                right: project_structural_field(right),
+                left: project_structural_field(left)?,
+                right: project_structural_field(right)?,
                 cases: cases.iter().map(|case| case.spelling()).collect(),
             }
         }
         CheckedBooleanExpression::StructuralCaseMembership { subject, case } => {
             PackageReviewBooleanExpression::StructuralCaseMembership {
-                subject: project_structural_field(&subject.parameter_field()?),
+                subject: project_structural_field(&subject.parameter_field()?)?,
                 case: case.spelling(),
             }
         }
@@ -159,7 +159,7 @@ fn project_scalar_expression(
         CheckedScalarExpression::StructuralParameterByteLength { root, path } => {
             PackageReviewScalarExpression::StructuralParameterByteLength {
                 parameter_position: root.parameter()?,
-                path: project_structural_path(path),
+                path: project_structural_path(path)?,
             }
         }
         CheckedScalarExpression::StructuralParameterIndexedRead {
@@ -195,7 +195,7 @@ fn project_scalar_expression(
                 .iter()
                 .map(|step| match step {
                     checked_trees::CheckedScalarReadProjection::Static(segment) => {
-                        project_structural_path(std::slice::from_ref(segment)).pop()
+                        project_structural_path(std::slice::from_ref(segment))?.pop()
                     }
                     checked_trees::CheckedScalarReadProjection::RuntimeIndex(selector) => {
                         let coordinate = match &selector.expression {
@@ -216,7 +216,7 @@ fn project_scalar_expression(
                             } => PackageReviewRuntimeIndex::StructuralField(
                                 PackageReviewStructuralParameterField {
                                     parameter_position: *parameter_position,
-                                    path: project_structural_path(path),
+                                    path: project_structural_path(path)?,
                                 },
                             ),
                             _ => return None,
@@ -229,7 +229,7 @@ fn project_scalar_expression(
                 .collect::<Option<_>>()?;
             PackageReviewScalarExpression::StructuralParameterIndexedRead {
                 parameter_position: root.parameter()?,
-                path: project_structural_path(path),
+                path: project_structural_path(path)?,
                 index: Box::new(project_scalar_expression(&index.expression)?),
                 inner_indexes,
                 element_path,
@@ -256,7 +256,7 @@ fn project_scalar_expression(
             primitive_type,
         } => PackageReviewScalarExpression::StructuralParameterField {
             parameter_position: *parameter_position,
-            path: project_structural_path(path),
+            path: project_structural_path(path)?,
             primitive_type: project_primitive_type(*primitive_type),
         },
         CheckedScalarExpression::IntegerLiteral { literal } => {
@@ -332,38 +332,43 @@ fn project_scalar_expression(
 
 fn project_structural_field(
     field: &checked_trees::CheckedStructuralParameterField,
-) -> PackageReviewStructuralParameterField {
-    PackageReviewStructuralParameterField {
+) -> Option<PackageReviewStructuralParameterField> {
+    Some(PackageReviewStructuralParameterField {
         parameter_position: field.parameter_position,
-        path: project_structural_path(&field.path),
-    }
+        path: project_structural_path(&field.path)?,
+    })
 }
 
 fn project_structural_path(
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
-) -> Vec<PackageReviewStructuralPredicatePathSegment> {
+) -> Option<Vec<PackageReviewStructuralPredicatePathSegment>> {
     path.iter()
-        .map(|segment| match segment {
-            checked_trees::CheckedStructuralPredicatePathSegment::Field(field) => {
-                PackageReviewStructuralPredicatePathSegment::Field(field.spelling())
-            }
-            checked_trees::CheckedStructuralPredicatePathSegment::Case(case) => {
-                PackageReviewStructuralPredicatePathSegment::Case(case.spelling())
-            }
-            checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(element_index) => {
-                PackageReviewStructuralPredicatePathSegment::FixedIndex(*element_index)
-            }
-            checked_trees::CheckedStructuralPredicatePathSegment::RuntimeIndex(index) => {
-                PackageReviewStructuralPredicatePathSegment::RuntimeIndex(project_runtime_index(
-                    index,
-                ))
-            }
+        .map(|segment| {
+            Some(match segment {
+                checked_trees::CheckedStructuralPredicatePathSegment::Field(field) => {
+                    PackageReviewStructuralPredicatePathSegment::Field(field.spelling())
+                }
+                checked_trees::CheckedStructuralPredicatePathSegment::Case(case) => {
+                    PackageReviewStructuralPredicatePathSegment::Case(case.spelling())
+                }
+                checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(element_index) => {
+                    PackageReviewStructuralPredicatePathSegment::FixedIndex(*element_index)
+                }
+                checked_trees::CheckedStructuralPredicatePathSegment::RuntimeIndex(index) => {
+                    PackageReviewStructuralPredicatePathSegment::RuntimeIndex(
+                        project_runtime_index(index)?,
+                    )
+                }
+            })
         })
         .collect()
 }
 
-fn project_runtime_index(index: &checked_trees::CheckedRuntimeIndex) -> PackageReviewRuntimeIndex {
-    match index {
+fn project_runtime_index(
+    index: &checked_trees::CheckedRuntimeIndex,
+) -> Option<PackageReviewRuntimeIndex> {
+    Some(match index {
+        checked_trees::CheckedRuntimeIndex::StorageRead { .. } => return None,
         checked_trees::CheckedRuntimeIndex::Parameter { position } => {
             PackageReviewRuntimeIndex::Parameter {
                 position: *position,
@@ -373,14 +378,14 @@ fn project_runtime_index(index: &checked_trees::CheckedRuntimeIndex) -> PackageR
             PackageReviewRuntimeIndex::AssignmentIndex { depth: *depth }
         }
         checked_trees::CheckedRuntimeIndex::StructuralField(field) => {
-            PackageReviewRuntimeIndex::StructuralField(project_structural_field(field))
+            PackageReviewRuntimeIndex::StructuralField(project_structural_field(field)?)
         }
         checked_trees::CheckedRuntimeIndex::Local { position } => {
             PackageReviewRuntimeIndex::Local {
                 position: *position,
             }
         }
-    }
+    })
 }
 
 const fn project_primitive_type(

@@ -3,11 +3,15 @@
 //! Once an owned value acquires an address, its authored binding observes that
 //! original home. A separate copied binding still names its evaluated SSA value.
 //! Binding replacement permission is not permission to mutate borrowed contents.
+//! Primitive and aggregate loan operands share the same source-home join. A
+//! shared local can retain an authored state parameter's symbol without creating
+//! a separate home; its primitive leaf type does not change that storage identity.
+//! Resolve custody and the existing alias prefix before selecting the leaf.
 use super::{
     CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees,
     LoweringError, PlaceId, PrimitiveType, ScalarType, StructuralAccess, StructuralArgument,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeDeclaration,
-    StructuralTypeId, terminal_scalar_type, unsupported,
+    StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeId,
+    terminal_scalar_type, unsupported,
 };
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
@@ -254,7 +258,6 @@ impl ScalarBindings {
     pub(crate) fn borrowed_structural_home(
         &self,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
-        _machine: &checked_trees::machine::Machine,
         parameters: &[checked_trees::signature::StateParameter],
     ) -> Result<StructuralArgument, LoweringError> {
         let access = structural_paths::terminal_access(argument.access);
@@ -402,6 +405,115 @@ impl ScalarBindings {
         })
     }
 
+    /// Join the checked loan prefix before resolving ordinary backing geometry.
+    /// Silent aliases have no fresh storage: their loan row, not initializer
+    /// syntax, supplies the original root and formation-time selector homes.
+    pub(crate) fn prepared_borrowed_argument(
+        &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        checked: &checked_trees::CheckedTrees,
+        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+        parameters: &[checked_trees::signature::StateParameter],
+        types: &[StructuralTypeDeclaration],
+    ) -> Result<crate::emission::operation_emission::calls::PreparedStructuralArgument, LoweringError>
+    {
+        let mut argument = argument.clone();
+        let mut captured = Vec::new();
+        let mut visited = Vec::new();
+        while let Some(symbol) = argument
+            .structural_storage_root()
+            .and_then(|root| root.as_symbol())
+        {
+            let mut aliases = self
+                .place_observations
+                .iter()
+                .filter(|loan| loan.symbol == symbol);
+            let Some(alias) = aliases.next() else { break };
+            if aliases.next().is_some() || visited.contains(&symbol) {
+                return unsupported("place loan has duplicate or cyclic origin");
+            }
+            visited.push(symbol);
+            if !structural_paths::structural_access_can_supply(
+                structural_paths::terminal_access(alias.loan.access),
+                structural_paths::terminal_access(argument.access),
+            ) {
+                return unsupported("place loan presentation widens its checked access");
+            }
+            let count = alias
+                .loan
+                .path
+                .iter()
+                .filter(|segment| {
+                    matches!(
+                        segment,
+                        checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(_)
+                    )
+                })
+                .count();
+            if alias.selectors.len() != count {
+                return unsupported("place loan selectors were not captured at formation");
+            }
+            let mut prefix = alias.loan.path.clone();
+            prefix.extend(argument.path);
+            argument.path = prefix;
+            let mut coordinates = alias.selectors.clone();
+            coordinates.extend(captured);
+            captured = coordinates;
+            argument.source = match alias.loan.root {
+                checked_trees::CheckedPlaceLoanRoot::StructuralParameter { parameter_index } => {
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                        parameter_index,
+                    }
+                }
+                checked_trees::CheckedPlaceLoanRoot::Local { symbol } => {
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow {
+                        symbol,
+                        root_type_identity: checked.normalized_type_identity(alias.loan.root_type),
+                    }
+                }
+                checked_trees::CheckedPlaceLoanRoot::ScalarParameter { .. } => {
+                    return unsupported("structural place loan requires its original scalar home");
+                }
+            };
+        }
+        let source = self.borrowed_structural_home(&argument, parameters)?;
+        let root = self
+            .structural_argument_type(&source)
+            .ok_or(LoweringError::Unsupported(
+                "borrowed source lost its published selected type",
+            ))?;
+        let mut path = source
+            .path
+            .into_iter()
+            .map(structural_paths::PreparedStructuralPathSegment::Static)
+            .chain(structural_paths::prepare_structural_argument_path(
+                identities, checked, &argument, root, types,
+            )?)
+            .collect::<Vec<_>>();
+        let mut coordinates = captured.into_iter();
+        for segment in &mut path {
+            if matches!(
+                segment,
+                structural_paths::PreparedStructuralPathSegment::RuntimeIndex(_)
+            ) && let Some(place) = coordinates.next()
+            {
+                *segment = structural_paths::PreparedStructuralPathSegment::CapturedIndex(place);
+            }
+        }
+        if coordinates.next().is_some() {
+            return unsupported("captured loan selectors exceed its checked prefix");
+        }
+        Ok(
+            crate::emission::operation_emission::calls::PreparedStructuralArgument {
+                place: source.place,
+                root_type: self.structural_place_type(source.place),
+                path,
+                selector_positions: Vec::new(),
+                access: structural_paths::terminal_access(argument.access),
+            },
+        )
+    }
+
     /// Join a source observation's declared root to the storage actually
     /// published for it. Borrowed ingress already names its referent; a stored
     /// reference instead requires an explicit pointer crossing.
@@ -493,13 +605,12 @@ impl ScalarBindings {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &checked_trees::CheckedTrees,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
-        machine: &checked_trees::machine::Machine,
         parameters: &[checked_trees::signature::StateParameter],
     ) -> Result<StructuralArgument, LoweringError> {
         if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
             return unsupported("computed shared argument changes its access");
         }
-        self.borrowed_structural_argument(identities, checked, argument, machine, parameters)
+        self.borrowed_structural_argument(identities, checked, argument, parameters)
     }
 
     /// Bind a loan at its declared access to its existing structural home.
@@ -509,10 +620,9 @@ impl ScalarBindings {
 
         checked: &checked_trees::CheckedTrees,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
-        machine: &checked_trees::machine::Machine,
         parameters: &[checked_trees::signature::StateParameter],
     ) -> Result<StructuralArgument, LoweringError> {
-        let mut source = self.borrowed_structural_home(argument, machine, parameters)?;
+        let mut source = self.borrowed_structural_home(argument, parameters)?;
         let root = self
             .structural_argument_type(&source)
             .ok_or(LoweringError::Unsupported(
@@ -595,6 +705,9 @@ impl ScalarBindings {
                 &checked_trees::CheckedMemberIdentity::of_spelling(&case),
             )?;
         let index = match selector {
+            checked_trees::CheckedRuntimeIndex::StorageRead { symbol } => {
+                self.runtime_index_storage(*symbol)?
+            }
             checked_trees::CheckedRuntimeIndex::Parameter { position } => {
                 self.runtime_index_parameter(*position)?
             }
@@ -940,6 +1053,8 @@ impl ScalarBindings {
     /// the original backing identity. The same catalog walk checks parameter
     /// and local projections, including authority at every reference crossing.
     /// Root ownership supplies a temporary loan; it is not the argument access.
+    /// Authored parameters resolve symbols absent from the completed local roster;
+    /// their source positions remain distinct from dense structural positions.
     /// Keep that owner's home and cleanup, then attenuate at every descriptor
     /// crossing so owning a record cannot widen a shared reference inside it.
     pub(crate) fn primitive_borrow(
@@ -949,6 +1064,7 @@ impl ScalarBindings {
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
         scalar_type: ScalarType,
         structural_types: &[StructuralTypeDeclaration],
+        parameters: &[checked_trees::signature::StateParameter],
     ) -> Result<StructuralArgument, LoweringError> {
         let source = self.prepared_primitive_borrow(
             identities,
@@ -956,6 +1072,7 @@ impl ScalarBindings {
             argument,
             scalar_type,
             structural_types,
+            parameters,
         )?;
         Ok(StructuralArgument {
             place: source.place,
@@ -996,6 +1113,9 @@ impl ScalarBindings {
             argument,
             *scalar_type,
             structural_types,
+            // A whole scalar formal names its dense scalar home directly;
+            // it has no structural source symbol or relative projection.
+            &[],
         )
     }
 
@@ -1007,6 +1127,7 @@ impl ScalarBindings {
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
         scalar_type: ScalarType,
         structural_types: &[StructuralTypeDeclaration],
+        parameters: &[checked_trees::signature::StateParameter],
     ) -> Result<crate::emission::operation_emission::calls::PreparedStructuralArgument, LoweringError>
     {
         let access = structural_paths::terminal_access(argument.access);
@@ -1030,7 +1151,7 @@ impl ScalarBindings {
         if access == StructuralAccess::Owned {
             return unsupported("computed primitive argument cannot transfer ownership");
         }
-        let (source, root_type) = match argument.source {
+        match argument.source {
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::ScalarParameter {
                 parameter_index,
             } => {
@@ -1050,7 +1171,14 @@ impl ScalarBindings {
                 if !permits(*granted, access) {
                     return unsupported("computed primitive ingress widens original access");
                 }
-                return crate::emission::operation_emission::calls::PreparedStructuralArgument::from_static(StructuralArgument { place, path: Vec::new(), access }, None);
+                crate::emission::operation_emission::calls::PreparedStructuralArgument::from_static(
+                    StructuralArgument {
+                        place,
+                        path: Vec::new(),
+                        access,
+                    },
+                    None,
+                )
             }
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } => {
                 if !argument.path.is_empty() {
@@ -1076,76 +1204,23 @@ impl ScalarBindings {
                 {
                     return unsupported("computed primitive local changes original ownership");
                 }
-                return crate::emission::operation_emission::calls::PreparedStructuralArgument::from_static(StructuralArgument { place, path, access }, None);
-            }
-            _ if argument.structural_storage_root().is_some() => {
-                let root = argument
-                    .structural_storage_root()
-                    .ok_or(LoweringError::Unsupported(
-                        "computed primitive borrow lost its storage identity",
-                    ))?;
-                let mut locals = self.structural_locals.iter().filter(|row| row.root == root);
-                let source = locals.next().ok_or(LoweringError::Unsupported(
-                    "computed primitive borrow lost its established local",
-                ))?;
-                if !valid_structural_root(root)
-                    || locals.next().is_some()
-                    || !permits(source.argument.access, access)
-                    || self.structural_argument_type(&source.argument)
-                        != Some(source.structural_type)
-                {
-                    return unsupported("computed primitive borrow changes its local custody");
-                }
-                (source.argument.clone(), source.structural_type)
-            }
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                parameter_index,
-            } => {
-                let (_, parameter) = self
-                    .structural_parameters
-                    .get(parameter_index as usize)
-                    .ok_or(LoweringError::Unsupported(
-                        "computed primitive borrow has no enclosing parameter",
-                    ))?;
-                if (parameter.access != StructuralAccess::Owned
-                    && parameter.multiplicity != StructuralMultiplicity::Unrestricted)
-                    || !parameter.qualifications.is_empty()
-                    || !parameter.projected_qualifications.is_empty()
-                    || !permits(parameter.access, access)
-                {
-                    return unsupported("computed primitive borrow widens parameter custody");
-                }
-                (
+                crate::emission::operation_emission::calls::PreparedStructuralArgument::from_static(
                     StructuralArgument {
-                        place: parameter.place,
-                        path: Vec::new(),
-                        access: parameter.access,
+                        place,
+                        path,
+                        access,
                     },
-                    parameter.structural_type,
+                    None,
                 )
             }
-            _ => return unsupported("computed primitive borrow has no supported source place"),
-        };
-        Ok(
-            crate::emission::operation_emission::calls::PreparedStructuralArgument {
-                place: source.place,
-                root_type: self.structural_place_type(source.place),
-                path: source
-                    .path
-                    .into_iter()
-                    .map(structural_paths::PreparedStructuralPathSegment::Static)
-                    .chain(structural_paths::prepare_structural_argument_path(
-                        identities,
-                        checked,
-                        argument,
-                        root_type,
-                        structural_types,
-                    )?)
-                    .collect(),
-                selector_positions: Vec::new(),
-                access,
-            },
-        )
+            _ => self.prepared_borrowed_argument(
+                identities,
+                checked,
+                argument,
+                parameters,
+                structural_types,
+            ),
+        }
     }
 
     /// Argument preparation may add temporary results after the caller's
@@ -1564,6 +1639,27 @@ impl ScalarBindings {
             return unsupported("runtime selector local names a parameter scalar");
         }
         self.runtime_index_value(position)
+    }
+
+    /// Read the existing storage home, never its declaration initializer.
+    pub(crate) fn runtime_index_storage(
+        &self,
+        symbol: symbols::SymbolHandle,
+    ) -> Result<LoweredDirectExpression, LoweringError> {
+        let (source, path, scalar_type) = primitive_reads::primitive_storage_source(
+            &self.primitive_storage,
+            &self.structural_locals,
+            self.structural_fields.declarations(),
+            symbol,
+        )?;
+        if !matches!(scalar_type, ScalarType::Integer(integer) if !integer.is_address()) {
+            return unsupported("storage selector is not an integer read");
+        }
+        Ok(LoweredDirectExpression::PrimitiveRead {
+            source: source.into(),
+            path,
+            scalar_type,
+        })
     }
 
     fn runtime_index_value(&self, position: u32) -> Result<LoweredDirectExpression, LoweringError> {

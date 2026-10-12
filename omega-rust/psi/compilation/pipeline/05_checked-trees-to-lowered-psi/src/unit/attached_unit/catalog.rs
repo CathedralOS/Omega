@@ -490,9 +490,12 @@ pub(super) fn lower_unit_structural_types_including(
                         &declarations,
                     );
                 needs_coordinate |= loans.iter().any(|loan| {
-                    loan.capture
-                        .as_ref()
-                        .is_ok_and(|capture| capture.runtime_index.is_some())
+                    loan.loan.path.iter().any(|segment| {
+                        matches!(
+                            segment,
+                            checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(_)
+                        )
+                    })
                 });
             }
         }

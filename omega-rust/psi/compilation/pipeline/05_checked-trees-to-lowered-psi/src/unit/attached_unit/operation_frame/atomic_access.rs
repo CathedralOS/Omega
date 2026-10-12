@@ -45,7 +45,7 @@ impl OperationFrame<'_, '_> {
         // Borrow the current published home through the same join used by
         // ordinary observations. A stored descriptor remains in the path;
         // neither its initializer nor a same-typed parameter supplies it.
-        let (machine, state) = crate::declarations::state_declaration(self.checked, self.state)?;
+        let (_, state) = crate::declarations::state_declaration(self.checked, self.state)?;
         let bindings = self
             .evaluation
             .completed_bindings(self.operations, std::iter::empty())
@@ -54,7 +54,6 @@ impl OperationFrame<'_, '_> {
             identities,
             self.checked,
             &access.receiver,
-            machine,
             self.checked.state_parameters(state),
         )?;
         let carrier =

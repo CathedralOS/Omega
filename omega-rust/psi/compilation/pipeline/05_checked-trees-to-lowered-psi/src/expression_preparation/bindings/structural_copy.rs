@@ -42,7 +42,6 @@ impl ScalarBindings {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
 
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
-        machine: &checked_trees::machine::Machine,
         parameters: &[checked_trees::signature::StateParameter],
         types: &[StructuralTypeDeclaration],
         mut capture: impl FnMut(
@@ -53,7 +52,7 @@ impl ScalarBindings {
         if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
             return unsupported("copied value requires readable source custody");
         }
-        let source = self.borrowed_structural_home(argument, machine, parameters)?;
+        let source = self.borrowed_structural_home(argument, parameters)?;
         let root_type =
             self.structural_argument_type(&source)
                 .ok_or(LoweringError::Unsupported(
@@ -146,6 +145,9 @@ impl ScalarBindings {
             .enumerate()
             .map(|(position, segment)| {
                 let index = match segment {
+                    Segment::RuntimeIndex(checked_trees::CheckedRuntimeIndex::StorageRead { symbol }) => {
+                        self.runtime_index_storage(*symbol)?
+                    }
                     Segment::RuntimeIndex(checked_trees::CheckedRuntimeIndex::Parameter {
                         position,
                     }) => self.runtime_index_parameter(*position)?,
@@ -155,6 +157,11 @@ impl ScalarBindings {
                     Segment::RuntimeIndex(checked_trees::CheckedRuntimeIndex::StructuralField(
                         field,
                     )) => self.runtime_index_field(identities, field)?,
+                    Segment::CapturedIndex(place) => LoweredDirectExpression::PrimitiveRead {
+                        source: crate::emission::operation_emission::expressions::PrimitiveReadSource::Place(*place),
+                        path: Vec::new(),
+                        scalar_type: super::terminal_scalar_type(checked_trees::types::PrimitiveType::U64)?,
+                    },
                     Segment::ViewExtent { .. } => {
                         return unsupported(
                             "copied projection has no retained nested descriptor home",

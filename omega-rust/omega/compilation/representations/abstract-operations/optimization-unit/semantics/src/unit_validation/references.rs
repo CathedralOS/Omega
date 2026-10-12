@@ -413,13 +413,10 @@ pub(crate) fn reference_source_type(
     ) {
         return None;
     }
-    if source.path.iter().all(|segment| {
-        matches!(
-            segment,
-            terminal_psi::StructuralPathSegment::Field(_)
-                | terminal_psi::StructuralPathSegment::FixedIndex(_)
-        )
-    }) {
+    if !source
+        .path
+        .contains(&terminal_psi::StructuralPathSegment::Referent)
+    {
         let contract = structural_source_contract(function, source.place)?;
         if !access_covers(contract.access, source.access)
             || contract.multiplicity == terminal_psi::StructuralMultiplicity::Linear
@@ -436,7 +433,18 @@ pub(crate) fn reference_source_type(
         {
             return None;
         }
-        return leaf_type(types, contract.structural_type, &source.path);
+        return super::structural_catalog::structural_borrowed_storage_projection(
+            types.values().copied(),
+            contract.structural_type,
+            &source.path,
+            source.access,
+        )
+        .and_then(|projection| match projection {
+            super::structural_catalog::StructuralStorageProjection::Endpoint(endpoint) => {
+                Some(endpoint)
+            }
+            _ => None,
+        });
     }
     projected_carrier_type(function, types, source)
 }

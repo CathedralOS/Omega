@@ -248,6 +248,24 @@ fn runtime_index_expression(
     index: &checked_trees::CheckedRuntimeIndex,
 ) -> Option<checked_trees::CheckedScalarExpression> {
     match index {
+        checked_trees::CheckedRuntimeIndex::StorageRead { symbol } => {
+            let reference = program
+                .state_parameter_by_symbol(state, *symbol)
+                .filter(|parameter| parameter.is_mutable)
+                .map(|parameter| parameter.type_reference)
+                .or_else(|| {
+                    program
+                        .state_local_declaration(state, *symbol)
+                        .filter(|(ordinal, local)| {
+                            *ordinal < statement_index as usize && local.is_mutable
+                        })
+                        .map(|(_, local)| local.type_reference)
+                })?;
+            Some(checked_trees::CheckedScalarExpression::StorageRead {
+                symbol: *symbol,
+                primitive_type: program.primitive_type_reference(reference)?,
+            })
+        }
         checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth } => Some(
             facts
                 .values

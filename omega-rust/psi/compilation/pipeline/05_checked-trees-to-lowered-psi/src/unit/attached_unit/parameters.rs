@@ -8,8 +8,8 @@ use super::super::{
 };
 use super::{
     CheckedBoundaryMachinePlan, CheckedTrees, LoweringError, Multiplicity, PlaceId, ScalarType,
-    ServiceReachSummary, StructuralPlaceDeclaration, StructuralPlaceKind,
-    StructuralTypeId, ValueDeclaration, allocate_dense, lookup_service_id, lookup_type_id, place_id,
+    ServiceReachSummary, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
+    ValueDeclaration, allocate_dense, lookup_service_id, lookup_type_id, place_id,
     require_valid_service_row, terminal_scalar_type, unsupported,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
@@ -441,6 +441,7 @@ pub(crate) fn mint_runtime_index_selectors(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
     fields: &[StructuralScalarFieldBinding],
+    bindings: &crate::expression_preparation::bindings::ScalarBindings,
     caller_scalar_values: &[ValueDeclaration],
     next_value: &mut u64,
     operations: &mut OperationBuffer,
@@ -448,19 +449,20 @@ pub(crate) fn mint_runtime_index_selectors(
     let mut values = Vec::new();
     for argument in arguments {
         for segment in &argument.path {
-            let CheckedUnitStructuralPathSegment::RuntimeIndex(
-                checked_trees::CheckedRuntimeIndex::StructuralField(field),
-            ) = segment
-            else {
-                continue;
-            };
-            let observation =
-                crate::expression_preparation::bindings::structural_fields::resolve_typed(
+            let observation = match segment {
+                CheckedUnitStructuralPathSegment::RuntimeIndex(
+                    checked_trees::CheckedRuntimeIndex::StorageRead { symbol },
+                ) => bindings.runtime_index_storage(*symbol)?,
+                CheckedUnitStructuralPathSegment::RuntimeIndex(
+                    checked_trees::CheckedRuntimeIndex::StructuralField(field),
+                ) => crate::expression_preparation::bindings::structural_fields::resolve_typed(
                     identities,
                     fields,
                     field.parameter_position,
                     &field.path,
-                )?;
+                )?,
+                _ => continue,
+            };
             if !matches!(observation.scalar_type(), ScalarType::Integer(integer) if !integer.is_address())
             {
                 return unsupported("runtime index field selector is not an integer read");
@@ -498,35 +500,50 @@ pub(crate) fn lower_structural_arguments(
     mut calls: Option<&mut CallEmissionContext<'_>>,
     mut emission: Option<(&mut u64, &mut OperationBuffer)>,
 ) -> Result<Vec<StructuralArgument>, LoweringError> {
-    let mut lower_path = |identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-                          argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
-                          root,
-                          place,
-                          prefix: &[terminal_psi::StructuralPathSegment]| {
-        let suffix =
-            crate::expression_preparation::bindings::structural_paths::prepare_call_argument_path(
-                identities,
-                checked,
-                argument,
-                root,
-                structural_types,
-            )?;
-        let path = prefix.iter().cloned().map(crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::Static).chain(suffix).collect::<Vec<_>>();
-        crate::expression_preparation::bindings::structural_paths::emit_captured_argument_path(
-            &path,
-            place,
-            caller_scalar_values,
-            &mut *selector_values,
-            calls.as_deref_mut(),
-            emission
-                .as_mut()
-                .map(|(next, operations)| (&mut **next, &mut **operations)),
-        )
-    };
     let mut next_byte_argument = 0usize;
     arguments
         .iter()
         .map(|argument| {
+            if argument.access != checked_trees::CheckedStructuralAccess::Owned
+                && argument.structural_storage_root().is_some()
+                && let Some(bindings) = scalar_bindings
+            {
+                let bindings = bindings.clone().with_structural_locals(structural_locals)
+                    .with_structural_observations(structural_types);
+                let prepared = bindings.prepared_borrowed_argument(
+                    identities, checked, argument, &[], structural_types,
+                )?;
+                let path = crate::expression_preparation::bindings::structural_paths::emit_captured_argument_path(
+                    &prepared.path, prepared.place, caller_scalar_values, &mut *selector_values,
+                    calls.as_deref_mut(), emission.as_mut().map(|(next, operations)| (&mut **next, &mut **operations)),
+                )?;
+                return Ok(structural_argument(prepared.place, path, prepared.access));
+            }
+            let mut lower_path = |identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+                                  argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+                                  root,
+                                  place,
+                                  prefix: &[terminal_psi::StructuralPathSegment]| {
+                let suffix =
+                    crate::expression_preparation::bindings::structural_paths::prepare_call_argument_path(
+                        identities,
+                        checked,
+                        argument,
+                        root,
+                        structural_types,
+                    )?;
+                let path = prefix.iter().cloned().map(crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::Static).chain(suffix).collect::<Vec<_>>();
+                crate::expression_preparation::bindings::structural_paths::emit_captured_argument_path(
+                    &path,
+                    place,
+                    caller_scalar_values,
+                    &mut *selector_values,
+                    calls.as_deref_mut(),
+                    emission
+                        .as_mut()
+                        .map(|(next, operations)| (&mut **next, &mut **operations)),
+                )
+            };
             if let Some(root) = argument.structural_storage_root() {
                 let mut bindings = structural_locals.iter().filter(|binding| binding.root == root);
                 let binding = bindings.next().ok_or(LoweringError::Unsupported(
@@ -766,7 +783,8 @@ pub(crate) fn authored_result_qualification_domains(
         return qualifications;
     };
     for clause in contract.closed_scalar_values.ensures() {
-        let Some(checked_trees::ClosedScalarContractValue::SourceCheckedGuarantee { facts }) = clause
+        let Some(checked_trees::ClosedScalarContractValue::SourceCheckedGuarantee { facts }) =
+            clause
         else {
             continue;
         };

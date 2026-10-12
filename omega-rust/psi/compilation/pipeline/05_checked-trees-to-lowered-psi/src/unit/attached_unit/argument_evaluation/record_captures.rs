@@ -4,7 +4,6 @@
 use super::{Evaluation, LoweringError, StructuralTypeDeclaration, ValueDeclaration};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::emit_direct_expression;
-use crate::expression_preparation::bindings::place_observations::LoanedSource;
 use crate::expression_preparation::prepare_expression::exact_u64_index;
 use terminal_psi::{StructuralPlaceDeclaration, StructuralTypeShape};
 
@@ -74,12 +73,9 @@ impl Evaluation {
             if loan.statement_index >= statement {
                 continue;
             }
-            // Unsupported unused loans retain their ordinary use-site refusal.
-            let Ok(capture) = &loan.capture else { continue };
-            // An observation is address demand just like passing a loan. Keep
-            // the same original primitive home for both; a local recast does
-            // not need to be passed to a machine before it can be observed.
-            if let LoanedSource::Local(symbol) = capture.source {
+            // A silent loan names its checked backing, even when its scalar
+            // observation is unsupported. Locating that home grants no store.
+            if let checked_trees::CheckedPlaceLoanRoot::Local { symbol } = loan.loan.root {
                 self.prepare_immutable_local_borrow(
                     checked,
                     state,
@@ -92,12 +88,23 @@ impl Evaluation {
                 )?;
             }
             let loan = &self.place_observations[position];
-            let Ok(capture) = &loan.capture else { continue };
-            let Some(selector) = &capture.runtime_index else {
+            let selectors = loan
+                .loan
+                .path
+                .iter()
+                .filter_map(|segment| match segment {
+                    checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(selector) => {
+                        Some(selector)
+                    }
+                    _ => None,
+                })
+                .cloned()
+                .collect::<Vec<_>>();
+            if selectors.is_empty() || loan.selectors.len() == selectors.len() {
                 continue;
-            };
-            if capture.coordinate.is_some() {
-                continue;
+            }
+            if !loan.selectors.is_empty() {
+                return super::unsupported("place loan has an incomplete selector capture");
             }
             let bindings = self
                 .scalar_bindings
@@ -109,58 +116,73 @@ impl Evaluation {
                 )
                 .with_primitive_storage(&self.primitive_storage)
                 .with_structural_locals(&self.structural_locals);
-            let selector = match selector {
-                checked_trees::CheckedRuntimeIndex::Parameter { position } => {
-                    bindings.runtime_index_parameter(*position)?
+            let mut coordinates = Vec::with_capacity(selectors.len());
+            for selector in &selectors {
+                let selector = match selector {
+                    checked_trees::CheckedRuntimeIndex::StorageRead { symbol } => {
+                        bindings.runtime_index_storage(*symbol)?
+                    }
+                    checked_trees::CheckedRuntimeIndex::Parameter { position } => {
+                        bindings.runtime_index_parameter(*position)?
+                    }
+                    checked_trees::CheckedRuntimeIndex::Local { position } => {
+                        bindings.runtime_index_local(*position)?
+                    }
+                    checked_trees::CheckedRuntimeIndex::StructuralField(field) => {
+                        bindings.runtime_index_field(identities, field)?
+                    }
+                    _ => {
+                        return super::unsupported(
+                            "loan coordinate has no declaration-time scalar source",
+                        );
+                    }
+                };
+                let selector = exact_u64_index(selector)?;
+                let scalar_type = selector.scalar_type();
+                if scalar_type
+                    != super::terminal_scalar_type(typed_trees::types::PrimitiveType::U64)?
+                {
+                    return super::unsupported("loan coordinate lost its exact index carrier");
                 }
-                checked_trees::CheckedRuntimeIndex::Local { position } => {
-                    bindings.runtime_index_local(*position)?
-                }
-                checked_trees::CheckedRuntimeIndex::StructuralField(field) => {
-                    bindings.runtime_index_field(identities, field)?
-                }
-                _ => {
+                let mut carriers = types.iter().filter(|declaration| {
+                    declaration.shape == StructuralTypeShape::PrimitiveScalar(scalar_type)
+                        && declaration.scalar_restriction.is_none()
+                });
+                let structural_type = carriers
+                    .next()
+                    .ok_or(LoweringError::Unsupported(
+                        "loan coordinate has no declared primitive snapshot carrier",
+                    ))?
+                    .id;
+                if carriers.next().is_some() {
                     return super::unsupported(
-                        "record coordinate has no declaration-time scalar source",
+                        "loan coordinate primitive snapshot carrier is ambiguous",
                     );
                 }
-            };
-            let selector = exact_u64_index(selector)?;
-            let scalar_type = selector.scalar_type();
-            if scalar_type != super::terminal_scalar_type(typed_trees::types::PrimitiveType::U64)? {
-                return super::unsupported("record coordinate lost its exact index carrier");
+                let value = emit_direct_expression(&selector, values, next_value, operations);
+                let (place, declaration) = super::super::primitive_locals::push_established_local(
+                    next_place,
+                    operations,
+                    value,
+                    structural_type,
+                    types,
+                    None,
+                )?;
+                private_places.push(declaration);
+                coordinates.push(place);
             }
-            let mut carriers = types.iter().filter(|declaration| {
-                declaration.shape == StructuralTypeShape::PrimitiveScalar(scalar_type)
-                    && declaration.scalar_restriction.is_none()
-            });
-            let structural_type = carriers
-                .next()
-                .ok_or(LoweringError::Unsupported(
-                    "record coordinate has no declared primitive snapshot carrier",
-                ))?
-                .id;
-            if carriers.next().is_some() {
-                return super::unsupported(
-                    "record coordinate primitive snapshot carrier is ambiguous",
-                );
+            let loan = &mut std::sync::Arc::make_mut(&mut self.place_observations)[position];
+            if let Ok(capture) = &mut loan.capture
+                && capture.runtime_index.is_some()
+            {
+                capture.coordinate = coordinates.first().copied();
             }
-            let value = emit_direct_expression(&selector, values, next_value, operations);
-            let (place, declaration) = super::super::primitive_locals::push_established_local(
-                next_place,
-                operations,
-                value,
-                structural_type,
-                types,
-                None,
-            )?;
-            private_places.push(declaration);
-            std::sync::Arc::make_mut(&mut self.place_observations)[position]
-                .capture
-                .as_mut()
-                .map_err(|error| error.clone())?
-                .coordinate = Some(place);
+            loan.selectors = coordinates;
         }
+        self.scalar_bindings = self
+            .scalar_bindings
+            .clone()
+            .with_place_observations(&self.place_observations);
         Ok(())
     }
 }

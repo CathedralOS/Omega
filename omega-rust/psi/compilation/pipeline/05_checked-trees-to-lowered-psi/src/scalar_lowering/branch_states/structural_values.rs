@@ -424,13 +424,11 @@ impl Preparation<'_> {
         | CheckedStructuralValueKind::MutableSliceView { source, region } = &node.kind
         {
             use crate::unit::attached_unit::view_ranges;
-            let (machine, state) =
-                crate::declarations::state_declaration(self.checked, self.state)?;
+            let (_, state) = crate::declarations::state_declaration(self.checked, self.state)?;
             let argument = self.bindings.borrowed_structural_argument(
                 identities,
                 self.checked,
                 source,
-                machine,
                 self.checked.state_parameters(state),
             )?;
             let byte_region = match region {
@@ -518,13 +516,11 @@ impl Preparation<'_> {
                     );
                 argument
             } else {
-                let (machine, state) =
-                    crate::declarations::state_declaration(self.checked, self.state)?;
+                let (_, state) = crate::declarations::state_declaration(self.checked, self.state)?;
                 self.bindings.borrowed_structural_argument(
                     identities,
                     self.checked,
                     source,
-                    machine,
                     self.checked.state_parameters(state),
                 )?
             };
@@ -594,13 +590,11 @@ impl Preparation<'_> {
             return Ok(completed);
         }
         if let CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } = &node.kind {
-            let (machine, state) =
-                crate::declarations::state_declaration(self.checked, self.state)?;
+            let (_, state) = crate::declarations::state_declaration(self.checked, self.state)?;
             let mut selector_ordinal = 0;
             let mut source = self.bindings.copied_place_source(
                 identities,
                 source,
-                machine,
                 self.checked.state_parameters(state),
                 self.types,
                 |identities, selector| {

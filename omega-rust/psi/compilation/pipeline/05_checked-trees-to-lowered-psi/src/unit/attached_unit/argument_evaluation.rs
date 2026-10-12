@@ -978,11 +978,19 @@ impl Evaluation {
                 )?
             }
             checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
-                checked_trees::CheckedRuntimeIndex::StructuralField(field),
+                index @ (checked_trees::CheckedRuntimeIndex::StructuralField(_)
+                | checked_trees::CheckedRuntimeIndex::StorageRead { .. }),
             ) => {
-                let expression = self
-                    .contextual_bindings()
-                    .runtime_index_field(identities, field)?;
+                let bindings = self.contextual_bindings();
+                let expression = match index {
+                    checked_trees::CheckedRuntimeIndex::StructuralField(field) => {
+                        bindings.runtime_index_field(identities, field)?
+                    }
+                    checked_trees::CheckedRuntimeIndex::StorageRead { symbol } => {
+                        bindings.runtime_index_storage(*symbol)?
+                    }
+                    _ => return unsupported("scheduled storage selector lost its source"),
+                };
                 let source_types = values
                     .iter()
                     .map(|value| value.value_type())

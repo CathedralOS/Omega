@@ -346,6 +346,7 @@ impl OperationFrame<'_, '_> {
                     identities,
                     std::slice::from_ref(source),
                     &self.evaluation.structural_fields,
+                    &self.evaluation.contextual_bindings(),
                     self.values,
                     self.next_value,
                     self.operations,

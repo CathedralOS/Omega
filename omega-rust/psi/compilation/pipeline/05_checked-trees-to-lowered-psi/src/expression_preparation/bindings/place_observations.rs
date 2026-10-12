@@ -120,6 +120,10 @@ pub(crate) enum LoanedSource {
 pub(crate) struct PlaceObservation {
     pub(crate) statement_index: u32,
     pub(crate) symbol: symbols::SymbolHandle,
+    /// The checked loan origin remains the sole identity/path authority.
+    pub(crate) loan: checked_trees::CheckedPlaceLoanPlan,
+    /// Private selector homes, in the checked prefix's runtime-index order.
+    pub(crate) selectors: Vec<semantic_vocabulary::PlaceId>,
     pub(crate) capture: Result<PlaceObservationCapture, LoweringError>,
 }
 
@@ -426,6 +430,9 @@ fn append_observation_path(
             Predicate::FixedIndex(index) => path.push(Projection::FixedIndex(*index)),
             Predicate::RuntimeIndex(index) => {
                 let selector = match index {
+                    CheckedRuntimeIndex::StorageRead { symbol } => {
+                        bindings.runtime_index_storage(*symbol)?
+                    }
                     CheckedRuntimeIndex::Parameter { position } => {
                         bindings.runtime_index_parameter(*position)?
                     }

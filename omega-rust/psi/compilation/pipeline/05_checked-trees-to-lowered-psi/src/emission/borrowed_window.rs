@@ -940,6 +940,9 @@ fn spell_place(plan: &CheckedUnitStructuralArgumentPlan) -> String {
                 spelling.push_str(&format!("[computed#{root:?}]"));
             }
             CheckedUnitStructuralPathSegment::RuntimeIndex(
+                checked_trees::CheckedRuntimeIndex::StorageRead { symbol, .. },
+            ) => spelling.push_str(&format!("[storage#{symbol:?}]")),
+            CheckedUnitStructuralPathSegment::RuntimeIndex(
                 checked_trees::CheckedRuntimeIndex::Parameter { position },
             ) => {
                 spelling.push_str(&format!("[selector#{position}]"));

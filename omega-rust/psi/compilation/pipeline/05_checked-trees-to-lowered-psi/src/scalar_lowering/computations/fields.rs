@@ -128,11 +128,9 @@ impl super::Expansion<'_> {
                             );
                         }
                     };
-                    let home = site.bindings.borrowed_structural_home(
-                        original,
-                        machine,
-                        self.checked.state_parameters(state),
-                    )?;
+                    let home = site
+                        .bindings
+                        .borrowed_structural_home(original, self.checked.state_parameters(state))?;
                     let root_type = site.bindings.structural_argument_type(&home).ok_or(
                         LoweringError::Unsupported(
                             "captured field observation lost its established carrier",
@@ -397,17 +395,6 @@ pub(crate) fn prepare_place_observations(
 ) -> std::sync::Arc<[PlaceObservation]> {
     let mut observations = Vec::new();
     for loan in planned_place_loans(checked, machine, state) {
-        let primitive = checked.primitive_type_reference(loan.referee).is_some();
-        let identity = checked.normalized_type_identity(loan.referee);
-        if !primitive
-            && !types.iter().any(|declaration| {
-                declaration.identity
-                    == identities.intern(&checked.type_identity_text(identity).unwrap_or_default())
-                    && matches!(declaration.shape, StructuralTypeShape::Record { .. })
-            })
-        {
-            continue;
-        }
         let capture = (|| {
             let Some(subject) = captured_place_subject(identities, checked, state, loan, types)?
             else {
@@ -438,12 +425,16 @@ pub(crate) fn prepare_place_observations(
         })();
         let capture = match capture {
             Ok(Some(capture)) => Ok(capture),
-            Ok(None) => continue,
+            Ok(None) => Err(LoweringError::Unsupported(
+                "place loan has no scalar or record observation",
+            )),
             Err(error) => Err(error),
         };
         observations.push(PlaceObservation {
             statement_index: loan.statement_index,
             symbol: loan.symbol,
+            loan: loan.clone(),
+            selectors: Vec::new(),
             capture,
         });
     }
@@ -1460,7 +1451,7 @@ fn field_binding<'a>(
 fn observation_source(
     binding: &Binding,
     bindings: &storage::ScalarBindings,
-    machine: &checked_trees::machine::Machine,
+    _machine: &checked_trees::machine::Machine,
     parameters: &[checked_trees::signature::StateParameter],
     subject: &CheckedUnitStructuralArgumentPlan,
 ) -> Result<terminal_psi::StructuralArgument, LoweringError> {
@@ -1480,7 +1471,6 @@ fn observation_source(
                 type_identity: subject.type_identity.clone(),
                 access: subject.access,
             },
-            machine,
             parameters,
         )?,
         Some(LoanedSource::Local(symbol)) => bindings.borrowed_structural_home(
@@ -1492,10 +1482,9 @@ fn observation_source(
                 type_identity: subject.type_identity.clone(),
                 access: subject.access,
             },
-            machine,
             parameters,
         )?,
-        None => bindings.borrowed_structural_home(subject, machine, parameters)?,
+        None => bindings.borrowed_structural_home(subject, parameters)?,
     })
 }
 

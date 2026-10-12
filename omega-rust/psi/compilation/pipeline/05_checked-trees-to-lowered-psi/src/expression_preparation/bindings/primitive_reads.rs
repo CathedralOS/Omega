@@ -15,6 +15,22 @@ pub(crate) fn primitive_storage_read(
     symbol: symbols::SymbolHandle,
     scalar_type: ScalarType,
 ) -> Result<(PlaceId, Vec<StructuralPathSegment>), LoweringError> {
+    let (place, path, declared_type) =
+        primitive_storage_source(storage, locals, declarations, symbol)?;
+    if declared_type != scalar_type {
+        return unsupported("primitive storage read changes its declared endpoint type");
+    }
+    Ok((place, path))
+}
+
+/// Resolve the declared scalar endpoint from either established storage carrier.
+/// This reads the published home; it never reconstructs a declaration initializer.
+pub(crate) fn primitive_storage_source(
+    storage: &[(symbols::SymbolHandle, PlaceId, ScalarType)],
+    locals: &[StructuralLocalBinding],
+    declarations: &[StructuralTypeDeclaration],
+    symbol: symbols::SymbolHandle,
+) -> Result<(PlaceId, Vec<StructuralPathSegment>, ScalarType), LoweringError> {
     if !symbol.is_valid() {
         return unsupported("primitive storage read has no source identity");
     }
@@ -26,9 +42,20 @@ pub(crate) fn primitive_storage_read(
         return unsupported("primitive storage read has ambiguous established storage");
     }
     let Some(local) = local else {
+        let mut rows = storage.iter().filter(|row| row.0 == symbol);
+        let scalar_type = rows
+            .next()
+            .ok_or(LoweringError::Unsupported(
+                "primitive storage read has no initialized place",
+            ))?
+            .2;
+        if rows.next().is_some() {
+            return unsupported("primitive storage read identity is missing or duplicated");
+        }
         return Ok((
             primitive_storage_place(storage, symbol, scalar_type)?,
             Vec::new(),
+            scalar_type,
         ));
     };
     if local.argument.access == StructuralAccess::WriteOnlyBorrow || !local.argument.path.is_empty()
@@ -57,10 +84,10 @@ pub(crate) fn primitive_storage_read(
         }
         _ => (root, Vec::new()),
     };
-    if observed.shape != StructuralTypeShape::PrimitiveScalar(scalar_type) {
-        return unsupported("primitive storage read changes its declared endpoint type");
-    }
-    Ok((local.argument.place, path))
+    let StructuralTypeShape::PrimitiveScalar(scalar_type) = observed.shape else {
+        return unsupported("primitive storage read has no declared scalar endpoint");
+    };
+    Ok((local.argument.place, path, scalar_type))
 }
 
 /// Read a declaration-time captured place under its admitted observation view.

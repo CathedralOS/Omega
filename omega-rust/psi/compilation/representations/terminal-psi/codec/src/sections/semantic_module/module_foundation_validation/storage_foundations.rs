@@ -147,7 +147,22 @@ pub(super) fn validate_establish_reference(
     let Some(source_type) = structural_place_type(machine, source.place) else {
         return malformed("reference establishment source is unknown");
     };
-    let source_type = validate_structural_path(module, source_type, &source.path)?;
+    // Shared formation observes the original scalar field, using the same
+    // endpoint law as a shared call. Its receiving restriction stays on the
+    // field; exclusive formation still requires the complete storage type.
+    let observed = (source.access == terminal_psi::StructuralAccess::SharedBorrow)
+        .then(|| {
+            terminal_semantics::shared_primitive_projection_declaration(
+                module.structural_types.iter(),
+                source_type,
+                &source.path,
+            )
+        })
+        .flatten();
+    let source_type = match observed {
+        Some(observed) => observed,
+        None => validate_structural_path(module, source_type, &source.path)?,
+    };
     if let Some(storage) = storage {
         let offset_type = machine
             .parameters

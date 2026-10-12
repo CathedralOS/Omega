@@ -424,6 +424,11 @@ impl Expansion<'_> {
                     use crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment;
                     let value = match segment {
                         PreparedStructuralPathSegment::RuntimeIndex(
+                            checked_trees::CheckedRuntimeIndex::StorageRead { symbol },
+                        ) => Some(Argument::Value(
+                            site.bindings.runtime_index_storage(*symbol)?,
+                        )),
+                        PreparedStructuralPathSegment::RuntimeIndex(
                             checked_trees::CheckedRuntimeIndex::StructuralField(field),
                         ) => Some(Argument::Value(
                             site.bindings.runtime_index_field(identities, field)?,

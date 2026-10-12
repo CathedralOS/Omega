@@ -171,7 +171,7 @@ impl RangeStorage {
         destination: Option<PlaceId>,
         declarations: &[terminal_psi::StructuralTypeDeclaration],
     ) -> Result<(ViewRangeSource, Option<CollectionView>), LoweringError> {
-        let (machine, authored) = crate::declarations::state_declaration(checked, state)?;
+        let (_, authored) = crate::declarations::state_declaration(checked, state)?;
         let argument = checked_trees::CheckedUnitStructuralArgumentPlan {
             source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                 symbol: self.symbol,
@@ -180,11 +180,8 @@ impl RangeStorage {
             access: self.access,
             type_identity: Default::default(),
         };
-        let source = bindings.borrowed_structural_home(
-            &argument,
-            machine,
-            checked.state_parameters(authored),
-        )?;
+        let source =
+            bindings.borrowed_structural_home(&argument, checked.state_parameters(authored))?;
         let root = bindings
             .structural_argument_type(&source)
             .ok_or(LoweringError::Unsupported(
@@ -263,6 +260,7 @@ fn collection_path(
                 Ok(LoweredElementPathSegment::Static(segment))
             }
             PreparedStructuralPathSegment::ComputedIndex(_)
+            | PreparedStructuralPathSegment::CapturedIndex(_)
             | PreparedStructuralPathSegment::ViewExtent { .. } => {
                 unsupported("computed view selector requires its owning operand evaluation")
             }
@@ -272,6 +270,9 @@ fn collection_path(
                     return unsupported("collection view exceeds the runtime selector namespace");
                 }
                 let selector = match index {
+                    checked_trees::CheckedRuntimeIndex::StorageRead { symbol } => {
+                        bindings.runtime_index_storage(symbol)?
+                    }
                     checked_trees::CheckedRuntimeIndex::Parameter { position } => {
                         bindings.runtime_index_parameter(position)?
                     }

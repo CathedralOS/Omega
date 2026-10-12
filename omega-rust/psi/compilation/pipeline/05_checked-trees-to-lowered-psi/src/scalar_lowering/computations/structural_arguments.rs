@@ -25,8 +25,7 @@ pub(super) fn lower(
     }
     let parameters =
         super::call_signature::structural_parameters(checked, target_machine, target_state)?;
-    let (caller_machine, caller_authored) =
-        crate::declarations::state_declaration(checked, caller_state)?;
+    let (_, caller_authored) = crate::declarations::state_declaration(checked, caller_state)?;
     let caller_parameters = checked.state_parameters(caller_authored);
     if parameters.len() != arguments.len() {
         return unsupported("computed borrow disagrees with its selected callee signature");
@@ -130,28 +129,12 @@ pub(super) fn lower(
                         access,
                     });
                 }
-                let source = bindings.borrowed_structural_home(argument, caller_machine, caller_parameters)?;
-                let root_type = bindings.structural_argument_type(&source).ok_or(
-                    LoweringError::Unsupported("structural argument lost its exact published carrier"),
-                )?;
-                let mut path = source.path.into_iter().map(
-                    crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::Static,
-                ).collect::<Vec<_>>();
-                path.extend(crate::expression_preparation::bindings::structural_paths::prepare_call_argument_path(identities, checked, argument, root_type, structural_types)?);
-                return Ok(PreparedStructuralArgument {
-                    selector_positions: Vec::new(),
-                    place: source.place,
-                    root_type: bindings.structural_place_type(source.place),
-                    path,
-                    access: borrowed_access(argument.access).ok_or(
-                        LoweringError::Unsupported(
-                            "computed argument requires borrowed access",
-                        ),
-                    )?,
-                });
+                return bindings.prepared_borrowed_argument(
+                    identities, checked, argument, caller_parameters, structural_types,
+                );
             };
             bindings
-                .prepared_primitive_borrow(identities, checked, argument, terminal_scalar_type(primitive)?, structural_types)
+                .prepared_primitive_borrow(identities, checked, argument, terminal_scalar_type(primitive)?, structural_types, caller_parameters)
         })
         .collect()
 }

@@ -160,21 +160,16 @@ impl Emission<'_, '_, '_> {
             self.structural_types,
         )?;
         let bindings = self.structural_bindings();
-        let (machine, authored) = crate::declarations::state_declaration(self.checked, self.state)?;
+        let (_, authored) = crate::declarations::state_declaration(self.checked, self.state)?;
         let parameters = self.checked.state_parameters(authored);
         let argument = match loan {
-            LoanAccess::Shared => bindings.shared_structural_argument(
-                identities,
-                self.checked,
-                source,
-                machine,
-                parameters,
-            )?,
+            LoanAccess::Shared => {
+                bindings.shared_structural_argument(identities, self.checked, source, parameters)?
+            }
             LoanAccess::Mutable => bindings.borrowed_structural_argument(
                 identities,
                 self.checked,
                 source,
-                machine,
                 parameters,
             )?,
         };

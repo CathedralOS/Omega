@@ -116,32 +116,34 @@ pub(super) fn prepare(
         {
             return unsupported("expression call argument disagrees with its published formal");
         }
-        let source = if argument.access == checked_trees::CheckedStructuralAccess::Owned {
-            bindings.owned_call_argument(identities, argument, results)?
+        let prepared = if argument.access == checked_trees::CheckedStructuralAccess::Owned {
+            let source = bindings.owned_call_argument(identities, argument, results)?;
+            let root_type = bindings.structural_place_type(source.place).or_else(|| {
+                results
+                    .iter()
+                    .find(|(_, binding)| binding.place() == source.place)
+                    .map(|(_, binding)| binding.structural_type())
+            });
+            PreparedStructuralArgument::from_static(source, root_type)?
         } else if let Some(primitive) = parameter.primitive_referent {
-            bindings.primitive_borrow(
+            bindings.prepared_primitive_borrow(
                 identities,
                 checked,
                 argument,
                 terminal_scalar_type(primitive)?,
                 structural_types,
+                checked.state_parameters(caller_state),
             )?
         } else {
-            bindings.borrowed_structural_argument(
+            bindings.prepared_borrowed_argument(
                 identities,
                 checked,
                 argument,
-                caller_machine,
                 checked.state_parameters(caller_state),
+                structural_types,
             )?
         };
-        let root_type = bindings.structural_place_type(source.place).or_else(|| {
-            results
-                .iter()
-                .find(|(_, binding)| binding.place() == source.place)
-                .map(|(_, binding)| binding.structural_type())
-        });
-        structural_arguments.push(PreparedStructuralArgument::from_static(source, root_type)?);
+        structural_arguments.push(prepared);
     }
     let result = result
         .map(|result| {

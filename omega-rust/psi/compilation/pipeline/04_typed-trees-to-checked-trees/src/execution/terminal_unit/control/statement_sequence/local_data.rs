@@ -441,6 +441,7 @@ pub(super) fn plan(
     if structural_root.is_none()
         && let Some(loan) = place_loan(
             program,
+            facts,
             machine,
             state,
             structural_parameters,
@@ -624,6 +625,7 @@ pub(super) fn plan(
     local_phase("statement sequence: local data: exclusive place loan");
     if let Some(loan) = place_loan(
         program,
+        facts,
         machine,
         state,
         structural_parameters,
@@ -772,6 +774,7 @@ enum PlaceLoan {
 /// referent may be a record as well as a primitive.
 fn place_loan(
     program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
@@ -871,12 +874,23 @@ fn place_loan(
     } else {
         typed_trees::types::TypeReferenceHandle::default()
     };
-    let projected = crate::execution::terminal_unit::calls::projected_borrowed_path(
+    // The declaration owns this evaluation. Consume the same checked scalar
+    // source used by ordinary value operands, including established storage.
+    let projected = crate::execution::terminal_unit::calls::projected_evaluated_path(
         program,
         machine.symbol,
         state.symbol,
         statement,
         &place,
+        Some(&|expression| {
+            crate::execution::terminal_unit::calls::value_index_segment(
+                program,
+                &facts.operators,
+                state,
+                statement,
+                expression,
+            )
+        }),
     );
     let path = match projected {
         Some((storage, path)) => {

@@ -15,8 +15,8 @@ use checked_trees::{
 };
 use semantic_vocabulary::{PlaceId, ScalarType, StructuralFieldId, StructuralTypeId};
 use terminal_psi::{
-    StructuralAccess, StructuralArgument, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
+    StructuralAccess, StructuralArgument, StructuralFieldType, StructuralParameterDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape,
 };
 
 pub(crate) mod bindings;
