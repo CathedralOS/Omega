@@ -67,7 +67,10 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
     {
         return unsupported("linear structural graph has unrepresented authored machine contracts");
     }
-    super::ranking::require_witness_ranks(machine, plan)?;
+    // Checked rank arrivals retain observations only where the selected graph
+    // needs them. An authored witness can survive specialization into an acyclic
+    // caller, which needs no local cycle certificate. Consume the producer's
+    // rank roster; emitted cyclic components still retain their edge evidence.
     super::super::admission::reject_attachment(plan)?;
     // A fused roster admits foreign states: each position resolves its own
     // authored owner, no state may repeat, and the dispatch machine's authored

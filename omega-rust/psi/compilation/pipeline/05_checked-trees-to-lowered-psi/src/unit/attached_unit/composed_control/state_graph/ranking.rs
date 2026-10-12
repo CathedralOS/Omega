@@ -37,19 +37,6 @@ use terminal_psi::{
     TerminalNaturalRankEdge,
 };
 
-/// A machine with a termination witness needs its ranks on the graph: stage
-/// 04's fused branch can publish none, and this route then has no certificate
-/// to emit.
-pub(super) fn require_witness_ranks(
-    machine: &checked_trees::machine::Machine,
-    plan: &CheckedComposedUnitControlMachinePlan,
-) -> Result<(), LoweringError> {
-    if plan.natural_ranks.is_empty() && machine.termination_plan.implementation_witness.is_some() {
-        return unsupported("Unit graph ranking certificate is not retained");
-    }
-    Ok(())
-}
-
 /// Find the retained executable observation, independent of the source measure's
 /// proof/order descriptor. Its arena node keeps the signed integer carrier.
 pub(super) fn observation<'a>(
