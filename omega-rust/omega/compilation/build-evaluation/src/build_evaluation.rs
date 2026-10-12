@@ -117,6 +117,7 @@ pub fn evaluate_build(
                 evaluation_usage: None,
                 observation_summary: None,
                 executed_build_root: None,
+                original_build_source_input: None,
                 generated_sources: Vec::new(),
             }),
             restricted_build_requests: Vec::new(),

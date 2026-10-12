@@ -110,6 +110,11 @@ pub struct ComputedBuildConfig {
     /// Issued by the successful exact prepared evaluation; never reconstructed
     /// from an exported name, writable symbol, or final pruned declaration.
     pub executed_build_root: Option<package_compilation::ExecutedSelectedBuildRoot>,
+    /// The original successful Build facade judgment which prepared this
+    /// executed root. Its early constant closures keep their own checked owners;
+    /// the later Product judgment cannot reconstruct or replace them.
+    pub original_build_source_input:
+        Option<std::sync::Arc<psi_compiler::OriginalCheckedSourceInput>>,
     pub generated_sources: Vec<build_output::PackageGeneratedSource>,
 }
 
