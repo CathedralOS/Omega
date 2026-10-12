@@ -256,6 +256,7 @@ impl TypedTrees {
                             argument,
                             scope.argument_identity_owner(),
                             &frames[..preceding_frames],
+                            crate::type_identity::TypeIdentityQualification::Ordinary,
                         )
                     })
                     .is_some()
@@ -263,8 +264,14 @@ impl TypedTrees {
                 AppliedTypeIdentityOwner::Declaration(symbol) => symbol.is_valid(),
                 AppliedTypeIdentityOwner::Captured(_) => true,
             } {
-                crate::type_identity::applied_type_identity(self, argument, lexical_owner, &[])
-                    .is_some()
+                crate::type_identity::applied_type_identity(
+                    self,
+                    argument,
+                    lexical_owner,
+                    &[],
+                    crate::type_identity::TypeIdentityQualification::Ordinary,
+                )
+                .is_some()
             } else {
                 false
             };

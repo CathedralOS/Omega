@@ -542,7 +542,7 @@ impl<'program> AppliedTraitScope<'program> {
         )
     }
 
-    pub(super) fn argument_identity_owner(
+    pub(crate) fn argument_identity_owner(
         &self,
     ) -> crate::type_identity::AppliedTypeIdentityOwner<'_> {
         match &self.captured_argument_owner {
