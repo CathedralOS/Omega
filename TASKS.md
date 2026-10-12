@@ -203,34 +203,6 @@ helper that passes does not close an item.
   the pinned 4–5s ordering and repin the rows only after the measured
   representation repair meets it.
 
-- **ENTRY-SLOT-EXACT-SCHEMA-SELECTION.** (split-of:UEFI-PHYSICAL-SEMANTIC-ENTRY)
-  Finish alternate accepted-contract coverage after exact
-  [target-slot](wiki/spec/build/entry_roots.md#slots) selection.
-  - The slot now selects its bundled source owner or explicit accepted
-    package/declaration binding in
-    `omega-rust/omega/compilation/realization/provider-planning/src/program_entry.rs`.
-    Physical requirements follow resolved schema composition; semantic arrival
-    keeps core's exact requirement identity. Unrelated same-leaf declarations
-    neither shadow the selection nor create another candidate.
-  - Regression controls: `pass/build/entry_schema_same_leaf_exit` (native
-    exit 0), `pass/build/uefi_entry_schema_same_leaf` (UEFI artifact with
-    authored image/storage roots), and `pass/control_flow/nonreturning_callee_exit`
-    (exit 0, no invented return or frame epilogue). UEFI publication is not
-    UEFI execution. The separate `pass/build/uefi_os_handoff_invocation`
-    customer's native-catalog gap for `firmware_return` and `transfer` belongs
-    to **UEFI-OS-HANDOFF**, not this selection repair.
-  - `fail/build/uefi_entry_schema_wrong_owner` rejects an unaccepted supplier
-    despite matching the contract's path/name. The old local-shadowing
-    construction in `fail/build/uefi_program_entry_wrong_calling_policy` is
-    replaced with a real invalid physical plan (AAPCS64 with x86 registers).
-    The corpus currently accepts only the bundled entry supplier. Add coverage
-    of a different explicitly accepted package/schema whose otherwise valid
-    physical convention mismatches the slot; do not invent local shadowing.
-  Acceptance: `python tools/corpus_gate.py --filter build/uefi_` plus native
-  `build/entry_schema_same_leaf_exit`; UEFI reaches its intended product,
-  unrelated declarations preserve it, and invalid selected plans reject for
-  their actual contract rather than an accidental name collision.
-
 - **CHECKED-ASM-LABEL-CONTRACTS.** (split-of:STATIC-MACHINE-MIGRATION)
   Implement the ratified checked-assembly control-flow model in
   [assembly](wiki/spec/language/assembly.md#blocks-and-assertions): explicit
@@ -1190,10 +1162,6 @@ defines the complete product bar.
     `fail/calls/terminal_return_type_mismatch_rejected`,
     `fail/expressions/bool_numeric_operand_mixing_rejected` and
     `fail/arithmetic/{suffix_type_disagrees,undeclared_bare_name}_rejected`.
-  - **ENTRY-SLOT-EXACT-SCHEMA-SELECTION** owns the remaining accepted-package
-    physical-convention mismatch customer. The local-schema negative now
-    rejects its invalid register architecture; it does not select the target
-    entry contract or prove the selected-convention comparison.
   - Keep `fail/arithmetic/narrowing_anonymous_expression_unproven` (range
     obligation) distinct from `narrowing_signedness_rejected` (carrier), and
     the `fail/modules/duplicate_data_keeps_guard_facts` control.
@@ -5093,8 +5061,7 @@ wait for Cathedral's instruction coverage. The interpreter is
   [native-artifact's receiver wrapper](omega-rust/omega/compilation/backend/artifacts/native-artifact/src/fragment_object_publication.rs)
   to actual arrival and scoped providers through ordinary program-entry,
   calling, installed-root and provider contracts.
-  Exact entry schema selection is split into
-  **ENTRY-SLOT-EXACT-SCHEMA-SELECTION**; consume that selected identity here.
+  Consume the landed exact entry schema selection identity here.
   Needs a source customer and a firmware or controlled-provider execution
   harness. Repair general capabilities in their owners; no firmware-protocol
   intrinsics.
