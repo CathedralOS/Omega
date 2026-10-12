@@ -37,14 +37,17 @@ omega run samples/cli/systems/elapsed_timer/main.omg
 
 ## Historical declaration inventory
 
-All fifteen positions below carry these exact suffix bounds at `c1303f89d4` and
-retain them at the migration base `8dd8358e4c6`. Receivers became explicit
-parameters between those revisions; the scalar obligations did not change.
+All sixteen positions below carry these exact suffix bounds at `c1303f89d4`.
+At the migration base `8dd8358e4c6`, Duration's field already uses data `where`;
+the other fifteen positions still use suffixes. The inventory includes both.
+Receivers became explicit parameters between those revisions; the scalar
+obligations did not change.
 The old clock-subsecond initializer was later explicitly narrowed to `u32`,
 without changing its remainder or bound.
 
 | Position in `source/library/std/time.omg` | Original suffix | Current establishment |
 | --- | --- | --- |
+| `Duration.subsecond_nanoseconds` | `u32 [0..=999_999_999]` | Plain `u32`; containing data `where subsecond_nanoseconds <= 999_999_999` |
 | `Duration::from_milliseconds.scaled_wide` | `u64 [0..=999000000]` | Plain `u64`; `(milliseconds % 1000) * 1000000` |
 | `Duration::from_milliseconds.sub` | `u32 [0..=999999999]` | Plain `u32`; `scaled % 1000000000` |
 | `Duration::from_microseconds.scaled_wide` | `u64 [0..=999999000]` | Plain `u64`; `(microseconds % 1000000) * 1000` |

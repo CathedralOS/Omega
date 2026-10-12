@@ -91,6 +91,45 @@ extent; `schema_identity_payload_predicate` checks a different active payload
 predicate against a smaller authored schema roster. Existing native plan-laid
 array writes and placed-view policies constrain field-key and padding transport.
 
+The nine parameter suffixes in the same revision belong to the finite
+`AccessPlan::with_bounded` search, not to the identity of an access plan.
+Their `u64` carriers remain unchanged and each bound is now an arrival
+requirement. Zero lower bounds are inherent in the carrier.
+
+| Machine/state and parameters | Original suffix | Canonical requirement |
+|---|---|---|
+| `AccessPlan::with_bounded.fuel` | `[1..=128]` | `fuel >= 1 && fuel <= 128` |
+| `seek.index`, `seek.fuel` | `[0..=32]`, `[1..=128]` | `index <= 32 && fuel >= 1 && fuel <= 128` |
+| `inspect.index`, `inspect.fuel` | `[0..=31]`, `[1..=128]` | `index <= 31 && fuel >= 1 && fuel <= 128` |
+| `replace.index` | `[0..=31]` | `index <= 31` |
+| `advance.index`, `advance.fuel` | `[0..=31]`, `[1..=128]` | `index <= 31 && fuel >= 1 && fuel <= 128` |
+| `grow_invalid.field_count` | `[0..=31]` | `field_count <= 31` |
+
+The initial call supplies fuel 128 and index zero. Search guards establish
+the next state's bounds before subtracting fuel or advancing an index;
+`grow_invalid` receives a count only on the `< 32` arm. The invalid-key route
+still retains an extra or overwriting decision for policy rejection, rather
+than silently ignoring it. `layouts/access_plan_inaccessible_seed` and
+`layouts/placed_view_source_access_compile` exercise the public construction
+route and repeated replacement; they do not claim a hosted runtime entry.
+
+## Audited time fields and initializer facts
+
+All 16 scalar suffixes in `source/library/std/time.omg` at `c1303f89d4`
+are reconciled in the [declaration inventory beside the runtime witness](../../../tests/omega/pass/time/runtime_duration_units_and_scaling_exit/README.md#historical-declaration-inventory).
+Three are the `subsecond_nanoseconds` fields of `Duration`, `Instant` and
+`SystemTime`; their containing data retains `<= 999_999_999`. Thirteen are
+locals whose exact upper bounds follow from their unchanged remainder,
+remainder-and-scale or clamp initializers. Their unsigned carriers retain
+zero lower bounds. No nominal interval domain substitutes for a proposition.
+
+Pure Duration construction, multiplication and division, and Instant/SystemTime
+carry, borrow and overflow execute in both engines. Invalid normalized constants
+and a mutation leaving invalid timestamp storage reject. Clock-dependent
+`Time::{now,system_time_now,elapsed_since,sleep_for}` additionally need the
+hosted consumers named in that witness; a pure arithmetic run alone does not
+qualify their host bindings.
+
 ## Audited calling vocabulary counts
 
 The 11 scalar suffixes in `source/library/std/calling.omg` at `c1303f89d4`
