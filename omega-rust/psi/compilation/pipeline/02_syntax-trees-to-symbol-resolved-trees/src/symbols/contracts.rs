@@ -86,18 +86,8 @@ pub(super) fn assign_contract_reference_symbols(
             entry_parameters,
             entry_symbol,
             machine.contracts,
-            signature_contracts,
-            proof_facts,
-            expression_table,
-            child_type_references,
-        );
-
-        assign_fact_span(
-            symbols,
-            &scope,
-            &[],
-            entry_symbol,
             machine.where_facts,
+            signature_contracts,
             proof_facts,
             expression_table,
             child_type_references,
@@ -112,6 +102,7 @@ pub(super) fn assign_contract_reference_symbols(
                 state_parameters.span_or_empty(state.parameters),
                 state.symbol,
                 state.contracts,
+                arena::HandleSpan::empty(),
                 signature_contracts,
                 proof_facts,
                 expression_table,
@@ -142,6 +133,7 @@ pub(super) fn assign_contract_reference_symbols(
                 state_parameters.span_or_empty(signature.parameters),
                 signature.symbol,
                 signature.contracts,
+                signature.where_facts,
                 signature_contracts,
                 proof_facts,
                 expression_table,
@@ -179,6 +171,7 @@ pub(super) fn assign_contract_reference_symbols(
             state_parameters.span_or_empty(operator.parameters),
             operator.symbol,
             operator.contracts,
+            arena::HandleSpan::empty(),
             signature_contracts,
             proof_facts,
             expression_table,
@@ -214,6 +207,7 @@ pub(super) fn assign_contract_reference_symbols(
             state_parameters.span_or_empty(signature.parameters),
             signature.symbol,
             signature.contracts,
+            signature.where_facts,
             signature_contracts,
             proof_facts,
             expression_table,
@@ -230,6 +224,7 @@ fn assign_contract_span(
     parameters: &[symbol_resolved_trees::signature::StateParameter],
     state_symbol: SymbolHandle,
     contracts: arena::HandleSpan<symbol_resolved_trees::signature::SignatureContract>,
+    where_facts: arena::HandleSpan<symbol_resolved_trees::domain::ProofFact>,
     signature_contracts: &arena::Arena<symbol_resolved_trees::signature::SignatureContract>,
     proof_facts: &arena::Arena<symbol_resolved_trees::domain::ProofFact>,
     expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
@@ -247,6 +242,20 @@ fn assign_contract_span(
             .unwrap_or(machine.type_parameters),
         ..*machine
     };
+    // Static premises and invocation contracts retain the same declaration
+    // binders. Resolving only contract clauses leaves an original generic
+    // requirement's where expressions without identity at public review.
+    // Static premises do not acquire runtime entry-parameter bindings.
+    assign_fact_span(
+        symbols,
+        machine,
+        &[],
+        state_symbol,
+        where_facts,
+        proof_facts,
+        expression_table,
+        child_type_references,
+    );
     for contract in signature_contracts.span_or_empty(contracts) {
         assign_fact_span(
             symbols,
