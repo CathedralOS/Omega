@@ -183,6 +183,7 @@ pub(crate) fn evaluate_selected_const_applications(
     let mut published: Vec<(
         TypeReferenceHandle,
         TypeReferenceNode,
+        typed_trees::types::ConstIntegerMeaning,
         Vec<ExpressionHandle>,
     )> = Vec::new();
     let mut warnings = Vec::new();
@@ -190,10 +191,14 @@ pub(crate) fn evaluate_selected_const_applications(
                    published: Vec<(
         TypeReferenceHandle,
         TypeReferenceNode,
+        typed_trees::types::ConstIntegerMeaning,
         Vec<ExpressionHandle>,
     )>| {
-        for (site, original, marked) in published.into_iter().rev() {
+        for (site, original, meaning, marked) in published.into_iter().rev() {
             typed.type_reference_table.substitute_node(site, original);
+            typed
+                .type_reference_table
+                .retain_const_integer_meaning(site, meaning);
             typed.pending_const_range_endpoints.extend(marked);
         }
     };
@@ -222,9 +227,15 @@ pub(crate) fn evaluate_selected_const_applications(
         let progress = !round.folds.is_empty();
         for fold in round.folds {
             let original = typed.type_reference_table.type_reference(fold.site).clone();
+            let original_meaning = typed.type_reference_table.const_integer_meaning(fold.site);
             typed
                 .type_reference_table
                 .substitute_node(fold.site, fold.node);
+            // Publication transfers the actual evaluator-produced meaning to
+            // this exact source occurrence. Decimal spelling supplies none.
+            typed
+                .type_reference_table
+                .retain_const_integer_meaning(fold.site, fold.integer_meaning);
             let mut marked: Vec<_> = plan
                 .calls
                 .iter()
@@ -239,7 +250,7 @@ pub(crate) fn evaluate_selected_const_applications(
             if typed.pending_const_range_endpoints.remove(&fold.root) {
                 marked.push(fold.root);
             }
-            published.push((fold.site, original, marked));
+            published.push((fold.site, original, original_meaning, marked));
         }
         if round.diagnostics.is_empty() {
             break;
@@ -274,6 +285,7 @@ fn realize_folded_applications(
     published: &[(
         TypeReferenceHandle,
         TypeReferenceNode,
+        typed_trees::types::ConstIntegerMeaning,
         Vec<ExpressionHandle>,
     )],
     domain: &mut EvaluationDomain,
@@ -282,7 +294,7 @@ fn realize_folded_applications(
         return;
     }
     let mut closed: HashSet<TypeReferenceHandle> =
-        published.iter().map(|(site, _, _)| *site).collect();
+        published.iter().map(|(site, _, _, _)| *site).collect();
     let mut declined: HashSet<TypeReferenceHandle> = HashSet::new();
     loop {
         // Instance origins are provenance, not applications: a `Generic` node
@@ -762,6 +774,7 @@ struct ApplicationFold {
     site: TypeReferenceHandle,
     root: ExpressionHandle,
     node: TypeReferenceNode,
+    integer_meaning: typed_trees::types::ConstIntegerMeaning,
 }
 
 fn evaluate_application_round(
@@ -856,7 +869,7 @@ fn evaluate_const_application(
         authority_owner,
         checking_admission,
     };
-    let (value, additions) =
+    let (value, integer_meaning, additions) =
         crate::const_evaluation::const_generic_expressions::value::evaluate_closed_const_argument(
             execution,
             application.root,
@@ -884,6 +897,7 @@ fn evaluate_const_application(
     Ok(ApplicationFold {
         site: application.site,
         root: application.root,
+        integer_meaning,
         node: TypeReferenceNode::Named {
             symbol: SymbolHandle::invalid(),
             name: Identifier::generated(spelling),
