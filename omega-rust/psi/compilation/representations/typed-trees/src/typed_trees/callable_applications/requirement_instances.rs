@@ -364,6 +364,17 @@ impl TypedTrees {
         let Some(declaration) = self.trait_definition_by_symbol(application.declaring_trait) else {
             return false;
         };
+        // The finite declaring key retains the declared parameter tuple.
+        // Independent evidence binders have no coordinate in that key; they
+        // must use their owned application roster rather than share a tuple.
+        let parameters = self.trait_type_parameters(declaration);
+        if declaration.conformance_bounds.iter().any(|bound| {
+            !parameters
+                .iter()
+                .any(|parameter| parameter.symbol == bound.binder)
+        }) {
+            return false;
+        }
         scope
             .declaring_scope(self, declaration.symbol)
             .and_then(|actual| actual.application_identity(self))
