@@ -202,8 +202,13 @@ pub(super) fn operation(
                 && row.call.result_placement == row.call.call_plan.result && row.call.result_placement.is_some()
                 && row.call.crash_continuations == *crash_continuations).count() == 1
         }
-        AbstractOperation::ReturnStructural { psi_edge, source, returned_claims, trivial_affine_locals, cleanup_actions: expected_cleanup } => {
-            returned_claims.is_empty() && trivial_affine_locals.is_empty()
+        AbstractOperation::ReturnStructural { psi_edge, source, trivial_affine_locals, cleanup_actions: expected_cleanup, .. } => {
+            // Returned claims are semantic custody, not return instructions.
+            // The ownership audit matches their exact live source/path set;
+            // target lowering erases that roster while retaining the value's
+            // home, ABI transfer and cleanup. Requiring an empty roster here
+            // rejected valid linear results after that audit had admitted them.
+            trivial_affine_locals.is_empty()
                 && graph.blocks.iter().filter(|block| matches!(&block.terminator,
                     TargetControlTerminator::ReturnStructural { psi_edge: retained, source: home, cleanup_actions }
                         if retained == psi_edge && match home {
