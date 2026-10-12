@@ -242,11 +242,21 @@ pub(crate) fn evaluate(
             &evaluation_domain,
             inputs,
         );
+    let attempt_observations = inputs.len() - input_frontier;
     if evaluated_endpoints.is_err() {
         // The shared evaluator restores its folds after a failed round. This
         // optional early attempt must also discard successful observations
         // made before that failure, while retaining preceding source inputs.
         inputs.truncate(input_frontier);
+    }
+    if std::env::var_os("OMEGA_SOURCE_CONSTANT_INPUT_TRACE").is_some() {
+        eprintln!(
+            "source-constant-input early-range-attempt success={} before={} produced={} after={}",
+            evaluated_endpoints.is_ok(),
+            input_frontier,
+            attempt_observations,
+            inputs.len(),
+        );
     }
     // A whole bound folds only after all authored calls pass static admission.
     // Selective execution may skip some of them; this records admission, not
