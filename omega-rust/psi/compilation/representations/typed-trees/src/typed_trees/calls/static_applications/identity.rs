@@ -125,6 +125,7 @@ pub fn static_application_identity_text(
         &lifetimes,
         crate::type_identity::AppliedTypeIdentityRegionRole::Supplied,
         None,
+        ApplicationIdentityScope::ClosedApplication,
     )
 }
 
@@ -216,6 +217,7 @@ pub fn requirement_description_application_identity_text(
         &lifetimes,
         crate::type_identity::AppliedTypeIdentityRegionRole::Supplied,
         Some(regions),
+        ApplicationIdentityScope::ClosedApplication,
     )
 }
 
@@ -282,7 +284,17 @@ pub(crate) fn machine_family_application_identity_text(
         &[],
         crate::type_identity::AppliedTypeIdentityRegionRole::Declaration,
         Some(regions),
+        ApplicationIdentityScope::CallableFamily,
     )
+}
+
+/// A concrete static application retains values; a shared executable family
+/// retains runtime Value carriers and receives the actual subjects as ordinary
+/// arguments. This distinction never fills or admits an actual call's rows.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ApplicationIdentityScope {
+    ClosedApplication,
+    CallableFamily,
 }
 
 fn application_identity_text(
@@ -296,34 +308,40 @@ fn application_identity_text(
     )],
     region_role: crate::type_identity::AppliedTypeIdentityRegionRole,
     regions: Option<Vec<String>>,
+    identity_scope: ApplicationIdentityScope,
 ) -> Result<String, Diagnostic> {
     use crate::type_identity::{identity_atom as atom, identity_compound as compound};
     let lexical_owner = application.type_identity_owner(owner).ok_or_else(|| {
         Diagnostic::error("callable application lost its original lexical capture")
     })?;
-    let arguments = bindings
-        .iter()
-        .map(|binding| {
-            let argument = match &binding.value {
-                StaticMachineBindingValue::Type(reference) => {
-                    IndexIdentityArgument::TypeArgument(*reference)
-                }
-                StaticMachineBindingValue::Const(reference) => {
-                    IndexIdentityArgument::TypeReference(*reference)
-                }
-                StaticMachineBindingValue::Machine(argument)
-                | StaticMachineBindingValue::Conformance(argument) => {
-                    IndexIdentityArgument::StaticArgument(argument)
-                }
-                StaticMachineBindingValue::RuntimeValue { .. } => {
+    let mut arguments = Vec::with_capacity(bindings.len());
+    for binding in bindings {
+        let argument = match &binding.value {
+            StaticMachineBindingValue::Type(reference) => {
+                Some(IndexIdentityArgument::TypeArgument(*reference))
+            }
+            StaticMachineBindingValue::Const(reference) => {
+                Some(IndexIdentityArgument::TypeReference(*reference))
+            }
+            StaticMachineBindingValue::Machine(argument)
+            | StaticMachineBindingValue::Conformance(argument) => {
+                Some(IndexIdentityArgument::StaticArgument(argument))
+            }
+            StaticMachineBindingValue::RuntimeValue { .. } => {
+                if identity_scope != ApplicationIdentityScope::CallableFamily {
                     return Err(Diagnostic::error(
                         "runtime subject cannot identify a closed callable application",
                     ));
                 }
-            };
-            Ok((binding.parameter, argument))
-        })
-        .collect::<Result<Vec<_>, Diagnostic>>()?;
+                // Runtime Value is not a static index substitution. Its full
+                // original binder still occurs in binding_identities below.
+                None
+            }
+        };
+        if let Some(argument) = argument {
+            arguments.push((binding.parameter, argument));
+        }
+    }
     let mut binding_identities = Vec::with_capacity(bindings.len());
     // The view supplies all original binders, including conformance bounds
     // outside the type-parameter span, in declaration order.
@@ -400,10 +418,57 @@ fn application_identity_text(
                     false,
                 )?],
             ),
-            StaticMachineBindingValue::RuntimeValue { .. } => {
-                return Err(Diagnostic::error(
-                    "runtime subject cannot identify a closed callable application",
-                ));
+            StaticMachineBindingValue::RuntimeValue { type_reference, .. } => {
+                // Only callable-family normalization reached this branch:
+                // static application normalization refused RuntimeValue above.
+                let parameter = declaration
+                    .parameters()
+                    .iter()
+                    .find(|parameter| parameter.symbol == binding.parameter)
+                    .ok_or_else(|| {
+                        Diagnostic::error("runtime Value family lost its original binder")
+                    })?;
+                let crate::data::TypeParameterKind::Value {
+                    type_reference: declared_carrier,
+                } = parameter.kind
+                else {
+                    return Err(Diagnostic::error(
+                        "runtime Value family changed its original binder category",
+                    ));
+                };
+                // The retained instance has no representative caller subject:
+                // every source call transports its own actual runtime operand.
+                // Normalize both carriers in the original applied telescope;
+                // dependent Type/Const operands cannot become bare-name guesses.
+                compound(
+                    "runtime-value",
+                    [
+                        atom(
+                            "declared-carrier",
+                            &declared_carrier_identity_text(
+                                owner,
+                                declared_carrier,
+                                parameter.symbol,
+                                lexical_owner,
+                                &arguments,
+                                lifetimes,
+                                region_role,
+                            )?,
+                        ),
+                        atom(
+                            "carrier",
+                            &declared_carrier_identity_text(
+                                owner,
+                                *type_reference,
+                                parameter.symbol,
+                                lexical_owner,
+                                &arguments,
+                                lifetimes,
+                                region_role,
+                            )?,
+                        ),
+                    ],
+                )
             }
         };
         binding_identities.push(compound(
