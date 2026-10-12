@@ -503,6 +503,7 @@ pub(crate) fn assign_declarations(
             )?;
         }
     }
+    retain_declaration_lexical_inputs(lowerer)?;
     crate::resolution::operand_owners::bind(lowerer)?;
     lowerer.bound_generic_application_origins = lowerer
         .symbol_resolved_trees
@@ -563,9 +564,11 @@ pub(crate) fn assign_body_symbols(
     .map_err(|diagnostic| vec![diagnostic])
 }
 
-pub(crate) fn assign_lexical_inputs(
+/// Excluded equation roots still own their original const argument telescope.
+/// Publish them after their indexed declaration scope is assigned in every
+/// resolution route; exclusion from runtime facts does not erase source custody.
+fn retain_declaration_lexical_inputs(
     lowerer: &mut crate::resolution::lowerer::Lowerer,
-    syntax: &syntax_trees::SyntaxTrees,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let mut declaration_inputs = std::mem::take(&mut lowerer.pending_declaration_lexical_inputs);
     let symbols = lowerer.symbol_resolved_trees.symbols.clone();
@@ -587,6 +590,13 @@ pub(crate) fn assign_lexical_inputs(
             .child_type_references
             .insert_many(input.types);
     }
+    Ok(())
+}
+
+pub(crate) fn assign_lexical_inputs(
+    lowerer: &mut crate::resolution::lowerer::Lowerer,
+    syntax: &syntax_trees::SyntaxTrees,
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let mut inputs = crate::lowering::machine::lower_pending_lexical_inputs(lowerer, syntax)
         .map_err(|diagnostic| vec![diagnostic])?;
     for input in &mut inputs {
