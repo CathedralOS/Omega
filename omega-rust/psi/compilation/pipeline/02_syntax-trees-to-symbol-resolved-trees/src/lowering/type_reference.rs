@@ -22,9 +22,13 @@ pub(crate) fn lower_type_reference_handle(
     type_reference: syntax::types::TypeReferenceHandle,
 ) -> Result<TypeReference, Diagnostic> {
     let prior = lowerer.lowering_const_argument_expressions.len();
+    let prior_operators = lowerer.lowering_const_operator_expressions.len();
     let prior_matches = lowerer.lowering_const_match_selections.len();
     let result = lower_type_reference_with_const_arguments(lowerer, syntax_trees, type_reference);
     lowerer.lowering_const_argument_expressions.truncate(prior);
+    lowerer
+        .lowering_const_operator_expressions
+        .truncate(prior_operators);
     lowerer
         .lowering_const_match_selections
         .truncate(prior_matches);
@@ -59,6 +63,32 @@ fn lower_type_reference_with_const_arguments(
             normalization,
         )?;
         crate::constant::validate_normalized_expression(syntax_trees, normalization)?;
+        if !lowerer
+            .derived_const_argument_expressions
+            .contains(&normalization.authored_expression)
+        {
+            let expressions = syntax_trees
+                .type_references
+                .const_argument_operator_expressions(normalization.operator_expressions);
+            let spans = syntax_trees
+                .type_references
+                .const_argument_builtin_operators(normalization.builtin_operators);
+            if !expressions.is_empty()
+                && (expressions.len() != spans.len()
+                    || expressions.iter().zip(spans).any(|(expression, span)| {
+                        !syntax_trees.expressions.contains_expression(*expression)
+                            || syntax_trees.expressions.source_span(*expression) != *span
+                    }))
+            {
+                return Err(Diagnostic::error(
+                    "normalized operator lost its exact original expression",
+                )
+                .with_source_span(normalization.reference));
+            }
+            lowerer
+                .lowering_const_operator_expressions
+                .extend_from_slice(expressions);
+        }
         lowerer.lowering_const_match_selections.extend_from_slice(
             syntax_trees
                 .type_references
@@ -119,57 +149,6 @@ fn lower_type_reference_with_const_arguments(
                     is_argument_value: origin.reference == normalization.reference,
                 },
             );
-        }
-        for reference in syntax_trees
-            .type_references
-            .const_argument_builtin_operators(normalization.builtin_operators)
-        {
-            if lowerer
-                .derived_const_argument_builtin_operators
-                .contains(reference)
-            {
-                continue;
-            }
-            use language_semantics::declaration_selection::{
-                AuthoredDeclarationSelectionExposure as Exposure,
-                AuthoredDeclarationSelectionIntrinsic as Intrinsic,
-                AuthoredDeclarationSelectionKind as Kind,
-                AuthoredDeclarationSelectionLateBinding as LateBinding,
-            };
-            let exposure = if syntax_trees.constant_initializer_owns_selection(*reference) {
-                Exposure::PrivateImplementation
-            } else {
-                lowerer
-                    .current_authored_expression_exposure
-                    .unwrap_or(Exposure::PrivateImplementation)
-            };
-            let occurrence = lowerer
-                .symbol_resolved_trees
-                .record_late_bound_authored_declaration_selection(
-                    *reference,
-                    exposure,
-                    Kind::Operator,
-                    LateBinding::CheckedOperator,
-                )
-                .map_err(|error| {
-                    Diagnostic::error(format!(
-                        "failed to retain normalized builtin operator: {error:?}"
-                    ))
-                    .with_source_span(*reference)
-                })?;
-            lowerer
-                .symbol_resolved_trees
-                .finalize_intrinsic_authored_declaration_selection(
-                    occurrence,
-                    LateBinding::CheckedOperator,
-                    Intrinsic::BuiltinOperator,
-                )
-                .map_err(|error| {
-                    Diagnostic::error(format!(
-                        "failed to finalize normalized builtin operator: {error:?}"
-                    ))
-                    .with_source_span(*reference)
-                })?;
         }
     }
     let mut lowered = lower_type_reference_node(lowerer, syntax_trees, type_reference)?;

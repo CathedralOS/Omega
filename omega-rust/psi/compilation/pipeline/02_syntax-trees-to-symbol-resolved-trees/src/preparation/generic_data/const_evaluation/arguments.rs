@@ -236,7 +236,7 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
                     syntax
                         .tables
                         .type_references
-                        .retain_const_argument_normalization(
+                        .retain_const_argument_normalization_with_operator_expressions(
                             *argument,
                             name.source_span(),
                             value.encoding.clone(),
@@ -273,13 +273,15 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
                             "const argument for `{base}::{parameter_name}` is invalid at this index site: {reason}"
                         ))
                     })?;
-                syntax.type_references.retain_const_argument_normalization(
-                    *argument,
-                    name.source_span(),
-                    value.encoding.clone(),
-                    [],
-                    [],
-                );
+                syntax
+                    .type_references
+                    .retain_const_argument_normalization_with_operator_expressions(
+                        *argument,
+                        name.source_span(),
+                        value.encoding.clone(),
+                        [],
+                        [],
+                    );
                 syntax.tables.type_references.replace_type_reference(
                     *argument,
                     TypeReferenceNode::Named(Identifier::generated(value.atom())),
@@ -291,6 +293,7 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
                     syntax_trees::expression::ExpressionNode::StructLiteral(_)
                         | syntax_trees::expression::ExpressionNode::ArrayLiteral(_)
                 ) {
+                    let mut builtin_operators = Vec::new();
                     let value =
                         super::values::canonicalize_selected_index_expression_with_warnings(
                             syntax,
@@ -299,19 +302,22 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
                             expression,
                             selection,
                             warnings,
+                            &mut builtin_operators,
                         )
                         .map_err(|reason| {
                             Diagnostic::error(reason)
                                 .with_source_span(syntax.expressions.source_span(expression))
                         })?;
                     let reference = syntax.expressions.source_span(expression);
-                    syntax.type_references.retain_const_argument_normalization(
-                        *argument,
-                        reference,
-                        value.encoding.clone(),
-                        [],
-                        [],
-                    );
+                    syntax
+                        .type_references
+                        .retain_const_argument_normalization_with_operator_expressions(
+                            *argument,
+                            reference,
+                            value.encoding.clone(),
+                            [],
+                            builtin_operators,
+                        );
                     syntax
                         .type_references
                         .retain_const_argument_expression(*argument, expression);
@@ -334,7 +340,8 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
                 }
                 let destination =
                     syntax_type_identity(syntax, parameter_type).map_err(Diagnostic::error)?;
-                let value = evaluate_const_argument_expression(
+                let mut builtin_operators = Vec::new();
+                let value = evaluate_const_argument_expression_with_operators(
                     syntax,
                     expression,
                     const_values,
@@ -342,6 +349,7 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
                     &HashSet::new(),
                     const_integer_type(syntax, parameter_type),
                     warnings,
+                    &mut builtin_operators,
                 )
                 .and_then(EvaluatedConst::into_concrete)
                 .map_err(|reason| {
@@ -353,7 +361,12 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
                     validate_syntax_integer_range(integer_type.name(), value)
                         .map_err(Diagnostic::error)?;
                 }
-                super::replace_integer_argument(syntax, *argument, value);
+                super::replace_integer_argument_with_operators(
+                    syntax,
+                    *argument,
+                    value,
+                    builtin_operators,
+                );
             }
             _ => continue,
         }
@@ -458,13 +471,15 @@ fn retain_scalar_argument_result(
         .const_argument_normalization(argument)
         .is_none()
     {
-        syntax.type_references.retain_const_argument_normalization(
-            argument,
-            reference,
-            encoding,
-            [],
-            [],
-        );
+        syntax
+            .type_references
+            .retain_const_argument_normalization_with_operator_expressions(
+                argument,
+                reference,
+                encoding,
+                [],
+                [],
+            );
     }
 }
 
@@ -527,11 +542,39 @@ pub(in crate::preparation::generic_data) fn evaluate_const_argument_expression(
     integer_type: Option<LandedIntegerType>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<EvaluatedConst, String> {
+    evaluate_const_argument_expression_with_operators(
+        syntax,
+        expression,
+        const_values,
+        parameter_values,
+        symbolic_parameters,
+        integer_type,
+        warnings,
+        &mut Vec::new(),
+    )
+}
+
+pub(in crate::preparation::generic_data) fn evaluate_const_argument_expression_with_operators(
+    syntax: &SyntaxTrees,
+    expression: ExpressionHandle,
+    const_values: &HashMap<String, i128>,
+    parameter_values: &HashMap<String, i128>,
+    symbolic_parameters: &HashSet<String>,
+    integer_type: Option<LandedIntegerType>,
+    warnings: &mut Vec<Diagnostic>,
+    builtin_operators: &mut Vec<(ExpressionHandle, source::SourceSpan)>,
+) -> Result<EvaluatedConst, String> {
     if let Some(value) =
-        super::anonymous::evaluate_anonymous_integer_argument(syntax, expression, warnings)?
+        super::anonymous::evaluate_anonymous_numeric_expression(syntax, expression)?
     {
-        return Ok(EvaluatedConst::Concrete(value));
+        let landing = value.into_integer_landing()?;
+        if let Some(warning) = landing.warning(syntax) {
+            warnings.push(warning);
+        }
+        builtin_operators.extend(landing.builtin_operators);
+        return Ok(EvaluatedConst::Concrete(landing.integer));
     }
+
     match syntax.expressions.expression(expression) {
         ExpressionNode::Integer(value) => integer_literal_value(value)
             .map(EvaluatedConst::Concrete)
@@ -566,7 +609,7 @@ pub(in crate::preparation::generic_data) fn evaluate_const_argument_expression(
                 return Err("const operator application requires declaration selection".to_owned());
             }
             validate_anonymous_remainder(syntax, binary)?;
-            let left = evaluate_const_argument_expression(
+            let left = evaluate_const_argument_expression_with_operators(
                 syntax,
                 binary.left,
                 const_values,
@@ -574,8 +617,9 @@ pub(in crate::preparation::generic_data) fn evaluate_const_argument_expression(
                 symbolic_parameters,
                 integer_type,
                 warnings,
+                builtin_operators,
             )?;
-            let right = evaluate_const_argument_expression(
+            let right = evaluate_const_argument_expression_with_operators(
                 syntax,
                 binary.right,
                 const_values,
@@ -583,6 +627,7 @@ pub(in crate::preparation::generic_data) fn evaluate_const_argument_expression(
                 symbolic_parameters,
                 integer_type,
                 warnings,
+                builtin_operators,
             )?;
             match (binary.operator, &right) {
                 (BinaryOperator::Divide | BinaryOperator::Modulo, EvaluatedConst::Concrete(0)) => {

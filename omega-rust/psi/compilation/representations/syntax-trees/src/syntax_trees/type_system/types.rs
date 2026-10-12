@@ -16,6 +16,7 @@ pub struct TypeReferenceTable {
     const_argument_declarations: Arena<RetainedConstArgumentDeclaration>,
     const_argument_builtin_operators: Arena<source::SourceSpan>,
     const_argument_match_selections: Arena<ConstArgumentMatchSelection>,
+    const_argument_operator_expressions: Arena<crate::expression::ExpressionHandle>,
     integer_range_normalizations: Arena<RetainedIntegerRangeNormalization>,
     pending_const_arguments: Arena<PendingConstArgument>,
     supplied_operand_owners: Arena<SuppliedOperandOwner>,
@@ -111,6 +112,8 @@ pub struct ConstArgumentNormalization {
     pub canonical_result_encoding: String,
     pub selections: HandleSpan<ConstArgumentOrigin>,
     pub builtin_operators: HandleSpan<source::SourceSpan>,
+    /// Exact evaluated operations; empty for span-only observations.
+    pub operator_expressions: HandleSpan<crate::expression::ExpressionHandle>,
     pub selected_matches: HandleSpan<ConstArgumentMatchSelection>,
 }
 
@@ -136,6 +139,7 @@ impl TypeReferenceTable {
             const_argument_declarations: Arena::with_generation(generation),
             const_argument_builtin_operators: Arena::with_generation(generation),
             const_argument_match_selections: Arena::with_generation(generation),
+            const_argument_operator_expressions: Arena::with_generation(generation),
             integer_range_normalizations: Arena::with_generation(generation),
             pending_const_arguments: Arena::with_generation(generation),
             supplied_operand_owners: Arena::with_generation(generation),
@@ -159,6 +163,8 @@ impl TypeReferenceTable {
             .adopt(other.const_argument_builtin_operators);
         self.const_argument_match_selections
             .adopt(other.const_argument_match_selections);
+        self.const_argument_operator_expressions
+            .adopt(other.const_argument_operator_expressions);
         self.integer_range_normalizations
             .adopt(other.integer_range_normalizations);
         self.pending_const_arguments
@@ -177,6 +183,8 @@ impl TypeReferenceTable {
         self.const_argument_declarations.begin_page(generation);
         self.const_argument_builtin_operators.begin_page(generation);
         self.const_argument_match_selections.begin_page(generation);
+        self.const_argument_operator_expressions
+            .begin_page(generation);
         self.integer_range_normalizations.begin_page(generation);
         self.pending_const_arguments.begin_page(generation);
         self.supplied_operand_owners.begin_page(generation);
@@ -488,9 +496,69 @@ impl TypeReferenceTable {
                     canonical_result_encoding,
                     selections,
                     builtin_operators,
+                    operator_expressions: HandleSpan::empty(),
                     selected_matches: HandleSpan::empty(),
                 },
             });
+    }
+
+    /// The successful normalizer supplies operation handles and their diagnostic
+    /// spans together. A canonical value or a span-only receipt supplies none.
+    pub fn retain_const_argument_normalization_with_operator_expressions(
+        &mut self,
+        argument: TypeReferenceHandle,
+        reference: source::SourceSpan,
+        canonical_result_encoding: String,
+        origins: impl IntoIterator<Item = ConstArgumentOrigin>,
+        operators: impl IntoIterator<Item = (crate::expression::ExpressionHandle, source::SourceSpan)>,
+    ) {
+        let (expressions, spans): (Vec<_>, Vec<_>) = operators.into_iter().unzip();
+        self.retain_const_argument_normalization(
+            argument,
+            reference,
+            canonical_result_encoding,
+            origins,
+            spans,
+        );
+        self.retain_const_argument_operator_expressions(argument, expressions);
+    }
+
+    pub fn const_argument_operator_expressions(
+        &self,
+        expressions: HandleSpan<crate::expression::ExpressionHandle>,
+    ) -> &[crate::expression::ExpressionHandle] {
+        self.const_argument_operator_expressions
+            .span_or_empty(expressions)
+    }
+
+    pub fn retain_const_argument_operator_expressions(
+        &mut self,
+        argument: TypeReferenceHandle,
+        expressions: impl IntoIterator<Item = crate::expression::ExpressionHandle>,
+    ) {
+        let handle = self
+            .const_argument_normalizations
+            .iter()
+            .find_map(|(handle, row)| (row.argument == argument).then_some(handle))
+            .expect("operation observations belong to a completed normalization");
+        assert!(
+            self.const_argument_normalizations
+                .get(handle)
+                .normalization
+                .operator_expressions
+                .is_empty()
+        );
+        let expressions = self
+            .const_argument_operator_expressions
+            .insert_many(expressions);
+        let normalization = &mut self
+            .const_argument_normalizations
+            .get_mut(handle)
+            .normalization;
+        assert!(
+            expressions.is_empty() || expressions.len() == normalization.builtin_operators.len()
+        );
+        normalization.operator_expressions = expressions;
     }
 
     pub fn const_argument_match_selections(
@@ -845,6 +913,10 @@ impl TypeReferenceTable {
                 origins,
                 operators,
             );
+            let operator_expressions = self
+                .const_argument_operator_expressions(normalization.operator_expressions)
+                .to_vec();
+            self.retain_const_argument_operator_expressions(destination, operator_expressions);
             let selected_matches = self
                 .const_argument_match_selections(normalization.selected_matches)
                 .to_vec();

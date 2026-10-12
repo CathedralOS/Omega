@@ -399,6 +399,14 @@ impl SyntaxCopy<'_> {
                 );
         }
         if let Some(normalization) = other.type_references.const_argument_normalization(handle) {
+            let expressions = other
+                .type_references
+                .const_argument_operator_expressions(normalization.operator_expressions)
+                .iter()
+                .map(|expression| self.copy_expression_handle(other, *expression))
+                .collect::<Vec<_>>();
+            self.type_references
+                .retain_const_argument_operator_expressions(copied, expressions);
             let selections = other
                 .type_references
                 .const_argument_match_selections(normalization.selected_matches)
