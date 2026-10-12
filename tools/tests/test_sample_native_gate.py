@@ -234,6 +234,45 @@ class HostScopeAndDiagnosticTests(unittest.TestCase):
         self.assertIn(construct, gate.classify(message, limit=None))
 
 
+class TimingTests(unittest.TestCase):
+    """Every compiler call's time lands on the sample and phase that made it."""
+
+    def test_phases_are_attributed_by_command(self):
+        def slow_process(command, **_):
+            gate.time.sleep(0.05)
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        def fake_measure(cli, sample, target, timeout):
+            gate.run([cli, "update", "--project", sample], timeout)
+            gate.run([cli, "--check", "main.omg"], timeout)
+            gate.run([cli, "run", "main.omg"], timeout)
+            gate.run([cli, "run", "main.omg"], timeout)
+            return {"sample": sample, "state": "pass", "detail": ""}
+
+        with patch.object(gate.subprocess, "run", side_effect=slow_process), \
+                patch.object(gate, "measure", side_effect=fake_measure):
+            result = gate.timed_measure("omega", "samples/a", "macos_arm64", 10)
+        self.assertEqual(set(result["phases"]), {"review", "check", "run"})
+        self.assertGreaterEqual(result["phases"]["run"], 0.09)
+        self.assertGreaterEqual(result["seconds"], sum(result["phases"].values()) - 0.01)
+
+    def test_calls_outside_a_measurement_are_not_attributed(self):
+        with patch.object(gate.subprocess, "run",
+                          return_value=subprocess.CompletedProcess([], 0, "", "")):
+            gate.run(["omega", "update"], 10)
+        self.assertIsNone(getattr(gate._phases, "times", None))
+
+    def test_summary_orders_slowest_first_and_totals_phases(self):
+        results = [
+            {"sample": "a", "state": "pass", "seconds": 2.0, "phases": {"review": 1.5, "run": 0.5}},
+            {"sample": "b", "state": "no-native-build", "seconds": 9.0, "phases": {"review": 8.0}},
+        ]
+        summary = gate.timing_summary(results, 9.5)
+        self.assertEqual([row["sample"] for row in summary["slowest"]], ["b", "a"])
+        self.assertEqual(summary["phase_seconds"], {"review": 9.5, "run": 0.5})
+        self.assertEqual(summary["sample_seconds"], 11.0)
+
+
 class RunHistoryTests(unittest.TestCase):
     def test_each_run_writes_a_dated_record(self):
         with tempfile.TemporaryDirectory() as directory:

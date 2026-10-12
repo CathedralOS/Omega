@@ -61,6 +61,8 @@ import os
 import re
 import subprocess
 import sys
+import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -115,7 +117,20 @@ def bound_targets(sample):
     return set(PROGRAM_ENTRY_BINDING.findall(text))
 
 
+# Each worker thread measures one sample at a time, so the time of every
+# compiler call it makes is attributed to that sample's phases.
+_phases = threading.local()
+
+
+def phase_of(command):
+    """`omega update` is review, `--check` is checking, `run` builds and
+    executes, and a bare `--target` compile publishes a native product."""
+    word = command[1] if len(command) > 1 else ""
+    return {"update": "review", "--check": "check", "run": "run"}.get(word, "build")
+
+
 def run(command, timeout, stdin=subprocess.DEVNULL):
+    start = time.monotonic()
     try:
         return subprocess.run(
             command,
@@ -126,6 +141,24 @@ def run(command, timeout, stdin=subprocess.DEVNULL):
         )
     except subprocess.TimeoutExpired:
         return None
+    finally:
+        times = getattr(_phases, "times", None)
+        if times is not None:
+            phase = phase_of(command)
+            times[phase] = times.get(phase, 0.0) + time.monotonic() - start
+
+
+def timed_measure(cli, sample, target, timeout):
+    """`measure` plus the wall time it took and where that time went."""
+    _phases.times = {}
+    start = time.monotonic()
+    try:
+        result = measure(cli, sample, target, timeout)
+    finally:
+        times, _phases.times = _phases.times, None
+    result["seconds"] = round(time.monotonic() - start, 2)
+    result["phases"] = {phase: round(seconds, 2) for phase, seconds in sorted(times.items())}
+    return result
 
 
 def fixture_oracles(sample, target):
@@ -412,13 +445,15 @@ def main():
         print("sample_native_gate: nothing selected", file=sys.stderr)
         return 2
 
+    wall_start = time.monotonic()
     with ThreadPoolExecutor(max_workers=arguments.jobs) as pool:
         results = list(
             pool.map(
-                lambda s: measure(arguments.cli, s, arguments.target, arguments.timeout),
+                lambda s: timed_measure(arguments.cli, s, arguments.target, arguments.timeout),
                 samples,
             )
         )
+    wall_seconds = time.monotonic() - wall_start
 
     buckets = {}
     for result in results:
@@ -452,20 +487,63 @@ def main():
         )
     if negatives:
         print(f"sample_native_gate: {len(buckets.get('rejected', []))}/{len(negatives)} intended-invalid controls match their authored rejection")
+    timing = timing_summary(results, wall_seconds)
+    print(
+        f"sample_native_gate: {timing['wall_seconds']:.0f}s wall with {arguments.jobs} jobs, "
+        f"{timing['sample_seconds']:.0f}s across samples ("
+        + ", ".join(f"{phase} {seconds:.0f}s" for phase, seconds in timing["phase_seconds"].items())
+        + "); slowest:"
+    )
+    for row in timing["slowest"][:5]:
+        print(f"   {row['seconds']:7.1f}s  {row['sample']}  ({row['state']})")
     if arguments.write_results:
         json.dump(results, open(arguments.write_results, "w"), indent=1)
     if arguments.history_dir:
-        record_run(arguments, started, results, buckets, passed, len(scored))
+        record_run(arguments, started, results, buckets, passed, len(scored), timing)
     failures = [result for result in results if result["state"] not in
                 ("pass", "checked", "rejected", "no-oracle", "not-host-runnable")]
     return 1 if failures else 0
 
 
-def record_run(arguments, started, results, buckets, passed, scored):
-    """One dated record per run, so the pass rate has a history.
+def timing_summary(results, wall_seconds):
+    """Where a run's time went: total, per phase, and the slowest samples."""
+    phases = {}
+    for result in results:
+        for phase, seconds in result.get("phases", {}).items():
+            phases[phase] = phases.get(phase, 0.0) + seconds
+    slowest = sorted(results, key=lambda result: -result.get("seconds", 0.0))[:20]
+    return {
+        "wall_seconds": round(wall_seconds, 1),
+        "sample_seconds": round(sum(result.get("seconds", 0.0) for result in results), 1),
+        "phase_seconds": {phase: round(seconds, 1) for phase, seconds in sorted(phases.items())},
+        "slowest": [{"sample": result["sample"], "seconds": result.get("seconds", 0.0),
+                     "state": result["state"]} for result in slowest],
+    }
+
+
+def cli_identity(cli):
+    """Which compiler binary measured the run. Timings from a debug and an
+    optimized build differ by minutes per sample, so a record without this
+    cannot be compared with another."""
+    path = os.path.realpath(cli)
+    try:
+        status = os.stat(path)
+    except OSError:
+        return {"path": path}
+    return {
+        "path": path,
+        "bytes": status.st_size,
+        "modified": datetime.datetime.fromtimestamp(
+            status.st_mtime, datetime.timezone.utc).isoformat(timespec="seconds"),
+    }
+
+
+def record_run(arguments, started, results, buckets, passed, scored, timing=None):
+    """One dated record per run, so the pass rate and its cost have a history.
 
     The revision and dirty flag say which checkout produced the numbers; a
     filtered run says so, since its counts cover only the selected samples.
+    Jobs and the CLI binary say whether two runs' timings are comparable.
     """
     def git(*command):
         completed = subprocess.run(["git", *command], capture_output=True, text=True)
@@ -477,13 +555,16 @@ def record_run(arguments, started, results, buckets, passed, scored):
         "revision": git("rev-parse", "HEAD"),
         "dirty": bool(git("status", "--porcelain", "--untracked-files=no")),
         "target": arguments.target,
-        "cli": arguments.cli,
+        "cli": cli_identity(arguments.cli),
+        "jobs": getattr(arguments, "jobs", None),
+        "timeout": getattr(arguments, "timeout", None),
         "filter": arguments.filter or "",
         "summary": {
             "passed": passed,
             "scored": scored,
             "states": {state: len(rows) for state, rows in sorted(buckets.items())},
         },
+        "timing": timing or {},
         "results": results,
     }
     os.makedirs(arguments.history_dir, exist_ok=True)

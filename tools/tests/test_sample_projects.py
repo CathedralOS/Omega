@@ -20,7 +20,9 @@ class ProjectGateTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name)
+        # Discovery resolves directories; on macOS the temporary directory
+        # lives behind the /var -> /private/var link, so compare resolved paths.
+        self.root = Path(self.temporary.name).resolve()
         for module in (projects, check_gate, native_gate):
             replacement = patch.object(module, "ROOT", self.root)
             replacement.start()
