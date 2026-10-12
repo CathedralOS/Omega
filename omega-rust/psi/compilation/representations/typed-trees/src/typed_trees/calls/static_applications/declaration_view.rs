@@ -125,6 +125,25 @@ impl<'declaration> StaticApplicationDeclaration<'declaration> {
         symbol: SymbolHandle,
         selected_interface: SymbolHandle,
     ) -> Result<Self, &'static str> {
+        let source = program.product_declarations();
+        if !std::ptr::eq(source, program)
+            && program.machine(symbol).is_none()
+            && program.machine_holding_state(symbol).is_none()
+            && program.trait_machine_signature(symbol).is_none()
+            && program.conformance_by_symbol(symbol).is_none()
+            && crate::operator::declaration_by_symbol(program, symbol).is_none()
+        {
+            // Product execution may prune the declaration while retaining its
+            // original source occurrence. The frontier supplies that telescope
+            // only through exact declaration custody in the receiving namespace.
+            if !program.retains_source_declaration_symbol(source, symbol)
+                || (selected_interface.is_valid()
+                    && !program.retains_source_declaration_symbol(source, selected_interface))
+            {
+                return Err("static application lost its original declaration custody");
+            }
+            return Self::for_selected_interface(source, symbol, selected_interface);
+        }
         let mut declaration = Self::for_symbol(program, symbol)?;
         if !selected_interface.is_valid() {
             return Ok(declaration);
