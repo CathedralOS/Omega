@@ -622,7 +622,7 @@ impl EvaluationUsage {
 /// This records what the evaluator consumed, not a selected Build role,
 /// package authority or proof that every supplied provider ran. It owns the
 /// complete checked closure and its distinct product-description frontier.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq)]
 pub struct ExecutedCheckedConstantInput {
     checked: std::sync::Arc<checked_trees::CheckedTrees>,
     product_declarations: std::sync::Arc<typed_trees::TypedTrees>,
@@ -694,7 +694,7 @@ impl ExecutedCheckedConstantInput {
 }
 
 /// A successful semantic evaluation paired with deterministic usage.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MeasuredEvaluation<T> {
     pub(crate) value: T,
     pub(crate) usage: EvaluationUsage,
@@ -751,7 +751,7 @@ pub struct PrivateLayoutPlacementReceipt {
 
 /// Structured evaluation plus compiler-only operation receipts. Receipts are
 /// not Omega values and cannot be observed or fabricated by evaluated code.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BuildTimeOperationEvaluation<T> {
     pub(crate) measured: MeasuredEvaluation<T>,
     pub(crate) private_layout_placements: Vec<PrivateLayoutPlacementReceipt>,
@@ -803,7 +803,7 @@ impl<T> BuildTimeOperationEvaluation<T> {
 
 /// A granted build-machine result keeps host observations beside, but
 /// distinct from, deterministic evaluator work.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MeasuredBuildMachineEvaluation<T> {
     pub(crate) measured: MeasuredEvaluation<T>,
     pub(crate) observations: EvaluationObservations,
