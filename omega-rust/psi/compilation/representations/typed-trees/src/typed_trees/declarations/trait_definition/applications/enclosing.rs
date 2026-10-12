@@ -43,20 +43,36 @@ impl TypedTrees {
                 return None;
             }
             visited.push((applied.reference, applied.scope_starts.len()));
-            let TypeReferenceNode::Named { symbol, .. } =
-                self.type_reference_table.type_reference(applied.reference)
-            else {
-                break;
+            // A source occurrence can remain Generic after syntax synthesis,
+            // with its generated carrier as base and an empty runtime tuple.
+            // Its own retained application precedes the shared nominal origin:
+            // only this row preserves the original full operands and regions.
+            let authored = self
+                .type_reference_table
+                .data_application_origin(applied.reference);
+            let origin = if authored.is_valid() {
+                authored
+            } else {
+                let TypeReferenceNode::Named { symbol, .. } =
+                    self.type_reference_table.type_reference(applied.reference)
+                else {
+                    break;
+                };
+                let Some(origin) = self
+                    .data_definition_by_symbol(*symbol)
+                    .and_then(|definition| definition.generic_instance)
+                else {
+                    break;
+                };
+                origin
             };
-            let Some(origin) = self
-                .data_definition_by_symbol(*symbol)
-                .and_then(|definition| definition.generic_instance)
-            else {
-                break;
-            };
-            // Prepared nominal fields are storage copies. Their retained
-            // origin rejoins the original declaration without reapplying its
-            // frames to already-substituted field operands.
+            if origin == applied.reference
+                || !self.type_reference_table.contains_type_reference(origin)
+            {
+                return None;
+            }
+            // Rejoin source declaration operands under the same supplying
+            // prefix; Type-argument projection may shrink that prefix as before.
             applied = super::project_type_reference(
                 self,
                 origin,
