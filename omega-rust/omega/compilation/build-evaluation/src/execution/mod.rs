@@ -130,7 +130,7 @@ pub(crate) fn execute_admitted_build_program(
                     "build `{machine_name}` evaluation accounting is inconsistent: {error:?}"
                 ))]
             })?;
-    Ok(ComputedBuildConfig {
+    let configuration = ComputedBuildConfig {
         config,
         optimization_report_request: optimization_report,
         evaluation_usage: Some(evaluation_usage),
@@ -138,5 +138,49 @@ pub(crate) fn execute_admitted_build_program(
         executed_build_root: Some(executed_build_root),
         original_build_source_input: Some(std::sync::Arc::clone(prepared.original_source_input())),
         generated_sources,
-    })
+    };
+    trace_successful_build_source_input(&configuration, prepared.original_source_input());
+    Ok(configuration)
+}
+
+/// Temporary opt-in observation after the actual Build activation and output
+/// protocol succeeded. It compares the retained source Arc to the real prepared
+/// input, never reconstructing another record from the Product or folded values.
+fn trace_successful_build_source_input(
+    configuration: &ComputedBuildConfig,
+    prepared_input: &std::sync::Arc<psi_compiler::OriginalCheckedSourceInput>,
+) {
+    if std::env::var_os("OMEGA_SOURCE_CONSTANT_INPUT_TRACE").is_none() {
+        return;
+    }
+    let (Some(root), Some(input)) = (
+        configuration.executed_build_root.as_ref(),
+        configuration.original_build_source_input.as_ref(),
+    ) else {
+        eprintln!("successful-build-source-input missing-root-or-original-input");
+        return;
+    };
+    let root_name = root.callable_identity();
+    let original = input.checked();
+    eprintln!(
+        "successful-build-source-input root={root_name} root-source={:?} prepared-original-arc={} coverage={:?} executed={} original-root-present={}",
+        root.execution().source_span(),
+        std::sync::Arc::ptr_eq(input, prepared_input),
+        input.source_constant_coverage(),
+        input.executed_constant_inputs().len(),
+        original.typed.machine(root.symbol()).is_some(),
+    );
+    for (ordinal, invocation) in input.executed_constant_inputs().iter().enumerate() {
+        let checked = invocation.checked();
+        eprintln!(
+            "successful-build-constant-input root={root_name} ordinal={ordinal} entry={} arguments={} source={:?} operators={} own-checked-machines={}",
+            checked.symbols.display_path(invocation.entry(), "::"),
+            invocation.arguments().len(),
+            checked
+                .symbols
+                .symbol_provenance_source_span(invocation.entry()),
+            invocation.operators().len(),
+            checked.typed.machines().len(),
+        );
+    }
 }
