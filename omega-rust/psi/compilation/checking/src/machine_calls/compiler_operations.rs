@@ -31,7 +31,7 @@ pub fn static_argument_role(
 ) -> StaticArgumentRole {
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
 
-    match static_call_intrinsic(program, call) {
+    match compiler_operation_for_call(program, call) {
         Some(
             Intrinsic::BuildProviderSelection
             | Intrinsic::BuildBoundaryAcceptance
@@ -44,7 +44,9 @@ pub fn static_argument_role(
     }
 }
 
-fn static_call_intrinsic(
+/// Original compiler-operation admission owns these calls; they are not ordinary
+/// callable declarations and carry no fabricated declaration lifetime telescope.
+pub fn compiler_operation_for_call(
     program: &dyn crate::CheckingInput,
     call: StaticArgumentCall<'_>,
 ) -> Option<AuthoredDeclarationSelectionIntrinsic> {
@@ -63,7 +65,7 @@ pub(crate) fn validate_declaration_operands(
     program: &dyn crate::CheckingInput,
     call: StaticArgumentCall<'_>,
 ) -> Result<(), diagnostics::Diagnostic> {
-    if static_call_intrinsic(program, call)
+    if compiler_operation_for_call(program, call)
         == Some(AuthoredDeclarationSelectionIntrinsic::BuildProviderSelection)
         && call
             .arguments(program.typed_program())
