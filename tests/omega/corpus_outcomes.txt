@@ -6194,7 +6194,13 @@ pass/borrows/runtime_reference_call_scalar_snapshot_exit checked 5051ms check-ta
 pass/operators/runtime_declared_reference_index_capture_exit checked 4355ms check-target:macos_arm64 @a9c11ff574b9+wt
 pass/operators/runtime_generic_reference_selector_snapshot_exit checked 4337ms check-target:macos_arm64 @a9c11ff574b9+wt
 fail/borrow/write_only_affine_replacement_reuse rejected 342ms expected @6abc05dd203a
+	cannot use `incoming` in machine `replace` state `entry` (statement 1) after `incoming` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `incoming` first
 fail/borrow/write_only_linear_replacement rejected 247ms expected @6abc05dd203a
+	machine `replace` state `entry` replaces whole write-only aggregate `cell`; whole-root replacement requires a freely discardable supported root, so replace one eligible leaf through an invariant-free record path or declare and prove a statically discardable material aggregate instead
 fail/borrow/write_only_nominal_cleanup_replacement rejected 245ms expected @6abc05dd203a
+	machine `replace` state `entry` replaces whole write-only aggregate `cell`; whole-root replacement requires a freely discardable supported root, so replace one eligible leaf through an invariant-free record path or declare and prove a statically discardable material aggregate instead
 pass/borrow/runtime_write_only_affine_sum_exit checked 4298ms check-target:macos_arm64 @6abc05dd203a
 pass/borrow/runtime_write_only_local_affine_aggregate_exit checked 4298ms check-target:macos_arm64 @6abc05dd203a
+pass/borrow/runtime_write_only_utf8_field_exit checked 4414ms check-target:macos_arm64 @7fa075570fe9
+fail/borrow/write_only_byte_field_missing_membership rejected 467ms expected @7fa075570fe9
+	cannot prove the value assigned to `tagged.label` in replace is in domain `[u8; N]::Utf8`; a place declared `in [u8; N]::Utf8` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)

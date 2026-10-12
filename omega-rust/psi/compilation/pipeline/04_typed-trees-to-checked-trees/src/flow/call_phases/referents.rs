@@ -1,7 +1,7 @@
-//! Declared field facts handed back by a call's readable `&mut` referents.
+//! Declared field facts handed back by a call's exclusive borrowed referents.
 //!
 //! A callee's normal return is a default-domain consumption point for every
-//! readable `&mut` referent it received, `self` included
+//! mutable or write-only referent it received, `self` included
 //! (checks/contracts/exits/result_domains.rs), so after the call each such
 //! referent is known to satisfy the field facts the callee assumed on entry.
 //! Call invalidation retires the actual's facts along the callee's write
@@ -22,7 +22,7 @@ use facts::{
 };
 use symbols::SymbolHandle;
 
-/// Re-seed the declared field facts of every readable `&mut` referent the
+/// Re-seed the declared field facts of every exclusive borrowed referent the
 /// call hands back, on the referent's exact storage place.
 pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
     program: &'plans dyn ::validation::CheckingInput,
@@ -60,21 +60,19 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
             argument_index += 1;
             argument
         };
-        if !crate::checks::contracts::is_readable_mutable_reference(
-            program,
-            parameter.type_reference,
-        ) {
+        let referent =
+            crate::checks::contracts::exclusive_referent_type(program, parameter.type_reference);
+        if !referent.is_valid() {
             continue;
         }
-        // Every readable mutable formal, including a receiver, restores its
+        // Every exclusive borrowed formal, including a receiver, restores its
         // declared fields. Receiver syntax does not change return obligations.
         let Some(paths) = build
             .referent_type_paths
             .entry(parameter.type_reference)
             .or_insert_with(|| {
                 let paths = validation::field_domains::declared_result_field_domain_paths(
-                    program,
-                    crate::checks::contracts::result_domain_type(program, parameter.type_reference),
+                    program, referent,
                 );
                 let paths = paths
                     .into_iter()

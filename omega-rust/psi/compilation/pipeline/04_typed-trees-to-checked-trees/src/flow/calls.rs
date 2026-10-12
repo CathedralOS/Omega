@@ -123,7 +123,7 @@ pub(super) fn build_call_flow_fact<'plans>(
         &mut exit,
         argument_sources.as_ref(),
     );
-    // Every readable `&mut` referent comes back satisfying the field facts
+    // Every exclusive borrowed referent comes back satisfying the field facts
     // the callee re-proved at its return (checks/contracts/exits).
     append_call_referent_field_domain_facts(
         program,

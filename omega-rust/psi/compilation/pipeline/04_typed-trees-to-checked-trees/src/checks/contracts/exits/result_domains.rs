@@ -7,7 +7,7 @@
 //! additionally makes every declared field qualification an obligation at each
 //! value-returning exit, and a readable reference return owes them on
 //! the returned place. The return is also a default-domain consumption point
-//! for every readable `&mut` referent the machine received: declared root
+//! for every exclusive borrowed referent the machine received: declared root
 //! and field facts assumed on entry must hold again when
 //! the referent is handed back. All of these consume only live evidence: a
 //! write that retired a field's fact fails the proof, so a nominal
@@ -16,10 +16,10 @@
 mod proofs;
 mod scalar_exits;
 pub(in crate::checks::contracts) use field_domains::{
-    check_mutable_referent_field_domains, check_result_field_domains,
+    check_exclusive_referent_field_domains, check_result_field_domains,
 };
 pub(crate) use field_domains::{
-    is_readable_mutable_reference, result_domain_type, value_provable_domain,
+    exclusive_referent_type, is_readable_mutable_reference, value_provable_domain,
 };
 pub(in crate::checks::contracts::exits) use proofs::proves_result_domain;
 pub(in crate::checks::contracts) use scalar_exits::exact_scalar_membership;

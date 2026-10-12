@@ -78,7 +78,9 @@ pub(crate) use evidence::{
     exact_target_evidence_parameters, instantiate_contract_expression_evidence_parameter,
 };
 use exits::{CyclicHeaderInvariants, check_exit_ensures};
-pub(crate) use exits::{is_readable_mutable_reference, result_domain_type, value_provable_domain};
+pub(crate) use exits::{
+    exclusive_referent_type, is_readable_mutable_reference, value_provable_domain,
+};
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 use writes::check_domain_field_writes;
@@ -201,7 +203,7 @@ pub(super) fn check_flow_call_contracts(
             // caller, so the field facts it assumed on entry are due again.
             // A reference return into that referent names the same place
             // twice; report each exact place once per exit.
-            exits::check_mutable_referent_field_domains(
+            exits::check_exclusive_referent_field_domains(
                 program,
                 facts,
                 exit_flow,

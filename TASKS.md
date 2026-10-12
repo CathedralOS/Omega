@@ -4228,7 +4228,6 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   - aggregate replacement carrying retained reference resources or conserved
     displaced custody, preserving whole-value validity without observing old
     contents through write-only access;
-  - runtime domain-qualified byte-field replacement with encoding evidence;
   - computed IEEE store/readback (through **FLOAT-PROVIDERS**; the mutable
     controls stop in caller guard planning).
 
@@ -4245,6 +4244,10 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   affine replacements transfer once through write-only access, including local
   array backing. Nominal cleanup, linear displacement, and incoming reuse
   remain rejected.
+  Keep `borrow/runtime_write_only_utf8_field_exit` (0): runtime concatenation
+  and empty byte-field replacement restore declared encoding membership across
+  a write-only call and subsequent state forwarding. Unqualified incoming bytes
+  still fail the destination's domain obligation.
 
   Coordinate sequencing with **STATE-LOCAL-VALUE-FRONTIER**, reference identity
   with **STRUCTURAL-BORROW-IDENTITY**, mutable dynamic dispatch with

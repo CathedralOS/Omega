@@ -285,7 +285,7 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
 /// The type whose declared fields a return owes: the owned result type
 /// itself, or the referent behind a readable reference return. A write-only
 /// reference exposes no readable storage and owes nothing.
-pub(crate) fn result_domain_type(
+fn result_domain_type(
     program: &dyn ::validation::CheckingInput,
     return_type: typed_trees::types::TypeReferenceHandle,
 ) -> typed_trees::types::TypeReferenceHandle {
@@ -315,10 +315,9 @@ pub(crate) fn value_provable_domain(
     !validation::field_domains::domain_requires_provenance(program, domain_symbol)
 }
 
-/// Whether a declared parameter type is a readable `&mut` reference, whose
-/// referent the machine may corrupt and hands back at its return. Owned
-/// parameters die with the machine and write-only views expose no readable
-/// referent, so neither owes anything here.
+/// Whether a declared reference supplies readable mutable alias authority.
+/// This is narrower than the normal-return validity obligation: write-only
+/// references owe validity too, but cannot supply a readable alias.
 pub(crate) fn is_readable_mutable_reference(
     program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
@@ -336,11 +335,39 @@ pub(crate) fn is_readable_mutable_reference(
     false
 }
 
-/// The default-domain field facts a state assumes on entry for its readable
-/// `&mut` referents: each such parameter's `StateParameterDomain` field facts.
+/// The referent whose validity an exclusive borrow owes on normal return.
+/// Write-only authority changes which operations may establish that validity,
+/// not the requirement to return a valid value. The retained entry memberships
+/// are invariant premises; this query grants no observation or readable alias.
+pub(crate) fn exclusive_referent_type(
+    program: &dyn ::validation::CheckingInput,
+    type_reference: typed_trees::types::TypeReferenceHandle,
+) -> typed_trees::types::TypeReferenceHandle {
+    let mut reference = type_reference;
+    while reference.is_valid() {
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+            TypeReferenceNode::Reference {
+                referee, access, ..
+            } if matches!(
+                access,
+                language_semantics::ReferenceAccess::Mutable
+                    | language_semantics::ReferenceAccess::WriteOnly
+            ) =>
+            {
+                return *referee;
+            }
+            _ => break,
+        }
+    }
+    typed_trees::types::TypeReferenceHandle::invalid()
+}
+
+/// The default-domain field facts a state assumes on entry for its exclusive
+/// referents: each such parameter's `StateParameterDomain` field facts.
 /// These are exactly the rows the state-transition arrival check re-proves
 /// (checks/contracts/arrivals.rs); no second obligation vocabulary exists.
-pub(crate) fn mutable_referent_field_requirements(
+pub(crate) fn exclusive_referent_field_requirements(
     program: &dyn ::validation::CheckingInput,
     semantic: &facts::FactPlan,
     machine_symbol: symbols::SymbolHandle,
@@ -352,7 +379,7 @@ pub(crate) fn mutable_referent_field_requirements(
     };
     let mut referents = Vec::new();
     for parameter in program.state_parameters(state) {
-        if !is_readable_mutable_reference(program, parameter.type_reference) {
+        if !exclusive_referent_type(program, parameter.type_reference).is_valid() {
             continue;
         }
         referents.push(parameter.symbol);
@@ -385,19 +412,19 @@ pub(crate) fn mutable_referent_field_requirements(
 }
 
 /// A machine's normal return is a default-domain consumption point for every
-/// readable `&mut` referent it received: the root and field facts
+/// mutable or write-only referent it received: the root and field facts
 /// assumed on entry must be provable again from the live evidence at the
 /// exit. A write through a bare alias (`&mut [u8; 4]` onto a `Utf8` field)
 /// retires the field's fact without establishing anything, so returning
 /// without repairing it rejects here with the exact place, the same way a
 /// call or transition would refuse the corrupted referent.
-pub(in crate::checks::contracts) fn check_mutable_referent_field_domains(
+pub(in crate::checks::contracts) fn check_exclusive_referent_field_domains(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     exit: &FlowExitFact,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let requirements = mutable_referent_field_requirements(
+    let requirements = exclusive_referent_field_requirements(
         program,
         &facts.semantic,
         exit.machine_symbol,
@@ -411,15 +438,13 @@ pub(in crate::checks::contracts) fn check_mutable_referent_field_domains(
         .iter()
         .map(|context_ref| context_ref.context)
         .collect();
-    // Mutable roots use implicit signature preconditions rather than seeded
+    // Exclusive roots use implicit signature preconditions rather than seeded
     // StateParameterDomain facts. Their declaration still creates a return
     // obligation, even when a write retired every copy of the entry evidence.
     if let Some(state) = validation::find_state_for_exit(program, exit) {
-        for parameter in program
-            .state_parameters(state)
-            .iter()
-            .filter(|parameter| is_readable_mutable_reference(program, parameter.type_reference))
-        {
+        for parameter in program.state_parameters(state).iter().filter(|parameter| {
+            exclusive_referent_type(program, parameter.type_reference).is_valid()
+        }) {
             for (domain_symbol, semantic_domain) in
                 validation::field_domains::domain_constraint_identities(
                     program,

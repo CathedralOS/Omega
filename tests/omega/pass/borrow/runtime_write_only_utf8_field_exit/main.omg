@@ -1,0 +1,32 @@
+domain [u8; 4]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+data Tagged { label: [u8; 8] in Utf8; }
+data Main { tagged: Tagged; prefix: [u8; 4] in Utf8; suffix: [u8; 4] in Utf8; neighbor: i64; }
+
+machine compose(tagged: &write Tagged, left: [u8; 4] in Utf8, right: [u8; 4] in Utf8) {
+    tagged.label = left + right;
+}
+machine rename(tagged: &write Tagged, label: [u8; 8] in Utf8) {
+    tagged.label = label;
+}
+
+machine Main::main(main: &mut Main) crashes Trap {
+    main.neighbor = 85;
+    main.prefix = "λ";
+    main.suffix = "ok";
+    compose(&write main.tagged, main.prefix, main.suffix);
+    transition main.tagged.label == "λok" && main.tagged.label.len == 4
+        && main.prefix == "λ" && main.suffix == "ok" && main.neighbor == 85 {
+        true -> clear(main)
+        _ -> bad()
+    }
+    state clear(main: &mut Main) {
+        rename(&write main.tagged, "");
+        transition main.tagged.label.len == 0 && main.neighbor == 85 {
+            true -> done()
+            _ -> bad()
+        }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
