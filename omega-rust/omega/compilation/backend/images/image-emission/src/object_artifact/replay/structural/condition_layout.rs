@@ -42,9 +42,20 @@ fn replay_structural_shape(
     let shape = match &declaration.shape {
         // A nested established Binding contributes no condition payload.
         terminal_psi::StructuralTypeShape::BindingCarrier => ValueShape::integer(0, 1),
-        // A reference field contains one address, not the referent's storage.
-        // Its payload participates in enclosing offsets like any other field.
-        terminal_psi::StructuralTypeShape::Reference { .. } => ValueShape::integer(8, 8),
+        // Scalar loans retain an address and a storage codec. Aggregate loans
+        // retain only an address. Reconstruct that distinction from the
+        // referent declaration, not its byte extent or the target's claimed
+        // shape: an eight-byte record still has a thin reference. The codec
+        // occupies storage even when this consumer never reads the referent.
+        terminal_psi::StructuralTypeShape::Reference { referent, .. } => {
+            let scalar_codec = match declarations.get(referent)?.shape {
+                terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar) => {
+                    runtime_abi::ScalarStorageCodec::from_scalar(scalar)
+                }
+                _ => None,
+            };
+            ValueShape::integer(if scalar_codec.is_some() { 16 } else { 8 }, 8)
+        }
         terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean) => {
             ValueShape::integer(1, 1)
         }
@@ -73,8 +84,6 @@ fn replay_structural_shape(
                     .checked_add(field_shape.byte_size)?;
             }
             byte_size = checked_align_up(byte_size, u32::from(alignment))?;
-            // A record whose layout-visible children are all reference
-            // carriers has the canonical empty aggregate shape.
             ValueShape::integer(byte_size, alignment)
         }
         terminal_psi::StructuralTypeShape::FixedArray { element, length } => {

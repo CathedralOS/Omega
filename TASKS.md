@@ -3446,9 +3446,8 @@ of a check the same flow already performed, not the check itself.
   local bindings. Descriptor
   inventories distinguish known slots from opaque referents; unavailable
   subtrees must not become storage origins or complete return/effect summaries.
-  The native audit of `runtime_linear_constructor_instances_exit` also rejects
-  its nominal-cleanup `ReturnUnit` as an unaccounted operation on macOS ARM64,
-  including the retained `12b7f1b5bcd` producer; retain its exit-zero oracle.
+  Include `runtime_linear_constructor_instances_exit` and effectful generic
+  cleanup in independent native auditing; retain their exit-zero oracles.
   Carry these compositions through execution, without restoring native
   permission replay. Include qualified descriptor replacement and detached-copy
   content observations; local observations cannot acquire entry provenance.

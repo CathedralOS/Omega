@@ -9,7 +9,8 @@ data Envelope<'storage, Marker, Extra> {
     destination: &'storage mut i32;
 }
 
-machine write(destination: &mut i32) { destination = 73; }
+// Missing cleanup leaves zero; duplicate cleanup toggles it back to zero.
+machine write(destination: &mut i32) { destination = destination ^ 73; }
 
 machine Envelope::drop(envelope: &mut Envelope<'storage, Marker, Extra>) {
     let marker: &Marker = &envelope.marker;
