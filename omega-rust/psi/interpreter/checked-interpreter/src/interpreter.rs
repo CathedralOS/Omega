@@ -164,8 +164,8 @@ pub enum BuildMachineProgram<'program> {
     /// frontier. Only designated product-description operations read the latter;
     /// ordinary machine lookup remains confined to `execution`.
     CheckedClosure {
-        execution: &'program checked_trees::CheckedTrees,
-        product_declarations: &'program TypedTrees,
+        execution: &'program std::sync::Arc<checked_trees::CheckedTrees>,
+        product_declarations: &'program std::sync::Arc<TypedTrees>,
     },
 }
 
@@ -388,6 +388,33 @@ fn evaluate_structured_return(
             "selected operator crash invocations have no build-time execution support".into(),
         );
     }
+    // Capture the exact supplied immutable input before the worker consumes
+    // arguments. It becomes a receipt only in the successful result branch.
+    // Borrowed/early typed entrances cannot claim a retained checked owner.
+    let checked_input = match program {
+        BuildMachineProgram::CheckedClosure {
+            execution,
+            product_declarations,
+        } => {
+            let symbol = match entry {
+                BuildMachineEntry::Name(name) => typed
+                    .realized_machine_named(name)
+                    .map(|machine| machine.symbol),
+                BuildMachineEntry::Symbol(symbol) => {
+                    typed.machine(symbol).map(|machine| machine.symbol)
+                }
+            }
+            .ok_or("checked constant invocation lost its exact entry")?;
+            Some((
+                std::sync::Arc::clone(execution),
+                std::sync::Arc::clone(product_declarations),
+                symbol,
+                arguments.clone(),
+                operators.to_vec(),
+            ))
+        }
+        BuildMachineProgram::Typed(_) | BuildMachineProgram::Checked(_) => None,
+    };
     std::thread::scope(|scope| {
         std::thread::Builder::new()
             .stack_size(256 * 1024 * 1024)
@@ -412,10 +439,24 @@ fn evaluate_structured_return(
                                 || "build-time evaluator result-cell count overflowed".to_owned(),
                             )?;
                         usage.record_result_custody(result_cells, result_text_bytes);
+                        let executed_input = checked_input.map(
+                            |(checked, declarations, entry, arguments, operators)| {
+                                crate::ExecutedCheckedConstantInput::new(
+                                    checked,
+                                    declarations,
+                                    entry,
+                                    arguments,
+                                    operators,
+                                    value.clone(),
+                                    usage,
+                                )
+                            },
+                        );
                         Ok(BuildTimeOperationEvaluation::new(
                             value,
                             usage,
                             evaluator.private_layout_placements,
+                            executed_input,
                         ))
                     }
                     Err(halt) => Err(value_return_halt_error(halt)),

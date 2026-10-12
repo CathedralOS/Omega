@@ -237,6 +237,7 @@ pub fn evaluate_const_range_endpoints(
             admission: Default::default(),
         },
         &EvaluationDomain::all(),
+        &mut Vec::new(),
     )
 }
 
@@ -379,6 +380,8 @@ pub(crate) fn evaluate_selected_range_endpoints(
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     selected: crate::SelectedBuildTimeOperators<'_>,
     domain: &EvaluationDomain,
+
+    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
 ) -> Result<(), Vec<Diagnostic>> {
     let crate::SelectedBuildTimeOperators {
         operators,
@@ -419,6 +422,7 @@ pub(crate) fn evaluate_selected_range_endpoints(
             admission,
             &mut warnings,
             domain,
+            inputs,
         ) {
             Ok(round) => round,
             // Optional closed probing must not make preparation a new
@@ -484,6 +488,8 @@ fn evaluate_round(
     admission: crate::BuildTimeCheckingAdmission<'_>,
     warnings: &mut Vec<Diagnostic>,
     domain: &EvaluationDomain,
+
+    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
 ) -> Result<Round, Vec<Diagnostic>> {
     // Bind exact authored provider occurrences before cloning specializations.
     // Rebinding only the template after preparation would leave its cloned
@@ -496,7 +502,11 @@ fn evaluate_round(
         operators,
         selection_authority.clone(),
         domain,
-        &plan.calls.iter().map(|call| call.machine).collect::<Vec<_>>(),
+        &plan
+            .calls
+            .iter()
+            .map(|call| call.machine)
+            .collect::<Vec<_>>(),
         admission,
     )?;
     let execution = prepared.typed();
@@ -507,6 +517,7 @@ fn evaluate_round(
     };
     let mut originals = Vec::new();
     for endpoint in &plan.roots {
+        let input_frontier = inputs.len();
         let result = evaluate_endpoint(
             execution,
             &admission,
@@ -515,6 +526,7 @@ fn evaluate_round(
             selection_authority.as_ref(),
             checking_admission,
             warnings,
+            inputs,
         );
         match result {
             Ok(folded) => {
@@ -528,6 +540,7 @@ fn evaluate_round(
                 round.folds.push((endpoint.expression, folded));
             }
             Err(reason) => {
+                inputs.truncate(input_frontier);
                 let required = plan
                     .calls
                     .iter()
@@ -564,6 +577,8 @@ fn evaluate_endpoint(
     selection_authority_owner: Option<&std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     checking_admission: crate::BuildTimeCheckingAdmission<'_>,
     warnings: &mut Vec<Diagnostic>,
+
+    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
 ) -> Result<ExpressionNode, String> {
     crate::machine_execution::admission::require_closed_expression_custody(
         execution,
@@ -582,6 +597,7 @@ fn evaluate_endpoint(
             execution,
             endpoint.expression,
             &invocation,
+            inputs,
         )?;
     for warning in additions {
         if !warnings.contains(&warning) {

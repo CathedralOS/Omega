@@ -139,8 +139,8 @@ pub use evaluation::{
     DescribedProductSchema, EvaluationObservations, EvaluationSemanticsIdentity,
     EvaluationStepScheduleIdentity, EvaluationUsage, EvaluationUsageSchemaIdentity,
     ExecutedAssumedBindingRegistration, ExecutedBehaviorExclusion, ExecutedBehaviorExclusionKind,
-    ExecutedBehaviorExclusionSite, ExecutedBuildDeclarationSite, ExecutedProviderSelection,
-    ExecutedRootBinding, InterpretOutcome, MAX_BUILD_OUTPUT_OBLIGATIONS,
+    ExecutedBehaviorExclusionSite, ExecutedBuildDeclarationSite, ExecutedCheckedConstantInput,
+    ExecutedProviderSelection, ExecutedRootBinding, InterpretOutcome, MAX_BUILD_OUTPUT_OBLIGATIONS,
     MAX_INCLUDED_BUILD_SOURCES, MeasuredBuildMachineEvaluation, MeasuredEvaluation,
     PrivateLayoutPlacementReceipt,
 };

@@ -237,6 +237,7 @@ pub(crate) fn evaluate(
             admission: Default::default(),
         },
         &evaluation_domain,
+        &mut Vec::new(),
     );
     // A whole bound folds only after all authored calls pass static admission.
     // Selective execution may skip some of them; this records admission, not

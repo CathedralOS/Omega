@@ -618,16 +618,96 @@ impl EvaluationUsage {
     }
 }
 
+/// Actual immutable input of a successful pure checked value invocation.
+/// This records what the evaluator consumed, not a selected Build role,
+/// package authority or proof that every supplied provider ran. It owns the
+/// complete checked closure and its distinct product-description frontier.
+#[derive(Clone, PartialEq, Eq)]
+pub struct ExecutedCheckedConstantInput {
+    checked: std::sync::Arc<checked_trees::CheckedTrees>,
+    product_declarations: std::sync::Arc<typed_trees::TypedTrees>,
+    entry: symbols::SymbolHandle,
+    arguments: Vec<build_time_values::BuildTimeValue>,
+    operators: Vec<crate::SelectedBuildTimeBinaryOperator>,
+    result: build_time_values::BuildTimeValue,
+    usage: EvaluationUsage,
+    semantics: EvaluationSemanticsIdentity,
+}
+
+impl std::fmt::Debug for ExecutedCheckedConstantInput {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ExecutedCheckedConstantInput")
+            .field("entry", &self.entry)
+            .field("argument_count", &self.arguments.len())
+            .field("operator_count", &self.operators.len())
+            .finish_non_exhaustive()
+    }
+}
+
+impl ExecutedCheckedConstantInput {
+    pub(crate) fn new(
+        checked: std::sync::Arc<checked_trees::CheckedTrees>,
+        product_declarations: std::sync::Arc<typed_trees::TypedTrees>,
+        entry: symbols::SymbolHandle,
+        arguments: Vec<build_time_values::BuildTimeValue>,
+        operators: Vec<crate::SelectedBuildTimeBinaryOperator>,
+        result: build_time_values::BuildTimeValue,
+        usage: EvaluationUsage,
+    ) -> Self {
+        Self {
+            checked,
+            product_declarations,
+            entry,
+            arguments,
+            operators,
+            result,
+            usage,
+            semantics: CURRENT_EVALUATION_SEMANTICS,
+        }
+    }
+
+    pub fn checked(&self) -> &std::sync::Arc<checked_trees::CheckedTrees> {
+        &self.checked
+    }
+    pub fn product_declarations(&self) -> &std::sync::Arc<typed_trees::TypedTrees> {
+        &self.product_declarations
+    }
+    pub const fn entry(&self) -> symbols::SymbolHandle {
+        self.entry
+    }
+    pub fn arguments(&self) -> &[build_time_values::BuildTimeValue] {
+        &self.arguments
+    }
+    pub fn operators(&self) -> &[crate::SelectedBuildTimeBinaryOperator] {
+        &self.operators
+    }
+    pub fn result(&self) -> &build_time_values::BuildTimeValue {
+        &self.result
+    }
+    pub const fn usage(&self) -> EvaluationUsage {
+        self.usage
+    }
+    pub const fn semantics(&self) -> EvaluationSemanticsIdentity {
+        self.semantics
+    }
+}
+
 /// A successful semantic evaluation paired with deterministic usage.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MeasuredEvaluation<T> {
     pub(crate) value: T,
     pub(crate) usage: EvaluationUsage,
+    executed_checked_input: Option<ExecutedCheckedConstantInput>,
 }
 
 impl<T> MeasuredEvaluation<T> {
     pub(crate) fn new(value: T, usage: EvaluationUsage) -> Self {
-        Self { value, usage }
+        Self {
+            value,
+            usage,
+            executed_checked_input: None,
+        }
     }
 
     pub const fn value(&self) -> &T {
@@ -636,6 +716,18 @@ impl<T> MeasuredEvaluation<T> {
 
     pub const fn usage(&self) -> EvaluationUsage {
         self.usage
+    }
+
+    pub fn executed_checked_input(&self) -> Option<&ExecutedCheckedConstantInput> {
+        self.executed_checked_input.as_ref()
+    }
+
+    /// Preserve execution input alongside the value and work. The old value-only
+    /// projection deliberately carries no evidence for a source completion roster.
+    pub fn into_parts_with_checked_input(
+        self,
+    ) -> (T, EvaluationUsage, Option<ExecutedCheckedConstantInput>) {
+        (self.value, self.usage, self.executed_checked_input)
     }
 
     pub fn into_value(self) -> T {
@@ -670,9 +762,14 @@ impl<T> BuildTimeOperationEvaluation<T> {
         value: T,
         usage: EvaluationUsage,
         private_layout_placements: Vec<PrivateLayoutPlacementReceipt>,
+        executed_checked_input: Option<ExecutedCheckedConstantInput>,
     ) -> Self {
         Self {
-            measured: MeasuredEvaluation::new(value, usage),
+            measured: MeasuredEvaluation {
+                value,
+                usage,
+                executed_checked_input,
+            },
             private_layout_placements,
         }
     }

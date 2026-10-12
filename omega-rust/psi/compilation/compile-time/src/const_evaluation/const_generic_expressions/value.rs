@@ -89,14 +89,18 @@ pub(crate) trait ConstantCalls {
     fn evaluate_call(
         &self,
         expression: ExpressionHandle,
+
+        inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
     ) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String>;
 
     /// Declaration values may retain floating bits without becoming index atoms.
     fn evaluate_scalar_call(
         &self,
         expression: ExpressionHandle,
+
+        inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
     ) -> Result<(ScalarValue, Vec<Diagnostic>), String> {
-        self.evaluate_call(expression)
+        self.evaluate_call(expression, inputs)
             .map(|(value, warnings)| (ScalarValue::Index(value), warnings))
     }
 }
@@ -223,9 +227,19 @@ pub(crate) fn evaluate_scalar(
     expression: ExpressionHandle,
     destination: PrimitiveType,
     calls: Option<&dyn ConstantCalls>,
+
+    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
 ) -> Result<(ScalarValue, Vec<Diagnostic>), String> {
-    evaluate_scalar_with_correspondence(program, machine, state, expression, destination, calls)
-        .map(|(value, _, warnings)| (value, warnings))
+    evaluate_scalar_with_correspondence(
+        program,
+        machine,
+        state,
+        expression,
+        destination,
+        calls,
+        inputs,
+    )
+    .map(|(value, _, warnings)| (value, warnings))
 }
 
 pub(crate) struct SelectedMatchResult {
@@ -241,6 +255,8 @@ pub(crate) fn evaluate_scalar_with_correspondence(
     expression: ExpressionHandle,
     destination: PrimitiveType,
     calls: Option<&dyn ConstantCalls>,
+
+    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
 ) -> Result<(ScalarValue, Vec<SelectedMatchResult>, Vec<Diagnostic>), String> {
     evaluate_scalar_with_correspondence_in(
         program,
@@ -249,6 +265,7 @@ pub(crate) fn evaluate_scalar_with_correspondence(
         destination,
         ArithmeticDomain::Exact,
         calls,
+        inputs,
     )
 }
 
@@ -259,9 +276,19 @@ fn evaluate_scalar_in(
     destination: PrimitiveType,
     policy: ArithmeticDomain,
     calls: Option<&dyn ConstantCalls>,
+
+    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
 ) -> Result<(ScalarValue, Vec<Diagnostic>), String> {
-    evaluate_scalar_with_correspondence_in(program, context, expression, destination, policy, calls)
-        .map(|(value, _, warnings)| (value, warnings))
+    evaluate_scalar_with_correspondence_in(
+        program,
+        context,
+        expression,
+        destination,
+        policy,
+        calls,
+        inputs,
+    )
+    .map(|(value, _, warnings)| (value, warnings))
 }
 
 fn evaluate_scalar_with_correspondence_in(
@@ -271,6 +298,8 @@ fn evaluate_scalar_with_correspondence_in(
     destination: PrimitiveType,
     policy: ArithmeticDomain,
     calls: Option<&dyn ConstantCalls>,
+
+    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
 ) -> Result<(ScalarValue, Vec<SelectedMatchResult>, Vec<Diagnostic>), String> {
     let (value, selected_arms, selected_results, mut warnings) =
         evaluate_expression_with_correspondence(
@@ -282,6 +311,7 @@ fn evaluate_scalar_with_correspondence_in(
                 policy,
             }),
             calls,
+            inputs,
         )?;
     let value = match value {
         Value::Anonymous(expression)
@@ -387,6 +417,8 @@ fn evaluate_expression(
     expression: ExpressionHandle,
     destination: Option<ScalarDestination>,
     calls: Option<&dyn ConstantCalls>,
+
+    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
 ) -> Result<
     (
         Value,
@@ -395,8 +427,15 @@ fn evaluate_expression(
     ),
     String,
 > {
-    evaluate_expression_with_correspondence(program, context, expression, destination, calls)
-        .map(|(value, selections, _, warnings)| (value, selections, warnings))
+    evaluate_expression_with_correspondence(
+        program,
+        context,
+        expression,
+        destination,
+        calls,
+        inputs,
+    )
+    .map(|(value, selections, _, warnings)| (value, selections, warnings))
 }
 
 fn evaluate_expression_with_correspondence(
@@ -405,6 +444,8 @@ fn evaluate_expression_with_correspondence(
     expression: ExpressionHandle,
     destination: Option<ScalarDestination>,
     calls: Option<&dyn ConstantCalls>,
+
+    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
 ) -> Result<
     (
         Value,
@@ -458,7 +499,7 @@ fn evaluate_expression_with_correspondence(
                             .ok_or("constant call has no validated scalar carrier")?;
                         let (value, call_warnings) = calls
                             .ok_or("machine calls require constant invocation admission")?
-                            .evaluate_scalar_call(expression)?;
+                            .evaluate_scalar_call(expression, inputs)?;
                         values.push(match value {
                             ScalarValue::Index(value) => call_value(&value, shape)?,
                             ScalarValue::Float { format, bits }
@@ -1722,6 +1763,8 @@ pub(crate) fn evaluate_closed_scalar_with_policy(
     destination: PrimitiveType,
     policy: ArithmeticDomain,
     calls: &dyn ConstantCalls,
+
+    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
 ) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String> {
     let (value, warnings) = evaluate_scalar_in(
         program,
@@ -1730,6 +1773,7 @@ pub(crate) fn evaluate_closed_scalar_with_policy(
         destination,
         policy,
         Some(calls),
+        inputs,
     )?;
     Ok((value.into_index()?, warnings))
 }
@@ -1738,6 +1782,8 @@ pub(crate) fn evaluate_integer_endpoint(
     program: &TypedTrees,
     expression: ExpressionHandle,
     calls: &dyn ConstantCalls,
+
+    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
 ) -> Result<(IntegerLiteral, Vec<Diagnostic>), String> {
     use numerics::literals::{IntegerLanding, IntegerRadix};
     let (value, selected_arms, warnings) = evaluate_expression(
@@ -1746,6 +1792,7 @@ pub(crate) fn evaluate_integer_endpoint(
         expression,
         None,
         Some(calls),
+        inputs,
     )?;
     let (integer, landing) = match value {
         Value::Anonymous(expression) => {
@@ -1797,6 +1844,8 @@ pub(crate) fn evaluate_closed_const_argument(
     expression: ExpressionHandle,
     destination: PrimitiveType,
     calls: &dyn ConstantCalls,
+
+    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
 ) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String> {
     let (value, warnings) = evaluate_scalar_in(
         program,
@@ -1805,6 +1854,7 @@ pub(crate) fn evaluate_closed_const_argument(
         destination,
         ArithmeticDomain::Exact,
         Some(calls),
+        inputs,
     )?;
     match value {
         ScalarValue::Index(canonical) => Ok((canonical, warnings)),

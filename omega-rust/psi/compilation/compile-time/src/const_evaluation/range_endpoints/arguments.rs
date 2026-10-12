@@ -64,6 +64,8 @@ impl Invocation<'_> {
         &self,
         expression: ExpressionHandle,
         callee: super::EndpointCallee,
+
+        inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
     ) -> Result<(Vec<BuildTimeValue>, Vec<ExpressionNode>, Vec<Diagnostic>), String> {
         let Some(call) = self.execution.expression_table.call_node(expression) else {
             return Err("range endpoint lost its call".into());
@@ -98,6 +100,7 @@ impl Invocation<'_> {
                 primitive(&position),
                 policy(&position),
                 self,
+                inputs,
             )?;
             append_warnings(&mut warnings, new_warnings);
             match (position, value.decode_encoding()) {
@@ -113,6 +116,7 @@ impl Invocation<'_> {
                         self.execution,
                         self.admission,
                         &numerics::bignum::BigInt::from_i128(value),
+                        inputs,
                     )?;
                     literals.push(ExpressionNode::Integer(
                         numerics::literals::IntegerLiteral::from_parts(
@@ -278,9 +282,11 @@ impl ConstantCalls for Invocation<'_> {
     fn evaluate_call(
         &self,
         expression: ExpressionHandle,
+
+        inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
     ) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String> {
         let callee = self.callee(expression)?;
-        let (arguments, literals, warnings) = self.arguments(expression, callee)?;
+        let (arguments, literals, warnings) = self.arguments(expression, callee, inputs)?;
         let machine = self
             .execution
             .machine(callee.instance)
@@ -311,23 +317,19 @@ impl ConstantCalls for Invocation<'_> {
         } else {
             self.snapshot_requires_discharge(expression, machine, &literals)?
         };
-        let result = if discharged {
-            self.admission
-                .evaluate_const_evaluable_machine_symbol_for_concrete_premise_invocation(
-                    self.execution,
-                    callee.instance,
-                    arguments,
-                    custody,
-                )?
-        } else {
-            self.admission
-                .evaluate_const_evaluable_machine_symbol_for_invocation(
-                    self.execution,
-                    callee.instance,
-                    arguments,
-                    custody,
-                )?
-        };
+        let measured = self
+            .admission
+            .evaluate_const_evaluable_invocation_measured(
+                self.execution,
+                callee.instance,
+                arguments,
+                custody,
+                discharged,
+            )?;
+        let (result, _, executed_input) = measured.into_parts_with_checked_input();
+        if let Some(executed_input) = executed_input {
+            inputs.push(executed_input);
+        }
         let value = match (self.result_position(callee)?, result) {
             (ScalarPosition::Boolean, BuildTimeValue::Bool(value)) => {
                 CanonicalConstValue::boolean(value)
@@ -338,7 +340,7 @@ impl ConstantCalls for Invocation<'_> {
                     machine,
                     result,
                 )?;
-                position.require_value(self.execution, self.admission, &result)?;
+                position.require_value(self.execution, self.admission, &result, inputs)?;
                 let value = if position.primitive.is_signed_integer() {
                     i128::from(
                         result

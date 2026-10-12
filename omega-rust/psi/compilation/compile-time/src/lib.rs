@@ -109,3 +109,6 @@ pub use build_time_evaluation::{
     BuildTimeSourceContext, BuildTimeSources, PreCheckEvaluation, PreResolutionEvaluation,
     SelectedBuildTimeOperators, evaluate_pre_resolution,
 };
+
+// Successful pure constant execution content, independent of selected Build role.
+pub use checked_interpreter::ExecutedCheckedConstantInput;
