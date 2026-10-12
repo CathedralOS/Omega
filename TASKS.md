@@ -4230,8 +4230,7 @@ and `mapped` need matching-host measurements, including the full-i32 status.
     contents through write-only access;
   - runtime domain-qualified byte-field replacement with encoding evidence;
   - computed IEEE store/readback (through **FLOAT-PROVIDERS**; the mutable
-    controls stop in caller guard planning);
-  - local affine backing needs the complete state and cleanup route.
+    controls stop in caller guard planning).
 
   Preserve `borrow/runtime_write_only_{indexed_record,captured_record,sum}_copy_exit`
   (0): whole-value installation, untouched neighbors, copied sources and
@@ -4241,6 +4240,11 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   scalar indices before later writes, including observations of returned
   references. Declared index operators retain their reference operands;
   bounded referents retain their store restrictions.
+  Keep `borrow/runtime_write_only_local_affine_aggregate_exit` and
+  `borrow/runtime_write_only_affine_sum_exit` (0): statically discardable
+  affine replacements transfer once through write-only access, including local
+  array backing. Nominal cleanup, linear displacement, and incoming reuse
+  remain rejected.
 
   Coordinate sequencing with **STATE-LOCAL-VALUE-FRONTIER**, reference identity
   with **STRUCTURAL-BORROW-IDENTITY**, mutable dynamic dispatch with

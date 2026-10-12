@@ -172,6 +172,7 @@ mod tests {
             }),
             structural_types: abstract_operations::StructuralTypeCatalog::new(
                 vec![terminal_psi::StructuralTypeDeclaration {
+                    no_code_affine_cleanup: false,
                     scalar_restriction: None,
                     id: semantic_vocabulary::StructuralTypeId::new(2).unwrap(),
                     identity: terminal_psi::TerminalIdentityIndex(1),

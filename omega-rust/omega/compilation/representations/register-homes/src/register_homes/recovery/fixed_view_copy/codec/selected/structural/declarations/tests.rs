@@ -19,6 +19,7 @@ fn scalar_refinement_round_trip_retains_full_predicate_and_rejects_foreign_subje
         ScalarTerm::boolean(true),
     );
     let declaration = StructuralTypeDeclaration {
+        no_code_affine_cleanup: true,
         scalar_restriction: None,
         id: StructuralTypeId::new(7).unwrap(),
         identity: terminal_psi::TerminalIdentityIndex(1),
@@ -58,6 +59,7 @@ fn scalar_refinement_round_trip_retains_full_predicate_and_rejects_foreign_subje
 #[test]
 fn fused_binding_type_round_trip_distinguishes_empty_record_and_unknown_tag() {
     let declaration = StructuralTypeDeclaration {
+        no_code_affine_cleanup: false,
         scalar_restriction: None,
         id: StructuralTypeId::new(7).unwrap(),
         identity: terminal_psi::TerminalIdentityIndex(3),
@@ -112,6 +114,7 @@ fn fixed_byte_range_path_round_trip_retains_exact_endpoints_and_rejects_truncati
 #[test]
 fn reference_type_and_referent_path_round_trip_without_erasing_custody() {
     let declaration = StructuralTypeDeclaration {
+        no_code_affine_cleanup: false,
         scalar_restriction: None,
         id: StructuralTypeId::new(7).unwrap(),
         identity: terminal_psi::TerminalIdentityIndex(4),
@@ -194,6 +197,7 @@ fn byte_view_type_round_trip_retains_its_access() {
         Some(StructuralAccess::WriteOnlyBorrow),
     ] {
         let declaration = StructuralTypeDeclaration {
+            no_code_affine_cleanup: false,
             scalar_restriction: None,
             id: StructuralTypeId::new(7).unwrap(),
             identity: terminal_psi::TerminalIdentityIndex(5),

@@ -850,10 +850,10 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
                 terminal_psi::StructuralStoreDisposition::Vacant,
             )?
         }
-        operation_tags::REPLACE_UNRESTRICTED_STRUCTURAL_FIELD => {
+        operation_tags::REPLACE_DISCARDABLE_STRUCTURAL_FIELD => {
             storage_operations::decode_store_structural_field(
                 reader,
-                terminal_psi::StructuralStoreDisposition::ReplaceUnrestricted,
+                terminal_psi::StructuralStoreDisposition::ReplaceDiscardable,
             )?
         }
         operation_tags::ESTABLISH_SCALAR_ARRAY => {

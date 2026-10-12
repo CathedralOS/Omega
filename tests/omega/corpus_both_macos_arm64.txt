@@ -866,3 +866,5 @@ pass/borrows/runtime_bounded_and_shared_field_loans_exit built 4583ms exit:0 int
 pass/borrows/runtime_reference_call_scalar_snapshot_exit built 4493ms exit:0 interpreter-exit:0 interpreter:agrees @a9c11ff574b9+wt
 pass/operators/runtime_declared_reference_index_capture_exit built 4385ms exit:0 interpreter-exit:0 interpreter:agrees @a9c11ff574b9+wt
 pass/operators/runtime_generic_reference_selector_snapshot_exit built 4382ms exit:0 interpreter-exit:0 interpreter:agrees @a9c11ff574b9+wt
+pass/borrow/runtime_write_only_affine_sum_exit built 4527ms exit:0 interpreter-exit:0 interpreter:agrees @6abc05dd203a
+pass/borrow/runtime_write_only_local_affine_aggregate_exit built 4440ms exit:0 interpreter-exit:0 interpreter:agrees @6abc05dd203a

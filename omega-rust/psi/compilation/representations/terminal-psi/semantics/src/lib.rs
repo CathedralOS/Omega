@@ -53,7 +53,7 @@ mod structural_claims;
 mod structural_effect;
 mod structural_store;
 mod structural_window;
-pub use structural_store::{structural_store_value_admitted, unrestricted_store_value};
+pub use structural_store::{discardable_store_value, structural_store_value_admitted};
 pub mod substitution;
 mod zero_valid_storage;
 mod zeroed_structural;

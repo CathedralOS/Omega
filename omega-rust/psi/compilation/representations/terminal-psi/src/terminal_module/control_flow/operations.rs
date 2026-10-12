@@ -5,14 +5,14 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralStoreDisposition {
     Vacant,
-    ReplaceUnrestricted,
+    ReplaceDiscardable,
 }
 
 impl StructuralStoreDisposition {
     pub fn required_access(self) -> crate::StructuralAccess {
         match self {
             Self::Vacant => crate::StructuralAccess::MutableBorrow,
-            Self::ReplaceUnrestricted => crate::StructuralAccess::WriteOnlyBorrow,
+            Self::ReplaceDiscardable => crate::StructuralAccess::WriteOnlyBorrow,
         }
     }
 }
@@ -444,7 +444,7 @@ pub enum OperationKind {
     },
     /// Install a completed owned subtree at the exact `path` + `field`.
     /// `Vacant` restores an exact extraction window or initializes owned storage
-    /// after its checked disposition. `ReplaceUnrestricted` overwrites intact,
+    /// after its checked disposition. `ReplaceDiscardable` overwrites intact,
     /// freely discardable contents without observation or extraction. Both
     /// preserve exact type, memberships, selected storage and loan exclusions.
     /// The whole incoming value transfers once. An empty path with no field

@@ -70,7 +70,8 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Boundary owner/role rows and dynamic results share this combined format;
 // earlier candidate format 142 did not yet encode the owner/role fields.
 // Reborrow custody retains opaque selector formation occurrences.
-pub(crate) const FORMAT_MARKER: u16 = 144;
+// Structural declarations retain checked no-code affine cleanup authority.
+pub(crate) const FORMAT_MARKER: u16 = 145;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

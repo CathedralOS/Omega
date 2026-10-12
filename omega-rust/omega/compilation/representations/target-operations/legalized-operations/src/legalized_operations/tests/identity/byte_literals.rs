@@ -21,6 +21,7 @@ fn literal_identity_binds_payload_declaration_and_producer_reference() {
         },
     };
     let structural_type = StructuralTypeDeclaration {
+        no_code_affine_cleanup: false,
         scalar_restriction: None,
         id: argument.structural_type,
         identity: terminal_psi::TerminalIdentityIndex(1),

@@ -902,8 +902,8 @@ pub(super) fn encode_store_structural_field(
 ) -> Result<(), CodecError> {
     writer.u8(match disposition {
         terminal_psi::StructuralStoreDisposition::Vacant => operation_tags::STORE_STRUCTURAL_FIELD,
-        terminal_psi::StructuralStoreDisposition::ReplaceUnrestricted => {
-            operation_tags::REPLACE_UNRESTRICTED_STRUCTURAL_FIELD
+        terminal_psi::StructuralStoreDisposition::ReplaceDiscardable => {
+            operation_tags::REPLACE_DISCARDABLE_STRUCTURAL_FIELD
         }
     });
     writer.id(destination);

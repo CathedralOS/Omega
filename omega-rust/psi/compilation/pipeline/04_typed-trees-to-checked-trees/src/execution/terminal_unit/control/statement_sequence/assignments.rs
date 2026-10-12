@@ -141,6 +141,7 @@ pub(super) fn plan(
         let replacement = windows.replace(
             program,
             facts,
+            shapes,
             machine,
             state,
             structural_parameters,
@@ -268,6 +269,7 @@ pub(super) fn plan(
         let replacement = windows.replace(
             program,
             facts,
+            shapes,
             machine,
             state,
             structural_parameters,
@@ -317,6 +319,7 @@ pub(super) fn plan(
         if let Some(replacement) = windows.replace(
             program,
             facts,
+            shapes,
             machine,
             state,
             structural_parameters,
@@ -414,6 +417,7 @@ pub(super) fn plan(
 pub(super) fn call_result_replacement(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    shapes: &ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
@@ -450,6 +454,7 @@ pub(super) fn call_result_replacement(
     windows.replace(
         program,
         facts,
+        shapes,
         machine,
         state,
         structural_parameters,
@@ -571,6 +576,7 @@ fn element_replacements(
         let replacement = windows.replace_element(
             program,
             facts,
+            shapes,
             machine,
             state,
             structural_parameters,

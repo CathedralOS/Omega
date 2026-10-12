@@ -643,6 +643,7 @@ mod authored_storage_envelope_tests {
         module
             .structural_types
             .push(terminal_psi::StructuralTypeDeclaration {
+                no_code_affine_cleanup: false,
                 scalar_restriction: None,
                 id: scalar_type,
                 identity: terminal_psi::TerminalIdentityIndex(77),
@@ -681,6 +682,7 @@ mod authored_storage_envelope_tests {
         module
             .structural_types
             .push(terminal_psi::StructuralTypeDeclaration {
+                no_code_affine_cleanup: false,
                 scalar_restriction: None,
                 id: element,
                 identity: terminal_psi::TerminalIdentityIndex(599),
@@ -695,6 +697,7 @@ mod authored_storage_envelope_tests {
         module
             .structural_types
             .push(terminal_psi::StructuralTypeDeclaration {
+                no_code_affine_cleanup: false,
                 scalar_restriction: None,
                 id: array,
                 identity: terminal_psi::TerminalIdentityIndex(941),

@@ -1,5 +1,5 @@
 //! Borrowed structural moves and stores realized as whole-value byte copies.
-//! An intact unrestricted replacement emits only the store. Its retained
+//! An intact freely discardable replacement emits only the store. Its retained
 //! disposition grants write-only destination access without manufacturing an
 //! extraction or reading the displaced value.
 //!

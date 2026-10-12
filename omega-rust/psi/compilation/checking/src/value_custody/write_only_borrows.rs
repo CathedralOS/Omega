@@ -110,7 +110,7 @@ pub(crate) fn validate_checked_write_only_slice(
                         && receiver::record(program, root).is_none()
                     {
                         diagnostics.push(Diagnostic::error(format!(
-                            "machine `{}` state `{}` parameter `{}` uses `&write` with `{}`; the current checked slice supports unrestricted primitive scalars, integer scalars qualified only by closed literal ranges or a lone arithmetic policy, carriers qualified only by plain declared domains, recursively literal fixed arrays whose ultimate elements are unrestricted primitive scalars or eligible material `[copy]` records or sums, forwarding-only byte slices, non-generic invariant-free checked records, and closed material `[copy]` sums as atomic whole values",
+                            "machine `{}` state `{}` parameter `{}` uses `&write` with `{}`; the current checked slice supports unrestricted primitive scalars, integer scalars qualified only by closed literal ranges or a lone arithmetic policy, carriers qualified only by plain declared domains, recursively literal fixed arrays whose ultimate elements are unrestricted primitive scalars or statically discardable material records or sums, forwarding-only byte slices, non-generic invariant-free checked records, and closed statically discardable material sums as atomic whole values",
                             machine.name,
                             state.name,
                             root.name,
@@ -198,7 +198,7 @@ fn is_closed_ranged_integer_scalar(
         )
 }
 
-fn fixed_unrestricted_write_only_array_shape(
+fn fixed_discardable_write_only_array_shape(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<(TypeReferenceHandle, usize)> {
@@ -209,26 +209,26 @@ fn fixed_unrestricted_write_only_array_shape(
     else {
         return None;
     };
-    is_unrestricted_write_only_array_element(program, *element_type)
+    is_discardable_write_only_array_element(program, *element_type)
         .then_some((*element_type, *length))
 }
 
-fn fixed_unrestricted_write_only_array_length(
+fn fixed_discardable_write_only_array_length(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<usize> {
-    fixed_unrestricted_write_only_array_shape(program, type_reference).map(|(_, length)| length)
+    fixed_discardable_write_only_array_shape(program, type_reference).map(|(_, length)| length)
 }
 
 fn is_admitted_checked_referee(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
-    is_unrestricted_write_only_field_leaf(program, type_reference)
+    is_discardable_write_only_field_leaf(program, type_reference)
         || is_qualified_write_only_leaf(program, type_reference)
         || is_byte_slice(program, type_reference)
         || write_only_record(program, type_reference).is_some()
-        || is_unrestricted_write_only_sum(program, type_reference)
+        || is_discardable_write_only_sum(program, type_reference)
 }
 
 /// The constrained referees a `&write` declaration may carry: the same
@@ -320,25 +320,40 @@ fn write_only_record(
         .then_some(definition)
 }
 
-fn is_unrestricted_write_only_record(
+/// Displacing this complete value executes no hook and settles no conserved
+/// claim or stored loan. Reuse the source contents judgment that publishes
+/// `no_code_affine_cleanup`; incoming affine values still transfer once.
+fn is_discardable_write_only_data(
+    program: &dyn crate::CheckingInput,
+    definition: &DataDefinition,
+) -> bool {
+    definition.properties.multiplicity == language_semantics::Multiplicity::Unrestricted
+        || crate::data_has_contents(
+            program,
+            definition,
+            &[],
+            crate::ContentsRequirement::RepresentedOwned,
+        )
+}
+
+fn is_discardable_write_only_record(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
-    write_only_record(program, type_reference).is_some_and(|definition| {
-        definition.properties.multiplicity == language_semantics::Multiplicity::Unrestricted
-    })
+    write_only_record(program, type_reference)
+        .is_some_and(|definition| is_discardable_write_only_data(program, definition))
 }
 
-/// A closed material `[copy]` sum may be displaced only as one whole value.
+/// A closed statically discardable sum may be displaced only as one whole value.
 /// The incoming value supplies its complete tag and payload, so this judgment
 /// neither observes nor projects the prior case. Erased payload occurrences
 /// remain outside the runtime replacement carrier.
-fn is_unrestricted_write_only_sum(
+fn is_discardable_write_only_sum(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     closed_write_only_data(program, type_reference).is_some_and(|definition| {
-        definition.properties.multiplicity == language_semantics::Multiplicity::Unrestricted
+        is_discardable_write_only_data(program, definition)
             && DataDefinition::shape_kind_from_members(program.data_members(definition))
                 == DataShapeKind::Enum
             && program.data_members(definition).iter().all(|member| {
@@ -354,25 +369,24 @@ fn is_unrestricted_write_only_sum(
 }
 
 /// Fixed-array aggregate elements stay a closed runtime shape: the existing
-/// primitive scalars plus eligible unrestricted records or sums whose direct
+/// primitive scalars plus eligible statically discardable records or sums whose direct
 /// runtime occurrences are all material. A recursively literal fixed array of
 /// the same eligible elements is also one atomic element of its enclosing
 /// array. Generic/qualified shells do not enter through this judgment, and
 /// aggregate elements remain atomic.
-fn is_unrestricted_write_only_array_element(
+fn is_discardable_write_only_array_element(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     is_unrestricted_scalar(program, type_reference)
-        || fixed_unrestricted_write_only_array_shape(program, type_reference).is_some()
+        || fixed_discardable_write_only_array_shape(program, type_reference).is_some()
         || write_only_record(program, type_reference).is_some_and(|definition| {
-            definition.properties.multiplicity
-                == language_semantics::Multiplicity::Unrestricted
+            is_discardable_write_only_data(program, definition)
                 && program.data_members(definition).iter().all(|member| {
                     matches!(member, DataMember::Field(field) if !field.relevance.is_erased())
                 })
         })
-        || is_unrestricted_write_only_sum(program, type_reference)
+        || is_discardable_write_only_sum(program, type_reference)
 }
 
 fn whole_root_replacement_is_admitted(
@@ -384,9 +398,8 @@ fn whole_root_replacement_is_admitted(
     // applies: an unrestricted leaf, or a qualified one whose atoms the
     // ordinary store obligation re-derives on the incoming value.
     write_only_assignment_leaf(program, root.referee)
-        || receiver::record(program, root).is_some_and(|definition| {
-            definition.properties.multiplicity == language_semantics::Multiplicity::Unrestricted
-        })
+        || receiver::record(program, root)
+            .is_some_and(|definition| is_discardable_write_only_data(program, definition))
 }
 
 /// Resolve `root.record_field...leaf`, where every receiver is an admitted
@@ -408,18 +421,18 @@ fn write_only_record_field_type(
 }
 
 /// The final displaced record-path leaf must be an unrestricted primitive, a
-/// literal fixed array of eligible unrestricted elements, a whole eligible
-/// unrestricted record, or a closed material `[copy]` sum treated atomically.
+/// literal fixed array of eligible discardable elements, a whole eligible
+/// discardable record, or a closed discardable sum treated atomically.
 /// Indexed element stores reuse the same exact path resolver below and apply
 /// their own narrower leaf/index gate.
-fn is_unrestricted_write_only_field_leaf(
+fn is_discardable_write_only_field_leaf(
     program: &dyn crate::CheckingInput,
     field_type: TypeReferenceHandle,
 ) -> bool {
     is_unrestricted_scalar(program, field_type)
-        || fixed_unrestricted_write_only_array_length(program, field_type).is_some()
-        || is_unrestricted_write_only_record(program, field_type)
-        || is_unrestricted_write_only_sum(program, field_type)
+        || fixed_discardable_write_only_array_length(program, field_type).is_some()
+        || is_discardable_write_only_record(program, field_type)
+        || is_discardable_write_only_sum(program, field_type)
 }
 
 /// A stored leaf additionally admits two qualified integer primitives: a
@@ -437,7 +450,7 @@ fn write_only_assignment_leaf(
     program: &dyn crate::CheckingInput,
     field_type: TypeReferenceHandle,
 ) -> bool {
-    is_unrestricted_write_only_field_leaf(program, field_type)
+    is_discardable_write_only_field_leaf(program, field_type)
         || is_qualified_write_only_leaf(program, field_type)
 }
 
@@ -682,7 +695,7 @@ fn write_only_call_subloan(
             }
             // The call's own access and arity checks still own unresolved
             // targets; this judgment only establishes a non-observing place.
-            None => is_unrestricted_write_only_field_leaf(program, referee),
+            None => is_discardable_write_only_field_leaf(program, referee),
         };
     }
 
@@ -740,7 +753,7 @@ fn write_only_literal_indexed_record_field_assignment(
         return false;
     };
     let Some((element_type, length)) =
-        fixed_unrestricted_write_only_array_shape(program, collection_type)
+        fixed_discardable_write_only_array_shape(program, collection_type)
     else {
         return false;
     };
@@ -809,7 +822,7 @@ fn validate_statement<'p>(
             if let Some(root) = direct_write_only_root(program, assignment.target, roots) {
                 if !whole_root_replacement_is_admitted(program, root) {
                     diagnostics.push(Diagnostic::error(format!(
-                        "machine `{machine}` state `{state}` replaces whole write-only aggregate `{}`; whole-root replacement requires a freely discardable supported root, so replace one eligible leaf through an invariant-free record path or declare and prove an unrestricted material aggregate instead",
+                        "machine `{machine}` state `{state}` replaces whole write-only aggregate `{}`; whole-root replacement requires a freely discardable supported root, so replace one eligible leaf through an invariant-free record path or declare and prove a statically discardable material aggregate instead",
                         root.name,
                     )));
                 }
@@ -995,7 +1008,7 @@ fn validate_write_only_fixed_array_range_assignment<'p>(
             (root, collection_type)
         };
     let Some((element_type, collection_len)) =
-        fixed_unrestricted_write_only_array_shape(program, collection_type)
+        fixed_discardable_write_only_array_shape(program, collection_type)
     else {
         return false;
     };
@@ -1094,7 +1107,7 @@ fn write_only_element_assignment_index(
         ))
         .then_some(indexed.index);
     }
-    let length = fixed_unrestricted_write_only_array_length(program, collection_type)?;
+    let length = fixed_discardable_write_only_array_length(program, collection_type)?;
     match program.expression_table.expression(indexed.index) {
         ExpressionNode::Range(_) => None,
         ExpressionNode::Integer(index) => {
@@ -1115,7 +1128,7 @@ fn diagnose_unsupported_write_only_assignment_target(
 ) {
     if let Some(indexed) = program.expression_table.indexed_node(expression)
         && let Some(root) = direct_write_only_root(program, indexed.collection, roots)
-        && fixed_unrestricted_write_only_array_length(program, root.referee).is_some()
+        && fixed_discardable_write_only_array_length(program, root.referee).is_some()
     {
         let detail = match program.expression_table.expression(indexed.index) {
             ExpressionNode::Range(_) => "range projection is not implemented",
@@ -1134,7 +1147,7 @@ fn diagnose_unsupported_write_only_assignment_target(
     }
 
     diagnostics.push(Diagnostic::error(format!(
-        "machine `{machine}` state `{state}` writes through an unsupported write-only projection; accepted partial stores are a content-independent common-field path through non-generic invariant-free records when every field is relevant and unconstrained and the displaced leaf is an unrestricted primitive, a closed literal-ranged integer primitive proven in range at the store, an integer primitive carrying only an arithmetic-policy constraint, or a carrier qualified only by plain declared domains whose membership is proven on the stored value, a whole eligible unrestricted record or closed material `[copy]` sum, or a recursively literal fixed array whose ultimate elements are unrestricted primitive scalars or eligible material `[copy]` records or sums, one relevant primitive field beneath a literal fixed-array record element, a proven-in-bounds element or statically normalized closed range of such a fixed array, or a proven-in-bounds element of a direct byte slice; nested array projection, sum case/payload projection, named or non-plain domain qualification, element and range stores into a domain-qualified carrier, invariant-dependent, symbolic or open range, take, swap, and read-modify-write operations remain rejected"
+        "machine `{machine}` state `{state}` writes through an unsupported write-only projection; accepted partial stores are a content-independent common-field path through non-generic invariant-free records when every field is relevant and unconstrained and the displaced leaf is an unrestricted primitive, a closed literal-ranged integer primitive proven in range at the store, an integer primitive carrying only an arithmetic-policy constraint, or a carrier qualified only by plain declared domains whose membership is proven on the stored value, a whole eligible statically discardable record or closed statically discardable material sum, or a recursively literal fixed array whose ultimate elements are unrestricted primitive scalars or statically discardable material records or sums, one relevant primitive field beneath a literal fixed-array record element, a proven-in-bounds element or statically normalized closed range of such a fixed array, or a proven-in-bounds element of a direct byte slice; nested array projection, sum case/payload projection, named or non-plain domain qualification, element and range stores into a domain-qualified carrier, invariant-dependent, symbolic or open range, take, swap, and read-modify-write operations remain rejected"
     )));
 }
 

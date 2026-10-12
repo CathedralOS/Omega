@@ -1,0 +1,1 @@
+whole-root replacement requires a freely discardable supported root

@@ -36,6 +36,7 @@ fn field(identity: &str) -> StructuralPathSegment {
 
 fn declaration(value: u64, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
     StructuralTypeDeclaration {
+        no_code_affine_cleanup: false,
         scalar_restriction: None,
         id: type_id(value),
         identity: terminal_psi::TerminalIdentityIndex(50 + value as u32),

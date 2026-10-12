@@ -1,6 +1,6 @@
 //! Borrowed structural installation transported into abstract custody.
 //! Stores retain the distinction between vacant restoration and intact
-//! unrestricted replacement. Only restoration requires readable mutable
+//! freely discardable replacement. Only restoration requires readable mutable
 //! custody; replacement uses write-only access and independently checks that
 //! the exact value carries no conserved or retained permission resources.
 //!

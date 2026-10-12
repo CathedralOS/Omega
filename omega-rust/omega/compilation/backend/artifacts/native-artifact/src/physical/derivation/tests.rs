@@ -209,6 +209,7 @@ fn structural_boundary_settlement_identity_binds_the_complete_result_declaration
             claims: Vec::new(),
         },
         declaration: StructuralTypeDeclaration {
+            no_code_affine_cleanup: false,
             scalar_restriction: None,
             id: structural_type,
             identity: terminal_psi::TerminalIdentityIndex(2),
@@ -354,6 +355,7 @@ fn admitted_provider_settlement_identity_binds_the_complete_retained_row() {
         argument: argument.clone(),
         literal_operation: OperationId::new(47).unwrap(),
         structural_type: StructuralTypeDeclaration {
+            no_code_affine_cleanup: false,
             scalar_restriction: None,
             id: StructuralTypeId::new(73).unwrap(),
             identity: terminal_psi::TerminalIdentityIndex(7),

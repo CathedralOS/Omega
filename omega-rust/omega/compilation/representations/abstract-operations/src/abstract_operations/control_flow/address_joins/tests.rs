@@ -43,6 +43,7 @@ fn field(
 /// `[u8; 32]` owner and `&[u8]` view carriers.
 fn catalog() -> Vec<StructuralTypeDeclaration> {
     let declaration = |raw, shape| StructuralTypeDeclaration {
+        no_code_affine_cleanup: false,
         scalar_restriction: None,
         id: type_id(raw),
         identity: terminal_psi::TerminalIdentityIndex(10 + raw as u32),

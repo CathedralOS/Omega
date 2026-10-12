@@ -262,6 +262,7 @@ mod service_tests {
     fn retained_service_leaf_requires_an_establishment_before_zero_valid_recursion() {
         let service = StructuralTypeId::new(1).unwrap();
         let declaration = StructuralTypeDeclaration {
+            no_code_affine_cleanup: false,
             scalar_restriction: None,
             id: service,
             identity: terminal_psi::TerminalIdentityIndex(1),

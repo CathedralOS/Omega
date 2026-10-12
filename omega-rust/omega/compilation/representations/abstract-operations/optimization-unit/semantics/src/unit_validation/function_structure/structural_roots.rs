@@ -684,7 +684,7 @@ pub(crate) fn validate_structural_root_operations(
                                 signature.structural_type == field_type
                                     && (*disposition
                                         == terminal_psi::StructuralStoreDisposition::Vacant
-                                        || terminal_semantics::unrestricted_store_value(
+                                        || terminal_semantics::discardable_store_value(
                                             structural_types.values().copied(),
                                             field_type,
                                             signature.multiplicity,

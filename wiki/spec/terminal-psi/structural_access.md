@@ -255,6 +255,13 @@ static structure and caller-supplied facts may prove it, never a load through
 the write-only loan. Freely discardable old content needs no content-dependent
 cleanup; conserved or linear displaced custody cannot silently disappear.
 
+A structural type may retain checked `no_code_affine_cleanup` authority. It
+establishes that represented owned contents require no executable disposal;
+it does not grant copy permission or remove claims, loans, or access checks.
+Intact whole-value replacement admits an affine incoming value only with this
+authority for its exact type, no retained claims, and resource-free storage.
+The incoming value transfers once, while the borrowed owner retains its custody.
+
 Outcome contracts may identify a modified prefix `[0..count)` and unchanged
 suffix `[count..len)`, preserving the caller's suffix facts. The count describes
 an effect, not a construction of previously vacant storage. The loan begins

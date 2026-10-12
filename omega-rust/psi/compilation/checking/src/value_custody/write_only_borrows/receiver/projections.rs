@@ -1,7 +1,7 @@
 //! Content-independent receiver addresses through closed fields and fixed arrays.
 
 use super::super::{
-    TypeReferenceHandle, direct_write_only_root, fixed_unrestricted_write_only_array_shape,
+    TypeReferenceHandle, direct_write_only_root, fixed_discardable_write_only_array_shape,
 };
 use super::{ExpressionHandle, ExpressionNode, WriteOnlyRoot, bare_field, write_only_record};
 
@@ -77,8 +77,7 @@ pub(in crate::value_custody::write_only_borrows) fn projected<'roots>(
                 // Do not peel a reference stored in the referent: following
                 // that pointer would observe prior contents. The array shape
                 // and its element address must come from the declared type.
-                let (element, length) =
-                    fixed_unrestricted_write_only_array_shape(program, referee)?;
+                let (element, length) = fixed_discardable_write_only_array_shape(program, referee)?;
                 if !program.expression_table.expression_is_valid(indexed.index)
                     || !admit_selector(indexed.index, length)
                 {

@@ -157,6 +157,7 @@ pub(super) fn plan(
             let replacement = super::assignments::call_result_replacement(
                 program,
                 facts,
+                shapes,
                 machine,
                 state,
                 structural_parameters,

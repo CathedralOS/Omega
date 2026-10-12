@@ -4,7 +4,7 @@
 //! to an alias that a later store can overwrite. Owned partial roots retain
 //! their checked residual custody; only borrowed roots owe restoration.
 //! An intact freely discardable value needs no extraction. Its completed
-//! replacement uses the same store with ReplaceUnrestricted disposition and
+//! replacement uses the same store with ReplaceDiscardable disposition and
 //! write-only authority; receiving checks still enforce exact type, resource
 //! freedom and validity. A reference descriptor owns its pointer, not the
 //! selected backing, so this distinction follows every Referent crossing.
@@ -428,7 +428,7 @@ impl BorrowedWindowLedger {
 
     /// Install a whole completed value at the checked destination. An opening
     /// names exact restoration debt; without one, intact borrowed storage
-    /// requires unrestricted replacement custody. Both retain the destination
+    /// requires freely discardable replacement custody. Both retain the destination
     /// captured before the RHS and its exact declared type.
     pub(crate) fn emit_store(
         &mut self,
@@ -490,7 +490,7 @@ impl BorrowedWindowLedger {
                 ));
             }
         }
-        let unrestricted = parameters
+        let multiplicity = parameters
             .iter()
             .find(|parameter| parameter.place == value.place)
             .map(|parameter| parameter.multiplicity)
@@ -502,10 +502,14 @@ impl BorrowedWindowLedger {
                         .filter(|result| result.place == value.place)
                         .map(|result| result.multiplicity)
                 })
-            })
-            == Some(StructuralMultiplicity::Unrestricted);
+            });
+        let discardable = multiplicity == Some(StructuralMultiplicity::Unrestricted)
+            || multiplicity == Some(StructuralMultiplicity::Affine)
+                && structural_types.iter().any(|declaration| {
+                    declaration.id == value.structural_type && declaration.no_code_affine_cleanup
+                });
         if index.is_none()
-            && ((place.restoration_required && !unrestricted)
+            && ((place.restoration_required && !discardable)
                 || self.open.iter().any(|absent| {
                     absent.source == source
                         && paths_overlap(&absent.checked_path, &place.checked_path)
@@ -574,7 +578,7 @@ impl BorrowedWindowLedger {
             OperationResult::Unit,
             OperationKind::StoreStructuralField {
                 disposition: if index.is_none() && place.restoration_required {
-                    terminal_psi::StructuralStoreDisposition::ReplaceUnrestricted
+                    terminal_psi::StructuralStoreDisposition::ReplaceDiscardable
                 } else {
                     terminal_psi::StructuralStoreDisposition::Vacant
                 },

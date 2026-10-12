@@ -1,0 +1,5 @@
+data Cell [linear] { value: i64; }
+machine replace(cell: &write Cell, incoming: Cell) {
+    cell = incoming;
+}
+machine main() {}

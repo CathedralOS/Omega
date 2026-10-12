@@ -299,7 +299,7 @@ pub enum AbstractOperation {
     },
     /// Install a completed whole subtree under the retained root authority.
     /// The Terminal disposition distinguishes vacant restoration/initialization
-    /// from intact unrestricted replacement. Exact type, qualifications and
+    /// from intact freely discardable replacement. Exact type, qualifications and
     /// incoming custody survive optimization independently of physical layout.
     StoreStructuralField {
         disposition: terminal_psi::StructuralStoreDisposition,

@@ -6193,3 +6193,8 @@ pass/borrows/runtime_bounded_and_shared_field_loans_exit checked 5029ms check-ta
 pass/borrows/runtime_reference_call_scalar_snapshot_exit checked 5051ms check-target:macos_arm64 @a9c11ff574b9+wt
 pass/operators/runtime_declared_reference_index_capture_exit checked 4355ms check-target:macos_arm64 @a9c11ff574b9+wt
 pass/operators/runtime_generic_reference_selector_snapshot_exit checked 4337ms check-target:macos_arm64 @a9c11ff574b9+wt
+fail/borrow/write_only_affine_replacement_reuse rejected 342ms expected @6abc05dd203a
+fail/borrow/write_only_linear_replacement rejected 247ms expected @6abc05dd203a
+fail/borrow/write_only_nominal_cleanup_replacement rejected 245ms expected @6abc05dd203a
+pass/borrow/runtime_write_only_affine_sum_exit checked 4298ms check-target:macos_arm64 @6abc05dd203a
+pass/borrow/runtime_write_only_local_affine_aggregate_exit checked 4298ms check-target:macos_arm64 @6abc05dd203a

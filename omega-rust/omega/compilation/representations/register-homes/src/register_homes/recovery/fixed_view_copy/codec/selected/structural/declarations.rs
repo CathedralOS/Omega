@@ -23,7 +23,7 @@ use crate::register_homes::recovery::fixed_view_copy::codec::{
     primitives::{
         Cursor, decode_id, decode_ids, decode_option_u64, encode_ids, encode_option_u64, length,
     },
-    values::{decode_scalar, encode_scalar},
+    values::{decode_bool, decode_scalar, encode_scalar},
 };
 use legalized_operations::{encode_placement, encode_shape};
 
@@ -54,6 +54,7 @@ pub(super) fn encode_type(
 ) -> Result<(), terminal_codec::CodecError> {
     crate::codec_bytes::push_encoded(bytes, declaration.id.get().to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, declaration.identity.0.to_le_bytes());
+    bytes.push(u8::from(declaration.no_code_affine_cleanup));
     match &declaration.shape {
         StructuralTypeShape::BindingCarrier => bytes.push(11),
         StructuralTypeShape::Reference { referent, access } => {
@@ -123,6 +124,7 @@ pub(super) fn decode_type(
 ) -> Result<StructuralTypeDeclaration, FixedViewCopyDecodeError> {
     let id = decode_id(cursor, StructuralTypeId::new)?;
     let identity = terminal_psi::TerminalIdentityIndex(cursor.u32()?);
+    let no_code_affine_cleanup = decode_bool(cursor)?;
     let mut scalar_restriction = None;
     let shape = match cursor.byte()? {
         11 => StructuralTypeShape::BindingCarrier,
@@ -183,6 +185,7 @@ pub(super) fn decode_type(
         tag => return Err(FixedViewCopyDecodeError::UnknownStructuralTypeShape(tag)),
     };
     Ok(StructuralTypeDeclaration {
+        no_code_affine_cleanup,
         scalar_restriction,
         id,
         identity,

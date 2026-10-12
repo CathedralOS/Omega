@@ -1,0 +1,6 @@
+data Cell { value: i64; }
+machine Cell::drop(cell: &mut Cell) { cell.value = 0; }
+machine replace(cell: &write Cell, incoming: Cell) {
+    cell = incoming;
+}
+machine main() {}

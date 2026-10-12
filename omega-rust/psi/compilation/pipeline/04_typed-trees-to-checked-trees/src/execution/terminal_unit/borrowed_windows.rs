@@ -6,7 +6,7 @@
 //! The replacement may be the removed value, a
 //! construction, or a call result: its custody belongs to the ordinary result
 //! bindings, not to the hole. An occupied destination displaces conserved old
-//! custody before installation; an unrestricted replacement needs no old-value
+//! custody before installation; a freely discardable replacement needs no old-value
 //! observation. An already-open hole must not be read or disposed again. The lowered
 //! emitter feeds these operations through `BorrowedWindowLedger`, and independent
 //! verification reconstructs both restoration debt and the values' custody.
@@ -648,6 +648,7 @@ impl OpenWindows {
         &mut self,
         program: &dyn ::validation::CheckingInput,
         facts: &CheckFacts,
+        shapes: &super::types::ShapeCollector<'_>,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
         structural_parameters: &[CheckedUnitStructuralParameterPlan],
@@ -660,6 +661,7 @@ impl OpenWindows {
         self.replace_element(
             program,
             facts,
+            shapes,
             machine,
             state,
             structural_parameters,
@@ -682,6 +684,7 @@ impl OpenWindows {
         &mut self,
         program: &dyn ::validation::CheckingInput,
         facts: &CheckFacts,
+        shapes: &super::types::ShapeCollector<'_>,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
         structural_parameters: &[CheckedUnitStructuralParameterPlan],
@@ -802,12 +805,17 @@ impl OpenWindows {
                     Some(position) => Some(self.open.remove(position).opening_binding),
                     None => None,
                 };
-                // Unrestricted contents have no old-value obligation to extract.
-                // This is the same whole-value installation through owned,
-                // mutable and write-only storage; affine replacement still
-                // retains its explicit displacement and cleanup.
-                let needs_displacement = opening_binding.is_none()
-                    && produced.multiplicity != Multiplicity::Unrestricted;
+                // Intact replacement needs no observation when the exact
+                // source type grants no-code disposal. Affine incoming values
+                // still transfer once; nominal cleanup and conserved contents
+                // retain the ordinary displacement and cleanup route.
+                let freely_discardable = produced.multiplicity == Multiplicity::Unrestricted
+                    || produced.multiplicity == Multiplicity::Affine
+                        && shapes
+                            .types
+                            .get(&produced.type_identity)
+                            .is_some_and(|declaration| declaration.no_code_affine_cleanup);
+                let needs_displacement = opening_binding.is_none() && !freely_discardable;
                 (
                     place.source,
                     place.path,

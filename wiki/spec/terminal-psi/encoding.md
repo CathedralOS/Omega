@@ -483,6 +483,7 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 75 | StructuralScalarFieldStore | destination place id + structural path + field id + value id + obligation id; range-checked form |
 | 77 | MoveStructuralField | source place id + structural path + field id |
 | 78 | StoreStructuralField | destination place id + structural path + field id + structural argument |
+| 118 | StoreStructuralField (intact discardable replacement) | destination place id + structural path + field id + structural argument |
 | 79 | EstablishElementView | destination place id + source structural argument + element type id + element-view region |
 | 98 | EstablishMutableElementView | destination place id + source structural argument + element type id + element-view region |
 | 80 | retired | rejected; old whole-place element-length payload |
@@ -609,7 +610,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 144 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 145 + `u16` vocabulary
 marker 123 + the entry machine id, followed by the module's counted tables in
 the declaration order below and ending with boundary-application candidates.
 
@@ -883,7 +884,7 @@ producer state and rederives every ordering rule.
 
 | Row | Fields |
 | --- | --- |
-| structural type declaration | structural type id + identity string + structural type shape |
+| structural type declaration | structural type id + identity string + no-code affine cleanup authority boolean + structural type shape |
 | structural referent identity | structural type id + canonical closed-type identity string; no storage shape |
 | structural field | structural field id + identity string + binding relevance + structural field type |
 | structural case | structural case id + identity string + counted payload structural fields |
@@ -1808,7 +1809,7 @@ table. The installation record `PSIINST\0` is emitted outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 144 | yes |
+| semantic module | `PSITERM\0` | 145 | yes |
 | proof bundle | `PSIPRF\0\0` | 34 | no |
 | sealed proof section | `PSIPSC\0\0` | 1 | yes |
 | obligation ledger | `PSIOBLG\0` | 3 | yes |

@@ -343,7 +343,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
         } => {
             bytes.u8(match disposition {
                 terminal_psi::StructuralStoreDisposition::Vacant => 82,
-                terminal_psi::StructuralStoreDisposition::ReplaceUnrestricted => 117,
+                terminal_psi::StructuralStoreDisposition::ReplaceDiscardable => 117,
             });
             bytes.id(*psi_operation);
             encode_window_root(bytes, destination);
