@@ -732,7 +732,7 @@ impl TypedTrees {
                 crate::type_identity::portable_applied_type_identity(
                     self,
                     *argument,
-                    lexical_owner,
+                    crate::type_identity::AppliedTypeIdentityOwner::Declaration(lexical_owner),
                     &[],
                 )
                 .ok_or("closed requirement has no complete portable local operand")
