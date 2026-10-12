@@ -184,10 +184,7 @@ fn declared_call_reference_access(
     program: &dyn crate::CheckingInput,
     argument: ExpressionHandle,
 ) -> Option<language_semantics::ReferenceAccess> {
-    let ExpressionNode::Call(call) = program.expression_table.expression(argument) else {
-        return None;
-    };
-    crate::machine_calls::calls::resolved_call_result_type(program, call)
+    crate::machine_calls::calls::call_result_type(program, argument)
         .and_then(|reference| declared_reference_access(program, reference))
 }
 

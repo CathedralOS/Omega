@@ -1,20 +1,17 @@
 // Core slice surface.
 //
-// Slices are compiler-managed views over contiguous storage. The public core
-// surface owns the semantic contracts; the concrete pointer/length carrier and
-// boundary implementation live below this layer.
+// The public requirements own bounds and returned-extent contracts. Their
+// checked provider delegates descriptor operations to a private helper module,
+// where the range and index syntax selects the builtin collection operations.
+// The helper does not import these requirements, so provider execution cannot
+// recursively select the requirement it is realizing. Target layout and native
+// descriptor construction remain below the source layer.
 //
-// Planned public surface:
-// - Slice::Length ranks a slice by its current length for termination proofs.
-// - index and subslice operators require bounds proofs before lowering to the
-//   boundary descriptor layer.
-// - mutable views carry the same overlap and borrow obligations as their
-//   source owner.
-//
-// Fixed operator tokens are written directly after `boundary machine`: the
-// token identifies the required operator slot of that signature.
-// Package callers select these public requirements, including their generic
-// applications. Visibility does not supply a body or a descriptor realization.
+// Selection still belongs to the ordinary boundary provider planner. Importing
+// a requirement does not supply its body; the exact `satisfies` declarations
+// below supply checked candidates for that planner.
+
+use omega::language::core::slice_views;
 
 // index returns the element by value: copying it out of a shared borrow
 // requires a copyable element type. The view-returning requirements below
@@ -28,6 +25,24 @@ requires
     start <= end && end <= items.len
 ensures
     result.len == end - start;
+
+data SliceViewProvider {}
+
+machine SliceViewProvider::index<T [copy]>(items: &[T], index: u64) -> T
+    satisfies Slice::index
+requires
+    index < items.len {
+    core::slice_views::element<T>(items, index)
+}
+
+machine SliceViewProvider::range<T>(items: &[T], start: u64, end: u64) -> &[T]
+    satisfies Slice::range
+requires
+    start <= end && end <= items.len
+ensures
+    result.len == end - start {
+    core::slice_views::subslice<T>(items, start, end)
+}
 
 // The named slice views. One runtime realization supplies every view, so the
 // rows share one boundary trait; the slice is an ordinary explicit argument.

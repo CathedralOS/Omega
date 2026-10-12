@@ -210,6 +210,35 @@ pub(crate) fn bind_selected_operator_calls(
     }
 
     let mut bound_count = bindings.len() + shorthand_count;
+    // Generic requirement calls already have exact typed destinations before
+    // their closed-use facts exist. Normalize their namespace at that point;
+    // specializing first changes the diagnostic leaf but not the authored
+    // qualifier. The ordinary call edge, not closedness, owns this decision.
+    let mut named_targets = Vec::new();
+    for (_, value) in values.values.iter() {
+        expressions.clear();
+        validation::expression_traversal::collect_expression_tree(
+            program,
+            value.expression,
+            &mut expressions,
+        );
+        for expression in expressions.iter().copied() {
+            let Some(call) = program.expression_table.call_node(expression) else {
+                continue;
+            };
+            let owner = program
+                .machine_holding_state(call.target_symbol)
+                .or_else(|| program.machine_by_symbol(call.target_symbol));
+            if let Some(owner) = owner
+                && program
+                    .machine_token_binding_by_symbol(owner.symbol)
+                    .is_some()
+                && !named_targets.contains(&(expression, owner.symbol))
+            {
+                named_targets.push((expression, owner.symbol));
+            }
+        }
+    }
     // A qualified requirement name is not a runtime receiver. A resolved
     // named call keeps its exact entry and authored call metadata; erase only
     // the namespace prefix after rejoining it with that token declaration.
@@ -222,6 +251,7 @@ pub(crate) fn bind_selected_operator_calls(
                 .iter()
                 .map(|(_, fact)| (fact.expression, fact.requirement_symbol)),
         )
+        .chain(named_targets)
     {
         let Some(binding) = program.machine_token_binding_by_symbol(requirement) else {
             continue;
@@ -241,6 +271,7 @@ pub(crate) fn bind_selected_operator_calls(
                 symbols::SymbolKind::Data
                     | symbols::SymbolKind::Domain
                     | symbols::SymbolKind::Module
+                    | symbols::SymbolKind::BuiltinType
             )
         {
             continue;
@@ -261,6 +292,19 @@ pub(crate) fn bind_selected_operator_calls(
             continue;
         };
         let entry_symbol = entry.symbol;
+        // Static operands can be retained while a qualified call is still
+        // unresolved. This binding establishes its authored declaration as
+        // well as its executable edge, before specialization separates them.
+        // Never overwrite an already retained requirement with its realization.
+        let application = call.authored_machine_application;
+        if application.is_valid() {
+            let retained = program
+                .expression_table
+                .static_machine_application_mut(application);
+            if !retained.registration_operation.is_valid() {
+                retained.registration_operation = entry_symbol;
+            }
+        }
         if let ExpressionNode::Call(call) = program.expression_table.expression_mut(expression) {
             call.receiver = ExpressionHandle::invalid();
             call.target_symbol = entry_symbol;

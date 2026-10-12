@@ -95,8 +95,8 @@ fn expression_type(
             }
             super::collection_element_type_reference(program, collection_type)?
         }
-        ExpressionNode::Call(call) => {
-            crate::machine_calls::calls::resolved_call_result_type(program, call)?
+        ExpressionNode::Call(_) => {
+            crate::machine_calls::calls::call_result_type(program, expression)?
         }
         ExpressionNode::Cast(cast) => cast.target_type,
         ExpressionNode::ZeroValue(reference) => *reference,

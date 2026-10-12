@@ -1,23 +1,15 @@
 # as_slice_views
 
-Remaining receiver-spelling probe with the `.as_slice()` view constructor:
-`main.entries.as_slice()` yields `&[Entry]`; `view.len`
-reads the extent. Migrate this source to the ordinary `&main.entries[..]`
-route once the selected core range requirement has executable supply.
+The ordinary `&main.entries[..]` range lends a shared view of noncopy entries
+through the imported core `Slice::range` requirement. The sample reads its
+extent and records whether it still covers all four entries.
 
-## Gaps found while authoring (filed)
-
-The canonical core range probe is:
+Check this probe with `omega --check samples/cli/probes/as_slice_views/main.omg`.
+The corresponding executable regression checks the extent with a trap oracle:
 
 ```text
-omega run --both tests/omega/pending/slices/runtime_imported_range_views_exit/main.omg
+omega run --both tests/omega/pass/slices/runtime_imported_range_views_exit/main.omg
 ```
 
-It passes package visibility but stops at `outer calls: ordered statement call`:
-the bodyless returned-view signature is not planned. Boundary calls still lack
-returned-view transport and admitted descriptor supply. A selected declaration
-must not be bypassed with builtin slicing.
-The owning frontier is `STATIC-MACHINE-MIGRATION` in `TASKS.md`.
-
-Compile-checked only: no standard-library dependency and no
-`Main::exit` — run a check target, not native.
+The range uses selected checked-provider supply and retains the bounds contract
+and backing loan. The runtime fixture expects exit 0 in both engines.

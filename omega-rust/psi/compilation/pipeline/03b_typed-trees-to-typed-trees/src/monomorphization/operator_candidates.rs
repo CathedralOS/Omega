@@ -439,6 +439,62 @@ fn selected_operator_applications(
     }
     let mut applications = Vec::new();
     let mut diagnostics = Vec::new();
+    if program.machine_by_symbol(operator.symbol).is_some() {
+        // Token-bearing requirements use ordinary machine specialization.
+        // Its retained application is the demand roster provider coverage
+        // consumes too. Re-inferring from a rewritten call loses collection
+        // adaptation or static arguments already consumed by specialization.
+        for receipt in program
+            .machine_specializations
+            .iter()
+            .filter(|receipt| receipt.template == operator.symbol)
+        {
+            if !receipt.binding_application.is_valid() {
+                diagnostics.push(Diagnostic::error(
+                    "closed operator requirement lost its static application",
+                ));
+                continue;
+            }
+            let retained = program
+                .expression_table
+                .static_machine_application(receipt.binding_application);
+            let application = (retained.binding_declaration == operator.symbol)
+                .then(|| {
+                    typed_trees::operator::closed_operator_application_from_bindings(
+                        program,
+                        operator,
+                        program
+                            .expression_table
+                            .static_machine_application_bindings(receipt.binding_application),
+                    )
+                })
+                .flatten();
+            let Some(application) = application else {
+                diagnostics.push(Diagnostic::error(
+                    "closed operator requirement has no complete typed binder application",
+                ));
+                continue;
+            };
+            match validation::validate_closed_operator_application(
+                program,
+                &symbols,
+                operator,
+                &application,
+            ) {
+                Ok(()) => {
+                    if !applications.contains(&application) {
+                        applications.push(application);
+                    }
+                }
+                Err(error) => diagnostics.push(error),
+            }
+        }
+        return if diagnostics.is_empty() {
+            Ok(applications)
+        } else {
+            Err(diagnostics)
+        };
+    }
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for (statement_index, statement) in program
@@ -505,31 +561,8 @@ fn selected_operator_application_at_expression(
     let (operands, explicit_static_arguments) =
         match program.expression_table.expression(expression) {
             ExpressionNode::Call(call) => {
-                // Token rewriting targets an ordinary entry state; static
-                // specialization may already have redirected it to a closed
-                // requirement instance. Rejoin that exact instance to its
-                // template, rather than recovering demand from a display path
-                // or expecting the legacy operator symbol on the call.
-                let calls_requirement_machine = call.target_symbol.is_valid()
-                    && program.machines().iter().any(|requirement| {
-                        requirement.supply_mode
-                            == language_semantics::MachineSupplyMode::TopLevelRequirement
-                            && program
-                                .machine_states(requirement)
-                                .first()
-                                .is_some_and(|entry| entry.symbol == call.target_symbol)
-                            && (requirement.symbol == operator.symbol
-                                || program
-                                    .machine_specializations
-                                    .iter()
-                                    .any(|specialization| {
-                                        specialization.template == operator.symbol
-                                            && specialization.instance == requirement.symbol
-                                    }))
-                    });
-                if !calls_requirement_machine
-                    && typed_trees::operator::resolve_named_expression_call(program, call)
-                        .is_none_or(|resolved| resolved.symbol != operator.symbol)
+                if typed_trees::operator::resolve_named_expression_call(program, call)
+                    .is_none_or(|resolved| resolved.symbol != operator.symbol)
                 {
                     return Ok(None);
                 }

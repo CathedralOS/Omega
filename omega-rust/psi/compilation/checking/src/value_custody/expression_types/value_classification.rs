@@ -321,8 +321,7 @@ pub(crate) fn value_concrete_data_symbol(
                 .and_then(|reference| concrete_data_type_symbol(program, reference))
         })
         .or_else(|| {
-            let call = program.expression_table.call_node(value)?;
-            crate::machine_calls::calls::resolved_call_result_type(program, call)
+            crate::machine_calls::calls::call_result_type(program, value)
                 .and_then(|reference| concrete_data_type_symbol(program, reference))
         })
 }

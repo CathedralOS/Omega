@@ -854,8 +854,8 @@ fn selected_value_type(
             (program.symbols.name(name.symbol) == spelling.as_str())
                 .then(|| named_value_type_reference(program, name))?
         }
-        ExpressionNode::Call(call) if forwarding_root.is_none() => {
-            crate::machine_calls::calls::resolved_call_result_type(program, call)
+        ExpressionNode::Call(_) if forwarding_root.is_none() => {
+            crate::machine_calls::calls::call_result_type(program, expression)
         }
         ExpressionNode::Member(member) => {
             if forwarding_root.is_none()

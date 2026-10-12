@@ -2871,8 +2871,8 @@ fail/providers/inherited_provider_phantom_arguments rejected 2873ms expected @a9
 	slot `Parent` has two covering provider plans for the selected target: `<selected target>::FirstBoolMap::satisfies::Parent` [<fingerprint>], `<selected target>::SecondBoolMap::satisfies::Parent` [<fingerprint>] -- choose one in build.omg with `Build::select_provider<Parent, ProviderType>(b);`
 fail/providers/module_operator_hidden_signature_rejected rejected 1290ms expected @a9ae30e1c334+wt
 	machine `Provider::wrong` operator realization `Policy::convert` does not retain the exact selected overload
-fail/providers/module_operator_satisfier_signature_mismatch rejected 3782ms expected @16ed47526a08
-	cannot prove index `__hoist_14` is within length 2
+fail/providers/module_operator_satisfier_signature_mismatch rejected 1977ms expected @71e65af3059c+wt
+	machine `Supplier::wrong` does not match one exact overload of operator requirement `Conversion::read`; its entry parameter and result types must equal one declared requirement signature
 fail/providers/named_provider_wrong_requirement_owner rejected 27ms expected @a9ae30e1c334+wt
 	closed conformance `WrongProvider satisfies CounterOperations` has no inherited requirement slot `OtherOperations::read`
 fail/providers/nested_binding_missing_establishment rejected 23947ms expected @a9ae30e1c334+wt
@@ -6366,3 +6366,14 @@ fail/slices/rebound_subslice_loses_byte_predicate rejected 339ms expected @74511
 	cannot prove requires contract for call inspect from replace: view in [u8]::Ascii (invalidated by prior mutation of view; view is part of [u8]::Ascii)
 fail/slices/written_subslice_loses_byte_predicate rejected 347ms expected @7451127fc8f8+wt
 	cannot prove requires contract for call inspect from replace: view in [u8]::Ascii (invalidated by prior mutation of view; view is part of [u8]::Ascii)
+pass/slices/runtime_imported_range_views_exit checked 4112ms check-target:macos_arm64 @71e65af3059c+wt
+pass/slices/runtime_imported_slice_provider_composition_exit checked 4174ms check-target:macos_arm64 @71e65af3059c+wt
+pass/generics/runtime_forwarded_generic_slice_result_exit checked 4018ms check-target:macos_arm64 @71e65af3059c+wt
+fail/generics/forwarded_slice_argument_element_mismatch rejected 159ms expected @71e65af3059c+wt
+	argument `items` for state `entry` expects `&[Element]`, got `named value`
+fail/generics/forwarded_slice_result_element_mismatch rejected 120ms expected @71e65af3059c+wt
+	machine `wrong` state `entry` terminal expression expects `&[Output]`, got `named value`
+fail/borrows/imported_range_retains_backing_loan rejected 580ms expected @71e65af3059c+wt
+	statement 1 mutates `main.bytes` while local borrow `view` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
+fail/providers/checked_view_provider_wrong_extent rejected 271ms expected @71e65af3059c+wt
+	provider machine `Provider::at` for top-level boundary requirement `Window::at` does not refine `Window::at`: its requires facts are not a conservative refinement

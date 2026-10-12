@@ -49,7 +49,7 @@ fn retained_primitive(
         }
         ExpressionNode::Name(path) => super::named_value_type_reference(program, path)?,
         ExpressionNode::Call(call) => {
-            crate::machine_calls::calls::resolved_call_result_type(program, call).or_else(|| {
+            crate::machine_calls::calls::call_result_type(program, expression).or_else(|| {
                 typed_trees::operator::resolve_named_expression_call(program, call)
                     .map(|operator| operator.return_type)
             })?

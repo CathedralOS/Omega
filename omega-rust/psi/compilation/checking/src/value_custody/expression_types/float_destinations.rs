@@ -60,14 +60,12 @@ fn source_primitive(
         }),
         // A cast's output format, not its input, reaches this destination.
         ExpressionNode::Cast(cast) => primitive(program, cast.target_type),
-        ExpressionNode::Call(call) => {
-            crate::machine_calls::calls::resolved_call_result_type(program, call)
-                .or_else(|| {
-                    typed_trees::operator::resolve_named_expression_call(program, call)
-                        .map(|operator| operator.return_type)
-                })
-                .and_then(|reference| primitive(program, reference))
-        }
+        ExpressionNode::Call(call) => crate::machine_calls::calls::call_result_type(program, value)
+            .or_else(|| {
+                typed_trees::operator::resolve_named_expression_call(program, call)
+                    .map(|operator| operator.return_type)
+            })
+            .and_then(|reference| primitive(program, reference)),
         ExpressionNode::Name(path) => super::named_value_type_reference(program, path)
             .or_else(|| {
                 machine.and_then(|machine| {

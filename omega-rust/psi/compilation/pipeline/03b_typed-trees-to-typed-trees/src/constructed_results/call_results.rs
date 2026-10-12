@@ -21,35 +21,52 @@ pub(super) fn retain(
     let Some(call) = program.expression_table.call_node(expression) else {
         return Ok(None);
     };
-    // Open static tuples settle through generic selection. Their declaration
-    // is not yet an ordinary runtime call result.
-    let returned = if let Some((machine, state)) =
+    let Some(caller) = program.machine_by_symbol(machine_symbol) else {
+        return Ok(None);
+    };
+    let Some(caller_state) = program.state_by_symbol(state_symbol) else {
+        return Ok(None);
+    };
+    // A template can forward another template's result before either has an
+    // executable specialization. Its result type still belongs to this exact
+    // application: the callee's T must become the caller's supplied type, not
+    // remain a foreign binder or borrow the enclosing destination's type.
+    let (returned, substitutions) = if let Some((machine, state)) =
         validation::find_state(program, call.target_symbol)
     {
-        if machine.has_specialization_parameters() {
+        let Some(substitutions) = validation::call_type_arguments(
+            program,
+            caller,
+            Some(caller_state),
+            machine,
+            state,
+            &call.machine_arguments,
+            program.expression_table.expression_handles(call.arguments),
+        ) else {
             return Ok(None);
-        }
-        state.return_type
+        };
+        (state.return_type, substitutions)
     } else if let Some((_, signature)) = program.machine_parameter_signature(call.target_symbol) {
-        signature.return_type
+        (signature.return_type, Vec::new())
     } else {
         return Ok(None);
     };
     if !returned.is_valid() {
         return Ok(None);
     }
-    let Some(machine) = program.machine_by_symbol(machine_symbol) else {
-        return Ok(None);
-    };
-    let Some(state) = program.state_by_symbol(state_symbol) else {
-        return Ok(None);
-    };
-    let lifetimes = region_application::bindings(program, machine, state, call)?;
+    let lifetimes = region_application::bindings(program, caller, caller_state, call)?;
     let target = call.target_symbol;
     let arguments = program
         .expression_table
         .expression_handles(call.arguments)
         .to_vec();
+    let returned = if substitutions.is_empty() {
+        returned
+    } else {
+        program
+            .apply_callable_type(returned, &substitutions, &[], target)
+            .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?
+    };
     apply_result_type(program, target, &arguments, returned, &lifetimes).map(Some)
 }
 

@@ -260,6 +260,18 @@ fn validate_provider_scalar_contract(
     if !boundary.result.matches_machine_result(&machine.result) {
         return malformed("provider candidate result disagrees with its boundary");
     }
+    if boundary.structural_parameters.len() != machine.structural_parameters.len()
+        || boundary
+            .structural_parameters
+            .iter()
+            .zip(&machine.structural_parameters)
+            .any(|(required, actual)| {
+                required.position != actual.position
+                    || required.structural_type != actual.structural_type
+            })
+    {
+        return malformed("provider candidate structural signature disagrees with its boundary");
+    }
     // An erased formal has no boundary actual to substitute.
     if !machine.contract.erased_scalar_formals.is_empty()
         || !machine.contract.erased_proof_formals.is_empty()
@@ -279,6 +291,21 @@ fn validate_provider_scalar_contract(
     {
         substitutions.insert(formal.id, ScalarTerm::value(actual.id, actual.scalar_type));
     }
+    // Structural observations use declaration-local places just as scalar
+    // operands use declaration-local values. Independently allocated boundary
+    // and provider formals need the same positional substitution; equal source
+    // predicates must not depend on their unrelated place allocation order.
+    let places = boundary
+        .structural_parameters
+        .iter()
+        .zip(&machine.structural_parameters)
+        .map(|(formal, actual)| (formal.place, (actual.place, Vec::new())))
+        .collect::<BTreeMap<_, _>>();
+    let instantiate = |row: &Proposition| {
+        let values =
+            terminal_semantics::substitution::substitute_proposition_values(row, &substitutions);
+        terminal_semantics::substitution::substitute_proposition_structural_places(&values, &places)
+    };
     // Roster rows are folded `Conjunction`s on the machine side, so coverage
     // compares conjunct sets: a published `A && B` is the established facts
     // `A` and `B`, never a weaker reading. `contract.requires` merges authored
@@ -291,9 +318,7 @@ fn validate_provider_scalar_contract(
     let declared = boundary
         .scalar_requires
         .iter()
-        .map(|row| {
-            terminal_semantics::substitution::substitute_proposition_values(row, &substitutions)
-        })
+        .map(instantiate)
         .collect::<Vec<_>>();
     let declared_conjuncts = declared.iter().flat_map(conjuncts).collect::<Vec<_>>();
     if machine
@@ -314,8 +339,7 @@ fn validate_provider_scalar_contract(
         .flat_map(|clause| conjuncts(&clause.proposition))
         .collect::<Vec<_>>();
     if boundary.scalar_ensures.iter().any(|row| {
-        let substituted =
-            terminal_semantics::substitution::substitute_proposition_values(row, &substitutions);
+        let substituted = instantiate(row);
         !conjuncts(&substituted)
             .iter()
             .all(|part| roster.contains(part))

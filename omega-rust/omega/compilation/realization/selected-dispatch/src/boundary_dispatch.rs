@@ -20,7 +20,6 @@ use crate::boundary_dispatch::boundary_fields::{
 };
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 
 /// Service erasure joins the selected plan, not its checked-adapter subset.
 /// Intrinsic and foreign rows deliberately produce no adapter dispatch; an
@@ -222,14 +221,16 @@ pub(crate) fn settle_selected_boundary_adapter_dispatch(
         }
     }
 
-    // A top-level requirement row is reached by the direct call
-    // `Owner::name(...)`, whose retained receiver is the exact nominal owner.
-    // The owner joins the requirement symbol directly; no field, parameter or
-    // routed-service receipt participates; all value arguments remain explicit.
+    // Retained nominal qualifiers join direct requirements without a service
+    // receipt. Structural namespaces need no such receiver association; their
+    // selected supply keys the exact requirement entry. All values are explicit.
     for adapter in &adapters {
-        let Some(owner) = adapter.top_level_owner else {
+        let adapter_rows::AdapterReceiver::Direct { namespace: owner } = adapter.receiver else {
             continue;
         };
+        if !owner.is_valid() {
+            continue;
+        }
         let field = BoundaryField {
             symbol: owner,
             trait_symbol: adapter.receiver_trait,

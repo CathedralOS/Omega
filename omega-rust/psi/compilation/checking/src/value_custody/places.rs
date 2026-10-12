@@ -357,9 +357,7 @@ pub fn declared_place_type_raw(
     }
     match program.expression_table.expression(handle) {
         ExpressionNode::ArrayLiteral(_) => crate::declared_constant_array_type(program, handle),
-        ExpressionNode::Call(call) => {
-            crate::machine_calls::calls::resolved_call_result_type(program, call)
-        }
+        ExpressionNode::Call(_) => crate::machine_calls::calls::call_result_type(program, handle),
         ExpressionNode::Indexed(_) => {
             declared_indexed_projection_type_raw(program, current_machine, current_state, handle)
         }

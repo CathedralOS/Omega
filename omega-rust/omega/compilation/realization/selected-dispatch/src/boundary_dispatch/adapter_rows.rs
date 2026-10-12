@@ -25,11 +25,16 @@ pub(crate) struct AdapterRow {
     /// Readable tuple spellings for diagnostics only; `family_tuple` is the
     /// semantic key.
     pub(crate) family_tuple_display: Box<[String]>,
-    /// Set on a row realizing a top-level `boundary requirement`: the exact
-    /// nominal owner (`Owner` in `Owner::name`) a direct call retains as its
-    /// receiver symbol. `receiver_trait` is then the requirement symbol
-    /// itself, never a boundary trait, and no field or parameter joins it.
-    pub(crate) top_level_owner: Option<symbols::SymbolHandle>,
+    pub(crate) receiver: AdapterReceiver,
+}
+
+/// Service requirements dispatch through a selected receiver. Direct machine
+/// requirements key their own entry; a nominal namespace is optional source
+/// qualification, never a prerequisite for supplying that exact requirement.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AdapterReceiver {
+    Service,
+    Direct { namespace: symbols::SymbolHandle },
 }
 
 /// A selected requirement that declares local generic binders but cannot
@@ -317,7 +322,7 @@ fn resolve_template_adapter_rows(
         symbol: entry.symbol,
         family_tuple: Box::default(),
         family_tuple_display: Box::default(),
-        top_level_owner: None,
+        receiver: AdapterReceiver::Service,
     })])
 }
 
@@ -335,23 +340,9 @@ fn resolve_template_adapter_rows(
 /// exact specialized provider instance the roster joins to it. The requirement's lifetime telescope is the
 /// adapter's own telescope by the identity application conformance checked,
 /// so an erased telescope needs no row argument of its own. A receiver-free
-/// requirement admits only an exact-arity adapter and the row keys on the
-/// nominal owner the direct call retains as its receiver. A by-value `self`
-/// requirement (`Owner::name(self, ...)`) admits only an adapter taking the
-/// owner as its leading parameter; the row forwards the member call's
-/// receiver place as argument zero, so the row keys on each receiver place's
-/// own symbol instead of the owner. A shared `&self` requirement
-/// (`Owner::name(&self, ...)`) admits the same forwarding shape with the
-/// adapter's leading parameter declared `&Owner`; the rewrite splices
-/// `&place` as argument zero so the borrow the requirement declared is the
-/// borrow the adapter receives. A mutating `&mut self` requirement
-/// (`Owner::name(&mut self, ...)`) forwards the same way: the member call
-/// mutably borrows the receiver place for the call, checking already
-/// demanded a writable receiver source, and the rewrite splices `&mut
-/// place` for the adapter's leading `&mut Owner` parameter. Write-only and
-/// qualified receivers stay closed: a `&write self` or `self in Domain`
-/// receiver's custody and obligation transfer are separate shapes this row
-/// does not settle.
+/// requirement admits only an exact-arity adapter. Its selected entry is the
+/// dispatch identity; an authored nominal qualifier may also identify that
+/// direct call, but a structural collection requirement has no nominal owner.
 /// Execution consumes the association while Terminal retains the
 /// requirement.
 fn require_parameter_count(
@@ -382,9 +373,9 @@ fn resolve_top_level_requirement_adapter_row(
     specialization_identities: &terminal_psi::TerminalIdentityTable,
 ) -> Result<Vec<ResolvedAdapterRow>, Diagnostic> {
     let requirement_name = requirement.name.as_str();
-    if !requirement.symbol.is_valid() || !requirement.attached_data_symbol.is_valid() {
+    if !requirement.symbol.is_valid() {
         return Err(Diagnostic::error(format!(
-            "selected top-level boundary requirement `{requirement_name}` has no exact typed owner symbol",
+            "selected top-level boundary requirement `{requirement_name}` has no exact typed requirement symbol",
         )));
     }
     let [entry] = typed.machine_states(requirement) else {
@@ -440,7 +431,9 @@ fn resolve_top_level_requirement_adapter_row(
         symbol: adapter_entry.symbol,
         family_tuple: Box::default(),
         family_tuple_display: Box::default(),
-        top_level_owner: Some(requirement.attached_data_symbol),
+        receiver: AdapterReceiver::Direct {
+            namespace: requirement.attached_data_symbol,
+        },
     })])
 }
 
@@ -517,7 +510,6 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
         if closed_receipts != 1
             || closed.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement
             || !typed.machine_type_parameters(closed).is_empty()
-            || !closed.attached_data_symbol.is_valid()
         {
             return Err(Diagnostic::error(format!(
                 "selected specialization row `{}` does not name one retained closed instance of requirement template `{machine_identity}`",
@@ -626,7 +618,9 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
             symbol: instance_entry.symbol,
             family_tuple: Box::default(),
             family_tuple_display: Box::default(),
-            top_level_owner: Some(closed.attached_data_symbol),
+            receiver: AdapterReceiver::Direct {
+                namespace: closed.attached_data_symbol,
+            },
         }));
     }
     // Coverage is per selected row, not per roster: every retained closed
@@ -803,7 +797,7 @@ fn resolve_family_adapter_row(
             symbol: entry.symbol,
             family_tuple: tuple.identities.clone(),
             family_tuple_display: tuple.display.clone(),
-            top_level_owner: None,
+            receiver: AdapterReceiver::Service,
         }));
     }
     // A dynamic family publishes every declared roster tuple or none: the

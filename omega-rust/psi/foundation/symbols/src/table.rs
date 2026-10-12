@@ -1042,9 +1042,9 @@ impl SymbolTable {
 
     /// Whether a source-backed reference may select this declaration as a
     /// candidate: the declaration is authored in the reference's own source,
-    /// in the same checked package instance, or in a source the reference's
-    /// file imported. A declaration is never a candidate merely because its
-    /// source was loaded into the program (modules spec, "Import scope and
+    /// in the same logical module of its checked package instance, or in a
+    /// source the reference's file imported. A declaration is never a candidate
+    /// merely because its source was loaded (modules spec, "Import scope and
     /// exposure"): every target's entry contract joins every compilation, and
     /// the bundled spellings and names it pulls in must not change the
     /// resolution of a program that never imported them. Source-free
@@ -1065,7 +1065,9 @@ impl SymbolTable {
             return true;
         };
         declaration.source_id == reference.source_id
-            || sources.same_checked_instance(reference, declaration)
+            || (sources.same_checked_instance(reference, declaration)
+                && self.source_module(reference.source_id)
+                    == self.source_module(declaration.source_id))
             || self
                 .source_scoped_bindings_for(reference.source_id)
                 .iter()

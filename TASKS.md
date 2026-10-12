@@ -451,15 +451,12 @@ helper that passes does not close an item.
     at exit 0: exact immediate lineage and every sibling's closure must remain
     independent of projection compatibility. Unknown index pairs and use of
     the parent before its last child ends must still reject.
-    Migrate `as_slice_views` to `&main.entries[..]` through the selected
-    declaration's admitted executable supply. Preserve the guarded effectful
-    producer in
+    Preserve the guarded effectful producer in
     `pass/operators/runtime_declared_open_range_evaluates_collection_once_exit`:
     it must run once in the selected arm and never in the unselected arm.
     Preserve captured operand snapshots through generic cloning and later
     effects (`runtime_declared_open_range_preserves_operand_snapshot_exit`).
-    Imported `Slice::range` still needs admitted executable realization. Keep
-    `pass/slices/runtime_returned_range_extent_contract_exit` and
+    Keep `pass/slices/runtime_returned_range_extent_contract_exit` and
     `pass/slices/runtime_forwarded_range_extent_snapshot_exit` at exit 0:
     checked returned-length guarantees must discharge downstream nonempty
     calls without fresh guards, survive endpoint stores and forwarding, and
@@ -468,20 +465,21 @@ helper that passes does not close an item.
     `pass/borrows/runtime_boundary_range_view_exit`: named and anonymous
     checked-provider results must retain the actual descriptor and backing
     loan in native and Terminal execution; overlapping backing mutation must
-    reject (`fail/borrows/boundary_returned_view_keeps_backing_loan`). On macOS,
-    `omega run --both tests/omega/pending/slices/runtime_imported_range_views_exit/main.omg`
-    stops at zero selected provider rows for its specialized `Slice::range`.
+    reject (`fail/borrows/boundary_returned_view_keeps_backing_loan`).
     Preserve `pass/slices/runtime_borrowed_noncopy_array_argument_exit`: array
     fields and locals must lend views without copying their elements; returned
     views retain their backing loan (`fail/slices/noncopy_array_view_keeps_backing_loan`). Preserve
     the selected requirement, returned loan custody and bounds; do not
     substitute builtin slicing. Keep `pass/borrows/runtime_computed_shared_view_reborrow_exit`
-    at exit 0: reborrowing a produced or stored descriptor must retain its
+    at exit 0 (macOS at `c2e6db4328a` rejects in lowering with
+    `view observation names no established view local`): reborrowing a
+    produced or stored descriptor must retain its
     actual extent through guarded calls and value joins; backing mutation
     must reject (`fail/borrows/reborrowed_call_view_keeps_backing_loan`).
     `pass/modules/runtime_public_generic_dependency_exit` must keep
-    executing the public template's selected range bodies; private templates
-    remain inaccessible across packages.
+    executing the public template's selected range bodies; macOS at
+    `c2e6db4328a` rejects its entry fields with `lost its retained storage
+    declaration`. Private templates remain inaccessible across packages.
   - `samples/cli/basics/generic_counters` (exit 16) needs matching-host runs
     on its other declared targets.
   Acceptance: static customers execute with their authored exit/output; the

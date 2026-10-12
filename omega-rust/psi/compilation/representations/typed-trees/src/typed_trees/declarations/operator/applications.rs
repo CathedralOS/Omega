@@ -47,6 +47,58 @@ pub struct ClosedOperatorRealizationApplication {
     pub arguments: Vec<ClosedOperatorApplicationArgument>,
 }
 
+/// Recover a requirement's closed telescope from the typed bindings retained
+/// by ordinary specialization. Rewritten call operands are not a second
+/// selection site: collection adaptation and consumed static arguments have
+/// already been accounted for by that application.
+pub fn closed_operator_application_from_bindings(
+    program: &TypedTrees,
+    operator: &OperatorDefinition,
+    bindings: &[crate::static_applications::StaticMachineBinding],
+) -> Option<Vec<ClosedOperatorApplicationArgument>> {
+    use crate::data::TypeParameterKind;
+    use crate::static_applications::StaticMachineBindingValue;
+    let parameters = program.operator_type_parameters(operator);
+    if !operator.lifetime_parameters.is_empty() || parameters.len() != bindings.len() {
+        return None;
+    }
+    parameters
+        .iter()
+        .map(|parameter| {
+            let mut selected = bindings
+                .iter()
+                .filter(|binding| binding.parameter == parameter.symbol);
+            let binding = selected.next()?;
+            if selected.next().is_some() {
+                return None;
+            }
+            match (&parameter.kind, &binding.value) {
+                (TypeParameterKind::Type, StaticMachineBindingValue::Type(actual))
+                    if closed_boundary_application_type(program, *actual) =>
+                {
+                    Some(ClosedOperatorApplicationArgument::Type {
+                        binder_symbol: parameter.symbol,
+                        type_reference: *actual,
+                    })
+                }
+                (
+                    TypeParameterKind::Const { type_reference },
+                    StaticMachineBindingValue::Const(actual),
+                ) => Some(ClosedOperatorApplicationArgument::Const {
+                    binder_symbol: parameter.symbol,
+                    declared_carrier: *type_reference,
+                    value: super::type_matching::closed_const_identity_from_type_reference(
+                        program,
+                        *actual,
+                        *type_reference,
+                    )?,
+                }),
+                _ => None,
+            }
+        })
+        .collect()
+}
+
 /// Derive one complete closed type/const application for an operator use from
 /// the same operand unification used by spelling resolution. Lifetime,
 /// machine, and proposition binders remain fail-closed until their exact

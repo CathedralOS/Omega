@@ -125,29 +125,27 @@ fn named_requirement_use_fact(
     })
 }
 
-/// The token-bearing machine whose entry state a compiler-synthesized call
-/// targets, if the call is one bound by `bind_selected_operator_calls`.
-/// Finalization uses it to settle the retained `Operator` occurrence on the
-/// rewritten node to the exact declaration.
+/// The authored token-bearing machine selected by a synthesized call.
+/// Specialization changes the executable entry while copies retain the same
+/// authored `Operator` occurrence. Its retained registration identifies the
+/// declaration all those copies selected, not any private executable instance.
 pub fn token_bound_machine_call_target(
     program: &dyn crate::CheckingInput,
     call: &TableCallExpression,
 ) -> Option<SymbolHandle> {
     if call.operational_acknowledgement.origin
         != language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized
-        || !call.target_symbol.is_valid()
     {
         return None;
     }
-    program
-        .machines()
-        .iter()
-        .filter(|machine| machine.spelling.is_some())
-        .find(|machine| {
-            program
-                .machine_states(machine)
-                .first()
-                .is_some_and(|entry| entry.symbol == call.target_symbol)
-        })
-        .map(|machine| machine.symbol)
+    let target = if call.authored_machine_application.is_valid() {
+        program
+            .expression_table
+            .static_machine_application(call.authored_machine_application)
+            .registration_operation
+    } else {
+        call.target_symbol
+    };
+    let (machine, _) = crate::find_machine_head(program, target)?;
+    machine.spelling.is_some().then_some(machine.symbol)
 }

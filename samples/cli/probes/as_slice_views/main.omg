@@ -1,15 +1,5 @@
-// The `.as_slice()` view constructor: `main.entries
-// .as_slice()` yields `&[Entry]` whose element/range
-// operators carry `index < items.len` obligations — a
-// proven closed bound, including an EMPTY range at the
-// end (`view[4..4]`), discharges through the imported
-// `Slice::index`/`Slice::range` contracts.
-//
-//   * `main.entries.as_slice()` — array → `&[Entry]`.
-//   * `view.len` extent read on the view.
-//
-// Compile-checked only: no standard-library dependency, no
-// ProcessExit provider.
+// A whole-array range lends a noncopy element view through the imported
+// core range requirement. Reading its extent preserves the original length.
 
 use omega::language::core::slice;
 
@@ -24,7 +14,7 @@ data Main {
 
 machine Main::main(main: &mut Main) {
     main.hits = 0;
-    let view: &[Entry] = main.entries.as_slice();
+    let view: &[Entry] = &main.entries[..];
     let whole: u64 = view.len;
     transition whole == 4 {
         true -> pass(main)

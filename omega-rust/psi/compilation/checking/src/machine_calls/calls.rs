@@ -272,6 +272,23 @@ fn report_argument_reference_access(
     true
 }
 
+/// Prefer the occurrence's applied result. A declaration's raw result still
+/// contains its own static and region binders; consumers must not compare those
+/// foreign binders with a caller's type after preparation applied the call.
+pub(crate) fn call_result_type(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    let call = program.expression_table.call_node(expression)?;
+    let applied = program
+        .expression_table
+        .constructed_value_type_reference(expression);
+    applied
+        .is_valid()
+        .then_some(applied)
+        .or_else(|| resolved_call_result_type(program, call))
+}
+
 pub(crate) fn resolved_call_result_type(
     program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,

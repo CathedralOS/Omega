@@ -4,7 +4,7 @@
 //! tuples. Keep both axes: equal bodies do not erase phantom receiver arguments,
 //! and closing only the outer trait does not fabricate a specialization receipt.
 
-use super::{AdapterRow, ResolvedAdapterRow};
+use super::{AdapterReceiver, AdapterRow, ResolvedAdapterRow};
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 
@@ -21,7 +21,9 @@ pub(super) fn project(
     // ineligible trait family retains its explicit refusal, not an executable
     // roster; selected body facts cannot turn partial coverage into dispatch.
     if settled.iter().any(|resolved| match resolved {
-        ResolvedAdapterRow::Adapter(adapter) => adapter.top_level_owner.is_some(),
+        ResolvedAdapterRow::Adapter(adapter) => {
+            matches!(adapter.receiver, AdapterReceiver::Direct { .. })
+        }
         ResolvedAdapterRow::GenericRequirement(_) => true,
     }) {
         return Ok(settled);

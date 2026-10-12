@@ -308,8 +308,7 @@ fn argument_matches_type_reference_using(
 
     // A resolved reference result has a declared referee carrier. Do not let the
     // permissive scalar-call or implicit-shared syntax fallbacks erase it.
-    if let Some(call) = program.expression_table.call_node(argument)
-        && let Some(actual) = crate::machine_calls::calls::resolved_call_result_type(program, call)
+    if let Some(actual) = crate::machine_calls::calls::call_result_type(program, argument)
         && matches!(
             program.type_reference_table.type_reference(actual),
             TypeReferenceNode::Reference { .. }
