@@ -1,0 +1,16 @@
+data Mode<const Width: u64> { stamp: u8; }
+machine literal<const Width: u64>() -> u64 { Width }
+machine capacity<Storage, const Width: u64>() -> u64
+where Storage == Mode<Width>
+{ Width }
+
+machine main() crashes Trap {
+    let direct: u64 = literal<8u64 >> 1u64>();
+    let nested: u64 = capacity<Mode<8u64 >> 1u64>>();
+    transition direct == 4 && nested == 4 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

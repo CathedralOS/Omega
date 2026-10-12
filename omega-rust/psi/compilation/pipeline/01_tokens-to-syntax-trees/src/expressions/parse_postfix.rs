@@ -557,16 +557,68 @@ fn try_parse_static_machine_arguments<'tokens, 'source>(
 
     // `<` is also a comparison. Speculative structural parsing owns only a
     // fresh scratch arena; failed or non-call candidates publish no nodes.
-    let mut scratch = SyntaxTrees::new(input.source_id);
-    let result = parse_static_call_arguments(&mut scratch, input);
-    let Ok(Some((arguments, rest))) = result else {
-        return Ok(None);
-    };
-    let arguments = arguments
-        .iter()
-        .map(|argument| syntax_trees.copy_static_machine_argument(&scratch, argument))
-        .collect::<Vec<_>>();
-    Ok(Some((arguments.into_boxed_slice(), rest)))
+    // The enclosing postfix owns the complete `<...>(` shape. Trial only
+    // prefixes ending at a candidate call opener, so a following runtime
+    // argument or comparison cannot become a nested const shift operand.
+    for opening in static_call_open_positions(input) {
+        let (prefix, _) = input.split_at_token_index(opening + 1);
+        let (_, continuation) = input.split_at_token_index(opening);
+        let mut scratch = SyntaxTrees::new(input.source_id);
+        let Ok(Some((arguments, rest))) = parse_static_call_arguments(&mut scratch, prefix) else {
+            continue;
+        };
+        if !rest.at_punctuation(PunctuationKind::LeftParen) || rest.tokens.len() != 1 {
+            continue;
+        }
+        let arguments = arguments
+            .iter()
+            .map(|argument| syntax_trees.copy_static_machine_argument(&scratch, argument))
+            .collect::<Vec<_>>();
+        return Ok(Some((arguments.into_boxed_slice(), continuation)));
+    }
+    Ok(None)
+}
+
+/// Candidate openers are token grammar, not declaration or operand meaning.
+/// A partial nested pack fails the complete trial; balanced expression/literal
+/// delimiters and the surrounding statement bound the speculative interval.
+fn static_call_open_positions(input: Input<'_, '_>) -> Vec<usize> {
+    let mut delimiters = Vec::new();
+    let mut positions = Vec::new();
+    let mut previous = None;
+    for (index, token) in input.tokens.iter().enumerate() {
+        if token.is_non_semantic() {
+            continue;
+        }
+        match token.punctuation() {
+            Some(PunctuationKind::LeftParen) => {
+                if delimiters.is_empty()
+                    && matches!(
+                        previous,
+                        Some(PunctuationKind::Greater | PunctuationKind::GreaterGreater)
+                    )
+                {
+                    positions.push(index);
+                }
+                delimiters.push(PunctuationKind::RightParen);
+            }
+            Some(PunctuationKind::LeftBracket) => delimiters.push(PunctuationKind::RightBracket),
+            Some(PunctuationKind::LeftBrace) => delimiters.push(PunctuationKind::RightBrace),
+            Some(
+                punctuation @ (PunctuationKind::RightParen
+                | PunctuationKind::RightBracket
+                | PunctuationKind::RightBrace),
+            ) => {
+                if delimiters.pop() != Some(punctuation) {
+                    break;
+                }
+            }
+            Some(PunctuationKind::Semicolon) if delimiters.is_empty() => break,
+            _ => {}
+        }
+        previous = token.punctuation();
+    }
+    positions
 }
 
 fn parse_static_call_arguments<'tokens, 'source>(
