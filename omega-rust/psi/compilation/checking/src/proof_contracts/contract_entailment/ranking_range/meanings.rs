@@ -6,6 +6,34 @@ use super::{BinaryOperator, ExpressionHandle, ExpressionNode, Machine, Primitive
 use typed_trees::expression::UnaryOperator;
 use typed_trees::types::TypeReferenceHandle;
 
+/// Arithmetic meaning belongs only to the exact receiving observations this
+/// rank judgment reads. The complete source call still owns all actuals and
+/// their ordered effects; an unrelated operational result supplies no rank fact.
+pub(super) fn admit_arrival_observations(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    source: &State,
+    destination: &State,
+    arguments: &[ExpressionHandle],
+    coordinates: &[super::RankSubjectCoordinate],
+) -> Option<()> {
+    let parameters = program.state_parameters(destination);
+    if parameters.len() != arguments.len() {
+        return None;
+    }
+    let mut admitted = Vec::new();
+    for coordinate in coordinates {
+        let position =
+            typed_trees::signature::state_parameter_position(parameters, coordinate.parameter)?;
+        if admitted.contains(&position) {
+            continue;
+        }
+        admitted_carrier(program, machine, source, *arguments.get(position)?, 0)?;
+        admitted.push(position);
+    }
+    Some(())
+}
+
 pub(super) fn admitted_carrier(
     program: &dyn crate::CheckingInput,
     machine: &Machine,

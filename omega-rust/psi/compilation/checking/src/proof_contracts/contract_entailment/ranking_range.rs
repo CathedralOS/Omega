@@ -1033,8 +1033,24 @@ fn prove_edge(
         }
     }
     let admit = |expression| meanings::admitted_carrier(program, machine, state, expression, 0);
-    for argument in arguments.unwrap_or_default() {
-        admit(*argument)?;
+    if let Some(arguments) = arguments {
+        let (receiving, coordinates) = if let Some(destination) = destination {
+            let coordinates = demanded_coordinates
+                .iter()
+                .map(|coordinate| destination.entry_parameters.destination(coordinate))
+                .collect::<Option<Vec<_>>>()?;
+            (destination.state, coordinates)
+        } else {
+            (root, demanded_coordinates.clone())
+        };
+        meanings::admit_arrival_observations(
+            program,
+            machine,
+            state,
+            receiving,
+            arguments,
+            &coordinates,
+        )?;
     }
     for (guard, _) in guards {
         admit(*guard)?;

@@ -129,9 +129,21 @@ pub(crate) fn prove_ranking_range_call(
     for &(guard, _) in guards {
         admit_source(guard)?;
     }
-    for argument in arguments {
-        admit_source(*argument)?;
-    }
+    let demanded = super::ranking_range_required_coordinates(
+        program,
+        callee.machine,
+        callee.range,
+        destination_measure,
+        super::RankingRangePremises::RankInvariant,
+    )?;
+    meanings::admit_arrival_observations(
+        program,
+        caller.machine,
+        source,
+        destination,
+        arguments,
+        &demanded,
+    )?;
     let at_entry = source.symbol == entry.symbol;
     let bindings = if at_entry {
         integer_bindings(program, source)?
@@ -437,13 +449,6 @@ pub(crate) fn prove_ranking_range_call(
     if parameters.clone().count() != arguments.len() {
         return None;
     }
-    let demanded = super::ranking_range_required_coordinates(
-        program,
-        callee.machine,
-        callee.range,
-        destination_measure,
-        super::RankingRangePremises::RankInvariant,
-    )?;
     let mut actuals = Vec::new();
     for (parameter, argument) in parameters.zip(arguments) {
         if !demanded.iter().any(|coordinate| {
