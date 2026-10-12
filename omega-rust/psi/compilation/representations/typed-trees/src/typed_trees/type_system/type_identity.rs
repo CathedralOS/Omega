@@ -803,6 +803,7 @@ impl TypedTrees {
         retained: SymbolHandle,
         member_name: &str,
     ) -> Option<&crate::data::DataField> {
+        self.closed_data_definition(reference)?;
         self.applied_data_projected_field(reference, retained, member_name, None)
     }
 
