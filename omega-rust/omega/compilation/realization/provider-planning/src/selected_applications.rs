@@ -213,6 +213,12 @@ impl SelectedCheckedRequirementRow<'_> {
         self.requirement_template
     }
 
+    /// Authored source family retained by the selected row, separate from the
+    /// actual target member adapter and its produced executable instance.
+    pub const fn source_template(&self) -> SymbolHandle {
+        self.source_template
+    }
+
     pub const fn adapter(&self) -> &checked_trees::typed_trees::machine::Machine {
         self.adapter
     }
