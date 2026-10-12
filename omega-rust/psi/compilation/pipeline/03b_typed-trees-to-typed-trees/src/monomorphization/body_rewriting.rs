@@ -7,8 +7,6 @@
 //! application evidence while rewriting cloned calls
 //! and static machine transition targets.
 
-use validation::collect_statement_expression_trees;
-
 mod cloned_calls;
 mod const_substitution;
 mod type_parameter_substitution;
@@ -24,10 +22,8 @@ pub(crate) use type_parameter_substitution::{
 };
 
 use super::{
-    CallSite, ExpressionHandle, ExpressionNode, HandleSpan, StatementNode, StaticMachineArgument,
-    SymbolHandle, TypedTrees,
+    CallSite, ExpressionHandle, ExpressionNode, HandleSpan, StatementNode, SymbolHandle, TypedTrees,
 };
-use crate::monomorphization::const_arguments;
 use crate::monomorphization::selection::state_by_symbol;
 
 pub(super) fn rewrite_selected_call(
@@ -40,68 +36,6 @@ pub(super) fn rewrite_selected_call(
         .map(|state| state.name.clone())
         .expect("cloned specialization state");
     rewrite_selected_call_with_name(program, site, target, target_name, subjects);
-}
-
-/// Runtime subjects bound to `Value` binder slots at one call site, in
-/// telescope order. A rewritten call passes each as an appended ordinary
-/// argument matching the specialization's realized trailing parameters.
-pub(super) fn runtime_value_subjects(
-    program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
-    machine_arguments: &[StaticMachineArgument],
-) -> Vec<(typed_trees::name::Identifier, SymbolHandle)> {
-    machine_arguments
-        .iter()
-        .filter_map(|argument| {
-            let symbol =
-                const_arguments::resolve_runtime_subject(program, state, usize::MAX, argument)?;
-            Some((argument.path.first()?.clone(), symbol))
-        })
-        .collect()
-}
-
-/// Resolve runtime subjects while their cloned statement owner is in hand.
-/// Only sibling calls in the new expression region need these subjects; owned
-/// initializers and contract-only expressions deliberately acquire no body owner.
-pub(super) fn cloned_runtime_call_subjects(
-    program: &dyn ::validation::CheckingInput,
-    states: HandleSpan<typed_trees::state::State>,
-    state_symbols: &[(SymbolHandle, SymbolHandle)],
-    expression_start: usize,
-) -> Vec<(
-    ExpressionHandle,
-    Vec<(typed_trees::name::Identifier, SymbolHandle)>,
-)> {
-    let mut calls = Vec::new();
-    let mut expressions = Vec::new();
-    for state in program.machine_states.span_or_empty(states) {
-        for statement in program.statement_table.statements(state.statement_nodes) {
-            expressions.clear();
-            collect_statement_expression_trees(program, statement, &mut expressions);
-            for expression in expressions.iter().copied() {
-                if (expression.arena_index() as usize) < expression_start {
-                    continue;
-                }
-                let Some(call) = program.expression_table.call_node(expression) else {
-                    continue;
-                };
-                if state_symbols
-                    .iter()
-                    .any(|(_, target)| *target == call.target_symbol)
-                {
-                    calls.push((
-                        expression,
-                        runtime_value_subjects(program, state, &call.machine_arguments),
-                    ));
-                }
-            }
-        }
-    }
-    // Shared expression references retain the first lexical owner, as the
-    // original owner lookup did. Generation remains part of handle identity.
-    calls.sort_by_key(|(expression, _)| (expression.arena_index(), expression.generation()));
-    calls.dedup_by_key(|(expression, _)| *expression);
-    calls
 }
 
 pub(crate) fn insert_subject_name(
