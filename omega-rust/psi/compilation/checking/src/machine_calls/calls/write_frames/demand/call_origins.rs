@@ -68,7 +68,7 @@ impl<'program> CallFrameResolver<'program> {
         with_caller_origin_context(
             self.program,
             machine,
-            &self.symbols,
+            &self.tables.symbols,
             site,
             &self.caches.state_write_collections,
             |inference, prefix| {
@@ -157,13 +157,13 @@ impl<'program> CallFrameResolver<'program> {
                 name,
                 &receiver_members,
                 site,
-                &self.symbols,
+                &self.tables.symbols,
             )
         };
         with_caller_origin_context(
             program,
             machine,
-            &self.symbols,
+            &self.tables.symbols,
             site,
             &self.caches.state_write_collections,
             |inference, prefix| {
@@ -193,7 +193,7 @@ impl<'program> CallFrameResolver<'program> {
                                     program,
                                     machine,
                                     &machine_symbols,
-                                    &self.symbols,
+                                    &self.tables.symbols,
                                     inference,
                                     &[receiver_expression],
                                     &[],
@@ -254,7 +254,7 @@ impl<'program> CallFrameResolver<'program> {
                         program,
                         machine,
                         &machine_symbols,
-                        &self.symbols,
+                        &self.tables.symbols,
                         inference,
                         &[*argument],
                         &reference.into_iter().collect::<Vec<_>>(),

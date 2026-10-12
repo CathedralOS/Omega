@@ -55,6 +55,13 @@ pub trait CheckingInput: sealed::Sealed + fmt::Debug + Send + Sync {
     #[doc(hidden)]
     fn checking_memos(&self) -> Option<&CheckingMemos>;
 
+    /// Program-fixed call-frame symbol tables shared by every resolver over
+    /// this input. Inputs without invocation state supply none, and each
+    /// resolver builds its own.
+    fn call_frame_tables(&self) -> Option<Arc<crate::machine_calls::calls::CallFrameTables<'_>>> {
+        None
+    }
+
     /// Cleanup-complete effects are an explicit input to the later checking
     /// phase. Source preparation has no such input and infers source effects.
     fn prepared_effect_plans(&self) -> Option<&PreparedEffectPlans> {
@@ -143,6 +150,8 @@ pub struct CheckingContext<'program> {
     prepared_mathematics:
         Option<crate::mathematical_applications::PreparedMathematicalView<'program>>,
     memos: CheckingMemos,
+    call_frame_tables:
+        OnceLock<Option<Arc<crate::machine_calls::calls::CallFrameTables<'program>>>>,
 }
 
 impl<'program> CheckingContext<'program> {
@@ -153,6 +162,7 @@ impl<'program> CheckingContext<'program> {
             prepared_effects: None,
             prepared_mathematics: None,
             memos: CheckingMemos::default(),
+            call_frame_tables: OnceLock::new(),
         }
     }
 
@@ -166,6 +176,7 @@ impl<'program> CheckingContext<'program> {
     ) -> Self {
         self.finalized_selections = Some(selections);
         self.memos = CheckingMemos::default();
+        self.call_frame_tables = OnceLock::new();
         self
     }
 
@@ -174,6 +185,7 @@ impl<'program> CheckingContext<'program> {
     pub fn with_prepared_effect_plans(mut self, plans: &'program PreparedEffectPlans) -> Self {
         self.prepared_effects = Some(plans);
         self.memos = CheckingMemos::default();
+        self.call_frame_tables = OnceLock::new();
         self
     }
 
@@ -186,6 +198,7 @@ impl<'program> CheckingContext<'program> {
     ) -> Self {
         self.prepared_mathematics = mathematics;
         self.memos = CheckingMemos::default();
+        self.call_frame_tables = OnceLock::new();
         self
     }
 
@@ -224,6 +237,22 @@ impl CheckingInput for CheckingContext<'_> {
 
     fn checking_memos(&self) -> Option<&CheckingMemos> {
         Some(&self.memos)
+    }
+
+    fn call_frame_tables(&self) -> Option<Arc<crate::machine_calls::calls::CallFrameTables<'_>>> {
+        self.call_frame_tables
+            .get_or_init(|| {
+                // Built from the typed program so the tables live as long as
+                // it does; the caller-site caches rejoin this context's memos.
+                let mut tables = crate::machine_calls::calls::CallFrameTables::build(self.program)?;
+                tables.symbols.caller_sites = crate::frozen_program::frozen_memo(
+                    self,
+                    |memos| &memos.caller_sites,
+                    crate::declarations::symbols::CallerSiteCaches::default,
+                );
+                Some(Arc::new(tables))
+            })
+            .clone()
     }
 
     fn prepared_effect_plans(&self) -> Option<&PreparedEffectPlans> {
@@ -366,14 +395,12 @@ pub struct CheckingMemos {
     /// One owner-designated cleanup role per exact machine symbol; the chain
     /// walk through specialization templates is program-fixed, so cleanup
     /// consumers that probe every machine share each declaration's walk once.
-    pub(crate) nominal_cleanup_owners:
-        Mutex<symbols::SymbolMap<Option<symbols::SymbolHandle>>>,
+    pub(crate) nominal_cleanup_owners: Mutex<symbols::SymbolMap<Option<symbols::SymbolHandle>>>,
     /// Effective owner -> cleanup machine candidates, built once: a machine
     /// binds under its direct cleanup owner and under the generic base of
     /// that owner's origin, so consumers stop scanning every machine.
-    pub(crate) nominal_cleanup_machine_index: OnceLock<
-        Arc<symbols::SymbolKeyMap<symbols::SymbolHandle, Vec<symbols::SymbolHandle>>>,
-    >,
+    pub(crate) nominal_cleanup_machine_index:
+        OnceLock<Arc<symbols::SymbolKeyMap<symbols::SymbolHandle, Vec<symbols::SymbolHandle>>>>,
     /// One selected-application carrier verdict per (caller machine,
     /// application target, declared result, arity); each consultation
     /// re-derives program-fixed ownership, parameter eligibility, callee
@@ -395,6 +422,20 @@ pub struct CheckingMemos {
         OnceLock<Arc<crate::proof_contracts::contract_results::ContractOccurrenceIndex>>,
     pub(crate) bound_maps:
         OnceLock<Arc<crate::proof_contracts::immutable_integer_bounds::BoundMaps>>,
+    /// Each machine's seeded per-state incoming guard environments, under
+    /// the program's own call-frame resolver. A state query previously
+    /// rebuilt the whole machine's environments to keep one, once per
+    /// observed expression.
+    pub(crate) incoming_guard_environments: Mutex<
+        symbols::SymbolMap<
+            Arc<
+                Vec<(
+                    symbols::SymbolHandle,
+                    crate::proof_contracts::arithmetic_domains::ValueEnvironment,
+                )>,
+            >,
+        >,
+    >,
 }
 
 /// A rebuildable selected-application carrier verdict: the owner and declared

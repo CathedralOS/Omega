@@ -81,6 +81,7 @@ pub use write_frames::{
     state_reference_parameter_binding_is_stable,
 };
 pub(crate) use write_frames::{CallFrameCaches, InvocationReferenceSubject};
+pub use write_frames::CallFrameTables;
 pub(crate) use write_frames::{
     boundary_trait_signature, expression_has_calls, free_machine_entry_state,
     statement_value_expression_roots,

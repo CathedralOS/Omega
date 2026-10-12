@@ -1307,6 +1307,32 @@ pub(crate) fn incoming_guard_environment(
     state: &State,
     frames: Option<&crate::CallFrameResolver>,
 ) -> ValueEnvironment {
+    // A frozen input shares one seeded batch per machine; every state query
+    // otherwise rebuilt all of the machine's environments to keep one. The
+    // batch is keyed to the program's own resolver, so a query without one
+    // computes directly.
+    if frames.is_some()
+        && let Some(memos) = program.checking_memos()
+    {
+        let cached = memos
+            .incoming_guard_environments
+            .lock()
+            .ok()
+            .and_then(|environments| environments.get(&machine.symbol).cloned());
+        let environments = cached.unwrap_or_else(|| {
+            let built = std::sync::Arc::new(incoming_guard_environments(program, machine, frames));
+            if let Ok(mut environments) = memos.incoming_guard_environments.lock() {
+                environments.insert(machine.symbol, built.clone());
+            }
+            built
+        });
+        if let Some((_, environment)) = environments
+            .iter()
+            .find(|(symbol, _)| *symbol == state.symbol)
+        {
+            return environment.clone();
+        }
+    }
     let mut environment = arrivals::incoming_environments(program, machine, frames, None)
         .into_iter()
         .find_map(|(symbol, environment)| (symbol == state.symbol).then_some(environment))

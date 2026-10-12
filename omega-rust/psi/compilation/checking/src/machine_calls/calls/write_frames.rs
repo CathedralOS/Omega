@@ -69,6 +69,7 @@ pub use caller_aliases::{
 };
 pub(crate) use demand::statement_value_expression_roots;
 pub(crate) use demand::{CallFrameCaches, InvocationReferenceSubject};
+pub use demand::CallFrameTables;
 pub use demand::{CallFrameResolver, frame_paths_overlap, operand_call_plans};
 pub use place_paths::frame_coordinate_path;
 pub use stored_calls::StoredReferenceEffect;

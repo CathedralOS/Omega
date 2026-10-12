@@ -47,15 +47,45 @@ use typed_trees::statement::{StatementNode, TableCall};
 /// closed if the program's symbols are already invalid.
 pub struct CallFrameResolver<'program> {
     program: &'program dyn crate::CheckingInput,
-    symbols: TopLevelSymbols<'program>,
+    tables: std::sync::Arc<CallFrameTables<'program>>,
     /// The query memos. Inside a frozen-program scope every resolver built
     /// for the scope's program shares one set; see
     /// `CheckingContext`.
     caches: std::sync::Arc<CallFrameCaches>,
-    /// Per-machine member/state symbol tables, built once with the resolver
-    /// so every write-frame query shares them. `None` retains the build's
+}
+
+/// The program-fixed symbol tables a resolver reads. They depend only on the
+/// typed program, so a frozen checking context builds them once and every
+/// resolver over it shares them; building them per resolver cost about 2 ms of
+/// whole-program work across thousands of resolvers in one std check.
+pub struct CallFrameTables<'program> {
+    pub(crate) symbols: TopLevelSymbols<'program>,
+    /// Per-machine member/state symbol tables. `None` retains the build's
     /// non-empty-diagnostics verdict so callers keep failing closed.
     machine_symbols: HashMap<SymbolHandle, Option<std::sync::Arc<MachineSymbols<'program>>>>,
+}
+
+impl<'program> CallFrameTables<'program> {
+    /// `None` when the program's top-level symbols carry diagnostics.
+    pub(crate) fn build(program: &'program dyn crate::CheckingInput) -> Option<Self> {
+        let mut diagnostics = Vec::new();
+        let symbols = TopLevelSymbols::build(program, &mut diagnostics);
+        diagnostics.is_empty().then(|| Self {
+            symbols,
+            machine_symbols: program
+                .machines()
+                .iter()
+                .map(|machine| {
+                    let mut diagnostics = Vec::new();
+                    let built = MachineSymbols::build(program, machine, &mut diagnostics);
+                    (
+                        machine.symbol,
+                        diagnostics.is_empty().then(|| std::sync::Arc::new(built)),
+                    )
+                })
+                .collect(),
+        })
+    }
 }
 
 /// Every memo a resolver fills. Each is pure over the resolver's immutable
@@ -201,7 +231,7 @@ impl<'program> CallFrameResolver<'program> {
             target,
             arguments,
             backing,
-            &self.symbols,
+            &self.tables.symbols,
         )
         .is_some()
     }
@@ -217,7 +247,7 @@ impl<'program> CallFrameResolver<'program> {
             self.program,
             machine,
             state,
-            &self.symbols,
+            &self.tables.symbols,
             &mut FrameInference::default(),
         )
         .map(super::stored_calls::public_effects)
@@ -237,7 +267,7 @@ impl<'program> CallFrameResolver<'program> {
         let (state, _, index) = super::caller_aliases::caller_statement_at_site(
             self.program,
             machine,
-            &self.symbols,
+            &self.tables.symbols,
             CallerWriteSite::Statement(statement),
         )?;
         let prefix = super::state_write_walk::collected_prefix_at(
@@ -245,7 +275,7 @@ impl<'program> CallFrameResolver<'program> {
             self.program,
             machine,
             state,
-            &self.symbols,
+            &self.tables.symbols,
             index,
             true,
         )?;
@@ -254,7 +284,7 @@ impl<'program> CallFrameResolver<'program> {
             machine,
             call,
             &prefix,
-            &self.symbols,
+            &self.tables.symbols,
             &mut FrameInference::for_state(state.symbol),
         )
         .map(super::stored_calls::public_effects)
@@ -311,7 +341,7 @@ impl<'program> CallFrameResolver<'program> {
                 super::reference_subjects::local_origin(
                     self.program,
                     machine,
-                    &self.symbols,
+                    &self.tables.symbols,
                     statement,
                     local,
                     &self.caches.state_write_shared_collections,
@@ -337,7 +367,7 @@ impl<'program> CallFrameResolver<'program> {
                 self.program,
                 machine,
                 state,
-                &self.symbols,
+                &self.tables.symbols,
                 &mut FrameInference::default(),
             )
             .map(|origins| {
@@ -364,7 +394,7 @@ impl<'program> CallFrameResolver<'program> {
                 super::reference_subjects::bindings::are_stable_at_site(
                     self.program,
                     machine,
-                    &self.symbols,
+                    &self.tables.symbols,
                     CallerWriteSite::Expression(expression),
                     &self.caches.state_write_shared_collections,
                 )
@@ -381,7 +411,7 @@ impl<'program> CallFrameResolver<'program> {
                 super::reference_subjects::bindings::are_stable_at_site(
                     self.program,
                     machine,
-                    &self.symbols,
+                    &self.tables.symbols,
                     CallerWriteSite::Call(call),
                     &self.caches.state_write_shared_collections,
                 )
@@ -432,7 +462,7 @@ impl<'program> CallFrameResolver<'program> {
                 assignment_write_target(
                     self.program,
                     current_machine,
-                    &self.symbols,
+                    &self.tables.symbols,
                     statement,
                     &|state| self.state_assignments(current_machine, state),
                 )
@@ -450,7 +480,7 @@ impl<'program> CallFrameResolver<'program> {
         super::caller_aliases::assignment_destination_origins(
             self.program,
             machine,
-            &self.symbols,
+            &self.tables.symbols,
             self.machine_symbols(machine)?.as_ref(),
             statement,
             &|state| self.state_assignments(machine, state),
@@ -493,7 +523,7 @@ impl<'program> CallFrameResolver<'program> {
                     self.program,
                     machine,
                     state,
-                    &self.symbols,
+                    &self.tables.symbols,
                 ))
             },
         )
@@ -512,7 +542,7 @@ impl<'program> CallFrameResolver<'program> {
                 super::caller_aliases::assignment_write_paths(
                     self.program,
                     current_machine,
-                    &self.symbols,
+                    &self.tables.symbols,
                     statement,
                     &|state| self.state_assignments(current_machine, state),
                 )
@@ -538,7 +568,7 @@ impl<'program> CallFrameResolver<'program> {
                 local_write_origins_before_statement(
                     self.program,
                     current_machine,
-                    &self.symbols,
+                    &self.tables.symbols,
                     statement,
                     &self.caches.state_write_collections,
                 )
@@ -547,26 +577,17 @@ impl<'program> CallFrameResolver<'program> {
     }
 
     pub fn new(program: &'program dyn crate::CheckingInput) -> Option<Self> {
-        let mut diagnostics = Vec::new();
-        let symbols = TopLevelSymbols::build(program, &mut diagnostics);
-        diagnostics.is_empty().then_some(Self {
+        // A frozen context shares one set of tables; a bare program builds its own.
+        let tables = match program.call_frame_tables() {
+            Some(tables) => tables,
+            None => std::sync::Arc::new(CallFrameTables::build(program)?),
+        };
+        Some(Self {
             program,
-            symbols,
+            tables,
             caches: crate::frozen_program::frozen_program_memos(program)
                 .map(|memos| memos.call_frames.clone())
                 .unwrap_or_default(),
-            machine_symbols: program
-                .machines()
-                .iter()
-                .map(|machine| {
-                    let mut diagnostics = Vec::new();
-                    let built = MachineSymbols::build(program, machine, &mut diagnostics);
-                    (
-                        machine.symbol,
-                        diagnostics.is_empty().then(|| std::sync::Arc::new(built)),
-                    )
-                })
-                .collect(),
         })
     }
 
@@ -577,7 +598,11 @@ impl<'program> CallFrameResolver<'program> {
         &self,
         machine: &'program Machine,
     ) -> Option<std::sync::Arc<MachineSymbols<'program>>> {
-        self.machine_symbols.get(&machine.symbol).cloned().flatten()
+        self.tables
+            .machine_symbols
+            .get(&machine.symbol)
+            .cloned()
+            .flatten()
     }
 
     /// Whole-program call plans, derived once per resolver and shared by
@@ -620,7 +645,7 @@ impl<'program> CallFrameResolver<'program> {
             with_caller_origins(
                     self.program,
                     current_machine,
-                    &self.symbols,
+                    &self.tables.symbols,
                     CallerWriteSite::Call(call),
                     &self.caches.state_write_collections,
                     |inference, prefix| {
@@ -644,7 +669,7 @@ impl<'program> CallFrameResolver<'program> {
                                 prefix.isolated_locals,
                                 prefix.aliases,
                                 prefix.divergent,
-                                &self.symbols,
+                                &self.tables.symbols,
                                 inference,
                             );
                         }
@@ -664,13 +689,13 @@ impl<'program> CallFrameResolver<'program> {
                             call.target.as_str(),
                             &receiver,
                             CallerWriteSite::Call(call),
-                            &self.symbols,
+                            &self.tables.symbols,
                         );
                         let argument_origins = prefix.argument_origins(
                             self.program,
                             current_machine,
                             &machine_symbols,
-                            &self.symbols,
+                            &self.tables.symbols,
                             inference,
                             arguments,
                             &argument_types,
@@ -683,7 +708,7 @@ impl<'program> CallFrameResolver<'program> {
                             call,
                             current_machine,
                             &machine_symbols,
-                            &self.symbols,
+                            &self.tables.symbols,
                             inference,
                             Some(&argument_origins),
                         );
@@ -693,7 +718,7 @@ impl<'program> CallFrameResolver<'program> {
                                 self.program,
                                 current_machine,
                                 &machine_symbols,
-                                &self.symbols,
+                                &self.tables.symbols,
                                 &receiver,
                                 call.target.as_str(),
                                 CallerWriteSite::Call(call),
@@ -718,7 +743,7 @@ impl<'program> CallFrameResolver<'program> {
                                 current_machine,
                                 call,
                                 &machine_symbols,
-                                &self.symbols,
+                                &self.tables.symbols,
                             )
                         })
                     },
@@ -771,7 +796,7 @@ impl<'program> CallFrameResolver<'program> {
         with_caller_origins(
             self.program,
             current_machine,
-            &self.symbols,
+            &self.tables.symbols,
             CallerWriteSite::Expression(expression),
             &self.caches.state_write_collections,
             |inference, prefix| {
@@ -781,7 +806,7 @@ impl<'program> CallFrameResolver<'program> {
                     expression,
                     current_machine,
                     &machine_symbols,
-                    &self.symbols,
+                    &self.tables.symbols,
                     inference,
                     &mut written,
                     prefix,
@@ -860,7 +885,7 @@ impl<'program> CallFrameResolver<'program> {
         with_caller_origins(
             self.program,
             current_machine,
-            &self.symbols,
+            &self.tables.symbols,
             CallerWriteSite::Statement(statement),
             &self.caches.state_write_collections,
             |inference, prefix| {
@@ -871,7 +896,7 @@ impl<'program> CallFrameResolver<'program> {
                         expression,
                         current_machine,
                         machine_symbols,
-                        &self.symbols,
+                        &self.tables.symbols,
                         inference,
                         &mut written,
                         prefix,
@@ -934,7 +959,7 @@ impl<'program> CallFrameResolver<'program> {
             self.program,
             machine,
             state,
-            &self.symbols,
+            &self.tables.symbols,
             &mut inference,
         )
         .or_else(|| {
@@ -942,7 +967,7 @@ impl<'program> CallFrameResolver<'program> {
                 self.program,
                 machine,
                 state,
-                &self.symbols,
+                &self.tables.symbols,
                 &inference,
             )
         });
