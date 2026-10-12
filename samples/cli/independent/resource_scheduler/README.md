@@ -78,8 +78,9 @@ need their own executions. The commands above use a POSIX shell; on Windows
 use the equivalent environment assignment and input redirection.
 
 The top-level `input.txt` and exact stdout/stderr/exit files describe the diamond
-request. The sample sweep uses closed stdin, so the main header separately pins
-the correct `INVALID` / exit 2 response to that empty request. The negative
+request. The sample sweep feeds `input.txt` and scores those files; the main
+header separately pins the correct `INVALID` / exit 2 response to an empty
+manual request. The negative
 control uses `invalid.omg` so ordinary sample discovery does not mistake it for
 a passing `main.omg` project.
 

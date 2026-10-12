@@ -27,6 +27,16 @@ Accepting a review records project acceptance, NOT that an audit occurred.
 This script accepts every pending decision so the corpus can be measured; do
 not mistake a green row here for an audited dependency.
 
+A project that carries `input.txt` beside its entry runs with that file as
+its standard input — the corpus runner's fixture convention. Every other
+sample launches with empty stdin. When `input.txt` is present, the authored
+`expected_native_exit[.<target>].txt`, `expected_stdout.txt` and
+`expected_stderr.txt` files are the oracle for each channel they cover and
+compare exactly (line endings normalized); a channel without a file falls
+back to the header oracle. The `omega run` wrapper lines (`native exit N`
+and friends) are CLI reporting on stderr, never program output, so they are
+stripped before the stderr comparison.
+
 Discovery is shared with the check gate. Complete intended-invalid controls use
 source checking only and require their authored rejection identity. Positive
 check-only probes have no runtime score but their failure still fails this gate.
@@ -52,6 +62,11 @@ NOT_HOST_RUNNABLE = ("samples/uefi/",)
 DECISION = re.compile(rb"^(decision row [0-9a-f]+) pending$", re.MULTILINE)
 EXPECT_EXIT = re.compile(r"//\s*Expected exit:\s*(\d+)")
 EXPECT_OUTPUT = re.compile(r"//\s*Expected output contains:\s*(.+)")
+# `omega run` reports the observed host status on its own stderr after
+# forwarding the program's streams; these lines are wrapper reporting, never
+# program output.
+WRAPPER_LINE = re.compile(
+    r"native (exit -?\d+|signal \d+|terminated without an exit code)$")
 
 
 def discover(root, filters=()):
@@ -69,17 +84,50 @@ def oracle(sample, entry=None):
     )
 
 
-def run(command, timeout, stdin_empty=True):
+def run(command, timeout, stdin=subprocess.DEVNULL):
     try:
         return subprocess.run(
             command,
             capture_output=True,
             text=True,
             timeout=timeout,
-            stdin=subprocess.DEVNULL if stdin_empty else None,
+            stdin=stdin,
         )
     except subprocess.TimeoutExpired:
         return None
+
+
+def fixture_oracles(sample, target):
+    """Corpus-runner-style oracle files beside a project entry.
+
+    `expected_native_exit.<target>.txt` overrides the portable
+    `expected_native_exit.txt`, matching the corpus gate's target-specific
+    oracle spelling. Returns the authored file per channel, or None.
+    """
+    exit_path = None
+    for name in (f"expected_native_exit.{target}.txt", "expected_native_exit.txt"):
+        candidate = os.path.join(sample, name)
+        if os.path.isfile(candidate):
+            exit_path = candidate
+            break
+    return {
+        "exit": exit_path,
+        "stdout": os.path.join(sample, "expected_stdout.txt")
+                  if os.path.isfile(os.path.join(sample, "expected_stdout.txt")) else None,
+        "stderr": os.path.join(sample, "expected_stderr.txt")
+                  if os.path.isfile(os.path.join(sample, "expected_stderr.txt")) else None,
+    }
+
+
+def normalized(path):
+    """Oracle files compare byte-exact except for line-ending normalization."""
+    return Path(path).read_text(encoding="utf-8", errors="replace").replace("\r\n", "\n")
+
+
+def program_stderr(stderr):
+    """Strip `omega run` wrapper lines; what remains is the program's stderr."""
+    lines = stderr.replace("\r\n", "\n").split("\n")
+    return "\n".join(line for line in lines if not WRAPPER_LINE.match(line))
 
 
 def accept_review(cli, sample, target, timeout):
@@ -200,7 +248,17 @@ def measure(cli, sample, target, timeout):
             detail = classify(completed.stdout + completed.stderr)
             return {"sample": sample, "state": "check-fail", "detail": detail}
         return {"sample": sample, "state": "checked", "detail": "check-only: binds no program entry"}
-    if expected_exit is None and expected_output is None:
+    # A project carrying `input.txt` runs under the corpus-runner fixture
+    # contract: the file is the launched program's stdin. Its authored
+    # `expected_*` files then score their channels exactly; a channel without
+    # a file still falls back to the header oracle. Without `input.txt` the
+    # files describe a private harness run this gate cannot reproduce, so
+    # scoring stays on the header alone.
+    input_path = os.path.join(sample, "input.txt")
+    has_input = os.path.isfile(input_path)
+    authored = fixture_oracles(sample, target) if has_input else None
+    fixture = authored is not None and any(authored.values())
+    if not fixture and expected_exit is None and expected_output is None:
         # Nothing to compare, so publish the native product without launching
         # it: an interactive sample would wait for input until the timeout.
         completed = run([cli, "--target", target, str(project.entry)], timeout)
@@ -210,7 +268,12 @@ def measure(cli, sample, target, timeout):
             detail = classify(completed.stdout + completed.stderr)
             return {"sample": sample, "state": "no-native-build", "detail": detail}
         return {"sample": sample, "state": "no-oracle", "detail": "header documents neither"}
-    completed = run([cli, "run", str(project.entry)], timeout)
+    input_stream = open(input_path, "rb") if has_input else subprocess.DEVNULL
+    try:
+        completed = run([cli, "run", str(project.entry)], timeout, stdin=input_stream)
+    finally:
+        if input_stream is not subprocess.DEVNULL:
+            input_stream.close()
     if completed is None:
         return {"sample": sample, "state": "timeout", "detail": f">{timeout}s"}
     combined = completed.stdout + completed.stderr
@@ -224,10 +287,34 @@ def measure(cli, sample, target, timeout):
             detail = f"does not check: {classify(review_output)}"
         return {"sample": sample, "state": "no-native-build", "detail": detail}
     mismatches = []
-    if expected_exit is not None and completed.returncode != expected_exit:
+    if fixture and authored["exit"] is not None:
+        expectation = normalized(authored["exit"]).strip()
+        if expectation == "trap":
+            # The corpus trap oracle: SIGTRAP on ARM64, SIGILL on Unix
+            # x86-64, STATUS_ILLEGAL_INSTRUCTION on Windows x86-64 — read
+            # through the `omega run` wrapper's host status line.
+            if not re.search(
+                    r"native (signal [45]|exit -1073741795)", completed.stderr):
+                mismatches.append("expected native trap; run exited without an illegal-instruction signal")
+        else:
+            try:
+                expected_code = int(expectation)
+            except ValueError:
+                mismatches.append(f"invalid native exit expectation {expectation!r}")
+            else:
+                if completed.returncode != expected_code:
+                    mismatches.append(
+                        f"exit {completed.returncode} != expected_native_exit.txt {expected_code}")
+    elif expected_exit is not None and completed.returncode != expected_exit:
         mismatches.append(f"exit {completed.returncode} != {expected_exit}")
-    if expected_output is not None and expected_output not in completed.stdout:
+    if fixture and authored["stdout"] is not None:
+        if normalized(authored["stdout"]) != completed.stdout.replace("\r\n", "\n"):
+            mismatches.append("stdout differs from expected_stdout.txt")
+    elif expected_output is not None and expected_output not in completed.stdout:
         mismatches.append(f"stdout lacks {expected_output!r}")
+    if fixture and authored["stderr"] is not None:
+        if normalized(authored["stderr"]) != program_stderr(completed.stderr):
+            mismatches.append("stderr differs from expected_stderr.txt")
     if mismatches:
         return {"sample": sample, "state": "oracle-failed", "detail": "; ".join(mismatches)}
     return {"sample": sample, "state": "pass", "detail": ""}

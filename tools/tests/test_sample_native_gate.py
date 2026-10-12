@@ -3,6 +3,7 @@
 import importlib.util
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -13,6 +14,9 @@ SPEC = importlib.util.spec_from_file_location(
 )
 gate = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(gate)
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import sample_projects
 
 
 class ReviewAcceptanceTests(unittest.TestCase):
@@ -50,6 +54,88 @@ class ReviewAcceptanceTests(unittest.TestCase):
                 reason, output = gate.accept_review("omega", directory, "windows_x86_64", 10)
             self.assertEqual(reason, "resume-failed")
             self.assertEqual(output, "review findings changed")
+
+
+class FixtureOracleTests(unittest.TestCase):
+    """`input.txt` beside the entry is the run's stdin; `expected_*` files
+    score their channels exactly instead of the header oracle."""
+
+    def project(self, directory, header="// Expected exit: 0.\n"):
+        root = Path(directory)
+        (root / "main.omg").write_text(header + "module probe;\n", encoding="utf-8")
+        (root / "build.omg").write_text(
+            'machine build(builder: &mut Build) {\n'
+            '    Build::application(builder, "probe");\n'
+            '    Build::bind(builder, macos_arm64::ProgramEntry, probe::Main::main);\n'
+            '}\n',
+            encoding="utf-8",
+        )
+        return root
+
+    def measure(self, directory, stdout, stderr, exit_code=0):
+        """Run measure() with `run` faked: reviews succeed, `omega run`
+        returns the supplied program result and records its stdin."""
+        calls = []
+
+        def fake_run(command, timeout, stdin=subprocess.DEVNULL):
+            calls.append((command, stdin))
+            if "run" in command:
+                return subprocess.CompletedProcess(command, exit_code, stdout, stderr)
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        root = Path(directory)
+        project = sample_projects.Project(
+            directory=root, entry=root / "main.omg", role="program")
+        with patch.object(gate, "run", side_effect=fake_run), \
+                patch.object(gate, "project_at", return_value=project):
+            result = gate.measure("omega", directory, "macos_arm64", 10)
+        runs = [stdin for command, stdin in calls if "run" in command]
+        return result, runs
+
+    def test_input_fixture_feeds_input_and_scores_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = self.project(directory)
+            (root / "input.txt").write_bytes(b"A")
+            (root / "expected_native_exit.txt").write_text("0\n", encoding="utf-8")
+            (root / "expected_stdout.txt").write_text(
+                "float equality: equal and unequal\n", encoding="utf-8")
+            (root / "expected_stderr.txt").write_text("", encoding="utf-8")
+            result, runs = self.measure(
+                directory,
+                "float equality: equal and unequal\n",
+                "native exit 0\n",
+            )
+            self.assertEqual(result["state"], "pass")
+            self.assertEqual(len(runs), 1)
+            self.assertIsNot(runs[0], subprocess.DEVNULL)
+            self.assertEqual(runs[0].mode, "rb")
+
+    def test_fixture_stdout_mismatch_is_oracle_failed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = self.project(directory)
+            (root / "input.txt").write_bytes(b"A")
+            (root / "expected_stdout.txt").write_text("wanted\n", encoding="utf-8")
+            result, _ = self.measure(directory, "other\n", "native exit 0\n")
+            self.assertEqual(result["state"], "oracle-failed")
+            self.assertIn("stdout differs", result["detail"])
+
+    def test_program_stderr_is_compared_without_wrapper_lines(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = self.project(directory)
+            (root / "input.txt").write_bytes(b"A")
+            (root / "expected_stderr.txt").write_text("", encoding="utf-8")
+            result, _ = self.measure(directory, "", "warning\nnative exit 0\n")
+            self.assertEqual(result["state"], "oracle-failed")
+            self.assertIn("stderr differs", result["detail"])
+
+    def test_header_oracle_keeps_empty_stdin(self):
+        with tempfile.TemporaryDirectory() as directory:
+            self.project(
+                directory,
+                header="// Expected exit: 2.\n// Expected output contains: INVALID\n")
+            result, runs = self.measure(directory, "INVALID\n", "native exit 2\n", exit_code=2)
+            self.assertEqual(result["state"], "pass")
+            self.assertEqual(runs, [subprocess.DEVNULL])
 
 
 if __name__ == "__main__":

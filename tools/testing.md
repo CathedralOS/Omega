@@ -515,7 +515,14 @@ python3 tools/sample_native_gate.py --cli "$(realpath ../tgt-opt/debug/omega*)" 
   --target windows_x86_64 --filter cli/ --jobs 8 --timeout 900 < /dev/null
 ```
 
-The corpus and sample gates give every child an empty stdin. Close stdin
+The corpus gate executes fixtures with `input.txt` as stdin (absent means an
+empty stream); the sample gate does the same for a project carrying
+`input.txt` beside its entry and then scores the authored
+`expected_native_exit[.<target>].txt`, `expected_stdout.txt` and
+`expected_stderr.txt` files exactly where present, falling back to the
+header oracle for channels without a file. Samples without `input.txt` run
+with empty stdin under the header oracle alone. Every non-execution child in
+both gates still gets an empty stdin. Close stdin
 (`< /dev/null`, or `$null |` in PowerShell) on a direct `omega` command run in
 the background: `omega run` forwards stdin and otherwise waits at zero CPU.
 

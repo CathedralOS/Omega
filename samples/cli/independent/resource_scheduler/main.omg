@@ -1,6 +1,7 @@
 // Complete IND02 entrypoint: finite stdin -> validated model -> exact schedule
 // -> independent invariant walk -> machine-readable output. No closing pause.
-// The sample sweep supplies closed stdin: that invalid request must exit 2.
+// The sample sweep feeds `input.txt` and scores the `expected_*` files; this
+// header pins the closed-stdin INVALID response of a manual empty-stdin run.
 // Expected exit: 2.
 // Expected output contains: INVALID
 use omega_language_std::console;
