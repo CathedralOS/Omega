@@ -29,8 +29,11 @@ struct ServiceFieldApplication<'program> {
 #[derive(Clone, Copy)]
 struct ServiceFieldSource<'program> {
     definition: &'program DataDefinition,
-    storage_reference: TypeReferenceHandle,
+    storage_definition: &'program DataDefinition,
     reference: TypeReferenceHandle,
+    /// Exact receiving application already qualified for storage. The source
+    /// prefix above remains the supplying region/argument environment.
+    storage_reference: TypeReferenceHandle,
     lexical_owner: symbols::SymbolHandle,
 }
 
@@ -53,8 +56,9 @@ impl<'program> ServiceFieldSource<'program> {
             .type_symbol(&checked.type_reference_table);
         Some(Self {
             definition: checked.unique_data_definition_by_symbol(owner)?,
-            storage_reference: *referee,
+            storage_definition: context.definition,
             reference,
+            storage_reference: *referee,
             lexical_owner,
         })
     }
@@ -539,16 +543,27 @@ fn collect_service_fields<'a>(
             continue;
         };
         let field_identity = data_field_identity(field);
-        // Specialization gives storage fields new symbols. Rejoin the authored
-        // member through its retained generic origin and the exact reference
-        // used by storage eligibility, including occurrence-specific field
-        // views. The original field operand and its supplying prefix still
-        // own region custody; the prepared storage view cannot replace them.
-        let Some(storage_field) = checked.closed_data_constructor_field(
-            source.storage_reference,
-            source.definition.symbol,
-            field.symbol,
-        ) else {
+        // Specialization changes storage symbols. Rejoin this original
+        // selector through the exact receiving application's retained member
+        // correspondence, rather than requiring the template symbol in the
+        // specialized namespace. It must name the already qualified storage
+        // definition; an equal-looking sibling application cannot donate it.
+        // The private source pair starts at the actual entry referee and
+        // descends through each selected field of that same receiving view.
+        // Its source reference may still contain Const operands supplied by
+        // enclosing applications: do not require that raw reference to close
+        // without its telescope. Region custody consumes that prefix below.
+        let storage_field = checked
+            .closed_data_constructor_definition(source.storage_reference, source.definition.symbol)
+            .filter(|definition| std::ptr::eq(*definition, source.storage_definition))
+            .and_then(|_| {
+                checked.closed_data_constructor_field(
+                    source.storage_reference,
+                    source.definition.symbol,
+                    field.symbol,
+                )
+            });
+        let Some(storage_field) = storage_field else {
             diagnostics.push(Diagnostic::error(format!(
                 "selected ProgramEntry field `{field_identity}` lost its retained storage declaration"
             )));
@@ -592,9 +607,10 @@ fn collect_service_fields<'a>(
                 field_path.pop();
             }
             Ok(None) => {
-                if nested_source_record(checked, storage_field.type_reference).is_none() {
+                let Some(nested) = nested_source_record(checked, storage_field.type_reference)
+                else {
                     continue;
-                }
+                };
                 let owner_symbol = checked
                     .type_reference_table
                     .type_reference(reference)
@@ -612,8 +628,9 @@ fn collect_service_fields<'a>(
                     owner,
                     ServiceFieldSource {
                         definition: declaration,
-                        storage_reference: storage_field.type_reference,
+                        storage_definition: nested,
                         reference,
+                        storage_reference: storage_field.type_reference,
                         lexical_owner: source.lexical_owner,
                     },
                     &mut field_applications,
