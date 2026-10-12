@@ -428,30 +428,24 @@ fn result_type(
                     );
                 }
                 let applied = program.type_reference_table.peeled_type_reference(receiver);
-                if let Some(data) = program.data_application_definition(applied) {
-                    // The producer substituted this exact receiver's fields.
-                    // A symbolic telescope is readable without being closed
-                    // storage; never reopen its unrelated declaration binders.
-                    return crate::value_custody::places::exact_data_member_field(
-                        program,
-                        data,
-                        member.member_symbol,
-                        member.member.as_str(),
-                        member.case_variant.as_ref().map(|case| case.as_str()),
-                    )
-                    .map(|field| field.type_reference);
-                }
-                let data =
-                    crate::value_custody::places::data_definition_for_type(program, receiver)?;
-                if let Some(instance) = data.generic_instance {
+                if program.data_application_definition(applied).is_some()
+                    || program.closed_data_definition(applied).is_some()
+                {
+                    // Result and place queries consume the same applied member
+                    // correspondence. A source selector can retain a prepared
+                    // nominal field while this occurrence owns a scoped view;
+                    // exact symbol equality alone would strand nested borrows.
                     return program
-                        .closed_data_member_field(
-                            instance,
+                        .applied_data_projected_field(
+                            applied,
                             member.member_symbol,
                             member.member.as_str(),
+                            member.case_variant.as_ref().map(|case| case.as_str()),
                         )
                         .map(|field| field.type_reference);
                 }
+                let data =
+                    crate::value_custody::places::data_definition_for_type(program, receiver)?;
                 crate::value_custody::places::exact_data_member_field(
                     program,
                     data,

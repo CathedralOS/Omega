@@ -803,21 +803,26 @@ impl TypedTrees {
         retained: SymbolHandle,
         member_name: &str,
     ) -> Option<&crate::data::DataField> {
-        self.closed_data_projected_field(reference, retained, member_name, None)
+        self.applied_data_projected_field(reference, retained, member_name, None)
     }
 
     /// Common and case-qualified projections share the receiver's original
     /// member correspondence. The source qualification chooses a case; a
     /// retained selector must rejoin that exact field rather than another
-    /// same-spelled payload or a sibling application.
-    pub fn closed_data_projected_field(
+    /// same-spelled payload or a sibling application. Symbolic application
+    /// views expose their substituted fields without claiming closed storage;
+    /// translating a different retained namespace still owes the complete
+    /// constructor correspondence below.
+    pub fn applied_data_projected_field(
         &self,
         reference: TypeReferenceHandle,
         retained: SymbolHandle,
         member_name: &str,
         case_name: Option<&str>,
     ) -> Option<&crate::data::DataField> {
-        let instance = self.closed_data_definition(reference)?;
+        let instance = self
+            .data_application_definition(reference)
+            .or_else(|| self.closed_data_definition(reference))?;
         let mut fields = self
             .data_members(instance)
             .iter()
