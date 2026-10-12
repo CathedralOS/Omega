@@ -56,6 +56,10 @@ pub fn validate_static_machine_bindings(
             );
         }
     }
+    // Actual call occurrences owe supplied lifetime correspondence. A
+    // declaration specialization separately describes a quantified family;
+    // retaining that receipt never turns it into an additional source call.
+    let source_applications = applications.clone();
     applications.extend(
         program
             .machine_specializations
@@ -92,13 +96,27 @@ pub fn validate_static_machine_bindings(
         let lifetimes = program
             .expression_table
             .static_machine_application_lifetimes(handle);
+        if source_applications.contains(&handle) {
+            let source_lifetimes =
+                typed_trees::static_applications::StaticApplicationDeclaration::for_application(
+                    program.typed_program(),
+                    application,
+                )
+                .and_then(|declaration| {
+                    declaration.bind_lifetimes(program.typed_program(), handle)
+                });
+            if let Err(reason) = source_lifetimes {
+                diagnostics.push(Diagnostic::error(reason));
+                continue;
+            }
+        }
         if !lifetimes.is_empty() {
             let declared = program.machine_by_symbol(application.binding_declaration);
             let owner = program.machine_by_symbol(application.lexical_owner);
             if declared.zip(owner).is_none_or(|(declared, owner)| {
-                // Ordinary calls may infer only the used part of a lifetime
-                // telescope. Applied provider views separately require a
-                // complete explicitly selected tuple, including unused slots.
+                // Complete source correspondence was judged on the actual
+                // occurrence above. Every retained named operand still owes
+                // its own declaration and lexical scope, including families.
                 lifetimes.iter().enumerate().any(|(ordinal, binding)| {
                     !declared
                         .lifetime_parameters
