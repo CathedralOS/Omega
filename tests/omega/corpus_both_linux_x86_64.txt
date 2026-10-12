@@ -223,3 +223,5 @@ pass/float/runtime_absolute_shared_call_operands_exit built 75157ms exit:70 inte
 pass/float/runtime_nested_float_min_max_exit built 75430ms exit:70 interpreter-exit:70 interpreter:agrees @07b6d5e126c9
 pass/float/runtime_resultless_law_equality_custody_exit built 75060ms exit:70 interpreter-exit:70 interpreter:agrees @07b6d5e126c9
 pass/cases/runtime_case_payload_policy_cast_exit built 6240ms exit:0 interpreter-exit:0 interpreter:agrees @31988b31bfed+wt
+pass/collections/float_array_completed_call_store_exit built 13115ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @9462eda24d9e+wt
+pass/collections/runtime_three_indexed_record_float_read_exit built 11672ms exit:0 interpreter-exit:0 interpreter:agrees @9462eda24d9e+wt

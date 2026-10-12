@@ -6513,3 +6513,7 @@ run/stores/runtime_float_store_selector_snapshot_exit checked 8082ms check-targe
 run/variant_decimal_runtime_division checked 11419ms check-target:linux_x86_64 @a9ae30e1c334+wt
 run/variant_record_normalization_repeats checked 13906ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/cases/runtime_case_payload_policy_cast_exit checked 7965ms check-target:macos_arm64 @31988b31bfed+wt
+pass/collections/float_array_completed_call_store_exit checked 12682ms check-target:macos_arm64 @9462eda24d9e+wt
+pass/collections/runtime_three_indexed_record_float_read_exit checked 10892ms check-target:macos_arm64 @9462eda24d9e+wt
+fail/collections/runtime_three_indexed_float_read_missing_bound rejected 1706ms expected @9462eda24d9e+wt
+	cannot prove index `row` is within length 2 in read::entry

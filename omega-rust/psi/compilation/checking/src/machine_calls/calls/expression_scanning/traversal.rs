@@ -1,7 +1,9 @@
 //! Recursive statement and expression traversal for value-position calls.
 //!
 //! This owner preserves source-order diagnostics while finding value calls,
-//! malformed bare names, and unsupported nested indexed reads. Per-call target,
+//! and malformed bare names. Indexed reads keep their ordinary type, custody,
+//! and per-occurrence bounds checks; checked structural projections retain every
+//! field and selector for lowering rather than admitting source arrangements. Per-call target,
 //! argument, and bound validation remains in the parent module.
 
 use super::validate_expression_call_bounds;
@@ -252,180 +254,6 @@ pub(crate) fn validate_value_position_calls(
                     TransitionTargetNode::Terminal => {}
                 }
             }
-        }
-    }
-}
-
-/// Reject READING an array element with a RUNTIME SCALAR index whose collection is
-/// itself reached THROUGH a RUNTIME array index -- `grid[i][j]` with BOTH indices
-/// runtime. The lowering op carries ONE runtime index, so a runtime index above
-/// another runtime index has no computable offset: the backend would resolve it to
-/// the collection BASE and SILENTLY READ 0 instead of the element. Lowerable shapes
-/// are untouched: any CONST index level (`grid[i][0]` -- suffix walk; `grid[1][j]`,
-/// `rows[2].data[j]` -- const levels fold into the collection resolution's fixed
-/// offset, landed 2026-07-07), a single index over a non-indexed base (`arr[i]`,
-/// `self.field[j]`), and a RANGE index (`sub[1..][1..]`, a nested subslice). The
-/// real fix for both-runtime is a two-index lowering op (backend feature).
-fn report_nested_runtime_indexed_read(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    expression: ExpressionHandle,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let Some(indexed) = program.expression_table.indexed_node(expression) else {
-        return;
-    };
-    // The index must be a RUNTIME SCALAR: not a constant integer (a fixed offset,
-    // lowerable) and not a RANGE (`sub[1..][1..]` is a nested SUBSLICE that lowers).
-    let mut index = indexed.index;
-    index = program.expression_table.peeled_expression_handle(index);
-    if matches!(
-        program.expression_table.expression(index),
-        ExpressionNode::Integer(_) | ExpressionNode::Range(_)
-    ) {
-        return;
-    }
-    // The collection's place chain (through Member receivers and Mutable) must reach
-    // a RUNTIME array index -- `grid[c][j]` with BOTH indices runtime. A base with no
-    // index in its chain (`arr`, `self.field`) is a plain place whose element offset
-    // IS computable; a CONST-indexed base (`grid[1][j]`, `rows[2].data[j]`) folds into
-    // the machine-owned collection resolution's fixed offset and lowers (2026-07-07:
-    // walk-boundary threading in instruction selection + the root-element-index
-    // ordering fix in resolve_machine_owned_collection_in_table; value-validated
-    // differential probes). Only a runtime index ABOVE another RUNTIME index remains
-    // unlowerable -- the op carries one runtime index.
-    let mut collection = indexed.collection;
-    let base_is_runtime_indexed = loop {
-        match program.expression_table.expression(collection) {
-            ExpressionNode::Indexed(inner) => {
-                let inner_index = program
-                    .expression_table
-                    .peeled_expression_handle(inner.index);
-                if !matches!(
-                    program.expression_table.expression(inner_index),
-                    ExpressionNode::Integer(_) | ExpressionNode::Range(_)
-                ) {
-                    break true;
-                }
-                collection = inner.collection;
-            }
-            ExpressionNode::Member(member) => collection = member.receiver,
-            ExpressionNode::Borrow(inner) => collection = inner.target,
-            _ => break false,
-        }
-    };
-    if !base_is_runtime_indexed {
-        return;
-    }
-    // The DIRECTLY-nested two-level machine-owned read (`self.grid[i][j]`,
-    // both indices runtime, the base a `self` field behind only const-indexed
-    // /member links) lowers since 2026-07-07 via the double-indexed copy op
-    // (resolve_runtime_machine_double_indexed_source_in_table -- this
-    // predicate mirrors its shape gates exactly). Everything else stays
-    // fenced: 3+ runtime levels, a member BETWEEN the two indices
-    // (`rows[i].data[j]`), and frame/local/param collections. Faces the op's
-    // consumers do not cover (writes, member suffixes above the element,
-    // oversized elements) reject LOUDLY downstream -- the write classifier
-    // refuses the fast path and the storage blockers report unlowered
-    // statements, so nothing falls back to the legacy silent paths.
-    if double_indexed_machine_read_is_lowerable(program, indexed) {
-        return;
-    }
-    diagnostics.push(Diagnostic::error(format!(
-        "machine `{}` state `{}` reads an array element with a runtime index whose base is itself \
-         indexed by another RUNTIME value (`grid[i][j]`, both indices runtime), which the backend \
-         cannot lower yet -- it silently reads 0 instead of the element. Make one index a constant, \
-         or use a flat array with a computed index",
-        machine.name.as_str(),
-        state.name.as_str(),
-    )));
-}
-
-/// Whether a both-runtime nested read matches the DOUBLE-INDEXED lowering's
-/// shape: `<self-field base>[i][j]` -- the outer collection (Mutable-peeled)
-/// is DIRECTLY another `Indexed` with a runtime index, and that inner
-/// collection's chain reaches a `self` member through only CONST-indexed /
-/// member / mutable links (the const-prefix peel folds those). Mirrors
-/// `resolve_runtime_machine_double_indexed_source_in_table`.
-fn double_indexed_machine_read_is_lowerable(
-    program: &dyn crate::CheckingInput,
-    indexed: &typed_trees::expression::TableIndexedExpression,
-) -> bool {
-    // A member chain BETWEEN the two indices (`rows[i].data[j]`) is a fixed
-    // offset the resolver folds into the op's field_byte_offset (2026-07-07),
-    // so peel Member links too.
-    let mut inner = indexed.collection;
-    loop {
-        match program.expression_table.expression(inner) {
-            ExpressionNode::Borrow(next) => inner = next.target,
-            ExpressionNode::Member(member) => inner = member.receiver,
-            _ => break,
-        }
-    }
-    let Some(inner_indexed) = program.expression_table.indexed_node(inner) else {
-        return false;
-    };
-    let mut inner_index = inner_indexed.index;
-    inner_index = program
-        .expression_table
-        .peeled_expression_handle(inner_index);
-    if matches!(
-        program.expression_table.expression(inner_index),
-        ExpressionNode::Integer(_) | ExpressionNode::Range(_)
-    ) {
-        return false;
-    }
-    // Below the two runtime levels: only const-indexed / member / mutable
-    // links, ending at a `self.<field>` head (machine-owned storage; a bare
-    // local/param array stays fenced -- the frame op family does not cover
-    // both-runtime yet).
-    let mut place = inner_indexed.collection;
-    loop {
-        match program.expression_table.expression(place) {
-            ExpressionNode::Indexed(below) => {
-                let below_index = program
-                    .expression_table
-                    .peeled_expression_handle(below.index);
-                if !matches!(
-                    program.expression_table.expression(below_index),
-                    ExpressionNode::Integer(_)
-                ) {
-                    return false;
-                }
-                place = below.collection;
-            }
-            ExpressionNode::Member(member) => {
-                let receiver = member.receiver;
-                if matches!(
-                    program.expression_table.expression(receiver),
-                    ExpressionNode::Name(path)
-                        if program
-                            .expression_table
-                            .name_path_members(path.members)
-                            .first()
-                            .is_some_and(|name| name.is_self_receiver())
-                ) {
-                    return true;
-                }
-                place = receiver;
-            }
-            ExpressionNode::Borrow(next) => place = next.target,
-            ExpressionNode::Name(path) => {
-                // A multi-member Name path starting at `self` (`self.grid`
-                // resolved as one path) is machine-owned. A BARE single name
-                // (a by-value param or local 2D array, `g[i][j]`) is the
-                // FRAME flavor, lowered since 2026-07-07 by
-                // CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage -- but
-                // only for the DIRECTLY-nested member-free shape, which is
-                // exactly what reaching this arm through the loop implies
-                // for the frame case (member links between the indices stay
-                // fenced by the resolver and report loudly downstream).
-                let members = program.expression_table.name_path_members(path.members);
-                return members.first().is_some_and(|name| name.is_self_receiver())
-                    || members.len() == 1;
-            }
-            _ => return false,
         }
     }
 }
@@ -1002,10 +830,6 @@ fn scan_expression_calls_at_position(
                 indexed,
                 diagnostics,
             );
-            // Reading a nested array element with a RUNTIME COLUMN index (`grid[..][j]`)
-            // silently reads 0 (the backend cannot lower it yet); the sibling WRITE is
-            // already fenced, this fences the READ to match.
-            report_nested_runtime_indexed_read(program, machine, state, expression, diagnostics);
             scan_expression_calls(
                 program,
                 machine,
