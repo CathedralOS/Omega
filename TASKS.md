@@ -2928,16 +2928,11 @@ crash and native exit behavior.
     type/const telescopes are checked without admitting runtime value operands;
     a differently applied selected provider must still reject. Executable
     requirement preparation checks closure after complete scope substitution.
-    `pending/providers/occurrence_region_binding_exit` must read 37 through
-    `omega run --both`; its current refusal is `closed requirement needs a
-    retained exact region application`. Region-bearing Binding admission needs
-    occurrence scopes through source inventory and requirement preparation,
-    source-level qualification of complete provider region-slot correspondence,
-    and propagation of checked
-    receiving applications and region arguments through canonical candidates and
-    receiving installation. The classifier and provider
-    eligibility remain fail-closed until those associations exist. Build selects
-    the provider declaration, not a runtime caller region. Preserve
+    Preserve `providers/occurrence_region_binding_{exit,forwarding_exit,projected_type_exit}`
+    through both engines: original field applications, borrowed locals and helper
+    telescopes retain complete receiving region tuples. Conflicting direct/saved
+    inputs and fabricated borrowed carriers must reject. Build selects the
+    provider declaration, not a runtime caller region. Preserve
     `traits/default_row_captured_invocation_regions_exit` through both engines:
     owned rows capture their map's regions without replacing their fresh member
     telescope, including unused binders; external selected rows capture no map

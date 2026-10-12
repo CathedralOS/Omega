@@ -99,30 +99,12 @@ pub(crate) fn record_provider_closed_requirements(
         // Record every selecting map rather than collapsing them with `any`:
         // one executable body may belong to multiple independent selections.
         for application in program.closed_requirement_applications() {
-            let Some(declaration) = program.trait_definition_by_symbol(application.declaring_trait)
+            let Some(receiving_scope) = application.trait_scope.scope(program.typed_program())
             else {
-                continue;
-            };
-            let Some(receiving_scope) = AppliedTraitScope::new(
-                program.typed_program(),
-                declaration,
-                typed_trees::trait_definition::TraitApplicationArguments {
-                    lexical_owner: program
-                        .expression_table
-                        .static_machine_application(application.application)
-                        .lexical_owner,
-                    enclosing_data_applications: &[],
-                    arguments: application.trait_arguments,
-                    lifetimes: &[],
-                },
-            ) else {
                 continue;
             };
             for implementation in program.conformances().iter().filter(|implementation| {
                 implementation.type_parameters.is_empty()
-                    // Regional execution stays fenced until the correspondence
-                    // travels with this row through canonical installation.
-                    && implementation.lifetime_parameters.is_empty()
                     && implementation.rows.iter().any(|row| {
                         row.declaring_trait == application.declaring_trait
                             && row.requirement == application.template

@@ -9,9 +9,7 @@ use terminal_psi::{
 use crate::FixedViewCopyDecodeError;
 
 use super::{
-    declarations::{
-        decode_access, decode_multiplicity, encode_access, encode_multiplicity,
-    },
+    declarations::{decode_access, decode_multiplicity, encode_access, encode_multiplicity},
     projected_qualifications::{decode_projected, encode_projected},
 };
 use crate::register_homes::recovery::fixed_view_copy::codec::primitives::{
@@ -26,6 +24,11 @@ pub(super) fn encode(
     crate::codec_bytes::push_encoded(bytes, provider.boundary.get().to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, provider.requirement_identity.0.to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, provider.source_requirement_identity.0.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, provider.receiving_application.0.to_le_bytes());
+    length(bytes, provider.receiving_region_arguments.len());
+    for region in &provider.receiving_region_arguments {
+        crate::codec_bytes::push_encoded(bytes, region.0.to_le_bytes());
+    }
     crate::codec_bytes::push_encoded(bytes, provider.provider_identity.0.to_le_bytes());
     crate::codec_bytes::push_encoded(
         bytes,
@@ -84,6 +87,10 @@ pub(super) fn decode(
     let boundary = decode_id(cursor, BoundaryMachineId::new)?;
     let requirement_identity = terminal_psi::TerminalIdentityIndex(cursor.u32()?);
     let source_requirement_identity = terminal_psi::TerminalIdentityIndex(cursor.u32()?);
+    let receiving_application = terminal_psi::TerminalIdentityIndex(cursor.u32()?);
+    let receiving_region_arguments = decode_list(cursor, |cursor| {
+        Ok(terminal_psi::TerminalIdentityIndex(cursor.u32()?))
+    })?;
     let provider_identity = terminal_psi::TerminalIdentityIndex(cursor.u32()?);
     let provider_declaration = terminal_psi::NominalDeclarationIdentity::new(
         terminal_psi::TerminalIdentityIndex(cursor.u32()?),
@@ -125,6 +132,8 @@ pub(super) fn decode(
         boundary,
         requirement_identity,
         source_requirement_identity,
+        receiving_application,
+        receiving_region_arguments,
         provider_identity,
         provider_declaration,
         candidate_identity,

@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "2", "load1_end": 1.55, "load1_start": 1.51, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 2.3, "load1_start": 2.15, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -1799,3 +1799,7 @@ pass/calls/callback_owned_indirect_float_record built 80220ms exit:0 @2afb09bae8
 pass/calls/callback_owned_indirect_record built 5482ms exit:0 @2afb09bae86c
 pass/calls/owned_overaligned_local_call built 5109ms exit:0 @6d4927c3710+wt
 pass/targets/runtime_family_callback_guarantee_conjunction_exit built 2900ms exit:0 @8ef927ca678b
+pass/providers/occurrence_region_binding_exit built 3846ms exit:0 @619f89e4fed6+wt
+pass/providers/occurrence_region_binding_forwarding_exit built 3914ms exit:0 @619f89e4fed6+wt
+pass/providers/occurrence_region_binding_projected_type_exit built 3995ms exit:0 @619f89e4fed6+wt
+pass/traits/default_row_nested_captured_reference_exit built 3767ms exit:0 @619f89e4fed6+wt

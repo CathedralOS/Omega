@@ -317,7 +317,7 @@ fn validate_state_signature_types<'program>(
 
         for parameter in signature.parameters {
             if matches!(owner, StateSignatureOwner::Machine(_))
-                && typed_trees::service::exact_bound_service_requirement(
+                && typed_trees::service::service_requirement_declaration(
                     program,
                     parameter.type_reference,
                 )

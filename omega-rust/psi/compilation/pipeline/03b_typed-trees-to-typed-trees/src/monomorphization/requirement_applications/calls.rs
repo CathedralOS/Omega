@@ -20,9 +20,16 @@ fn instance(
         return SymbolHandle::invalid();
     };
     let scope = match receiver.and_then(|reference| {
-        typed_trees::service::classify_exact_service_parameter_carrier(program, reference)
-            .ok()
-            .flatten()
+        typed_trees::service::classify_exact_service_parameter_carrier(
+            program,
+            typed_trees::service::ServiceCarrierOccurrence {
+                type_reference: reference,
+                lexical_owner,
+                enclosing_data_applications: &[],
+            },
+        )
+        .ok()
+        .flatten()
     }) {
         Some(carrier) => carrier
             .carrier

@@ -89,26 +89,33 @@ pub(crate) fn parameter_binding_receiver_source<'program>(
         validation::CallSite::Statement(call) => call.target_symbol,
         validation::CallSite::TransitionNamed { .. } => return None,
     };
-    typed_trees::service::classify_exact_service_parameter_carrier(program, reference)
-        .ok()
-        .flatten()
-        .filter(|carrier| {
-            carrier
-                .carrier
-                .application(program, state.symbol, &[])
-                .is_some_and(|scope| {
-                    scope.declaring_scope(program, requirement).is_some()
-                        && program.closed_requirement_application(target).is_none_or(
-                            |application| {
-                                program.requirement_application_matches_scope(
-                                    application.signature.symbol,
-                                    &scope,
-                                )
-                            },
-                        )
-                })
-        })
-        .map(|_| (source, place))
+    typed_trees::service::classify_exact_service_parameter_carrier(
+        program,
+        typed_trees::service::ServiceCarrierOccurrence {
+            type_reference: reference,
+            lexical_owner: state.symbol,
+            enclosing_data_applications: &[],
+        },
+    )
+    .ok()
+    .flatten()
+    .filter(|carrier| {
+        carrier
+            .carrier
+            .application(program, state.symbol, &[])
+            .is_some_and(|scope| {
+                scope.declaring_scope(program, requirement).is_some()
+                    && program
+                        .closed_requirement_application(target)
+                        .is_none_or(|application| {
+                            program.requirement_application_matches_scope(
+                                application.signature.symbol,
+                                &scope,
+                            )
+                        })
+            })
+    })
+    .map(|_| (source, place))
 }
 
 /// A fixed array lends its initialized extent as the borrowed element view a
@@ -286,7 +293,7 @@ fn field_type_carries_requirement(
     type_reference: typed_trees::types::TypeReferenceHandle,
     provider_symbol: SymbolHandle,
 ) -> bool {
-    typed_trees::service::exact_bound_service_requirement(program, type_reference)
+    typed_trees::service::service_requirement_declaration(program, type_reference)
         == Some(provider_symbol)
         || crate::execution::terminal_unit::types::mutable_boundary_trait_symbol(
             program,

@@ -65,16 +65,13 @@ pub fn validate_authored_static_arguments(
             ));
             continue;
         };
-        let scope = typed_trees::trait_definition::AppliedTraitScope::new(
-            program,
-            owner,
-            typed_trees::trait_definition::TraitApplicationArguments {
-                lexical_owner: source.lexical_owner,
-                enclosing_data_applications: &[],
-                arguments: application.trait_arguments,
-                lifetimes: &[],
-            },
-        );
+        // The application receipt owns its source route. Rebuilding only the
+        // materialized argument tuple here loses enclosing and inherited
+        // simultaneous frames, including captured regions in phantom operands.
+        let scope = application
+            .trait_scope
+            .scope(program)
+            .filter(|scope| scope.declaration.symbol == owner.symbol);
         let Some(signature) = scope
             .as_ref()
             .and_then(|scope| program.applied_callable_signature(scope, application.template))

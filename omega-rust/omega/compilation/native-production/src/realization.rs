@@ -32,11 +32,19 @@ pub(crate) fn realize_native_artifact(
     artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
     request: NativeRealizationRequest<'_>,
 ) -> Result<RealizedNativeProduct, Vec<Diagnostic>> {
+    let receiving_provider_roots = request
+        .program_entry
+        .receiving_provider_roots(&artifact)
+        .map_err(|message| vec![Diagnostic::error(message)])?;
+    let admission = terminal_psi_to_abstract_operations::NativeAdmissionRequest {
+        receiving_provider_roots: &receiving_provider_roots,
+        ..request.admission
+    };
     let AdmittedNativeRealization {
         input,
         mut providers,
         boundary_application_coverage,
-    } = admit_native_realization(&artifact, &request.admission)?;
+    } = admit_native_realization(&artifact, &admission)?;
     let receiver_settlement = native_artifact::admit_executable_entry_receiver(
         &input,
         &artifact,
@@ -65,8 +73,9 @@ pub(crate) fn realize_native_artifact(
                     })
                     .collect(),
                 &input.plan().boundary_machines,
+                &artifact.semantic_module().provider_candidates,
                 request.admission.providers.selected_provider_plans,
-                &input.plan().identities,
+                &artifact.semantic_module().identities,
                 entry.source().identities(),
                 entry.source().target_slot(),
             )

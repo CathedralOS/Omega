@@ -228,7 +228,7 @@ fn boundary_receiver_type_symbol(
         // opaque carrier's data owner. Classify before peeling qualifications:
         // an invalid Service shell must not acquire a complete write frame.
         if let Some(carrier) =
-            typed_trees::service::classify_exact_bound_service_carrier(program, reference).ok()?
+            typed_trees::service::inspect_service_carrier_contract(program, reference).ok()?
         {
             return Some(carrier.requirement);
         }
@@ -382,7 +382,7 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
         && !program
             .closed_requirement_application(signature.symbol)
             .is_some_and(|application| {
-                typed_trees::service::classify_exact_service_parameter_carrier(
+                typed_trees::service::inspect_service_parameter_contract(
                     program,
                     receiver_reference,
                 )
@@ -445,11 +445,9 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
     // may fabricate an origin inside that authority carrier. Explicit argument
     // origins remain governed by the selected signature's ordinary rules.
     let binding_receiver = if has_runtime_receiver {
-        let carrier = typed_trees::service::classify_exact_service_parameter_carrier(
-            program,
-            receiver_reference,
-        )
-        .ok()?;
+        let carrier =
+            typed_trees::service::inspect_service_parameter_contract(program, receiver_reference)
+                .ok()?;
         carrier.is_some()
     } else {
         false

@@ -397,6 +397,8 @@ fn installed_provider_scalar_call_plan() -> MachineCodePlan {
         boundary,
         requirement_identity: terminal_psi::TerminalIdentityIndex(1),
         source_requirement_identity: terminal_psi::TerminalIdentityIndex(1),
+        receiving_application: terminal_psi::TerminalIdentityIndex::default(),
+        receiving_region_arguments: Vec::new(),
         provider_identity: terminal_psi::TerminalIdentityIndex(2),
         provider_declaration: terminal_psi::NominalDeclarationIdentity::new(
             terminal_psi::TerminalIdentityIndex(2),

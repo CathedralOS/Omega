@@ -1,0 +1,12 @@
+use omega::language::core::binding;
+
+pub boundary trait Reading { machine read() -> i32; }
+Reader satisfies Reading { machine read() -> i32 { 42 } }
+data Context { reading: Binding<Reading>; }
+machine observed(reading: &Binding<Reading>) -> i32 reaches Reading { reading.read() }
+machine main() reaches Reading {
+    // Borrowing a saved carrier cannot legitimize an unauthorized constructor.
+    let fabricated: Context = Context { reading: Binding {} };
+    let reading: &Binding<Reading> = &fabricated.reading;
+    let value: i32 = observed(reading);
+}

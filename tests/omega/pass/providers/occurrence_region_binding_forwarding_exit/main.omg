@@ -1,0 +1,42 @@
+// Expected exit: 0. Nested fields, a borrowed local and two helper telescopes
+// preserve one receiving Binding application without selecting caller regions.
+use omega::language::core::binding;
+
+pub boundary trait Reading<Value> { machine read(value: Value) -> i32; }
+BorrowedReading<'provider> satisfies Reading<&'provider i32> {
+    Reading::read = read;
+}
+machine read<'provider>(value: &'provider i32) -> i32 { value as i32 }
+
+data TargetProviders {}
+macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<Reading, BorrowedReading>(defaults);
+}
+linux_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<Reading, BorrowedReading>(defaults);
+}
+linux_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<Reading, BorrowedReading>(defaults);
+}
+windows_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<Reading, BorrowedReading>(defaults);
+}
+machine stepped<'step>(reading: &Binding<Reading<&'step i32>>, value: &'step i32)
+    -> i32 reaches Reading { reading.read(value) }
+machine observed<'source>(reading: &Binding<Reading<&'source i32>>, value: &'source i32)
+    -> i32 reaches Reading { stepped(reading, value) }
+
+data Session<'storage> {
+    reading: Binding<Reading<&'storage i32>>;
+    value: i32;
+}
+data Main<'storage> { session: Session<'storage>; }
+machine Main::main<'activation>(main: &'activation mut Main<'activation>) reaches Reading crashes Trap {
+    main.session.value = 37;
+    let direct: i32 = observed(&main.session.reading, &main.session.value);
+    let reading: &Binding<Reading<&'activation i32>> = &main.session.reading;
+    let saved: i32 = observed(reading, &main.session.value);
+    transition direct == 37 && saved == 37 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

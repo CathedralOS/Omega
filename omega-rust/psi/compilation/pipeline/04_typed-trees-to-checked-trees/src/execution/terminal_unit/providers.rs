@@ -85,7 +85,7 @@ pub(super) fn checked_provider_attachment_requirements(
             if source_field.name.as_str() != field.identity.spelling() {
                 return None;
             }
-            typed_trees::service::exact_bound_service_requirement(
+            typed_trees::service::service_requirement_declaration(
                 program,
                 source_field.type_reference,
             )

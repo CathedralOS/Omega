@@ -35,6 +35,7 @@ pub use language_semantics::type_identity::{
 };
 pub use lifetime_parameters::{
     LifetimeParameterIdentity, applied_lifetime_parameter_identity, lifetime_parameter_identity,
+    lifetime_parameter_name, portable_lifetime_parameter_identity,
 };
 pub use normalized_identities::{
     NormalizedDomainExpression, NormalizedDomainTerm, NormalizedResultDispatchSet,
@@ -227,6 +228,42 @@ pub(crate) fn local_trait_application_identity(
         ],
     );
     Some(program_intern_type_identity(program, identity))
+}
+
+/// Portable counterpart of the local application key. Package-owned nominal
+/// coordinates and complete scoped operands replace every arena coordinate.
+pub(crate) fn portable_trait_application_identity(
+    program: &TypedTrees,
+    declaration: SymbolHandle,
+    arguments: &[NormalizedTypeIdentity],
+    lifetimes: &[NormalizedTypeIdentity],
+) -> Option<NormalizedTypeIdentity> {
+    let path = program.symbols.display_path(declaration, "::");
+    if !declaration.is_valid() || path.is_empty() {
+        return None;
+    }
+    let coordinate = TypeIdentityContext {
+        qualification: TypeIdentityQualification::PackageQualified,
+        ..TypeIdentityContext::default()
+    }
+    .qualify_non_binder_name(program, declaration, path);
+    let render = |identities: &[NormalizedTypeIdentity]| {
+        identities
+            .iter()
+            .map(|identity| program.type_identity_text(*identity))
+            .collect::<Option<Vec<_>>>()
+    };
+    Some(program_intern_type_identity(
+        program,
+        compound(
+            "trait-application",
+            [
+                atom("declaration", &coordinate),
+                compound("arguments", render(arguments)?),
+                compound("lifetimes", render(lifetimes)?),
+            ],
+        ),
+    ))
 }
 
 /// Compare static indices and local fact operands through the same licensed
@@ -989,21 +1026,22 @@ impl TypedTrees {
                     self.trait_requirement_callable_identity_text(trait_definition, template)
                 })
                 .unwrap_or_default();
-            let outer = application
-                .trait_arguments
-                .iter()
-                .map(|argument| self.normalized_type_identity_text(*argument))
-                .collect::<Vec<_>>();
+            // Preparation issued these complete portable keys before creating
+            // the instance. Publication cannot reconstruct them from erased
+            // carrier arguments or recapture them in the receiving trait.
+            let outer = self
+                .type_identity_text(application.portable_trait_application_identity)
+                .unwrap_or_default();
             let local = application
-                .local_arguments
+                .portable_local_arguments
                 .iter()
-                .map(|argument| self.normalized_type_identity_text(*argument))
+                .map(|identity| self.type_identity_text(*identity).unwrap_or_default())
                 .collect::<Vec<_>>();
             identity.parameters = compound(
                 "closed-requirement",
                 [
                     atom("template", &template_identity),
-                    compound("trait-arguments", outer),
+                    atom("trait-application", &outer),
                     compound("local-arguments", local),
                     atom("parameters", &identity.parameters),
                 ],

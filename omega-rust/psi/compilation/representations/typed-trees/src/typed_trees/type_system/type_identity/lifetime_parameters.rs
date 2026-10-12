@@ -19,10 +19,11 @@ pub struct LifetimeParameterIdentity {
 /// A callable owner needs its overload identity, not just its path. Package
 /// custody and declaration kind remain independent of binder spelling; a local
 /// arena coordinate is never written into this projection.
-pub(super) fn portable_lifetime_parameter_identity(
+pub fn portable_lifetime_parameter_identity(
     program: &TypedTrees,
     region: LifetimeParameterIdentity,
 ) -> Option<String> {
+    lifetime_parameter_name(program, region)?;
     let owner = region.declaration;
     let (kind, declaration) = if let Some(machine) = program.machine_by_symbol(owner) {
         ("machine", program.machine_callable_identity_text(machine)?)
@@ -102,34 +103,7 @@ pub fn lifetime_parameter_identity(
 ) -> Option<LifetimeParameterIdentity> {
     let mut owner = program.lifetime_declaration_owner(lexical_owner);
     while owner.is_valid() {
-        let parameters = program
-            .machine_by_symbol(owner)
-            .map(|owner| &owner.lifetime_parameters)
-            .or_else(|| {
-                program
-                    .conformance_by_symbol(owner)
-                    .map(|owner| &owner.lifetime_parameters)
-            })
-            .or_else(|| {
-                program
-                    .trait_definition_by_symbol(owner)
-                    .map(|owner| &owner.lifetime_parameters)
-            })
-            .or_else(|| {
-                program
-                    .data_definition_by_symbol(owner)
-                    .map(|owner| &owner.lifetime_parameters)
-            })
-            .or_else(|| {
-                program
-                    .trait_machine_signature(owner)
-                    .map(|(_, signature)| &signature.lifetime_parameters)
-            })
-            .or_else(|| {
-                program
-                    .retained_static_machine_contract(owner)
-                    .map(|contract| &contract.signature().lifetime_parameters)
-            });
+        let parameters = declaration_lifetimes(program, owner);
         if let Some(ordinal) = parameters.and_then(|parameters| {
             parameters
                 .iter()
@@ -143,4 +117,48 @@ pub fn lifetime_parameter_identity(
         owner = program.lifetime_declaration_owner(program.declaration_scope_parent(owner));
     }
     None
+}
+
+/// Recover a payload spelling only after its exact declaration/ordinal has
+/// been resolved. The spelling is not the identity and must retain this owner
+/// when it is copied into another type node.
+pub fn lifetime_parameter_name(
+    program: &TypedTrees,
+    region: LifetimeParameterIdentity,
+) -> Option<&crate::name::Identifier> {
+    declaration_lifetimes(program, region.declaration)?.get(region.ordinal)
+}
+
+fn declaration_lifetimes(
+    program: &TypedTrees,
+    owner: SymbolHandle,
+) -> Option<&[crate::name::Identifier]> {
+    program
+        .machine_by_symbol(owner)
+        .map(|owner| owner.lifetime_parameters.as_slice())
+        .or_else(|| {
+            program
+                .conformance_by_symbol(owner)
+                .map(|owner| owner.lifetime_parameters.as_slice())
+        })
+        .or_else(|| {
+            program
+                .trait_definition_by_symbol(owner)
+                .map(|owner| owner.lifetime_parameters.as_slice())
+        })
+        .or_else(|| {
+            program
+                .data_definition_by_symbol(owner)
+                .map(|owner| owner.lifetime_parameters.as_slice())
+        })
+        .or_else(|| {
+            program
+                .trait_machine_signature(owner)
+                .map(|(_, signature)| signature.lifetime_parameters.as_slice())
+        })
+        .or_else(|| {
+            program
+                .retained_static_machine_contract(owner)
+                .map(|contract| contract.signature().lifetime_parameters.as_slice())
+        })
 }

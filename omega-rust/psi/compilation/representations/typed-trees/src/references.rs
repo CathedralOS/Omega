@@ -550,6 +550,7 @@ fn visit_callable_symbol(
     };
     visit_symbol(retained, application.declaring_trait);
     visit_symbol(retained, application.template);
+    application.trait_scope.visit_references(program, retained);
     for reference in application
         .trait_arguments
         .iter()

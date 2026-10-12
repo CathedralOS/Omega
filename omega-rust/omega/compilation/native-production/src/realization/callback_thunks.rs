@@ -88,6 +88,7 @@ fn lower_callback_thunk(
     let artifact = settlement.artifact;
     let admission = terminal_psi_to_abstract_operations::NativeAdmissionRequest {
         entry: terminal_psi::TargetMachineCallable::Machine(settlement.entry),
+        receiving_provider_roots: &[],
         ..request.admission
     };
     let mut admitted =

@@ -18,20 +18,11 @@ pub(super) fn provider_identities(
     let application = typed.closed_requirement_application(signature.symbol);
     let template = application.map_or(signature.symbol, |application| application.template);
     let mut identities = Vec::new();
-    for implementation in typed.conformances().iter().filter(|implementation| {
-        implementation.type_parameters.is_empty() && implementation.lifetime_parameters.is_empty()
-    }) {
-        if application.is_some()
-            && !typed_trees::trait_definition::AppliedTraitScope::from_conformance(
-                typed,
-                implementation,
-            )
-            .is_some_and(|scope| {
-                typed.requirement_application_matches_scope(signature.symbol, &scope)
-            })
-        {
-            continue;
-        }
+    for implementation in typed
+        .conformances()
+        .iter()
+        .filter(|implementation| implementation.type_parameters.is_empty())
+    {
         let rows = &implementation.rows;
         let mut matching = rows
             .iter()
@@ -53,6 +44,9 @@ pub(super) fn provider_identities(
             return unsupported("named provider row has no exact realization entry");
         }
         if application.is_some() {
+            // Checking has joined the complete receiving application to this
+            // map's public slots. Comparing the unapplied map with the receiver
+            // here would confuse declaration parameters with their actuals.
             if !checked
                 .facts
                 .provider_closed_requirements
@@ -74,6 +68,10 @@ pub(super) fn provider_identities(
             {
                 continue;
             }
+        } else if !implementation.lifetime_parameters.is_empty() {
+            // A regional candidate needs a retained closed application and its
+            // checked slot mapping; the nominal template supplies neither.
+            continue;
         } else if realization.symbol != machine.symbol {
             // Specialization owns the ordered template-to-instance state
             // correspondence; the map's entry above must remain its origin.

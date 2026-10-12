@@ -16,7 +16,10 @@ use symbols::SymbolHandle;
 mod regions;
 use regions::AppliedDeclarationRegionScope;
 mod enclosing;
+mod retention;
 mod source_fields;
+pub(crate) use retention::RetainedTraitApplicationFrame;
+pub use retention::{RetainedTraitScope, TraitApplicationEnvironment};
 
 impl TypedTrees {
     /// Source-owned application roots shared by logical signature preparation
@@ -67,7 +70,7 @@ pub struct TraitApplicationArguments<'arguments> {
 /// narrows the visible scopes before its compound argument is traversed: the
 /// argument's children must not see the telescope that argument replaces.
 /// This is invocation-local inspection, not an instantiated arena node.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct AppliedTypeReference<'scope> {
     pub reference: TypeReferenceHandle,
     substitutions: &'scope [(SymbolHandle, TypeReferenceHandle)],
@@ -75,6 +78,29 @@ pub struct AppliedTypeReference<'scope> {
 }
 
 impl<'scope> AppliedTypeReference<'scope> {
+    /// A static binder's actual sees only preceding simultaneous frames.
+    /// Closure and identity consumers borrow this view rather than flattening
+    /// a compound actual into a bare arena handle.
+    pub fn parameter_argument(self, program: &TypedTrees, parameter: SymbolHandle) -> Option<Self> {
+        let (ordinal, (_, reference)) = self
+            .substitutions
+            .iter()
+            .enumerate()
+            .rev()
+            .find(|(_, (binder, _))| *binder == parameter)?;
+        let visible_scopes = self
+            .scope_starts
+            .partition_point(|start| *start <= ordinal)
+            .checked_sub(1)?;
+        let visible = self.scope_starts.get(visible_scopes).copied()?;
+        Some(project_type_reference(
+            program,
+            *reference,
+            &self.substitutions[..visible],
+            &self.scope_starts[..visible_scopes],
+        ))
+    }
+
     pub fn child(self, program: &TypedTrees, reference: TypeReferenceHandle) -> Self {
         project_type_reference(program, reference, self.substitutions, self.scope_starts)
     }
@@ -127,9 +153,9 @@ fn project_type_reference<'scope>(
             else {
                 break;
             };
-            if *replacement == reference {
-                break;
-            }
+            // Even the same binder handle can denote an outer occurrence of
+            // a repeated declaration. The supplying prefix shrinks on every
+            // replacement; handle equality alone is not a substitution cycle.
             visible_scopes = scope_starts
                 .partition_point(|start| *start <= ordinal)
                 .saturating_sub(1);
@@ -310,6 +336,29 @@ impl<'program> AppliedTraitScope<'program> {
             &self.substitutions,
             &self.substitution_scope_starts,
         )
+    }
+
+    /// Borrow an incoming actual before the simultaneous frame it supplies.
+    /// Enclosing data and inherited frames remain visible; the replacing trait
+    /// cannot capture a caller region with the same spelling.
+    pub(crate) fn supplied_type_reference(
+        &self,
+        program: &TypedTrees,
+        reference: TypeReferenceHandle,
+        preceding_frames: usize,
+    ) -> Option<AppliedTypeReference<'_>> {
+        let starts = self.substitution_scope_starts.get(..preceding_frames)?;
+        let end = self
+            .substitution_scope_starts
+            .get(preceding_frames)
+            .copied()
+            .unwrap_or(self.substitutions.len());
+        Some(project_type_reference(
+            program,
+            reference,
+            self.substitutions.get(..end)?,
+            starts,
+        ))
     }
 
     /// Project one declaration binder through its outer scopes. A compound

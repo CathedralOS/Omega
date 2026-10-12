@@ -1,12 +1,10 @@
 //! Exact recognition of the toolchain-owned routed service carrier.
 //!
 //! A same-named package declaration is ordinary opaque data. Compiler
-//! privilege requires the complete core source, declaration shape, and one
-//! closed boundary requirement. Service validity is intrinsic to the carrier:
-//! `Binding<R>` is already the exact closed identity, so any authored
-//! qualification spelled on it is rejected. The retired `Bound` qualification
-//! era survives only in these entry-point names, which still have callers that
-//! have not migrated; the classifier itself consults no domain.
+//! privilege requires the complete core source and declaration shape.
+//! `Binding<R>` admits no authored qualification. Its nominal contract and its
+//! closed occurrence are different judgments: a field declaration cannot supply
+//! a caller's actual regions or enclosing data applications.
 //!
 //! A declaration's contract may refer to its own formal operands. Inspecting
 //! that contract does not admit a closed service occurrence: selection and
@@ -30,6 +28,18 @@ pub struct ServiceCarrierContract {
 }
 
 impl ServiceCarrierContract {
+    pub fn lifetimes(self, program: &TypedTrees) -> &[crate::name::Identifier] {
+        match program
+            .type_reference_table
+            .type_reference(self.requirement_reference)
+        {
+            TypeReferenceNode::Generic {
+                lifetime_arguments, ..
+            } => lifetime_arguments,
+            _ => &[],
+        }
+    }
+
     pub fn arguments(self, program: &TypedTrees) -> &[TypeReferenceHandle] {
         match program
             .type_reference_table
@@ -57,12 +67,75 @@ impl ServiceCarrierContract {
                 lexical_owner,
                 enclosing_data_applications,
                 arguments: self.arguments(program),
-                lifetimes: &[],
+                lifetimes: self.lifetimes(program),
             },
         )
     }
+
+    /// Formal well-formedness preserves the supplying declaration's region
+    /// telescope. It neither closes static operands nor selects a provider.
+    pub fn require_declared_operands(
+        self,
+        program: &TypedTrees,
+        lexical_owner: SymbolHandle,
+    ) -> Result<(), &'static str> {
+        program.require_declared_application_operands(self.arguments(program), lexical_owner)?;
+        let scope = self
+            .application(program, lexical_owner, &[])
+            .ok_or("service declaration lost its complete application telescope")?;
+        scope
+            .application_identity(program)
+            .ok_or("service declaration lost its supplying region telescope")?;
+        Ok(())
+    }
 }
 
+/// Nominal parameter presentation. Borrow access is retained independently of
+/// the logical contract; this record grants no closed occurrence or erasure.
+#[derive(Debug, Clone, Copy)]
+pub struct ServiceParameterContract {
+    pub carrier: ServiceCarrierContract,
+    pub carrier_type: TypeReferenceHandle,
+    pub access: Option<language_semantics::ReferenceAccess>,
+}
+
+pub fn inspect_service_parameter_contract(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Result<Option<ServiceParameterContract>, String> {
+    let (carrier_type, access) = match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference {
+            referee, access, ..
+        } if matches!(
+            access,
+            language_semantics::ReferenceAccess::Shared
+                | language_semantics::ReferenceAccess::Mutable
+        ) =>
+        {
+            (*referee, Some(*access))
+        }
+        _ => (type_reference, None),
+    };
+    Ok(
+        inspect_service_carrier_contract(program, carrier_type)?.map(|carrier| {
+            ServiceParameterContract {
+                carrier,
+                carrier_type,
+                access,
+            }
+        }),
+    )
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ServiceCarrierOccurrence<'scope> {
+    pub type_reference: TypeReferenceHandle,
+    pub lexical_owner: SymbolHandle,
+    pub enclosing_data_applications: &'scope [TypeReferenceHandle],
+}
+
+/// Closed static operands issued under one exact supplying occurrence. The
+/// local application key retains semantic scope independently of ABI erasure.
 #[derive(Debug, Clone, Copy)]
 pub struct ExactServiceCarrier {
     pub service_data: SymbolHandle,
@@ -113,6 +186,7 @@ impl ExactServiceCarrier {
             requirement_reference: self.requirement_reference,
         }
         .application(program, lexical_owner, enclosing_data_applications)
+        .filter(|scope| scope.application_identity(program) == Some(self.requirement_identity))
     }
 }
 
@@ -128,30 +202,18 @@ pub struct ExactServiceParameterCarrier {
 
 pub fn classify_exact_service_parameter_carrier(
     program: &TypedTrees,
-    type_reference: TypeReferenceHandle,
+    occurrence: ServiceCarrierOccurrence<'_>,
 ) -> Result<Option<ExactServiceParameterCarrier>, String> {
-    let (carrier_type, access) = match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference {
-            referee, access, ..
-        } if matches!(
-            access,
-            language_semantics::ReferenceAccess::Shared
-                | language_semantics::ReferenceAccess::Mutable
-        ) =>
-        {
-            (*referee, Some(*access))
-        }
-        _ => (type_reference, None),
+    let Some(contract) = inspect_service_parameter_contract(program, occurrence.type_reference)?
+    else {
+        return Ok(None);
     };
-    Ok(
-        classify_exact_bound_service_carrier(program, carrier_type)?.map(|carrier| {
-            ExactServiceParameterCarrier {
-                carrier,
-                carrier_type,
-                access,
-            }
-        }),
-    )
+    let carrier = close_service_carrier(program, contract.carrier, occurrence)?;
+    Ok(Some(ExactServiceParameterCarrier {
+        carrier,
+        carrier_type: contract.carrier_type,
+        access: contract.access,
+    }))
 }
 
 /// Classify one type shell. `Ok(None)` means it is not the exact core
@@ -161,26 +223,51 @@ pub fn classify_exact_service_parameter_carrier(
 /// domain or membership the constraint names.
 pub fn classify_exact_bound_service_carrier(
     program: &TypedTrees,
-    type_reference: TypeReferenceHandle,
+    occurrence: ServiceCarrierOccurrence<'_>,
 ) -> Result<Option<ExactServiceCarrier>, String> {
-    let Some(contract) = inspect_service_carrier_contract(program, type_reference)? else {
+    let Some(contract) = inspect_service_carrier_contract(program, occurrence.type_reference)?
+    else {
         return Ok(None);
     };
+    close_service_carrier(program, contract, occurrence).map(Some)
+}
+
+fn close_service_carrier(
+    program: &TypedTrees,
+    contract: ServiceCarrierContract,
+    occurrence: ServiceCarrierOccurrence<'_>,
+) -> Result<ExactServiceCarrier, String> {
+    let scope = contract
+        .application(
+            program,
+            occurrence.lexical_owner,
+            occurrence.enclosing_data_applications,
+        )
+        .ok_or("service occurrence lost its complete supplying telescope")?;
     program
-        .require_closed_application_operands(contract.arguments(program))
+        .require_receiving_trait_operands(&scope)
         .map_err(str::to_owned)?;
-    Ok(Some(ExactServiceCarrier {
+    // Closure retains actual regions, not their ABI erasure. Provider selection
+    // and receiving installation separately consume the checked correspondence;
+    // identifying this occurrence cannot grant either judgment.
+    scope
+        .portable_application_identity(program)
+        .ok_or("closed requirement needs a retained exact region application")?;
+    let requirement_identity = scope
+        .application_identity(program)
+        .ok_or("service occurrence lost its exact application identity")?;
+    Ok(ExactServiceCarrier {
         service_data: contract.service_data,
         requirement: contract.requirement,
         requirement_reference: contract.requirement_reference,
-        requirement_identity: program.normalized_type_identity(contract.requirement_reference),
-    }))
+        requirement_identity,
+    })
 }
 
 /// Decode the toolchain-owned contract once for formal checking and concrete
 /// admission. Ordinary declaration checking must also establish that every
-/// free operand belongs to its lexical telescope. Region-bearing applications
-/// remain refused until their provider/installation correspondence is retained.
+/// free operand belongs to its lexical telescope. This inspection cannot grant
+/// provider/installation correspondence for a region-bearing occurrence.
 pub fn inspect_service_carrier_contract(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
@@ -237,11 +324,11 @@ pub fn inspect_service_carrier_contract(
         ));
     };
     let requirement_reference = *requirement;
-    let (requirement, name, arguments) = match program.type_reference_table.type_reference(requirement_reference) {
-        TypeReferenceNode::Named { symbol, name } => (*symbol, name, &[][..]),
+    let (requirement, name, arguments, lifetimes) = match program.type_reference_table.type_reference(requirement_reference) {
+        TypeReferenceNode::Named { symbol, name } => (*symbol, name, &[][..], &[][..]),
         TypeReferenceNode::Generic { base_symbol, base_name, lifetime_arguments, arguments, .. }
-            if lifetime_arguments.is_empty() => (*base_symbol, base_name,
-                program.type_reference_table.type_reference_handles(*arguments)),
+            => (*base_symbol, base_name,
+                program.type_reference_table.type_reference_handles(*arguments), lifetime_arguments.as_slice()),
         _ => return Err("the core `Binding` carrier requires one complete closed boundary-trait application with retained exact regions".to_owned()),
     };
     let Some(requirement_definition) = program.trait_definition_by_symbol(requirement) else {
@@ -259,25 +346,13 @@ pub fn inspect_service_carrier_contract(
             "`Binding<{name}>` requires a boundary trait; ordinary traits are local interfaces"
         ));
     }
-    if !requirement_definition.lifetime_parameters.is_empty()
+    if requirement_definition.lifetime_parameters.len() != lifetimes.len()
         || program.trait_type_parameters(requirement_definition).len() != arguments.len()
     {
         return Err(format!(
             "the core `Binding` carrier requires a complete closed boundary application with retained exact regions; `{name}` remains open"
         ));
     }
-    for argument in arguments {
-        if program
-            .region_free_scoped_type_identity(
-                crate::type_identity::TypeIdentityRequest::ordinary(*argument),
-                &[],
-            )
-            .is_none()
-        {
-            return Err("closed requirement needs a retained exact region application".to_owned());
-        }
-    }
-
     Ok(Some(ServiceCarrierContract {
         service_data: *base_symbol,
         requirement,
@@ -285,11 +360,12 @@ pub fn inspect_service_carrier_contract(
     }))
 }
 
-pub fn exact_bound_service_requirement(
+/// The declared logical requirement, not a closed receiving application.
+pub fn service_requirement_declaration(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
-    classify_exact_bound_service_carrier(program, type_reference)
+    inspect_service_carrier_contract(program, type_reference)
         .ok()
         .flatten()
         .map(|carrier| carrier.requirement)

@@ -85,15 +85,58 @@ pub struct AdmittedProviderSelections {
 struct AdmittedProviderSelection {
     candidate: MachineId,
     provider_declaration: terminal_psi::NominalDeclarationIdentity,
+    receiving_application: terminal_psi::TerminalIdentityIndex,
+    receiving_region_arguments: Vec<terminal_psi::TerminalIdentityIndex>,
 }
 
 impl AdmittedProviderSelections {
+    /// Observe whether this exact artifact-scoped candidate is the installed
+    /// row, including the choosing declaration and complete receiving tuple.
+    pub fn contains_candidate(
+        &self,
+        candidate: &terminal_psi::ProviderCandidateConformance,
+    ) -> bool {
+        self.providers
+            .get(&candidate.boundary)
+            .is_some_and(|installed| {
+                installed.candidate == candidate.candidate
+                    && installed.provider_declaration == candidate.provider_declaration
+                    && installed.receiving_application == candidate.receiving_application
+                    && installed.receiving_region_arguments == candidate.receiving_region_arguments
+            })
+    }
+
     pub const fn terminal_psi(&self) -> terminal_psi::TerminalPsiIdentity {
         self.terminal_psi
     }
 
     pub fn assumed_bindings(&self) -> &[AdmittedAssumedBinding] {
         &self.assumed_bindings
+    }
+
+    /// Observe the installed row's exact receiving application, scoped by
+    /// this installation's Terminal identity. Zero means no association,
+    /// never permission to substitute another application.
+    pub fn receiving_application(
+        &self,
+        boundary: BoundaryMachineId,
+    ) -> terminal_psi::TerminalIdentityIndex {
+        self.providers.get(&boundary).map_or(
+            terminal_psi::TerminalIdentityIndex::default(),
+            |selection| selection.receiving_application,
+        )
+    }
+
+    /// Observe public provider slots in their original order. An empty tuple
+    /// grants no region correspondence by itself; consumers also join the
+    /// exact installed boundary, application and enclosing artifact identity.
+    pub fn receiving_region_arguments(
+        &self,
+        boundary: BoundaryMachineId,
+    ) -> &[terminal_psi::TerminalIdentityIndex] {
+        self.providers.get(&boundary).map_or(&[], |selection| {
+            selection.receiving_region_arguments.as_slice()
+        })
     }
 
     /// Borrow admitted rows while constructing a consumer's execution state.
@@ -250,6 +293,8 @@ fn admit_provider_selections(
             AdmittedProviderSelection {
                 candidate: candidate.candidate,
                 provider_declaration: candidate.provider_declaration.clone(),
+                receiving_application: candidate.receiving_application,
+                receiving_region_arguments: candidate.receiving_region_arguments.clone(),
             },
         );
     }

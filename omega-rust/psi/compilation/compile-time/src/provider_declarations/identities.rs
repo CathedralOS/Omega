@@ -1,4 +1,9 @@
-//! Exact named-provider declaration eligibility and retained parent applications.
+//! Named-provider declaration identity and plan derivation eligibility.
+//!
+//! Build names a declaration, not an instantiated conformance. Recognizing that
+//! declaration must not discard its region telescope; receiving occurrences
+//! later supply their checked applications. Concrete candidate admission and
+//! retained parent applications remain separate admission obligations.
 
 use checked_trees::typed_trees::{TypedTrees, trait_definition::Conformance};
 use symbols::SymbolHandle;
@@ -7,14 +12,15 @@ pub fn is_named_provider(typed: &TypedTrees, symbol: SymbolHandle) -> bool {
     typed
         .conformances()
         .iter()
-        .any(|definition| definition.symbol == symbol && eligible(definition))
+        .any(|definition| definition.symbol == symbol)
 }
 
-/// A closed nongeneric named implementation can be selected as a provider;
-/// a generic one needs an explicit application that provider selection does
-/// not carry.
+/// A declaration with no static Type/Const telescope can own a provider plan.
+/// Its public regions remain parameters, not caller-region choices made by
+/// Build. Executable candidates independently need an exact receiving
+/// application and the checked correspondence for every public region slot.
 pub fn eligible(definition: &Conformance) -> bool {
-    definition.type_parameters.is_empty() && definition.lifetime_parameters.is_empty()
+    definition.type_parameters.is_empty()
 }
 
 /// Retain only a declaring-trait lifetime application the map actually owns.

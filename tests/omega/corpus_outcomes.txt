@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 8, "jobs": null, "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 3.36, "load1_start": 1.44, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 835ms expected @a9ae30e1c334+wt
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -2802,7 +2802,8 @@ fail/providers/applied_binding_unused_const_overflow rejected 892ms expected @a9
 	const argument `256` for `Parent::Count` does not fit `u8`
 fail/providers/applied_binding_unused_property_bound rejected 827ms expected @a9ae30e1c334+wt
 	type parameter `Value [copy]` of `Parent` was instantiated with `Token`, which does not satisfy `[copy]`
-fail/providers/applied_entry_nested_binding_wrong_receiver rejected 5932ms expected @c61d64ccecc5+wt
+fail/providers/applied_entry_nested_binding_wrong_receiver rejected 3322ms expected @619f89e4fed6+wt
+	selected ProgramEntry Binding field `Main::session::parent` requires a selected Fused provider for boundary `Parent`
 fail/providers/applied_provider_declaration_operand rejected 568ms expected @80bdb14533eb+wt
 	provider selection operands must name bare declarations, not applied types, conformance applications, values or projections
 fail/providers/binding_formal_runtime_operand rejected 243ms expected @a8cedb3946d5+wt
@@ -3426,9 +3427,9 @@ fail/traits/data_in_implementation_argument rejected 166ms expected @a9ae30e1c33
 	trait `Concrete` parent `Consumer` cannot bind implementation `Reader`: expected an explicitly named implementation, not a data argument
 fail/traits/data_subject_implementation_retired rejected 0ms expected @a9ae30e1c334+wt
 	tests/omega/fail/traits/data_subject_implementation_retired/main.omg:18:10: data does not satisfy traits; declare a named implementation `Name satisfies Trait<Data> { ... }` that names each data type as an ordinary trait argument and binds every requirement row
-fail/traits/default_row_foreign_captured_operand rejected 346ms expected @eee96af606fc+wt
-	conformance `Mapped satisfies Reader` parameter `Value` uses undeclared lifetime argument `'same' in `Marker`; declare it in the owner's generic parameter list
-	machine `Mapped::Reader::read` state `read` does not satisfy trait `Reader` machine `read`: conformance borrow contract: callable input does not preserve its region identity
+fail/traits/default_row_foreign_captured_operand rejected 115ms expected @619f89e4fed6+wt
+	machine `Mapped::Reader::read` state `read` parameter `value` uses undeclared lifetime argument `'same' in `Marker`; declare it in the owner's generic parameter list
+	machine `Mapped::Reader::read` state `read` return type uses undeclared lifetime argument `'same' in `Marker`; declare it in the owner's generic parameter list
 fail/traits/dyn_data_carrier_selector_retired rejected 0ms expected @a9ae30e1c334+wt
 	tests/omega/fail/traits/dyn_data_carrier_selector_retired/main.omg:13:33: `dyn Data::Implementation` is retired; name the trait application (`dyn Trait<Data>`) and select an implementation with `Implementation as dyn Trait<Data>`
 fail/traits/dyn_finite_family_non_member rejected 723ms unexpected @a9ae30e1c334+wt
@@ -6281,9 +6282,6 @@ fail/borrows/reassigned_view_uses_new_extent rejected 636ms expected @eee96af606
 	cannot prove index `1` is within length 1
 pass/borrows/runtime_reassigned_view_capture_exit checked 4224ms check-target:macos_arm64 @eee96af606fc+wt
 pass/borrows/runtime_reassigned_view_return_exit checked 4368ms check-target:macos_arm64 @eee96af606fc+wt
-fail/traits/default_row_foreign_captured_operand rejected 346ms expected @eee96af606fc+wt
-	conformance `Mapped satisfies Reader` parameter `Value` uses undeclared lifetime argument `'same' in `Marker`; declare it in the owner's generic parameter list
-	machine `Mapped::Reader::read` state `read` does not satisfy trait `Reader` machine `read`: conformance borrow contract: callable input does not preserve its region identity
 pass/traits/default_row_mixed_captured_operand checked 470ms @eee96af606fc+wt
 pass/traits/default_row_shadowed_captured_operand checked 470ms @eee96af606fc+wt
 pass/traits/default_row_shadowed_captured_operand_exit checked 2755ms check-target:macos_arm64 @eee96af606fc+wt
@@ -6463,3 +6461,14 @@ pass/borrow/runtime_write_only_reference_aggregate_capture_exit checked 2785ms c
 fail/traits/prepared_callable_wrong_member_source rejected 239ms expected @992d27dd3135+wt
 	machine `flip` state `entry` does not satisfy trait `Flipping` machine `flip`: conformance borrow contract: callable returned view has a different input-source relation
 pass/traits/prepared_callable_nested_borrow_paths_exit checked 3390ms check-target:macos_arm64 @992d27dd3135+wt
+fail/providers/borrowed_binding_local_fabricated_carrier rejected 123ms expected @619f89e4fed6+wt
+	opaque boundary data `Binding` has no public constructor; a boundary provider must establish its values
+fail/providers/occurrence_region_binding_conflicting_inputs rejected 42ms expected @619f89e4fed6+wt
+	call to `entry` has conflicting ordinary borrow constraints for an erased lifetime
+	call to `entry` has conflicting ordinary borrow constraints for an erased lifetime
+fail/traits/conformance_phantom_foreign_captured_operand rejected 253ms expected @619f89e4fed6+wt
+	conformance `Mapped satisfies Reader` parameter `Value` uses undeclared lifetime argument `'same' in `Marker`; declare it in the owner's generic parameter list
+pass/providers/occurrence_region_binding_exit checked 3567ms check-target:macos_arm64 @619f89e4fed6+wt
+pass/providers/occurrence_region_binding_forwarding_exit checked 3577ms check-target:macos_arm64 @619f89e4fed6+wt
+pass/providers/occurrence_region_binding_projected_type_exit checked 3577ms check-target:macos_arm64 @619f89e4fed6+wt
+pass/traits/default_row_nested_captured_reference_exit checked 3567ms check-target:macos_arm64 @619f89e4fed6+wt

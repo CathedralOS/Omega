@@ -62,7 +62,7 @@ pub(crate) fn build_checked_terminal_machine_selections(
                     || !machine.invokes.is_empty()
                     || program.machine_states(machine).iter().any(|state| {
                         program.state_parameters(state).iter().any(|parameter| {
-                            typed_trees::service::exact_bound_service_requirement(
+                            typed_trees::service::service_requirement_declaration(
                                 program,
                                 parameter.type_reference,
                             )

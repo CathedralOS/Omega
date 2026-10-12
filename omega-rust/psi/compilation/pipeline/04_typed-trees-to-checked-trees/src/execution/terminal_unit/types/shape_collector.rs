@@ -592,6 +592,16 @@ impl<'program> ShapeCollector<'program> {
         // declaration; membership-only qualifications remain separate.
         let type_reference =
             validation::structural_identity_type(self.program, type_reference, substitutions);
+        // The same nonconstructible carrier can be a field, a parameter or
+        // reference backing. Storage collection must not depend on which
+        // owner first demanded its shape. Occurrence closure and established
+        // binding custody remain with their independent source judgments.
+        if typed_trees::service::inspect_service_carrier_contract(self.program, type_reference)
+            .ok()?
+            .is_some()
+        {
+            return self.add_binding_carrier_type(type_reference, binders, substitutions);
+        }
         if self.types.contains_key(&identity) {
             return Some(identity);
         }
@@ -1021,7 +1031,7 @@ impl<'program> ShapeCollector<'program> {
             });
             match binding_carrier {
                 Some(receipt) => {
-                    self.add_binding_carrier_type(provider_node, binders)?;
+                    self.add_type(provider_node, binders, &[])?;
                     CheckedUnitStructuralFieldType::BindingBacked {
                         provider_type_identity,
                         receipt,
@@ -1128,11 +1138,16 @@ impl<'program> ShapeCollector<'program> {
         &mut self,
         type_reference: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     ) -> Option<typed_trees::type_identity::TypeIdentityId> {
-        typed_trees::service::classify_exact_bound_service_carrier(self.program, type_reference)
+        // Physical sharing requires the nominal core shell, not a proof that
+        // this occurrence's provider or regions have been established. The
+        // parameter/field receipt retains that separate semantic association.
+        typed_trees::service::inspect_service_carrier_contract(self.program, type_reference)
             .ok()??;
         let identity = self.program.type_identity(TypeIdentityRequest {
             binders,
+            substitutions,
             ..TypeIdentityRequest::ordinary(type_reference)
         });
         let plan = CheckedUnitStructuralTypePlan {
@@ -1166,7 +1181,11 @@ impl<'program> ShapeCollector<'program> {
     )> {
         let parameter_carrier = typed_trees::service::classify_exact_service_parameter_carrier(
             self.program,
-            type_reference,
+            typed_trees::service::ServiceCarrierOccurrence {
+                type_reference,
+                lexical_owner: source_parameter,
+                enclosing_data_applications: &[],
+            },
         )
         .ok()??;
         let carrier = parameter_carrier.carrier;
@@ -1175,7 +1194,7 @@ impl<'program> ShapeCollector<'program> {
         }
 
         let type_identity =
-            self.add_binding_carrier_type(parameter_carrier.carrier_type, binders)?;
+            self.add_binding_carrier_type(parameter_carrier.carrier_type, binders, &[])?;
 
         Some((
             type_identity,
@@ -1301,7 +1320,7 @@ pub(super) fn provider_backed_field(
     TypeReferenceHandle,
 )> {
     if let Some(requirement) =
-        typed_trees::service::exact_bound_service_requirement(program, type_reference)
+        typed_trees::service::service_requirement_declaration(program, type_reference)
     {
         // Logical classification never consults target provider selection.
         // Establishment joins this requirement to the selected provider later.

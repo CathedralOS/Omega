@@ -165,7 +165,7 @@ fn derive_declared_service_reach(
             flow_effects::InvocationTarget::Parameter(ordinal) => non_self_parameters
                 .get(*ordinal as usize)
                 .map(|parameter| {
-                    typed_trees::service::classify_exact_service_parameter_carrier(
+                    typed_trees::service::inspect_service_parameter_contract(
                         compilation,
                         parameter.type_reference,
                     )

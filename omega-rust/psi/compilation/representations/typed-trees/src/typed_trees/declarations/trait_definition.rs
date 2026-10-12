@@ -4,7 +4,11 @@
 
 mod applications;
 
-pub use applications::{AppliedTraitScope, AppliedTypeReference, TraitApplicationArguments};
+pub(crate) use applications::RetainedTraitApplicationFrame;
+pub use applications::{
+    AppliedTraitScope, AppliedTypeReference, RetainedTraitScope, TraitApplicationArguments,
+    TraitApplicationEnvironment,
+};
 
 use crate::name::Identifier;
 use crate::signature::StateSignature;

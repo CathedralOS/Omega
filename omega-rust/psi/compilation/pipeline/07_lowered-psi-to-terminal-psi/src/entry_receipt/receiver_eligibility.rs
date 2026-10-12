@@ -357,10 +357,7 @@ fn collect_fused_service_fields(
         };
         let field_identity =
             checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone());
-        match checked
-            .bound_service_parameter_carrier(field.type_reference)
-            .ok()?
-        {
+        match checked.service_parameter_shape(field.type_reference).ok()? {
             Some(carrier) => {
                 let mut terminal_fields = fields.iter().filter(|candidate| {
                     identities.text(candidate.identity) == Some(field_identity.spelling().as_str())
@@ -479,7 +476,7 @@ fn source_tree_has_service_field(
             return false;
         };
         if matches!(
-            checked.bound_service_parameter_carrier(field.type_reference),
+            checked.service_parameter_shape(field.type_reference),
             Ok(Some(_))
         ) {
             return true;
@@ -701,7 +698,7 @@ fn zero_valid_fields(
     fields.iter().all(|field| {
         // A source Binding leaf is established by the separate complete
         // service roster, never by recursively zero-filling its empty shape.
-        if let Ok(Some(carrier)) = checked.bound_service_parameter_carrier(field_reference(field)) {
+        if let Ok(Some(carrier)) = checked.service_parameter_shape(field_reference(field)) {
             return admit_erased_services
                 && terminal_semantics::fused_service_field_matches(
                     declarations,

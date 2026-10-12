@@ -8,7 +8,7 @@
 
 use crate::TypedTrees;
 use crate::machine::Machine;
-use crate::service::classify_exact_service_parameter_carrier;
+use crate::service::inspect_service_parameter_contract;
 use crate::signature::{
     AuthoredInvocation, AuthoredInvocationTarget, StateParameter, StateSignature,
 };
@@ -66,7 +66,7 @@ pub fn boundary_requirement_symbol(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> SymbolHandle {
-    classify_exact_service_parameter_carrier(program, type_reference)
+    inspect_service_parameter_contract(program, type_reference)
         .ok()
         .flatten()
         .map(|parameter| parameter.carrier.requirement)

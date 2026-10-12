@@ -25,27 +25,6 @@ pub(super) fn append(
         else {
             continue;
         };
-        let applications = typed
-            .closed_requirement_applications()
-            .filter(|application| {
-                typed
-                    .trait_machine_signature(application.template)
-                    .is_some_and(|(owner, signature)| {
-                        typed.trait_requirement_callable_identity_text(owner, signature)
-                            == plan.identities.text(row.requirement_identity)
-                            && crate::service_schema::from_typed_instance(
-                                context,
-                                &[],
-                                owner,
-                                application.trait_arguments,
-                            )
-                            .is_some_and(|demand| plan.schema.supplies_receiver_schema(&demand))
-                    })
-            })
-            .collect::<Vec<_>>();
-        if applications.is_empty() {
-            continue;
-        }
         let provider =
             match super::super::adapter_conformance::exact_checked_adapter(context, plan, row) {
                 Ok(provider) => provider,
@@ -54,6 +33,37 @@ pub(super) fn append(
                     continue;
                 }
             };
+        let applications = typed
+            .closed_requirement_applications()
+            .filter(|application| {
+                typed
+                    .trait_machine_signature(application.template)
+                    .is_some_and(|(owner, signature)| {
+                        typed.trait_requirement_callable_identity_text(owner, signature)
+                            == plan.identities.text(row.requirement_identity)
+                            // The selected declaration owns the already checked
+                            // substitution. Comparing its unapplied pattern
+                            // schema with caller regions would discard that
+                            // judgment. An unrelated application supplies no row.
+                            && check_facts.provider_closed_requirements.iter().any(|fact| {
+                                fact.template == application.template
+                                    && fact.closed_requirement == application.signature.symbol
+                                    && fact.receiving_application
+                                        == application.trait_application_identity
+                                    && fact.selecting_declaration
+                                        == selecting_map.map_or(provider.symbol, |map| map.symbol)
+                                    && typed.requirement_realization_matches(
+                                        fact.closed_requirement,
+                                        provider.symbol,
+                                        fact.provider,
+                                    )
+                            })
+                    })
+            })
+            .collect::<Vec<_>>();
+        if applications.is_empty() {
+            continue;
+        }
         for application in applications {
             // A named selection owns these associations even when other maps
             // choose the same realization template. Direct satisfactions are

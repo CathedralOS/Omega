@@ -15,6 +15,8 @@ use typed_trees::type_identity::{
 };
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+mod argument_scopes;
+
 #[derive(Clone, Copy)]
 enum ElisionCallSite {
     Expression(ExpressionHandle),
@@ -57,22 +59,58 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
         let parameters = program.state_parameters(callee_state);
         let skip = parameters.len().saturating_sub(call.arguments.len());
         for (argument, parameter) in call.arguments.iter().zip(parameters.iter().skip(skip)) {
-            let Some(actual) = validation::declared_place_type_raw(
-                program,
-                caller_machine,
-                caller_state,
-                *argument,
-            ) else {
+            let Some((actual, applications)) = caller_state
+                .and_then(|state| argument_scopes::source_application(program, state, *argument))
+            else {
                 continue;
             };
-            collect_lifetime_bindings(
-                program,
-                parameter.type_reference,
-                actual,
-                &callee_machine.lifetime_parameters,
-                &mut call_lifetimes,
-                &mut conflicting_call_lifetime,
-            );
+            // A formed borrow presents the declared place as its referent.
+            // Its new outer loan has no authored region operand, but nested
+            // reference and phantom operands still constrain the invocation.
+            // An existing reference value keeps its original shell below.
+            let required = if program
+                .expression_table
+                .borrow_expression(*argument)
+                .is_some()
+            {
+                match program
+                    .type_reference_table
+                    .type_reference(parameter.type_reference)
+                {
+                    TypeReferenceNode::Reference { referee, .. } => *referee,
+                    _ => parameter.type_reference,
+                }
+            } else {
+                parameter.type_reference
+            };
+            let inferred = program.with_enclosing_data_identity_scopes(&applications, |frames| {
+                visit_lifetime_bindings_in_scope(
+                    program,
+                    required,
+                    actual,
+                    &callee_machine.lifetime_parameters,
+                    argument_scopes::Scope {
+                        owner: caller_machine.symbol,
+                        frames,
+                    },
+                    caller_machine.symbol,
+                    &mut |required, actual| {
+                        if let Some(actual) = actual {
+                            bind_lifetime(
+                                &mut call_lifetimes,
+                                required.as_str(),
+                                actual.as_str(),
+                                &mut conflicting_call_lifetime,
+                            );
+                        }
+                    },
+                );
+            });
+            // A missing supplying telescope leaves this argument unconstrained;
+            // ordinary closure diagnoses it. It is never a caller-only scope.
+            if inferred.is_none() {
+                continue;
+            }
         }
         if conflicting_call_lifetime {
             diagnostics.push(Diagnostic::error(format!(
@@ -242,6 +280,7 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
         }
 
         if let Some(application) = application.filter(|application| application.is_valid()) {
+            let binding_declaration = program.lifetime_declaration_owner(callee_machine.symbol);
             let lifetimes = call_lifetimes
                 .iter()
                 .map(|(parameter, argument)| {
@@ -251,6 +290,15 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
                     }
                 })
                 .collect::<Vec<_>>();
+            // Region-only ordinary calls have no type-specialization step to
+            // bind their source telescope later. Retain its exact declaration
+            // with the operands; an existing static selection keeps its owner.
+            let source = program
+                .expression_table
+                .static_machine_application_mut(application);
+            if !source.binding_declaration.is_valid() {
+                source.binding_declaration = binding_declaration;
+            }
             program
                 .expression_table
                 .set_static_machine_application_lifetimes(application, &lifetimes);
@@ -578,6 +626,29 @@ pub(crate) fn visit_lifetime_bindings(
     parameters: &[Identifier],
     visit: &mut impl FnMut(&Identifier, Option<&Identifier>),
 ) {
+    visit_lifetime_bindings_in_scope(
+        program,
+        required,
+        actual,
+        parameters,
+        argument_scopes::Scope {
+            owner: SymbolHandle::invalid(),
+            frames: &[],
+        },
+        SymbolHandle::invalid(),
+        visit,
+    );
+}
+
+fn visit_lifetime_bindings_in_scope(
+    program: &dyn validation::CheckingInput,
+    required: TypeReferenceHandle,
+    actual: TypeReferenceHandle,
+    parameters: &[Identifier],
+    actual_scope: argument_scopes::Scope<'_>,
+    caller: SymbolHandle,
+    visit: &mut impl FnMut(&Identifier, Option<&Identifier>),
+) {
     // A supplied Type operand is already in its caller's lexical region
     // scope. Its coincident spellings are not occurrences of this callee's
     // fresh lifetime parameters, even in recursive or same-owner selections.
@@ -588,6 +659,9 @@ pub(crate) fn visit_lifetime_bindings(
     {
         return;
     }
+    let Some((actual, actual_scope)) = actual_scope.resolve(program, actual) else {
+        return;
+    };
     match (
         program.type_reference_table.type_reference(required),
         program.type_reference_table.type_reference(actual),
@@ -609,22 +683,41 @@ pub(crate) fn visit_lifetime_bindings(
                     .iter()
                     .any(|parameter| parameter.as_str() == required.as_str())
             {
-                visit(required, actual_lifetime.as_ref());
+                let actual = actual_lifetime
+                    .as_ref()
+                    .and_then(|actual| actual_scope.argument(program, caller, actual));
+                visit(required, actual.as_ref());
             }
-            visit_lifetime_bindings(
+            visit_lifetime_bindings_in_scope(
                 program,
                 *required_referee,
                 *actual_referee,
                 parameters,
+                actual_scope,
+                caller,
                 visit,
             );
         }
         typed_trees::constrained_type_reference_pair!(required, actual) => {
-            visit_lifetime_bindings(program, *required, *actual, parameters, visit)
+            visit_lifetime_bindings_in_scope(
+                program,
+                *required,
+                *actual,
+                parameters,
+                actual_scope,
+                caller,
+                visit,
+            )
         }
-        (TypeReferenceNode::Constrained { base_type, .. }, _) => {
-            visit_lifetime_bindings(program, *base_type, actual, parameters, visit)
-        }
+        (TypeReferenceNode::Constrained { base_type, .. }, _) => visit_lifetime_bindings_in_scope(
+            program,
+            *base_type,
+            actual,
+            parameters,
+            actual_scope,
+            caller,
+            visit,
+        ),
         (
             TypeReferenceNode::Generic {
                 base_symbol: required_base,
@@ -644,7 +737,8 @@ pub(crate) fn visit_lifetime_bindings(
                     .iter()
                     .any(|parameter| parameter.as_str() == required.as_str())
                 {
-                    visit(required, Some(actual));
+                    let actual = actual_scope.argument(program, caller, actual);
+                    visit(required, actual.as_ref());
                 }
             }
             for (required, actual) in program
@@ -657,7 +751,15 @@ pub(crate) fn visit_lifetime_bindings(
                         .type_reference_handles(*actual_arguments),
                 )
             {
-                visit_lifetime_bindings(program, *required, *actual, parameters, visit);
+                visit_lifetime_bindings_in_scope(
+                    program,
+                    *required,
+                    *actual,
+                    parameters,
+                    actual_scope,
+                    caller,
+                    visit,
+                );
             }
         }
         (
@@ -677,7 +779,15 @@ pub(crate) fn visit_lifetime_bindings(
                 element_type: actual,
                 ..
             },
-        ) => visit_lifetime_bindings(program, *required, *actual, parameters, visit),
+        ) => visit_lifetime_bindings_in_scope(
+            program,
+            *required,
+            *actual,
+            parameters,
+            actual_scope,
+            caller,
+            visit,
+        ),
         _ => {}
     }
 }

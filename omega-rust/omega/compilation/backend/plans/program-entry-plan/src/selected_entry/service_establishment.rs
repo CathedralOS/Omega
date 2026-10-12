@@ -4,6 +4,53 @@
 use crate::ProgramEntrySignatureIdentity;
 use effects::provider_plan::{ProviderPlanDigest, ServiceSchemaDigest};
 
+/// One checked application in the field's complete original requirement roster.
+/// Indices belong to the enclosing entry signature's table. Ancestors retain
+/// their declaring application; finite tuples retain separate closed identities.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProgramEntryReceivingRequirement {
+    pub source_requirement: terminal_psi::TerminalIdentityIndex,
+    pub requirement: terminal_psi::TerminalIdentityIndex,
+    pub candidate: terminal_psi::TerminalIdentityIndex,
+    pub provider_declaration: terminal_psi::TerminalIdentityIndex,
+    pub receiving_application: terminal_psi::TerminalIdentityIndex,
+    pub receiving_regions: Vec<terminal_psi::TerminalIdentityIndex>,
+}
+
+impl ProgramEntryReceivingRequirement {
+    /// Join two artifact-local tables by complete portable coordinates. Layout
+    /// or body sharing cannot substitute a receiving application or map tuple.
+    pub fn matches_candidate(
+        &self,
+        candidate: &terminal_psi::ProviderCandidateConformance,
+        canonical: &terminal_psi::TerminalIdentityTable,
+        entry: &terminal_psi::TerminalIdentityTable,
+    ) -> bool {
+        let same = |actual, expected| {
+            canonical
+                .text(actual)
+                .zip(entry.text(expected))
+                .is_some_and(|(actual, expected)| !actual.is_empty() && actual == expected)
+        };
+        same(
+            candidate.source_requirement_identity,
+            self.source_requirement,
+        ) && same(candidate.requirement_identity, self.requirement)
+            && same(candidate.candidate_identity, self.candidate)
+            && same(
+                candidate.provider_declaration.identity(),
+                self.provider_declaration,
+            )
+            && same(candidate.receiving_application, self.receiving_application)
+            && candidate.receiving_region_arguments.len() == self.receiving_regions.len()
+            && candidate
+                .receiving_region_arguments
+                .iter()
+                .zip(&self.receiving_regions)
+                .all(|(actual, expected)| same(*actual, *expected))
+    }
+}
+
 /// Exact semantic authority supplied while provisioning one selected
 /// `ProgramEntry` receiver.
 ///
@@ -25,6 +72,7 @@ pub struct ProgramEntryFusedServiceEstablishment {
     service_schema_digest: ServiceSchemaDigest,
     selected_provider_plan_digest: ProviderPlanDigest,
     receiver_application_index: usize,
+    receiving_requirements: Vec<ProgramEntryReceivingRequirement>,
 }
 
 impl ProgramEntryFusedServiceEstablishment {
@@ -60,6 +108,7 @@ impl ProgramEntryFusedServiceEstablishment {
         service_schema_digest: ServiceSchemaDigest,
         selected_provider_plan_digest: ProviderPlanDigest,
         receiver_application_index: usize,
+        receiving_requirements: Vec<ProgramEntryReceivingRequirement>,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     ) -> Result<Self, &'static str> {
         if target_slot != target_slot.owner.program_entry_slot() {
@@ -78,6 +127,20 @@ impl ProgramEntryFusedServiceEstablishment {
         if field_path.is_empty() || field_path.last() != Some(&field_identity) {
             return Err("Fused root establishment field path must end at the field identity");
         }
+        if receiving_requirements.iter().any(|row| {
+            [
+                row.source_requirement,
+                row.requirement,
+                row.candidate,
+                row.provider_declaration,
+                row.receiving_application,
+            ]
+            .into_iter()
+            .chain(row.receiving_regions.iter().copied())
+            .any(|identity| identity.is_absent())
+        }) {
+            return Err("Fused receiving requirement contains an absent application coordinate");
+        }
         Ok(Self {
             source_signature_identity,
             target_slot,
@@ -94,6 +157,7 @@ impl ProgramEntryFusedServiceEstablishment {
             service_schema_digest,
             selected_provider_plan_digest,
             receiver_application_index,
+            receiving_requirements,
         })
     }
 
@@ -148,5 +212,9 @@ impl ProgramEntryFusedServiceEstablishment {
     /// ancestor plan. Its roster limits the slots provisioned for this field.
     pub const fn receiver_application_index(&self) -> usize {
         self.receiver_application_index
+    }
+
+    pub fn receiving_requirements(&self) -> &[ProgramEntryReceivingRequirement] {
+        &self.receiving_requirements
     }
 }

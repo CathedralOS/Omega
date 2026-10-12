@@ -1,11 +1,10 @@
-//! Checked-source projection for the exact routed `Binding<R>` parameter
-//! carrier.
+//! Checked-source nominal and physical shape of a routed `Binding<R>` shell.
 //!
 //! Later representations consume this checked-owned summary rather than
 //! reopening the typed-tree vocabulary that was retained as checking custody.
-//! The carrier is closed: `Binding<R>` alone is the service identity and no
-//! authored qualification is accepted on it. The `bound_` prefix on the entry
-//! point is a retired-era relic kept for callers that have not migrated.
+//! No authored qualification is accepted on the carrier. This shape summary
+//! does not close a receiving application: its supplying scope and checked
+//! provider correspondence belong to the occurrence and establishment receipt.
 
 use language_semantics::SemanticDomainId;
 use symbols::SymbolHandle;
@@ -44,15 +43,13 @@ impl std::error::Error for CheckedServiceParameterError {}
 impl CheckedTrees {
     /// Classify and project one already-checked type shell. `Ok(None)` means
     /// that the source parameter is not the exact core routed Binding carrier.
-    pub fn bound_service_parameter_carrier(
+    pub fn service_parameter_shape(
         &self,
         type_reference: types::TypeReferenceHandle,
     ) -> Result<Option<CheckedServiceParameterCarrier>, CheckedServiceParameterError> {
-        let Some(carrier) = typed_trees::service::classify_exact_service_parameter_carrier(
-            &self.typed,
-            type_reference,
-        )
-        .map_err(CheckedServiceParameterError::InvalidCarrier)?
+        let Some(carrier) =
+            typed_trees::service::inspect_service_parameter_contract(&self.typed, type_reference)
+                .map_err(CheckedServiceParameterError::InvalidCarrier)?
         else {
             return Ok(None);
         };

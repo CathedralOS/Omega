@@ -20,6 +20,9 @@ pub struct ClosedRequirementApplication<'program> {
     pub template: SymbolHandle,
     /// Complete declaring application, independent of the executable signature.
     pub trait_application_identity: crate::type_identity::NormalizedTypeIdentity,
+    pub portable_trait_application_identity: crate::type_identity::NormalizedTypeIdentity,
+    pub portable_local_arguments: &'program [crate::type_identity::NormalizedTypeIdentity],
+    pub trait_scope: crate::trait_definition::RetainedTraitScope,
     pub trait_arguments: &'program [types::TypeReferenceHandle],
     pub local_arguments: &'program [types::TypeReferenceHandle],
     pub application: static_applications::StaticMachineApplicationHandle,
@@ -37,6 +40,9 @@ impl TypedTrees {
                     declaration,
                     template,
                     trait_application_identity,
+                    portable_trait_application_identity,
+                    portable_local_arguments,
+                    trait_scope,
                     trait_arguments,
                     local_arguments,
                     application,
@@ -48,6 +54,11 @@ impl TypedTrees {
                     declaring_trait: declaration,
                     template,
                     trait_application_identity,
+                    portable_trait_application_identity,
+                    portable_local_arguments: self
+                        .callable_argument_identities
+                        .span_or_empty(portable_local_arguments),
+                    trait_scope,
                     trait_arguments: self
                         .type_reference_table
                         .type_reference_handles(trait_arguments),
@@ -142,7 +153,7 @@ impl TypedTrees {
     /// The supplied row is derivation data, not an admitted selection receipt.
     pub fn instantiate_requirement_application(
         &mut self,
-        declaring_trait: SymbolHandle,
+        environment: &crate::trait_definition::TraitApplicationEnvironment,
         template: SymbolHandle,
         trait_arguments: &[types::TypeReferenceHandle],
         application: static_applications::StaticMachineApplicationHandle,
@@ -175,23 +186,36 @@ impl TypedTrees {
                 }
             })
             .collect::<Result<Vec<_>, _>>()?;
-        self.require_closed_application_operands(trait_arguments)?;
-        self.require_closed_application_operands(&local_arguments)?;
-        let declaration = self
-            .trait_definition_by_symbol(declaring_trait)
-            .ok_or("closed requirement lost its declaring trait")?;
-        let trait_application_identity = crate::trait_definition::AppliedTraitScope::new(
-            self,
-            declaration,
-            crate::trait_definition::TraitApplicationArguments {
-                lexical_owner,
-                enclosing_data_applications: &[],
-                arguments: trait_arguments,
-                lifetimes: &[],
-            },
-        )
-        .and_then(|scope| scope.application_identity(self))
-        .ok_or("closed requirement has no complete declaring application identity")?;
+        let receiving_scope = environment
+            .scope(self)
+            .ok_or("closed requirement lost its declaring trait scope")?;
+        let declaring_trait = receiving_scope.declaration.symbol;
+        if receiving_scope.argument_owner != lexical_owner {
+            return Err("closed requirement source application has a different supplying owner");
+        }
+        // Closure consumes the same source environment that defines the key.
+        // Discarding it here either rejects retained regions or licenses a
+        // later consumer to rebuild a different application from erased types.
+        self.require_receiving_trait_operands(&receiving_scope)?;
+        self.require_receiving_application_operands(&local_arguments, &receiving_scope)?;
+        let trait_application_identity = receiving_scope
+            .application_identity(self)
+            .ok_or("closed requirement has no complete declaring application identity")?;
+        let portable_trait_application_identity = receiving_scope
+            .portable_application_identity(self)
+            .ok_or("closed requirement has no complete portable declaring application")?;
+        let portable_local_arguments = local_arguments
+            .iter()
+            .map(|argument| {
+                crate::type_identity::portable_applied_type_identity(
+                    self,
+                    *argument,
+                    lexical_owner,
+                    &[],
+                )
+                .ok_or("closed requirement has no complete portable local operand")
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         // Signature and ABI equality are insufficient cache coordinates. The
         // outer application includes phantom arguments, and local Type/Const
         // operands retain their supplying region owner. Closure remains a
@@ -200,6 +224,9 @@ impl TypedTrees {
             existing.declaring_trait == declaring_trait
                 && existing.template == template
                 && existing.trait_application_identity == trait_application_identity
+                && existing.portable_trait_application_identity
+                    == portable_trait_application_identity
+                && existing.portable_local_arguments == portable_local_arguments
                 && self
                     .expression_table
                     .static_machine_application_bindings(existing.application)
@@ -270,6 +297,7 @@ impl TypedTrees {
         }
         let mut substitutions = CallableApplication {
             region_scope: template,
+            trait_region_application: Some((environment.clone(), environment.frame_count())),
             source_binders: outer_parameters
                 .iter()
                 .map(|parameter| (parameter.name.clone(), parameter.symbol))
@@ -326,12 +354,19 @@ impl TypedTrees {
         let local_arguments = self
             .type_reference_table
             .insert_type_reference_handles(local_arguments);
+        let trait_scope = environment.retain(self)?;
+        let portable_local_arguments = self
+            .callable_argument_identities
+            .insert_many(portable_local_arguments);
         self.applied_callable_signatures
             .insert(AppliedCallableSignature {
                 owner: AppliedCallableOwner::RequirementInstance {
                     declaration: declaring_trait,
                     template,
                     trait_application_identity,
+                    portable_trait_application_identity,
+                    portable_local_arguments,
+                    trait_scope,
                     trait_arguments,
                     local_arguments,
                     application,

@@ -18,22 +18,29 @@ pub(crate) fn instantiate_boundary_requirement_families(
 ) -> Result<(), Vec<Diagnostic>> {
     let demands = demands::collect(program);
     for demand in demands {
-        let owner = demand.declaring_trait;
         let requirement = demand.requirement;
         let trait_arguments = program
-            .materialize_trait_application_arguments(
-                owner,
-                &demand.substitutions,
-                &demand.scope_starts,
-                demand.argument_owner,
-            )
+            .materialize_trait_application_arguments(&demand.environment)
             .map_err(|message| vec![Diagnostic::error(message)])?;
-        if program
-            .require_closed_application_operands(&trait_arguments)
-            .is_err()
-        {
-            continue;
-        }
+        let has_outer_operands = {
+            let scope = demand.environment.scope(program).ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "boundary family lost its complete source application",
+                )]
+            })?;
+            if program.require_receiving_trait_operands(&scope).is_err()
+                || scope.portable_application_identity(program).is_none()
+            {
+                // A local representation key alone cannot close a portable
+                // requirement. Leave unresolved source applications to their
+                // ordinary obligations, rather than issue an incomplete row.
+                continue;
+            }
+            // This publishes a logical requirement under the retained source
+            // telescope, not an executable provider. Regional correspondence
+            // is qualified later and travels with the exact candidate.
+            !trait_arguments.is_empty() || !scope.declaration.lifetime_parameters.is_empty()
+        };
         let (_, signature) = program
             .trait_machine_signature(requirement)
             .ok_or_else(|| {
@@ -44,7 +51,7 @@ pub(crate) fn instantiate_boundary_requirement_families(
         let name = signature.name.clone();
         let parameters = program.state_signature_type_parameters(signature).to_vec();
         let tuples = if parameters.is_empty() {
-            if trait_arguments.is_empty() {
+            if !has_outer_operands {
                 continue;
             }
             vec![Vec::new()]
@@ -93,7 +100,7 @@ pub(crate) fn instantiate_boundary_requirement_families(
                 .set_static_machine_application_bindings(application, &bindings);
             program
                 .instantiate_requirement_application(
-                    owner,
+                    &demand.environment,
                     requirement,
                     &trait_arguments,
                     application,

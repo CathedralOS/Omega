@@ -367,6 +367,8 @@ mod tests {
                 boundary,
                 requirement_identity,
                 source_requirement_identity: requirement_identity,
+                receiving_application: terminal_psi::TerminalIdentityIndex::default(),
+                receiving_region_arguments: Vec::new(),
                 provider_identity,
                 provider_declaration: terminal_psi::NominalDeclarationIdentity::new(
                     provider_identity,

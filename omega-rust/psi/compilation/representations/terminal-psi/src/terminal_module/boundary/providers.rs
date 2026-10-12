@@ -23,6 +23,14 @@ pub struct ProviderCandidateConformance {
     /// association belongs to the canonical catalog, not a public proposal:
     /// receivers enumerate the complete instance roster without source replay.
     pub source_requirement_identity: TerminalIdentityIndex,
+    /// Complete checked receiving trait application. Zero means this row has
+    /// no closed trait application; it never means any application may match.
+    /// This association supplies no loan or provider-selection authority.
+    pub receiving_application: TerminalIdentityIndex,
+    /// Actual receiving coordinates in the selecting declaration's public
+    /// region-slot order. Repeated coordinates remain repeated, and unused
+    /// slots remain present. Invocation lifetimes are a separate axis.
+    pub receiving_region_arguments: Vec<TerminalIdentityIndex>,
     pub provider_identity: TerminalIdentityIndex,
     /// Exact package/toolchain-owned selecting declaration, independently of
     /// the callable it realizes. Named maps may share the same body.

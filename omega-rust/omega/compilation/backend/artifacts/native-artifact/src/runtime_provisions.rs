@@ -65,6 +65,7 @@ impl TerminalRuntimeProvisions {
         installation: Option<&terminal_installation::AdmittedProviderSelections>,
         host: Vec<TerminalRuntimeHostProvision>,
         boundaries: &[terminal_psi::BoundaryMachineDeclaration],
+        candidates: &[terminal_psi::ProviderCandidateConformance],
         selected: &effects::SelectedProviderPlanFacts,
         identities: &terminal_psi::TerminalIdentityTable,
         plan_identities: &terminal_psi::TerminalIdentityTable,
@@ -123,6 +124,24 @@ impl TerminalRuntimeProvisions {
                 .receiver_applications
                 .get(establishment.receiver_application_index())
                 .ok_or("runtime Fused establishment lost its admitted receiver view")?;
+            if !establishment.receiving_requirements().is_empty() {
+                let installation = installation
+                    .filter(|installation| {
+                        installation.terminal_psi() == checked.terminal_psi_identity()
+                    })
+                    .ok_or("runtime Fused receiving roster has no same-artifact installation")?;
+                fused_service_boundary_slots.push(capture_receiving_slots(
+                    establishment,
+                    plan,
+                    receiver,
+                    candidates,
+                    selected,
+                    identities,
+                    plan_identities,
+                    installation,
+                )?);
+                continue;
+            }
             // The native admission already authenticated these identities and
             // contracts. Capture the existing coordinate relation before that
             // admission is consumed; do not reconstruct semantics or authority.
@@ -274,4 +293,93 @@ impl TerminalRuntimeProvisions {
     pub fn host(&self) -> &[TerminalRuntimeHostProvision] {
         &self.host
     }
+}
+
+/// Capture the complete canonical roster for the checked field application.
+/// Each ancestor owns its own application key; each finite tuple owns a separate
+/// closed coordinate. A supplied subset cannot replace the artifact's roster.
+fn capture_receiving_slots(
+    establishment: &program_entry_plan::ProgramEntryFusedServiceEstablishment,
+    plan: &effects::provider_plan::ProviderPlan,
+    receiver: &effects::provider_plan::ServiceReceiverApplication,
+    candidates: &[terminal_psi::ProviderCandidateConformance],
+    selected: &effects::SelectedProviderPlanFacts,
+    identities: &terminal_psi::TerminalIdentityTable,
+    plan_identities: &terminal_psi::TerminalIdentityTable,
+    installation: &terminal_installation::AdmittedProviderSelections,
+) -> Result<Vec<BoundaryMachineId>, &'static str> {
+    let rows = establishment.receiving_requirements();
+    let first = rows.first().ok_or("runtime receiving roster is empty")?;
+    let text = |identity| plan_identities.text(identity).unwrap_or_default();
+    let regions_match =
+        |candidate: &terminal_psi::ProviderCandidateConformance,
+         row: &program_entry_plan::ProgramEntryReceivingRequirement| {
+            candidate.receiving_region_arguments.len() == row.receiving_regions.len()
+                && candidate
+                    .receiving_region_arguments
+                    .iter()
+                    .zip(&row.receiving_regions)
+                    .all(|(candidate, row)| identities.text(*candidate) == Some(text(*row)))
+        };
+    for requirement in &receiver.requirement_identities {
+        if !rows
+            .iter()
+            .any(|row| text(row.source_requirement) == plan.schema.identity_text(*requirement))
+        {
+            return Err("runtime receiving roster omitted an original requirement");
+        }
+    }
+    if rows.iter().any(|row| {
+        row.provider_declaration != first.provider_declaration
+            || row.receiving_regions != first.receiving_regions
+            || !receiver.requirement_identities.iter().any(|requirement| {
+                text(row.source_requirement) == plan.schema.identity_text(*requirement)
+            })
+    }) {
+        return Err("runtime receiving roster mixes selecting owners or provider applications");
+    }
+    let expected = candidates
+        .iter()
+        .filter(|candidate| {
+            identities.text(candidate.provider_identity) == Some(plan.provider_type.as_str())
+                && identities.text(candidate.provider_declaration.identity())
+                    == Some(text(first.provider_declaration))
+                && regions_match(candidate, first)
+                // The original declaration roster and complete map tuple,
+                // not supplied application keys, determine the expected set.
+                // Type/Const-generic provider maps are not admitted: their
+                // independent applications would need additional coordinates.
+                && receiver.requirement_identities.iter().any(|requirement| {
+                    identities.text(candidate.source_requirement_identity)
+                        == Some(plan.schema.identity_text(*requirement))
+                })
+        })
+        .collect::<Vec<_>>();
+    if expected.len() != rows.len() {
+        return Err("runtime receiving roster differs from complete canonical applications");
+    }
+    let mut slots = Vec::with_capacity(rows.len());
+    for row in rows {
+        let mut matching = expected
+            .iter()
+            .copied()
+            .filter(|candidate| row.matches_candidate(candidate, identities, plan_identities));
+        let candidate = matching
+            .next()
+            .ok_or("runtime receiving requirement has no canonical candidate")?;
+        if matching.next().is_some()
+            || slots.contains(&candidate.boundary)
+            || !installation.contains_candidate(candidate)
+            || !selected.selected_row_matches_requirement(
+                text(row.requirement),
+                text(row.source_requirement),
+                plan.report_fingerprint(),
+            )
+        {
+            return Err("runtime receiving requirement does not join one exact installed plan row");
+        }
+        slots.push(candidate.boundary);
+    }
+    slots.sort_unstable();
+    Ok(slots)
 }

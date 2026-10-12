@@ -40,6 +40,9 @@ impl CallableApplication {
         program: &mut TypedTrees,
         original: types::TypeReferenceHandle,
     ) -> Result<types::TypeReferenceHandle, &'static str> {
+        let mut applied_owner = program
+            .type_reference_table
+            .operand_lifetime_owner(original);
         let node = match program
             .type_reference_table
             .type_reference(original)
@@ -73,14 +76,23 @@ impl CallableApplication {
                 referee,
                 access,
                 lifetime,
-            } => types::TypeReferenceNode::Reference {
-                referee: self.type_reference(program, referee)?,
-                access,
-                lifetime: lifetime
+            } => {
+                let lifetime = lifetime
                     .as_ref()
                     .filter(|lifetime| !self.elided_lifetimes.contains(lifetime))
-                    .map(|lifetime| self.lifetime(lifetime)),
-            },
+                    .map(|lifetime| self.scoped_lifetime(program, original, lifetime))
+                    .transpose()?;
+                if let Some((_, region)) = &lifetime
+                    && region.declaration.is_valid()
+                {
+                    applied_owner = region.declaration;
+                }
+                types::TypeReferenceNode::Reference {
+                    referee: self.type_reference(program, referee)?,
+                    access,
+                    lifetime: lifetime.map(|(name, _)| name),
+                }
+            }
             types::TypeReferenceNode::Constrained {
                 base_type,
                 constraints,
@@ -194,13 +206,40 @@ impl CallableApplication {
                         "elided result region requires an anonymous nominal lifetime representation",
                     );
                 }
+                let lifetimes = lifetime_arguments
+                    .iter()
+                    .map(|lifetime| self.scoped_lifetime(program, original, lifetime))
+                    .collect::<Result<Vec<_>, _>>()?;
+                if let Some((environment, _)) = &self.trait_region_application {
+                    let owner = if applied_owner.is_valid() {
+                        applied_owner
+                    } else {
+                        environment.argument_owner()
+                    };
+                    for (name, region) in &lifetimes {
+                        if region.declaration.is_valid()
+                            && crate::type_identity::lifetime_parameter_identity(
+                                program,
+                                owner,
+                                name.as_str(),
+                            ) != Some(*region)
+                        {
+                            return Err(
+                                "applied nominal regions have no complete represented supplying telescope",
+                            );
+                        }
+                    }
+                    if lifetimes
+                        .iter()
+                        .any(|(_, region)| region.declaration.is_valid())
+                    {
+                        applied_owner = owner;
+                    }
+                }
                 types::TypeReferenceNode::Generic {
                     base_symbol: self.symbol(base_symbol),
                     base_name,
-                    lifetime_arguments: lifetime_arguments
-                        .iter()
-                        .map(|lifetime| self.lifetime(lifetime))
-                        .collect(),
+                    lifetime_arguments: lifetimes.into_iter().map(|(name, _)| name).collect(),
                     arguments: self.type_arguments(program, arguments)?,
                 }
             }
@@ -226,12 +265,9 @@ impl CallableApplication {
         program
             .type_reference_table
             .attach_constant_origins(applied, origins)?;
-        let owner = program
-            .type_reference_table
-            .operand_lifetime_owner(original);
         program
             .type_reference_table
-            .retain_operand_lifetime_owner(applied, owner)?;
+            .retain_operand_lifetime_owner(applied, applied_owner)?;
         Ok(applied)
     }
 

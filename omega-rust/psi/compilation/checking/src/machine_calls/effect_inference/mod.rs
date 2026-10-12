@@ -49,7 +49,7 @@ pub(super) fn invocation_service_symbol(
     match target {
         flow_effects::InvocationTarget::Parameter(index) => {
             parameters.get(*index as usize).map(|parameter| {
-                typed_trees::service::exact_bound_service_requirement(
+                typed_trees::service::service_requirement_declaration(
                     program,
                     parameter.type_reference,
                 )

@@ -104,6 +104,62 @@ pub fn canonical_place_type_reference(
     project_type_reference_from_segments(program, current, &place.segments)
 }
 
+/// A semantic field occurrence keeps original declaration operands together
+/// with their supplying applications. Storage projection above instead reads
+/// prepared fields. Its substituted operands must not be combined with the
+/// original telescopes when resolving exact regions or phantom arguments.
+/// This query grants no loan, establishment or invocation permission.
+pub fn canonical_place_source_type_application(
+    program: &dyn crate::CheckingInput,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    place: &CanonicalPlace,
+) -> Option<(
+    typed_trees::types::TypeReferenceHandle,
+    Vec<typed_trees::types::TypeReferenceHandle>,
+)> {
+    let mut reference = canonical_place_type_reference(
+        program,
+        state_symbol,
+        statement_index,
+        &CanonicalPlace {
+            root: place.root,
+            segments: Vec::new(),
+        },
+    )?;
+    let mut applications = Vec::new();
+    for segment in &place.segments {
+        let (projected, frames) =
+            program.project_enclosing_data_type_reference(reference, &applications)?;
+        reference = projected;
+        applications.truncate(frames);
+        match segment {
+            facts::PlaceSegment::Field { symbol } => {
+                let parent = crate::unwrapped_type_reference(program, reference)?;
+                let (parent, frames) =
+                    program.project_enclosing_data_type_reference(parent, &applications)?;
+                applications.truncate(frames);
+                let owner = program
+                    .type_reference_table
+                    .type_reference(parent)
+                    .type_symbol(&program.type_reference_table);
+                let declaration = program.unique_data_definition_by_symbol(owner)?;
+                applications.push(parent);
+                reference = data_field_type_reference(program, declaration, *symbol)?;
+            }
+            facts::PlaceSegment::Case { .. } => {}
+            facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. } => {
+                reference = collection_element_type_reference(program, reference)?;
+            }
+            facts::PlaceSegment::FixedRange { .. } => return None,
+        }
+    }
+    let (reference, frames) =
+        program.project_enclosing_data_type_reference(reference, &applications)?;
+    applications.truncate(frames);
+    Some((reference, applications))
+}
+
 pub fn project_type_reference_from_segments(
     program: &dyn crate::CheckingInput,
     current: typed_trees::types::TypeReferenceHandle,

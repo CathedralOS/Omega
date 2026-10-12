@@ -29,7 +29,8 @@ mod intrinsic_requirements;
 pub mod program_entry;
 mod provider_identity;
 pub use provider_identity::{
-    provider_row_matches, provider_trait_application, provider_trait_requirement_matches,
+    ProviderReceiverApplication, provider_receiver_application, provider_row_matches,
+    provider_trait_application, provider_trait_requirement_matches,
 };
 mod provider_planning;
 mod provider_settlement;

@@ -14,10 +14,10 @@ use crate::type_identity::{
 };
 use symbols::SymbolHandle;
 
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct AppliedDeclarationRegionScope {
-    declaration: SymbolHandle,
-    lifetimes: Vec<(String, String)>,
+    pub(super) declaration: SymbolHandle,
+    pub(super) lifetimes: Vec<(String, String)>,
 }
 
 impl AppliedDeclarationRegionScope {
@@ -40,6 +40,75 @@ impl AppliedDeclarationRegionScope {
 }
 
 impl AppliedTraitScope<'_> {
+    /// Apply the region operands already retained on one ordinary invocation.
+    /// Incoming operands precede the trait's simultaneous telescope. Captured
+    /// region owners remain distinct; this grants no loan or provider selection.
+    pub fn under_invocation(
+        mut self,
+        program: &TypedTrees,
+        declaration: SymbolHandle,
+        argument_owner: SymbolHandle,
+        bindings: &[crate::static_applications::StaticMachineLifetimeBinding],
+    ) -> Option<Self> {
+        let declaration = program.lifetime_declaration_owner(declaration);
+        let machine = program.machine_by_symbol(declaration)?;
+        let mut lifetimes = Vec::with_capacity(bindings.len());
+        for binding in bindings {
+            let parameter = crate::type_identity::lifetime_parameter_identity(
+                program,
+                declaration,
+                binding.parameter.as_str(),
+            )?;
+            if parameter.declaration != declaration
+                || machine.lifetime_parameters.get(parameter.ordinal)? != &binding.parameter
+                || lifetimes
+                    .iter()
+                    .any(|(previous, _)| previous == binding.parameter.as_str())
+            {
+                return None;
+            }
+            crate::type_identity::lifetime_parameter_identity(
+                program,
+                argument_owner,
+                binding.argument.as_str(),
+            )?;
+            lifetimes.push((
+                binding.parameter.as_str().to_owned(),
+                binding.argument.as_str().to_owned(),
+            ));
+        }
+        self.argument_owner = argument_owner;
+        self.substitution_scope_starts.insert(0, 0);
+        self.region_scopes.insert(
+            0,
+            AppliedDeclarationRegionScope {
+                declaration,
+                lifetimes,
+            },
+        );
+        Some(self)
+    }
+
+    /// Publish the same complete application the local checking key names.
+    /// Every operand keeps its own simultaneous prefix and supplying regions.
+    pub fn portable_application_identity(
+        &self,
+        program: &TypedTrees,
+    ) -> Option<NormalizedTypeIdentity> {
+        let arguments = program
+            .trait_type_parameters(self.declaration)
+            .iter()
+            .map(|parameter| self.portable_parameter_identity(program, parameter.symbol))
+            .collect::<Option<Vec<_>>>()?;
+        let lifetimes = self.portable_lifetime_arguments(program)?;
+        crate::type_identity::portable_trait_application_identity(
+            program,
+            self.declaration.symbol,
+            &arguments,
+            &lifetimes,
+        )
+    }
+
     /// Publish an actual in its supplying scope, before the simultaneous
     /// telescope whose parameter it replaces. This retains reference access,
     /// nominal phantom regions and the complete inherited substitution route.

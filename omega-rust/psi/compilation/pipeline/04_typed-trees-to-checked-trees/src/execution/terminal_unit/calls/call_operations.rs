@@ -420,7 +420,11 @@ pub(in crate::execution) fn build_call_operation(
                 .any(|parameter| {
                     typed_trees::service::classify_exact_service_parameter_carrier(
                         program,
-                        parameter.type_reference,
+                        typed_trees::service::ServiceCarrierOccurrence {
+                            type_reference: parameter.type_reference,
+                            lexical_owner: parameter.symbol,
+                            enclosing_data_applications: &[],
+                        },
                     )
                     .ok()
                     .flatten()
@@ -438,7 +442,10 @@ pub(in crate::execution) fn build_call_operation(
                 caller_parameters,
                 target_state,
                 call.statement_index,
+                &call_site,
                 &structural_arguments,
+                caller_structural_results,
+                &phase,
             ))
             && projected_call_contracts_are_represented(
                 program,

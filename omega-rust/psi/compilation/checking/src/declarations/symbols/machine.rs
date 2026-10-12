@@ -226,7 +226,7 @@ fn callable_receiver_type_name(
     type_reference: TypeReferenceHandle,
 ) -> Option<&str> {
     if let Some(requirement) =
-        typed_trees::service::exact_bound_service_requirement(program, type_reference)
+        typed_trees::service::service_requirement_declaration(program, type_reference)
     {
         return program
             .trait_definition_by_symbol(requirement)

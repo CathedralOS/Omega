@@ -146,10 +146,8 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
                 continue;
             }
             if let Some(carrier) = checked
-                .bound_service_parameter_carrier(source.type_reference)
-                .map_err(|_| {
-                    LoweringError::Unsupported("Unit graph has an invalid Binding carrier")
-                })?
+                .service_parameter_shape(source.type_reference)
+                .map_err(LoweringError::InvalidServiceParameterShape)?
             {
                 // Service authority comes from this state's exact source receipt,
                 // never from an empty storage shape. Ordinary edge custody still

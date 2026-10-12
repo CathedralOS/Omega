@@ -89,6 +89,41 @@ impl<'entry> NativeProgramEntrySettlement<'entry> {
         self.fused_service_establishments
     }
 
+    /// Receiving obligations remain deployment roots even when a field is
+    /// forwarded to a helper with another invocation telescope. This only
+    /// retains canonical candidates; ordinary installation still admits them.
+    pub fn receiving_provider_roots(
+        self,
+        artifact: &terminal_codec::CanonicalTerminalArtifact,
+    ) -> Result<Vec<semantic_vocabulary::BoundaryMachineId>, &'static str> {
+        let mut roots = Vec::new();
+        for establishment in self.fused_service_establishments {
+            if !establishment.receiving_requirements().is_empty()
+                && self.checked_entry.is_none_or(|checked| {
+                    checked.terminal_psi_identity() != artifact.view().identity()
+                })
+            {
+                return Err("receiving provider roots have no same-artifact checked entry");
+            }
+            for row in establishment.receiving_requirements() {
+                let module = artifact.semantic_module();
+                let mut matching = module.provider_candidates.iter().filter(|candidate| {
+                    row.matches_candidate(candidate, &module.identities, self.source.identities())
+                });
+                let candidate = matching
+                    .next()
+                    .ok_or("receiving provider root has no exact canonical candidate")?;
+                if matching.next().is_some() {
+                    return Err("receiving provider root has multiple canonical candidates");
+                }
+                roots.push(candidate.boundary);
+            }
+        }
+        roots.sort_unstable();
+        roots.dedup();
+        Ok(roots)
+    }
+
     /// Check the target and calling-contract custody before native lowering.
     /// This validates declarations only; Terminal replay, storage provisioning,
     /// and installation authority remain independent requirements.

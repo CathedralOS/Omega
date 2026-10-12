@@ -29,6 +29,7 @@ struct ServiceFieldApplication<'program> {
 #[derive(Clone, Copy)]
 struct ServiceFieldSource<'program> {
     definition: &'program DataDefinition,
+    storage_definition: &'program DataDefinition,
     reference: TypeReferenceHandle,
     lexical_owner: symbols::SymbolHandle,
 }
@@ -45,9 +46,15 @@ impl<'program> ServiceFieldSource<'program> {
         else {
             return None;
         };
+        let (reference, _) = checked.project_enclosing_data_type_reference(*referee, &[])?;
+        let owner = checked
+            .type_reference_table
+            .type_reference(reference)
+            .type_symbol(&checked.type_reference_table);
         Some(Self {
-            definition: context.definition,
-            reference: *referee,
+            definition: checked.unique_data_definition_by_symbol(owner)?,
+            storage_definition: context.definition,
+            reference,
             lexical_owner,
         })
     }
@@ -442,12 +449,20 @@ pub(crate) fn derive_fused_program_entry_establishments(
         };
         let matching_plans = selected
             .iter()
-            .filter(|candidate| {
-                candidate.plan.schema.supplies_receiver_schema(&schema)
-                    && candidate.selected_by.composition_mode() == Ok(CompositionMode::Fused)
+            .filter_map(|candidate| {
+                if candidate.selected_by.composition_mode() != Ok(CompositionMode::Fused) {
+                    return None;
+                }
+                provider_planning::provider_receiver_application(
+                    checked,
+                    &candidate.plan,
+                    &application,
+                    &schema,
+                )
+                .map(|view| (candidate, view))
             })
             .collect::<Vec<_>>();
-        let [selected_plan] = matching_plans.as_slice() else {
+        let [(selected_plan, receiving_application)] = matching_plans.as_slice() else {
             diagnostics.push(Diagnostic::error(format!(
                 "selected ProgramEntry Binding field `{}::{}` rejoins {} exact Fused provider plans; expected one",
                 owner.name,
@@ -457,15 +472,9 @@ pub(crate) fn derive_fused_program_entry_establishments(
             continue;
         };
         let carrier_base_identity = unconstrained_type_identity(checked, field.type_reference);
-        let receiver_application_index = selected_plan
-            .plan
-            .schema
-            .receiver_application_index(&schema)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "selected Fused plan lost its exact receiver application",
-                )]
-            })?;
+        let receiving_requirements =
+            super::receiving_requirements(checked, receiving_application, identities)
+                .map_err(|message| vec![Diagnostic::error(message)])?;
         let row = program_entry_plan::ProgramEntryFusedServiceEstablishment::new(
             source.identity(),
             source.target_slot(),
@@ -480,7 +489,8 @@ pub(crate) fn derive_fused_program_entry_establishments(
             program_entry_plan::ProgramEntryFusedServiceEstablishment::requirement_identity_for_schema(&schema),
             schema.identity_digest(),
             selected_plan.plan.identity_digest(),
-            receiver_application_index,
+            receiving_application.declaration_view,
+            receiving_requirements,
             identities,
         )
         .map_err(|message| vec![Diagnostic::error(message)])?;
@@ -529,13 +539,47 @@ fn collect_service_fields<'a>(
             continue;
         };
         let field_identity = data_field_identity(field);
+        // Storage eligibility was qualified on the prepared receiver. Its
+        // exact retained field symbol rejoins that physical view, while the
+        // original field operand and its supplying prefix own region custody.
+        let mut stored = checked
+            .data_members(source.storage_definition)
+            .iter()
+            .filter_map(|member| member.as_field())
+            .filter(|stored| stored.symbol == field.symbol);
+        let Some(storage_field) = stored.next() else {
+            diagnostics.push(Diagnostic::error(format!(
+                "selected ProgramEntry field `{field_identity}` lost its retained storage declaration"
+            )));
+            continue;
+        };
+        if stored.next().is_some() {
+            diagnostics.push(Diagnostic::error(format!(
+                "selected ProgramEntry field `{field_identity}` repeats its retained storage declaration"
+            )));
+            continue;
+        }
+        let Some((reference, frames)) = checked.project_enclosing_data_type_reference(
+            field.type_reference,
+            enclosing_data_applications,
+        ) else {
+            diagnostics.push(Diagnostic::error(format!(
+                "selected ProgramEntry field `{field_identity}` lost its original supplying application"
+            )));
+            continue;
+        };
+        let mut field_applications = enclosing_data_applications[..frames].to_vec();
         match typed_trees::service::classify_exact_bound_service_carrier(
             checked,
-            field.type_reference,
+            typed_trees::service::ServiceCarrierOccurrence {
+                type_reference: reference,
+                lexical_owner: source.lexical_owner,
+                enclosing_data_applications: &field_applications,
+            },
         ) {
             Ok(Some(carrier)) => {
                 let Some(application) =
-                    carrier.application(checked, source.lexical_owner, enclosing_data_applications)
+                    carrier.application(checked, source.lexical_owner, &field_applications)
                 else {
                     diagnostics.push(Diagnostic::error(format!(
                             "selected ProgramEntry field `{}::{}` lost its exact enclosing data application",
@@ -545,7 +589,7 @@ fn collect_service_fields<'a>(
                 };
                 field_path.push(field_identity);
                 service_fields.push(ServiceFieldApplication {
-                    field,
+                    field: storage_field,
                     carrier,
                     application,
                     path: field_path.clone(),
@@ -553,7 +597,19 @@ fn collect_service_fields<'a>(
                 field_path.pop();
             }
             Ok(None) => {
-                let Some(nested) = nested_source_record(checked, field.type_reference) else {
+                let Some(nested) = nested_source_record(checked, storage_field.type_reference)
+                else {
+                    continue;
+                };
+                let owner_symbol = checked
+                    .type_reference_table
+                    .type_reference(reference)
+                    .type_symbol(&checked.type_reference_table);
+                let Some(declaration) = checked.unique_data_definition_by_symbol(owner_symbol)
+                else {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "selected ProgramEntry field `{field_identity}` lost its original record declaration"
+                    )));
                     continue;
                 };
                 field_path.push(field_identity);
@@ -561,11 +617,12 @@ fn collect_service_fields<'a>(
                     checked,
                     owner,
                     ServiceFieldSource {
-                        definition: nested,
-                        reference: field.type_reference,
+                        definition: declaration,
+                        storage_definition: nested,
+                        reference,
                         lexical_owner: source.lexical_owner,
                     },
-                    enclosing_data_applications,
+                    &mut field_applications,
                     field_path,
                     service_fields,
                     diagnostics,

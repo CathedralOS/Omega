@@ -118,6 +118,21 @@ pub(super) fn validate_provider_candidate(
     module: &TerminalModule,
     candidate: &ProviderCandidateConformance,
 ) -> Result<(), CodecError> {
+    if candidate.receiving_application.is_absent() {
+        if !candidate.receiving_region_arguments.is_empty() {
+            return malformed("provider regions have no receiving application");
+        }
+    } else if module
+        .identities
+        .text(candidate.receiving_application)
+        .is_none_or(str::is_empty)
+        || candidate
+            .receiving_region_arguments
+            .iter()
+            .any(|region| module.identities.text(*region).is_none_or(str::is_empty))
+    {
+        return malformed("provider receiving application references an empty identity");
+    }
     if candidate.requirement_identity.is_absent()
         || module
             .identities
@@ -139,6 +154,11 @@ pub(super) fn validate_provider_candidate(
     let Some(boundary) = module.boundary_machine(candidate.boundary) else {
         return malformed("provider candidate references an unknown terminal ID");
     };
+    if !candidate.receiving_application.is_absent()
+        && boundary.kind != terminal_psi::BoundaryRequirementKind::Trait
+    {
+        return malformed("provider receiving trait application names a non-trait boundary");
+    }
     let Some(machine) = module.machine(candidate.candidate) else {
         return malformed("provider candidate references an unknown terminal ID");
     };

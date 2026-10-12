@@ -28,30 +28,23 @@ use typed_trees::TypedTrees;
 /// Exact schema ownership still matters: another requirement's valid digest
 /// cannot authorize this receiver. Fused selection provenance and carrier
 /// custody remain independently checked by `service_custody` before native use.
-fn selected_service_plan_for_carrier<'plans>(
-    typed: &TypedTrees,
+fn selected_service_plan_for_application<'plans>(
+    typed: &CheckedTrees,
     calling_plans: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
     selected_plans: &'plans effects::SelectedProviderPlanFacts,
-    carrier: typed_trees::service::ExactServiceCarrier,
-    lexical_owner: symbols::SymbolHandle,
+    application: &typed_trees::trait_definition::AppliedTraitScope<'_>,
+    arguments: &[typed_trees::types::TypeReferenceHandle],
 ) -> Option<&'plans effects::provider_plan::ProviderPlan> {
-    let schema = carrier
-        .application(typed, lexical_owner, &[])
-        .and_then(|application| {
-            provider_planning::service_schema::from_typed_application(
-                provider_planning::ProviderPlanningContext::new(
-                    typed,
-                    source::DependencyScope::Product,
-                ),
-                calling_plans,
-                application,
-                carrier.arguments(typed),
-            )
-        })?;
-    let mut matching = selected_plans
-        .plans()
-        .iter()
-        .filter(|plan| plan.schema.supplies_receiver_schema(&schema));
+    let schema = provider_planning::service_schema::from_typed_application(
+        provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
+        calling_plans,
+        application.clone(),
+        arguments,
+    )?;
+    let mut matching = selected_plans.plans().iter().filter(|plan| {
+        provider_planning::provider_receiver_application(typed, plan, application, &schema)
+            .is_some()
+    });
     let plan = matching.next()?;
     matching.next().is_none().then_some(plan)
 }
@@ -150,17 +143,24 @@ pub(crate) fn settle_selected_boundary_adapter_dispatch(
             let Some(field) = member.as_field() else {
                 continue;
             };
-            let (symbol, requirement_reference, provider_plan_digest) = if let Ok(Some(carrier)) =
+            let (symbol, application, provider_plan_digest) = if let Ok(Some(carrier)) =
                 typed_trees::service::classify_exact_bound_service_carrier(
                     typed,
-                    field.type_reference,
+                    typed_trees::service::ServiceCarrierOccurrence {
+                        type_reference: field.type_reference,
+                        lexical_owner: data.symbol,
+                        enclosing_data_applications: &[],
+                    },
                 ) {
-                let Some(plan) = selected_service_plan_for_carrier(
+                let Some(application) = carrier.application(typed, data.symbol, &[]) else {
+                    continue;
+                };
+                let Some(plan) = selected_service_plan_for_application(
                     typed,
                     calling_plans,
                     selected_plans,
-                    carrier,
-                    data.symbol,
+                    &application,
+                    carrier.arguments(typed),
                 ) else {
                     // Unselected requirements supply no executable adapter.
                     // Root establishment owns missing-provider diagnostics.
@@ -168,7 +168,7 @@ pub(crate) fn settle_selected_boundary_adapter_dispatch(
                 };
                 (
                     carrier.requirement,
-                    carrier.requirement_reference,
+                    Some(application.environment()),
                     Some(*plan.identity_digest().as_bytes()),
                 )
             } else {
@@ -179,16 +179,12 @@ pub(crate) fn settle_selected_boundary_adapter_dispatch(
                 else {
                     continue;
                 };
-                (
-                    symbol,
-                    typed_trees::types::TypeReferenceHandle::invalid(),
-                    None,
-                )
+                (symbol, None, None)
             };
             let receiver = BoundaryField {
                 symbol: field.symbol,
                 trait_symbol: symbol,
-                requirement_reference,
+                application,
                 provider_plan_digest,
             };
             if !adapters
@@ -237,7 +233,7 @@ pub(crate) fn settle_selected_boundary_adapter_dispatch(
         let field = BoundaryField {
             symbol: owner,
             trait_symbol: adapter.receiver_trait,
-            requirement_reference: typed_trees::types::TypeReferenceHandle::invalid(),
+            application: None,
             provider_plan_digest: None,
         };
         if !boundary_fields.contains(&field) {
@@ -301,7 +297,7 @@ pub(crate) fn settle_selected_boundary_adapter_dispatch(
                 boundary_fields.push(BoundaryField {
                     symbol: parameter.symbol,
                     trait_symbol,
-                    requirement_reference: typed_trees::types::TypeReferenceHandle::invalid(),
+                    application: None,
                     provider_plan_digest: None,
                 });
             }
@@ -344,7 +340,11 @@ pub(crate) fn settle_selected_boundary_adapter_dispatch(
             };
             let Ok(Some(carrier)) = typed_trees::service::classify_exact_service_parameter_carrier(
                 typed,
-                source_parameter.type_reference,
+                typed_trees::service::ServiceCarrierOccurrence {
+                    type_reference: source_parameter.type_reference,
+                    lexical_owner: source_parameter.symbol,
+                    enclosing_data_applications: &[],
+                },
             ) else {
                 continue;
             };
@@ -354,19 +354,26 @@ pub(crate) fn settle_selected_boundary_adapter_dispatch(
             {
                 continue;
             }
-            let Some(plan) = selected_service_plan_for_carrier(
+            let Some(application) =
+                carrier
+                    .carrier
+                    .application(typed, receipt.source_parameter, &[])
+            else {
+                continue;
+            };
+            let Some(plan) = selected_service_plan_for_application(
                 typed,
                 calling_plans,
                 selected_plans,
-                carrier.carrier,
-                receipt.source_parameter,
+                &application,
+                carrier.carrier.arguments(typed),
             ) else {
                 continue;
             };
             let receiver = BoundaryField {
                 symbol: receipt.source_parameter,
                 trait_symbol: receipt.requirement,
-                requirement_reference: carrier.carrier.requirement_reference,
+                application: Some(application.environment()),
                 provider_plan_digest: Some(*plan.identity_digest().as_bytes()),
             };
             if !adapters

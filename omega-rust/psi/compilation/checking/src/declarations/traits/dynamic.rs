@@ -764,7 +764,7 @@ pub(crate) fn receiver_trait_scope<'program>(
     lexical_owner: symbols::SymbolHandle,
 ) -> Option<typed_trees::trait_definition::AppliedTraitScope<'program>> {
     if let Some(carrier) =
-        typed_trees::service::classify_exact_service_parameter_carrier(program, type_reference)
+        typed_trees::service::inspect_service_parameter_contract(program, type_reference)
             .ok()
             .flatten()
     {

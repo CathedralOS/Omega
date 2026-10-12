@@ -26,6 +26,14 @@ pub(crate) fn encode_provider_candidate(
     writer.id(candidate.boundary);
     writer.u32(candidate.requirement_identity.0);
     writer.u32(candidate.source_requirement_identity.0);
+    writer.u32(candidate.receiving_application.0);
+    writer.len(
+        "provider receiving region arguments",
+        candidate.receiving_region_arguments.len(),
+    )?;
+    for region in &candidate.receiving_region_arguments {
+        writer.u32(region.0);
+    }
     writer.u32(candidate.provider_identity.0);
     writer.u32(candidate.provider_declaration.identity().0);
     writer.u32(candidate.candidate_identity.0);
@@ -82,6 +90,9 @@ pub(crate) fn decode_provider_candidate(
     let boundary = reader.id("BoundaryMachineId")?;
     let requirement_identity = TerminalIdentityIndex(reader.u32()?);
     let source_requirement_identity = TerminalIdentityIndex(reader.u32()?);
+    let receiving_application = TerminalIdentityIndex(reader.u32()?);
+    let receiving_region_arguments =
+        decode_counted(reader, |reader| Ok(TerminalIdentityIndex(reader.u32()?)))?;
     let provider_identity = TerminalIdentityIndex(reader.u32()?);
     let provider_declaration =
         terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?));
@@ -131,6 +142,8 @@ pub(crate) fn decode_provider_candidate(
         boundary,
         requirement_identity,
         source_requirement_identity,
+        receiving_application,
+        receiving_region_arguments,
         provider_identity,
         provider_declaration,
         candidate_identity,

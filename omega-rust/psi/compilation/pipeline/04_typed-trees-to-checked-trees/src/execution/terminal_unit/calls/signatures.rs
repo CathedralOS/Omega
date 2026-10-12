@@ -124,7 +124,11 @@ fn structural_signature_for_partial_affine(
         let (type_identity, binding_carrier) =
             if typed_trees::service::classify_exact_service_parameter_carrier(
                 program,
-                parameter.type_reference,
+                typed_trees::service::ServiceCarrierOccurrence {
+                    type_reference: parameter.type_reference,
+                    lexical_owner: parameter.symbol,
+                    enclosing_data_applications: &[],
+                },
             )
             .ok()
             .flatten()
@@ -433,15 +437,21 @@ pub(crate) fn parameter_signatures(
         let (type_identity, binding_carrier) =
             if typed_trees::service::classify_exact_service_parameter_carrier(
                 program,
-                parameter.type_reference,
+                typed_trees::service::ServiceCarrierOccurrence {
+                    type_reference: parameter.type_reference,
+                    lexical_owner: parameter.symbol,
+                    enclosing_data_applications: &[],
+                },
             )
             .ok()
             .flatten()
             .is_some()
             {
+                trace.phase("state graph: state signature: parameter signature: binding binders");
                 if !binders.is_empty() {
                     return None;
                 }
+                trace.phase("state graph: state signature: parameter signature: binding receipt");
                 let (identity, receipt) = shapes.add_binding_parameter_type(
                     parameter.type_reference,
                     parameter.symbol,
@@ -449,6 +459,9 @@ pub(crate) fn parameter_signatures(
                 )?;
                 (identity, Some(receipt))
             } else {
+                trace.phase(
+                    "state graph: state signature: parameter signature: ordinary structural type",
+                );
                 (
                     shapes.add_type(parameter.type_reference, binders, &[])?,
                     None,

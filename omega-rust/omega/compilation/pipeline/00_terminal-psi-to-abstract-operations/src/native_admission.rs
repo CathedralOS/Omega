@@ -21,6 +21,9 @@ use terminal_codec::CanonicalTerminalArtifact;
 pub struct NativeAdmissionRequest<'request, 'execution> {
     /// Exact retained callable selected by the application's checked custody.
     pub entry: terminal_psi::TargetMachineCallable,
+    /// Canonical boundary obligations required by this deployment's receiver.
+    /// They retain selected bodies but grant no installation or runtime custody.
+    pub receiving_provider_roots: &'request [semantic_vocabulary::BoundaryMachineId],
     /// Exact provider custody plus the receiving authority policies.
     /// An absent permission policy makes no receiver-admission claim; it is
     /// neither an empty policy nor permission inferred from accepted packages.
@@ -61,6 +64,7 @@ pub fn admit_native_realization<'execution>(
             artifact,
             request.providers.profile,
             request.providers.checked_adapters,
+            request.receiving_provider_roots,
         )
         .map_err(|error| realization_error("execution scope", error))?
         .bind_selected_family_realizations(artifact, request.providers.selected_provider_plans)

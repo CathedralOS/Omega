@@ -7,6 +7,8 @@
 //! trimming functions after installation would orphan its admitted call rows.
 //! Selection here supplies no provider authority: ordinary provider admission
 //! still admits the exact selected candidate and its occurrence contracts.
+//! Receiving field obligations are roots too: forwarding across a callable's
+//! region telescope does not erase the entry's distinct closed application.
 //!
 //! Image emission currently materializes the complete dynamic table catalog,
 //! so every present table row is an address root, even without an invocation.
@@ -24,6 +26,7 @@ pub enum NativeExecutionScopeError {
     TargetFamily(String),
     TargetLayout(String),
     MissingMachine(MachineId),
+    MissingBoundary(BoundaryMachineId),
     MissingSelectedCheckedProvider(BoundaryMachineId),
     CompetingSelectedCheckedProviders(BoundaryMachineId),
 }
@@ -39,6 +42,10 @@ impl std::fmt::Display for NativeExecutionScopeError {
             Self::MissingMachine(machine) => write!(
                 formatter,
                 "native execution scope reaches absent machine {machine:?}"
+            ),
+            Self::MissingBoundary(boundary) => write!(
+                formatter,
+                "native execution scope reaches absent boundary {boundary:?}"
             ),
             Self::MissingSelectedCheckedProvider(boundary) => write!(
                 formatter,
@@ -66,6 +73,7 @@ impl NativeExecutionScope {
     pub(crate) fn derive(
         input: &crate::VerifiedPsiOptimizationInput,
         selected: &[SelectedProviderAdapter],
+        receiving_provider_roots: &[BoundaryMachineId],
     ) -> Result<Self, NativeExecutionScopeError> {
         let plan = input.plan();
         let mut function_positions = plan
@@ -89,6 +97,15 @@ impl NativeExecutionScope {
             boundaries: Vec::new(),
             selected_candidate_positions: Vec::new(),
         };
+        for boundary in receiving_provider_roots {
+            scope.retain_boundary(
+                input,
+                selected,
+                &function_positions,
+                *boundary,
+                &mut pending,
+            )?;
+        }
         while let Some(machine) = pending.pop() {
             let position = function_positions
                 .binary_search_by_key(&machine, |(identity, _)| *identity)
@@ -122,67 +139,13 @@ impl NativeExecutionScope {
                     } => {}
                     AbstractOperation::BoundaryCall { boundary, .. }
                     | AbstractOperation::ExternalCompletion { boundary, .. } => {
-                        if scope.boundaries.contains(boundary) {
-                            continue;
-                        }
-                        scope.boundaries.push(*boundary);
-                        if let Some(terminal_psi::TargetMachineCallable::Machine(member)) = input
-                            .target_family_member(*boundary)
-                            .map_err(NativeExecutionScopeError::TargetFamily)?
-                        {
-                            pending.push(member);
-                            continue;
-                        }
-                        let candidates = plan
-                            .provider_candidates
-                            .iter()
-                            .enumerate()
-                            .filter(|(_, candidate)| candidate.boundary == *boundary)
-                            .collect::<Vec<_>>();
-                        if !selected.iter().any(|row| {
-                            candidates.iter().any(|(_, candidate)| {
-                                plan.identities.text(candidate.requirement_identity)
-                                    == Some(row.requirement_identity.as_str())
-                            })
-                        }) {
-                            // A retained checked alternative does not choose
-                            // this invocation's binding. Imports and builtins
-                            // remain external leaves with their own admission.
-                            continue;
-                        }
-                        let mut matches = candidates.iter().filter(|(_, candidate)| {
-                            // One portable overload identity covers every
-                            // target body. Match only an actual callable in
-                            // this deployment's projection, without aliasing
-                            // its ID or renumbering the canonical catalog.
-                            function_positions
-                                .binary_search_by_key(&candidate.candidate, |(machine, _)| *machine)
-                                .is_ok()
-                                && selected.iter().any(|row| {
-                                    plan.identities.text(candidate.requirement_identity)
-                                        == Some(row.requirement_identity.as_str())
-                                        && plan.identities.text(candidate.provider_identity)
-                                            == Some(row.provider_identity.as_str())
-                                        && plan
-                                            .identities
-                                            .text(candidate.provider_declaration.identity())
-                                            == Some(row.provider_declaration.as_str())
-                                        && plan.identities.text(candidate.candidate_identity)
-                                            == Some(row.machine_identity.as_str())
-                                })
-                        });
-                        let candidate = matches.next().ok_or(
-                            NativeExecutionScopeError::MissingSelectedCheckedProvider(*boundary),
+                        scope.retain_boundary(
+                            input,
+                            selected,
+                            &function_positions,
+                            *boundary,
+                            &mut pending,
                         )?;
-                        if matches.next().is_some() {
-                            return Err(
-                                NativeExecutionScopeError::CompetingSelectedCheckedProviders(
-                                    *boundary,
-                                ),
-                            );
-                        }
-                        scope.selected_candidate_positions.push(candidate.0);
-                        pending.push(candidate.1.candidate);
                     }
                     _ => {}
                 }
@@ -192,6 +155,79 @@ impl NativeExecutionScope {
         scope.boundaries.sort_unstable();
         scope.selected_candidate_positions.sort_unstable();
         Ok(scope)
+    }
+
+    /// Calls and receiving obligations share one exact selected-candidate join.
+    /// This selects physical work; provider installation still owns admission.
+    fn retain_boundary(
+        &mut self,
+        input: &crate::VerifiedPsiOptimizationInput,
+        selected: &[SelectedProviderAdapter],
+        function_positions: &[(MachineId, usize)],
+        boundary: BoundaryMachineId,
+        pending: &mut Vec<MachineId>,
+    ) -> Result<(), NativeExecutionScopeError> {
+        if self.boundaries.contains(&boundary) {
+            return Ok(());
+        }
+        let plan = input.plan();
+        if !plan.boundary_machines.iter().any(|row| row.id == boundary) {
+            return Err(NativeExecutionScopeError::MissingBoundary(boundary));
+        }
+        self.boundaries.push(boundary);
+        if let Some(terminal_psi::TargetMachineCallable::Machine(member)) = input
+            .target_family_member(boundary)
+            .map_err(NativeExecutionScopeError::TargetFamily)?
+        {
+            pending.push(member);
+            return Ok(());
+        }
+        let candidates = plan
+            .provider_candidates
+            .iter()
+            .enumerate()
+            .filter(|(_, candidate)| candidate.boundary == boundary)
+            .collect::<Vec<_>>();
+        if !selected.iter().any(|row| {
+            candidates.iter().any(|(_, candidate)| {
+                plan.identities.text(candidate.requirement_identity)
+                    == Some(row.requirement_identity.as_str())
+            })
+        }) {
+            // Retained alternatives do not select an invocation's binding.
+            // Imports and builtins remain independently admitted external leaves.
+            return Ok(());
+        }
+        let mut matches = candidates.iter().filter(|(_, candidate)| {
+            // Keep actual callable IDs in the selected target projection.
+            function_positions
+                .binary_search_by_key(&candidate.candidate, |(machine, _)| *machine)
+                .is_ok()
+                && selected.iter().any(|row| {
+                    plan.identities.text(candidate.requirement_identity)
+                        == Some(row.requirement_identity.as_str())
+                        && plan.identities.text(candidate.provider_identity)
+                            == Some(row.provider_identity.as_str())
+                        && plan
+                            .identities
+                            .text(candidate.provider_declaration.identity())
+                            == Some(row.provider_declaration.as_str())
+                        && plan.identities.text(candidate.candidate_identity)
+                            == Some(row.machine_identity.as_str())
+                })
+        });
+        let candidate =
+            matches
+                .next()
+                .ok_or(NativeExecutionScopeError::MissingSelectedCheckedProvider(
+                    boundary,
+                ))?;
+        if matches.next().is_some() {
+            return Err(NativeExecutionScopeError::CompetingSelectedCheckedProviders(boundary));
+        }
+        self.selected_candidate_positions.push(candidate.0);
+        pending.push(candidate.1.candidate);
+        Ok(())
     }
 
     pub(crate) fn contains_machine(&self, machine: MachineId) -> bool {

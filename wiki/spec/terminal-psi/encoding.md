@@ -610,7 +610,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 146 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 148 + `u16` vocabulary
 marker 123 + the entry machine id, followed by the module's counted tables in
 the declaration order below and ending with boundary-application candidates.
 
@@ -1100,7 +1100,8 @@ are not re-sorted by the canonical-order checker.
 | program-local root introduction | `u32` argument index + `u32` source parameter position + qualification domain id + carrier structural type id + projection domain id + `u64` projection report fingerprint + content algebra + content projection expression + `u64` compatibility report identity |
 | structural parameter | the machine-row structural parameter encoding |
 | service reach | counted service ids |
-| provider candidate | boundary machine id + requirement identity string + provider identity string + selecting declaration nominal identity + candidate identity string + candidate machine id + counted signature parameters + counted positional refinements + counted required domains + counted realized service-ceiling ids |
+| provider candidate | boundary machine id + requirement identity index + source requirement identity index + receiving application identity index + counted receiving region identity indices + provider identity index + selecting declaration nominal identity index + candidate identity index + source candidate identity index + optional source candidate package identity + candidate machine id + counted signature parameters + counted positional refinements + counted required domains + counted realized service-ceiling ids |
+| optional source candidate package identity | `bool` present + 32-byte package digest when present |
 | signature parameter | `u32` position + structural type id + structural multiplicity + structural access + counted qualification domain ids + counted projected qualifications |
 | projected qualification | structural path + domain id |
 | positional refinement | `u32` boundary parameter index + `u32` candidate parameter index |
@@ -1112,6 +1113,16 @@ it cannot be invoked, installed, imported, or used as a target-family member.
 Its schema owner introduces no runtime provider demand. Callable signatures
 retain their exact declaring schema owner; provider candidates retain their
 exact selecting declaration independently of display labels and callable bodies.
+
+The receiving application retains the complete checked trait application, not
+its erased runtime carrier. Receiving region identities follow the selecting
+declaration's public binder order, including repeated and unused positions.
+Zero application means no closed trait application; it is never a wildcard and
+requires an empty region tuple. Nonzero application and region indices name
+nonempty entries in this artifact's identity table. Only trait requirements may
+carry this association. Installation preserves it beneath the exact admitted
+candidate and artifact; retaining these bytes grants no selection, loan or
+permission authority and does not itself open regional provider eligibility.
 
 Boundary completion tags are `0` for the exact normal-return provider premise
 and `1` for external process exit. Unknown tags reject. Completion is independent
@@ -1806,7 +1817,7 @@ table. The installation record `PSIINST\0` is emitted outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 146 | yes |
+| semantic module | `PSITERM\0` | 148 | yes |
 | proof bundle | `PSIPRF\0\0` | 34 | no |
 | sealed proof section | `PSIPSC\0\0` | 1 | yes |
 | obligation ledger | `PSIOBLG\0` | 3 | yes |

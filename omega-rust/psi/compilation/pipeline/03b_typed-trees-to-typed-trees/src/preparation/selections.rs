@@ -15,7 +15,9 @@ use validation::selection_resolution::{
 };
 
 /// Retain lexical custody before type folding or specialization consumes a
-/// source call. This derives ownership only; checking still judges all operands.
+/// source call. Erased lifetime operands need this carrier even without a
+/// spelled static list; runtime arity cannot decide whether a telescope exists.
+/// This derives ownership only; checking still judges all operands.
 pub(crate) fn retain_static_argument_contexts(program: &mut TypedTrees) {
     use symbols::SymbolHandle;
     use typed_trees::expression::ExpressionHandle;
@@ -74,7 +76,10 @@ pub(crate) fn retain_static_argument_contexts(program: &mut TypedTrees) {
         let Some(call) = program.expression_table.call_node(expression) else {
             continue;
         };
-        if call.machine_arguments.is_empty() || call.authored_machine_application.is_valid() {
+        if call.authored_machine_application.is_valid()
+            || (call.machine_arguments.is_empty()
+                && !has_region_telescope(program, call.target_symbol))
+        {
             continue;
         }
         let call = call.clone();
@@ -102,7 +107,8 @@ pub(crate) fn retain_static_argument_contexts(program: &mut TypedTrees) {
                     .iter_statements(state.statement_nodes)
                     .filter_map(|(handle, statement)| {
                         let call = statement.as_call()?;
-                        (!call.machine_arguments.is_empty()
+                        ((!call.machine_arguments.is_empty()
+                            || has_region_telescope(program, call.target_symbol))
                             && !call.authored_machine_application.is_valid())
                         .then(|| (handle, machine.symbol, call.clone()))
                     })
@@ -124,6 +130,15 @@ pub(crate) fn retain_static_argument_contexts(program: &mut TypedTrees) {
         };
         call.authored_machine_application = application;
     }
+}
+
+fn has_region_telescope(
+    program: &dyn validation::CheckingInput,
+    target: symbols::SymbolHandle,
+) -> bool {
+    validation::call_target_state(program, target)
+        .and_then(|state| validation::find_state(program, state.symbol))
+        .is_some_and(|(machine, _)| !machine.lifetime_parameters.is_empty())
 }
 
 pub(crate) fn bind_pre_specialization_authored_selections(

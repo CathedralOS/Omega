@@ -125,6 +125,11 @@ pub(super) fn encode_provider_candidate(
     crate::codec_bytes::push_encoded(bytes, provider.boundary.get().to_le_bytes());
     bytes.extend_from_slice(&provider.requirement_identity.0.to_le_bytes());
     bytes.extend_from_slice(&provider.source_requirement_identity.0.to_le_bytes());
+    bytes.extend_from_slice(&provider.receiving_application.0.to_le_bytes());
+    encode_len(bytes, provider.receiving_region_arguments.len());
+    for region in &provider.receiving_region_arguments {
+        bytes.extend_from_slice(&region.0.to_le_bytes());
+    }
     bytes.extend_from_slice(&provider.provider_identity.0.to_le_bytes());
     bytes.extend_from_slice(&provider.candidate_identity.0.to_le_bytes());
     bytes.extend_from_slice(&provider.source_candidate_identity.0.to_le_bytes());

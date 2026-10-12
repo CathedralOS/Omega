@@ -67,6 +67,9 @@ enum AppliedCallableOwner {
         declaration: SymbolHandle,
         template: SymbolHandle,
         trait_application_identity: crate::type_identity::NormalizedTypeIdentity,
+        portable_trait_application_identity: crate::type_identity::NormalizedTypeIdentity,
+        portable_local_arguments: arena::HandleSpan<crate::type_identity::NormalizedTypeIdentity>,
+        trait_scope: crate::trait_definition::RetainedTraitScope,
         trait_arguments: arena::HandleSpan<types::TypeReferenceHandle>,
         local_arguments: arena::HandleSpan<types::TypeReferenceHandle>,
         application: crate::static_applications::StaticMachineApplicationHandle,
@@ -105,6 +108,9 @@ pub struct AppliedMachineCallable<'a> {
 #[derive(Default)]
 struct CallableApplication {
     region_scope: SymbolHandle,
+    /// Complete captured application during materialization. Local callable
+    /// binders remain in `lifetimes` and mask same-spelled captured regions.
+    trait_region_application: Option<(crate::trait_definition::TraitApplicationEnvironment, usize)>,
     lifetime_declaration: SymbolHandle,
     lifetimes: Vec<(crate::name::Identifier, crate::name::Identifier)>,
     elided_lifetimes: Vec<crate::name::Identifier>,
@@ -116,6 +122,37 @@ struct CallableApplication {
 }
 
 impl CallableApplication {
+    fn scoped_lifetime(
+        &self,
+        program: &TypedTrees,
+        reference: types::TypeReferenceHandle,
+        original: &crate::name::Identifier,
+    ) -> Result<
+        (
+            crate::name::Identifier,
+            crate::type_identity::LifetimeParameterIdentity,
+        ),
+        &'static str,
+    > {
+        if self
+            .lifetimes
+            .iter()
+            .any(|(parameter, _)| parameter == original)
+        {
+            return Ok((self.lifetime(original), Default::default()));
+        }
+        let Some((environment, preceding_frames)) = &self.trait_region_application else {
+            return Ok((original.clone(), Default::default()));
+        };
+        let region = environment
+            .lifetime_identity(program, reference, *preceding_frames, original.as_str())
+            .ok_or("applied trait operand has no exact supplying region")?;
+        let name = crate::type_identity::lifetime_parameter_name(program, region)
+            .ok_or("applied trait operand lost its region declaration ordinal")?
+            .clone();
+        Ok((name, region))
+    }
+
     fn lifetime(&self, original: &crate::name::Identifier) -> crate::name::Identifier {
         self.lifetimes
             .iter()

@@ -182,6 +182,9 @@ impl TypeReferenceOwner<'_> {
                 owner: StateSignatureOwner::Machine(_),
                 generic_depth: 0,
                 ..
+            } | Self::StateLocalData {
+                generic_depth: 0,
+                ..
             }
         )
     }
@@ -483,7 +486,8 @@ pub(crate) fn validate_type_reference_handle(
 /// Find routed Binding carriers recursively rather than relying on the outer
 /// type shell. Concrete-machine parameters may own or borrow one exact
 /// carrier. Borrowing preserves its identity; it does not establish another
-/// binding. Aggregate/generic nesting, reference fields, locals, returns,
+/// binding. Borrowed locals retain the same existing loan. Aggregate/generic
+/// nesting, reference fields, owned locals, returns,
 /// traits, requirements, and operators retain their implementation fences.
 fn validate_routed_service_carrier_placement(
     program: &dyn crate::CheckingInput,
@@ -496,22 +500,28 @@ fn validate_routed_service_carrier_placement(
     // A declaration is checked under its own telescope, not under the closed
     // receiver of a future invocation. Concrete carrier consumers separately
     // require transitive closure; this check cannot issue an exact identity.
-    match typed_trees::service::inspect_service_carrier_contract(program, type_reference) {
+    match typed_trees::service::inspect_service_parameter_contract(program, type_reference) {
         Err(error) => {
             diagnostics.push(Diagnostic::error(format!(
                 "{owner} uses an invalid routed service carrier: {error}"
             )));
             return;
         }
-        Ok(Some(contract)) => {
-            if let Err(error) = program
-                .require_declared_application_operands(contract.arguments(program), lexical_owner)
+        Ok(Some(parameter)) => {
+            if let Err(error) = parameter
+                .carrier
+                .require_declared_operands(program, lexical_owner)
             {
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} uses an invalid routed service carrier: {error}"
                 )));
             }
-            if !direct || !owner.allows_direct_routed_service_carrier() {
+            let allowed = if parameter.access.is_some() {
+                owner.allows_borrowed_routed_service_carrier()
+            } else {
+                owner.allows_direct_routed_service_carrier()
+            };
+            if !direct || !allowed {
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} places the routed `Binding<R>` carrier outside the first direct field/owned concrete-machine-parameter rung"
                 )));
@@ -522,24 +532,13 @@ fn validate_routed_service_carrier_placement(
     }
 
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference {
-            access, referee, ..
-        } => {
-            let direct_borrow = direct
-                && owner.allows_borrowed_routed_service_carrier()
-                && matches!(
-                    access,
-                    language_semantics::ReferenceAccess::Shared
-                        | language_semantics::ReferenceAccess::Mutable
-                )
-                && typed_trees::service::inspect_service_carrier_contract(program, *referee)
-                    .is_ok_and(|carrier| carrier.is_some());
+        TypeReferenceNode::Reference { referee, .. } => {
             validate_routed_service_carrier_placement(
                 program,
                 *referee,
                 owner,
                 lexical_owner,
-                direct_borrow,
+                false,
                 diagnostics,
             );
         }
@@ -688,7 +687,11 @@ fn validate_type_reference_node(
                 )));
             }
             if let Some(lifetime) = lifetime
-                && !type_parameter_scope.contains_lifetime(lifetime.as_str())
+                && !type_parameter_scope.contains_lifetime(
+                    program,
+                    type_reference,
+                    lifetime.as_str(),
+                )
             {
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} uses undeclared lifetime `'{}'; declare it in the owner's generic parameter list",
@@ -801,7 +804,11 @@ fn validate_type_reference_node(
             }
 
             for lifetime in lifetime_arguments {
-                if !type_parameter_scope.contains_lifetime(lifetime.as_str()) {
+                if !type_parameter_scope.contains_lifetime(
+                    program,
+                    type_reference,
+                    lifetime.as_str(),
+                ) {
                     diagnostics.push(Diagnostic::error(format!(
                         "{owner} uses undeclared lifetime argument `'{}' in `{base_name}`; declare it in the owner's generic parameter list",
                         lifetime.as_str()
@@ -1054,7 +1061,28 @@ impl<'program> TypeParameterScope<'program> {
             .any(|parameter| parameter.name.as_str() == name)
     }
 
-    fn contains_lifetime(self, name: &str) -> bool {
+    fn contains_lifetime(
+        self,
+        program: &dyn crate::CheckingInput,
+        reference: TypeReferenceHandle,
+        name: &str,
+    ) -> bool {
+        let supplying_owner = program
+            .type_reference_table
+            .operand_lifetime_owner(reference);
+        if supplying_owner.is_valid() {
+            // Substituted operands retain their issuing declaration. Looking
+            // for the spelling in the receiver's telescope would either reject
+            // a valid captured region or recapture a same-spelled fresh binder.
+            // This establishes declaration well-formedness, not application
+            // agreement or a loan; those consume the full retained scopes.
+            return typed_trees::type_identity::lifetime_parameter_identity(
+                program.typed_program(),
+                supplying_owner,
+                name,
+            )
+            .is_some();
+        }
         self.lifetime_parameters
             .iter()
             .any(|parameter| parameter.as_str() == name)

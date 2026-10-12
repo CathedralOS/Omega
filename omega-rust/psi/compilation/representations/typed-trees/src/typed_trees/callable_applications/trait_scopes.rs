@@ -1,10 +1,10 @@
 //! Prepare and rejoin exact logical trait applications for both named maps and
 //! machine satisfaction edges. Consumers borrow these signatures after freezing;
 //! they neither mutate declarations nor infer an authored fixed type argument.
-//! The cache key retains regions even though carrier preparation substitutes
-//! Type operands only. Complete region refinement must read the original
-//! signature with its borrowed application scopes: flattening a mixed captured
-//! and fresh lifetime telescope can recapture same-spelled operands.
+//! The cache key and prepared carriers retain captured regions. Fresh member
+//! binders stay independently fresh. Complete region refinement reads the same
+//! original application scopes: flattening a mixed captured and fresh telescope
+//! can recapture same-spelled operands.
 
 use super::{AppliedCallableOwner, AppliedCallableSignature, CallableApplication};
 use crate::{TypedTrees, signature, trait_definition::AppliedTraitScope};
@@ -18,19 +18,35 @@ impl TypedTrees {
         base.applied_callable_signatures
             .iter()
             .all(|(_, prepared)| {
-                let application = match prepared.owner {
-                    AppliedCallableOwner::Trait { application, .. } => application,
+                let mut applications = match prepared.owner {
+                    AppliedCallableOwner::Trait { application, .. } => vec![application],
                     AppliedCallableOwner::RequirementInstance {
                         trait_application_identity,
+                        portable_trait_application_identity,
                         ..
-                    } => trait_application_identity,
+                    } => vec![
+                        trait_application_identity,
+                        portable_trait_application_identity,
+                    ],
                     _ => return true,
                 };
-                let Some(key) = base.type_identity_text(application) else {
-                    return false;
-                };
-                self.type_identities
-                    .with(|table| table.text(application) == Some(key.as_str()))
+                if let AppliedCallableOwner::RequirementInstance {
+                    portable_local_arguments,
+                    ..
+                } = prepared.owner
+                {
+                    applications.extend_from_slice(
+                        base.callable_argument_identities
+                            .span_or_empty(portable_local_arguments),
+                    );
+                }
+                applications.into_iter().all(|application| {
+                    let Some(key) = base.type_identity_text(application) else {
+                        return false;
+                    };
+                    self.type_identities
+                        .with(|table| table.text(application) == Some(key.as_str()))
+                })
             })
     }
 
@@ -87,15 +103,12 @@ impl TypedTrees {
                         scope.declaration.symbol,
                         identity,
                         signature.symbol,
-                        scope.substitutions.clone(),
-                        scope.substitution_scope_starts.clone(),
-                        scope.argument_owner,
+                        scope.environment(),
                     ));
                 }
             });
         }
-        for (trait_symbol, identity, requirement, substitutions, starts, argument_owner) in pending
-        {
+        for (trait_symbol, identity, requirement, environment) in pending {
             if self
                 .applied_callable_signatures.iter().any(|(_, prepared)| {
                     prepared.signature.symbol == requirement
@@ -104,18 +117,16 @@ impl TypedTrees {
             {
                 continue;
             }
-            let application =
-                self.materialize_trait_application(&substitutions, &starts, argument_owner)?;
+            let application = self.materialize_trait_application(&environment)?;
             let arguments = self.trait_application_arguments(trait_symbol, &application)?;
             // Ancestor substitutions resolve the final operands, but are not
             // the declaring signature's telescope. Reusing that scratch scope
             // would capture unrelated binders while copying local contracts.
-            let Some(applied) = CallableApplication::default().nominal(
-                self,
-                trait_symbol,
-                requirement,
-                &arguments,
-            )?
+            let Some(applied) = CallableApplication {
+                trait_region_application: Some((environment.clone(), environment.frame_count())),
+                ..CallableApplication::default()
+            }
+            .nominal(self, trait_symbol, requirement, &arguments)?
             else {
                 continue;
             };
@@ -136,24 +147,35 @@ impl TypedTrees {
     /// it does not infer missing operands from a provider or runtime carrier.
     pub fn materialize_trait_application_arguments(
         &mut self,
-        trait_symbol: SymbolHandle,
-        substitutions: &[(SymbolHandle, crate::types::TypeReferenceHandle)],
-        scope_starts: &[usize],
-        argument_owner: SymbolHandle,
+        environment: &crate::trait_definition::TraitApplicationEnvironment,
     ) -> Result<Vec<crate::types::TypeReferenceHandle>, &'static str> {
-        let application =
-            self.materialize_trait_application(substitutions, scope_starts, argument_owner)?;
+        let trait_symbol = environment
+            .scope(self)
+            .ok_or("applied callable lost its complete source environment")?
+            .declaration
+            .symbol;
+        let application = self.materialize_trait_application(environment)?;
         self.trait_application_arguments(trait_symbol, &application)
     }
 
     fn materialize_trait_application(
         &mut self,
-        substitutions: &[(SymbolHandle, crate::types::TypeReferenceHandle)],
-        scope_starts: &[usize],
-        argument_owner: SymbolHandle,
+        environment: &crate::trait_definition::TraitApplicationEnvironment,
     ) -> Result<CallableApplication, &'static str> {
-        let mut application = CallableApplication::default();
+        let scope = environment
+            .scope(self)
+            .ok_or("applied callable lost its complete source environment")?;
+        let substitutions = scope.substitutions;
+        let scope_starts = scope.substitution_scope_starts;
+        let argument_owner = scope.argument_owner;
+        let mut application = CallableApplication {
+            trait_region_application: Some((environment.clone(), 0)),
+            ..CallableApplication::default()
+        };
         for (ordinal, start) in scope_starts.iter().copied().enumerate() {
+            if let Some((_, preceding_frames)) = &mut application.trait_region_application {
+                *preceding_frames = ordinal;
+            }
             let end = scope_starts
                 .get(ordinal + 1)
                 .copied()
@@ -165,7 +187,13 @@ impl TypedTrees {
                     // Only copied supplying operands acquire this custody.
                     // Original declaration nodes remain lexical, and compound
                     // inherited arguments may contain differently owned children.
-                    if ordinal == 0 && applied.is_valid() {
+                    if ordinal == 0
+                        && applied.is_valid()
+                        && !self
+                            .type_reference_table
+                            .operand_lifetime_owner(applied)
+                            .is_valid()
+                    {
                         self.type_reference_table
                             .retain_operand_lifetime_owner(applied, argument_owner)?;
                     }

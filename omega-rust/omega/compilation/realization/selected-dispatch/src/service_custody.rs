@@ -30,9 +30,74 @@ pub(crate) fn has_fused_selection(
         return false;
     };
     selected.iter().any(|candidate| {
-        candidate.plan.schema.supplies_receiver_schema(&schema)
+        provider_planning::provider_receiver_application(
+            checked,
+            &candidate.plan,
+            application,
+            &schema,
+        )
+        .is_some()
             && candidate.selected_by.composition_mode() == Ok(CompositionMode::Fused)
     })
+}
+
+fn receiving_requirements(
+    checked: &CheckedTrees,
+    application: &provider_planning::ProviderReceiverApplication<'_>,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+) -> Result<Vec<program_entry_plan::ProgramEntryReceivingRequirement>, &'static str> {
+    let typed = &checked.typed;
+    application
+        .requirements
+        .iter()
+        .map(|row| {
+            let closed = typed
+                .closed_requirement_application(row.closed_requirement)
+                .ok_or("receiving requirement lost its closed source application")?;
+            let (owner, template) = typed
+                .trait_machine_signature(row.template)
+                .ok_or("receiving requirement lost its original declaration")?;
+            let machine = typed
+                .machine(row.provider)
+                .ok_or("receiving requirement lost its checked realization")?;
+            let requirement =
+                typed.trait_requirement_callable_identity_text(owner, closed.signature);
+            let source_requirement =
+                typed.trait_requirement_callable_identity_text(owner, template);
+            let candidate = typed
+                .machine_callable_identity_text(machine)
+                .ok_or("receiving requirement lost its realization identity")?;
+            let declaration = typed
+                .exact_owner_nominal_identity(row.selecting_declaration, &[])
+                .and_then(|identity| typed.type_identity_text(identity))
+                .ok_or("receiving requirement lost its exact choosing declaration")?;
+            let receiving = typed
+                .type_identity_text(closed.portable_trait_application_identity)
+                .ok_or("receiving requirement lost its portable application")?;
+            let regions = checked
+                .facts
+                .provider_closed_requirements
+                .receiving_regions(row)
+                .ok_or("receiving requirement lost its checked region span")?
+                .iter()
+                .map(|region| {
+                    let text = typed_trees::type_identity::portable_lifetime_parameter_identity(
+                        typed, *region,
+                    )
+                    .ok_or("receiving requirement lost a provider region coordinate")?;
+                    Ok(identities.intern(&text))
+                })
+                .collect::<Result<Vec<_>, &'static str>>()?;
+            Ok(program_entry_plan::ProgramEntryReceivingRequirement {
+                source_requirement: identities.intern(&source_requirement),
+                requirement: identities.intern(&requirement),
+                candidate: identities.intern(&candidate),
+                provider_declaration: identities.intern(&declaration),
+                receiving_application: identities.intern(&receiving),
+                receiving_regions: regions,
+            })
+        })
+        .collect()
 }
 
 fn carrier_schema(

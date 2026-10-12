@@ -98,10 +98,12 @@ pub fn validate_static_machine_bindings(
                         || lifetimes[..ordinal]
                             .iter()
                             .any(|previous| previous.parameter == binding.parameter)
-                        || !owner
-                            .lifetime_parameters
-                            .iter()
-                            .any(|parameter| parameter == &binding.argument)
+                        || typed_trees::type_identity::lifetime_parameter_identity(
+                            program,
+                            owner.symbol,
+                            binding.argument.as_str(),
+                        )
+                        .is_none()
                 })
             }) {
                 diagnostics.push(Diagnostic::error("static lifetime tuple does not retain its complete declaration and lexical region custody"));

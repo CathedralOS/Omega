@@ -327,6 +327,8 @@ pub struct TypedTreeTables {
     pub trait_machine_signatures: Arena<signature::StateSignature>,
     pub(crate) applied_callable_signatures: Arena<callable_applications::AppliedCallableSignature>,
     pub(crate) callable_substitutions: Arena<callable_applications::CallableSubstitution>,
+    pub(crate) trait_application_frames: Arena<trait_definition::RetainedTraitApplicationFrame>,
+    pub(crate) callable_argument_identities: Arena<crate::type_identity::NormalizedTypeIdentity>,
     pub(crate) callable_lifetime_substitutions:
         Arena<crate::static_applications::StaticMachineLifetimeBinding>,
     pub signature_invokes: Arena<signature::AuthoredInvocation>,

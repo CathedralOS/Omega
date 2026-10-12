@@ -5,18 +5,41 @@ use crate::boundary_dispatch::signature_families::call_argument_const_identity;
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct BoundaryField {
     pub(crate) symbol: symbols::SymbolHandle,
     pub(crate) trait_symbol: symbols::SymbolHandle,
     /// The full source application and one selected whole plan for Binding
     /// receivers. A plain nominal/top-level receiver carries neither.
-    pub(crate) requirement_reference: typed_trees::types::TypeReferenceHandle,
+    pub(crate) application: Option<typed_trees::trait_definition::TraitApplicationEnvironment>,
     pub(crate) provider_plan_digest: Option<[u8; 32]>,
 }
 
 impl BoundaryField {
-    pub(crate) fn supplies_adapter(self, typed: &TypedTrees, adapter: &AdapterRow) -> bool {
+    fn owns_call_target(&self, typed: &TypedTrees, target: symbols::SymbolHandle) -> bool {
+        if self.application.is_none() {
+            return field_owns_target(typed, self.trait_symbol, target);
+        }
+        let Some(scope) = self
+            .application
+            .as_ref()
+            .and_then(|application| application.scope(typed))
+        else {
+            return false;
+        };
+        if typed.closed_requirement_application(target).is_some() {
+            return typed.requirement_application_matches_scope(target, &scope);
+        }
+        typed
+            .trait_machine_signature(target)
+            .is_some_and(|(owner, _)| {
+                typed.trait_type_parameters(owner).is_empty()
+                    && owner.lifetime_parameters.is_empty()
+                    && scope.declaring_scope(typed, owner.symbol).is_some()
+            })
+    }
+
+    pub(crate) fn supplies_adapter(&self, typed: &TypedTrees, adapter: &AdapterRow) -> bool {
         self.supplies_requirement(
             typed,
             adapter.provider_plan_digest,
@@ -26,7 +49,7 @@ impl BoundaryField {
     }
 
     pub(crate) fn supplies_requirement(
-        self,
+        &self,
         typed: &TypedTrees,
         plan_digest: [u8; 32],
         receiver_trait: symbols::SymbolHandle,
@@ -38,30 +61,18 @@ impl BoundaryField {
         if plan != plan_digest {
             return false;
         }
-        let Some(declaration) = typed.trait_definition_by_symbol(self.trait_symbol) else {
+        // The receiver supplies its complete original telescope. Rebuilding
+        // from a field type with an absent owner erases captured/phantom regions.
+        let Some(scope) = self
+            .application
+            .as_ref()
+            .and_then(|application| application.scope(typed))
+        else {
             return false;
         };
-        let arguments = match typed
-            .type_reference_table
-            .type_reference(self.requirement_reference)
-        {
-            typed_trees::types::TypeReferenceNode::Generic { arguments, .. } => typed
-                .type_reference_table
-                .type_reference_handles(*arguments),
-            _ => &[],
-        };
-        let Some(scope) = typed_trees::trait_definition::AppliedTraitScope::new(
-            typed,
-            declaration,
-            typed_trees::trait_definition::TraitApplicationArguments {
-                lexical_owner: symbols::SymbolHandle::invalid(),
-                enclosing_data_applications: &[],
-                arguments,
-                lifetimes: &[],
-            },
-        ) else {
+        if scope.declaration.symbol != self.trait_symbol {
             return false;
-        };
+        }
         if typed.closed_requirement_application(requirement).is_some() {
             return typed.requirement_application_matches_scope(requirement, &scope);
         }
@@ -170,12 +181,21 @@ pub(crate) fn resolve_adapter_call<'adapter>(
         .iter()
         .filter(|field| field.symbol == receiver_symbol)
         .collect::<Vec<_>>();
+    // One nominal receiver may expose several requirement families. Only an
+    // exact target/application join chooses its view; vector order cannot
+    // settle competing owners or substitute another captured telescope.
     let field = if candidates.len() > 1 {
-        candidates
+        let mut matching = candidates
             .iter()
             .copied()
-            .find(|field| field_owns_target(typed, field.trait_symbol, template))
-            .or(candidates.first().copied())
+            .filter(|field| field.owns_call_target(typed, target_symbol));
+        let field = matching.next();
+        if matching.next().is_some() {
+            return Err(Diagnostic::error(format!(
+                "boundary call `{target_name}` rejoins multiple exact receiver applications",
+            )));
+        }
+        field
     } else {
         candidates.first().copied()
     };

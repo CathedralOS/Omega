@@ -377,7 +377,7 @@ fn resolve(
         return None;
     }
     if requirement == ContentsRequirement::BorrowedStorage
-        && typed_trees::service::exact_bound_service_requirement(program, reference).is_some()
+        && typed_trees::service::service_requirement_declaration(program, reference).is_some()
     {
         return Some(ContentType::Provider);
     }

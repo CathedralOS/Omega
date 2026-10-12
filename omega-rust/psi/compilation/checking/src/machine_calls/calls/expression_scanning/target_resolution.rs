@@ -68,7 +68,7 @@ pub(super) fn named_type_reference_name(
     handle: TypeReferenceHandle,
 ) -> Option<&str> {
     if let Some(requirement) =
-        typed_trees::service::exact_bound_service_requirement(program, handle)
+        typed_trees::service::service_requirement_declaration(program, handle)
     {
         return program
             .trait_definition_by_symbol(requirement)

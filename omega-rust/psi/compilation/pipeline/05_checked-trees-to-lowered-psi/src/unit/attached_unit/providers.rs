@@ -452,9 +452,15 @@ pub(super) fn conformances(
                 source_candidate_identity,
                 source_candidate_package_identity,
             ) = selection_coordinates::intern(identities, checked, candidate)?;
+            let (receiving_application, receiving_region_arguments) =
+                selection_coordinates::intern_receiving_application(
+                    identities, checked, candidate,
+                )?;
             Ok(ProviderCandidateConformance {
                 boundary: *boundary,
                 source_requirement_identity,
+                receiving_application,
+                receiving_region_arguments,
                 source_candidate_identity,
                 source_candidate_package_identity,
                 requirement_identity: identities.intern(

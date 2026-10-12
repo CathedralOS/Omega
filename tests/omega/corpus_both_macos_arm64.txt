@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "2", "load1_end": 1.51, "load1_start": 1.47, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 2.15, "load1_start": 1.99, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/closed_call_transition_return_proves_exact_sum_exit built 2645ms exit:112 interpreter-exit:112 interpreter:agrees @1152c1496b39
 pass/arithmetic/full_width_integer_literals_compose_exit built 3129ms exit:0 interpreter-exit:0 interpreter:agrees @d0e40a213f35
 pass/arithmetic/qualified_cast_in_entry_body_exit built 1326ms exit:0 interpreter-exit:0 interpreter:agrees @2e29bd5fedcf
@@ -903,3 +903,7 @@ pass/borrow/runtime_write_only_reference_aggregate_copy_exit built 2919ms exit:0
 pass/borrow/runtime_write_only_reference_aggregate_detached_exit built 2867ms exit:0 interpreter-exit:0 interpreter:agrees @992d27dd3135+wt
 pass/borrow/runtime_write_only_reference_aggregate_capture_exit built 2929ms exit:0 interpreter-exit:0 interpreter:agrees @992d27dd3135+wt
 pass/traits/prepared_callable_nested_borrow_paths_exit built 3286ms exit:0 interpreter-exit:0 interpreter:agrees @992d27dd3135+wt
+pass/providers/occurrence_region_binding_exit built 3739ms exit:0 interpreter-exit:0 interpreter:agrees @619f89e4fed6+wt
+pass/providers/occurrence_region_binding_forwarding_exit built 3887ms exit:0 interpreter-exit:0 interpreter:agrees @619f89e4fed6+wt
+pass/providers/occurrence_region_binding_projected_type_exit built 3810ms exit:0 interpreter-exit:0 interpreter:agrees @619f89e4fed6+wt
+pass/traits/default_row_nested_captured_reference_exit built 3655ms exit:0 interpreter-exit:0 interpreter:agrees @619f89e4fed6+wt
