@@ -423,6 +423,39 @@ impl ExplicitApplication<'_> {
         implemented: &str,
         expected: ApplicationArguments,
     ) -> Result<(), String> {
+        if std::env::var_os("OMEGA_SOURCE_CONSTANT_INPUT_TRACE").is_some() {
+            eprintln!(
+                "const-owner trait-call call={:?} lexical={:?} declaring={:?} expected-declaration={:?}",
+                self.call, self.lexical_owner, self.declaring_trait, expected.declaration
+            );
+            for (role, arguments) in [
+                ("actual", self.trait_references.as_slice()),
+                ("bound", expected.arguments.as_slice()),
+            ] {
+                for argument in arguments.iter().take(8) {
+                    eprintln!(
+                        "const-owner trait-argument {role} {:?} node={:?} result={:?} meaning={:?}",
+                        argument,
+                        self.program.type_reference_table.type_reference(*argument),
+                        self.program
+                            .type_reference_table
+                            .completed_const_result(*argument),
+                        self.program
+                            .type_reference_table
+                            .const_integer_meaning(*argument)
+                    );
+                    if let typed_trees::types::TypeReferenceNode::ConstExpression(expression) =
+                        self.program.type_reference_table.type_reference(*argument)
+                    {
+                        eprintln!(
+                            "const-owner trait-expression {:?} node={:?}",
+                            expression,
+                            self.program.expression_table.expression(*expression)
+                        );
+                    }
+                }
+            }
+        }
         let matched = application_arguments::matches_declaring_application(
             self.program,
             self.lexical_owner,
