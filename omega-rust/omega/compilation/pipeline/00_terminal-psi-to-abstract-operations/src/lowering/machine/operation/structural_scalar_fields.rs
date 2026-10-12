@@ -134,18 +134,29 @@ fn lower_store(
     // full path below for independent ownership and native custody replay.
     let (storage_type, storage_path) =
         if let Some((StructuralPathSegment::Referent, suffix)) = path.split_first() {
-            let StructuralScalarStoreDestination::OwnedResult { result, .. } = &destination else {
-                return Err(invalid());
+            // Any owned or loaned carrier whose declaration is a reference
+            // type peels the same explicit dereference: an operation result,
+            // an entry parameter, or a join-completed block parameter all
+            // carry the loan's authority on the type, not on a producer
+            // identity only an operation result has.
+            let (carrier_type, multiplicity) = match &destination {
+                StructuralScalarStoreDestination::OwnedResult { result, .. } => {
+                    (result.structural_type, result.multiplicity)
+                }
+                StructuralScalarStoreDestination::Parameter(parameter)
+                | StructuralScalarStoreDestination::OwnedBlockParameter { parameter, .. } => {
+                    (parameter.structural_type, parameter.multiplicity)
+                }
             };
             let Some(StructuralTypeShape::Reference {
                 referent,
                 access: StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow,
-            }) = find_structural_type(structural_types, result.structural_type)
+            }) = find_structural_type(structural_types, carrier_type)
                 .map(|declaration| &declaration.shape)
             else {
                 return Err(invalid());
             };
-            if result.multiplicity != StructuralMultiplicity::Affine
+            if multiplicity != StructuralMultiplicity::Affine
                 || !matches!(
                     find_structural_type(structural_types, *referent)
                         .map(|declaration| &declaration.shape),
