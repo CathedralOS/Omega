@@ -1,6 +1,6 @@
 {
   "model": "four spans; operating height in [floor,ceiling] per span; hoist step <= 4; final height must equal HE; minimize total vertical travel",
-  "oracle": "forward product search over per-span allowed ranges for feasibility; shortest-path DP minimum; exhaustive counting for feasible/ties; lexicographic optimum",
+  "oracle": "forward product search over per-span allowed ranges for feasibility; minimum travel cost; exhaustive counting for feasible/ties; lexicographic optimum",
   "tolerances": {
     "absolute": 0,
     "relative": 0
@@ -280,5 +280,5 @@
       "certificate": null
     }
   ],
-  "reference_sha256": "e114b77d743b8b845a6d5c44f926e06b0ccac163e7871666dc9f8271aefcf9fa"
+  "reference_sha256": "b134e37532bfd1fcde1c32e12b71fa000f238289cce4c471fb5ad9dd645647c8"
 }

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Independent oracle: dynamic-programming shortest path and path counting.
+"""Independent oracle: per-span product search and exact path counting.
 
 Omega enumerates all 10**4 height words and filters them; this oracle instead
-computes reachability sets per span, finds the minimum vertical travel by
-shortest-path DP, then counts feasible and optimal-tied profiles by forward
-search over the per-span allowed ranges. All quantities are exact integers;
+searches the per-span allowed ranges, finds the minimum vertical travel,
+then counts feasible and optimal-tied profiles and selects the lexicographic
+minimum. All quantities are exact integers;
 absolute and relative tolerances are both zero. Regeneration is explicit and
 forbidden during validation of a frozen suite.
 """
@@ -96,7 +96,7 @@ def freeze():
         'invalid_empty': b'',
     }
     manifest = {'model': 'four spans; operating height in [floor,ceiling] per span; hoist step <= 4; final height must equal HE; minimize total vertical travel',
-                'oracle': 'forward product search over per-span allowed ranges for feasibility; shortest-path DP minimum; exhaustive counting for feasible/ties; lexicographic optimum',
+                'oracle': 'forward product search over per-span allowed ranges for feasibility; minimum travel cost; exhaustive counting for feasible/ties; lexicographic optimum',
                 'tolerances': {'absolute': 0, 'relative': 0}, 'cases': []}
     for name, raw in cases.items():
         code, text, certificate = reference(raw)

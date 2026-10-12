@@ -55,10 +55,19 @@ for case in frozen['cases']:
     (output/(name+'.stdout')).write_bytes(run.stdout)
     (output/(name+'.stderr')).write_bytes(run.stderr)
     stderr = run.stderr.decode(errors='replace')
-    outcome = 'PASS' if run.returncode == case['exit'] and run.stdout == expected else 'FAIL'
+    # The program writes only stdout. The CLI forwards program stderr before
+    # its own fixed exit reports; compare the entire stream so extra errors
+    # cannot disappear behind an otherwise correct stdout/exit result.
+    expected_stderr = b''
+    if a.omega and not a.executable and a.route != 'terminal':
+        expected_stderr = f"native exit {case['exit']}\n".encode()
+        if a.route == 'both':
+            expected_stderr += f"interp exit: {case['exit']}\n".encode()
+    stderr_equal = run.stderr == expected_stderr
+    outcome = 'PASS' if run.returncode == case['exit'] and run.stdout == expected and stderr_equal else 'FAIL'
     if a.route == 'both' and 'DECLINED' in stderr:
         outcome = 'DECLINED' if outcome == 'PASS' else outcome
-    row = dict(name=name, status=outcome, actual_exit=run.returncode, expected_exit=case['exit'], stdout_equal=run.stdout == expected, command=command)
+    row = dict(name=name, status=outcome, actual_exit=run.returncode, expected_exit=case['exit'], stdout_equal=run.stdout == expected, stderr_equal=stderr_equal, command=command)
     results.append(row)
     print(json.dumps(row), flush=True)
     # Compilation/acceptance failure is shared infrastructure, not 22 distinct cases.
