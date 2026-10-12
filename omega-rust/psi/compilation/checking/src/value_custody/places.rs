@@ -351,7 +351,9 @@ pub fn declared_place_type_raw(
             receiver,
             &[facts::PlaceSegment::Field { symbol }],
         );
-        if std::env::var_os("OMEGA_MAIN21_SCOPE_TRACE").is_some() {
+        if std::env::var_os("OMEGA_MAIN21_SCOPE_TRACE").is_some()
+            && (projected.is_none() || symbol != member.member_symbol)
+        {
             eprintln!(
                 "main21-member expression={handle:?} member={} retained={:?} retained-path={} selected={symbol:?} receiver={receiver:?} receiver-type={} projected={projected:?} projected-type={:?}",
                 member.member,
