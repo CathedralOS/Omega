@@ -36,12 +36,15 @@ pub(crate) struct DynamicDispatchIndex {
     /// Per interface id: each slot's requirement identity and, for a
     /// finite-family row, the canonical tuple identities it commits; one
     /// slot per canonical row.
-    slots: Vec<
-        Vec<(
-            typed_trees::type_identity::CallableIdentityId,
-            Vec<String>,
-        )>,
-    >,
+    slots: Vec<Vec<DynamicDispatchSlot>>,
+}
+
+/// One checked row keeps selection values beside its complete semantic identity.
+#[derive(Debug, Clone)]
+pub(crate) struct DynamicDispatchSlot {
+    pub(crate) requirement: typed_trees::type_identity::CallableIdentityId,
+    pub(crate) tuple: Vec<String>,
+    pub(crate) values: Vec<typed_trees::finite_family::FamilyScalarValue>,
 }
 
 impl DynamicDispatchIndex {
@@ -83,11 +86,10 @@ impl DynamicDispatchIndex {
                     Some(selection) => selection
                         .rows
                         .iter()
-                        .map(|row| {
-                            (
-                                row.requirement_identity.clone(),
-                                row.family_tuple.as_ref().to_vec(),
-                            )
+                        .map(|row| DynamicDispatchSlot {
+                            requirement: row.requirement_identity,
+                            tuple: row.family_tuple.to_vec(),
+                            values: row.family_values.to_vec(),
                         })
                         .collect(),
                     None => {
@@ -100,7 +102,11 @@ impl DynamicDispatchIndex {
                         called.dedup();
                         called
                             .into_iter()
-                            .map(|identity| (identity, Vec::new()))
+                            .map(|identity| DynamicDispatchSlot {
+                                requirement: identity,
+                                tuple: Vec::new(),
+                                values: Vec::new(),
+                            })
                             .collect()
                     }
                 }
@@ -140,15 +146,7 @@ impl DynamicDispatchIndex {
     /// One interface's slots with each slot's requirement identity and
     /// canonical tuple roster entry (`Vec::new()` for nongeneric rows); a
     /// family call reads the contiguous tuple run starting at its base slot.
-    pub(crate) fn interface_slots(
-        &self,
-        interface: u32,
-    ) -> Option<
-        &[(
-            typed_trees::type_identity::CallableIdentityId,
-            Vec<String>,
-        )],
-    > {
+    pub(crate) fn interface_slots(&self, interface: u32) -> Option<&[DynamicDispatchSlot]> {
         self.slots
             .get(usize::try_from(interface).ok()?)
             .map(Vec::as_slice)
@@ -163,7 +161,7 @@ impl DynamicDispatchIndex {
         let slots = self.slots.get(usize::try_from(interface).ok()?)?;
         let position = slots
             .iter()
-            .position(|(candidate, _)| candidate == requirement_identity)?;
+            .position(|candidate| &candidate.requirement == requirement_identity)?;
         u32::try_from(position).ok()
     }
 }
@@ -239,12 +237,10 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
         let interface_id = u32::try_from(interface_id)
             .map_err(|_| LoweringError::Unsupported("dynamic interface id overflows"))?;
         let mut slots = Vec::new();
-        for (slot, (requirement_identity, family_tuple)) in
-            index.slots[interface_id as usize].iter().enumerate()
-        {
+        for (slot, row) in index.slots[interface_id as usize].iter().enumerate() {
             let Some(plan) = slot_plans.iter().find(|plan| {
                 plan.interface_identity == *interface_identity
-                    && plan.requirement_identity == *requirement_identity
+                    && plan.requirement_identity == row.requirement
             }) else {
                 return unsupported("dynamic interface slot has no checked call shape");
             };
@@ -254,7 +250,7 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
                 plan,
                 u32::try_from(slot)
                     .map_err(|_| LoweringError::Unsupported("dynamic slot id overflows"))?,
-                family_tuple,
+                &row.tuple,
                 &type_ids,
                 &module.structural_types,
                 &domain_ids,
