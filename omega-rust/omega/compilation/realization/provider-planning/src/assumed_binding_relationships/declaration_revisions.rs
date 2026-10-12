@@ -125,18 +125,8 @@ fn revision(
         return None;
     }
     let symbols = &relationship.declaration_owner().symbols;
-    let span = symbols.symbol_provenance_source_span(symbol)?;
-    let file = symbols.source_file(span)?;
-    let unit = custody.consumed_unit_for_source(span.source_id)?;
-    if span.span.start >= span.span.end
-        || span.span.end > file.source.len()
-        || !file.source.is_char_boundary(span.span.start)
-        || !file.source.is_char_boundary(span.span.end)
-        || unit.package() != file.package_identity
-    {
-        return None;
-    }
-    let source_revision = unit.revision_identity();
+    let source = custody.declaration_source(symbols, symbol)?;
+    let source_revision = source.unit().revision_identity();
     let mut encoder = DomainDigestEncoder::new(b"omega.assumed-binding-declaration-revision.v1\0");
     encoder.byte(match coordinate.kind {
         AssumedBindingDeclarationKind::TraitRequirement => 0,
@@ -144,8 +134,8 @@ fn revision(
     });
     encoder.raw(&source_revision);
     encoder.bytes(coordinate.canonical_requirement.as_bytes());
-    encoder.u64(u64::try_from(span.span.start).ok()?);
-    encoder.u64(u64::try_from(span.span.end).ok()?);
+    encoder.u64(source.start());
+    encoder.u64(source.end());
     encoder.raw(&public_contract);
     Some(AssumedBindingDeclarationRevision {
         kind: coordinate.kind,

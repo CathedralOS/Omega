@@ -22,6 +22,9 @@
 //! Calling compatibility retains both original evaluated application commitments.
 //! Domain establishment routes are queried through the retained declaration owner;
 //! neither those authored routes nor checked issuer authorization is a receipt.
+//! Root scope rejoins the actually evaluated Build declaration to original
+//! sealed source custody. It retains source/target provenance separately from
+//! the selected executable entry, complete relationship identity and consent.
 //! Structural content retains the already checked positional correspondence,
 //! custody decisions and original public/calling applications for later consent.
 
@@ -41,7 +44,11 @@ mod domain_authority;
 mod mathematical_dependencies;
 mod physical_dependencies;
 mod proof_content;
+mod root_scope;
 pub use proof_content::AssumedBindingMathematicalJudgmentContent;
+pub use root_scope::{
+    AssumedBindingRootOwner, AssumedBindingRootScope, retain_assumed_binding_root_scopes,
+};
 mod semantic_content;
 mod semantic_obligations;
 mod structural_content;
@@ -109,6 +116,7 @@ pub struct PreparedAssumedBindingRelationship {
     required_declaration_coordinate: declaration_revisions::DeclarationCoordinate,
     supplied_declaration_coordinate: declaration_revisions::DeclarationCoordinate,
     declaration_revisions: Option<AssumedBindingDeclarationRevisions>,
+    root_scope: Option<AssumedBindingRootScope>,
     required_public_contract: [u8; 32],
     supplied_public_contract: [u8; 32],
     required_signature: MaterializedBoundarySignature,
@@ -170,6 +178,12 @@ impl PreparedAssumedBindingRelationship {
     /// roots; it is never an empty or accepted declaration identity.
     pub const fn declaration_revisions(&self) -> Option<AssumedBindingDeclarationRevisions> {
         self.declaration_revisions
+    }
+
+    /// Source and target provenance of the actual consuming Build root. This
+    /// supplies no executable-entry occurrence, receiving consent or dispatch.
+    pub const fn root_scope(&self) -> Option<AssumedBindingRootScope> {
+        self.root_scope
     }
 
     pub const fn required_public_contract(&self) -> [u8; 32] {
@@ -443,6 +457,7 @@ pub fn prepare_assumed_binding_relationships(
                 supplied_declaration_coordinate:
                     declaration_revisions::DeclarationCoordinate::capture(&supplied),
                 declaration_revisions: None,
+                root_scope: None,
                 required_public_contract,
                 supplied_public_contract,
                 required_signature,

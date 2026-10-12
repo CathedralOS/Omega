@@ -528,7 +528,7 @@ fn checked_callable_service_references(
             == Some(consumer.identity())
             && (machine.is_public
                 || machine.supply_mode.is_boundary_declaration()
-                || Some(machine.symbol) == checked.build().selected_build_machine_symbol)
+                || Some(machine.symbol) == checked.build().selected_build_machine_symbol())
     }) {
         let missing = || CompileResolvedPackageReviewsError::Compilation {
             package: consumer.clone(),

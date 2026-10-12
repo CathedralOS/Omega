@@ -17,6 +17,7 @@ component-description = { path = "../../backend/artifacts/component-description"
 effects = { path = "../../backend/plans/provider-evidence" }
 layout = { path = "../../backend/layout" }
 package-compilation = { path = "../../../packages/compilation-inputs" }
+build-declarations = { path = "../../../packages/build-declarations" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
 representation-planning = { path = "../../../../psi/compilation/checking/representation-planning" }
 target = { path = "../../backend/target" }

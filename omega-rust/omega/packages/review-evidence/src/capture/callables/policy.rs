@@ -30,7 +30,7 @@ pub(crate) fn project_checked_callable_policy<'a>(
             "package or target differs from the checked root activation",
         ));
     }
-    let build = compilation.custody.build().selected_build_machine_symbol;
+    let build = compilation.custody.build().selected_build_machine_symbol();
     // Selected dispatch changes no checked body, so the settled trees are the
     // authored source the policy callables classify.
     let source = compilation.checking_input;

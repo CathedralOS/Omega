@@ -23,12 +23,70 @@ use typed_trees::references::{
     collect_selected_program_references,
 };
 
+/// Owned result of the actual Build declaration projection. Cache program
+/// identity may change; this record retains the original selected declaration
+/// and the immutable projected input without granting execution authority.
+#[derive(Clone, PartialEq, Eq)]
+pub struct BuildProgramProjection {
+    original: Arc<TypedTrees>,
+    projected: Arc<typed_trees::FrozenTypedTrees>,
+    entry: SymbolHandle,
+    callable_identity: String,
+}
+
+impl BuildProgramProjection {
+    pub fn original(&self) -> &TypedTrees {
+        &self.original
+    }
+    pub fn program(&self) -> &TypedTrees {
+        &self.projected
+    }
+    pub const fn entry(&self) -> SymbolHandle {
+        self.entry
+    }
+
+    /// Rejoin the selected declaration, not a same-source arena slot or a
+    /// rendered identity supplied separately by a consumer. Normal checking
+    /// preserves this header while elaborating its body and execution facts.
+    pub fn validate_checked_entry(&self, checked: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
+        let Some(machine) = checked.machine(self.entry) else {
+            return Err(vec![Diagnostic::error(
+                "checked Build projection lost its selected declaration",
+            )]);
+        };
+        let expected = self
+            .projected
+            .machine(self.entry)
+            .expect("projection owns its selected declaration");
+        if checked.symbols.get(self.entry) != self.projected.symbols.get(self.entry)
+            || machine.name != expected.name
+            || checked.symbols.symbol_provenance_source_span(self.entry)
+                != self
+                    .projected
+                    .symbols
+                    .symbol_provenance_source_span(self.entry)
+            || checked
+                .symbols
+                .retained_source_map()
+                .zip(self.projected.symbols.retained_source_map())
+                .is_none_or(|(actual, expected)| !Arc::ptr_eq(actual, expected))
+            || checked.machine_callable_identity_text(machine).as_deref()
+                != Some(self.callable_identity.as_str())
+        {
+            return Err(vec![Diagnostic::error(
+                "checked Build entry differs from its produced declaration projection",
+            )]);
+        }
+        Ok(())
+    }
+}
+
 /// Prepare the complete admitted Build context without changing symbol handles.
 /// The result must still pass ordinary checking before any machine executes.
 pub fn project_build_program(
     original: &dyn crate::CheckingInput,
     entry: SymbolHandle,
-) -> Result<TypedTrees, Vec<Diagnostic>> {
+) -> Result<BuildProgramProjection, Vec<Diagnostic>> {
     // Instantiation preserves template source provenance for diagnostics, not
     // the purpose of the use that demanded the instance. In particular, a
     // Product application of a toolchain generic is not an independent Build
@@ -115,8 +173,27 @@ pub fn project_build_program(
         &generated_methods,
         Some(static_argument_role),
     );
-    program.product_declaration_frontier = Some(Arc::new(original.typed_program().clone()));
-    Ok(program)
+    let original = Arc::new(original.typed_program().clone());
+    program.product_declaration_frontier = Some(Arc::clone(&original));
+    let machine = program.machine(entry).ok_or_else(|| {
+        vec![Diagnostic::error(
+            "Build projection lost its selected entry",
+        )]
+    })?;
+    let callable_identity = program
+        .machine_callable_identity_text(machine)
+        .filter(|identity| !identity.is_empty())
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "Build projection has no selected declaration identity",
+            )]
+        })?;
+    Ok(BuildProgramProjection {
+        original,
+        projected: Arc::new(program.into()),
+        entry,
+        callable_identity,
+    })
 }
 
 /// A description can mention an entire carrier/conformance graph. None of that

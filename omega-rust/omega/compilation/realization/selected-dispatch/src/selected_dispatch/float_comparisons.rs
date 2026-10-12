@@ -145,9 +145,8 @@ pub(super) fn replace_executions(
     checked: &mut CheckedTrees,
     executions: Vec<CheckedSelectedFloatComparisonExecution>,
 ) {
-    let retained = &mut checked.facts.operators.selected_float_comparisons;
-    retained.clear();
-    for execution in executions {
-        retained.append(execution);
-    }
+    checked
+        .facts
+        .operators
+        .replace_selected_float_comparisons(executions);
 }
