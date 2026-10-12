@@ -53,7 +53,9 @@ pub(crate) fn open_index_operation_identity(
 ) -> String {
     let contract = selection.operation_contract_identity(program);
     if context.qualification == TypeIdentityQualification::Ordinary {
-        return contract;
+        // Equivalent implementations share the declared algebra contract,
+        // whose package owner remains part of ordinary nominal identity.
+        return context.qualify_non_binder_name(program, selection.algebra_trait, contract);
     }
     compound(
         "open-index-operation",
