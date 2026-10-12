@@ -10,7 +10,10 @@ use typed_trees::{
     statement::{StatementNode, TransitionGuardNode, TransitionTargetNode},
 };
 
-use super::{BuildTimeCallEdge, BuildTimeInvocationCustody, BuildTimeSelectionAuthority};
+use super::{
+    BuildTimeCallEdge, BuildTimeInvocationCustody, BuildTimeSelectionAuthority,
+    kernel_applications::KernelApplications,
+};
 
 /// One declaration-selection rejection. An authored occurrence carries its
 /// own source span so the reporting owner can point at the selection rather
@@ -42,7 +45,7 @@ pub(super) fn selection_authority_violation(
     root: &Machine,
     custody: Option<BuildTimeInvocationCustody>,
     authority: Option<&dyn BuildTimeSelectionAuthority>,
-    selected: &[crate::SelectedBuildTimeBinaryOperator],
+    kernels: KernelApplications<'_>,
 ) -> Option<SelectionViolation> {
     if let Some(authority) = authority {
         let Some(custody) = custody else {
@@ -73,7 +76,7 @@ pub(super) fn selection_authority_violation(
         }
         completed.push(source_machine);
         if let Some(violation) =
-            machine_selection_violation(program, source_machine, authority, selected)
+            machine_selection_violation(program, source_machine, authority, kernels)
         {
             return Some(violation);
         }
@@ -133,7 +136,7 @@ fn machine_selection_violation(
     program: &TypedTrees,
     machine_symbol: SymbolHandle,
     authority: Option<&dyn BuildTimeSelectionAuthority>,
-    selected: &[crate::SelectedBuildTimeBinaryOperator],
+    kernels: KernelApplications<'_>,
 ) -> Option<SelectionViolation> {
     let machine = program.machine(machine_symbol)?;
     for state in program.machine_states(machine) {
@@ -150,7 +153,7 @@ fn machine_selection_violation(
                 state,
                 expression,
                 authority,
-                selected,
+                kernels,
                 &mut visited,
             ) {
                 return Some(violation);
@@ -228,7 +231,7 @@ fn expression_selection_violation(
     state: &State,
     expression: ExpressionHandle,
     authority: Option<&dyn BuildTimeSelectionAuthority>,
-    selected: &[crate::SelectedBuildTimeBinaryOperator],
+    kernels: KernelApplications<'_>,
     visited: &mut Vec<ExpressionHandle>,
 ) -> Option<SelectionViolation> {
     if !expression.is_valid() || visited.contains(&expression) {
@@ -244,9 +247,8 @@ fn expression_selection_violation(
         machine,
         Some(state),
         expression,
-    ) && !selected.iter().any(|row| {
-        row.expression == expression && row.origin.machine_symbol() == Some(machine.symbol)
-    }) {
+    ) && !kernels.contains_expression(expression, machine.symbol)
+    {
         return Some(SelectionViolation {
             message: "build-time binary operator requires exact authored selection before evaluation; the evaluator cannot execute it as a builtin operator".to_owned(),
             source_span: Some(program.expression_table.source_span(expression)),
@@ -260,7 +262,7 @@ fn expression_selection_violation(
     let children = expression_children(program, expression);
     for child in children {
         if let Some(violation) = expression_selection_violation(
-            program, machine, state, child, authority, selected, visited,
+            program, machine, state, child, authority, kernels, visited,
         ) {
             return Some(violation);
         }
@@ -386,7 +388,9 @@ fn expression_occurrence_violation(
                     let selected =
                         validation::compiler_operations::resolve_static_argument_selection(
                             program,
-                            typed_trees::references::StaticArgumentCall::Expression(expression, call),
+                            typed_trees::references::StaticArgumentCall::Expression(
+                                expression, call,
+                            ),
                             position,
                         );
                     if selected.is_none() {

@@ -22,6 +22,7 @@ use crate::BuildTimeValue;
 
 mod closure_validation;
 mod concrete_invocation;
+mod kernel_applications;
 mod supplied_values;
 
 pub(crate) use concrete_invocation::{SnapshotArgument, snapshot_arguments_discharge};
@@ -52,7 +53,7 @@ pub(crate) fn require_const_expression_selection(
         machine,
         Some(BuildTimeInvocationCustody::Source(source)),
         authority,
-        &[],
+        kernel_applications::KernelApplications::new(program, &[], None),
     ) {
         Some(violation) => Err(violation.message),
         None => Ok(()),
@@ -528,12 +529,17 @@ impl BuildTimeAdmissionPlan {
                         ),
                         source_span: diagnostics.iter().find_map(|diagnostic| diagnostic.source_span),
                     })?);
+        let kernels = kernel_applications::KernelApplications::new(
+            program,
+            &self.selected_operators,
+            self.checked_execution.as_ref().map(|owner| owner.checked()),
+        );
         let closure_violation = checked_closure_violation(
             &self.call_edges,
             program,
             machine,
             discharge_authored_requires,
-            &self.selected_operators,
+            kernels,
         );
         let selection_violation = selection_authority_violation(
             &self.call_edges,
@@ -541,7 +547,7 @@ impl BuildTimeAdmissionPlan {
             machine,
             custody,
             self.selection_authority.as_deref(),
-            &self.selected_operators,
+            kernels,
         );
         if services.is_empty()
             && !transitive_may_suspend
