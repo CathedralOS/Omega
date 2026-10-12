@@ -184,9 +184,8 @@ fn structural_requirement_at_prefix(
     };
     let runtime_values = !classification.is_proof_machine(program, machine)
         || callee_machine.is_none_or(|callee| !classification.is_proof_machine(program, callee));
-    let acyclic = crate::machine_calls::calls::named_state_transition_subgraph_is_acyclic(
-        program, machine, entry,
-    );
+    let acyclic =
+        crate::machine_calls::calls::state_transfer_subgraph_is_acyclic(program, machine, entry);
     if !runtime_values && !acyclic {
         return false;
     }

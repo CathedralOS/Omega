@@ -29,6 +29,7 @@ pub(crate) fn plan(
         proof_terms,
         source_bindings,
         binding_symbols,
+        statement_index,
         ..
     } = planner;
     if let TransitionGuardNode::When(authored_guard) = transition.guard
@@ -64,6 +65,14 @@ pub(crate) fn plan(
         if transition.exit == typed_trees::statement::TransitionExit::Ordinary
             && let TransitionTargetNode::Value(expression) =
                 program.statement_table.transition_target(target)
+            && validation::current_entry_tail_call(
+                program,
+                machine,
+                state,
+                statement_index,
+                *expression,
+            )
+            .is_none()
             && let Some(result_type) = result_type
             && let Some(return_expression) = lower_return_expression(
                 program,
@@ -96,115 +105,181 @@ pub(crate) fn plan(
                 return_expression,
             );
         }
-        let TransitionTargetNode::Named {
-            path, arguments, ..
-        } = program.statement_table.transition_target(target)
-        else {
-            continue;
-        };
-        let Some(target_state) = crate::checks::termination::named_transition_target_state_index(
-            program,
-            machine,
-            path.symbol,
-        )
-        .and_then(|target_index| states.get(target_index))
-        .or_else(|| {
-            // Free names retain the machine head, while qualified names can
-            // retain its entry child. Both supply the first state's formals;
-            // foreign interior states remain invalid call targets.
-            validation::find_machine_head(program, path.symbol).map(|(_, entry)| entry)
-        }) else {
-            continue;
-        };
-        let target_parameters = program.state_parameters(target_state).iter().enumerate();
-        for (argument, (target_position, target_parameter)) in program
-            .statement_table
-            .expression_handles(*arguments)
-            .iter()
-            .zip(target_parameters)
-        {
-            let Ok(argument_ordinal) = u32::try_from(target_position) else {
-                continue;
-            };
-            let Some(target_type) =
-                program.primitive_type_reference(target_parameter.type_reference)
-            else {
-                // An erased contract-term formal records a
-                // proof term under the same authored
-                // argument ordinal the scalar lane uses.
-                if target_parameter.relevance.is_erased()
-                    && proof_only.contract_term_carrier(program, target_parameter.type_reference)
-                {
-                    if let Some(term) = crate::values::scalar::call_lowering::lower_proof_term(
+        let (target_state, arguments) = match program.statement_table.transition_target(target) {
+            TransitionTargetNode::Named {
+                path, arguments, ..
+            } => {
+                let Some(target_state) =
+                    crate::checks::termination::named_transition_target_state_index(
                         program,
-                        operators,
-                        *argument,
-                        scalar_parameters,
-                        parameters,
-                        parameter_types,
-                        locals,
-                        exact_integer_casts,
-                        proof_only,
-                    ) {
-                        proof_terms.push(
-                            checked_trees::CheckedLocatedProofTerm {
-                                state: state.symbol,
-                                statement_ordinal,
-                                role: if continuation {
-                                    checked_trees::CheckedProofTermRole::TransitionContinuationArgument {
-                                        argument_ordinal,
-                                    }
-                                } else {
-                                    checked_trees::CheckedProofTermRole::TransitionArgument {
-                                        argument_ordinal,
-                                    }
-                                },
-                                expression: *argument,
-                                term,
-                            },
-                        );
-                    }
-                    // The erased argument owns no scalar
-                    // expression: the term above is its
-                    // whole contribution to the plan.
+                        machine,
+                        path.symbol,
+                    )
+                    .and_then(|index| states.get(index))
+                    .or_else(|| {
+                        validation::find_machine_head(program, path.symbol).map(|(_, entry)| entry)
+                    })
+                else {
                     continue;
-                }
-                if continuation {
+                };
+                (
+                    target_state,
+                    program.statement_table.expression_handles(*arguments),
+                )
+            }
+            TransitionTargetNode::Value(expression) => {
+                let Some(call) = validation::current_entry_tail_call(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    *expression,
+                ) else {
                     continue;
-                }
-                continue;
-            };
-            let Some(expression) = lower_return_expression(
+                };
+                let Some(entry) = states.first() else {
+                    continue;
+                };
+                (
+                    entry,
+                    program.expression_table.expression_handles(call.arguments),
+                )
+            }
+            _ => continue,
+        };
+        arguments_plan(
+            StatementPlanner {
                 program,
                 operators,
-                *argument,
-                scalar_parameters,
-                parameters,
-                parameter_types,
-                locals,
-                target_type,
                 exact_integer_casts,
-            ) else {
-                continue;
-            };
-            let role = if continuation {
-                CheckedScalarExpressionRole::TransitionContinuationArgument { argument_ordinal }
-            } else {
-                CheckedScalarExpressionRole::TransitionArgument { argument_ordinal }
-            };
-            super::record_scalar_value_pair(
-                source_bindings,
-                expressions,
-                binding_symbols,
+                proof_only,
+                machine,
+                state,
+                states,
+                parameters,
                 scalar_parameters,
-                locals,
-                state.symbol,
+                parameter_types,
+                result_type,
+                statement_index,
                 statement_ordinal,
-                role,
-                target_parameter.symbol,
-                *argument,
-                expression,
-            );
-        }
+                locals: &mut *locals,
+                expressions: &mut *expressions,
+                proof_terms: &mut *proof_terms,
+                source_bindings: &mut *source_bindings,
+                binding_symbols: &mut *binding_symbols,
+            },
+            target_state,
+            arguments,
+            continuation,
+        );
+    }
+}
+
+/// The same successor namespace consumes Named state operands and the exact
+/// whole-call operands preserved for ordinary source application admission.
+pub(super) fn arguments_plan(
+    planner: StatementPlanner<'_, '_>,
+    target_state: &typed_trees::state::State,
+    arguments: &[typed_trees::expression::ExpressionHandle],
+    continuation: bool,
+) {
+    let StatementPlanner {
+        program,
+        operators,
+        exact_integer_casts,
+        proof_only,
+        state,
+        parameters,
+        scalar_parameters,
+        parameter_types,
+        statement_ordinal,
+        locals,
+        expressions,
+        proof_terms,
+        source_bindings,
+        binding_symbols,
+        ..
+    } = planner;
+    let target_parameters = program.state_parameters(target_state).iter().enumerate();
+    for (argument, (target_position, target_parameter)) in arguments.iter().zip(target_parameters) {
+        let Ok(argument_ordinal) = u32::try_from(target_position) else {
+            continue;
+        };
+        let Some(target_type) = program.primitive_type_reference(target_parameter.type_reference)
+        else {
+            // An erased contract-term formal records a
+            // proof term under the same authored
+            // argument ordinal the scalar lane uses.
+            if target_parameter.relevance.is_erased()
+                && proof_only.contract_term_carrier(program, target_parameter.type_reference)
+            {
+                if let Some(term) = crate::values::scalar::call_lowering::lower_proof_term(
+                    program,
+                    operators,
+                    *argument,
+                    scalar_parameters,
+                    parameters,
+                    parameter_types,
+                    locals,
+                    exact_integer_casts,
+                    proof_only,
+                ) {
+                    proof_terms.push(checked_trees::CheckedLocatedProofTerm {
+                        state: state.symbol,
+                        statement_ordinal,
+                        role: if continuation {
+                            checked_trees::CheckedProofTermRole::TransitionContinuationArgument {
+                                argument_ordinal,
+                            }
+                        } else {
+                            checked_trees::CheckedProofTermRole::TransitionArgument {
+                                argument_ordinal,
+                            }
+                        },
+                        expression: *argument,
+                        term,
+                    });
+                }
+                // The erased argument owns no scalar
+                // expression: the term above is its
+                // whole contribution to the plan.
+                continue;
+            }
+            if continuation {
+                continue;
+            }
+            continue;
+        };
+        let Some(expression) = lower_return_expression(
+            program,
+            operators,
+            *argument,
+            scalar_parameters,
+            parameters,
+            parameter_types,
+            locals,
+            target_type,
+            exact_integer_casts,
+        ) else {
+            continue;
+        };
+        let role = if continuation {
+            CheckedScalarExpressionRole::TransitionContinuationArgument { argument_ordinal }
+        } else {
+            CheckedScalarExpressionRole::TransitionArgument { argument_ordinal }
+        };
+        super::record_scalar_value_pair(
+            source_bindings,
+            expressions,
+            binding_symbols,
+            scalar_parameters,
+            locals,
+            state.symbol,
+            statement_ordinal,
+            role,
+            target_parameter.symbol,
+            *argument,
+            expression,
+        );
     }
 }

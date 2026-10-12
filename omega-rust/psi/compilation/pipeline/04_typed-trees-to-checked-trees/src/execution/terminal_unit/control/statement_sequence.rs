@@ -191,6 +191,22 @@ pub(in crate::execution::terminal_unit) fn build(
         None => (None, usize::MAX),
     };
     let statements = program.statement_table.statements(state.statement_nodes);
+    if statement_end != 0
+        && crate::execution::tail_transfers::tail(
+            program,
+            &facts.flow,
+            machine,
+            state,
+            statement_end - 1,
+            Default::default(),
+        )
+        .is_some()
+    {
+        // This exit belongs to the state graph's successor. A linear operation
+        // sequence cannot reinterpret it as a returned call/result.
+        return None;
+    }
+
     let statement_end = statement_end.min(statements.len());
     // The walk plans each statement up to the body's completion: a trailing
     // transition run (each arm's destructure marker before it), the final
@@ -670,6 +686,7 @@ pub(in crate::execution::terminal_unit) fn returning_terminator(
         program,
         machine,
         state,
+        &facts.flow,
         &facts.values.scalar_expressions,
         prefix_count,
     );
@@ -708,6 +725,7 @@ pub(in crate::execution::terminal_unit) fn returning_terminator(
                 program,
                 machine,
                 state,
+                &facts.flow,
                 &facts.values.scalar_expressions,
                 prefix_count,
             )?

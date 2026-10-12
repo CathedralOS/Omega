@@ -22,6 +22,7 @@ mod borrow_lifetimes;
 mod boundaries;
 mod contexts;
 mod control;
+pub use control::FlowTailTransferFact;
 mod invalidations;
 mod operand;
 mod ownership;

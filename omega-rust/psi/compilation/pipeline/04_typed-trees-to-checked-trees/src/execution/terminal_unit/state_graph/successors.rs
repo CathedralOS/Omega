@@ -15,7 +15,7 @@ use super::{
     CheckedStructuralScalarArgumentPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment, ExpressionNode,
-    Multiplicity, TransitionExit, TransitionGuardNode, TransitionTargetNode, TypeReferenceNode,
+    Multiplicity, TransitionExit, TransitionGuardNode, TypeReferenceNode,
 };
 use crate::execution::terminal_unit::ScalarCalleeClosure;
 use crate::execution::terminal_unit::control;
@@ -205,6 +205,18 @@ pub(in crate::execution::terminal_unit) fn successor(
         shapes,
         trace,
     )?;
+    successor_cleanup(facts, fused, source_index, successor, ordinal, edge, trace)
+}
+
+fn successor_cleanup(
+    facts: &CheckFacts,
+    fused: &FusedStates<'_>,
+    source_index: usize,
+    successor: CheckedStructuralControlSuccessorPlan,
+    ordinal: u32,
+    edge: SuccessorEdge,
+    trace: &control::LocalConstructionTrace,
+) -> Option<CheckedStructuralControlSuccessorPlan> {
     trace.phase(edge.phase(SuccessorGuard::EdgeCleanup));
     trace.statement(Some(ordinal));
     let &(machine, source) = fused.get(source_index)?;
@@ -220,6 +232,40 @@ pub(in crate::execution::terminal_unit) fn successor(
             cleanup.trivial_affine_discard_parameter_positions.clone();
     }
     Some(successor)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn successor_target(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    fused: &FusedStates<'_>,
+    source_index: usize,
+    signatures: &[Signature],
+    operations: &[CheckedUnitEffectOperationPlan],
+    jump: crate::execution::tail_transfers::JumpTarget<'_>,
+    ordinal: u32,
+    edge_calls: EdgeCalls<'_>,
+    shapes: &mut ShapeCollector<'_>,
+    trace: &control::LocalConstructionTrace,
+) -> Option<CheckedStructuralControlSuccessorPlan> {
+    let edge = SuccessorEdge::Jump;
+    let successor = successor_target_bindings(
+        program,
+        facts,
+        fused,
+        source_index,
+        signatures,
+        operations,
+        jump,
+        TransitionGuardNode::Always,
+        ordinal,
+        &[],
+        edge,
+        edge_calls,
+        shapes,
+        trace,
+    )?;
+    successor_cleanup(facts, fused, source_index, successor, ordinal, edge, trace)
 }
 
 // Operand identity is shared by ordinary and closed-case edges. The caller
@@ -241,25 +287,95 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
     shapes: &mut ShapeCollector<'_>,
     trace: &control::LocalConstructionTrace,
 ) -> Option<CheckedStructuralControlSuccessorPlan> {
+    if transition.exit != TransitionExit::Ordinary || transition.continuation.is_valid() {
+        return None;
+    }
+    let &(machine, source) = fused.get(source_index)?;
+    let jump = crate::execution::tail_transfers::transition(
+        program,
+        &facts.flow,
+        machine,
+        source,
+        ordinal as usize,
+        transition.target,
+    )?;
+    successor_target_bindings(
+        program,
+        facts,
+        fused,
+        source_index,
+        signatures,
+        operations,
+        jump,
+        transition.guard,
+        ordinal,
+        payload_parameters,
+        edge,
+        edge_calls,
+        shapes,
+        trace,
+    )
+}
+
+/// Both authored Named jumps and checked whole-call tails use the same operand,
+/// loan, result and cleanup vocabulary. No transition node is synthesized.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::execution::terminal_unit) fn successor_target_bindings(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    fused: &FusedStates<'_>,
+    source_index: usize,
+    signatures: &[Signature],
+    operations: &[CheckedUnitEffectOperationPlan],
+    jump: crate::execution::tail_transfers::JumpTarget<'_>,
+    guard: TransitionGuardNode,
+    ordinal: u32,
+    payload_parameters: &[u32],
+    edge: SuccessorEdge,
+    edge_calls: EdgeCalls<'_>,
+    shapes: &mut ShapeCollector<'_>,
+    trace: &control::LocalConstructionTrace,
+) -> Option<CheckedStructuralControlSuccessorPlan> {
     let mark = |guard| {
         trace.phase(edge.phase(guard));
         trace.statement(Some(ordinal));
     };
-    mark(SuccessorGuard::TransitionForm);
-    if transition.exit != TransitionExit::Ordinary || transition.continuation.is_valid() {
-        return None;
-    }
     mark(SuccessorGuard::TargetState);
-    let TransitionTargetNode::Named {
-        path, arguments, ..
-    } = program.statement_table.transition_target(transition.target)
-    else {
-        return None;
-    };
-    let target_index = fused_target_index(program, fused, path.symbol)?;
+    let target_index = fused_target_index(program, fused, jump.symbol)?;
     let &(machine, source) = fused.get(source_index)?;
     let &(_, target) = fused.get(target_index)?;
-    let arguments = program.statement_table.expression_handles(*arguments);
+    let arguments = jump.arguments;
+    if let Some(tail) = jump.tail {
+        let call = facts.flow.control.calls.get(tail.call);
+        let mut owners = facts.flow.control.states.iter().filter_map(|(_, owner)| {
+            (owner.machine_symbol == machine.symbol && owner.state_symbol == source.symbol)
+                .then_some(owner)
+        });
+        let owner = owners.next()?;
+        if owners.next().is_some() {
+            return None;
+        }
+        control::call_owns_statement_computations(
+            program,
+            facts,
+            machine.symbol,
+            source.symbol,
+            call,
+            facts.flow.control.calls.span(owner.calls)?,
+            operations,
+        )?;
+        let captures = facts.flow.control.operands.span(tail.operands)?;
+        if tail.operands != call.argument_operands()
+            || captures.len() != arguments.len()
+            || captures.iter().zip(arguments).any(|(capture, expression)| {
+                capture.expression != *expression
+                    || capture.state_symbol != source.symbol
+                    || capture.statement_index != ordinal as usize
+            })
+        {
+            return None;
+        }
+    }
     let target_parameters = program.state_parameters(target);
     mark(SuccessorGuard::ArgumentCount);
     if arguments.len() != target_parameters.len() {
@@ -272,7 +388,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
     // the edge's proven membership into the target's custody. Record the
     // tested subject's canonical place and the selected case once; the
     // transfer walk reuses them for every structural argument.
-    let case_test = match transition.guard {
+    let case_test = match guard {
         TransitionGuardNode::When(guard) => crate::proof::exact_outcome_case_test(program, guard)
             .and_then(|(subject, case)| {
                 validation::canonical_place_from_expression_in_state(
@@ -343,8 +459,24 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                 let subslice = calls::view_subslice::admit(
                     program, facts, machine, source, source_structural,
                     target_parameter.type_reference, expression, ordinal as usize,
-                    checked_trees::CheckedSubsliceSite::TransitionArgument {
-                        argument_ordinal: target.position,
+                    if let Some(tail) = jump.tail {
+                        let call = facts.flow.control.calls.get(tail.call);
+                        let mut structural_ordinal = 0usize;
+                        for parameter in target_parameters.iter().take(target.position as usize) {
+                            if !crate::execution::terminal_unit::strips_erased_parameter(parameter)?
+                                && program.primitive_type_reference(parameter.type_reference).is_none()
+                            {
+                                structural_ordinal = structural_ordinal.checked_add(1)?;
+                            }
+                        }
+                        checked_trees::CheckedSubsliceSite::CallArgument {
+                            call_ordinal: u32::try_from(call.call_ordinal).ok()?,
+                            argument_ordinal: u32::try_from(structural_ordinal).ok()?,
+                        }
+                    } else {
+                        checked_trees::CheckedSubsliceSite::TransitionArgument {
+                            argument_ordinal: target.position,
+                        }
                     },
                 )?;
                 if subslice.range.type_identity != target.type_identity {

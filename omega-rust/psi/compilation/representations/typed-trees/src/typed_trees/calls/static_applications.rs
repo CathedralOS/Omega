@@ -23,6 +23,7 @@ pub use declaration_view::{
 
 pub use identity::{
     StaticApplicationIdentity, StaticApplicationRegionIdentity,
+    machine_application_selects_current_instance,
     requirement_description_application_identity_text, requirement_interface_application_identity,
     static_application_identities_equal, static_application_identity,
     static_application_identity_text, static_binding_identity,

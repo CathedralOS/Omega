@@ -154,5 +154,10 @@ pub(crate) fn finalize_execution(
         },
     )?;
 
+    // Source tail/rank admission permits iteration, but only an owned
+    // successor plan actually retires the recursive activation. Publish no
+    // returning call on a recurrent executable edge.
+    crate::execution::recursive_transfers::require_constant_stack_cycles(program, &facts)?;
+
     Ok(facts)
 }

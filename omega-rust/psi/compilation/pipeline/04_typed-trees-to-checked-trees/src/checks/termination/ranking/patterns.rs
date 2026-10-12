@@ -20,21 +20,23 @@ pub(super) fn guarded_self_loop<'program>(
     let TransitionGuardNode::When(guard) = transition.guard else {
         return None;
     };
-    let target = program.statement_table.transition_target(transition.target);
-    let TransitionTargetNode::Named {
-        path, arguments, ..
-    } = target
-    else {
-        return None;
-    };
-    if !target_symbol_matches_state(program, state, path.symbol) {
+    let machine = program.machine_holding_state(state.symbol)?;
+    let statement_index = program
+        .statement_table
+        .indexed_statements(state.statement_nodes)
+        .find_map(|(index, candidate)| std::ptr::eq(candidate, statement).then_some(index))?;
+    let (destination, arguments) = crate::checks::termination::source_state_transfer(
+        program,
+        machine,
+        state,
+        statement_index,
+        transition.target,
+    )?;
+    if destination != state.symbol {
         return None;
     }
 
-    Some(GuardedSelfLoop {
-        guard,
-        arguments: program.statement_table.expression_handles(*arguments),
-    })
+    Some(GuardedSelfLoop { guard, arguments })
 }
 
 /// A fact at one exact edge, including failed earlier tests.
@@ -69,7 +71,28 @@ pub(super) fn edges_to_state<'program>(
         .iter()
         .enumerate()
     {
+        let Some(machine) = program.machine_holding_state(source.symbol) else {
+            return Vec::new();
+        };
         let Some(transition) = statement.as_transition() else {
+            if let Some((destination, arguments)) =
+                crate::checks::termination::source_state_transfer(
+                    program,
+                    machine,
+                    source,
+                    statement_ordinal,
+                    Default::default(),
+                )
+                && destination == target_symbol
+            {
+                edges.push(GuardedEdge {
+                    target: Default::default(),
+                    statement_ordinal,
+                    is_continuation: false,
+                    guards: previous.clone(),
+                    arguments,
+                });
+            }
             previous.clear();
             continue;
         };
@@ -86,14 +109,18 @@ pub(super) fn edges_to_state<'program>(
             if !target_handle.is_valid() {
                 continue;
             }
-            let arguments = match program.statement_table.transition_target(target_handle) {
-                TransitionTargetNode::Named {
-                    path, arguments, ..
-                } if target_symbol_matches_state_symbol(program, target_symbol, path.symbol) => {
-                    program.statement_table.expression_handles(*arguments)
-                }
-                _ => continue,
+            let Some((destination, arguments)) = crate::checks::termination::source_state_transfer(
+                program,
+                machine,
+                source,
+                statement_ordinal,
+                target_handle,
+            ) else {
+                continue;
             };
+            if destination != target_symbol {
+                continue;
+            }
             let mut guards = previous.clone();
             if let Some(expression) = guard {
                 guards.push(GuardFact {
