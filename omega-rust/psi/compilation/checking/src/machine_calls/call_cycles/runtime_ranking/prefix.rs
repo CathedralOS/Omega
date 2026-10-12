@@ -13,7 +13,6 @@ use super::projection::{RankOrder, RankProjection};
 /// `premises` names the member's entry premise carriers (`None` when its
 /// witness resolves none, which rejects every store); `entry_parameters` is
 /// this state's source-admitted coordinate readings;
-/// `arrival_premises` names the current-state carriers read by its own requires;
 /// `conserved_endpoints` says the component mixes ranged and unranged
 /// members, so every caller entry input may be read as a conserved endpoint.
 pub(super) fn preserves_rank(
@@ -23,7 +22,6 @@ pub(super) fn preserves_rank(
     rank: &RankProjection,
     premises: Option<&[SymbolHandle]>,
     entry_parameters: &crate::RankStateBindings,
-    arrival_premises: &[SymbolHandle],
     conserved_endpoints: bool,
     statement: &StatementNode,
     frames: Option<&CallFrameResolver<'_>>,
@@ -68,26 +66,14 @@ pub(super) fn preserves_rank(
             protected.push(path);
         }
     }
-    // Authored state Requires are independently discharged at each arrival.
-    for parameter in program.state_parameters(state) {
-        if arrival_premises.contains(&parameter.symbol) {
-            let Some(path) = crate::frame_coordinate_path(program, parameter.symbol, &[]) else {
-                return false;
-            };
-            if !protected.contains(&path) {
-                protected.push(path);
-            }
-        }
-    }
-    // The shared arithmetic judgment also consumes this exact state's
-    // declared constraints. Their subject and dependent bounds are arrival
-    // observations, not live facts renewed after a prefix write.
-    let Some(constraints) =
-        crate::ranking_range_state_constraint_coordinates(program, machine, state)
+    // Named-state and call-component proofs consume the same exact arrival
+    // observations. Preserve selected field paths, not a second whole-root
+    // approximation of authored Requires. Writes never renew an arrival fact.
+    let Some(premises) = crate::ranking_range_state_premise_coordinates(program, machine, state)
     else {
         return false;
     };
-    for coordinate in constraints {
+    for coordinate in premises {
         let Some(path) =
             crate::frame_coordinate_path(program, coordinate.parameter, &coordinate.path)
         else {

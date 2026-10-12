@@ -137,7 +137,7 @@ pub use ranking_range::{
     prove_ranking_range_entry, prove_ranking_range_transition, ranking_coordinate_type,
     ranking_range_arrival_preserves_roles, ranking_range_premise_symbols,
     ranking_range_required_coordinates, ranking_range_required_symbols,
-    ranking_range_state_constraint_coordinates, ranking_slice_length_observation,
+    ranking_range_state_premise_coordinates, ranking_slice_length_observation,
     select_rank_arrival_correspondence,
 };
 pub use ranking_range::{

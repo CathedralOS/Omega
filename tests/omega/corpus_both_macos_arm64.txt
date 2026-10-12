@@ -883,3 +883,4 @@ pass/recast/boundary_postcondition_disjoint_aliased_write_exit built 3445ms exit
 pass/recast/reference_view_helper_backing_write_exit built 3437ms exit:0 interpreter-exit:0 interpreter:agrees @2430f497a77c+wt
 pass/recast/reference_view_shared_call_backing_exit built 3462ms exit:0 interpreter-exit:0 interpreter:agrees @2430f497a77c+wt
 pass/recast/reference_view_shared_primitive_neighbor_exit built 3457ms exit:0 interpreter-exit:0 interpreter:agrees @2430f497a77c+wt
+pass/termination/runtime_rank_arrival_field_premise_disjoint_write_exit built 4745ms exit:0 interpreter-exit:0 interpreter:agrees @5135246a13ab+wt

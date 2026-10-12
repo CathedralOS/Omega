@@ -260,11 +260,11 @@ fn admit_complete(
 
 /// The formals of `state` whose path must stay unwritten through a prefix:
 /// the root's own premise formals, or -- under a discovered telescope -- each
-/// selected destination whose entry coordinate is a premise input. Any other formal, such as a mutable scratch
-/// input or a computed payload with no entry role, may be stored to before the
-/// transition: no hypothesis reads its arrival value, and the actual it feeds
-/// into the edge is read live. `None` for `entry_parameters` is the root's
-/// identity telescope.
+/// selected destination whose entry coordinate is a premise input, together
+/// with this state's own arrival-premise observations. A scratch input outside
+/// those premises may be stored to before the transition: no hypothesis reads
+/// its arrival value, and its edge actual is read live. `None` for
+/// `entry_parameters` is the root's identity telescope.
 pub(super) fn protected_input_paths(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
@@ -297,8 +297,7 @@ pub(super) fn protected_input_paths(
             }
         }
     }
-    for coordinate in
-        validation::ranking_range_state_constraint_coordinates(program, machine, state)?
+    for coordinate in validation::ranking_range_state_premise_coordinates(program, machine, state)?
     {
         let path =
             validation::frame_coordinate_path(program, coordinate.parameter, &coordinate.path)?;

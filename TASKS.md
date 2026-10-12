@@ -1662,6 +1662,11 @@ defines the complete product bar.
   `fail/termination/{nested_field_without_predicate_cannot_bound_result,rank_range_mutable_endpoint_overflow_after_write,rank_range_subject_intervening_write}`
   (declaration-owned nested field bounds and ranked loan transport survive;
   neither matching field names nor stale mutable arrival facts grant bounds),
+  `pass/termination/runtime_rank_state_constraint_disjoint_write_exit`,
+  `pass/termination/runtime_rank_arrival_field_premise_disjoint_write_exit` and
+  `fail/termination/rank_state_dependent_bound_prefix_write` (the shared rank
+  premise-coordinate roster preserves disjoint writes but does not reuse a
+  dependent arrival proposition after writing its observed ceiling),
   `pass/termination/rank_range_record_snapshot_compile`,
   `pass/termination/rank_arrival_{captured_record_fields,same_carrier_fields}_exit`
   and `fail/termination/rank_arrival_unrelated_field_step` (record fields keep

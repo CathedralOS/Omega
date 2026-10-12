@@ -180,6 +180,25 @@ between fields and no permission to decrease the wrong coordinate; the invalid
 sibling retains its original refusal. The rank range expressions remain
 unchanged. They neither constrain storage identity nor make an endpoint static.
 
+## Audited mutable dependent state arrivals
+
+The [disjoint-write witness inventory](../../../tests/omega/pass/termination/runtime_rank_state_constraint_disjoint_write_exit/README.md)
+reconciles eight suffixes at `bd68c42a6ef`: four each in
+`termination/runtime_rank_state_constraint_disjoint_write_exit` and
+`termination/rank_state_dependent_bound_prefix_write`. The unsigned carriers
+retain their zero floors. Entry `remaining <= 9` and state
+`current <= 9 && ceiling <= 4 && scratch <= ceiling` replace the annotations.
+
+The dependent inequality must remain attached to its arrival observations,
+not become an assumption about a replacement ceiling. The shared rank-premise
+coordinate query now includes authored requirements as well as declared type
+constraints; named-state and call-component prefix consumers protect the same
+exact paths. The separate whole-root requirement scan is removed.
+The original disjoint store still returns 70 and executes with exit zero in
+both engines. The ceiling-write control rejects even though zero satisfies the
+independent ceiling upper bound. The field-scoped call-component witness also
+retains sibling writes and their caller-visible effect.
+
 ## Audited calling vocabulary counts
 
 The 11 scalar suffixes in `source/library/std/calling.omg` at `c1303f89d4`

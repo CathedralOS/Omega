@@ -262,15 +262,12 @@ pub(super) fn project_component(
         let mut observed = Vec::new();
         for (state_position, state) in states.iter().enumerate() {
             let mut guards = Vec::new();
-            let mut arrival_premises = Vec::new();
             // Internal jumps establish the destination state's own requires,
             // not the machine-entry contract. Carry those facts into the same
             // guarded call judgment used below, including its metadata binding.
             // Prefix preservation protects their exact current-state carriers:
             // a write cannot leave an arrival fact available as a live premise.
             if state_position != 0 {
-                let mut nodes = Vec::new();
-                let mut seen = std::collections::HashSet::new();
                 for contract in program.state_contracts(state) {
                     if contract.kind != SignatureContractKind::Requires {
                         continue;
@@ -278,21 +275,7 @@ pub(super) fn project_component(
                     for fact in program.proof_facts.span_or_empty(contract.facts) {
                         if let Some(expression) = fact.as_expression() {
                             guards.push((*expression, true));
-                            crate::expression_traversal::collect_expression_nodes(
-                                program,
-                                *expression,
-                                &mut nodes,
-                                &mut seen,
-                            );
                         }
-                    }
-                }
-                for node in nodes {
-                    if let Some(path) = program.expression_table.name_path_node(node)
-                        && path.head_symbol.is_valid()
-                        && !arrival_premises.contains(&path.head_symbol)
-                    {
-                        arrival_premises.push(path.head_symbol);
                     }
                 }
             }
@@ -308,7 +291,6 @@ pub(super) fn project_component(
                         &ranks[position],
                         member_premises[position].as_deref(),
                         &mappings[state_position],
-                        &arrival_premises,
                         mixed_ranges,
                         statement,
                         frames,

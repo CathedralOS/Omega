@@ -6241,3 +6241,4 @@ pass/recast/boundary_postcondition_disjoint_aliased_write_exit checked 3345ms ch
 pass/recast/reference_view_helper_backing_write_exit checked 3343ms check-target:macos_arm64 @2430f497a77c+wt
 pass/recast/reference_view_shared_call_backing_exit checked 3329ms check-target:macos_arm64 @2430f497a77c+wt
 pass/recast/reference_view_shared_primitive_neighbor_exit checked 3328ms check-target:macos_arm64 @2430f497a77c+wt
+pass/termination/runtime_rank_arrival_field_premise_disjoint_write_exit checked 4465ms check-target:macos_arm64 @5135246a13ab+wt

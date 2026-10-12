@@ -1,9 +1,12 @@
-machine walk(remaining: u32 [0..=9])
+machine walk(remaining: u32)
+requires remaining <= 9
 terminates by remaining in 0..=9;
 -> u32 {
     transition { _ -> step(remaining, 4, 2, 0) }
 
-    state step(current: u32 [0..=9], mut ceiling: u32 [0..=4], scratch: u32 [0..=ceiling], mut unrelated: u32) {
+    state step(current: u32, mut ceiling: u32, scratch: u32, mut unrelated: u32)
+    requires current <= 9 && ceiling <= 4 && scratch <= ceiling
+    {
         unrelated = 1;
         transition scratch > ceiling {
             true -> step(current, 4, scratch, unrelated)

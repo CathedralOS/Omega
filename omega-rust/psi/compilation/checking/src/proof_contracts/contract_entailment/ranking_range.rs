@@ -515,11 +515,12 @@ pub fn ranking_range_premise_symbols(
     state_aliases::premise_symbols(program, machine, range, measure, true)
 }
 
-/// Arrival-qualified observations consumed from this state's own constrained
-/// integer formals. Keep both each subject and the selected dependencies of
-/// its bounds unwritten until the proof site. These are preservation inputs,
-/// not entry correspondence or equality evidence.
-pub fn ranking_range_state_constraint_coordinates(
+/// Arrival observations consumed from this state's requirements and constrained
+/// integer formals. Both surfaces name premises of the same arithmetic judgment;
+/// every observed coordinate must remain unwritten until that judgment's site.
+/// A requirement held at arrival, not after a write to one of its operands.
+/// These are preservation inputs, not correspondence or equality evidence.
+pub fn ranking_range_state_premise_coordinates(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
@@ -532,6 +533,23 @@ pub fn ranking_range_state_constraint_coordinates(
         &mut expressions,
         Some(&mut parameters),
     );
+    let root = program.machine_states(machine).first()?;
+    let contracts = if state.symbol == root.symbol {
+        program.machine_contracts(machine)
+    } else {
+        program.state_contracts(state)
+    };
+    for contract in contracts {
+        if contract.kind == SignatureContractKind::Requires {
+            expressions.extend(
+                program
+                    .proof_facts
+                    .span_or_empty(contract.facts)
+                    .iter()
+                    .filter_map(|fact| fact.as_expression().copied()),
+            );
+        }
+    }
     let mut coordinates = parameters
         .into_iter()
         .map(|parameter| RankSubjectCoordinate {
