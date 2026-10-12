@@ -42,6 +42,14 @@ pub struct CheckFacts {
     /// Lowering marks the read it emits for one of them, so that read's bound
     /// obligation consumes the decision instead of searching for a proof.
     pub proven_scalar_indexes: Vec<typed_trees::expression::ExpressionHandle>,
+    /// Actual bounds-verdict companions in their original checking namespace.
+    /// Extent dependencies are captured at that decision, not reconstructed
+    /// after cleanup or taken from the receiving formal's type.
+    pub scalar_index_admissions: arena::Arena<ScalarIndexAdmission>,
+    /// Original source bounds retained across one exact selected cleanup exit.
+    pub scalar_index_exit_preservations: arena::Arena<ScalarIndexExitPreservation>,
+    pub scalar_index_dependency_places: arena::Arena<facts::Place>,
+    pub scalar_index_dependency_segments: arena::Arena<facts::PlaceSegment>,
     /// Indexed byte assignments whose live bound and declared byte predicates
     /// were established at the store itself, ordered by target handle position.
     /// A later restoration of an invariant does not establish this decision.
@@ -168,6 +176,28 @@ pub struct DecidedCallRequires {
     pub state: symbols::SymbolHandle,
     pub statement_index: u32,
     pub target: symbols::SymbolHandle,
+}
+
+/// One successful source `[]` decision with the exact storage observations
+/// on which its live collection extent depended. Incomplete dependency custody
+/// never establishes that a later cleanup preserves the original decision.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ScalarIndexAdmission {
+    pub occurrence: typed_trees::expression::ExpressionHandle,
+    pub machine: symbols::SymbolHandle,
+    pub state: symbols::SymbolHandle,
+    pub statement_index: usize,
+    pub dependencies_complete: bool,
+    pub extent_dependencies: arena::HandleSpan<facts::Place>,
+}
+
+/// No new bounds judgment: one original occurrence whose extent dependencies
+/// survived every selected hook at the actual normal exit.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ScalarIndexExitPreservation {
+    pub occurrence: typed_trees::expression::ExpressionHandle,
+    pub machine: symbols::SymbolHandle,
+    pub exit: crate::FlowClaimJoinExit,
 }
 
 impl CheckFacts {

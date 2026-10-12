@@ -76,7 +76,8 @@ pub use structural_control_plans::{
     CheckedStructuralControlCleanupPlans, CheckedStructuralControlEdgeCleanupPlan,
     CheckedStructuralControlStateCleanupPlan, CheckedStructuralControlSuccessorPlan,
     CheckedStructuralControlTransferPlan, CheckedStructuralControlTransferSourcePlan,
-    CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarArgumentSourcePlan,
+    CheckedStructuralIndexOccurrence, CheckedStructuralScalarArgumentPlan,
+    CheckedStructuralScalarArgumentSourcePlan,
 };
 pub use structural_return::{
     CheckedReferenceResultSourcePlan, CheckedStructuralReturnCompletion,

@@ -27,6 +27,12 @@ pub(super) struct CurrentCleanupFacts {
     opaque_write: bool,
 }
 
+/// The exact selected hook's caller-relative effect, before subsequent hooks.
+/// None retains an opaque effect; a genuine complete empty vector is distinct.
+pub(super) struct CleanupWriteFrame {
+    pub writes: Option<Vec<CanonicalPlace>>,
+}
+
 impl CurrentCleanupFacts {
     pub(super) fn new(contexts: Vec<FactContextHandle>, guarantees: Vec<BoundPredicate>) -> Self {
         // A construction context may contain several independently captured
@@ -101,26 +107,26 @@ impl CurrentCleanupFacts {
         facts: &CheckFacts,
         summaries: &StateMutationSummaryCache,
         call_frames: Option<&validation::CallFrameResolver<'_>>,
+        caller_machine: SymbolHandle,
+        caller_state: SymbolHandle,
+        statement: usize,
         hook: SymbolHandle,
         place: &CanonicalPlace,
-    ) -> Option<()> {
+    ) -> Option<CleanupWriteFrame> {
         let machine = program.machine_by_symbol(hook)?;
         let state = program.machine_states(machine).first()?;
-        let receiver = program.state_parameters(state).first()?;
-        let writes = crate::flow::state_storage_writes(
+        let writes = crate::flow::cleanup_storage_writes(
             program,
             &facts.borrow,
             summaries,
-            state,
+            caller_machine,
+            caller_state,
+            statement,
+            hook,
+            place,
             call_frames,
-        )
-        .and_then(|writes| {
-            writes
-                .into_iter()
-                .map(|write| rebase_place(receiver.symbol, place, write))
-                .collect::<Option<Vec<_>>>()
-        });
-        if let Some(writes) = writes {
+        );
+        if let Some(writes) = &writes {
             self.contexts.retain(|context| {
                 crate::flow::context_survives_place_mutations(
                     program,
@@ -137,7 +143,7 @@ impl CurrentCleanupFacts {
                         .any(|write| overlaps(program, &binding.place, write))
                 })
             });
-            self.writes.extend(writes);
+            self.writes.extend(writes.iter().cloned());
         } else {
             // Missing completeness is not purity. A normal guarantee may
             // establish a fresh premise even after an opaque storage effect.
@@ -164,7 +170,7 @@ impl CurrentCleanupFacts {
                 append_guarantee_conjuncts(&mut self.guarantees, predicate);
             }
         }
-        Some(())
+        Some(CleanupWriteFrame { writes })
     }
 }
 

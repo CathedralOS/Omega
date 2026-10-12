@@ -43,6 +43,9 @@ pub(crate) struct CleanupRegion {
     pub(crate) selected_region: Option<terminal_psi::StructuralArgument>,
     pub(crate) conditions: Vec<CleanupCaseCondition>,
     pub(crate) action: terminal_psi::TerminalAffineCleanupAction,
+    /// Source-issued caller-relative hook effect. Zero is unavailable and
+    /// ordinary descriptor retirement grants no mutation-preservation fact.
+    pub(crate) storage_effect: arena::Handle<checked_trees::ContextualCleanupHookEffect>,
 }
 
 impl CleanupRegion {
@@ -51,6 +54,7 @@ impl CleanupRegion {
             selected_region: None,
             conditions: Vec::new(),
             action,
+            storage_effect: Default::default(),
         }
     }
 }
@@ -238,6 +242,12 @@ pub(crate) fn lower_checked_cleanup_regions<'action>(
                 }
             };
             Ok(CleanupRegion {
+                storage_effect: match action {
+                    checked_trees::CheckedNormalCleanupAction::InvokeNominal(cleanup) => {
+                        cleanup.storage_effect
+                    }
+                    _ => Default::default(),
+                },
                 selected_region,
                 conditions,
                 action: lowered,
@@ -526,6 +536,7 @@ pub(crate) fn emit_prepared_cleanup_regions(
                         })
                         .collect::<Result<Vec<_>, _>>()?;
                     CleanupRegion {
+                        storage_effect: cleanup.storage_effect,
                         selected_region: None,
                         conditions: conditions.clone(),
                         action: terminal_psi::TerminalAffineCleanupAction::InvokeNominal(action),

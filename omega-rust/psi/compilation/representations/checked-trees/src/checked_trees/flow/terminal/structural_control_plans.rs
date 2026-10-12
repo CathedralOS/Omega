@@ -282,6 +282,19 @@ pub enum CheckedStructuralControlTransferSourcePlan {
         /// its canonical rooted path. A stored reference already owns
         /// its capture; its zero identity keeps that existing resource.
         formation_expression: typed_trees::expression::ExpressionHandle,
+        /// Whole indexed source occurrences paired with exact ordered path
+        /// selectors by this same projection producer. The span belongs to the
+        /// enclosing Unit plan's selector_bounds arena and grants no bound.
+        index_occurrences: arena::HandleSpan<CheckedStructuralIndexOccurrence>,
         carrier_type_identity: typed_trees::type_identity::TypeIdentityId,
     },
+}
+
+/// Source-to-path correspondence minted by the structural projection producer.
+/// The whole occurrence, not its selector value or source span, names the
+/// checking verdict. Earlier alias formations never donate a sibling verdict.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedStructuralIndexOccurrence {
+    pub path_position: u32,
+    pub occurrence: typed_trees::expression::ExpressionHandle,
 }

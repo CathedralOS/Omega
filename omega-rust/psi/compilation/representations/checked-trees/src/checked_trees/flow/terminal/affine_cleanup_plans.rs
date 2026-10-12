@@ -142,6 +142,9 @@ pub struct CheckedUnitNominalAffineCleanupPlan {
     pub cleanup_machine: SymbolHandle,
     pub cleanup_state: SymbolHandle,
     pub cleanup_contract_report_fingerprint: u64,
+    /// Same-producer footprint of this actual selected hook occurrence.
+    /// Zero is unavailable, not a complete empty write frame.
+    pub storage_effect: arena::Handle<crate::ContextualCleanupHookEffect>,
     /// Select this exact occurrence before lending its intact receiver. These
     /// conditions do not discharge the callable's ordinary prerequisites.
     pub case_conditions: arena::HandleSpan<CheckedCleanupCaseCondition>,

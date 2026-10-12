@@ -526,6 +526,7 @@ impl OperationFrame<'_, '_> {
                     identities,
                     self.checked,
                     vec![crate::unit::unit_cleanup::CleanupRegion {
+                        storage_effect: Default::default(),
                         selected_region: select_evaluated_storage.then(|| {
                             terminal_psi::StructuralArgument {
                                 place: source,

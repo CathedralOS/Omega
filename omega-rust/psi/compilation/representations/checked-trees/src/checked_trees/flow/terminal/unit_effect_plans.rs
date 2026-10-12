@@ -51,6 +51,9 @@ pub struct CheckedUnitEffectPlans {
     /// One condition/path namespace for statement, computed-call and normal
     /// exit cleanup. Action spans never refer to a temporary collector's arena.
     pub cleanup_control: crate::CheckedCleanupControlPlans,
+    /// Checked-source companions of formed structural argument paths.
+    /// Source coordinates stay internal to this checked plan family.
+    pub selector_bounds: arena::Arena<super::CheckedStructuralIndexOccurrence>,
     pub structural_types: Vec<CheckedUnitStructuralTypePlan>,
     pub structural_domains: Vec<CheckedUnitStructuralDomainPlan>,
     pub boundary_machines: Vec<CheckedBoundaryMachinePlan>,
