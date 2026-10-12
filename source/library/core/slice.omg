@@ -7,9 +7,10 @@
 // recursively select the requirement it is realizing. Target layout and native
 // descriptor construction remain below the source layer.
 //
-// Selection still belongs to the ordinary boundary provider planner. Importing
-// a requirement does not supply its body; the exact `satisfies` declarations
-// below supply checked candidates for that planner.
+// Selection belongs to the ordinary boundary provider planner. The authored
+// portable defaults below choose the checked slice-view implementation; the
+// exact `satisfies` declarations retain its original requirement coordinates.
+// An admitted Build choice may override these defaults under ordinary policy.
 
 use omega::language::core::slice_views;
 
@@ -42,6 +43,14 @@ requires
 ensures
     result.len == end - start {
     core::slice_views::subslice<T>(items, start, end)
+}
+
+// These source-declared defaults apply to every target. They choose the whole
+// original generic requirement families, leaving each actual element tuple
+// with ordinary checked specialization and its retained source application.
+machine SliceViewProvider::provider_defaults(defaults: &mut SliceViewProvider) {
+    SliceViewProvider::select_provider<Slice::index, SliceViewProvider>(defaults);
+    SliceViewProvider::select_provider<Slice::range, SliceViewProvider>(defaults);
 }
 
 // The named slice views. One runtime realization supplies every view, so the
