@@ -145,7 +145,7 @@ pub(crate) fn evaluate_selected_domain_facts(
     selected: crate::SelectedBuildTimeOperators<'_>,
     domain: &EvaluationDomain,
 
-    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+    inputs: &mut Vec<crate::CheckedConstantInput>,
 ) -> Result<(), Vec<Diagnostic>> {
     let pending = pending_memberships(typed, domain);
     if pending.is_empty() {

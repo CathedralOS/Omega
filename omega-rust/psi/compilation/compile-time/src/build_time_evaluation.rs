@@ -154,11 +154,13 @@ pub fn evaluate_pre_resolution(
             ),
             None => (None, &[][..], None, None),
         };
+    let mut source_preparation_inputs = Vec::new();
     let syntax_trees = const_initializers::evaluate(
         syntax_trees,
         sources.clone(),
         source_scoped_top_level_bindings,
         selection_authority.clone(),
+        &mut source_preparation_inputs,
     )?;
     let syntax_trees = const_generic_expressions::evaluate(
         syntax_trees,
@@ -205,6 +207,7 @@ pub fn evaluate_pre_resolution(
     let plan_laid_records = plan_laid::desugar_plan_laid_value_types(&mut syntax_trees)?;
     Ok(PreResolutionEvaluation {
         syntax_trees,
+        source_preparation_inputs,
         pre_check: PreCheckEvaluation {
             domain: EvaluationDomain::all(),
             wire_schema_frontier: 0,
@@ -270,6 +273,7 @@ pub struct AuthorizedSelection {
 #[must_use = "pre-resolution syntax and its matching pre-check continuation must stay paired"]
 pub struct PreResolutionEvaluation {
     syntax_trees: syntax_trees::SyntaxTrees,
+    source_preparation_inputs: Vec<crate::CheckedConstantInput>,
     pre_check: PreCheckEvaluation,
 }
 
@@ -281,10 +285,17 @@ impl PreResolutionEvaluation {
         units: Vec<syntax_trees::SyntaxTrees>,
         first_source: source::SourceId,
         context: BuildTimeSourceContext<'_>,
-    ) -> Result<(syntax_trees::SyntaxTrees, Vec<PreCheckEvaluation>), Vec<diagnostics::Diagnostic>>
-    {
+    ) -> Result<
+        (
+            syntax_trees::SyntaxTrees,
+            Vec<PreCheckEvaluation>,
+            Vec<crate::CheckedConstantInput>,
+        ),
+        Vec<diagnostics::Diagnostic>,
+    > {
         let mut syntax: Option<syntax_trees::SyntaxTrees> = None;
         let mut pre_checks = Vec::with_capacity(units.len());
+        let mut source_preparation_inputs = Vec::new();
         for unit in units {
             let evaluated = evaluate_pre_resolution(BuildTimeEvaluationRequest {
                 syntax_trees: unit,
@@ -295,7 +306,8 @@ impl PreResolutionEvaluation {
                     retained_base: context.retained_base,
                 }),
             })?;
-            let (unit, pre_check) = evaluated.into_syntax_and_pre_check();
+            let (unit, pre_check, inputs) = evaluated.into_syntax_and_pre_check();
+            source_preparation_inputs.extend(inputs);
             match &mut syntax {
                 Some(syntax) => syntax.adopt_page(unit),
                 None => syntax = Some(unit),
@@ -308,13 +320,23 @@ impl PreResolutionEvaluation {
             .and_then(|generation| generation.checked_add(1))
             .expect("generated syntax page identity overflow");
         syntax.begin_page(extension_generation);
-        Ok((syntax, pre_checks))
+        Ok((syntax, pre_checks, source_preparation_inputs))
     }
 
     /// Separate the syntax consumed by target filtering and name resolution
     /// from the opaque continuation that owns the matching typed-tree work.
-    pub fn into_syntax_and_pre_check(self) -> (syntax_trees::SyntaxTrees, PreCheckEvaluation) {
-        (self.syntax_trees, self.pre_check)
+    pub fn into_syntax_and_pre_check(
+        self,
+    ) -> (
+        syntax_trees::SyntaxTrees,
+        PreCheckEvaluation,
+        Vec<crate::CheckedConstantInput>,
+    ) {
+        (
+            self.syntax_trees,
+            self.pre_check,
+            self.source_preparation_inputs,
+        )
     }
 }
 
@@ -449,7 +471,7 @@ impl PreCheckEvaluation {
     pub fn evaluate_or_defer(
         self,
         typed: &mut typed_trees::TypedTrees,
-        inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+        inputs: &mut Vec<crate::CheckedConstantInput>,
     ) -> Result<Option<Self>, Vec<diagnostics::Diagnostic>> {
         if const_lengths::evaluate_independent_lengths(
             typed,
@@ -486,7 +508,7 @@ impl PreCheckEvaluation {
         pre_checks: Vec<Self>,
         mut wire_schema_frontier: usize,
         typed: &mut typed_trees::TypedTrees,
-        inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+        inputs: &mut Vec<crate::CheckedConstantInput>,
     ) -> Result<Vec<Self>, Vec<diagnostics::Diagnostic>> {
         let mut pending = Vec::new();
         for mut pre_check in pre_checks {
@@ -538,7 +560,7 @@ impl PreCheckEvaluation {
                 reason: "portable source layout observation remains a retained recipe",
             });
         }
-        let mut executed_inputs = Vec::new();
+        let mut checked_inputs = Vec::new();
         self.evaluate_selected_operators(
             typed,
             SelectedBuildTimeOperators {
@@ -546,14 +568,14 @@ impl PreCheckEvaluation {
                 provider_bodies: &bodies,
                 admission,
             },
-            &mut executed_inputs,
+            &mut checked_inputs,
         )?;
         Ok(crate::SourceConstantOutcome::Completed {
             supplies: bodies
                 .into_iter()
                 .map(|body| crate::SourceConstantSupply { body })
                 .collect(),
-            executed_inputs,
+            checked_inputs,
         })
     }
 
@@ -570,7 +592,7 @@ impl PreCheckEvaluation {
         typed: &mut typed_trees::TypedTrees,
         selected: SelectedBuildTimeOperators<'_>,
 
-        inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+        inputs: &mut Vec<crate::CheckedConstantInput>,
     ) -> Result<(), Vec<diagnostics::Diagnostic>> {
         const_lengths::evaluate_selected_array_lengths(
             typed,
@@ -605,7 +627,7 @@ impl PreCheckEvaluation {
         typed: &mut typed_trees::TypedTrees,
         admission: BuildTimeCheckingAdmission<'_>,
 
-        inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+        inputs: &mut Vec<crate::CheckedConstantInput>,
     ) -> Result<(), Vec<diagnostics::Diagnostic>> {
         const_lengths::evaluate_admitted_array_lengths(
             typed,

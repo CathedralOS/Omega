@@ -165,6 +165,22 @@ impl BuildTimeAdmissionPlan {
         Ok(admission)
     }
 
+    pub(crate) fn snapshot_source_program(
+        &self,
+        program: &TypedTrees,
+    ) -> Result<crate::constant_inputs::SnapshotSourceProgram, String> {
+        let checked = self
+            .checked_execution
+            .as_ref()
+            .ok_or("snapshot invocation has no owned checked preparation")?;
+        if !std::ptr::eq(checked.typed(), program) {
+            return Err("snapshot invocation does not belong to its checked preparation".into());
+        }
+        Ok(crate::constant_inputs::SnapshotSourceProgram::Checked(
+            checked.clone(),
+        ))
+    }
+
     fn interpreter_program<'program>(
         &'program self,
         program: &'program TypedTrees,

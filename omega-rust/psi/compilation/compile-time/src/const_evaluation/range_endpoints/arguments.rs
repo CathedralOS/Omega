@@ -65,7 +65,7 @@ impl Invocation<'_> {
         expression: ExpressionHandle,
         callee: super::EndpointCallee,
 
-        inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+        inputs: &mut Vec<crate::CheckedConstantInput>,
     ) -> Result<(Vec<BuildTimeValue>, Vec<ExpressionNode>, Vec<Diagnostic>), String> {
         let Some(call) = self.execution.expression_table.call_node(expression) else {
             return Err("range endpoint lost its call".into());
@@ -158,6 +158,7 @@ impl Invocation<'_> {
         expression: ExpressionHandle,
         machine: &typed_trees::machine::Machine,
         literals: &[ExpressionNode],
+        inputs: &mut Vec<crate::CheckedConstantInput>,
     ) -> Result<bool, String> {
         let Some(call) = self.execution.expression_table.call_node(expression) else {
             return Err("range endpoint lost its call".into());
@@ -199,8 +200,8 @@ impl Invocation<'_> {
             .iter()
             .map(|machine| machine.symbol)
             .collect();
-        crate::machine_execution::admission::snapshot_arguments_discharge(
-            self.execution,
+        let snapshot = crate::machine_execution::admission::snapshot_arguments_discharge(
+            self.admission.snapshot_source_program(self.execution)?,
             &retained,
             machine.symbol,
             "@const-endpoint",
@@ -213,6 +214,7 @@ impl Invocation<'_> {
             snapshots,
             &crate::const_evaluation::range_endpoints::deferred_endpoint_stand_ins(self.execution),
         )?;
+        inputs.push(crate::CheckedConstantInput::SnapshotAdmission(snapshot));
         Ok(true)
     }
 }
@@ -283,7 +285,7 @@ impl ConstantCalls for Invocation<'_> {
         &self,
         expression: ExpressionHandle,
 
-        inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+        inputs: &mut Vec<crate::CheckedConstantInput>,
     ) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String> {
         let callee = self.callee(expression)?;
         let (arguments, literals, warnings) = self.arguments(expression, callee, inputs)?;
@@ -303,7 +305,7 @@ impl ConstantCalls for Invocation<'_> {
             // Original public premises remain independent of the selected
             // provider's entry. Discharge both at the demanded invocation's
             // already-evaluated snapshots before provider interpretation.
-            self.snapshot_requires_discharge(expression, machine, &literals)?
+            self.snapshot_requires_discharge(expression, machine, &literals, inputs)?
         } else if !self
             .admission
             .closure_includes_authored_requires(self.execution, machine)
@@ -315,7 +317,7 @@ impl ConstantCalls for Invocation<'_> {
         {
             true
         } else {
-            self.snapshot_requires_discharge(expression, machine, &literals)?
+            self.snapshot_requires_discharge(expression, machine, &literals, inputs)?
         };
         let measured = self
             .admission
@@ -328,7 +330,7 @@ impl ConstantCalls for Invocation<'_> {
             )?;
         let (result, _, executed_input) = measured.into_parts_with_checked_input();
         if let Some(executed_input) = executed_input {
-            inputs.push(executed_input);
+            inputs.push(crate::CheckedConstantInput::Executed(executed_input));
         }
         let value = match (self.result_position(callee)?, result) {
             (ScalarPosition::Boolean, BuildTimeValue::Bool(value)) => {
