@@ -849,6 +849,9 @@ fn interpret_checked_fixture(
     if let Ok(expected) = fs::read_to_string(fixture_dir.join("expected_stdout.txt")) {
         let matches = std::str::from_utf8(&outcome.stdout)
             .is_ok_and(|actual| actual.replace("\r\n", "\n") == expected.replace("\r\n", "\n"));
+        if !matches {
+            output_oracles::show_differing_stream("interpreter stdout", &outcome.stdout);
+        }
         observation.facts.push(
             if matches {
                 "interpreter-stdout:match"
