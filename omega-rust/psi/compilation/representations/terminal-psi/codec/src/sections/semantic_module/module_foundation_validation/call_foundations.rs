@@ -84,6 +84,41 @@ pub(super) fn validate_call_unit(
     )
 }
 
+/// Both the complete opaque tuple and executable scalar tuple are unique.
+/// Neither representation may donate uniqueness to the other at ingress.
+fn validate_family_roster_uniqueness(
+    roster: &[&[terminal_psi::TerminalDynamicFamilyMember]],
+) -> Result<(), CodecError> {
+    let mut ordered = roster.to_vec();
+    ordered.sort_by(|left, right| {
+        left.iter()
+            .map(|member| &member.identity)
+            .cmp(right.iter().map(|member| &member.identity))
+    });
+    let duplicate_identity = ordered.windows(2).any(|pair| {
+        pair[0]
+            .iter()
+            .map(|member| &member.identity)
+            .eq(pair[1].iter().map(|member| &member.identity))
+    });
+    ordered.sort_by(|left, right| {
+        left.iter()
+            .map(|member| member.value)
+            .cmp(right.iter().map(|member| member.value))
+    });
+    let duplicate = duplicate_identity
+        || ordered.windows(2).any(|pair| {
+            pair[0]
+                .iter()
+                .map(|member| member.value)
+                .eq(pair[1].iter().map(|member| member.value))
+        });
+    if duplicate {
+        return malformed("dynamic family call disagrees with its slot roster");
+    }
+    Ok(())
+}
+
 /// A selector call names one interface slot. Its result and operand arity
 /// follow the slot's call shape; its structural operands present against
 /// the formals of every row the module realizes, which the catalog requires
@@ -158,44 +193,16 @@ pub(super) fn validate_call_dynamic(
                     );
                 }
             }
-            roster.push(&candidate.family_tuple);
+            roster.push(candidate.family_tuple.as_slice());
         }
         if roster.is_empty()
             || roster
                 .iter()
                 .any(|tuple| tuple.len() != family_actuals.len())
-            || {
-                // Identity encodings are opaque. Two different encodings may
-                // not publish the same executable tuple and make row choice
-                // depend on roster traversal order.
-                let mut ordered = roster.clone();
-                ordered.sort_by(|left, right| {
-                    left.iter()
-                        .map(|member| &member.identity)
-                        .cmp(right.iter().map(|member| &member.identity))
-                });
-                let duplicate_identity = ordered.windows(2).any(|pair| {
-                    pair[0]
-                        .iter()
-                        .map(|member| &member.identity)
-                        .eq(pair[1].iter().map(|member| &member.identity))
-                });
-                ordered.sort_by(|left, right| {
-                    left.iter()
-                        .map(|member| member.value)
-                        .cmp(right.iter().map(|member| member.value))
-                });
-                duplicate_identity
-                    || ordered.windows(2).any(|pair| {
-                        pair[0]
-                            .iter()
-                            .map(|member| member.value)
-                            .eq(pair[1].iter().map(|member| member.value))
-                    })
-            }
         {
             return malformed("dynamic family call disagrees with its slot roster");
         }
+        validate_family_roster_uniqueness(&roster)?;
     } else if !shape.family_tuple.is_empty() {
         return malformed("dynamic family call carries no family actuals");
     }
@@ -743,4 +750,49 @@ pub(super) fn validate_port_write(
         return malformed("port write references an unknown service");
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod family_roster_tests {
+    use super::validate_family_roster_uniqueness;
+    use terminal_psi::{TerminalDynamicFamilyMember, TerminalDynamicFamilyValue};
+
+    fn mixed_tuple(
+        flag_identity: &str,
+        integer_identity: &str,
+        flag: bool,
+        integer: i128,
+    ) -> Vec<TerminalDynamicFamilyMember> {
+        vec![
+            TerminalDynamicFamilyMember {
+                identity: flag_identity.to_owned(),
+                value: TerminalDynamicFamilyValue::Boolean(flag),
+            },
+            TerminalDynamicFamilyMember {
+                identity: integer_identity.to_owned(),
+                value: TerminalDynamicFamilyValue::Integer(integer),
+            },
+        ]
+    }
+
+    #[test]
+    fn duplicate_family_identity_rejects_different_executable_values() {
+        let first = mixed_tuple("opaque flag", "opaque width", true, 16);
+        let second = mixed_tuple("opaque flag", "opaque width", false, 32);
+        assert!(validate_family_roster_uniqueness(&[&first, &second]).is_err());
+    }
+
+    #[test]
+    fn duplicate_family_values_reject_different_opaque_identities() {
+        let first = mixed_tuple("first flag", "first width", true, 16);
+        let second = mixed_tuple("second flag", "second width", true, 16);
+        assert!(validate_family_roster_uniqueness(&[&first, &second]).is_err());
+    }
+
+    #[test]
+    fn unique_correlated_boolean_integer_roster_is_admitted() {
+        let first = mixed_tuple("true row", "width sixteen", true, 16);
+        let second = mixed_tuple("false row", "width thirty two", false, 32);
+        assert!(validate_family_roster_uniqueness(&[&second, &first]).is_ok());
+    }
 }
