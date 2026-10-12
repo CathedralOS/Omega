@@ -37,7 +37,11 @@ pub(super) fn bind(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<Di
                     &mut expressions,
                 );
                 for expression in expressions.iter().copied() {
-                    if program.expression_table.source_call_node(expression).is_some() {
+                    if program
+                        .expression_table
+                        .source_call_node(expression)
+                        .is_some()
+                    {
                         let site = (
                             machine.symbol,
                             state.symbol,
@@ -83,10 +87,13 @@ pub(super) fn bind(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<Di
                 )
             }
         };
-        let Some((definition, _)) = program.trait_machine_signature(target) else {
+        // The target may be a source-declared finite signature. Its original
+        // caller application remains the only complete receiving telescope.
+        let Some(public) = program.public_trait_requirement_signature(target) else {
             continue;
         };
-        if !definition.is_boundary {
+        let declaration = public.declaration.symbol;
+        if !public.owner.is_boundary {
             continue;
         }
         let original = super::applications::retain_authored_call(program, site, owner);
@@ -94,20 +101,20 @@ pub(super) fn bind(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<Di
             .instantiated_requirement_signatures
             .iter()
             .find(|(_, row)| program.trait_machine_signatures.get(row.signature).symbol == target);
-        let declaration = if let Some((_, header)) = header {
-            if program
+        if header.is_some()
+            && program
                 .selected_trait_requirement_signature(target, original)
                 .is_some()
-            {
-                continue;
-            }
-            // Ordinary body substitution can change a copied occurrence's
-            // tuple. Its old header does not own that new application; rejoin
-            // the retained original declaration through the same producer.
-            header.requirement_template
-        } else {
-            target
-        };
+        {
+            continue;
+        }
+        if program.closed_requirement_application(target).is_some()
+            && !program.closed_requirement_application_matches_call(target, original)
+        {
+            return Err(vec![Diagnostic::error(
+                "public requirement call lost its exact closed source application",
+            )]);
+        }
         let application = program
             .expression_table
             .static_machine_application(original);
@@ -233,9 +240,7 @@ pub(super) fn bind(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<Di
         let name = signature.name.clone();
         match site {
             CallSite::Expression(expression) => {
-                if let Some(call) =
-                    program.expression_table.source_call_node_mut(expression)
-                {
+                if let Some(call) = program.expression_table.source_call_node_mut(expression) {
                     call.target_symbol = instance;
                     call.target = name;
                     call.authored_machine_application = application;

@@ -207,11 +207,9 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         materialize_static_argument_types(program);
         // One postorder publishes calls, borrows and constructions before
         // original lifetime inference and inferred-local consumers.
-        let publication = crate::constructed_results::retain_constructed_result_types(
-            program,
-            &mut result_derivations,
-        );
-        let mut result_progress = !publication.changed_owners.is_empty();
+        let publication =
+            crate::preparation::retain_value_application_results(program, &mut result_derivations)?;
+        let mut result_progress = publication.changed;
         changed_owners.extend(publication.changed_owners);
         let local_owners =
             call_results::refresh_inferred_local_results(program, &publication.unavailable)?;
@@ -230,11 +228,9 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         changed_owners.extend(requirement_owners);
         // Requirement headers can complete another child. Reuse the same
         // producer derivations and traversal, rather than a second copier.
-        let publication = crate::constructed_results::retain_constructed_result_types(
-            program,
-            &mut result_derivations,
-        );
-        result_progress |= !publication.changed_owners.is_empty();
+        let publication =
+            crate::preparation::retain_value_application_results(program, &mut result_derivations)?;
+        result_progress |= publication.changed;
         changed_owners.extend(publication.changed_owners);
         let local_owners =
             call_results::refresh_inferred_local_results(program, &publication.unavailable)?;
