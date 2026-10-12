@@ -507,9 +507,7 @@ fn collection_storage(
             CheckedStructuralAccess::Owned
                 | CheckedStructuralAccess::SharedBorrow
                 | CheckedStructuralAccess::MutableBorrow
-        ) || mutable
-            && (source_access == CheckedStructuralAccess::SharedBorrow
-                || source_access == CheckedStructuralAccess::Owned && !local.is_mutable)
+        ) || mutable && source_access == CheckedStructuralAccess::SharedBorrow
         {
             return None;
         }
