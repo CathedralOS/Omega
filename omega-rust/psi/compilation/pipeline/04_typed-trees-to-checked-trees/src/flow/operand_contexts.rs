@@ -20,15 +20,24 @@ pub(crate) fn operand_contexts(
     if operand_binds_stable_copy(program, type_reference) {
         return captured;
     }
-    if operand.referents.is_empty() {
-        captured.retain(|candidate| {
-            flow.semantic_constraint_contexts(invocation)
-                .any(|context| context == *candidate)
-        });
-        captured
-    } else {
-        invocation_contexts_at_referents(program, flow, semantic, operand, invocation)
+    // Resolving a view's backing does not replace its own observation namespace.
+    // A local descriptor can retain a predicate established at formation; keep
+    // that captured evidence only while its exact context is still live. Facts
+    // established later on the original referent remain independently usable.
+    captured.retain(|candidate| {
+        flow.semantic_constraint_contexts(invocation)
+            .any(|context| context == *candidate)
+    });
+    if !operand.referents.is_empty() {
+        for context in
+            invocation_contexts_at_referents(program, flow, semantic, operand, invocation)
+        {
+            if !captured.contains(&context) {
+                captured.push(context);
+            }
+        }
     }
+    captured
 }
 
 fn invocation_contexts_at_referents(

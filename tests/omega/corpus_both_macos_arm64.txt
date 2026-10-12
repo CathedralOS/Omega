@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 4.52, "load1_start": 4.83, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 2.36, "load1_start": 2.36, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/closed_call_transition_return_proves_exact_sum_exit built 2645ms exit:112 interpreter-exit:112 interpreter:agrees @1152c1496b39
 pass/arithmetic/full_width_integer_literals_compose_exit built 3129ms exit:0 interpreter-exit:0 interpreter:agrees @d0e40a213f35
 pass/arithmetic/qualified_cast_in_entry_body_exit built 1326ms exit:0 interpreter-exit:0 interpreter:agrees @2e29bd5fedcf
@@ -747,7 +747,7 @@ pass/generics/contextual_static_machine_applications_exit built 2992ms exit:0 in
 pass/traits/applied_nominal_callback_local_types_exit built 2912ms exit:0 interpreter-exit:0 interpreter:agrees @2347e2eb005f+wt
 pass/slices/runtime_captured_range_end_exit built 5004ms exit:70 interpreter-exit:70 interpreter:agrees @edb462c792f9
 pass/slices/callee_non_byte_view_len_index_subslice built 5082ms exit:9 interpreter-exit:9 interpreter:agrees @af65e4684ce5+wt
-pass/slices/qualified_subslice_composition_exit built 5091ms exit:70 interpreter-exit:70 interpreter:agrees @af65e4684ce5+wt
+pass/slices/qualified_subslice_composition_exit built 4315ms exit:70 interpreter-exit:70 interpreter:agrees @7451127fc8f8+wt
 pass/slices/runtime_mutable_slice_result_whole_forward_exit built 3843ms exit:0 interpreter-exit:0 interpreter:agrees @af65e4684ce5+wt
 pass/drops/runtime_named_linear_container_cleanup_exit built 2749ms exit:0 interpreter-exit:0 interpreter:agrees @9f5aa3241b14+wt
 pass/drops/runtime_named_parent_linear_cleanup_exit built 2720ms exit:0 interpreter-exit:0 interpreter:agrees @9f5aa3241b14+wt
@@ -929,3 +929,4 @@ pass/traits/runtime_finite_family_owned_result_exit built 4570ms exit:70 interpr
 pass/traits/runtime_finite_family_owned_state_result_exit built 3722ms exit:70 interpreter-exit:70 interpreter:agrees @7e763bd2f4f6+wt
 pass/traits/runtime_finite_family_structural_result_exit built 3738ms exit:70 interpreter-exit:70 interpreter:agrees @7e763bd2f4f6+wt
 pass/domains/runtime_case_constructor_child_memberships_exit built 3458ms exit:0 interpreter-exit:0 interpreter:agrees @2bf22d08e81a+wt
+pass/slices/runtime_captured_subslice_predicates_exit built 3471ms exit:0 interpreter-exit:0 interpreter:agrees @7451127fc8f8+wt

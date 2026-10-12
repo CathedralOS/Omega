@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "2", "load1_end": 4.97, "load1_start": 5.23, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 2.36, "load1_start": 2.47, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 835ms expected @a9ae30e1c334+wt
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -5819,8 +5819,7 @@ pass/slices/mutable_field_range_local_initializer_exit checked 12115ms check-tar
 pass/slices/mutable_field_range_scalar_initializer_exit checked 12303ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/negated_mutable_array_call_exit checked 12275ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/projected_array_call_exit checked 12796ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/slices/qualified_subslice_composition_exit rejected 5712ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	cannot prove requires contract for call inspect from Main::cut: empty in [u8]::Ascii
+pass/slices/qualified_subslice_composition_exit checked 4161ms check-target:macos_arm64 @7451127fc8f8+wt
 pass/slices/recursive_subslice_element_accumulator_exit checked 13843ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/requires_field_count_alias_index_compile checked 1934ms @a9ae30e1c334+wt
 pass/slices/runtime_boolean_alias_guard_transport_exit checked 13319ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6354,3 +6353,8 @@ pass/traits/runtime_finite_family_correlated_case_result_exit checked 4401ms che
 pass/traits/runtime_finite_family_owned_result_exit checked 4418ms check-target:macos_arm64 @7e763bd2f4f6+wt
 pass/traits/runtime_finite_family_owned_state_result_exit checked 3406ms check-target:macos_arm64 @7e763bd2f4f6+wt
 pass/traits/runtime_finite_family_structural_result_exit checked 3366ms check-target:macos_arm64 @7e763bd2f4f6+wt
+pass/slices/runtime_captured_subslice_predicates_exit checked 3389ms check-target:macos_arm64 @7451127fc8f8+wt
+fail/slices/rebound_subslice_loses_byte_predicate rejected 339ms expected @7451127fc8f8+wt
+	cannot prove requires contract for call inspect from replace: view in [u8]::Ascii (invalidated by prior mutation of view; view is part of [u8]::Ascii)
+fail/slices/written_subslice_loses_byte_predicate rejected 347ms expected @7451127fc8f8+wt
+	cannot prove requires contract for call inspect from replace: view in [u8]::Ascii (invalidated by prior mutation of view; view is part of [u8]::Ascii)

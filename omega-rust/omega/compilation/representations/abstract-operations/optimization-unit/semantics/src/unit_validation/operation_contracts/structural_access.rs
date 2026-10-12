@@ -1061,13 +1061,25 @@ fn view_access(
                 place = source.place;
             }
             _ => {
-                // A subslice consumes a descriptor. Only an establishment may
-                // change carrier shape before reaching its owning backing.
-                if expected_type.is_some() {
-                    return None;
-                }
                 let source = structural_operation_result_contract(caller, operation)?;
-                return if structural_access_can_supply(source.access, required) {
+                // A same-type subslice chain can reach a completed descriptor
+                // just as it can reach an arrival. Its exact producer/type was
+                // joined above; operation validation establishes that this is
+                // a descriptor, not an arbitrary owned aggregate. The carrier's
+                // multiplicity bounds backing access without replaying its
+                // initializer after subsequent stores. Descriptor-flow and
+                // ordered custody still prove the current backing and liveness.
+                let access = if expected_type.is_some() && source.access == Access::Owned {
+                    operation.materialized_structural_result()?;
+                    match source.multiplicity {
+                        Multiplicity::Unrestricted => Access::SharedBorrow,
+                        Multiplicity::Affine => Access::MutableBorrow,
+                        Multiplicity::Linear => return None,
+                    }
+                } else {
+                    source.access
+                };
+                return if structural_access_can_supply(access, required) {
                     requested
                 } else {
                     None

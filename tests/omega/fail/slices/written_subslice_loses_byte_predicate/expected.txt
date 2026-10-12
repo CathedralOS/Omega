@@ -1,0 +1,3 @@
+cannot prove requires contract for call inspect from replace
+view in [u8]::Ascii
+invalidated by prior mutation of view
