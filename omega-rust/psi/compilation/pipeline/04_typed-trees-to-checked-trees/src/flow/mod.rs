@@ -138,7 +138,7 @@ pub(crate) use mutation::rebase_exact_local_place;
 pub(crate) use mutation::{
     StateMutationSummaryCache, call_mutated_places, call_receiver_write_accesses,
     call_write_accesses, canonical_receiver_place_for_call_site, cleanup_storage_writes,
-    frame_storage_writes, place_from_origin_path, signature_ceiling_places, state_storage_writes,
+    frame_storage_writes, place_from_origin_path, signature_ceiling_places,
     statement_mutated_place, statement_storage_writes,
 };
 pub(crate) use mutation::{origin_place, sole_local_referent_origin};

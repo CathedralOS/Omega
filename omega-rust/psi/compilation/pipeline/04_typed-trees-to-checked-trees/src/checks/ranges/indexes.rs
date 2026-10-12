@@ -23,7 +23,7 @@ struct IndexVerdict {
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
     statement_index: usize,
-    extent_dependencies: Option<Vec<validation::CanonicalPlace>>,
+    extent_dependencies: Option<Vec<::validation::CanonicalPlace>>,
 }
 
 pub(in crate::checks) struct ProvenIndexDecision {
@@ -31,7 +31,7 @@ pub(in crate::checks) struct ProvenIndexDecision {
     pub machine: symbols::SymbolHandle,
     pub state: symbols::SymbolHandle,
     pub statement_index: usize,
-    pub extent_dependencies: Option<Vec<validation::CanonicalPlace>>,
+    pub extent_dependencies: Option<Vec<::validation::CanonicalPlace>>,
 }
 
 impl IndexVerdicts {
