@@ -137,6 +137,45 @@ fn binding(
     })
 }
 
+/// Temporary default-off observation of the existing source producer. It
+/// reports the exact failed join and original coordinates without changing
+/// readiness, publishing a row, or inspecting another occurrence's arenas.
+struct SourceApplicationObservation<'source> {
+    source: &'source SourceCall,
+    template: SymbolHandle,
+    phase: &'static str,
+    completed: bool,
+    enabled: bool,
+}
+
+impl Drop for SourceApplicationObservation<'_> {
+    fn drop(&mut self) {
+        if self.enabled {
+            eprintln!(
+                "source-call-application outcome={} phase={} target={:?} template={:?} application={:?} lexical={:?} state={:?} statement={} receiver={:?} static_arguments={} value_arguments={}",
+                if self.completed {
+                    "complete"
+                } else {
+                    "unavailable"
+                },
+                self.phase,
+                self.source.target,
+                self.template,
+                self.source.application,
+                self.source.lexical_owner,
+                self.source.state,
+                self.source.position,
+                self.source
+                    .receiver
+                    .as_ref()
+                    .map(|receiver| (receiver.reference, &receiver.enclosing_data_applications)),
+                self.source.arguments.len(),
+                self.source.value_arguments.len()
+            );
+        }
+    }
+}
+
 fn source_application(
     program: &mut TypedTrees,
     source: &SourceCall,
@@ -144,6 +183,49 @@ fn source_application(
     let template = program
         .closed_requirement_application(source.target)
         .map_or(source.target, |row| row.template);
+    let mut observation = SourceApplicationObservation {
+        source,
+        template,
+        phase: "finite-original-roster",
+        completed: false,
+        enabled: std::env::var_os("OMEGA_SOURCE_CALL_APPLICATION_TRACE").is_some(),
+    };
+    if observation.enabled {
+        let retained = program
+            .expression_table
+            .static_machine_application_is_valid(source.application)
+            .then(|| {
+                program
+                    .expression_table
+                    .static_machine_application(source.application)
+            });
+        eprintln!(
+            "source-call-application retained target={:?} template={:?} original={:?} header={:?} row={:?}",
+            source.target,
+            template,
+            program
+                .closed_requirement_application(source.target)
+                .map(|row| row.template),
+            program
+                .instantiated_requirement_signatures
+                .iter()
+                .find_map(
+                    |(_, row)| (program.trait_machine_signatures.get(row.signature).symbol
+                        == source.target)
+                        .then_some((row.requirement_template, row.binding_application))
+                ),
+            retained.map(|row| (
+                row.registration_operation,
+                row.binding_declaration,
+                row.selected_interface,
+                row.lexical_owner,
+                program
+                    .expression_table
+                    .static_machine_application_lifetimes(source.application)
+                    .len()
+            ))
+        );
+    }
     if !program
         .closed_requirement_applications()
         .any(|row| row.template == template)
@@ -160,8 +242,10 @@ fn source_application(
         && actual.application().registration_operation == template
         && actual.application().lexical_owner.is_valid()
     {
+        observation.completed = true;
         return Some((template, source.application));
     }
+    observation.phase = "original-trait-signature";
     let (owner, signature) = program.trait_machine_signature(template)?;
     let owner_symbol = owner.symbol;
     let signature = signature.clone();
@@ -178,6 +262,7 @@ fn source_application(
     } else {
         Vec::new()
     };
+    observation.phase = "member-static-bindings";
     let local_bindings = if source.arguments.len() == local_parameters.len() {
         local_parameters
             .iter()
@@ -201,6 +286,7 @@ fn source_application(
     } else {
         return None;
     };
+    observation.phase = "actual-input-source-applications";
     let inputs = if signature.lifetime_parameters.is_empty() {
         Vec::new()
     } else {
@@ -211,6 +297,7 @@ fn source_application(
             .collect::<Option<Vec<_>>>()?
     };
     let owner = program.trait_definition_by_symbol(owner_symbol)?;
+    observation.phase = "original-receiver-scope";
     let scope = match source.receiver.as_ref().and_then(|receiver| {
         typed_trees::service::classify_exact_service_parameter_carrier(
             program,
@@ -235,8 +322,11 @@ fn source_application(
         }
         None => return None,
     };
+    observation.phase = "exact-declaring-scope";
     let declaring = scope.declaring_scope(program, owner.symbol)?;
+    observation.phase = "captured-correspondence";
     let mut lifetimes = scope.captured_lifetime_arguments(program)?;
+    observation.phase = "invocation-correspondence";
     if !signature.lifetime_parameters.is_empty() {
         let member_arguments = local_bindings
             .iter()
@@ -258,12 +348,19 @@ fn source_application(
                 source.application,
                 &inputs,
             )
+            .map_err(|reason| {
+                if observation.enabled {
+                    eprintln!("source-call-application invocation-refusal target={:?} application={:?} reason={reason:?}", source.target, source.application);
+                }
+                reason
+            })
             .ok()?,
         );
     }
     let selected_interface = scope.declaration.symbol;
     let outer_parameters = program.trait_type_parameters(scope.declaration).to_vec();
     let environment = scope.environment();
+    observation.phase = "original-occurrence-association";
     let previous = if program
         .expression_table
         .static_machine_application_is_valid(source.application)
@@ -286,12 +383,15 @@ fn source_application(
     } else {
         None
     };
+    observation.phase = "outer-materialization";
     let outer_arguments = program
         .materialize_trait_application_arguments(&environment)
         .ok()?;
+    observation.phase = "outer-operand-closure";
     program
         .require_closed_application_operands(&outer_arguments)
         .ok()?;
+    observation.phase = "outer-binder-values";
     let mut bindings = Vec::new();
     for (parameter, reference) in outer_parameters.iter().zip(&outer_arguments) {
         let value = match parameter.kind {
@@ -342,6 +442,7 @@ fn source_application(
     // This producer obtains outer operands from the original receiver. Only
     // the member operands occupy the retained authored list; carry their
     // exact original binder coordinates instead of guessing from tuple shape.
+    observation.phase = "authored-member-argument-arity";
     if arguments.len() > local_parameters.len() {
         return None;
     }
@@ -350,6 +451,7 @@ fn source_application(
         .zip(&arguments)
         .map(|(parameter, _)| parameter.symbol)
         .collect::<Vec<_>>();
+    observation.phase = "retained-lifetime-agreement";
     if previous.is_some() {
         // A retained partial lane constrains this same original occurrence;
         // new input inference may fill missing slots but never overwrite it.
@@ -397,7 +499,9 @@ fn source_application(
     program
         .expression_table
         .set_static_machine_application_selected_machines(application, &selected_machines);
+    observation.phase = "full-original-view";
     StaticApplicationView::new(program, application).ok()?;
+    observation.completed = true;
     Some((template, application))
 }
 
