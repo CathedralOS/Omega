@@ -29,37 +29,43 @@ pub fn validate_static_machine_bindings(
     // A private execution graph shares arenas with excluded declarations.
     // Only live roots own judgments; arena capacity is not an obligation roster.
     let references = typed_trees::references::collect_program_references(program.typed_program());
-    let mut applications = references
-        .expressions
-        .iter()
-        .filter_map(
-            |expression| match program.expression_table.expression(*expression) {
-                ExpressionNode::Call(call) => program
-                    .expression_table
-                    .source_call(call)
-                    .map(|original| original.authored_machine_application),
-                _ => None,
-            },
-        )
-        .collect::<Vec<_>>();
-    for machine in program.machines() {
-        for state in program.machine_states(machine) {
-            applications.extend(
-                program
-                    .statement_table
-                    .statements(state.statement_nodes)
-                    .iter()
-                    .filter_map(|statement| match statement {
-                        StatementNode::Call(call) => Some(call.authored_machine_application),
-                        _ => None,
-                    }),
-            );
+    let mut applications = Vec::new();
+    let mut source_applications = Vec::new();
+    for expression in &references.expressions {
+        if let ExpressionNode::Call(call) = program.expression_table.expression(*expression)
+            && let Some(original) = program.expression_table.source_call(call)
+        {
+            applications.push(original.authored_machine_application);
+            if super::compiler_operations::compiler_operation_for_call(
+                program,
+                typed_trees::references::StaticArgumentCall::Expression(*expression, original),
+            )
+            .is_none()
+            {
+                source_applications.push(original.authored_machine_application);
+            }
         }
     }
-    // Actual call occurrences owe supplied lifetime correspondence. A
-    // declaration specialization separately describes a quantified family;
-    // retaining that receipt never turns it into an additional source call.
-    let source_applications = applications.clone();
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                if let StatementNode::Call(call) = statement {
+                    applications.push(call.authored_machine_application);
+                    if super::compiler_operations::compiler_operation_for_call(
+                        program,
+                        typed_trees::references::StaticArgumentCall::Statement(call),
+                    )
+                    .is_none()
+                    {
+                        source_applications.push(call.authored_machine_application);
+                    }
+                }
+            }
+        }
+    }
+    // Ordinary source calls owe complete lifetime correspondence. Compiler
+    // operations retain their existing product/static operand admission instead.
+    // Declaration specialization receipts describe a quantified family, not calls.
     applications.extend(
         program
             .machine_specializations
