@@ -622,7 +622,7 @@ impl EvaluationUsage {
 /// This records what the evaluator consumed, not a selected Build role,
 /// package authority or proof that every supplied provider ran. It owns the
 /// complete checked closure and its distinct product-description frontier.
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 pub struct ExecutedCheckedConstantInput {
     checked: std::sync::Arc<checked_trees::CheckedTrees>,
     product_declarations: std::sync::Arc<typed_trees::TypedTrees>,
@@ -633,6 +633,27 @@ pub struct ExecutedCheckedConstantInput {
     usage: EvaluationUsage,
     semantics: EvaluationSemanticsIdentity,
 }
+
+// The receipt compares retained invocation content. Omega floating equality
+// would lose signed zero and make a receipt containing NaN unequal to itself.
+impl PartialEq for ExecutedCheckedConstantInput {
+    fn eq(&self, other: &Self) -> bool {
+        self.checked == other.checked
+            && self.product_declarations == other.product_declarations
+            && self.entry == other.entry
+            && self.arguments.len() == other.arguments.len()
+            && self
+                .arguments
+                .iter()
+                .zip(&other.arguments)
+                .all(|(left, right)| left.has_same_representation(right))
+            && self.operators == other.operators
+            && self.result.has_same_representation(&other.result)
+            && self.usage == other.usage
+            && self.semantics == other.semantics
+    }
+}
+impl Eq for ExecutedCheckedConstantInput {}
 
 impl std::fmt::Debug for ExecutedCheckedConstantInput {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -694,7 +715,7 @@ impl ExecutedCheckedConstantInput {
 }
 
 /// A successful semantic evaluation paired with deterministic usage.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MeasuredEvaluation<T> {
     pub(crate) value: T,
     pub(crate) usage: EvaluationUsage,
@@ -751,7 +772,7 @@ pub struct PrivateLayoutPlacementReceipt {
 
 /// Structured evaluation plus compiler-only operation receipts. Receipts are
 /// not Omega values and cannot be observed or fabricated by evaluated code.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildTimeOperationEvaluation<T> {
     pub(crate) measured: MeasuredEvaluation<T>,
     pub(crate) private_layout_placements: Vec<PrivateLayoutPlacementReceipt>,
@@ -803,7 +824,7 @@ impl<T> BuildTimeOperationEvaluation<T> {
 
 /// A granted build-machine result keeps host observations beside, but
 /// distinct from, deterministic evaluator work.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MeasuredBuildMachineEvaluation<T> {
     pub(crate) measured: MeasuredEvaluation<T>,
     pub(crate) observations: EvaluationObservations,

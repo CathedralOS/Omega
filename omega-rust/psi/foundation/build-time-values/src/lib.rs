@@ -40,6 +40,57 @@ pub enum BuildTimeValue {
 }
 
 impl BuildTimeValue {
+    /// Compare retained value representation, independently of language-level
+    /// floating equality. Execution records must distinguish signed zero and
+    /// preserve NaN payload bits, including inside aggregates.
+    pub fn has_same_representation(&self, other: &Self) -> bool {
+        let fields_equal = |left: &[(String, Self)], right: &[(String, Self)]| {
+            left.len() == right.len()
+                && left
+                    .iter()
+                    .zip(right)
+                    .all(|((left_name, left), (right_name, right))| {
+                        left_name == right_name && left.has_same_representation(right)
+                    })
+        };
+        match (self, other) {
+            (Self::Unit, Self::Unit) => true,
+            (Self::Int(left), Self::Int(right)) => left == right,
+            (Self::Bool(left), Self::Bool(right)) => left == right,
+            (Self::Float(left), Self::Float(right)) => left.to_bits() == right.to_bits(),
+            (Self::UndeterminedNaN(left), Self::UndeterminedNaN(right)) => left == right,
+            (Self::Text(left), Self::Text(right)) => left == right,
+            (
+                Self::Struct {
+                    type_name: left_name,
+                    fields: left,
+                },
+                Self::Struct {
+                    type_name: right_name,
+                    fields: right,
+                },
+            ) => left_name == right_name && fields_equal(left, right),
+            (
+                Self::Case {
+                    variant: left_name,
+                    payload: left,
+                },
+                Self::Case {
+                    variant: right_name,
+                    payload: right,
+                },
+            ) => left_name == right_name && fields_equal(left, right),
+            (Self::Array(left), Self::Array(right)) => {
+                left.len() == right.len()
+                    && left
+                        .iter()
+                        .zip(right)
+                        .all(|(left, right)| left.has_same_representation(right))
+            }
+            _ => false,
+        }
+    }
+
     /// Canonical retained result-cell count. Every value
     /// contributes one root cell; aggregate fields, case payloads, and array
     /// elements contribute their recursively retained cells as well. Text is
