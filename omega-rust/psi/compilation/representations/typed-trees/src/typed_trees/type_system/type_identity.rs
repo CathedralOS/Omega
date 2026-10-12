@@ -678,9 +678,12 @@ impl TypedTrees {
         }
         let source = self.unique_data_definition_by_symbol(authored)?;
         let origin = source.generic_instance?;
-        let receiving_identity = self.normalized_type_identity(reference)?;
-        let supplying_identity = self.normalized_type_identity(origin)?;
-        (receiving_identity == supplying_identity).then_some(instance)
+        let receiving_identity = self.normalized_type_identity(reference);
+        let supplying_identity = self.normalized_type_identity(origin);
+        (receiving_identity.is_valid()
+            && supplying_identity.is_valid()
+            && receiving_identity == supplying_identity)
+            .then_some(instance)
     }
 
     /// Translate a selected case at its original declaration ordinal into the
