@@ -1299,6 +1299,7 @@ pass/proofs/higher_order_machine_schema_compile checked 209ms
 pass/proofs/kernel_integer_discreteness built 254ms
 pass/proofs/kernel_integer_subtract_bound checked 197ms
 pass/proofs/kernel_integer_subtract_order built 3338ms exit:0 @1a353f2e117b+wt
+pass/proofs/proof_bag_view_reflexivity built 3353ms exit:0 @6ede3322eb88+wt
 pass/proofs/kernel_theorem_equality_certificates built 1355ms exit:70 @bed5f45e9185+wt
 pass/proofs/machine_parameterized_data_compile checked 210ms
 pass/proofs/named_witness_static_trait_plural_compile checked 401ms @6a63ff5f8dac

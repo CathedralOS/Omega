@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "2", "load1_end": 3.21, "load1_start": 3.32, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 2.95, "load1_start": 2.86, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 835ms expected @a9ae30e1c334+wt
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -1941,6 +1941,8 @@ fail/float/same_carrier_cast_cannot_mint_finite rejected 5698ms expected @a9ae30
 	cannot prove initializer `identity(value) as f64` satisfies `finite` for the bounded value of machine `invalid` state `entry` local `finite`
 fail/float/state_arrival_ieee_predicate_unsatisfied rejected 34670ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call bounded from Main::main: main.value == main.value && main.value >= 0.0 && main.value < 1000.0 (needs fact `value == value && value >= 0.0 && value < 1000.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/float/state_constructor_ieee_reflexivity rejected 381ms expected @6ede3322eb88+wt
+	cannot prove requires contract for call conclude from invalid: constructor:5:Chain9:name:Cons17:payload:name:head9:0.0 / 0.017:payload:name:tail87:constructor:5:Chain9:name:Cons17:payload:name:head9:0.0 / 0.017:payload:name:tail4:tail == constructor:5:Chain9:name:Cons17:payload:name:head9:0.0 / 0.017:payload:name:tail87:constructor:5:Chain9:name:Cons17:payload:name:head9:0.0 / 0.017:payload:name:tail4:tail (needs fact `Chain == Chain` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/float/suffix_format_disagrees_rejected rejected 2761ms expected @a9ae30e1c334+wt
 	literal `1.5` is suffixed `f32` but lands in a `f64` place -- a width suffix chooses the literal's format at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
 fail/float/symbolic_integer_conversion_requires_preserves_exact_cast rejected 5590ms expected @a9ae30e1c334+wt
@@ -2608,8 +2610,8 @@ fail/proofs/addition_commutativity_false_twin rejected 810ms expected @a9ae30e1c
 	machine `false_add_commutative` ensures contract proof fact `embed(a) + embed(b) == embed(b) + embed(a) + 1` is disproved by constant arithmetic
 fail/proofs/applied_callable_unproven_law rejected 33434ms expected @a9ae30e1c334+wt
 	machine `lawless` satisfies `RingOps2::add_assoc` but proves no ensures matching the declared law `plus(plus(a, b), c) == plus(a, plus(b, c))` -- a law requirement's satisfier must carry that equation as a machine-checked ensures, general in every law parameter
-fail/proofs/bag_view_false_twin rejected 914ms unexpected @a9ae30e1c334+wt
-	machine `reverse_snoc` ensures contract proof fact `reverse(snoc(s, x)) == Seq` speaks about proof-only `Seq`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
+fail/proofs/bag_view_false_twin rejected 425ms expected @6ede3322eb88+wt
+	cannot prove ensures contract for exit from false_bag_distinct at statement 0: Bag(items) != Bag(before)
 fail/proofs/bounded_assignment_operand_skips_later_same_named_local rejected 994ms expected @a9ae30e1c334+wt
 	cannot prove assignment value `N + 1` satisfies bounded target `total` in `shadow.entry`; expected 0..=4
 fail/proofs/case_call_wrong_subject rejected 897ms expected @a9ae30e1c334+wt
@@ -5574,8 +5576,7 @@ pass/proofs/normal_return_expression_statement_sequence_exit checked 10881ms che
 pass/proofs/ordinary_denotational_requirement_published_termination_exit checked 11023ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/polynomial_expand_core_nat checked 11957ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/proof_addition_commutativity checked 1971ms @a9ae30e1c334+wt
-pass/proofs/proof_bag_view_reflexivity rejected 963ms regressed-from:checked @a9ae30e1c334+wt
-	machine `reverse_snoc` ensures contract proof fact `reverse(snoc(s, x)) == Seq` speaks about proof-only `Seq`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
+pass/proofs/proof_bag_view_reflexivity checked 3714ms check-target:macos_arm64 @6ede3322eb88+wt
 pass/proofs/proof_bignum_constant_fold checked 1802ms @a9ae30e1c334+wt
 pass/proofs/proof_congruence_add_constant checked 1615ms @a9ae30e1c334+wt
 pass/proofs/proof_constant_arithmetic_identity checked 1602ms @a9ae30e1c334+wt

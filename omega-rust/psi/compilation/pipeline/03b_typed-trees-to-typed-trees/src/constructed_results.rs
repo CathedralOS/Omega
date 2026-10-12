@@ -16,6 +16,10 @@
 //! Calls apply their declared result to the caller in that same postorder.
 //! Retyping only inferred locals leaves nested operands carrying undeclared
 //! callee regions, so no parent construction can derive its complete type.
+//! Contract expressions belong to their declaring telescope too. Prepare their
+//! children alongside body expressions: a constructor in a postcondition needs
+//! its applied type before checking can establish its equality meaning. This
+//! supplies type vocabulary, not the truth of the contract or its premises.
 
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -42,8 +46,21 @@ fn occurrences(
 )> {
     let mut occurrences = Vec::new();
     for machine in program.machines() {
-        for state in program.machine_states(machine) {
+        for (state_ordinal, state) in program.machine_states(machine).iter().enumerate() {
             let mut expressions = Vec::new();
+            // Machine contracts name entry parameters; a state contract names
+            // that state's own parameters. Never replay an entry contract in
+            // every state or borrow a caller's destination for its literals.
+            let contracts = if state_ordinal == 0 {
+                program.machine_contracts(machine)
+            } else {
+                &[]
+            };
+            for contract in contracts.iter().chain(program.state_contracts(state)) {
+                for fact in program.proof_facts.span_or_empty(contract.facts) {
+                    validation::append_fact_expression_roots(program, fact, &mut expressions);
+                }
+            }
             for statement in program.statement_table.statements(state.statement_nodes) {
                 validation::expression_traversal::collect_statement_expression_trees(
                     program,
