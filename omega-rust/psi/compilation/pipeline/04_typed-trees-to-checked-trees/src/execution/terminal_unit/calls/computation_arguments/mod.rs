@@ -753,15 +753,14 @@ fn owned_argument(
             parameter.type_reference,
         )
     } else {
+        // A declared local is a structural home whether its declaration
+        // carried an initializer or its fields were established by later
+        // stores; the statement route admits both the same way, and the
+        // ownership events, not the declaration's syntax, prove the operand
+        // is established at this call.
         let (_, local) = program
             .state_local_declaration(state, source_symbol)
             .filter(|&(ordinal, _)| ordinal < statement_index)?;
-        if !program
-            .expression_table
-            .expression_is_valid(local.initial_value)
-        {
-            return None;
-        }
         (
             CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                 symbol: source_symbol,
