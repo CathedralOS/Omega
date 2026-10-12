@@ -86,8 +86,8 @@ management, the two compiler drivers, and Terminal interpretation. Package
 management owns acquisition, the resolved graph, review proposals/decisions and
 `omega.lock`, then supplies source custody to Psi. It does not return checked
 trees, settle compiler products or call native production. The interpreter owns
-Terminal loading, entry establishment, provider/import installation, host
-bindings, execution resources and observations; it can execute an artifact
+Terminal loading, entry establishment, installation of supplied host bindings,
+execution resources and observations; it can execute an artifact
 directly or ask the Psi driver to compile source to one. The application depends
 on those facades and shared request/artifact contracts, never their internal
 stages, representations, backend or package-compilation helpers.
@@ -201,7 +201,8 @@ library APIs; they do not introduce another compiler driver.
 | Terminal + target/Build inputs → realized product sequencing | Omega compiler facade over stages 00–09 and emission |
 | Requested outputs, configuration admission, retained outcomes and publication | Omega `compilation/products/` |
 | Source acquisition and package storage primitives | Omega `packages/` behind package-manager requests |
-| Terminal Psi loading, host binding and execution | Psi interpreter facade under `interpreter/` |
+| Terminal Psi loading, supplied-binding installation and execution | Psi interpreter facade under `interpreter/` |
+| Target-aware interpreter host adapters | Omega-owned host integration outside Psi, reusing independent backend ABI/mechanism libraries; not a compiler driver |
 | Compile-time interpretation and result elaboration | Psi `compilation/compile-time/` |
 | Checked program → published Terminal artifact | Psi compiler facade; current Rust migration adapter: `omega/compilation/driver/terminal-production/` |
 | Ordinary library reference implementations | `library/`, outside the compiler halves |
@@ -422,7 +423,20 @@ function identities also consume the public Terminal identity vocabulary,
 not program contents or an intermediate representation.
 Psi retains its source/arena/numeric and optimization-selection foundations; do
 not duplicate them in Omega. Target/ABI/register descriptions and retained
-realization evidence belong to their backend owners. Psi must not depend on Omega. A coordinator forwards complete typed
+realization evidence belong to their backend owners. Psi must not depend on Omega.
+
+The settled decision `hosted-interpreter-abi-library-dependency` keeps the
+interpreter and its binding-dispatch interface in Psi, and target-aware host
+adapters outside Psi. The hosting application supplies those adapters through
+the interpreter's explicit binding interface. Adapters may depend on independent
+Omega ABI, locator and mechanism libraries; they do not pull compiler stages,
+source checking or native production into interpretation. Expose host integration
+through its owning API, not application imports of backend internals. Preserve
+exact selected foreign identity, calling/storage correspondence and authority
+checks before effects; neither copying the ABI catalog nor weakening admission
+is an alternative to the ownership split. See [embedding](../wiki/spec/build/embedding.md#target-environments-and-execution-engines).
+
+A coordinator forwards complete typed
 results rather than owning package loading, build evaluation, stage algorithms,
 artifact formatting, or a generic orchestration subsystem. Allocation counters
 and phase-report deltas belong to the independent host

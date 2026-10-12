@@ -2068,7 +2068,7 @@ then independent claimed restoration slices -> final closure.
   **BUILD-EVALUATES-ONCE**, pre-effect admission and all-target authored rows;
   do not retain a feature/fixture-specific Build evaluator.
   Discovery/default-source phase selection is **OWNER-BLOCKED** on
-  [build-discovery-entry-phase](OWNER_QUESTIONS.md#q10---how-does-a-build-select-its-core-only-discovery-entry):
+  [build-discovery-entry-phase](OWNER_QUESTIONS.md#q9---how-does-a-build-select-its-core-only-discovery-entry):
   the same free Build entry mixes discovery with work needing the resolved
   graph, with no defined entry/phase boundary. This blocks that subfrontier
   only; Terminal/mutable-slot/accounting and immutable resolver joins remain
@@ -2203,19 +2203,23 @@ then independent claimed restoration slices -> final closure.
   rerun Build or evaluate source expressions. Restore complete operation/import
   families, not a simple-program eligibility matrix. Unsupported interpretation
   stays explicitly unavailable; actual disagreement is an error.
-  Owner: the interpreter facade and its host-adapter packages under
-  `omega-rust/psi/interpreter/`; CLI execution, embedding and corpus are thin
-  consumers. Move `omega-rust/omega/compilation/driver/src/runtime.rs` in full:
-  Terminal loading, entry establishment, provider/import installation,
-  stdin/stdout/stderr, virtual clocks, provisions and observations are not
+  Owner: the interpreter facade under `omega-rust/psi/interpreter/` owns
+  Terminal loading, entry establishment, supplied-binding installation and
+  execution. Target-aware host adapters belong outside Psi in Omega-owned host
+  integration, using independent backend ABI/locator/mechanism libraries, not
+  compiler stages. Split `omega-rust/omega/compilation/driver/src/runtime.rs`
+  along that boundary; retain exact foreign identity and ABI checks before
+  effects. CLI execution, embedding and corpus consume these owning APIs.
+  Stdin/stdout/stderr, virtual clocks, provisions and observations are not
   compiler responsibilities. Remove `compiler::runtime` and direct
   `terminal-interpreter` dependencies from the application. Add a production
   command/API that executes an owned Terminal artifact without compiling
   source, beside the source route that asks only the Psi driver.
-  Facade/target-aware adapter placement is **OWNER-BLOCKED** on
-  **Q2: hosted-interpreter-abi-library-dependency** in `OWNER_QUESTIONS.md`:
-  existing exact locator/ABI checks need independent Omega backend libraries,
-  which the current Psi dependency rule forbids. Other runtime work is unblocked.
+  Replace source-checking-dependent `program-entry-plan` inputs with source-free
+  runtime provisions; the producer owns the exact provision/schema join.
+  Follow [target environments and engines](wiki/spec/build/embedding.md#target-environments-and-execution-engines):
+  Psi gains no Omega dependency, ABI catalog copy or native fallback. Hosts
+  explicitly supply bindings; ordinary provider bodies can execute in Psi.
   Acceptance: restore **WINDOWS-CONSOLE-INPUT**'s Loader and
   five bounded-line controls through the common core. Missing/wrong-instance
   imports reject before effects; stdout/stderr and exit oracles are independent.
@@ -4914,8 +4918,8 @@ path; both items are accepted through `tools/corpus_gate.py`.
 
 Implement the [testing contract](wiki/spec/build/testing.md) and
 [authored source shape](wiki/language_guide/chapter_23_testing.md). Reuse
-ordinary satisfaction/entry checking, Terminal Psi execution and embedding
-custody; no test attribute, special machine name, calling permission or
+ordinary satisfaction/entry checking, Terminal Psi and native execution, and
+embedding custody; no test attribute, special machine name, calling permission or
 parallel compiler.
 
 - **BUILD-TEST-GROUPS.** (new-scope) Build has no test registration:
@@ -4926,7 +4930,12 @@ parallel compiler.
   `builder.tests.group<ExactRequirement>()` registration and enablement;
   compiler orchestration (`omega-rust/omega/compilation/driver/`) owns
   package-local satisfaction discovery, separate runner roots, outcomes and
-  publication. Keep exact product-reference identity, private scope and
+  publication. Retain group target/engine overrides and requirements; default
+  to all applicable permitted engines on the host. Expose the execution plan
+  before effects, including unavailable combinations and reasons. Produce native
+  test executables separately from application images through the normal native
+  driver; reuse compatible checked inputs, not a second test compiler.
+  Keep exact product-reference identity, private scope and
   source/target provenance; never discover by strings or infer generic
   applications.
 
@@ -4937,8 +4946,11 @@ parallel compiler.
   unresolved generics, dependency non-discovery and exhaustion distinct from
   failure. Runs without std; an optional std testing requirement needs no
   compiler recognition. Application Psi/native output excludes test-only roots;
-  a native harness may explicitly call visible test machines. Receiver/service
-  execution rejects until **BUILD-TEST-AUTHORITY**.
+  a native harness may explicitly call visible test machines. Run a pure group
+  on both engines with distinct results and equal deterministic observations;
+  cover explicit overrides, required/optional unavailable engines and no runnable
+  engine. Scheduled failure/exhaustion cannot become an optional skip.
+  Receiver/service execution rejects until **BUILD-TEST-AUTHORITY**.
 
 - **BUILD-TEST-AUTHORITY.** (split-of:BUILD-TEST-GROUPS) Add group-scoped
   providers, provisioned receivers and fresh mock state. Extend the restricted
@@ -4953,8 +4965,10 @@ parallel compiler.
   requests cannot widen root grants or escape virtual backing. Install/update
   surfaces new test requests; locked builds cannot approve them; acceptance
   without an executor grant rejects. Cover provider/target mismatches,
-  disabled-to-enabled rechecking, unsupported execution without native
-  fallback, and crash containment without invented unwind. Automatic tests
+  disabled-to-enabled rechecking, required/optional engine availability, and
+  crash containment without invented unwind. Virtual-filesystem tests run on
+  both engines without a native escape to real backing; a missing interpreter
+  adapter does not silently replace the selected service. Automatic tests
   reject assumed-binding execution, including through fixtures, helpers and
   providers. Mock configuration leaves production providers and roots
   unchanged.
@@ -5416,7 +5430,7 @@ wait for Cathedral's instruction coverage. The interpreter is
   - Default builds and anonymous owners
     ([spec](wiki/spec/build/declarations.md#default-builds-and-anonymous-owner-identity)):
     The interpreted discovery/default-source prerequisite references
-    [build-discovery-entry-phase](OWNER_QUESTIONS.md#q10---how-does-a-build-select-its-core-only-discovery-entry);
+    [build-discovery-entry-phase](OWNER_QUESTIONS.md#q9---how-does-a-build-select-its-core-only-discovery-entry);
     other owner/identity/resolution joins remain engineering.
     `omega-rust/omega/packages/compilation-inputs/src/source_imports/frontier.rs`
     leaves loose roots without package identity. Derive the versioned anonymous
@@ -6637,8 +6651,8 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   carrying forward earlier case counts or package-size measurements.
 
   - Request semantics (`source/omega/request/`): well-formed requests stop at
-    `coverage_request_semantics`. Phase 3 needs **Q3**,
-    `ocreq-package-key-identity-derivation`, in `OWNER_QUESTIONS.md`; implement
+    `coverage_request_semantics`. Phase 3 needs
+    `ocreq-package-key-identity-derivation` in `OWNER_QUESTIONS.md`; implement
     package identity/order, dependency graph, snapshot materialization,
     admissions and subject commitment (phases 3, 4, 5, 7 and 8), preserving
     the contract's diagnostic selection order, then hand the root source to
@@ -6660,7 +6674,7 @@ construction stays on `TASKS_BOOTSTRAP.md`.
     their own generic parameters, target-scoped family calls and case domain
     qualifiers. Implement declared equality through `Equatable` named
     conformances under [core equality acquisition](wiki/spec/language/conformances.md#core-equality-acquisition).
-    Core's theorems over `Nat`, `Seq` and records also require **Q7**,
+    Core's theorems over `Nat`, `Seq` and records also require
     `proof-fact-data-equality`; do not infer proof identity from executable
     equality or from the Rust implementation's source-shape distinction.
   - Checking and proof (`source/psi/checking/`): implement proof-only `embed`
@@ -6674,10 +6688,10 @@ construction stays on `TASKS_BOOTSTRAP.md`.
     nonempty writes through an unknown origin must remain refused rather
     than acquire independent storage facts. Track payload paths on held-loan
     rows so projected carriers retain only their own backing loans; the
-    current root-based transfer conservatively retains sibling loans. **Q4**,
-    `executable-numeric-builtins`, governs `clamp` and the related numeric
+    current root-based transfer conservatively retains sibling loans. The open
+    `executable-numeric-builtins` question governs `clamp` and the related numeric
     functions and the bounds subsequent narrowing conversions require.
-    **Q9**, `store-evaluation-order`, governs when checking and ownership
+    The `store-evaluation-order` question governs when checking and ownership
     capture a store's target selectors; preserve its three
     `tests/omega/pass/ownership/` selector/replacement controls until the
     decision is implemented consistently in both compilers.
@@ -6694,8 +6708,8 @@ construction stays on `TASKS_BOOTSTRAP.md`.
     specified source meaning; resolve that contract instead of importing the
     Rust parser's contextual recognition. `std/build.omg` needs its build
     context's `Build`. The product entry's console closure also needs the
-    boundary trait argument in `Binding<Console>` and **Q6**,
-    `binding-receiver-call-form`, for calls through it. Reconcile std target
+    boundary trait argument in `Binding<Console>` and the open
+    `binding-receiver-call-form` decision for calls through it. Reconcile std target
     providers' undocumented `Owner::provider_defaults` / provider-data
     convention with named implementation selection in
     [provider selection](wiki/spec/build/provider_selection.md).

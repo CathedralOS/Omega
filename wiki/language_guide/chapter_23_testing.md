@@ -135,11 +135,30 @@ Registered groups are enabled by default. Build configuration may set
 admitted computation and explicit inputs. Disabled means not run, never passed.
 No debug/release convention or ambient environment lookup is implied.
 
-After build configuration and source checking, enabled tests run through the
-Terminal Psi interpreter before the build can succeed. Normal completion passes;
-a trap or abort fails. Exhaustion and unsupported execution are reported
-separately and also prevent build success. Sponsor limits bound execution even
-when a test has no termination promise. Tests do not gain implicit unwinding.
+After build configuration and source checking, enabled tests run on every
+applicable, permitted engine the host supports, unless group configuration
+overrides that choice. Target environment and engine are separate: a Linux test
+may run both interpreted and natively. Being able to cross-compile a target
+does not mean the host can execute it.
+
+The runner shows the target/engine plan before execution. For example:
+
+| Test environment | Interpreted | Native |
+| --- | --- | --- |
+| Pure arithmetic | Run | Run |
+| Virtual filesystem supported by both engines | Run | Run |
+| Binding with only a native realization | Unavailable: no host adapter | Run |
+
+Build group configuration can exclude engines or require particular combinations.
+A required unavailable combination prevents success; optional unavailable ones
+remain visible, never counted as passes. Each enabled test must run on at least
+one engine. A virtual filesystem stays virtual in native tests too: engine
+selection cannot change the selected services or increase permissions.
+
+Results name the test, target and engine. Normal completion passes; a trap or
+abort fails. Exhaustion of a scheduled invocation is incomplete execution and
+prevents build success, not an excuse to skip it. Sponsor limits bound execution
+even when a test has no termination promise. Tests do not gain implicit unwinding.
 
 Use mandatory checks for the verdict. An optional assertion whose implementation
 can be replaced with a no-op cannot reliably decide whether a test passed.
@@ -156,11 +175,18 @@ depending on an optional optimizer. Application code may call a visible test
 machine normally; if it does, that reachable code can ship and must obey the
 application's ordinary contracts.
 
-Automatic tests do not exercise native lowering or a real deployment. For that,
-build an ordinary separate executable with its own entry binding. Its main can
-call shared helpers or visible test machines without a test-mode flag. It does
-not automatically discover groups or acquire their private visibility, and a
-native trap requires real external containment if execution is to continue.
+Automatic native runs use a separate test executable; interpreted runs execute
+the test's Terminal roots. Share compatible compilation work, but keep both
+test products separate from application outputs. An interpreted pass says nothing
+about native lowering; a native pass against a virtual device says nothing about
+real hardware behavior.
+
+For a custom runtime harness, build an ordinary separate executable with its own
+entry binding. Its main can call shared helpers or visible test machines without
+a test-mode flag. It does
+not automatically discover groups or acquire their private visibility, unlike
+the build runner operating in the owning package's test scope. A native trap
+requires real external containment if execution is to continue.
 
 The interpreter runner shares the ordinary
 [embedding lifecycle](chapter_24_embedding.md), rather than a separate test VM.

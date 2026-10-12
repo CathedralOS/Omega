@@ -433,7 +433,7 @@ record to a place holding the fields known of it
 references carry typing's `Read` adaptation; a reference passed as a
 reference keeps its live storage identity. Assignment currently evaluates
 its value before its target and captures that value before an effectful
-selector; **Q9** in `OWNER_QUESTIONS.md` remains the evaluation-order decision.
+selector; `store-evaluation-order` in `OWNER_QUESTIONS.md` remains open.
 Subject evaluation that writes storage cannot grant facts by replaying its
 syntax over the changed storage; its case binders still start from their
 declared types.

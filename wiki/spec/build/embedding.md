@@ -32,6 +32,41 @@ component realizations share requirement and lifecycle contracts, not necessaril
 container formats, physical representations, or provider implementations. A native
 plugin product still needs its selected ABI/container; a Psi artifact is not a DLL.
 
+## Target environments and execution engines
+
+Target environment and execution engine are separate selections. Windows,
+macOS, Linux and Cathedral describe environments; native and interpreted
+describe execution. Interpretation is not another OS target. An interpreter
+may execute Linux-targeted code when its admitted host environment supplies
+the required Linux contracts and supported instruction semantics.
+
+Ordinary Omega provider bodies execute through the same language semantics in
+either engine. Most libraries need no interpreter-specific implementation.
+Adapters are needed at external mechanisms, not at every machine or package.
+A portable filesystem binding may select a virtual implementation; an exact
+Linux syscall binding must preserve its selected Linux contract, representation
+and foreign identity. A convenient host operation is not a silent substitute.
+Native/interpreter comparison retains those exact selections rather than
+replacing them with mocks. Separately configured virtual-service tests exercise
+their declared service contracts, not the unselected real OS implementation.
+
+Under `hosted-interpreter-abi-library-dependency`, Psi owns Terminal execution
+and the interface for installing and dispatching explicit host bindings.
+Target-aware host adapters live outside Psi in Omega-owned host integration;
+they reuse independent Omega ABI, locator and mechanism libraries, not compiler
+drivers or producing stages. The hosting application installs the admitted
+adapters. Generic loading and execution require neither those optional adapters
+nor source recompilation. Exact SDK packaging remains an engineering choice.
+
+Establish every demanded binding in the selected executable closure before
+execution, including possible dynamic calls. A branch merely expected not to
+run cannot excuse a missing binding; code outside that closure need not demand
+one. Missing adapter or target-environment support prevents that interpretation
+and names the missing requirement and its demand. Do not run native code as an
+implicit fallback, replace selected services, or increase authority. The
+[test runner](testing.md#execution-plan) may explicitly schedule both engines;
+their availability and outcomes remain separate.
+
 ## Imports, exports, and Binding
 
 `Binding<R>` is the compiler-known opaque affine core carrier for an established
@@ -272,9 +307,10 @@ producer-trust route without that evidence must not be reported as independent
 verification.
 
 Psi owns source meaning, descriptions, and portable obligations. Interpreter
-semantics owns execution against those obligations. Host/native adapters and
-component providers own realization, calling/storage correspondence, and
-installation under the existing Psi/Omega firewall. The CLI is a library client,
+semantics owns execution against those obligations and installation of supplied
+bindings. Host/native adapters and component providers own realization and
+calling/storage correspondence under the existing Psi/Omega firewall; target-aware
+adapters remain outside Psi as described above. The CLI is a library client,
 not the embedding API. Test harnesses reuse this lifecycle with fresh instances
 and selected providers; semantic constant evaluation retains its separate
 admission regime. Exact SDK packaging and method spellings remain engineering.

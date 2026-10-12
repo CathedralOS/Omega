@@ -137,47 +137,7 @@ twin. The verified member classification, call-site confinement and the ten
 Rust consumers the split moves stay on **FILESYSTEM-PLATFORM-SERVICES** in
 `TASKS.md`; that work is ordinary implementation once this is answered.
 
-### Q2 - May hosted interpreter adapters use independent Omega ABI libraries?
-
-Named decision: `hosted-interpreter-abi-library-dependency`.
-
-**Customer:** execute a produced Terminal artifact through the shipped
-interpreter API without compiling source again. Native/reference comparison
-must bind the exact selected foreign implementations, including descriptor
-input/output and clocks, without duplicating target locator or ABI rules.
-
-**Existing rules:** [the facade contract](omega-rust/pipeline.md#two-drivers-one-pass-per-target-realization)
-assigns Terminal loading, entry establishment, provider/import installation,
-host bindings and observations to the interpreter facade. **TERMINAL-RUNTIME-DRIVERS**
-places that facade and its host adapters under `psi/interpreter/`.
-[Subsystem ownership](omega-rust/pipeline.md#subsystem-entrances-and-supporting-packages)
-assigns target/ABI descriptions and retained realization evidence to Omega
-backend libraries and also says "Psi must not depend on Omega."
-
-The current `omega/compilation/driver/src/runtime/host_imports/{descriptor_io,clock}.rs`
-adapters compare complete normalized foreign locators and independently validate
-the evaluated boundary ABI before effects. Moving those adapters into Psi
-unchanged would violate the dependency rule. Removing their checks or copying
-the target/ABI catalog would violate their existing contract. The provision
-model also needs a source-free runtime projection instead of retaining the
-source-checking-dependent `program-entry-plan` package; that projection and
-producer-owned exact plan/schema join are ordinary implementation, not this
-question.
-
-**Decision needed:** allow a narrow dependency from hosted interpreter adapters
-to independent Omega target/ABI and mechanism libraries (recommended), while
-keeping Psi compilation and the Terminal execution core independent of Omega;
-or place target-aware host adapters outside Psi and keep the facade portable
-through explicit host bindings. The latter changes the task's adapter placement,
-not Terminal semantics. Neither option permits stage IRs, compiler products,
-source rechecking or native realization to enter the interpreter.
-
-**Implementation customer:** descriptor input/output and clock programs exercised
-through `omega run --both`, plus direct Terminal-artifact embedding. Only facade
-and target-aware adapter placement in **TERMINAL-RUNTIME-DRIVERS** waits on this
-decision; its remaining storage, input and import families can proceed.
-
-### Q3 - How does an OCREQ v1 package row derive its `PackageKeyIdentity`?
+### Q2 - How does an OCREQ v1 package row derive its `PackageKeyIdentity`?
 
 Named decision: `ocreq-package-key-identity-derivation`.
 
@@ -229,7 +189,7 @@ lineage as text.
    bytes) and drop "recomputed identity" from phase 3, keeping duplicate and
    identity-mismatch checks on those fields.
 
-### Q4 - Are `min`, `max`, `abs`, `clamp` and `sqrt` language functions?
+### Q3 - Are `min`, `max`, `abs`, `clamp` and `sqrt` language functions?
 
 Named decision: `executable-numeric-builtins`.
 
@@ -275,7 +235,7 @@ intrinsics, and stage 02's `lowering/intrinsic_calls.rs` rewrites
    compiler then cannot compile the bundled library without inventing their
    meaning, so this blocks the product compiler's library closure.
 
-### Q5 - Which service does a migrated boundary operation reach?
+### Q4 - Which service does a migrated boundary operation reach?
 
 Named decision: `boundary-trait-requirement-service-row`.
 
@@ -355,7 +315,7 @@ The storage and view traits moved here (`ArrayAccess`, `SliceAccess`,
 have no callers, so their service identity is unobserved today; the answer
 decides whether their rows declare `reaches;`.
 
-### Q6 - How does source call a requirement through a `Binding<R>`?
+### Q5 - How does source call a requirement through a `Binding<R>`?
 
 Named decision: `binding-receiver-call-form`.
 
@@ -404,7 +364,7 @@ The Rust reference compiler accepts the dot form by unwrapping a
    compiler; two candidates reject. No receiver is written, but selection
    depends on the context's shape rather than the call.
 
-### Q7 - What does `==` between data values mean in a proof fact?
+### Q6 - What does `==` between data values mean in a proof fact?
 
 Named decision: `proof-fact-data-equality`.
 
@@ -456,7 +416,7 @@ synthesis, which recursive Nat cannot join").
    core `Identity(a, b)` proposition or another token), and `==` keeps one
    meaning everywhere. The eight files' theorems are respelled.
 
-### Q8 - Does an x86 FMA image keep its own replayed feature custody?
+### Q7 - Does an x86 FMA image keep its own replayed feature custody?
 
 Named decision: `x86-fma-image-custody`.
 
@@ -492,7 +452,7 @@ native image must record which optional ISA features its code needs.
 3. **Extend the replay as the board states,** as an off-path verifier the
    corpus runner calls for x86 FMA images.
 
-### Q9 - Does a store evaluate its target place before its value?
+### Q8 - Does a store evaluate its target place before its value?
 
 Named decision: `store-evaluation-order`.
 
@@ -531,7 +491,7 @@ stating it.
    selectors.** No order is observable; the fixtures are rewritten to
    capture the index explicitly.
 
-### Q10 - How does a Build select its core-only discovery entry?
+### Q9 - How does a Build select its core-only discovery entry?
 
 Named decision: `build-discovery-entry-phase`.
 
@@ -594,7 +554,7 @@ Until answered, only the discovery/default-source phase subfrontier of
 contracts, accounting, immutable resolution and retained identity/evidence joins
 remain implementation work.
 
-### Q11 - What access does an unadorned collection range produce?
+### Q10 - What access does an unadorned collection range produce?
 
 Named decision: `bare-range-reference-access`.
 

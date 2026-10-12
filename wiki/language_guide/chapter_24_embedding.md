@@ -62,6 +62,29 @@ may refer to different game worlds, so bindings identify slots, not just types.
 
 ## Loading and running
 
+The target environment and execution engine are separate choices. Windows,
+macOS, Linux and Cathedral describe environments; interpreted and native describe
+how code executes. Most libraries are ordinary Omega code and work in both
+engines without another implementation. A platform library supplies target
+implementations; external mechanisms need host adapters for interpretation.
+
+```text
+Binding<Filesystem>       -> selected portable service, possibly virtual
+Binding<LinuxRawSyscalls> -> the selected Linux contract, not a similar host API
+```
+
+These names illustrate library contracts, not compiler-blessed services. Psi
+executes the program and dispatches its boundary calls. Target-aware host
+adapters live outside Psi and reuse Omega's ABI/mechanism libraries; the host
+installs them. An ordinary Omega provider body can itself run interpreted.
+An adapter is not required for every library or machine.
+
+Missing bindings in the selected executable closure prevent execution and name
+the missing requirement. There is no silent service substitution, native fallback
+or extra authority. A likely-unused branch does not excuse a missing binding.
+The [test runner](chapter_23_testing.md#enablement-and-results) can schedule
+both engines explicitly and reports unavailable combinations separately.
+
 The host owns a runtime, its host context, and script instances. An immutable
 admitted program can be shared by instances, while each instance owns its state.
 Loading bytes does not run build files or grant filesystem access.
