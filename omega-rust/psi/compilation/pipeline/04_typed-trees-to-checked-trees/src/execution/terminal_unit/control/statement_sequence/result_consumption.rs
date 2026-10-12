@@ -482,12 +482,21 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                     },
                     path: Vec::new(),
                     select_evaluated_storage: false,
-                    defer_to_exit: matches!(
-                        program.statement_table.statements(
-                            program.state_by_symbol(state)?.statement_nodes,
-                        ).get(boundary.checked_sub(1)? as usize)?,
-                        StatementNode::Transition(_)
-                    ),
+                    // Both named transition exits and checked whole-call
+                    // transfers stage their actuals after this operation prefix.
+                    // A carrier live through that evaluation must retire on the
+                    // selected edge, not before the successor reads its descriptor.
+                    defer_to_exit: {
+                        let authored_state = program.state_by_symbol(state)?;
+                        let ordinal = boundary.checked_sub(1)? as usize;
+                        matches!(program.statement_table.statements(
+                            authored_state.statement_nodes,
+                        ).get(ordinal)?, StatementNode::Transition(_))
+                            || crate::execution::tail_transfers::tail(
+                                program, &facts.flow, program.machine_by_symbol(machine)?,
+                                authored_state, ordinal, Default::default(),
+                            ).is_some()
+                    },
                     loans,
                     selection_complements: Vec::new(),
                 }));
