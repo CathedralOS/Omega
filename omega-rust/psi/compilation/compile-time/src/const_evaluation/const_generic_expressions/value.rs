@@ -90,7 +90,7 @@ pub(crate) trait ConstantCalls {
         &self,
         expression: ExpressionHandle,
 
-        inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+        inputs: &mut Vec<crate::CheckedConstantInput>,
     ) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String>;
 
     /// Declaration values may retain floating bits without becoming index atoms.
@@ -98,7 +98,7 @@ pub(crate) trait ConstantCalls {
         &self,
         expression: ExpressionHandle,
 
-        inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+        inputs: &mut Vec<crate::CheckedConstantInput>,
     ) -> Result<(ScalarValue, Vec<Diagnostic>), String> {
         self.evaluate_call(expression, inputs)
             .map(|(value, warnings)| (ScalarValue::Index(value), warnings))
@@ -228,7 +228,7 @@ pub(crate) fn evaluate_scalar(
     destination: PrimitiveType,
     calls: Option<&dyn ConstantCalls>,
 
-    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+    inputs: &mut Vec<crate::CheckedConstantInput>,
 ) -> Result<(ScalarValue, Vec<Diagnostic>), String> {
     evaluate_scalar_with_correspondence(
         program,
@@ -256,7 +256,7 @@ pub(crate) fn evaluate_scalar_with_correspondence(
     destination: PrimitiveType,
     calls: Option<&dyn ConstantCalls>,
 
-    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+    inputs: &mut Vec<crate::CheckedConstantInput>,
 ) -> Result<(ScalarValue, Vec<SelectedMatchResult>, Vec<Diagnostic>), String> {
     evaluate_scalar_with_correspondence_in(
         program,
@@ -278,7 +278,7 @@ fn evaluate_scalar_in(
     policy: ArithmeticDomain,
     calls: Option<&dyn ConstantCalls>,
 
-    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+    inputs: &mut Vec<crate::CheckedConstantInput>,
 ) -> Result<(ScalarValue, Vec<Diagnostic>), String> {
     evaluate_scalar_with_correspondence_in(
         program,
@@ -300,7 +300,7 @@ fn evaluate_scalar_with_correspondence_in(
     policy: ArithmeticDomain,
     calls: Option<&dyn ConstantCalls>,
 
-    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+    inputs: &mut Vec<crate::CheckedConstantInput>,
 ) -> Result<
     (
         ScalarValue,
@@ -450,7 +450,7 @@ fn evaluate_expression(
     destination: Option<ScalarDestination>,
     calls: Option<&dyn ConstantCalls>,
 
-    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+    inputs: &mut Vec<crate::CheckedConstantInput>,
 ) -> Result<
     (
         Value,
@@ -477,7 +477,7 @@ fn evaluate_expression_with_correspondence(
     destination: Option<ScalarDestination>,
     calls: Option<&dyn ConstantCalls>,
 
-    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+    inputs: &mut Vec<crate::CheckedConstantInput>,
 ) -> Result<
     (
         Value,
@@ -1796,7 +1796,7 @@ pub(crate) fn evaluate_closed_scalar_with_policy(
     policy: ArithmeticDomain,
     calls: &dyn ConstantCalls,
 
-    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+    inputs: &mut Vec<crate::CheckedConstantInput>,
 ) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String> {
     let (value, warnings) = evaluate_scalar_in(
         program,
@@ -1815,7 +1815,7 @@ pub(crate) fn evaluate_integer_endpoint(
     expression: ExpressionHandle,
     calls: &dyn ConstantCalls,
 
-    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+    inputs: &mut Vec<crate::CheckedConstantInput>,
 ) -> Result<(IntegerLiteral, Vec<Diagnostic>), String> {
     use numerics::literals::{IntegerLanding, IntegerRadix};
     let (value, selected_arms, warnings) = evaluate_expression(
@@ -1877,7 +1877,7 @@ pub(crate) fn evaluate_closed_const_argument(
     destination: PrimitiveType,
     calls: &dyn ConstantCalls,
 
-    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+    inputs: &mut Vec<crate::CheckedConstantInput>,
 ) -> Result<(CanonicalConstValue, ConstIntegerMeaning, Vec<Diagnostic>), String> {
     let (value, meaning, _, warnings) = evaluate_scalar_with_correspondence_in(
         program,

@@ -35,7 +35,8 @@ pub struct PreparedBuild {
 pub struct PreparedProductSource {
     pub typed: typed_trees::TypedTrees,
     pub pending_pre_checks: Vec<build_time_evaluation::PreCheckEvaluation>,
-    pub executed_constant_inputs: Vec<build_time_evaluation::ExecutedCheckedConstantInput>,
+    pub checked_constant_inputs: Vec<build_time_evaluation::CheckedConstantInput>,
+    pub source_preparation_inputs: Vec<build_time_evaluation::CheckedConstantInput>,
     pub computed_build_config: Arc<ComputedBuildConfig>,
     pub admission: BuildAdmission,
     pub build_sources: BuildSourceCustody,

@@ -197,7 +197,7 @@ pub(crate) struct SnapshotArgument {
 /// deferred range bound is rewritten to — the marks themselves are dropped
 /// with `pending_const_range_endpoints`.
 pub(crate) fn snapshot_arguments_discharge(
-    program: &TypedTrees,
+    original: crate::constant_inputs::SnapshotSourceProgram,
     retained: &[SymbolHandle],
     owner: SymbolHandle,
     probe_name: &str,
@@ -209,7 +209,9 @@ pub(crate) fn snapshot_arguments_discharge(
     return_type: typed_trees::types::TypeReferenceHandle,
     snapshots: Vec<SnapshotArgument>,
     endpoint_stand_ins: &[(ExpressionHandle, ExpressionNode)],
-) -> Result<(), String> {
+) -> Result<crate::CheckedConstantSnapshotAdmission, String> {
+    let program = original.typed();
+    let probe_source_owner = owner;
     // All original probes must leave this private body check: their detached
     // expressions use exact evaluation, not runtime ranges. Deferred
     // range-endpoint marks name the outer const-eval continuation, not this
@@ -268,6 +270,7 @@ pub(crate) fn snapshot_arguments_discharge(
         probe.push_machine(candidate);
     }
     let mut arguments = Vec::new();
+    let mut operands = Vec::with_capacity(snapshots.len());
     for snapshot in snapshots {
         if snapshot.receiver {
             if receiver_substituted
@@ -287,6 +290,11 @@ pub(crate) fn snapshot_arguments_discharge(
             Some(literal) => probe.expression_table.insert(literal),
             None => snapshot.original,
         };
+        operands.push(crate::SnapshotOperand {
+            receiver: snapshot.receiver,
+            original: snapshot.original,
+            snapshot: expression,
+        });
         if snapshot.receiver {
             call.receiver = expression;
         } else {
@@ -331,7 +339,8 @@ pub(crate) fn snapshot_arguments_discharge(
     // Its operational envelope and every actual supplying/helper body must
     // still meet semantic execution's floor under the same declaration grants.
     let prepared = crate::PreparedBuildMachineProgram::from_checked(checked);
-    let admission = super::BuildTimeAdmissionPlan::infer_prepared(&prepared, selection_authority)?;
+    let admission =
+        super::BuildTimeAdmissionPlan::infer_prepared(&prepared, selection_authority.clone())?;
     let probe = prepared.typed();
     let machine = probe
         .machine_by_symbol(owner)
@@ -343,7 +352,24 @@ pub(crate) fn snapshot_arguments_discharge(
             super::BuildTimeInvocationCustody::Source(probe.expression_table.source_span(concrete)),
         )
         .map_err(String::from)?;
-    Ok(())
+    let checked = prepared
+        .checked_program()
+        .ok_or("snapshot admission lost its actual checked owner")?;
+    Ok(crate::CheckedConstantSnapshotAdmission::issue(
+        original,
+        checked,
+        probe_source_owner,
+        expression,
+        owner,
+        concrete,
+        return_type,
+        operands,
+        endpoint_stand_ins
+            .iter()
+            .map(|(expression, _)| *expression)
+            .collect(),
+        selection_authority,
+    ))
 }
 
 /// Append the generated probe machine whose single state returns the

@@ -768,6 +768,7 @@ pub(super) fn evaluate_probe(
         expected_origins,
         syntax,
         None,
+        &mut Vec::new(),
     )
 }
 
@@ -780,6 +781,7 @@ pub(super) fn evaluate_probe_with_calls(
     syntax: &SyntaxTrees,
     expected_calls: &[(SourceSpan, SourceSpan)],
     calls: &dyn value::ConstantCalls,
+    inputs: &mut Vec<crate::CheckedConstantInput>,
 ) -> Result<ScalarProbeResult, String> {
     evaluate_probe_internal(
         typed,
@@ -789,6 +791,7 @@ pub(super) fn evaluate_probe_with_calls(
         expected_origins,
         syntax,
         Some((expected_calls, calls)),
+        inputs,
     )
 }
 
@@ -800,6 +803,7 @@ fn evaluate_probe_internal(
     expected_origins: Option<&[ConstArgumentOrigin]>,
     syntax: &SyntaxTrees,
     calls: Option<(&[(SourceSpan, SourceSpan)], &dyn value::ConstantCalls)>,
+    inputs: &mut Vec<crate::CheckedConstantInput>,
 ) -> Result<ScalarProbeResult, String> {
     let mut machines = typed
         .machines()
@@ -866,7 +870,7 @@ fn evaluate_probe_internal(
         *expression,
         destination,
         calls.map(|(_, calls)| calls),
-        &mut Vec::new(),
+        inputs,
     )?;
     let selected_matches = retain_original_match_selections(typed, syntax, selected_matches)?;
     if value.type_name() != destination.name() {

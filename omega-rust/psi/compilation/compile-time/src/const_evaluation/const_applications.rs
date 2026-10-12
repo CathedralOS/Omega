@@ -170,7 +170,7 @@ pub(crate) fn evaluate_selected_const_applications(
     selected: crate::SelectedBuildTimeOperators<'_>,
     domain: &mut EvaluationDomain,
 
-    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+    inputs: &mut Vec<crate::CheckedConstantInput>,
 ) -> Result<(), Vec<Diagnostic>> {
     let crate::SelectedBuildTimeOperators {
         operators,
@@ -787,7 +787,7 @@ fn evaluate_application_round(
     warnings: &mut Vec<Diagnostic>,
     domain: &EvaluationDomain,
 
-    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+    inputs: &mut Vec<crate::CheckedConstantInput>,
 ) -> Result<ApplicationRound, Vec<Diagnostic>> {
     // Bind exact authored provider occurrences before cloning specializations,
     // on a private copy: the caller's tree keeps its authored selection and
@@ -848,7 +848,7 @@ fn evaluate_const_application(
     checking_admission: crate::BuildTimeCheckingAdmission<'_>,
     warnings: &mut Vec<Diagnostic>,
 
-    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+    inputs: &mut Vec<crate::CheckedConstantInput>,
 ) -> Result<ApplicationFold, String> {
     require_closed_expression_custody(execution, application.root, selection_authority)?;
     let destination = application
