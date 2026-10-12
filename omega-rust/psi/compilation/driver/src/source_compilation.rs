@@ -4,6 +4,9 @@
 //! cannot combine unrelated frontiers, complete bodies in a different order, or
 //! resume generated source against a reconstructed predecessor. Build authority,
 //! package custody and source acquisition remain with their respective owners.
+//! Successful early constant executions leave this owner beside pending work:
+//! a folded literal cannot reconstruct the checked closure which produced it.
+//! Build projections and other value-only routes remain outside this roster.
 
 use crate::{PsiCompilationObserver, PsiCompilationStage};
 use build_time_evaluation::{BuildTimeSelectionAuthority, PreCheckEvaluation};
@@ -93,6 +96,7 @@ impl BuildSourceInput<'_> {
 pub struct CompletedSource {
     typing: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
     pending_pre_checks: Vec<PreCheckEvaluation>,
+    executed_constant_inputs: Vec<build_time_evaluation::ExecutedCheckedConstantInput>,
 }
 
 /// Package-admitted generated units and their combined source custody.
@@ -107,6 +111,9 @@ pub struct SourceExtensionRequest {
 pub struct PreparedSource {
     pub typed: typed_trees::TypedTrees,
     pub pending_pre_checks: Vec<PreCheckEvaluation>,
+    /// Successful early evaluations survive their destructive source folds.
+    /// This observed roster does not cover Build projection or all earlier work.
+    pub executed_constant_inputs: Vec<build_time_evaluation::ExecutedCheckedConstantInput>,
 }
 
 impl SourceCompilationRequest {
@@ -232,14 +239,18 @@ impl SourceContinuation {
                 })?;
         }
         let mut deferred = Vec::new();
+        let mut executed_constant_inputs = Vec::new();
         for pre_check in pending_pre_checks {
-            if let Some(pending) = pre_check.evaluate_or_defer(typing.typed_mut())? {
+            if let Some(pending) =
+                pre_check.evaluate_or_defer(typing.typed_mut(), &mut executed_constant_inputs)?
+            {
                 deferred.push(pending);
             }
         }
         Ok(CompletedSource {
             typing,
             pending_pre_checks: deferred,
+            executed_constant_inputs,
         })
     }
 }
@@ -249,6 +260,7 @@ impl CompletedSource {
         PreparedSource {
             typed: self.typing.into_typed(),
             pending_pre_checks: self.pending_pre_checks,
+            executed_constant_inputs: self.executed_constant_inputs,
         }
     }
 
@@ -291,10 +303,12 @@ impl CompletedSource {
                 pre_checks,
                 wire_schema_frontier,
                 &mut typed,
+                &mut self.executed_constant_inputs,
             )?);
         Ok(PreparedSource {
             typed,
             pending_pre_checks: self.pending_pre_checks,
+            executed_constant_inputs: self.executed_constant_inputs,
         })
     }
 }

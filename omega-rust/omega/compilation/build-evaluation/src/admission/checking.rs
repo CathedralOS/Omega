@@ -48,7 +48,7 @@ pub(crate) fn prepare_checked_build(
         let (typed, pre_checks) = input.parts_mut();
         for continuation in pre_checks.iter() {
             let continuation = continuation.project(typed, projection.program())?;
-            if let Some(continuation) = continuation.evaluate_or_defer(typed)? {
+            if let Some(continuation) = continuation.evaluate_or_defer(typed, &mut Vec::new())? {
                 pending.push(continuation);
             }
         }
