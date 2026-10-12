@@ -191,6 +191,52 @@ impl<'declaration> StaticApplicationDeclaration<'declaration> {
         &self.lifetimes
     }
 
+    /// An actual occurrence supplies every original lifetime formal. Shared
+    /// declaration-family normalization binds static arguments independently;
+    /// it cannot discharge this invocation's supplied correspondence.
+    pub fn bind_lifetimes<'application>(
+        &self,
+        program: &'application TypedTrees,
+        handle: StaticMachineApplicationHandle,
+    ) -> Result<
+        Vec<(
+            DeclaredStaticLifetime<'declaration>,
+            &'application super::StaticMachineLifetimeBinding,
+        )>,
+        &'static str,
+    > {
+        if !program
+            .expression_table
+            .static_machine_application_is_valid(handle)
+            || program
+                .expression_table
+                .static_machine_application(handle)
+                .binding_declaration
+                != self.symbol
+        {
+            return Err("static application lost its original lifetime declaration");
+        }
+        let source_lifetimes = program
+            .expression_table
+            .static_machine_application_lifetimes(handle);
+        if source_lifetimes.len() != self.lifetimes.len() {
+            return Err(
+                "static application does not retain its complete original lifetime correspondence",
+            );
+        }
+        let mut lifetimes = Vec::with_capacity(source_lifetimes.len());
+        for formal in &self.lifetimes {
+            let binding = self.lifetime_binding(source_lifetimes, *formal)?;
+            if !formal.invocation && binding.argument.named().is_none() {
+                return Err(
+                    "captured lifetime operand has no original named declaration correspondence",
+                );
+            }
+            lifetimes.push((*formal, binding));
+        }
+        Ok(lifetimes)
+    }
+
     fn lifetime_binding<'binding>(
         &self,
         source: &'binding [super::StaticMachineLifetimeBinding],
@@ -346,24 +392,7 @@ impl<'owner> StaticApplicationView<'owner> {
             .ok_or("static application lost its original lexical capture")?;
         let declaration = StaticApplicationDeclaration::for_application(program, application)?;
         let bindings = declaration.bind_arguments(program, handle)?;
-        let source_lifetimes = program
-            .expression_table
-            .static_machine_application_lifetimes(handle);
-        if source_lifetimes.len() != declaration.lifetimes.len() {
-            return Err(
-                "static application does not retain its complete original lifetime correspondence",
-            );
-        }
-        let mut lifetimes = Vec::with_capacity(source_lifetimes.len());
-        for formal in &declaration.lifetimes {
-            let binding = declaration.lifetime_binding(source_lifetimes, *formal)?;
-            if !formal.invocation && binding.argument.named().is_none() {
-                return Err(
-                    "captured lifetime operand has no original named declaration correspondence",
-                );
-            }
-            lifetimes.push((*formal, binding));
-        }
+        let lifetimes = declaration.bind_lifetimes(program, handle)?;
         Ok(Self {
             application,
             declaration,
