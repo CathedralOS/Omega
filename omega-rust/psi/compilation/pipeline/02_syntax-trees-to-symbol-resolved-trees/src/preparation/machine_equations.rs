@@ -269,15 +269,20 @@ fn require_closed_selected_arguments(
     trees: &SymbolResolvedTrees,
     arguments: &[symbol_resolved_trees::expression::StaticMachineArgument],
 ) -> Result<(), Vec<Diagnostic>> {
+    use symbol_resolved_trees::expression::{ExpressionNode, MatchPattern};
     use symbol_resolved_trees::types::{FixedArrayLength, TypeReference};
-    let is_binder = |symbol| {
-        matches!(
-            trees.symbols.get(symbol).kind,
-            symbols::SymbolKind::TypeParameter
-                | symbols::SymbolKind::Parameter
-                | symbols::SymbolKind::MachineParameter
-                | symbols::SymbolKind::ConformanceParameter
-        )
+    let is_binder = |symbol: symbols::SymbolHandle| {
+        symbol.is_valid()
+            && matches!(
+                trees.symbols.get(symbol).kind,
+                symbols::SymbolKind::TypeParameter
+                    | symbols::SymbolKind::Parameter
+                    | symbols::SymbolKind::MachineParameter
+                    | symbols::SymbolKind::ConformanceParameter
+                    | symbols::SymbolKind::PropositionParameter
+                    | symbols::SymbolKind::PropositionMachineParameter
+                    | symbols::SymbolKind::Local
+            )
     };
     let reject = || {
         vec![Diagnostic::error(
@@ -285,6 +290,7 @@ fn require_closed_selected_arguments(
         )]
     };
     let mut pending = Vec::new();
+    let mut expressions = Vec::new();
     for argument in arguments {
         if is_binder(argument.symbol) {
             return Err(reject());
@@ -297,54 +303,159 @@ fn require_closed_selected_arguments(
         }
     }
     let mut visited = Vec::new();
-    while let Some(handle) = pending.pop() {
-        if visited.contains(&handle) {
-            continue;
-        }
-        visited.push(handle);
-        match trees.child_type_reference(handle) {
-            TypeReference::Named { symbol, .. } | TypeReference::DynamicTrait { symbol, .. } => {
-                if is_binder(*symbol) {
-                    return Err(reject());
-                }
+    let mut visited_expressions = Vec::new();
+    let table = &trees.tables.bodies.expressions;
+    loop {
+        if let Some(handle) = pending.pop() {
+            if visited.contains(&handle) {
+                continue;
             }
-            TypeReference::Reference(reference) => pending.push(reference.referee),
-            TypeReference::Slice(slice) => pending.push(slice.element_type),
-            TypeReference::FixedArray(array) => {
-                // A named extent can already select a closed declaration.
-                // Preserve that selection for the shared extent reader, but
-                // never reselect an open caller binder by its spelling.
-                match &array.length {
-                    FixedArrayLength::Literal(_) => {}
-                    FixedArrayLength::ConstParameter { symbol, .. }
-                        if symbol.is_valid()
-                            && trees.symbols.get(*symbol).kind == symbols::SymbolKind::Const => {}
-                    _ => return Err(reject()),
-                }
-                pending.push(array.element_type);
-            }
-            TypeReference::Constrained(constrained) => {
-                pending.push(constrained.base_type);
-                for constraint in trees
-                    .tables
-                    .types
-                    .constraints
-                    .span_or_empty(constrained.constraints)
-                {
-                    if let symbol_resolved_trees::types::TypeConstraint::Domain(domain) = constraint
-                    {
-                        append_type_children(domain.arguments, &mut pending);
+            visited.push(handle);
+            match trees.child_type_reference(handle) {
+                TypeReference::Named { symbol, .. } => {
+                    if is_binder(*symbol) {
+                        return Err(reject());
                     }
                 }
+                TypeReference::DynamicTrait {
+                    symbol, arguments, ..
+                } => {
+                    if is_binder(*symbol) {
+                        return Err(reject());
+                    }
+                    append_type_children(*arguments, &mut pending);
+                }
+                TypeReference::Reference(reference) => pending.push(reference.referee),
+                TypeReference::Slice(slice) => pending.push(slice.element_type),
+                TypeReference::FixedArray(array) => {
+                    match &array.length {
+                        FixedArrayLength::Literal(_) => {}
+                        FixedArrayLength::ConstParameter { symbol, .. }
+                            if symbol.is_valid()
+                                && trees.symbols.get(*symbol).kind
+                                    == symbols::SymbolKind::Const => {}
+                        FixedArrayLength::ConstCall { machine, .. }
+                            if machine.is_valid()
+                                && matches!(
+                                    trees.symbols.get(*machine).kind,
+                                    symbols::SymbolKind::Machine | symbols::SymbolKind::State
+                                ) => {}
+                        _ => return Err(reject()),
+                    }
+                    pending.push(array.element_type);
+                }
+                TypeReference::Constrained(constrained) => {
+                    pending.push(constrained.base_type);
+                    for constraint in trees
+                        .tables
+                        .types
+                        .constraints
+                        .span_or_empty(constrained.constraints)
+                    {
+                        match constraint {
+                            symbol_resolved_trees::types::TypeConstraint::Domain(domain) => {
+                                append_type_children(domain.arguments, &mut pending)
+                            }
+                            symbol_resolved_trees::types::TypeConstraint::Range {
+                                minimum,
+                                maximum,
+                                ..
+                            } => expressions.extend([*minimum, *maximum]),
+                            _ => {}
+                        }
+                    }
+                }
+                TypeReference::Generic(generic) => {
+                    if is_binder(generic.base_symbol) {
+                        return Err(reject());
+                    }
+                    append_type_children(generic.arguments, &mut pending);
+                }
+                TypeReference::ConstExpression(expression) => expressions.push(*expression),
+                TypeReference::Unit => {}
             }
-            TypeReference::Generic(generic) => {
-                if is_binder(generic.base_symbol) {
+            continue;
+        }
+        let Some(expression) = expressions.pop() else {
+            break;
+        };
+        if !expression.is_valid() || visited_expressions.contains(&expression) {
+            continue;
+        }
+        visited_expressions.push(expression);
+        // Closure depends on the exact selected leaves of the original graph,
+        // not its node shape or a receiving slot's proposed value. This does
+        // not evaluate operations or admit their carrier, effects or Requires.
+        match table.expression(expression) {
+            ExpressionNode::Name(path) => {
+                if is_binder(path.head_symbol)
+                    || is_binder(path.symbol)
+                    || table
+                        .name_path_member_symbols(path.member_symbols)
+                        .iter()
+                        .copied()
+                        .any(&is_binder)
+                    || !(path.symbol.is_valid()
+                        && trees.symbols.get(path.symbol).kind == symbols::SymbolKind::Const
+                        || path.head_symbol.is_valid()
+                            && trees.symbols.get(path.head_symbol).kind
+                                == symbols::SymbolKind::Const)
+                {
                     return Err(reject());
                 }
-                append_type_children(generic.arguments, &mut pending);
             }
-            TypeReference::ConstExpression(_) => return Err(reject()),
-            TypeReference::Unit => {}
+            ExpressionNode::Call(call) => {
+                if !call.target_symbol.is_valid() || is_binder(call.target_symbol) {
+                    return Err(reject());
+                }
+                require_closed_selected_arguments(trees, &call.machine_arguments)?;
+                expressions.push(call.receiver);
+                expressions.extend_from_slice(table.expression_handles(call.arguments));
+            }
+            ExpressionNode::Binary(binary) => expressions.extend([binary.left, binary.right]),
+            ExpressionNode::Unary(unary) => expressions.push(unary.operand),
+            ExpressionNode::Cast(cast) => {
+                expressions.push(cast.value);
+                pending.push(cast.target_type);
+                append_type_children(cast.semantic_domain_arguments, &mut pending);
+            }
+            ExpressionNode::Match(dispatch) => {
+                expressions.push(dispatch.subject);
+                for arm in table.match_arms(dispatch.arms) {
+                    if let MatchPattern::Value(pattern) = arm.pattern {
+                        expressions.push(pattern);
+                    }
+                    expressions.push(arm.value);
+                }
+            }
+            ExpressionNode::ArrayLiteral(elements) => {
+                expressions.extend_from_slice(table.expression_handles(*elements))
+            }
+            ExpressionNode::StructLiteral(literal) => {
+                if is_binder(literal.type_symbol) {
+                    return Err(reject());
+                }
+                expressions.extend(
+                    table
+                        .struct_fields(literal.fields)
+                        .iter()
+                        .map(|field| field.value),
+                );
+            }
+            ExpressionNode::Member(member) => expressions.push(member.receiver),
+            ExpressionNode::Indexed(indexed) => {
+                expressions.extend([indexed.collection, indexed.index])
+            }
+            ExpressionNode::Range(range) => expressions.extend([range.start, range.end]),
+            ExpressionNode::Borrow(borrow) => expressions.push(borrow.target),
+            ExpressionNode::Membership(membership) => expressions.push(membership.value),
+            ExpressionNode::Atomic(atomic) => expressions.extend([atomic.value, atomic.result]),
+            ExpressionNode::ZeroValue(reference) => pending.push(*reference),
+            ExpressionNode::Integer(_)
+            | ExpressionNode::Boolean(_)
+            | ExpressionNode::Float(_)
+            | ExpressionNode::UndeterminedNaN(_)
+            | ExpressionNode::String(_) => {}
         }
     }
     Ok(())
@@ -568,13 +679,17 @@ fn complete_arguments(
                 if std::env::var_os("OMEGA_CONST_EQUATION_ORIGIN_TRACE").is_some() {
                     eprintln!(
                         "const-equation-origin missing target={} parameter={} position={} supplied={} reference={:?}",
-                        declaration.name.as_str(), parameter.name.as_str(), position,
-                        supplied.len(), syntax.type_references.type_reference(reference),
+                        declaration.name.as_str(),
+                        parameter.name.as_str(),
+                        position,
+                        supplied.len(),
+                        syntax.type_references.type_reference(reference),
                     );
                     for (ordinal, original) in original_arguments.iter().enumerate() {
                         eprintln!(
                             "const-equation-origin original slot={} reference={:?}",
-                            ordinal, syntax.type_references.type_reference(*original),
+                            ordinal,
+                            syntax.type_references.type_reference(*original),
                         );
                     }
                 }
