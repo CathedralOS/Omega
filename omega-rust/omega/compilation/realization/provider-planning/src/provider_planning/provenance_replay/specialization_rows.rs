@@ -25,8 +25,23 @@ pub(crate) fn derive_selected_requirement_specializations(
     let mut diagnostics = Vec::new();
     let mut rows = Vec::new();
     let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+    if std::env::var_os("OMEGA_SOURCE_CONSTANT_INPUT_TRACE").is_some() {
+        eprintln!(
+            "TRACE_SELECTED_APPLICATION_ROSTER plans={}",
+            selected.plans().len()
+        );
+    }
     for plan in selected.plans() {
         for (ordinal, row) in plan.rows.iter().enumerate() {
+            if std::env::var_os("OMEGA_SOURCE_CONSTANT_INPUT_TRACE").is_some() {
+                eprintln!(
+                    "TRACE_SELECTED_APPLICATION_PLAN name={} ordinal={} method={} checked={}",
+                    plan.name,
+                    ordinal,
+                    row.method,
+                    matches!(row.binding, ProviderBinding::CheckedAdapter { .. }),
+                );
+            }
             let ProviderBinding::CheckedAdapter {
                 machine_identity: selected_machine_identity,
                 machine_package_identity,
@@ -35,8 +50,7 @@ pub(crate) fn derive_selected_requirement_specializations(
                 continue;
             };
             let result = (|| {
-                let Some(requirement) = original_requirement(typed, context, plan, ordinal)?
-                else {
+                let Some(requirement) = original_requirement(typed, context, plan, ordinal)? else {
                     // Legacy operator declarations own a different application
                     // vocabulary; they are not machine or trait requirements.
                     return Ok(Vec::new());
@@ -59,9 +73,7 @@ pub(crate) fn derive_selected_requirement_specializations(
                         .ok_or_else(|| {
                             Diagnostic::error("selected source application lost its implementation")
                         })?;
-                    if typed
-                        .symbols
-                        .symbol_package_identity(implementation.symbol)
+                    if typed.symbols.symbol_package_identity(implementation.symbol)
                         != *machine_package_identity
                     {
                         return Err(Diagnostic::error(
@@ -159,10 +171,27 @@ fn original_requirement(
         .machines()
         .iter()
         .filter(|requirement| {
-            requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
-                && crate::service_schema::from_typed_boundary_requirement(context, requirement)
-                    .as_ref()
-                    == Some(&plan.schema)
+            if requirement.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement {
+                return false;
+            }
+            let schema = crate::service_schema::from_typed_boundary_requirement(context, requirement);
+            if std::env::var_os("OMEGA_SOURCE_CONSTANT_INPUT_TRACE").is_some()
+                && requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+                && (requirement.name.as_str() == row.method
+                    || typed.machine_callable_identity_text(requirement).as_deref()
+                        == Some(plan.identity_text(row.requirement_identity)))
+            {
+                eprintln!(
+                    "TRACE_SELECTED_ORIGINAL_REQUIREMENT symbol={:?} name={} context={} body={} states={} schema={} schema_equal={} exact_row_identity={} published_termination={}",
+                    requirement.symbol, requirement.name.as_str(), context.contains(requirement.symbol),
+                    requirement.body_is_present, typed.machine_states(requirement).len(),
+                    schema.is_some(), schema.as_ref() == Some(&plan.schema),
+                    typed.machine_callable_identity_text(requirement).as_deref()
+                        == Some(plan.identity_text(row.requirement_identity)),
+                    requirement.termination_plan.interface.published().is_some(),
+                );
+            }
+            schema.as_ref() == Some(&plan.schema)
         })
         .map(|requirement| requirement.symbol)
         .collect::<Vec<_>>();
