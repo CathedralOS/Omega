@@ -184,8 +184,15 @@ fn structural_requirement_at_prefix(
     };
     let runtime_values = !classification.is_proof_machine(program, machine)
         || callee_machine.is_none_or(|callee| !classification.is_proof_machine(program, callee));
-    let acyclic =
-        crate::machine_calls::calls::state_transfer_subgraph_is_acyclic(program, machine, entry);
+    let acyclic = if runtime_values {
+        crate::machine_calls::calls::state_transfer_subgraph_is_acyclic(program, machine, entry)
+    } else {
+        // Mathematical entry invocations finish a proof path; sibling-state
+        // recurrence still prevents borrowing first-arrival entry facts.
+        crate::machine_calls::calls::state_transfer_subgraph_is_acyclic_before_entry_calls(
+            program, machine, entry,
+        )
+    };
     if !runtime_values && !acyclic {
         return false;
     }
