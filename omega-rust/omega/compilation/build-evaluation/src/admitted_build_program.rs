@@ -63,6 +63,7 @@ impl AdmittedBuildProgram {
         };
         crate::completed_pure_build::CompletedPureBuildInputs::from_admitted(
             self.prepared.checked_program()?,
+            std::sync::Arc::clone(self.prepared.original_source_input()),
             self.machine.selected_root().clone(),
             initial_build.clone(),
             packages?,
