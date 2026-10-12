@@ -265,7 +265,7 @@ fn copy_signature_payload(
         Some(type_start),
     );
     for occurrence in call_occurrences {
-        calls.rewrite_expression(program, occurrence, &[], None);
+        calls.rewrite_expression(program, occurrence, &[]);
     }
     for handle in copied.invokes.handles() {
         let invocation = program.signature_invokes.get_mut(handle);

@@ -2,10 +2,7 @@
 
 use crate::monomorphization::application_arguments::substitute_forwarded_machine_arguments;
 use crate::monomorphization::application_calls::{
-    ApplicationCallRewrites, apply_evidence_dispatch_rewrite,
-};
-use crate::monomorphization::body_rewriting::{
-    cloned_runtime_call_subjects, insert_subject_names, runtime_value_subjects,
+    ApplicationCallRewrites, rewrite_application_target_and_arguments,
 };
 use crate::monomorphization::{
     Candidate, ExpressionNode, Handle, HandleSpan, StatementNode, SymbolHandle, TypedTrees,
@@ -67,19 +64,6 @@ pub(crate) fn rewrite_cloned_calls(
             else {
                 continue;
             };
-            // A call selecting a sibling specialization state forwards each
-            // runtime-bound `Value` subject as an ordinary argument.
-            let clone_state_arguments = if state_symbols
-                .iter()
-                .any(|(_, concrete)| *concrete == snapshot.target_symbol)
-            {
-                let subjects = runtime_value_subjects(program, &state, &snapshot.machine_arguments);
-                (!subjects.is_empty()).then(|| {
-                    super::insert_arguments_with_subjects(program, snapshot.arguments, &subjects)
-                })
-            } else {
-                None
-            };
             let evidence_dispatch = evidence_target_rewrites
                 .iter()
                 .find(|rewrite| rewrite.placeholder == snapshot.target_symbol);
@@ -122,16 +106,14 @@ pub(crate) fn rewrite_cloned_calls(
             // runtime receiver and the rewritten target owns every parameter as
             // an explicit argument. Clearing the receiver leaves the operand
             // roster exactly as authored.
-            let erased_application = apply_evidence_dispatch_rewrite(
-                call.target_symbol,
+            rewrite_application_target_and_arguments(
+                &mut call.target_symbol,
                 &mut call.static_requirement_dispatch,
                 &mut call.machine_arguments,
-                &mut call.arguments,
                 evidence_dispatch,
                 &static_argument_rewrites,
                 &argument_rewrites,
                 state_symbols,
-                clone_state_arguments,
                 || {
                     call.receiver_root_symbol = SymbolHandle::invalid();
                     call.receiver_symbol = SymbolHandle::invalid();
@@ -139,7 +121,6 @@ pub(crate) fn rewrite_cloned_calls(
                 },
             );
             let application = call.authored_machine_application;
-            let target = call.target.clone();
             if application.is_valid() {
                 substitute_forwarded_machine_arguments(
                     program
@@ -155,23 +136,9 @@ pub(crate) fn rewrite_cloned_calls(
                     &static_argument_rewrites,
                     &argument_rewrites,
                 );
-            } else if let Some((registration_operation, arguments)) = erased_application {
-                let application = program.expression_table.retain_static_machine_application(
-                    registration_operation,
-                    target,
-                    &arguments,
-                );
-                let StatementNode::Call(call) =
-                    program.statement_table.statement_mut(statement_handle)
-                else {
-                    unreachable!();
-                };
-                call.authored_machine_application = application;
             }
         }
     }
-    let runtime_calls =
-        cloned_runtime_call_subjects(program, states, state_symbols, expression_start);
     let handles: Vec<_> = program
         .expression_table
         .iter_expressions()
@@ -179,34 +146,7 @@ pub(crate) fn rewrite_cloned_calls(
         .map(|(handle, _)| handle)
         .collect();
     for handle in handles {
-        let clone_state_arguments = match program.expression_table.expression(handle).clone() {
-            ExpressionNode::Call(snapshot)
-                if state_symbols
-                    .iter()
-                    .any(|(_, concrete)| *concrete == snapshot.target_symbol) =>
-            {
-                let subjects = runtime_calls
-                    .binary_search_by_key(
-                        &(handle.arena_index(), handle.generation()),
-                        |(expression, _)| (expression.arena_index(), expression.generation()),
-                    )
-                    .ok()
-                    .map(|ordinal| runtime_calls[ordinal].1.as_slice())
-                    .unwrap_or(&[]);
-                (!subjects.is_empty()).then(|| {
-                    let mut arguments = program
-                        .expression_table
-                        .expression_handles(snapshot.arguments)
-                        .to_vec();
-                    insert_subject_names(&mut program.expression_table, &mut arguments, subjects);
-                    program
-                        .expression_table
-                        .insert_expression_handles(arguments)
-                })
-            }
-            _ => None,
-        };
-        rewrites.rewrite_expression(program, handle, state_symbols, clone_state_arguments);
+        rewrites.rewrite_expression(program, handle, state_symbols);
     }
     Ok(())
 }
