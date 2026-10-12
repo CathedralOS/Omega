@@ -205,11 +205,13 @@ fn borrowed_window_root(
     place: PlaceId,
     required_access: StructuralAccess,
 ) -> Option<StructuralWindowRoot> {
-    // A block arrival retains its own declaration and place. Edge verification
-    // transfers the loan; it does not turn that arrival into an ABI parameter.
+    // An owned signature parameter is its own ABI home. A block arrival
+    // retains its own declaration and place: edge verification transfers the
+    // loan; it does not turn that arrival into an ABI parameter.
     if let Some(parameter) =
         exact_parameter(machine, place).or_else(|| block_parameter(machine, place).cloned())
-        && (parameter.access == StructuralAccess::Owned
+        && ((parameter.access == StructuralAccess::Owned
+            && exact_parameter(machine, place).is_some())
             || (required_access.admits_referent(parameter.access)
                 && matches!(
                     parameter.multiplicity,
