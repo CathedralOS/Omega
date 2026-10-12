@@ -64,40 +64,41 @@ impl<'scopes> Scope<'scopes> {
                     self.owner = owner;
                 }
             }
-            let TypeReferenceNode::Named { symbol, .. } =
+            if let TypeReferenceNode::Named { symbol, .. } =
                 program.type_reference_table.type_reference(reference)
-            else {
-                return Some((reference, self));
-            };
-            let supplied = self
-                .frames
-                .iter()
-                .enumerate()
-                .rev()
-                .find_map(|(ordinal, frame)| {
-                    frame.arguments.iter().find_map(|(parameter, actual)| {
-                        if parameter != symbol {
-                            return None;
-                        }
-                        match actual {
-                            IndexIdentityArgument::TypeArgument(actual)
-                            | IndexIdentityArgument::TypeReference(actual) => {
-                                Some((*actual, ordinal))
-                            }
-                            _ => None,
-                        }
-                    })
-                });
-            if let Some((actual, ordinal)) = supplied {
-                reference = actual;
-                self.frames = &self.frames[..ordinal];
-                continue;
-            }
-            if let Some(origin) = program
-                .data_definition_by_symbol(*symbol)
-                .and_then(|definition| definition.generic_instance)
             {
-                reference = origin;
+                let supplied = self
+                    .frames
+                    .iter()
+                    .enumerate()
+                    .rev()
+                    .find_map(|(ordinal, frame)| {
+                        frame.arguments.iter().find_map(|(parameter, actual)| {
+                            if parameter != symbol {
+                                return None;
+                            }
+                            match actual {
+                                IndexIdentityArgument::TypeArgument(actual)
+                                | IndexIdentityArgument::TypeReference(actual) => {
+                                    Some((*actual, ordinal))
+                                }
+                                _ => None,
+                            }
+                        })
+                    });
+                if let Some((actual, ordinal)) = supplied {
+                    reference = actual;
+                    self.frames = &self.frames[..ordinal];
+                    continue;
+                }
+            }
+            // Expand occurrence-owned applications after the supplying binder
+            // narrows its telescope. Generic carriers can also retain an
+            // original application after preparation; the shared projection
+            // restores that node without replacing these supplying frames.
+            let (source, _) = program.project_enclosing_data_type_reference(reference, &[])?;
+            if source != reference {
+                reference = source;
                 continue;
             }
             return Some((reference, self));
