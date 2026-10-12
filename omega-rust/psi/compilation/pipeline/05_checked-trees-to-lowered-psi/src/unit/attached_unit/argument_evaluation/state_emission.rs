@@ -138,9 +138,10 @@ pub(super) fn emit_state(
                     "selector call names an interface with no slot roster",
                 ))?
                 .iter()
-                .skip(usize::try_from(slot).map_err(|_| {
-                    LoweringError::Unsupported("dynamic family slot overflows")
-                })?)
+                .skip(
+                    usize::try_from(slot)
+                        .map_err(|_| LoweringError::Unsupported("dynamic family slot overflows"))?,
+                )
                 .take_while(|(requirement, tuple)| {
                     *requirement == call.requirement_identity && !tuple.is_empty()
                 })
@@ -168,14 +169,14 @@ pub(super) fn emit_state(
                 &roster,
                 &family_actuals,
                 &family_actual_types,
-                Some(produced_decl),
-                |operations, next_value, tuple_index, produced| {
-                    let selector = emit_direct_expression(
-                        &call.selector,
-                        &values,
-                        next_value,
-                        operations,
-                    );
+                &terminal_psi::OperationResult::Scalar(produced_decl),
+                |operations, next_value, tuple_index| {
+                    let produced = ValueDeclaration {
+                        id: value_id(allocate_dense(next_value)?),
+                        ..produced_decl
+                    };
+                    let selector =
+                        emit_direct_expression(&call.selector, &values, next_value, operations);
                     let arguments = call
                         .arguments
                         .iter()
@@ -186,18 +187,14 @@ pub(super) fn emit_state(
                     let structural_arguments = call
                         .structural_arguments
                         .iter()
-                        .map(|argument| {
-                            argument.emit(&values, calls, next_value, operations)
-                        })
+                        .map(|argument| argument.emit(&values, calls, next_value, operations))
                         .collect::<Result<Vec<_>, _>>()?;
                     let claim_transfers =
                         crate::emission::claim_bindings::emit_prepared_claim_transfers(
                             &call.claim_transfers,
                             calls.claims.bindings(),
                         )?;
-                    let operation = first_leaf
-                        .take()
-                        .unwrap_or_else(|| operations.allocate());
+                    let operation = first_leaf.take().unwrap_or_else(|| operations.allocate());
                     if tuple_index == 0 {
                         operations.record_source_call(
                             call.source_coordinate,
@@ -219,13 +216,11 @@ pub(super) fn emit_state(
                         family_actuals.clone(),
                         structural_arguments,
                         claim_transfers,
-                        produced.ok_or(LoweringError::Unsupported(
-                            "dynamic family leaf has no result",
-                        ))?,
+                        produced,
                         operation,
                         operations,
                     );
-                    Ok(())
+                    Ok(terminal_psi::OperationResult::Scalar(produced))
                 },
             )?;
             block = span.id;

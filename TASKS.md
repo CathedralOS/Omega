@@ -5586,7 +5586,7 @@ wait for Cathedral's instruction coverage. The interpreter is
     (`omega-rust/psi/compilation/checking/src/machine_calls/calls/dynamic_requirement.rs`)
     admits a complete tuple of closed constants or ordinary runtime subjects
     (RUNTIME-VALUE-GENERICS' `Value`-binder shape); immutable integer machine
-    parameters mint caller-requires atoms
+    and exact caller-state parameters supply Requires atoms
     (`proof_contracts/contract_entailment/static_applications.rs`) so the
     signature's where-disjunction proves membership at the call's discharge.
     A closed non-member tuple defers to the roster diagnostic ahead of the
@@ -5600,17 +5600,18 @@ wait for Cathedral's instruction coverage. The interpreter is
     interpreter/native execution resolves the row from those slots. Tuple
     tables are source-produced from the named conformance's roster.
 
-  Frontier: uniform structural results through family dispatch (a
-  same-shaped `Packet` return reaches lowering's "does not yet cover
-  non-scalar results"; the merge needs structural block parameters with
-  per-leaf result publication), escaping variable-shaped results (a result
-  type mentioning a family binder, e.g. `-> [u8; Width]`, needs an authored
-  sum or descriptor path), structural field reads inside machines carrying
-  entry claims or `&mut` subjects remain a pre-existing target-stage
-  restriction independent of family dispatch, target-ineligible bodies,
-  const-only inputs without a checked bridge, and the compile/code-size vs
-  explicit-branch measurement (expansion emits the authored block structure
-  an explicit branch chain would; no improvement claimed).
+  Frontier: escaping results whose type mentions a family binder, e.g.
+  `-> [u8; Width]`, need an authored sum or descriptor with explicit ownership.
+  A common concrete result, including an ordinary sum, uses structural block
+  parameters and per-leaf publication; regression fixtures are
+  `tests/omega/pass/traits/runtime_finite_family_*_result_exit`, with qualified
+  linear, affine-cleanup, correlated-case and named-state forwarding coverage.
+  Borrowed descriptor results still need a public slot-relative returned-loan
+  origin contract; do not infer one from the selected implementation.
+  Structural field reads rooted in entry content claims retain their separate
+  target-stage restriction. Qualify target-ineligible bodies and const-only
+  inputs without a checked bridge. Compile/code-size and dispatch-placement
+  measurements against explicit branches remain before any improvement claim.
 
   Acceptance: pass/fail/run fixtures preserve effects, index identity and
   once-only moves/cleanup through selection, forwarding and storage;

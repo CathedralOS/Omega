@@ -36,7 +36,7 @@ pub(in crate::unit::attached_unit) enum StructuralResults<'f> {
     },
 }
 
-fn validate_completed_arrival(
+pub(super) fn validate_completed_arrival(
     declaration: &StructuralPlaceDeclaration,
     evaluation: &Evaluation,
 ) -> Result<(), LoweringError> {

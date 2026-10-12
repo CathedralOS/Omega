@@ -265,6 +265,10 @@ impl OperationFrame<'_, '_> {
                 super::super::structural_values::bind_local(
                     operation,
                     declaration,
+                    crate::terminal_identities::lookup_type_id(
+                        self.type_ids,
+                        &result.type_identity,
+                    )?,
                     self.structural_types.declarations(),
                     &mut self.evaluation.structural_locals,
                 )?;

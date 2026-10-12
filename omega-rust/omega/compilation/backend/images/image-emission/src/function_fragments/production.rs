@@ -74,15 +74,11 @@ pub fn build_function_fragment_object_artifact(
         let mut local_peak = frame_bytes
             .checked_add(source::temporary_stack_bytes(source, placed.machine)?)
             .ok_or(Error::Overflow)?;
-        for call in text
-            .resolved_internal_machine_calls
-            .iter()
-            .filter(|call| call.caller == placed.machine)
-        {
+        for call in source::stack_calls(source, placed.machine)? {
             let caller_live_bytes = frame_bytes.checked_add(linkage).ok_or(Error::Overflow)?;
             local_peak = local_peak.max(caller_live_bytes);
             let owner = call.owner;
-            let text_offset = host(call.field_section_offset)?;
+            let text_offset = host(call.section_offset)?;
             if unit {
                 unit_call_stacks.push(ObjectUnitCallStack {
                     owner,

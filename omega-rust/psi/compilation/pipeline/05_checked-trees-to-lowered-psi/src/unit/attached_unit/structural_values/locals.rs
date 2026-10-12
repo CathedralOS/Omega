@@ -1,5 +1,5 @@
 //! Publish a source local only after its exact initializer result exists.
-use super::super::{CheckedUnitEffectOperationPlan, LoweringError, unsupported};
+use super::super::{CheckedUnitEffectOperationPlan, LoweringError};
 use checked_trees::CheckedArrayConstructionSource;
 
 /// Bind only the local whose initializer owns this exact published result.
@@ -10,6 +10,7 @@ use checked_trees::CheckedArrayConstructionSource;
 pub(crate) fn bind_local(
     operation: &CheckedUnitEffectOperationPlan,
     declaration: terminal_psi::StructuralPlaceDeclaration,
+    structural_type: semantic_vocabulary::StructuralTypeId,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
     locals: &mut Vec<crate::expression_preparation::bindings::StructuralLocalBinding>,
 ) -> Result<(), LoweringError> {
@@ -46,12 +47,6 @@ pub(crate) fn bind_local(
     // fields it contains. Reclassifying the type here omits otherwise valid
     // owners (for example a record carrying shared descriptors), leaving later
     // observations without the home the call actually produced.
-    let semantic_vocabulary::StructuralPlaceKind::OperationResult {
-        structural_type, ..
-    } = declaration.kind
-    else {
-        return unsupported("structural local has no exact produced carrier");
-    };
     locals.push(
         crate::expression_preparation::bindings::StructuralLocalBinding {
             result_binding_ordinal: Some(result.binding_ordinal),

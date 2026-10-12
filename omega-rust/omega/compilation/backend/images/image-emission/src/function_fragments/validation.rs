@@ -190,11 +190,7 @@ fn validate(
                 abstract_operations::AbstractFunctionResult::Unit
             );
             let frame = source::frame(source, placed.machine)?;
-            let calls = text
-                .resolved_internal_machine_calls
-                .iter()
-                .filter(|call| call.caller == placed.machine)
-                .collect::<Vec<_>>();
+            let calls = source::stack_calls(source, placed.machine)?;
             stack::validate(
                 unit,
                 (

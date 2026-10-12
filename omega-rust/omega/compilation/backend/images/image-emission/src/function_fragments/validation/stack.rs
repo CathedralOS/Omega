@@ -1,8 +1,8 @@
 //! Replay numeric image-publisher facts against admitted frame and call inputs.
 
+use super::super::source::CallStackEdge;
 use super::{Error, host};
 use crate::{ObjectScalarCallStack, ObjectScalarStack, ObjectUnitCallStack, ObjectUnitStack};
-use machine_code::PlacedInternalMachineCallResolution;
 use target::Architecture;
 
 pub(super) fn validate(
@@ -10,7 +10,7 @@ pub(super) fn validate(
     geometry: (u64, u16, bool),
     architecture: Architecture,
     temporary_bytes: u32,
-    calls: &[&PlacedInternalMachineCallResolution],
+    calls: &[CallStackEdge],
     unit_stack: Option<ObjectUnitStack>,
     scalar_stack: Option<ObjectScalarStack>,
     unit_call_stacks: &[ObjectUnitCallStack],
@@ -52,7 +52,7 @@ pub(super) fn validate(
         if !contains_call
             || owner != call.owner
             || target != call.callee
-            || text_offset != host(call.field_section_offset)?
+            || text_offset != host(call.section_offset)?
             || u64::from(caller_live_bytes)
                 != frame_bytes
                     .checked_add(return_bytes)
@@ -93,9 +93,12 @@ pub(super) fn validate(
 mod tests {
     use super::{
         Architecture, ObjectScalarCallStack, ObjectScalarStack, ObjectUnitCallStack,
-        ObjectUnitStack, PlacedInternalMachineCallResolution, validate,
+        ObjectUnitStack, validate,
     };
-    use machine_code::{InternalMachineCallResolutionKind, InternalMachineCallResolutionState};
+    use machine_code::{
+        InternalMachineCallResolutionKind, InternalMachineCallResolutionState,
+        PlacedInternalMachineCallResolution,
+    };
     use selected_instructions::{SelectedBlockId, SelectedInstructionId};
     use semantic_vocabulary::{MachineId, OperationId};
 
@@ -184,7 +187,7 @@ mod tests {
                     (frame_bytes, 16, true),
                     architecture,
                     0,
-                    &[&call],
+                    &[(&call).into()],
                     None,
                     Some(stack),
                     &[],
@@ -216,7 +219,7 @@ mod tests {
                     (frame_bytes, 16, true),
                     architecture,
                     0,
-                    &[&call],
+                    &[(&call).into()],
                     Some(ObjectUnitStack {
                         frame_bytes: frame_bytes as u32,
                         local_peak_bytes: peak,
@@ -258,7 +261,7 @@ mod tests {
                     (u64::from(frame_bytes), 16, true),
                     architecture,
                     0,
-                    &[&call],
+                    &[(&call).into()],
                     Some(stack),
                     None,
                     rows,

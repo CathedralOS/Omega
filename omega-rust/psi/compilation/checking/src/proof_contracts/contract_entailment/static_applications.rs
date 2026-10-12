@@ -26,9 +26,10 @@ use super::{
 /// lifetimes and nominal authority through ordinary static argument admission.
 /// `signature` retains its applied declaration scope; `lexical_owner` and prior
 /// hypotheses retain the caller's scope. The lexical machine contributes only
-/// declared Requires facts whose value leaves are immutable Const binders or
-/// canonical constants. State contracts and mutable runtime subjects never
-/// supply this declaration-level judgment. Forwarding uses exact symbols.
+/// declared Requires facts over immutable binders and value parameters. A
+/// source call additionally supplies its exact containing state's Requires;
+/// declaration-only applications have no state assumptions. Mutable runtime
+/// subjects never supply this judgment. Forwarding uses exact symbols.
 /// Non-expression facts and unsupported values answer `Unknown`, which is not
 /// admission. This operation borrows frozen representations and mints no proof.
 pub fn static_application_where_judgment(
@@ -36,6 +37,7 @@ pub fn static_application_where_judgment(
     signature: &StateSignature,
     arguments: &[StaticMachineArgument],
     lexical_owner: SymbolHandle,
+    caller_state: Option<&typed_trees::state::State>,
     hypotheses: &[ScopedArithmeticHypothesis],
 ) -> StrictArithmeticImplicationJudgment {
     use StrictArithmeticImplicationJudgment::{Proven, Unknown};
@@ -47,7 +49,20 @@ pub fn static_application_where_judgment(
     {
         return Unknown;
     }
-    let (caller_bindings, mut prior_hypotheses) = immutable_caller_requires(program, lexical_owner);
+    if let Some(state) = caller_state
+        && !program
+            .machine_by_symbol(lexical_owner)
+            .is_some_and(|machine| {
+                program
+                    .machine_states(machine)
+                    .iter()
+                    .any(|candidate| candidate.symbol == state.symbol)
+            })
+    {
+        return Unknown;
+    }
+    let (caller_bindings, mut prior_hypotheses) =
+        immutable_caller_requires(program, lexical_owner, caller_state);
     prior_hypotheses.extend_from_slice(hypotheses);
     let mut integer_bindings = Vec::new();
     let mut boolean_bindings = Vec::new();
@@ -138,6 +153,7 @@ enum ConstantValue {
 fn immutable_caller_requires(
     program: &dyn crate::CheckingInput,
     owner: SymbolHandle,
+    caller_state: Option<&typed_trees::state::State>,
 ) -> (
     Vec<ScopedArithmeticBinding>,
     Vec<ScopedArithmeticHypothesis>,
@@ -200,7 +216,11 @@ fn immutable_caller_requires(
     }
     let facts = crate::proof_contracts::proof_facts::contract_expression_facts(
         program,
-        program.machine_contracts(machine).iter(),
+        program.machine_contracts(machine).iter().chain(
+            caller_state
+                .into_iter()
+                .flat_map(|state| program.state_contracts(state)),
+        ),
         SignatureContractKind::Requires,
     );
     let hypotheses = facts

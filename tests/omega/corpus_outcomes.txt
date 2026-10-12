@@ -6337,3 +6337,16 @@ pass/borrow/runtime_write_only_exclusive_reference_returned_view_exit checked 34
 pass/borrow/runtime_write_only_exclusive_reference_owned_wrapper_exit checked 3411ms check-target:macos_arm64 @6ede3322eb88+wt
 fail/borrow/write_only_exclusive_owned_wrapper_new_backing_conflict rejected 321ms expected @6ede3322eb88+wt
 	statement 6 mutates `main.right.value` while local borrow `held` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/traits/finite_family_machine_facts_do_not_bind_state rejected 91ms expected @7e763bd2f4f6+wt
+	cannot prove declared where facts for static application of requirement `Factory::make` under its complete applied telescope
+fail/traits/finite_family_mutable_state_subject rejected 89ms expected @7e763bd2f4f6+wt
+	cannot prove declared where facts for static application of requirement `Factory::make` under its complete applied telescope
+fail/traits/finite_family_owned_result_second_transfer rejected 210ms expected @7e763bd2f4f6+wt
+	cannot use `result` in machine `duplicate` state `entry` (statement 2) after `result` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `result` first
+fail/traits/finite_family_sibling_state_facts rejected 90ms expected @7e763bd2f4f6+wt
+	cannot prove declared where facts for static application of requirement `Factory::make` under its complete applied telescope
+pass/traits/runtime_finite_family_affine_result_exit checked 4395ms check-target:macos_arm64 @7e763bd2f4f6+wt
+pass/traits/runtime_finite_family_correlated_case_result_exit checked 4401ms check-target:macos_arm64 @7e763bd2f4f6+wt
+pass/traits/runtime_finite_family_owned_result_exit checked 4418ms check-target:macos_arm64 @7e763bd2f4f6+wt
+pass/traits/runtime_finite_family_owned_state_result_exit checked 3406ms check-target:macos_arm64 @7e763bd2f4f6+wt
+pass/traits/runtime_finite_family_structural_result_exit checked 3366ms check-target:macos_arm64 @7e763bd2f4f6+wt

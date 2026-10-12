@@ -95,6 +95,7 @@ pub fn validate_authored_static_arguments(
             signature,
             arguments,
             source.lexical_owner,
+            None,
             &mut diagnostics,
         );
     }

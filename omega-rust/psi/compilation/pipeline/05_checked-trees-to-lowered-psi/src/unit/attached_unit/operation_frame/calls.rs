@@ -168,7 +168,6 @@ impl OperationFrame<'_, '_> {
         declaration: StructuralPlaceDeclaration,
         discard_on_return: bool,
     ) -> Result<(), LoweringError> {
-        self.results.push(declaration, discard_on_return);
         let StructuralPlaceKind::OperationResult { producer, .. } = declaration.kind else {
             return unsupported("structural call result has no producing operation");
         };
@@ -181,10 +180,27 @@ impl OperationFrame<'_, '_> {
             .ok_or(LoweringError::Unsupported(
                 "structural call did not establish its result",
             ))?;
+        self.publish_completed_result(operation, result, declaration, produced, discard_on_return)
+    }
+
+    /// Publish the completed value, whether an operation produced it directly
+    /// or a selected call arrived through an ordinary structural block argument.
+    /// The join transports the selected leaf's custody; it does not execute a
+    /// second call or establish the result's qualifications again.
+    pub(super) fn publish_completed_result(
+        &mut self,
+        operation: &CheckedUnitEffectOperationPlan,
+        result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
+        declaration: StructuralPlaceDeclaration,
+        produced: terminal_psi::StructuralOperationResult,
+        discard_on_return: bool,
+    ) -> Result<(), LoweringError> {
+        self.results.push(declaration, discard_on_return);
         if matches!(self.results, StructuralResults::Dense(_)) {
             structural_values::bind_local(
                 operation,
                 declaration,
+                produced.structural_type,
                 self.structural_types.declarations(),
                 &mut self.evaluation.structural_locals,
             )?;
@@ -259,13 +275,28 @@ impl OperationFrame<'_, '_> {
         };
         let place = produced.place;
         let structural_type = produced.structural_type;
-        self.evaluation.establish_structural_result(
-            self.state,
-            result,
-            produced,
-            self.structural_types.declarations(),
-            self.operations,
-        )?;
+        if matches!(declaration.kind, StructuralPlaceKind::BlockParameter { .. }) {
+            // The call emitter has prepared the public result contract and
+            // recorded the selected leaves' introductions. The completed
+            // value now belongs to their ordinary join, not to any one leaf
+            // operation. Register that arrival as value selections do; no
+            // new claims or memberships are introduced by the local binding.
+            super::structural_results::validate_completed_arrival(&declaration, self.evaluation)?;
+            self.evaluation.establish_structural_binding(
+                result,
+                produced.into(),
+                self.structural_types.declarations(),
+                self.operations,
+            )?;
+        } else {
+            self.evaluation.establish_structural_result(
+                self.state,
+                result,
+                produced,
+                self.structural_types.declarations(),
+                self.operations,
+            )?;
+        }
         if let Some(subject) = saved_subject {
             let root = facts::PlaceRoot::Expression(subject);
             if self

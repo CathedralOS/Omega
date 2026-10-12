@@ -11,8 +11,10 @@ use semantic_vocabulary::MachineId;
 mod aggregate_results;
 mod control_flow;
 mod primitive_accesses;
+mod stack_calls;
 mod structural_case;
 mod structural_fields;
+pub(super) use stack_calls::{CallStackEdge, stack_calls};
 #[cfg(test)]
 mod tests;
 

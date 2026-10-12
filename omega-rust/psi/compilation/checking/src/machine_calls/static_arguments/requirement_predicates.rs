@@ -19,14 +19,14 @@ pub(super) struct CallScopes<'program> {
 
 impl<'program> CallScopes<'program> {
     pub(super) fn build(program: &'program dyn crate::CheckingInput) -> Self {
-        // Empty outer telescopes need no state-dependent scope recovery. Keep
-        // ordinary compilations off this source-membership inspection path.
+        // Both applied trait telescopes and runtime value-family membership
+        // need the call's exact state. A nongeneric trait can still declare a
+        // generic method whose where clause relies on state Requires facts.
         if !program.traits().iter().any(|owner| {
-            !program.trait_type_parameters(owner).is_empty()
-                && program
-                    .trait_machine_signatures(owner)
-                    .iter()
-                    .any(|signature| !signature.where_facts.is_empty())
+            program
+                .trait_machine_signatures(owner)
+                .iter()
+                .any(|signature| !signature.where_facts.is_empty())
         }) {
             return Self {
                 entries: Vec::new(),
@@ -188,6 +188,7 @@ pub(super) fn validate(
         signature,
         arguments,
         call.lexical_owner(program),
+        context.map(|(_, state)| state),
         diagnostics,
     );
 }
@@ -198,13 +199,20 @@ pub(super) fn validate_where_facts(
     source: &typed_trees::signature::StateSignature,
     arguments: &[StaticMachineArgument],
     lexical_owner: SymbolHandle,
+    caller_state: Option<&State>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     use crate::proof_contracts::contract_entailment::{
         StrictArithmeticImplicationJudgment, static_application_where_judgment,
     };
-    let judgment =
-        static_application_where_judgment(program, source, arguments, lexical_owner, &[]);
+    let judgment = static_application_where_judgment(
+        program,
+        source,
+        arguments,
+        lexical_owner,
+        caller_state,
+        &[],
+    );
     match judgment {
         StrictArithmeticImplicationJudgment::Proven => {}
         StrictArithmeticImplicationJudgment::Refuted => diagnostics.push(Diagnostic::error(format!(

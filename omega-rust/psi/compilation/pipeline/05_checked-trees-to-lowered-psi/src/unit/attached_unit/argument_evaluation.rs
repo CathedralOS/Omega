@@ -12,10 +12,9 @@ use super::super::{
 use super::{
     Block, CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectOperationPlan,
     LoweringError, Operation, OperationKind, OperationResult, PlaceId, ScalarType,
-    StructuralMultiplicity, StructuralTypeShape, Terminator, ValueDeclaration,
-    allocate_dense, direct_expression_contains_short_circuit, edge_id,
-    emit_direct_expression, terminal_scalar_type, unsupported,
-    validate_direct_parameter_types, value_id,
+    StructuralMultiplicity, StructuralTypeShape, Terminator, ValueDeclaration, allocate_dense,
+    direct_expression_contains_short_circuit, edge_id, emit_direct_expression,
+    terminal_scalar_type, unsupported, validate_direct_parameter_types, value_id,
 };
 use crate::emission::borrowed_window::terminal_multiplicity;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
@@ -732,15 +731,15 @@ impl Evaluation {
             *place = self.current_structural_place(*place);
         }
         self.cleanup_emission(checked, &mut Vec::new())
-        .continue_actions(
-            identities,
-            cleanup_actions,
-            values,
-            next_value,
-            next_block,
-            next_edge,
-            operations,
-        )
+            .continue_actions(
+                identities,
+                cleanup_actions,
+                values,
+                next_value,
+                next_block,
+                next_edge,
+                operations,
+            )
     }
 
     /// A local refinement is proved where its initializer has completed. The
@@ -1491,8 +1490,9 @@ pub(crate) fn validated_values(
 /// matched tuple performs the ordinary implementation-selector indirect call
 /// on its own canonical slot before joining the merge block that following
 /// operations continue in. `emit_leaf` pushes the leaf call operation for the
-/// tuple at `index`; `produced` is the scalar declaration that leaf must
-/// produce so each dispatch edge can bind the merge parameter.
+/// tuple at `index` and returns its completed value. Scalar and structural
+/// results use the same ordinary edge transport into the merge parameter;
+/// each leaf owns its result home until that transfer completes.
 ///
 /// Keeping the row pick in the caller's own blocks leaves the emitted call
 /// shape unchanged — each leaf names one exact interface slot through the
@@ -1505,8 +1505,7 @@ pub(crate) fn validated_values(
 pub(super) struct BlockEmissionSpan {
     pub(super) id: BlockId,
     pub(super) parameters: Vec<ValueDeclaration>,
-    pub(super) structural_parameters:
-        Vec<terminal_psi::StructuralParameterDeclaration>,
+    pub(super) structural_parameters: Vec<terminal_psi::StructuralParameterDeclaration>,
     pub(super) operation_start: usize,
 }
 
@@ -1521,13 +1520,12 @@ pub(super) fn emit_dynamic_family_dispatch(
     tuples: &[Vec<String>],
     family_actuals: &[ValueId],
     family_actual_types: &[ScalarType],
-    merge_result: Option<ValueDeclaration>,
+    merge_result: &OperationResult,
     mut emit_leaf: impl FnMut(
         &mut OperationBuffer,
         &mut u64,
         usize,
-        Option<ValueDeclaration>,
-    ) -> Result<(), LoweringError>,
+    ) -> Result<OperationResult, LoweringError>,
 ) -> Result<(), LoweringError> {
     let arity = family_actuals.len();
     if arity == 0 || arity != family_actual_types.len() {
@@ -1613,7 +1611,10 @@ pub(super) fn emit_dynamic_family_dispatch(
                 operations: operations[start..].to_vec(),
                 terminator: Terminator::Conditional {
                     condition: matched,
-                    when_true: dispatch_successor_edge(next_edge, continue_target(tuple_index, binder))?,
+                    when_true: dispatch_successor_edge(
+                        next_edge,
+                        continue_target(tuple_index, binder),
+                    )?,
                     when_false: dispatch_successor_edge(next_edge, next_tuple_target(tuple_index))?,
                 },
             });
@@ -1621,17 +1622,7 @@ pub(super) fn emit_dynamic_family_dispatch(
     }
     for (tuple_index, block) in dispatch.iter().enumerate() {
         let start = operations.len();
-        let produced = merge_result
-            .as_ref()
-            .map(|result| -> Result<ValueDeclaration, LoweringError> {
-                Ok(ValueDeclaration {
-                    qualifications: Default::default(),
-                    id: value_id(allocate_dense(next_value)?),
-                    scalar_type: result.scalar_type,
-                })
-            })
-            .transpose()?;
-        emit_leaf(operations, next_value, tuple_index, produced)?;
+        let produced = emit_leaf(operations, next_value, tuple_index)?;
         blocks.push(Block {
             id: *block,
             parameters: Vec::new(),
@@ -1643,12 +1634,21 @@ pub(super) fn emit_dynamic_family_dispatch(
                 edge: edge_id(allocate_dense(next_edge)?),
                 target: merge,
                 arguments: produced
+                    .as_scalar()
                     .map(|declaration| declaration.id)
                     .into_iter()
                     .collect(),
                 erased_arguments: Vec::new(),
                 erased_proof_arguments: Vec::new(),
-                structural_arguments: Vec::new(),
+                structural_arguments: produced
+                    .structural()
+                    .map(|result| terminal_psi::StructuralArgument {
+                        place: result.place,
+                        path: Vec::new(),
+                        access: StructuralAccess::Owned,
+                    })
+                    .into_iter()
+                    .collect(),
                 cleanup_actions: Vec::new(),
             },
         });
@@ -1668,8 +1668,20 @@ pub(super) fn emit_dynamic_family_dispatch(
         },
     });
     span.id = merge;
-    span.parameters = merge_result.into_iter().collect();
-    span.structural_parameters = Vec::new();
+    span.parameters = merge_result.as_scalar().into_iter().collect();
+    span.structural_parameters = merge_result
+        .structural()
+        .map(|result| StructuralParameterDeclaration {
+            place: result.place,
+            position: 0,
+            structural_type: result.structural_type,
+            multiplicity: result.multiplicity,
+            access: StructuralAccess::Owned,
+            qualifications: result.qualifications.clone(),
+            projected_qualifications: result.projected_qualifications.clone(),
+        })
+        .into_iter()
+        .collect();
     span.operation_start = operations.len();
     Ok(())
 }
@@ -1698,15 +1710,17 @@ fn emit_tuple_test(
         next_value,
         operations,
     );
-    Ok(crate::emission::operation_emission::expressions::emit_scalar_leaf(
-        OperationKind::IntegerEqual {
-            left: family_actuals[binder],
-            right: constant,
-        },
-        ScalarType::Boolean,
-        next_value,
-        operations,
-    ))
+    Ok(
+        crate::emission::operation_emission::expressions::emit_scalar_leaf(
+            OperationKind::IntegerEqual {
+                left: family_actuals[binder],
+                right: constant,
+            },
+            ScalarType::Boolean,
+            next_value,
+            operations,
+        ),
+    )
 }
 
 /// Decode one canonical family tuple member (`named(integer-const(v))`) into

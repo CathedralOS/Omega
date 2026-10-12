@@ -95,7 +95,7 @@ impl OperationFrame<'_, '_> {
         )?;
         let shape = slot_plan.result.clone();
         let id = self.operations.allocate();
-        let (result, declaration) = match call.result() {
+        let (result, mut declaration) = match call.result() {
             CheckedUnitCallResult::Unit => (OperationResult::Unit, None),
             CheckedUnitCallResult::Scalar(result) => (
                 OperationResult::Scalar(ValueDeclaration {
@@ -125,11 +125,7 @@ impl OperationFrame<'_, '_> {
         } {
             let expression = match operand {
                 checked_trees::CheckedCallScalarArgument::Pure(expression) => expression,
-                _ => {
-                    return unsupported(
-                        "dynamic family operand is not a pure scalar expression",
-                    )
-                }
+                _ => return unsupported("dynamic family operand is not a pure scalar expression"),
             };
             let lowered = self.evaluation.scalar_bindings.expression(
                 identities,
@@ -147,15 +143,6 @@ impl OperationFrame<'_, '_> {
             );
         }
         if !family_actuals.is_empty() {
-            let merge_result = match &result {
-                OperationResult::Unit => None,
-                OperationResult::Scalar(declaration) => Some(*declaration),
-                OperationResult::Structural(_) => {
-                    return unsupported(
-                        "dynamic family dispatch does not yet cover non-scalar results",
-                    );
-                }
-            };
             let dispatch = &self.operations.dynamic_dispatch;
             let roster: Vec<Vec<String>> = dispatch
                 .interface_slots(interface)
@@ -172,7 +159,9 @@ impl OperationFrame<'_, '_> {
             let leaf_selector = selector.id;
             let leaf_arguments: Vec<_> = data.iter().map(|value| value.id).collect();
             let mut first_leaf = Some(id);
-            self.record_source_call(call.coordinate, None, id, call.target.machine)?;
+            if declaration.is_none() {
+                self.record_source_call(call.coordinate, None, id, call.target.machine)?;
+            }
             let mut span = super::super::argument_evaluation::BlockEmissionSpan {
                 id: self.evaluation.current,
                 parameters: std::mem::take(&mut self.evaluation.parameters),
@@ -191,24 +180,35 @@ impl OperationFrame<'_, '_> {
                 &roster,
                 &family_actuals,
                 &family_actual_types,
-                merge_result,
-                |operations, _next_value, tuple_index, produced| {
-                    let operation = first_leaf
-                        .take()
-                        .unwrap_or_else(|| operations.allocate());
+                &result,
+                |operations, next_value, tuple_index| {
+                    let produced = match &result {
+                        OperationResult::Unit => OperationResult::Unit,
+                        OperationResult::Scalar(value) => {
+                            OperationResult::Scalar(ValueDeclaration {
+                                id: value_id(allocate_dense(next_value)?),
+                                ..*value
+                            })
+                        }
+                        OperationResult::Structural(value) => {
+                            let mut value = value.clone();
+                            value.place = crate::unit::place_id(allocate_dense(self.next_place)?);
+                            OperationResult::Structural(value)
+                        }
+                    };
+                    let operation = first_leaf.take().unwrap_or_else(|| operations.allocate());
                     operations.push(Operation {
                         static_reach_binding: None,
                         suspension_crossing: None,
                         id: operation,
-                        result: produced
-                            .map(OperationResult::Scalar)
-                            .unwrap_or(OperationResult::Unit),
+                        result: produced.clone(),
                         kind: OperationKind::CallDynamic {
                             selector: leaf_selector,
                             interface,
-                            slot: slot + u32::try_from(tuple_index).map_err(|_| {
-                                LoweringError::Unsupported("dynamic family slot overflows")
-                            })?,
+                            slot: slot
+                                + u32::try_from(tuple_index).map_err(|_| {
+                                    LoweringError::Unsupported("dynamic family slot overflows")
+                                })?,
                             arguments: leaf_arguments.clone(),
                             family_actuals: family_actuals.clone(),
                             erased_arguments: Vec::new(),
@@ -219,7 +219,7 @@ impl OperationFrame<'_, '_> {
                             crash_continuations: Vec::new(),
                         },
                     });
-                    Ok(())
+                    Ok(produced)
                 },
             );
             self.evaluation.current = span.id;
@@ -227,35 +227,36 @@ impl OperationFrame<'_, '_> {
             self.evaluation.block_structural_parameters = span.structural_parameters;
             self.evaluation.operation_start = span.operation_start;
             dispatch_result?;
-            return match merge_result {
-                Some(merge_result) => {
-                    self.bind_scalar_result(identities, call.coordinate, merge_result)
-                }
-                None => Ok(()),
-            };
+            if let Some(declaration) = &mut declaration {
+                declaration.kind = semantic_vocabulary::StructuralPlaceKind::BlockParameter {
+                    block: span.id,
+                    position: 0,
+                };
+            }
+        } else {
+            if declaration.is_none() {
+                self.record_source_call(call.coordinate, None, id, call.target.machine)?;
+            }
+            self.operations.push(Operation {
+                static_reach_binding: None,
+                suspension_crossing: None,
+                id,
+                result: result.clone(),
+                kind: OperationKind::CallDynamic {
+                    selector: selector.id,
+                    interface,
+                    slot,
+                    arguments: data.iter().map(|value| value.id).collect(),
+                    family_actuals,
+                    erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
+                    structural_arguments,
+                    claim_transfers,
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                },
+            });
         }
-        if declaration.is_none() {
-            self.record_source_call(call.coordinate, None, id, call.target.machine)?;
-        }
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id,
-            result: result.clone(),
-            kind: OperationKind::CallDynamic {
-                selector: selector.id,
-                interface,
-                slot,
-                arguments: data.iter().map(|value| value.id).collect(),
-                family_actuals,
-                erased_arguments: Vec::new(),
-                erased_proof_arguments: Vec::new(),
-                structural_arguments,
-                claim_transfers,
-                requirement_obligations: Vec::new(),
-                crash_continuations: Vec::new(),
-            },
-        });
         match (result, call.result(), declaration) {
             (OperationResult::Scalar(value), _, _) => {
                 self.bind_scalar_result(identities, call.coordinate, value)
@@ -270,9 +271,15 @@ impl OperationFrame<'_, '_> {
             ) => {
                 if matches!(self.results, StructuralResults::Dense(_)) {
                     self.operations
-                        .bind_structural_value(binding.binding_ordinal, returned.into());
+                        .bind_structural_value(binding.binding_ordinal, returned.clone().into());
                 }
-                self.publish_result(operation, binding, declaration, *discard_result_on_return)
+                self.publish_completed_result(
+                    operation,
+                    binding,
+                    declaration,
+                    returned,
+                    *discard_result_on_return,
+                )
             }
             (OperationResult::Unit, _, _) => Ok(()),
             _ => unsupported("dynamic result lost its checked publication shape"),

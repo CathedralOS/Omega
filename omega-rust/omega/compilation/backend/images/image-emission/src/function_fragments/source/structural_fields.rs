@@ -1470,20 +1470,26 @@ fn parameter_access(
     purpose: AccessPurpose,
 ) -> bool {
     use terminal_psi::{StructuralAccess, StructuralMultiplicity};
+    let owned_composite = parameter.access == StructuralAccess::Owned
+        && owned_observation_storage(types, parameter.structural_type);
     if (parameter.multiplicity == StructuralMultiplicity::Linear
-        && (parameter.access != StructuralAccess::Owned
-            || purpose == AccessPurpose::ByteOwnerReplacement
-            || !owned_observation_storage(types, parameter.structural_type)))
-        || !parameter.projected_qualifications.is_empty()
+        && (!owned_composite || purpose == AccessPurpose::ByteOwnerReplacement))
         || (parameter.access == StructuralAccess::WriteOnlyBorrow
             && purpose == AccessPurpose::Field)
     {
         return false;
     }
-    // Whole-owner replacement preserves the declared predicate roster through
-    // mandatory source/selection replay. Other observations keep their fence.
+    // Observing an owned composite preserves its qualified fields and claims;
+    // it neither consumes nor establishes them. The exact declaration joins in
+    // read_access bind that evidence after mandatory semantic/graph replay.
+    // Borrowed descriptors and whole-owner replacement keep their own contract.
     if purpose != AccessPurpose::ByteOwnerReplacement {
-        return parameter.qualifications.is_empty();
+        return owned_composite
+            || (parameter.qualifications.is_empty()
+                && parameter.projected_qualifications.is_empty());
+    }
+    if !parameter.projected_qualifications.is_empty() {
+        return false;
     }
     types.iter().any(|declaration| {
         declaration.id == parameter.structural_type
@@ -1606,11 +1612,11 @@ fn read_access(
         let retained_custody =
             owned_observation_storage(&target.graph.structural_types, result.structural_type)
                 || (result.multiplicity != StructuralMultiplicity::Linear
-                    && result.claims.is_empty());
+                    && result.claims.is_empty()
+                    && result.qualifications.is_empty()
+                    && result.projected_qualifications.is_empty());
         if purpose == AccessPurpose::ByteOwnerReplacement
             || !retained_custody
-            || !result.qualifications.is_empty()
-            || !result.projected_qualifications.is_empty()
             || !target.graph.operations().any(|operation| {
                 // Primitive locals and descriptor results need not carry an
                 // aggregate home. The observation binds the exact producer and

@@ -1,0 +1,1 @@
+cannot prove declared where facts for static application of requirement `Factory::make`
