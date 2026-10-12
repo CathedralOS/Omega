@@ -5556,18 +5556,37 @@ wait for Cathedral's instruction coverage. The interpreter is
   First customer: select width 16/32/64 from a runtime value through one named
   conformance, with distinct observable results through rebinding and
   forwarding; one scalar binder, a common result, dispatch around a region-sized
-  operation; no handwritten suffix methods.
+  operation; no handwritten suffix methods. Demonstrated by
+  `tests/omega/run/dyn_finite_family_runtime_dispatch` (native and
+  interpreter exit 70) plus fail controls
+  `tests/omega/fail/traits/dyn_finite_family_unproved_membership` and
+  `.../dyn_finite_family_wrong_tuple`.
 
   - Runtime roster membership: `validate_family_tuple`
     (`omega-rust/psi/compilation/checking/src/machine_calls/calls/dynamic_requirement.rs`)
-    requires a closed static tuple. Admit proved membership reusing
-    **RUNTIME-VALUE-GENERICS**' scalar argument/guard machinery (not general
-    value-indexed data). Replace the legacy self-only, Unit/i32/bool callable
-    subset with ordinary explicit scanner inputs/results, following
-    **DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION**. Unproved membership rejects;
-    no JIT or fallback.
-  - Carry finite-family dispatch through the ordinary implementation-selector
-    indirect-call mechanism. Tuple tables must be source-produced.
+    admits a complete tuple of closed constants or ordinary runtime subjects
+    (RUNTIME-VALUE-GENERICS' `Value`-binder shape); immutable integer machine
+    parameters mint caller-requires atoms
+    (`proof_contracts/contract_entailment/static_applications.rs`) so the
+    signature's where-disjunction proves membership at the call's discharge.
+    A closed non-member tuple defers to the roster diagnostic ahead of the
+    generic where judgment (`static_arguments/requirement_predicates.rs`);
+    unproved membership rejects; no JIT or fallback.
+  - Finite-family dispatch rides the ordinary implementation-selector
+    indirect-call mechanism: `TerminalDynamicSlot` commits one canonical
+    tuple per slot (`dynamic_dispatch.slots`), `CallDynamic` carries the
+    evaluated `family_actuals`, 05 expands the call into authored
+    conditional/test/leaf blocks ending on per-tuple indirect calls, and
+    interpreter/native execution resolves the row from those slots. Tuple
+    tables are source-produced from the named conformance's roster.
+
+  Frontier: once-only moves/cleanup through family selection, forwarding and
+  storage (leaf structural-parameter minting for owned/linear carriers is
+  unverified past the reference-argument customer), escaping variable-shaped
+  results, alternative-order/duplicate roster normalization coverage beyond
+  the corpus pass fixture, target-ineligible bodies, const-only inputs
+  without a checked bridge, and the compile/code-size vs explicit-branch
+  measurement.
 
   Acceptance: pass/fail/run fixtures preserve effects, index identity and
   once-only moves/cleanup through selection, forwarding and storage;
