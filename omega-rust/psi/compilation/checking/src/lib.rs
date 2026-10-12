@@ -132,8 +132,8 @@ pub use value_custody::type_shapes::{
 };
 pub use value_custody::wire::validate_wire_protocol;
 pub use value_custody::{
-    collect_executable_value_origins, visit_executable_value_occurrences,
-    visit_statement_value_occurrences,
+    collect_executable_value_origins, collect_source_value_origins,
+    visit_executable_value_occurrences, visit_statement_value_occurrences,
 };
 
 /// The sealed operation an [`AtomicCarrierAccess`] names.

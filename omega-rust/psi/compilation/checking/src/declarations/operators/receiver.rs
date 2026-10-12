@@ -26,7 +26,8 @@ pub fn expression_type_reference_for_origin(
             statement_index,
             ..
         } => (state_symbol, statement_index),
-        CheckedValueOrigin::NestedExpression { .. }
+        CheckedValueOrigin::TypeConstantArgument { .. }
+        | CheckedValueOrigin::NestedExpression { .. }
         | CheckedValueOrigin::MachineDecrease { .. }
         | CheckedValueOrigin::MachineOwnedDataInitializer { .. } => return None,
     };

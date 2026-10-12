@@ -6,6 +6,7 @@
 //! occur under distinct statement roles. Children retain their parent origin.
 
 mod expression;
+mod source_constants;
 mod statement;
 mod transition;
 
@@ -85,6 +86,18 @@ pub fn collect_executable_value_origins(
             integer_range: None,
         });
     });
+    facts
+}
+
+/// Source selection uses the executable inventory plus actual declared Const
+/// type arguments. Their distinct origin is not a runtime statement or a
+/// checked type/range conclusion; ordinary execution still needs admission.
+pub fn collect_source_value_origins(
+    program: &dyn crate::CheckingInput,
+    roots: &DeclarationSelection,
+) -> CheckedValueFacts {
+    let mut facts = collect_executable_value_origins(program, roots);
+    source_constants::append_origins(program, roots, &mut facts);
     facts
 }
 
