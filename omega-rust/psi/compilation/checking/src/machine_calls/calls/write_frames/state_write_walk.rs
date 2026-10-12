@@ -26,8 +26,7 @@ use crate::machine_calls::calls::write_frames::cycle_frames::{
     summarize_state_written_paths_for_cycles, summarize_transition_target_written_paths,
 };
 use crate::machine_calls::calls::write_frames::demand::{
-    collect_expression_call_written_paths, statement_value_expression_roots,
-    syntactic_call_written_paths,
+    collect_expression_call_written_paths, syntactic_call_written_paths,
 };
 use crate::machine_calls::calls::write_frames::inference::FrameInference;
 use crate::machine_calls::calls::write_frames::isolation::type_is_caller_isolated_local;
@@ -43,7 +42,7 @@ use crate::machine_calls::calls::write_frames::stored_origins::{
     StoredLocalOrigins, expand_write_path, expand_write_paths,
 };
 use crate::machine_calls::calls::write_frames::transition_topology::{
-    named_state_transition_subgraph_is_acyclic, named_transition_subgraph_is_acyclic,
+    state_transfer_subgraph_is_acyclic, transition_transfer_subgraph_is_acyclic,
 };
 use crate::machine_calls::calls::write_frames::type_capabilities::{
     type_may_carry_write, type_reference_is_reference,
@@ -57,7 +56,7 @@ use symbols::SymbolKeyMap as HashMap;
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
-use typed_trees::statement::{StatementNode, TransitionTargetNode};
+use typed_trees::statement::StatementNode;
 
 pub(crate) fn summarize_state_written_paths(
     program: &dyn crate::CheckingInput,
@@ -68,7 +67,7 @@ pub(crate) fn summarize_state_written_paths(
 ) -> Option<Vec<String>> {
     summarize_complete_state_written_paths(program, machine, state, symbols, inference).or_else(
         || {
-            if named_state_transition_subgraph_is_acyclic(program, machine, state) {
+            if state_transfer_subgraph_is_acyclic(program, machine, state) {
                 return None;
             }
             // A named backedge can close this walk in the active state's exact
@@ -95,7 +94,7 @@ pub(crate) fn summarize_complete_state_written_paths(
     if let Some(paths) = symbols.caller_sites.completed_state_writes(state.symbol) {
         return Some(paths);
     }
-    if !named_state_transition_subgraph_is_acyclic(program, machine, state) {
+    if !state_transfer_subgraph_is_acyclic(program, machine, state) {
         // The solver already records every state it solves — including `state`
         // — into the shared completed-summary memo.
         return summarize_state_written_paths_for_cycles(
@@ -783,7 +782,13 @@ fn walk_state_write_prefix_inner(
             divergent: &divergent_alias_origins,
             stored: &stored,
         };
-        for expression in statement_value_expression_roots(program, statement) {
+        for expression in super::transition_topology::frame_operand_expression_roots(
+            program,
+            machine,
+            state,
+            statement_index,
+            statement,
+        ) {
             local_aliases::validate_divergent_projections(
                 program,
                 machine,
@@ -1142,7 +1147,7 @@ fn walk_state_write_prefix_inner(
             StatementNode::Transition(transition) => {
                 if matches!(query, Some(StateWriteQuery::OriginTransfer { .. })) {
                     // Operand effects and frozen-binding exposure were checked
-                    // above. The relation solver composes each named successor
+                    // above. The relation solver composes each state successor
                     // using this statement's captured prefix, including cycles.
                     continue;
                 }
@@ -1150,14 +1155,18 @@ fn walk_state_write_prefix_inner(
                     if (!local_alias_origins.is_empty()
                         || !stored.is_empty()
                         || !divergent_alias_origins.is_empty())
-                        && matches!(
-                            program.statement_table.transition_target(target),
-                            TransitionTargetNode::Named { .. }
+                        && super::transition_topology::transition_state_transfer(
+                            program,
+                            machine,
+                            state,
+                            statement_index,
+                            target,
                         )
-                        && !named_transition_subgraph_is_acyclic(program, machine, state, target)
+                        .is_some()
+                        && !transition_transfer_subgraph_is_acyclic(program, machine, state, target)
                     {
                         // Alias origins compose positionally through acyclic
-                        // named graphs. A reachable named SCC needs equation-
+                        // state-transfer graphs. A reachable SCC needs equation-
                         // level alias substitution, so keep it opaque here.
                         return None;
                     }
@@ -1165,6 +1174,7 @@ fn walk_state_write_prefix_inner(
                         program,
                         machine,
                         state,
+                        statement_index,
                         target,
                         symbols,
                         inference,
@@ -1187,7 +1197,51 @@ fn walk_state_write_prefix_inner(
                     }
                 }
             }
-            StatementNode::Expression(_) => {}
+            StatementNode::Expression(expression) => {
+                if matches!(query, Some(StateWriteQuery::OriginTransfer { .. })) {
+                    continue;
+                }
+                if let Some(transfer) = super::transition_topology::expression_state_transfer(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    *expression,
+                ) {
+                    if (!local_alias_origins.is_empty()
+                        || !stored.is_empty()
+                        || !divergent_alias_origins.is_empty())
+                        && !state_transfer_subgraph_is_acyclic(program, machine, transfer.target)
+                    {
+                        return None;
+                    }
+                    let transfer_writes =
+                        super::cycle_frames::summarize_state_transfer_written_paths(
+                            program,
+                            machine,
+                            state,
+                            transfer,
+                            symbols,
+                            inference,
+                            &locals,
+                            matches!(query, Some(StateWriteQuery::Complete)),
+                            &origins,
+                            &machine_symbols,
+                        )?;
+                    for relative in expand_write_paths(
+                        program,
+                        &transfer_writes,
+                        &local_alias_origins,
+                        &stored,
+                    )? {
+                        if relative_state_path_is_visible(&relative, parameters, &locals)?
+                            && !written.contains(&relative)
+                        {
+                            written.push(relative);
+                        }
+                    }
+                }
+            }
             StatementNode::LocalData(local) => {
                 if (type_may_carry_write(program, local.type_reference)
                     && !type_is_caller_isolated_local(program, local.type_reference))

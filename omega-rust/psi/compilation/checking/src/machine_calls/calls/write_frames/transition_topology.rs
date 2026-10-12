@@ -1,7 +1,7 @@
-//! Read-only named-transition topology queries for write-frame inference.
+//! Read-only state-transfer topology queries for write-frame inference.
 //!
-//! This leaf resolves authored named edges within one machine, checks the
-//! reachable named-transition subgraph for cycles, recognizes exact
+//! This leaf resolves authored state edges and checked whole-call tails within
+//! one machine, checks their reachable subgraph for cycles, and recognizes exact
 //! write-capable namespace preservation for contextual prefixes. It does not
 //! build or solve frame equations; complete cycle frames use root substitutions.
 
@@ -11,89 +11,195 @@ use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::statement::{TransitionTargetHandle, TransitionTargetNode};
+use typed_trees::statement::{StatementNode, TransitionTargetHandle, TransitionTargetNode};
 
-pub(super) fn named_transition_subgraph_is_acyclic(
+/// Borrowed source-state transfer, independent of either argument-span arena.
+/// The caller still owns application, loan and ownership admission.
+pub(super) struct StateTransfer<'program> {
+    pub(super) target: &'program State,
+    pub(super) arguments: &'program [ExpressionHandle],
+}
+
+pub(super) fn expression_state_transfer<'program>(
+    program: &'program dyn crate::CheckingInput,
+    machine: &'program Machine,
+    source: &'program State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+) -> Option<StateTransfer<'program>> {
+    let call =
+        crate::current_entry_tail_call(program, machine, source, statement_index, expression)?;
+    Some(StateTransfer {
+        target: program.machine_states(machine).first()?,
+        arguments: program.expression_table.expression_handles(call.arguments),
+    })
+}
+
+pub(super) fn transition_state_transfer<'program>(
+    program: &'program dyn crate::CheckingInput,
+    machine: &'program Machine,
+    source: &'program State,
+    statement_index: usize,
+    target: TransitionTargetHandle,
+) -> Option<StateTransfer<'program>> {
+    match program.statement_table.transition_target(target) {
+        TransitionTargetNode::Named { arguments, .. }
+            if !super::terminal_calls::target(program, machine, target).is_valid() =>
+        {
+            Some(StateTransfer {
+                target: named_transition_target_state(program, machine, source, target)?,
+                arguments: program.statement_table.expression_handles(*arguments),
+            })
+        }
+        TransitionTargetNode::Value(expression) => {
+            expression_state_transfer(program, machine, source, statement_index, *expression)
+        }
+        _ => None,
+    }
+}
+
+pub(super) fn statement_state_transfers<'program>(
+    program: &'program dyn crate::CheckingInput,
+    machine: &'program Machine,
+    source: &'program State,
+    statement_index: usize,
+    statement: &StatementNode,
+) -> Option<Vec<StateTransfer<'program>>> {
+    let mut transfers = Vec::new();
+    match statement {
+        StatementNode::Expression(expression) => {
+            transfers.extend(expression_state_transfer(
+                program,
+                machine,
+                source,
+                statement_index,
+                *expression,
+            ));
+        }
+        StatementNode::Transition(transition) => {
+            for target in transition.targets() {
+                if super::terminal_calls::target(program, machine, target).is_valid() {
+                    continue;
+                }
+                let transfer =
+                    transition_state_transfer(program, machine, source, statement_index, target);
+                if matches!(
+                    program.statement_table.transition_target(target),
+                    TransitionTargetNode::Named { .. }
+                ) && transfer.is_none()
+                {
+                    return None;
+                }
+                transfers.extend(transfer);
+            }
+        }
+        _ => {}
+    }
+    Some(transfers)
+}
+
+/// A transfer's operands execute before the source scope closes. Its target
+/// body is composed through the state equations, never as a returning call.
+pub(super) fn frame_operand_expression_roots(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    source: &State,
+    statement_index: usize,
+    statement: &StatementNode,
+) -> Vec<ExpressionHandle> {
+    let mut operands = Vec::new();
+    for expression in super::demand::statement_value_expression_roots(program, statement) {
+        if let Some(call) =
+            crate::current_entry_tail_call(program, machine, source, statement_index, expression)
+        {
+            if call.receiver.is_valid() {
+                operands.push(call.receiver);
+            }
+            operands.extend(program.expression_table.expression_handles(call.arguments));
+        } else {
+            operands.push(expression);
+        }
+    }
+    operands
+}
+
+fn transfer_subgraph_is_acyclic(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    visiting: &mut Vec<SymbolHandle>,
+    complete: &mut Vec<SymbolHandle>,
+) -> bool {
+    if complete.contains(&state.symbol) {
+        return true;
+    }
+    if visiting.contains(&state.symbol) {
+        return false;
+    }
+    visiting.push(state.symbol);
+    for (index, statement) in program
+        .statement_table
+        .indexed_statements(state.statement_nodes)
+    {
+        let Some(transfers) = statement_state_transfers(program, machine, state, index, statement)
+        else {
+            return false;
+        };
+        for transfer in transfers {
+            if !transfer_subgraph_is_acyclic(program, machine, transfer.target, visiting, complete)
+            {
+                return false;
+            }
+        }
+    }
+    visiting.pop();
+    complete.push(state.symbol);
+    true
+}
+
+pub(super) fn transition_transfer_subgraph_is_acyclic(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     source: &State,
     target: TransitionTargetHandle,
 ) -> bool {
-    fn visit(
-        program: &dyn crate::CheckingInput,
-        machine: &Machine,
-        state: &State,
-        visiting: &mut Vec<SymbolHandle>,
-        complete: &mut Vec<SymbolHandle>,
-    ) -> bool {
-        if complete.contains(&state.symbol) {
-            return true;
-        }
-        if visiting.contains(&state.symbol) {
-            return false;
-        }
-        visiting.push(state.symbol);
-        for statement in program.statement_table.statements(state.statement_nodes) {
-            let Some(transition) = statement.as_transition() else {
-                continue;
-            };
-            for edge in transition.targets() {
-                if super::terminal_calls::target(program, machine, edge).is_valid()
-                    || !matches!(
-                        program.statement_table.transition_target(edge),
-                        TransitionTargetNode::Named { .. }
-                    )
-                {
-                    continue;
-                }
-                let Some(next) = named_transition_target_state(program, machine, state, edge)
-                else {
-                    return false;
-                };
-                if !visit(program, machine, next, visiting, complete) {
-                    return false;
-                }
-            }
-        }
-        visiting.pop();
-        complete.push(state.symbol);
-        true
-    }
-
     if super::terminal_calls::target(program, machine, target).is_valid() {
         return true;
     }
-    let Some(target) = named_transition_target_state(program, machine, source, target) else {
+    let Some(index) = program
+        .statement_table
+        .indexed_statements(source.statement_nodes)
+        .find_map(|(index, statement)| match statement {
+            StatementNode::Transition(transition)
+                if transition.targets().any(|candidate| candidate == target) =>
+            {
+                Some(index)
+            }
+            _ => None,
+        })
+    else {
         return false;
     };
-    visit(program, machine, target, &mut Vec::new(), &mut Vec::new())
+    let Some(transfer) = transition_state_transfer(program, machine, source, index, target) else {
+        return false;
+    };
+    transfer_subgraph_is_acyclic(
+        program,
+        machine,
+        transfer.target,
+        &mut Vec::new(),
+        &mut Vec::new(),
+    )
 }
 
-/// True when every named edge leaving `state` lands in an acyclic named
-/// subgraph. A state that can reach a named cycle may observe a back-edge to
-/// a still-active ancestor during a depth-first walk; the resulting summary
-/// depends on the recursion stack that produced it and is valid only for the
-/// query that computed it.
-pub(crate) fn named_state_transition_subgraph_is_acyclic(
+/// Complete topology, including preserved whole-call tails, determines whether
+/// a cached summary can depend on a still-active ancestor's provisional frame.
+pub(crate) fn state_transfer_subgraph_is_acyclic(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
 ) -> bool {
-    program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .all(|statement| {
-            let Some(transition) = statement.as_transition() else {
-                return true;
-            };
-            transition.targets().all(|edge| {
-                !matches!(
-                    program.statement_table.transition_target(edge),
-                    TransitionTargetNode::Named { .. }
-                ) || named_transition_subgraph_is_acyclic(program, machine, state, edge)
-            })
-        })
+    transfer_subgraph_is_acyclic(program, machine, state, &mut Vec::new(), &mut Vec::new())
 }
 
 pub(super) fn named_transition_target_state<'program>(
@@ -188,14 +294,14 @@ pub(super) fn strongly_connected_components(successors: &[Vec<usize>]) -> Vec<us
     search.component
 }
 
-/// A named edge closing a state cycle is frame-equivalent to a bare `self`
+/// A state transfer closing a cycle is frame-equivalent to a bare `self`
 /// edge when every parameter capable of carrying caller-visible writes is fed
 /// by the source parameter at that same ordinal. Reordering primitive values
 /// and shared references cannot redirect a write and therefore does not make
 /// an otherwise finite frame opaque. Parameter symbols are state-local, so a
 /// multi-state cycle compares each write-capable argument to the source
 /// namespace rather than requiring the target's distinct symbol.
-pub(super) fn named_transition_preserves_state_namespace(
+pub(super) fn transfer_preserves_state_namespace(
     program: &dyn crate::CheckingInput,
     source_state: &State,
     target_state: &State,

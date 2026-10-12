@@ -523,6 +523,25 @@ pub(crate) fn build_checked_value_computation_plans(
                     }
                     continue;
                 }
+                if let Some(jump) = crate::execution::tail_transfers::tail(
+                    program,
+                    flow,
+                    machine,
+                    state,
+                    statement_index,
+                    Default::default(),
+                ) {
+                    record_jump_arguments(
+                        program,
+                        pure,
+                        &mut builder,
+                        statement_ordinal,
+                        false,
+                        jump.symbol,
+                        jump.arguments,
+                    );
+                    continue;
+                }
                 if let Some(expression) = statement.as_expression()
                     && statement_index + 1 == statements.len()
                     && let Some(result_type) = program.primitive_type_reference(state.return_type)
@@ -602,6 +621,15 @@ pub(crate) fn build_checked_value_computation_plans(
                         continue;
                     }
                     if transition.exit == typed_trees::statement::TransitionExit::Ordinary
+                        && crate::execution::tail_transfers::transition(
+                            program,
+                            flow,
+                            machine,
+                            state,
+                            statement_index,
+                            target,
+                        )
+                        .is_none()
                         && let TransitionTargetNode::Value(expression) =
                             program.statement_table.transition_target(target)
                         && program
@@ -617,6 +645,15 @@ pub(crate) fn build_checked_value_computation_plans(
                         );
                     }
                     if transition.exit == typed_trees::statement::TransitionExit::Ordinary
+                        && crate::execution::tail_transfers::transition(
+                            program,
+                            flow,
+                            machine,
+                            state,
+                            statement_index,
+                            target,
+                        )
+                        .is_none()
                         && let TransitionTargetNode::Value(expression) =
                             program.statement_table.transition_target(target)
                         && let Some(result_type) =
@@ -635,85 +672,35 @@ pub(crate) fn build_checked_value_computation_plans(
                             result_type,
                         );
                     }
-                    let TransitionTargetNode::Named {
-                        path,
-                        arguments,
-                        evidence_arguments,
-                        ..
-                    } = program.statement_table.transition_target(target)
-                    else {
+                    let Some(jump) = crate::execution::tail_transfers::transition(
+                        program,
+                        flow,
+                        machine,
+                        state,
+                        statement_index,
+                        target,
+                    ) else {
                         continue;
                     };
-                    if !evidence_arguments.is_empty() {
-                        continue;
-                    }
                     let Some(target_state) =
                         crate::checks::termination::named_transition_target_state_index(
                             program,
                             machine,
-                            path.symbol,
+                            jump.symbol,
                         )
                         .and_then(|target_index| states.get(target_index))
                     else {
                         continue;
                     };
-                    // Authored actuals exclude the implicit receiver. Each
-                    // argument keeps its full target parameter position so the
-                    // recorded role joins the pure expression plan, the saved
-                    // jump-argument capture, and every downstream consumer on
-                    // the same coordinate.
-                    let target_parameters =
-                        program.state_parameters(target_state).iter().enumerate();
-                    let arguments = program.statement_table.expression_handles(*arguments);
-                    for (argument, (target_position, parameter)) in
-                        arguments.iter().zip(target_parameters)
-                    {
-                        let Ok(argument_ordinal) = u32::try_from(target_position) else {
-                            continue;
-                        };
-                        let role = if continuation {
-                            CheckedScalarExpressionRole::TransitionContinuationArgument {
-                                argument_ordinal,
-                            }
-                        } else {
-                            CheckedScalarExpressionRole::TransitionArgument { argument_ordinal }
-                        };
-                        let Some(expected_type) =
-                            program.primitive_type_reference(parameter.type_reference)
-                        else {
-                            // Calls and named arrivals retain the same completed
-                            // structural operand. In particular a shared formal
-                            // lends a fresh referent home, while existing places
-                            // keep their original storage and loan identity.
-                            // Producer recognition must not depend on whether the
-                            // authored argument spells a constructor or a borrow
-                            // around one; target custody remains an edge obligation.
-                            if !continuation
-                                && transition.exit
-                                    == typed_trees::statement::TransitionExit::Ordinary
-                                && !parameter.is_const
-                                && !parameter.relevance.is_erased()
-                            {
-                                builder.retain_structural_argument(
-                                    *argument,
-                                    parameter.type_reference,
-                                );
-                                builder.record_transition_selectors(
-                                    statement_ordinal,
-                                    argument_ordinal,
-                                    *argument,
-                                );
-                            }
-                            continue;
-                        };
-                        builder.record_root(
-                            pure,
-                            statement_ordinal,
-                            role,
-                            *argument,
-                            expected_type,
-                        );
-                    }
+                    record_jump_arguments(
+                        program,
+                        pure,
+                        &mut builder,
+                        statement_ordinal,
+                        continuation,
+                        target_state.symbol,
+                        jump.arguments,
+                    );
                 }
             }
         }
@@ -739,4 +726,40 @@ pub(crate) fn record_rank_observations(
         &mut facts.values.scalar_computations,
         &mut facts.values.structural_values,
     );
+}
+
+fn record_jump_arguments(
+    program: &dyn validation::CheckingInput,
+    pure: &CheckedScalarExpressionPlans,
+    builder: &mut Builder<'_, '_>,
+    statement_ordinal: u32,
+    continuation: bool,
+    target: SymbolHandle,
+    arguments: &[ExpressionHandle],
+) {
+    let Some(state) = program.state_by_symbol(target) else {
+        return;
+    };
+    for (ordinal, (argument, parameter)) in arguments
+        .iter()
+        .zip(program.state_parameters(state))
+        .enumerate()
+    {
+        let Ok(argument_ordinal) = u32::try_from(ordinal) else {
+            continue;
+        };
+        let Some(primitive) = program.primitive_type_reference(parameter.type_reference) else {
+            if !continuation && !parameter.is_const && !parameter.relevance.is_erased() {
+                builder.retain_structural_argument(*argument, parameter.type_reference);
+                builder.record_transition_selectors(statement_ordinal, argument_ordinal, *argument);
+            }
+            continue;
+        };
+        let role = if continuation {
+            CheckedScalarExpressionRole::TransitionContinuationArgument { argument_ordinal }
+        } else {
+            CheckedScalarExpressionRole::TransitionArgument { argument_ordinal }
+        };
+        builder.record_root(pure, statement_ordinal, role, *argument, primitive);
+    }
 }

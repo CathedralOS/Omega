@@ -7,9 +7,7 @@
 use super::place_paths::FramePlaceOrigin;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
-use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::statement::{TransitionTargetHandle, TransitionTargetNode};
 
 #[derive(Debug, Clone)]
 pub(super) struct CycleFrameEdge {
@@ -28,38 +26,13 @@ pub(super) struct CycleFrameEquation<'program> {
 }
 
 pub(super) fn append_cycle_frame_edge(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    source: &State,
-    target: TransitionTargetHandle,
+    transfer: super::transition_topology::StateTransfer<'_>,
     edges: &mut Vec<CycleFrameEdge>,
-) -> Option<()> {
-    if !target.is_valid() {
-        return Some(());
-    }
-    match program.statement_table.transition_target(target) {
-        TransitionTargetNode::Terminal | TransitionTargetNode::Value(_) => Some(()),
-        TransitionTargetNode::Named {
-            path, arguments, ..
-        } => {
-            let target = program
-                .machine_states(machine)
-                .iter()
-                .find(|candidate| candidate.symbol == path.symbol)
-                .or_else(|| {
-                    let members = program.statement_table.name_path_members(path.members);
-                    matches!(members, [member] if member.is_self_receiver()).then_some(source)
-                })?;
-            edges.push(CycleFrameEdge {
-                target: target.symbol,
-                arguments: program
-                    .statement_table
-                    .expression_handles(*arguments)
-                    .to_vec(),
-            });
-            Some(())
-        }
-    }
+) {
+    edges.push(CycleFrameEdge {
+        target: transfer.target.symbol,
+        arguments: transfer.arguments.to_vec(),
+    });
 }
 
 pub(super) fn transition_state_reaches(

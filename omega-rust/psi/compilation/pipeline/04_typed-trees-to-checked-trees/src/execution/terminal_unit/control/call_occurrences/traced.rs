@@ -71,6 +71,14 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
     {
         return None;
     }
+    if calls
+        .iter()
+        .any(|call| super::checked_tail_call(program, facts, machine, state, call).is_some())
+    {
+        // Successor operands retain this whole occurrence outside the common
+        // operation window. Decline a linear sequence that includes the exit.
+        return None;
+    }
     let mut consumed = Vec::new();
     let mut structural = Vec::<&checked_trees::FlowCallFact>::new();
     let mut outer = Vec::new();

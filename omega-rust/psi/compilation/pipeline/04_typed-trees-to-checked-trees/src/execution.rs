@@ -20,7 +20,9 @@
 pub(crate) mod citation_erasure;
 pub(crate) mod finalize_execution;
 pub(crate) mod guard_complement;
+mod recursive_transfers;
 pub(crate) mod scalar_computations;
+pub(crate) mod tail_transfers;
 pub(crate) mod terminal_cleanup;
 pub(crate) mod terminal_debug;
 pub(crate) mod terminal_scalar;

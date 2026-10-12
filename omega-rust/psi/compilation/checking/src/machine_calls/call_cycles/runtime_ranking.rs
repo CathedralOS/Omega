@@ -667,23 +667,59 @@ pub(crate) fn internal_arrival_sites<'program>(
             .iter()
             .enumerate()
         {
-            let Some(transition) = statement.as_transition() else {
-                continue;
+            let sites = match statement {
+                StatementNode::Transition(transition) => transition
+                    .targets()
+                    .map(|target| {
+                        let operands = match program.statement_table.transition_target(target) {
+                            TransitionTargetNode::Named {
+                                path, arguments, ..
+                            } => Some((
+                                path.symbol,
+                                program.statement_table.expression_handles(*arguments),
+                            )),
+                            TransitionTargetNode::Value(expression) => crate::source_tail_call(
+                                program,
+                                state,
+                                statement_index,
+                                *expression,
+                            )
+                            .map(|call| {
+                                (
+                                    call.target_symbol,
+                                    program.expression_table.expression_handles(call.arguments),
+                                )
+                            }),
+                            _ => None,
+                        };
+                        (target, operands)
+                    })
+                    .collect::<Vec<_>>(),
+                StatementNode::Expression(expression) => vec![(
+                    Default::default(),
+                    crate::source_tail_call(program, state, statement_index, *expression).map(
+                        |call| {
+                            (
+                                call.target_symbol,
+                                program.expression_table.expression_handles(call.arguments),
+                            )
+                        },
+                    ),
+                )],
+                _ => Vec::new(),
             };
-            for target in transition.targets() {
-                if let Some((path, arguments)) =
-                    program.statement_table.named_transition_target(target)
+            for (target, operands) in sites {
+                if let Some((symbol, arguments)) = operands
+                    && let Some(destination) = internal_state_index(program, machine, symbol)
                 {
-                    if let Some(destination) = internal_state_index(program, machine, path.symbol) {
-                        arrivals.push(InternalArrival {
-                            source,
-                            destination,
-                            statement_index,
-                            target,
-                            arguments: program.statement_table.expression_handles(arguments),
-                            recurrent: false,
-                        });
-                    }
+                    arrivals.push(InternalArrival {
+                        source,
+                        destination,
+                        statement_index,
+                        target,
+                        arguments,
+                        recurrent: false,
+                    });
                 }
             }
         }

@@ -194,7 +194,7 @@ pub use checked_trees::{
     FlowOperatorInvocationFact, FlowOwnedSelectionClaim, FlowOwnedSelectionReceipt,
     FlowOwnedSelectionSource, FlowOwnedSelectionTransfer, FlowOwnershipFacts,
     FlowPermissionEvaluation, FlowPermissionEventFact, FlowSemanticContextRef, FlowStateFact,
-    FlowStateOutgoingFact, FlowStatementFact, IncomingReferenceIdentity,
+    FlowStateOutgoingFact, FlowStatementFact, FlowTailTransferFact, IncomingReferenceIdentity,
     IndexCompatibilityDischarge, IndexCompatibilityFact, IndexCompatibilityFacts,
     InheritedContractScope, LemmaFacts, MachineActivationCarryFact, MachineBlockingFact,
     MachineBuildBoundProgressDemands, MachineContractCommitment, MachineContractIdentity,

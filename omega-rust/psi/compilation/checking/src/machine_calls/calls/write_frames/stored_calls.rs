@@ -299,47 +299,74 @@ fn solve_state_effects<'program>(
         let (last, prefixes) =
             stored_reference_transfer(program, machine, state, symbols, inference)?;
         let mut exits = Vec::new();
-        let mut has_transition = false;
+        let mut has_state_exit = false;
         for (ordinal, statement) in program
             .statement_table
             .indexed_statements(state.statement_nodes)
         {
-            let Some(transition) = statement.as_transition() else {
-                continue;
-            };
-            has_transition = true;
-            if transition.exit != TransitionExit::Ordinary {
-                continue;
-            }
-            let prefix = prefixes.get(ordinal)?.as_ref()?;
-            for edge in transition.targets() {
-                match program.statement_table.transition_target(edge) {
-                    TransitionTargetNode::Named { arguments, .. } => {
+            let mut transfers = Vec::new();
+            match statement {
+                StatementNode::Expression(expression) => {
+                    if let Some(transfer) = super::transition_topology::expression_state_transfer(
+                        program,
+                        machine,
+                        state,
+                        ordinal,
+                        *expression,
+                    ) {
+                        has_state_exit = true;
+                        transfers.push(transfer);
+                    }
+                }
+                StatementNode::Transition(transition) => {
+                    has_state_exit = true;
+                    if transition.exit != TransitionExit::Ordinary {
+                        continue;
+                    }
+                    let prefix = prefixes.get(ordinal)?.as_ref()?;
+                    for edge in transition.targets() {
                         if super::terminal_calls::target(program, machine, edge).is_valid() {
                             return None;
                         }
-                        let target = super::transition_topology::named_transition_target_state(
-                            program, machine, state, edge,
-                        )?;
-                        let target_index = if let Some(index) = states
-                            .iter()
-                            .position(|candidate| candidate.symbol == target.symbol)
+                        if let Some(transfer) =
+                            super::transition_topology::transition_state_transfer(
+                                program, machine, state, ordinal, edge,
+                            )
                         {
-                            index
+                            transfers.push(transfer);
                         } else {
-                            states.push(target);
-                            states.len() - 1
-                        };
-                        let arguments = program.statement_table.expression_handles(*arguments);
-                        let parameters = program.state_parameters(target);
-                        if parameters.len() != arguments.len() {
-                            return None;
+                            match program.statement_table.transition_target(edge) {
+                                TransitionTargetNode::Named { .. } => return None,
+                                TransitionTargetNode::Terminal | TransitionTargetNode::Value(_) => {
+                                    exits.push(SlotExit::Return(prefix.stored.clone()));
+                                }
+                            }
                         }
-                        for (parameter, argument) in parameters.iter().zip(arguments) {
-                            let carries_origin = super::type_reference_is_reference(
-                                program,
-                                parameter.type_reference,
-                            ) || stored_origins::declared_origins_for_query(
+                    }
+                }
+                _ => {}
+            }
+            for transfer in transfers {
+                let prefix = prefixes.get(ordinal)?.as_ref()?;
+                let target = transfer.target;
+                let arguments = transfer.arguments;
+                let target_index = if let Some(index) = states
+                    .iter()
+                    .position(|candidate| candidate.symbol == target.symbol)
+                {
+                    index
+                } else {
+                    states.push(target);
+                    states.len() - 1
+                };
+                let parameters = program.state_parameters(target);
+                if parameters.len() != arguments.len() {
+                    return None;
+                }
+                for (parameter, argument) in parameters.iter().zip(arguments) {
+                    let carries_origin =
+                        super::type_reference_is_reference(program, parameter.type_reference)
+                            || stored_origins::declared_origins_for_query(
                                 program,
                                 parameter.symbol,
                                 parameter.name.as_str(),
@@ -347,48 +374,43 @@ fn solve_state_effects<'program>(
                                 true,
                             )
                             .is_some_and(|inventory| !inventory.references.is_empty());
-                            if !carries_origin {
-                                continue;
-                            }
-                            // Finiteness follows captured backing roots, not
-                            // exact descriptor identity. A dynamic window may
-                            // cross this edge with conservative geometry; its
-                            // destination slot is still matched exactly by
-                            // instantiate. Static storage adds no dependency.
-                            let origin = argument_origin(
-                                program, machine, parameter, *argument, prefix, symbols, inference,
-                            )?;
-                            let source = &origin.source;
-                            if !source.builtin_coordinates {
-                                return None;
-                            }
-                            if source.is_static() {
-                                continue;
-                            }
-                            if !source.root.is_valid() {
-                                return None;
-                            }
-                            let from = substitutions.parameter(target.symbol, parameter.symbol);
-                            let to = substitutions.parameter(state.symbol, source.root);
-                            substitutions.insert(
-                                from,
-                                to,
-                                !source.segments.is_empty() || !source.recasts.is_empty(),
-                            );
-                        }
-                        exits.push(SlotExit::Edge {
-                            target: target_index,
-                            arguments: arguments.to_vec(),
-                            prefix: prefix.clone(),
-                        });
+                    if !carries_origin {
+                        continue;
                     }
-                    TransitionTargetNode::Terminal | TransitionTargetNode::Value(_) => {
-                        exits.push(SlotExit::Return(prefix.stored.clone()))
+                    // Finiteness follows captured backing roots, not
+                    // exact descriptor identity. A dynamic window may
+                    // cross this edge with conservative geometry; its
+                    // destination slot is still matched exactly by
+                    // instantiate. Static storage adds no dependency.
+                    let origin = argument_origin(
+                        program, machine, parameter, *argument, prefix, symbols, inference,
+                    )?;
+                    let source = &origin.source;
+                    if !source.builtin_coordinates {
+                        return None;
                     }
+                    if source.is_static() {
+                        continue;
+                    }
+                    if !source.root.is_valid() {
+                        return None;
+                    }
+                    let from = substitutions.parameter(target.symbol, parameter.symbol);
+                    let to = substitutions.parameter(state.symbol, source.root);
+                    substitutions.insert(
+                        from,
+                        to,
+                        !source.segments.is_empty() || !source.recasts.is_empty(),
+                    );
                 }
+                exits.push(SlotExit::Edge {
+                    target: target_index,
+                    arguments: arguments.to_vec(),
+                    prefix: prefix.clone(),
+                });
             }
         }
-        if !has_transition {
+        if !has_state_exit {
             exits.push(SlotExit::Return(last.stored));
         }
         equations.push(SlotEquation {

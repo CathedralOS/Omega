@@ -24,7 +24,8 @@ pub(crate) use progress::entry_covers_progress_premises;
 // Contract induction uses the same authored-edge graph as ranking; graph
 // membership supplies no ranking or invariant evidence by itself.
 pub(crate) use graph::{
-    machine_adjacency, named_transition_target_state_index, strongly_connected_components,
+    machine_adjacency, named_transition_target_state_index, source_state_transfer,
+    strongly_connected_components,
 };
 pub(crate) use ranking::proves_ranked_entry_requirement;
 

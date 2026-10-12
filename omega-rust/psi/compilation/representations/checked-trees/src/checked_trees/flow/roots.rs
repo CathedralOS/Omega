@@ -128,6 +128,7 @@ pub struct FlowControlFacts {
     pub operand_referent_segments: Arena<facts::PlaceSegment>,
     pub statements: Arena<FlowStatementFact>,
     pub calls: Arena<FlowCallFact>,
+    pub tail_transfers: Arena<super::FlowTailTransferFact>,
     /// Authored argument expressions, spanned by [`FlowCallFact::authored_arguments`].
     pub call_arguments: Arena<typed_trees::expression::ExpressionHandle>,
     pub exits: Arena<FlowExitFact>,
@@ -159,6 +160,7 @@ impl FlowControlFacts {
             operand_referents: Arena::default(),
             operand_referent_segments: Arena::default(),
             calls,
+            tail_transfers: Arena::default(),
             call_arguments: Arena::default(),
             exits,
             outgoing: Arena::default(),
