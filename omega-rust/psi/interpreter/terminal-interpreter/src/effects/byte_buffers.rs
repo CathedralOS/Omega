@@ -5,7 +5,6 @@ use crate::byte_sequences::ByteSequenceView;
 use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::calls::arguments::StructuralCallArguments;
 use crate::custody::bind_structural_arguments;
-use crate::custody::resolve_structural_arguments;
 use crate::effects::storage_loans::BoundaryStorageLoans;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
@@ -620,10 +619,11 @@ impl TerminalExecution<'_> {
             if let ByteSequenceBinding::Immutable(_) = binding {
                 return self.lend_frame_owner(parameter, argument.place, value);
             }
-            binding.validate_mutable_referent(&self.program.structural_types(), value)?;
+            binding.validate_mutable_referent(self, value)?;
             return Ok(binding.clone());
         }
-        let (mut parent, identity, field) = self.structural_field_binding_frame(argument)?;
+        let (mut parent, identity, field, namespace) =
+            self.structural_field_binding_frame(argument)?;
         let Some(ByteSequenceCarrier::BoundedOwned { capacity }) =
             field.field_type.byte_sequence_carrier()
         else {
@@ -631,7 +631,7 @@ impl TerminalExecution<'_> {
         };
         let destination = StructuralByteSequenceRuntimeField {
             parent: StructuralRuntimePlace::from(&parent),
-            namespace: crate::values::StructuralFieldNamespace::Member,
+            namespace,
             field: field.id,
         };
 
@@ -651,7 +651,7 @@ impl TerminalExecution<'_> {
             referent: parent,
         };
         binding.validate_mutable_referent(
-            &self.program.structural_types(),
+            self,
             binding.owner_loan_referent().ok_or_else(malformed)?,
         )?;
         Ok(binding)
@@ -691,7 +691,7 @@ impl TerminalExecution<'_> {
             capacity,
             referent: owner.clone(),
         };
-        binding.validate_mutable_referent(&self.program.structural_types(), owner)?;
+        binding.validate_mutable_referent(self, owner)?;
         Ok(binding)
     }
 
@@ -764,7 +764,8 @@ impl TerminalExecution<'_> {
             };
             (StructuralRuntimePlace::from(value), bytes, *capacity)
         } else {
-            let (mut parent, identity, field) = self.structural_field_binding_frame(argument)?;
+            let (mut parent, identity, field, namespace) =
+                self.structural_field_binding_frame(argument)?;
             let Some(ByteSequenceCarrier::BoundedOwned { capacity }) =
                 field.field_type.byte_sequence_carrier()
             else {
@@ -774,7 +775,7 @@ impl TerminalExecution<'_> {
                 .structural_byte_sequence_fields
                 .get(&StructuralByteSequenceRuntimeField {
                     parent: StructuralRuntimePlace::from(&parent),
-                    namespace: crate::values::StructuralFieldNamespace::Member,
+                    namespace,
                     field: field.id,
                 })
                 .ok_or_else(malformed)?
@@ -796,7 +797,8 @@ impl TerminalExecution<'_> {
         parameter: &StructuralParameterDeclaration,
         argument: &StructuralArgument,
     ) -> Result<(TerminalStructuralValue, ByteSequenceBinding), TerminalInterpretError> {
-        let (mut parent, identity, field) = self.structural_field_binding_frame(argument)?;
+        let (mut parent, identity, field, namespace) =
+            self.structural_field_binding_frame(argument)?;
         let carrier = field
             .field_type
             .byte_sequence_carrier()
@@ -806,7 +808,7 @@ impl TerminalExecution<'_> {
         }
         let source = StructuralByteSequenceRuntimeField {
             parent: StructuralRuntimePlace::from(&parent),
-            namespace: crate::values::StructuralFieldNamespace::Member,
+            namespace,
             field: field.id,
         };
         let bytes = self
@@ -831,7 +833,7 @@ impl TerminalExecution<'_> {
         Ok((parent, ByteSequenceBinding::Immutable(bytes)))
     }
 
-    /// Resolves `argument`'s last-field parent record: the shared preamble
+    /// Resolves `argument`'s last-field parent and active namespace: the shared preamble
     /// the mutable and shared boundary bindings walk before their carrier
     /// policies diverge. Returns the resolved parent value, the last
     /// segment's field name, and the field declaration.
@@ -843,6 +845,7 @@ impl TerminalExecution<'_> {
             TerminalStructuralValue,
             terminal_psi::TerminalIdentityIndex,
             &'a terminal_psi::StructuralFieldDeclaration,
+            crate::values::StructuralFieldNamespace,
         ),
         TerminalInterpretError,
     > {
@@ -850,22 +853,18 @@ impl TerminalExecution<'_> {
         else {
             return Err(malformed());
         };
-        let parent = resolve_structural_arguments(
-            &self.program.structural_types(),
-            &self.structural_values,
-            &[StructuralArgument {
-                place: argument.place,
-                path: prefix.to_vec(),
-                access: argument.access,
-            }],
-        )?
-        .pop()
-        .ok_or_else(malformed)?;
-        let Some(fields) = self.program.record_fields(&parent.structural_type) else {
-            return Err(malformed());
+        let (prefix, case) = match prefix.split_last() {
+            Some((StructuralPathSegment::Case(case), prefix)) => (prefix, Some(*case)),
+            _ => (prefix, None),
         };
+        let parent = self.resolve_live_projection(argument.place, prefix, argument.access)?;
+        let (fields, namespace) = self.active_field_declarations(
+            parent.structural_type,
+            &StructuralRuntimePlace::from(&parent),
+            case,
+        )?;
         let field =
             terminal_psi::live_field_by_identity(fields, *identity).ok_or_else(malformed)?;
-        Ok((parent, *identity, field))
+        Ok((parent, *identity, field, namespace))
     }
 }

@@ -53,6 +53,48 @@ pub(crate) fn stored_case_at_projection(
 }
 
 impl TerminalExecution<'_> {
+    /// Select a parent field namespace from its actual discriminator. A Case
+    /// suffix selects declarations, never a new physical payload record.
+    pub(crate) fn active_field_declarations(
+        &self,
+        parent_type: StructuralTypeId,
+        parent: &StructuralRuntimePlace,
+        case: Option<StructuralCaseId>,
+    ) -> Result<
+        (
+            &[terminal_psi::StructuralFieldDeclaration],
+            crate::values::StructuralFieldNamespace,
+        ),
+        TerminalInterpretError,
+    > {
+        let declaration = self
+            .program
+            .structural_types()
+            .get(&parent_type)
+            .ok_or_else(malformed)?;
+        if let Some(case) = case {
+            let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
+                &declaration.shape
+            else {
+                return Err(malformed());
+            };
+            let contents = self.structural_cases.get(parent).ok_or_else(malformed)?;
+            if contents.structural_type != parent_type || contents.case != case {
+                return Err(malformed());
+            }
+            let selected = terminal_psi::find_structural_case(cases, case).ok_or_else(malformed)?;
+            Ok((
+                &selected.fields,
+                crate::values::StructuralFieldNamespace::CasePayload,
+            ))
+        } else {
+            Ok((
+                declaration.shape.direct_fields().ok_or_else(malformed)?,
+                crate::values::StructuralFieldNamespace::Member,
+            ))
+        }
+    }
+
     /// A typed claim catalogue lists possible payloads, not simultaneously
     /// resident ones. Authenticate each guard in backing storage before joining
     /// either a return roster or the caller's receiving roster to live custody.
@@ -455,7 +497,7 @@ pub(crate) fn case_projection_with_membership_is_active(
         Some((StructuralPathSegment::Case(_), prefix)) => prefix,
         _ => path,
     };
-    resolve_structural_path_type(types, structural_type, structural_prefix)?;
+    crate::custody::resolve_structural_path_shape(types, structural_type, structural_prefix)?;
     for (position, case) in selected {
         let prefix = &path[..position];
         let selected_type = resolve_structural_path_type(types, structural_type, prefix)?;

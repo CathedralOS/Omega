@@ -3473,11 +3473,10 @@ of a check the same flow already performed, not the check itself.
   Carry these compositions through execution, without restoring native
   permission replay. Include qualified descriptor replacement and detached-copy
   content observations; local observations cannot acquire entry provenance.
-  Keep `runtime_inline_byte_case_values_exit` at zero in both engines:
-  nested and direct byte payloads retain common fields, live lengths and
-  contents through construction, returns, copies and state arrival.
-  Reject `inline_byte_case_requires_field_domain`; receiving field types
-  cannot grant a completed operand its missing domain.
+  Qualified bounded-byte array elements still lack retained element predicates:
+  `ShapeCollector::add_type` rejects `[[u8; 8] in Utf8; 2]`. Preserve that fence
+  until array establishment and loans retain each element's requirements;
+  record/case field predicates cannot substitute for element evidence.
   Include prepared lifetime-bearing field
   views, independent nested regions, repeated generic heads, authored callable
   templates, symbolic view-free arrays, inherited const arguments and complete

@@ -92,8 +92,7 @@ impl BoundaryByteBufferBinding {
                 if scope != BoundaryByteWriteScope::View {
                     return Err(malformed());
                 }
-                source
-                    .validate_mutable_referent(&execution.program.structural_types(), referent)?;
+                source.validate_mutable_referent(execution, referent)?;
                 let start = usize::try_from(*offset).map_err(|_| malformed())?;
                 let end = usize::try_from(offset.checked_add(*length).ok_or_else(malformed)?)
                     .map_err(|_| malformed())?;
@@ -102,8 +101,7 @@ impl BoundaryByteBufferBinding {
             }
             ByteSequenceBinding::MutableField { referent, .. }
             | ByteSequenceBinding::MutableOwner { referent, .. } => {
-                source
-                    .validate_mutable_referent(&execution.program.structural_types(), referent)?;
+                source.validate_mutable_referent(execution, referent)?;
                 let (bytes, capacity) = execution.exclusive_owner_bytes(source)?;
                 let length = u64::try_from(bytes.len()).map_err(|_| malformed())?;
                 (
@@ -160,8 +158,7 @@ impl BoundaryByteBufferBinding {
                 if self.scope != BoundaryByteWriteScope::View {
                     return Err(malformed());
                 }
-                self.source
-                    .validate_mutable_referent(&execution.program.structural_types(), referent)?;
+                self.source.validate_mutable_referent(execution, referent)?;
                 let start = usize::try_from(*offset).map_err(|_| malformed())?;
                 let end = usize::try_from(offset.checked_add(*length).ok_or_else(malformed)?)
                     .map_err(|_| malformed())?;
@@ -177,8 +174,7 @@ impl BoundaryByteBufferBinding {
             }
             ByteSequenceBinding::MutableField { referent, .. }
             | ByteSequenceBinding::MutableOwner { referent, .. } => {
-                self.source
-                    .validate_mutable_referent(&execution.program.structural_types(), referent)?;
+                self.source.validate_mutable_referent(execution, referent)?;
                 let (bytes, capacity) = execution.exclusive_owner_bytes(&self.source)?;
                 let length = u64::try_from(bytes.len()).map_err(|_| malformed())?;
                 if self.scope == BoundaryByteWriteScope::View {

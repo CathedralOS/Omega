@@ -1232,7 +1232,7 @@ fn bounded_byte_field_borrow(
     owned: bool,
 ) -> Option<(u32, u64)> {
     use terminal_psi::{StructuralAccess, StructuralMultiplicity};
-    let Some((StructuralPathSegment::Field(name), prefix)) = argument.path.split_last() else {
+    let Some((StructuralPathSegment::Field(_), _)) = argument.path.split_last() else {
         return None;
     };
     let shared_owned_storage = !owned
@@ -1273,50 +1273,27 @@ fn bounded_byte_field_borrow(
     if !owned && argument.access == StructuralAccess::WriteOnlyBorrow {
         return None;
     }
-    let (carrier, carrier_offset) = if prefix.is_empty() {
-        (source.structural_type, 0)
-    } else {
-        project(source.structural_type, prefix, declarations)?
-    };
-    let StructuralTypeShape::Record { fields, .. } =
-        &find_structural_type(declarations, carrier)?.shape
+    let (selected, field_offset, elements) =
+        collection_projection(source.structural_type, &argument.path, declarations)?;
+    let StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
+        capacity,
+    }) = *selected
     else {
         return None;
     };
-    let mut local_offset = 0_u32;
-    for candidate in fields.iter().filter(|field| {
-        !field.relevance.is_erased()
-            && !matches!(field.field_type, StructuralFieldType::Erased { .. })
-    }) {
-        let layout = field_shape(&candidate.field_type, declarations, &mut Vec::new())?;
-        local_offset = align(local_offset, layout.alignment)?;
-        if candidate.identity == *name {
-            let Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity }) =
-                candidate.field_type.byte_sequence_carrier()
-            else {
-                return None;
-            };
-            if owned
-                && !declarations.iter().any(|declaration| {
-                    declaration.id == view_type
-                        && declaration.shape
-                            == StructuralTypeShape::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
-                            )
-                })
-            {
-                return None;
-            }
-            let field_offset = carrier_offset.checked_add(local_offset)?;
-            return (u64::from(field_offset)
-                .checked_add(8)?
-                .checked_add(capacity)?
-                <= u64::from(shape(source.structural_type, declarations)?.byte_size))
-            .then_some((field_offset, capacity));
-        }
-        local_offset = local_offset.checked_add(layout.byte_size)?;
+    if !elements.is_empty()
+        || !storage_projection_regions(source.structural_type, &argument.path, declarations)?
+            .pointer_slots
+            .is_empty()
+        || (owned && find_structural_type(declarations, view_type)?.shape != *selected)
+    {
+        return None;
     }
-    None
+    (u64::from(field_offset)
+        .checked_add(8)?
+        .checked_add(capacity)?
+        <= u64::from(shape(source.structural_type, declarations)?.byte_size))
+    .then_some((field_offset, capacity))
 }
 
 /// Per-case payload shapes in declaration order with relevance-erased fields

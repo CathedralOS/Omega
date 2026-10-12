@@ -1054,7 +1054,7 @@ pub(super) enum ProjectedStorage<'types> {
 }
 
 impl ProjectedStorage<'_> {
-    fn declaration(
+    pub(super) fn declaration(
         self,
         root: StructuralTypeId,
         declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,

@@ -176,14 +176,11 @@ pub(crate) fn ordinary_parameter_path(
         }
         // A borrowed byte-view formal takes the boundary presentation rule; an
         // unrestricted field path may also lend a fixed byte array as the view.
-        ArgumentPathShape::Static {
-            fixed_indexes,
-            case_qualified: false,
-            ..
-        } if checked_body
-            && custody.lends_borrow()
-            && matches!(custody.target_access?, MutableBorrow | SharedBorrow)
-            && argument.target_is_byte_view() =>
+        ArgumentPathShape::Static { fixed_indexes, .. }
+            if checked_body
+                && custody.lends_borrow()
+                && matches!(custody.target_access?, MutableBorrow | SharedBorrow)
+                && argument.target_is_byte_view() =>
         {
             argument.presented_projection_path(&[], unrestricted && fixed_indexes == 0)
         }

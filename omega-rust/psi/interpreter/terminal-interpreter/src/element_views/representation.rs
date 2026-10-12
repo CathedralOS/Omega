@@ -119,7 +119,7 @@ impl TerminalExecution<'_> {
                 .ok_or_else(malformed)?
             {
                 binding @ ByteSequenceBinding::MutableArray { array, offset, .. } => {
-                    binding.validate_mutable_referent(&self.program.structural_types(), value)?;
+                    binding.validate_mutable_referent(self, value)?;
                     ByteStorage::Array {
                         storage: array.clone(),
                         offset: usize::try_from(*offset).map_err(|_| malformed())?,

@@ -12,7 +12,6 @@ use terminal_psi::StructuralAccess;
 use terminal_psi::StructuralArgument;
 use terminal_psi::StructuralMultiplicity;
 use terminal_psi::StructuralPathSegment;
-use terminal_psi::StructuralTypeDeclaration;
 use terminal_psi::StructuralTypeShape;
 #[derive(Clone)]
 pub(crate) enum ByteSequenceBinding {
@@ -75,9 +74,10 @@ impl ByteSequenceBinding {
 
     pub(crate) fn validate_mutable_referent(
         &self,
-        structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
+        execution: &TerminalExecution,
         value: &TerminalStructuralValue,
     ) -> Result<(), TerminalInterpretError> {
+        let structural_types = execution.program.structural_types();
         if let Self::MutableArray {
             array,
             array_type,
@@ -95,7 +95,7 @@ impl ByteSequenceBinding {
                 _ => (
                     referent.path.as_slice(),
                     *offset == 0
-                        && byte_arrays::byte_array_length(structural_types, *array_type)
+                        && byte_arrays::byte_array_length(&structural_types, *array_type)
                             == Some(*length),
                 ),
             };
@@ -110,7 +110,7 @@ impl ByteSequenceBinding {
                 && array.referent.path == backing_path
                 && exact_window
                 && referent.qualifications.is_empty()
-                && byte_arrays::byte_array_length(structural_types, *array_type).is_some_and(
+                && byte_arrays::byte_array_length(&structural_types, *array_type).is_some_and(
                     |extent| offset.checked_add(*length).is_some_and(|end| end <= extent),
                 ) {
                 Ok(())
@@ -165,13 +165,17 @@ impl ByteSequenceBinding {
         {
             return Err(malformed());
         }
-        let Some(StructuralTypeDeclaration {
-            shape: StructuralTypeShape::Record { fields, .. },
-            ..
-        }) = structural_types.get(parent_type)
-        else {
-            return Err(malformed());
+        let case = match field.namespace {
+            crate::values::StructuralFieldNamespace::Member => None,
+            crate::values::StructuralFieldNamespace::CasePayload => Some(
+                execution
+                    .structural_cases
+                    .get(&field.parent)
+                    .ok_or_else(malformed)?
+                    .case,
+            ),
         };
+        let (fields, _) = execution.active_field_declarations(*parent_type, &field.parent, case)?;
         if !fields.iter().any(|declaration| {
             declaration.id == field.field
                 && declaration.identity == *identity
@@ -227,9 +231,7 @@ impl TerminalExecution<'_> {
                 home.opaque_identity == selected.opaque_identity
                     && home.path == selected.path
                     && home.structural_type == selected.structural_type
-                    && binding
-                        .validate_mutable_referent(&self.program.structural_types(), selected)
-                        .is_ok()
+                    && binding.validate_mutable_referent(self, selected).is_ok()
             }
         };
         if argument.path.is_empty()
@@ -246,16 +248,20 @@ impl TerminalExecution<'_> {
         // cells. Resolve the parent first so reference crossings and captured
         // selectors retain the same actual home as the descriptor observation.
         if let Some((StructuralPathSegment::Field(identity), prefix)) = argument.path.split_last() {
+            let (parent_path, case) = match prefix.split_last() {
+                Some((StructuralPathSegment::Case(case), parent)) => (parent, Some(*case)),
+                _ => (prefix, None),
+            };
             let parent = self.resolve_live_projection(
                 argument.place,
-                prefix,
+                parent_path,
                 StructuralAccess::SharedBorrow,
             )?;
-            let types = self.program.structural_types();
-            let fields = types
-                .get(&parent.structural_type)
-                .and_then(|row| row.shape.record_fields())
-                .ok_or_else(malformed)?;
+            let (fields, _) = self.active_field_declarations(
+                parent.structural_type,
+                &crate::values::StructuralRuntimePlace::from(&parent),
+                case,
+            )?;
             let field =
                 terminal_psi::live_field_by_identity(fields, *identity).ok_or_else(malformed)?;
             if field.field_type.byte_sequence_carrier().is_some() {
@@ -322,7 +328,7 @@ impl TerminalExecution<'_> {
                 length,
                 ..
             } => {
-                binding.validate_mutable_referent(&self.program.structural_types(), selected)?;
+                binding.validate_mutable_referent(self, selected)?;
                 let backing_length = self.stored_byte_array_length(array)?;
                 if offset
                     .checked_add(*length)
@@ -333,7 +339,7 @@ impl TerminalExecution<'_> {
                 return Ok(*length);
             }
             _ => {
-                binding.validate_mutable_referent(&self.program.structural_types(), selected)?;
+                binding.validate_mutable_referent(self, selected)?;
                 self.exclusive_owner_bytes(binding)?.0.len()
             }
         };
@@ -532,7 +538,7 @@ impl TerminalExecution<'_> {
                 Err(malformed())
             };
         }
-        binding.validate_mutable_referent(&self.program.structural_types(), value)?;
+        binding.validate_mutable_referent(self, value)?;
         if access == StructuralAccess::MutableBorrow {
             return Ok(binding.clone());
         }

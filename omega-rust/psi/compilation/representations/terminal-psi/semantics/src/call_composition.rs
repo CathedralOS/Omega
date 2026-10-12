@@ -15,12 +15,11 @@ pub use fixed_byte_view::{
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{
     ByteSequenceCarrier, OperationKind, StructuralAccess, StructuralArgument,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeShape,
+    StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
 };
 
 use super::OperationSemanticError;
-use crate::runtime_structural_path_tip;
+use crate::runtime_structural_field;
 use crate::semantic_rows::OperationSemanticTag;
 
 /// Resolve the inline capacity presented to a boundary's mutable byte parameter.
@@ -83,15 +82,7 @@ pub fn stored_view_field_presentation<'types>(
     {
         return None;
     }
-    let (StructuralPathSegment::Field(identity), prefix) = argument.path.split_last()? else {
-        return None;
-    };
-    let StructuralTypeShape::Record { fields, .. } =
-        &runtime_structural_path_tip(types, root_type, prefix)?.shape
-    else {
-        return None;
-    };
-    let field = terminal_psi::live_field_by_identity(fields, *identity)?;
+    let field = runtime_structural_field(types, root_type, &argument.path)?;
     (field.field_type.byte_sequence_carrier()?
         == ByteSequenceCarrier::BorrowedView {
             access: Some(StructuralAccess::SharedBorrow),
@@ -135,14 +126,7 @@ fn inline_byte_field_capacity<'types>(
                 _ => None,
             });
     }
-    let (StructuralPathSegment::Field(identity), prefix) = argument.path.split_last()? else {
-        return None;
-    };
-    let declaration = runtime_structural_path_tip(types.clone(), root_type, prefix)?;
-    let Some(fields) = declaration.shape.record_fields() else {
-        return None;
-    };
-    let field = terminal_psi::live_field_by_identity(fields, *identity)?;
+    let field = runtime_structural_field(types, root_type, &argument.path)?;
     if access != StructuralAccess::SharedBorrow && !field.field_type.byte_predicates().is_empty() {
         return None;
     }

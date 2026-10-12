@@ -1098,24 +1098,7 @@ pub(crate) fn inline_structural_field<'a>(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<&'a terminal_psi::StructuralFieldDeclaration> {
-    let Some((StructuralPathSegment::Field(identity), carrier)) = path.split_last() else {
-        return None;
-    };
-    let (carrier, case) = match carrier.split_last() {
-        Some((StructuralPathSegment::Case(case), prefix)) => (prefix, Some(*case)),
-        _ => (carrier, None),
-    };
-    let declaration =
-        terminal_semantics::runtime_structural_path_tip(structural_types.values(), root, carrier)?;
-    let fields = match (&declaration.shape, case) {
-        (terminal_psi::record_or_mixed_shape_pattern!(fields), None) => fields,
-        (
-            StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. },
-            Some(case),
-        ) => &find_structural_case(cases, case)?.fields,
-        _ => return None,
-    };
-    terminal_psi::live_field_by_identity(fields, *identity)
+    terminal_semantics::runtime_structural_field(structural_types.values(), root, path)
 }
 
 pub(crate) fn bind_entry_claims(

@@ -319,26 +319,13 @@ impl TerminalExecution<'_> {
             // the descriptor and leave the caller's bytes unchanged.
             self.resolve_live_projection(root, carrier_path, requested)?
         };
-        if let Some(case) = selected_case {
-            let actual = self
-                .structural_cases
-                .get(&StructuralRuntimePlace::from(&parent))
-                .ok_or_else(malformed)?;
-            if actual.structural_type != parent.structural_type || actual.case != case {
-                return Err(malformed());
-            }
-        }
-        let case_path: Vec<_> = selected_case
-            .into_iter()
-            .map(StructuralPathSegment::Case)
-            .collect();
-        let field_declaration = terminal_semantics::projected_field_declaration(
-            self.program.structural_types().values(),
+        let (fields, namespace) = self.active_field_declarations(
             parent.structural_type,
-            &case_path,
-            field,
-        )
-        .ok_or_else(malformed)?;
+            &StructuralRuntimePlace::from(&parent),
+            selected_case,
+        )?;
+        let field_declaration =
+            terminal_psi::live_field_by_id(fields, field).ok_or_else(malformed)?;
         let carrier = field_declaration
             .field_type
             .byte_sequence_carrier()
@@ -346,7 +333,7 @@ impl TerminalExecution<'_> {
         Ok((
             StructuralByteSequenceRuntimeField {
                 parent: StructuralRuntimePlace::from(&parent),
-                namespace: crate::values::StructuralFieldNamespace::for_carrier(path),
+                namespace,
                 field,
             },
             carrier,

@@ -174,7 +174,7 @@ impl TerminalExecution<'_> {
                         .get(&signature.structural_type)
                         .is_some_and(|declaration| declaration.shape.is_borrowed_byte_view())
                         && matches!(byte_sequence, Some(ref binding) if !matches!(binding, ByteSequenceBinding::Immutable(_))
-                            && binding.validate_mutable_referent(&self.program.structural_types(), &value).is_ok())));
+                            && binding.validate_mutable_referent(self, &value).is_ok())));
             // Owned results leave with their exact affine complement. Borrowed
             // ingress contributes no source frontier to transfer.
             let carried = crate::custody::whole_value_frontier(

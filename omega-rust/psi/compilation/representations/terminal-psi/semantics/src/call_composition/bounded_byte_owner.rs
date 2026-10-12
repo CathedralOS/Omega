@@ -87,19 +87,18 @@ pub fn bounded_byte_owner_capacity_in<'type_declaration, 'domain>(
     } else {
         if !actual.qualifications.is_empty()
             || !actual.projected_qualifications.is_empty()
-            || !terminal_psi::is_static_structural_scalar_store_path(&argument.path)
+            || !argument.path.iter().all(|segment| {
+                matches!(
+                    segment,
+                    StructuralPathSegment::Field(_)
+                        | StructuralPathSegment::FixedIndex(_)
+                        | StructuralPathSegment::Case(_)
+                )
+            })
         {
             return None;
         }
-        let (StructuralPathSegment::Field(identity), prefix) = argument.path.split_last()? else {
-            return None;
-        };
-        let declaration =
-            crate::runtime_structural_path_tip(types.clone(), actual.structural_type, prefix)?;
-        let Some(fields) = declaration.shape.record_fields() else {
-            return None;
-        };
-        let field = terminal_psi::live_field_by_identity(fields, *identity)?;
+        let field = crate::runtime_structural_field(types, actual.structural_type, &argument.path)?;
         let ByteSequenceCarrier::BoundedOwned { capacity } =
             field.field_type.byte_sequence_carrier()?
         else {

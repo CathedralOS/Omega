@@ -322,9 +322,6 @@ pub(crate) fn borrowed_storage_argument(
     // Referent shape, contents, identity and the exact loan below decide
     // admission. Primitive leaves and aggregates borrow the same original
     // home; declaration spelling is not an additional eligibility rule.
-    // The formal's own referee names the plan: a bounded byte owner keeps
-    // the qualification its carrier is registered under.
-    let target_identity = base_type_identity(program, target_shell.referee, &[], &[])?;
     let parameters = program.state_parameters(state);
     let (reference, mut source) = if let Some(position) =
         typed_trees::signature::state_parameter_position(parameters, symbol)
@@ -510,25 +507,26 @@ pub(crate) fn borrowed_storage_argument(
     // its qualifications and Terminal independently proves them from the exact
     // source field or parameter. No predicate is minted by this carrier join.
     let presentation_identity = shapes.add_type(target.type_reference, &[], &[])?;
-    // Computed scalar calls lend the same initialized fixed-array backing as
-    // ordinary calls. Reuse representation admission; exact access below still
-    // owns the loan. Raw array views retain field-only backing, never a runtime
-    // indexed selection or a crossed reference descriptor.
-    let array_view = super::argument_presentation::classify(
+    // Calls share representation admission for every selected endpoint,
+    // including a case payload. This preserves the exact root and path; it
+    // grants no access or predicate evidence. Raw array views additionally
+    // require initialized field-only backing without value qualifications.
+    let presentation = super::argument_presentation::classify(
         program,
         reference,
         target.type_reference,
         presentation_identity,
         &[],
-    ) == Some(super::argument_presentation::ArgumentPresentation::FixedArraySlice)
-        && path.iter().all(|segment| {
+    )?;
+    let array_backing_admitted = presentation
+        != super::argument_presentation::ArgumentPresentation::FixedArraySlice
+        || (path.iter().all(|segment| {
             matches!(
                 segment,
                 checked_trees::CheckedUnitStructuralPathSegment::Field(_)
             )
-        })
-        && parameter_qualifications(program, &mut shapes, reference, &[])?.is_empty();
-    if (identity != target_identity && !array_view)
+        }) && parameter_qualifications(program, &mut shapes, reference, &[])?.is_empty());
+    if !array_backing_admitted
         || (!parameter_qualifications(program, &mut shapes, reference, &[])?.is_empty()
             && !validation::has_contents(
                 program,

@@ -157,6 +157,33 @@ pub fn projected_field_declaration<'types>(
     path: &[StructuralPathSegment],
     field: semantic_vocabulary::StructuralFieldId,
 ) -> Option<&'types StructuralFieldDeclaration> {
+    let fields = projected_fields(types, root, path)?;
+    let mut matching = fields
+        .iter()
+        .filter(|candidate| candidate.id == field && !candidate.relevance.is_erased());
+    let field = matching.next()?;
+    matching.next().is_none().then_some(field)
+}
+
+/// Resolve a path's final field by portable identity, without inventing a
+/// nominal type for an inline carrier. This shares namespace selection with
+/// field-ID observations; neither query proves live membership or loan access.
+pub fn runtime_structural_field<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<&'types StructuralFieldDeclaration> {
+    let (StructuralPathSegment::Field(identity), parent) = path.split_last()? else {
+        return None;
+    };
+    terminal_psi::live_field(projected_fields(types, root, parent)?, *identity)
+}
+
+fn projected_fields<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<&'types [StructuralFieldDeclaration]> {
     let (prefix, selected_case) = match path.split_last() {
         Some((StructuralPathSegment::Case(case), prefix)) => (prefix, Some(*case)),
         _ => (path, None),
@@ -176,11 +203,7 @@ pub fn projected_field_declaration<'types>(
     } else {
         carrier.shape.direct_fields()?
     };
-    let mut matching = fields
-        .iter()
-        .filter(|candidate| candidate.id == field && !candidate.relevance.is_erased());
-    let field = matching.next()?;
-    matching.next().is_none().then_some(field)
+    Some(fields)
 }
 
 /// Preserve backing authority when observing a field through a canonical path.

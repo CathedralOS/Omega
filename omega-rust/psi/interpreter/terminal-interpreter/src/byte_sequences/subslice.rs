@@ -181,7 +181,7 @@ impl TerminalExecution<'_> {
                 length,
                 ..
             } => {
-                binding.validate_mutable_referent(&self.program.structural_types(), source)?;
+                binding.validate_mutable_referent(self, source)?;
                 let start = u64::try_from(window.start).map_err(|_| malformed())?;
                 let end = u64::try_from(window.end).map_err(|_| malformed())?;
                 if end > *length {
@@ -208,10 +208,7 @@ impl TerminalExecution<'_> {
                         referent: destination.clone(),
                         descriptor_home: None,
                     };
-                    narrowed.validate_mutable_referent(
-                        &self.program.structural_types(),
-                        &destination,
-                    )?;
+                    narrowed.validate_mutable_referent(self, &destination)?;
                     narrowed
                 } else {
                     ByteSequenceBinding::Immutable(self.stored_byte_array_snapshot(

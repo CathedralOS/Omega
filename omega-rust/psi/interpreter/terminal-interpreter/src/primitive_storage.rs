@@ -818,7 +818,7 @@ impl TerminalExecution<'_> {
         ) = byte_sequence_values.get(&place)
         {
             let value = structural_values.get(&place).ok_or_else(malformed)?;
-            binding.validate_mutable_referent(&self.program.structural_types(), value)?;
+            binding.validate_mutable_referent(self, value)?;
             let [StructuralPathSegment::FixedIndex(index)] = path else {
                 return Err(malformed());
             };

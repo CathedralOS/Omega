@@ -112,7 +112,7 @@ impl TerminalExecution<'_> {
             .byte_sequence_values
             .get(&place)
             .ok_or_else(malformed)?;
-        binding.validate_mutable_referent(&self.program.structural_types(), value)?;
+        binding.validate_mutable_referent(self, value)?;
         if let ByteSequenceBinding::MutableArray {
             array,
             array_type,

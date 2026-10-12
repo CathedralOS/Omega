@@ -40,7 +40,7 @@ impl TerminalExecution<'_> {
             }
         };
         binding.validate_mutable_referent(
-            &self.program.structural_types(),
+            self,
             self.structural_values
                 .get(destination)
                 .ok_or_else(malformed)?,

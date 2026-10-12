@@ -283,7 +283,7 @@ impl TerminalExecution<'_> {
                     } else {
                         *referent = value.clone();
                     }
-                    binding.validate_mutable_referent(&self.program.structural_types(), &value)?;
+                    binding.validate_mutable_referent(self, &value)?;
                 }
                 ByteSequenceBinding::Immutable(bytes) => {
                     *bytes = bytes.clone().with_descriptor_home(value.clone());
@@ -384,7 +384,7 @@ impl TerminalExecution<'_> {
             referent: referent.clone(),
             descriptor_home: None,
         };
-        binding.validate_mutable_referent(&self.program.structural_types(), &referent)?;
+        binding.validate_mutable_referent(self, &referent)?;
         Ok((referent, binding))
     }
 
