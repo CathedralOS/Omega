@@ -4,8 +4,8 @@ use omega::language::core::float_operations;
 // in source/library/std/math.omg run through the real dispatch pipeline --
 // sin(1) exercises the polynomial, sin(10) the binary-ladder range
 // reduction, cos(1) the let-bound sin composition. Each value is pinned to
-// a 1e-11 window around the true result (the degree-15 Taylor's worst case
-// on [-pi/2, pi/2] is ~2e-11). The delivery rides the FLOAT binary
+// a 1e-11 window around the true result (the degree-17 Taylor's polynomial error
+// on [-pi/2, pi/2] is ~5e-14). The delivery rides the FLOAT binary
 // terminal return-write (`poly`'s `(x + tail)` f64 terminal), which is the
 // float twin of the dispatch integer binary-terminal path -- before it
 // landed, this shape refused at the call-result fence. Distinct exit codes

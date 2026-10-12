@@ -11,8 +11,8 @@ use omega::language::core::float_operations;
 // Shape: a binary-ladder range reduction into [-pi, pi] (conditional
 // subtraction of 2pi * 2^k -- pure compares and subtracts, no
 // float-to-int cast, which is still owner-gated), a quadrant fold into
-// [-pi/2, pi/2], then a degree-15 Taylor polynomial in Horner form.
-// Accuracy: ~2e-11 worst case at |x| = pi/2; the ladder serves |x| up to
+// [-pi/2, pi/2], then a degree-17 Taylor polynomial in Horner form.
+// Accuracy: ~5e-14 polynomial error at |x| = pi/2; the ladder serves |x| up to
 // ~6.7e7 (2pi * 2^24) with reduction error growing as |x| does. Large
 // arguments and sub-ulp accuracy are the recorded follow-on (Cody-Waite
 // double-double constants ride the same shape).
@@ -47,14 +47,16 @@ pub machine sin(x: f64) -> f64 {
         transition { _ -> poly(x) }
     }
 
-    // Degree-15 Taylor in Horner form over x*x. The accumulator is
+    // Degree-17 Taylor in Horner form over x*x. The accumulator is
     // `let mut`: plain lets BIND-FOLD into their consumers, which would
     // rebuild the whole chain as one deeply nested expression and exhaust
     // the MVP encoders' small scratch pools -- a mut local is slotted, so
     // every step stays a two-op store.
     state poly(x: f64) {
         let xx: f64 = x * x;
-        let mut p: f64 = 0.00000000000002811457254345520763198946;
+        // The x^17 coefficient is exactly 1/17!, not ten times that value.
+        // Endpoint error matters when repeated cos(0) butterfly factors accumulate.
+        let mut p: f64 = 0.000000000000002811457254345520763198946;
         let mut term: f64 = xx * p;
         p = -0.00000000000076471637318198164759011320 + term;
         term = xx * p;

@@ -4210,7 +4210,7 @@ pass/calls/runtime_static_entry_context_exit checked 11666ms check-target:macos_
 pass/calls/runtime_static_proof_only_namespace_exit checked 12468ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_static_tail_local_custody_exit checked 11726ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_static_tail_reordered_local_custody_exit checked 11934ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/calls/runtime_std_math_sin_cos_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/runtime_std_math_sin_cos_exit checked 33684ms check-target:macos_arm64 @5c5bb7a1c2c2+wt
 pass/calls/runtime_stored_constructor_snapshots_exit checked 11619ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_stored_equal_observations_exit checked 11955ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_stored_reference_computation_argument_exit rejected 11916ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5042,6 +5042,7 @@ pass/float/runtime_resultless_law_equality_custody_exit checked 143939ms check-t
 pass/float/runtime_shared_float_lazy_branch_exit timeout 120000ms @a9ae30e1c334+wt
 pass/float/runtime_shared_float_operand_once_exit timeout 120000ms @a9ae30e1c334+wt
 pass/float/runtime_std_is_finite_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
+pass/float/runtime_std_trigonometric_endpoints checked 34863ms check-target:macos_arm64 @5c5bb7a1c2c2+wt
 pass/float/runtime_total_order_satisfiers_exit timeout 120003ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
 pass/float/saturating_named_operations_retain_ordered_inputs timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
 pass/float/scalar_helper_boundary_sequence_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt

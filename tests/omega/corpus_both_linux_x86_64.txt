@@ -29,6 +29,7 @@ pass/borrows/runtime_indexed_stored_reference_call built 4968ms exit:0 interpret
 pass/borrows/runtime_mutable_primitive_reference_exit built 6934ms exit:0 interpreter-exit:0 interpreter:agrees @944fb1232f17
 pass/borrows/runtime_record_primitive_reference_capture_exit built 5943ms exit:0 interpreter-exit:0 interpreter:agrees @3f342b86d6b4
 pass/borrows/static_record_reference_return_exit built 4895ms exit:0 interpreter-exit:0 interpreter:agrees @ceb70d0df240+wt
+pass/calls/runtime_std_math_sin_cos_exit built 35272ms exit:70 interpreter-exit:70 interpreter:agrees @5c5bb7a1c2c2+wt
 pass/collections/owned_state_array_leaf_store_exit built 6023ms exit:70 interpreter-exit:70 interpreter:agrees @42528495d791
 pass/collections/runtime_computed_borrow_selector_join_exit built 4309ms exit:0 interpreter-exit:0 interpreter:agrees @a4b3d5fb0060+wt
 pass/collections/runtime_computed_borrow_selector_once_exit built 4264ms exit:0 interpreter-exit:0 interpreter:agrees @a4b3d5fb0060+wt
@@ -52,6 +53,7 @@ pass/float/runtime_builtin_ieee_order_exit built 60422ms exit:70 interpreter-exi
 pass/float/runtime_float_digit_separators_exit built 162056ms exit:0 interpreter-exit:0 interpreter:agrees @e129ea486356
 pass/float/runtime_shared_float_lazy_branch_exit built 61733ms exit:70 interpreter-exit:70 interpreter:agrees @6eefe97847df+wt
 pass/float/runtime_shared_float_operand_once_exit built 60043ms exit:70 interpreter-exit:70 interpreter:agrees @cacb7c7a55e2
+pass/float/runtime_std_trigonometric_endpoints built 30478ms exit:0 interpreter-exit:0 interpreter:agrees @5c5bb7a1c2c2+wt
 pass/generics/omitted_data_binder_range_equation built 1576ms exit:92 interpreter-exit:92 interpreter:agrees @f64782b89114+wt
 pass/generics/runtime_constructor_equation_binder_carriers_exit built 5015ms exit:0 interpreter-exit:0 interpreter:agrees @1843c1a8677b+wt
 pass/generics/runtime_equation_named_array_actual_exit built 4791ms exit:0 interpreter-exit:0 interpreter:agrees @5025d41fde63+wt
