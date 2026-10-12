@@ -43,7 +43,7 @@ pub use sections::semantic_module::canonical_order::{
 };
 pub use sections::semantic_module::mathematical_certificate_wire::{
     DecodedMathematicalCertificate, decode_mathematical_certificate,
-    encode_mathematical_certificate,
+    encode_mathematical_certificate, encode_mathematical_signature,
 };
 pub use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity};
 

@@ -210,7 +210,7 @@ fn lower_atomic_domain_membership_expression(
                     {
                         let nested_value =
                             lower_expression_handle_from_table_with_symbol_substitution(
-                                Some(program),
+                                program,
                                 source,
                                 target,
                                 membership.value,
@@ -243,7 +243,7 @@ fn lower_atomic_domain_membership_expression(
                         generated
                     }
                     _ => lower_expression_handle_from_table_with_symbol_substitution(
-                        Some(program),
+                        program,
                         source,
                         target,
                         *expression,
@@ -253,7 +253,7 @@ fn lower_atomic_domain_membership_expression(
             }
             resolved::domain::ProofFact::Membership(membership) => {
                 let nested_value = lower_expression_handle_from_table_with_symbol_substitution(
-                    Some(program),
+                    program,
                     source,
                     target,
                     membership.value,

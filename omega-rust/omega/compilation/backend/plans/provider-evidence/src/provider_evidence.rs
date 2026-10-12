@@ -14,6 +14,7 @@ pub(crate) mod component_eras;
 pub(crate) use optimization_core::digest_encoder;
 pub(crate) mod executable_scopes;
 pub(crate) mod providers;
+mod requirement_applications;
 
 use crate::provider_evidence::digest_encoder::DomainDigestEncoder;
 use crate::provider_plan::ProviderPlan;
@@ -76,6 +77,7 @@ evidence_digest!(
 /// not have to rediscover selection from source declarations.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedProviderPlanFacts {
+    requirement_applications: Vec<SelectedRequirementApplication>,
     plans: Vec<ProviderPlan>,
     /// Compact report coordinate. Authority retains `plans` and is exposed by
     /// `identity_digest()`.
@@ -106,6 +108,7 @@ impl Default for SelectedProviderPlanFacts {
             execution_scope: crate::ExecutionScope::CallerAddressSpace,
             opaque_executable_admissions: Vec::new(),
             installation_reach_resolutions: Vec::new(),
+            requirement_applications: Vec::new(),
             specialized_requirement_rows: Vec::new(),
             family_realization_rows: Vec::new(),
             toolchain_settled_identities: BTreeSet::new(),
@@ -179,6 +182,7 @@ impl SelectedProviderPlanFacts {
             execution_scope: crate::ExecutionScope::CallerAddressSpace,
             opaque_executable_admissions: Vec::new(),
             installation_reach_resolutions: Vec::new(),
+            requirement_applications: Vec::new(),
             specialized_requirement_rows: Vec::new(),
             family_realization_rows: Vec::new(),
             toolchain_settled_identities: BTreeSet::new(),
@@ -203,6 +207,7 @@ impl SelectedProviderPlanFacts {
     /// invariants are unchanged.
     pub fn with_toolchain_settled_plan(mut self, plan: ProviderPlan) -> Result<Self, String> {
         if !self.installation_reach_resolutions.is_empty()
+            || !self.requirement_applications.is_empty()
             || !self.specialized_requirement_rows.is_empty()
             || !self.family_realization_rows.is_empty()
         {
@@ -338,6 +343,21 @@ impl SelectedProviderPlanFacts {
             encoder.u64(resolution.provider_plan_report_identity);
             encoder.strings(&resolution.upper_bound);
             encoder.strings(&resolution.resolved_row);
+        }
+        encoder.len(self.requirement_applications.len());
+        for row in &self.requirement_applications {
+            encoder.u64(row.provider_plan_report_identity);
+            encoder.bytes(row.provider_plan_digest.as_bytes());
+            encoder.string(
+                self.identities
+                    .text(row.selected_requirement_identity)
+                    .unwrap_or_default(),
+            );
+            encoder.string(
+                self.identities
+                    .text(row.requirement_identity)
+                    .unwrap_or_default(),
+            );
         }
         encoder.len(self.specialized_requirement_rows.len());
         for row in &self.specialized_requirement_rows {
@@ -495,6 +515,7 @@ impl SelectedProviderPlanFacts {
             &self.plans,
             &self.installation_reach_resolutions,
             &self.specialized_requirement_rows,
+            &self.requirement_applications,
             &self.family_realization_rows,
             &self.identities,
         );
@@ -606,16 +627,24 @@ impl SelectedProviderPlanFacts {
                 ));
             }
         }
+        let applications = rows
+            .iter()
+            .map(|row| {
+                let plan = self
+                    .plan_by_report_fingerprint(row.provider_plan_report_identity)
+                    .ok_or("selected specialization lost its owning plan")?;
+                Ok(SelectedRequirementApplication {
+                    provider_plan_report_identity: row.provider_plan_report_identity,
+                    provider_plan_digest: plan.identity_digest(),
+                    selected_requirement_identity: row.selected_requirement_identity,
+                    requirement_identity: row.requirement_identity,
+                })
+            })
+            .collect::<Result<Vec<_>, String>>()?;
         self.specialized_requirement_rows = rows;
         self.validate_family_realization_rows(&self.family_realization_rows)?;
-        self.report_fingerprint = selected_closure_report_fingerprint(
-            &self.plans,
-            &self.installation_reach_resolutions,
-            &self.specialized_requirement_rows,
-            &self.family_realization_rows,
-            &self.identities,
-        );
-        Ok(self)
+        let identities = self.identities.clone();
+        self.with_requirement_applications(applications, &identities)
     }
 
     /// The specialization roster: each row rebinds one template-keyed
@@ -660,17 +689,21 @@ impl SelectedProviderPlanFacts {
         provider_plan_report_identity: u64,
         row_requirement_identity: &'a str,
     ) -> Vec<&'a str> {
-        let mut identities = self
-            .specialized_requirement_rows_for_row(
-                provider_plan_report_identity,
-                row_requirement_identity,
-            )
-            .map(|row| {
-                self.identities
+        let mut identities = Vec::new();
+        for row in &self.requirement_applications {
+            if row.provider_plan_report_identity == provider_plan_report_identity
+                && self.identities.text(row.selected_requirement_identity)
+                    == Some(row_requirement_identity)
+            {
+                let identity = self
+                    .identities
                     .text(row.requirement_identity)
-                    .unwrap_or_default()
-            })
-            .collect::<Vec<_>>();
+                    .unwrap_or_default();
+                if !identities.contains(&identity) {
+                    identities.push(identity);
+                }
+            }
+        }
         if identities.is_empty() {
             identities.push(row_requirement_identity);
         }
@@ -695,18 +728,19 @@ impl SelectedProviderPlanFacts {
     /// Rejoin a Terminal identity to its selected row without changing the
     /// original call's contract. Family and specialization custody stay distinct.
     pub fn selected_requirement_identity<'a>(&'a self, requirement: &'a str) -> &'a str {
+        if let Some(row) = self.requirement_application(requirement) {
+            return self
+                .identities
+                .text(row.selected_requirement_identity)
+                .unwrap_or_default();
+        }
         if let Some(row) = self.family_realization_row(requirement) {
             return self
                 .identities
                 .text(row.selected_requirement_identity)
                 .unwrap_or_default();
         }
-        self.specialized_requirement_row(requirement)
-            .map_or(requirement, |row| {
-                self.identities
-                    .text(row.selected_requirement_identity)
-                    .unwrap_or_default()
-            })
+        requirement
     }
 
     /// Exact plan-scoped row matching, including retained family and closed
@@ -717,12 +751,12 @@ impl SelectedProviderPlanFacts {
         selected_requirement: &str,
         provider_plan_report_identity: u64,
     ) -> bool {
-        if let Some(row) = self.family_realization_row(requirement) {
+        if let Some(row) = self.requirement_application(requirement) {
             return row.provider_plan_report_identity == provider_plan_report_identity
                 && self.identities.text(row.selected_requirement_identity)
                     == Some(selected_requirement);
         }
-        if let Some(row) = self.specialized_requirement_row(requirement) {
+        if let Some(row) = self.family_realization_row(requirement) {
             return row.provider_plan_report_identity == provider_plan_report_identity
                 && self.identities.text(row.selected_requirement_identity)
                     == Some(selected_requirement);
@@ -764,6 +798,7 @@ impl SelectedProviderPlanFacts {
             &self.plans,
             &self.installation_reach_resolutions,
             &self.specialized_requirement_rows,
+            &self.requirement_applications,
             &self.family_realization_rows,
             &self.identities,
         );
@@ -1014,6 +1049,16 @@ pub struct InstallationReachResolution {
     pub resolved_row: Vec<String>,
 }
 
+/// One complete applied public requirement supplied by an actual selected row.
+/// This is a row correspondence, not a checked-body or physical execution receipt.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectedRequirementApplication {
+    pub provider_plan_report_identity: u64,
+    pub provider_plan_digest: crate::provider_plan::ProviderPlanDigest,
+    pub selected_requirement_identity: terminal_psi::TerminalIdentityIndex,
+    pub requirement_identity: terminal_psi::TerminalIdentityIndex,
+}
+
 /// The post-specialization realization of one template-keyed selected plan
 /// row: which exact closed requirement instance it serves and which
 /// specialized provider instance realizes it.
@@ -1075,6 +1120,7 @@ fn selected_closure_report_fingerprint(
     plans: &[ProviderPlan],
     resolutions: &[InstallationReachResolution],
     specialization_rows: &[SelectedRequirementSpecialization],
+    applications: &[SelectedRequirementApplication],
     family_rows: &[SelectedTargetFamilyRealization],
     identities: &terminal_psi::TerminalIdentityTable,
 ) -> u64 {
@@ -1127,6 +1173,24 @@ fn selected_closure_report_fingerprint(
             0,
         );
     }
+    for row in applications {
+        hash.u64(row.provider_plan_report_identity);
+        hash.bytes(row.provider_plan_digest.as_bytes());
+        hash.bytes_terminated(
+            identities
+                .text(row.selected_requirement_identity)
+                .unwrap_or_default()
+                .as_bytes(),
+            0,
+        );
+        hash.bytes_terminated(
+            identities
+                .text(row.requirement_identity)
+                .unwrap_or_default()
+                .as_bytes(),
+            0,
+        );
+    }
     for row in family_rows {
         hash.u64(u64::from(row.terminal.vocabulary_marker.get()));
         hash.bytes(row.terminal.program_fingerprint.as_bytes());
@@ -1173,7 +1237,7 @@ impl crate::provider_evidence::providers::provider_plan::DigestFeed
 impl SelectedProviderClosureDigestEncoder {
     fn new() -> Self {
         Self(DomainDigestEncoder::new(
-            b"omega.selected-provider-closure.sha256.v2\0",
+            b"omega.selected-provider-closure.sha256.v3\0",
         ))
     }
 

@@ -143,6 +143,7 @@ fn collects_bounded_type_sites() {
     syntax_trees.push_root_item(Item::Machine(Machine {
         name: Identifier::generated("main"),
         generic_data_template: Default::default(),
+        generic_data_member_parameters: Default::default(),
         default_body_trait: Default::default(),
         where_facts: HandleSpan::empty(),
         attached_data: None,

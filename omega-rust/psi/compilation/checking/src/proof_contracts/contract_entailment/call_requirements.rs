@@ -72,15 +72,41 @@ pub fn structural_call_requirement_entailed(
     )
 }
 
+/// Project a flow-owned source obligation into this public application's
+/// contract graph. Ordinary source facts retain their existing flow/proof
+/// owner. Original fact custody is required when a signature contains a copy.
+/// This correspondence supplies no expression, prefix or Requires verdict.
+pub fn applied_call_requirement_expression(
+    program: &dyn crate::CheckingInput,
+    site: crate::machine_calls::calls::CallSite<'_>,
+    fact: arena::Handle<typed_trees::domain::ProofFact>,
+    expression: ExpressionHandle,
+) -> ExpressionHandle {
+    let Some(owner) = super::specification_calls::selected_call_contract_at_site(program, site)
+    else {
+        return expression;
+    };
+    match owner {
+        super::specification_calls::SelectedCallContract::Signature(_)
+        | super::specification_calls::SelectedCallContract::DynamicSlot { .. } => {
+            super::specification_calls::owner_requires_expression(program, &owner, fact, expression)
+        }
+        _ => expression,
+    }
+}
+
 /// Selected expression calls share the structural prefix and execution-path
 /// owner. The exact public declaration supplies the telescope; the realized
-/// implementation cannot export a stronger private contract.
+/// implementation cannot export a stronger private contract. An original fact
+/// handle selects its produced public copy; zero only admits an expression
+/// already belonging to the selected public header.
 pub fn selected_value_call_requirement_entailed(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     statement_index: usize,
     site: crate::machine_calls::calls::CallSite<'_>,
+    fact: arena::Handle<typed_trees::domain::ProofFact>,
     expression: ExpressionHandle,
 ) -> bool {
     let crate::machine_calls::calls::CallSite::Expression {
@@ -93,11 +119,9 @@ pub fn selected_value_call_requirement_entailed(
     let Some(owner) = super::specification_calls::selected_call_contract(program, call) else {
         return false;
     };
-    if !super::specification_calls::owner_contracts(program, &owner)
-        .filter(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Requires)
-        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
-        .any(|fact| matches!(fact, typed_trees::domain::ProofFact::Expression(required) if *required == expression))
-    {
+    let expression =
+        super::specification_calls::owner_requires_expression(program, &owner, fact, expression);
+    if !expression.is_valid() {
         return false;
     }
     let callee_machine = match owner {
@@ -333,7 +357,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
         guarantees: &CitationFacts,
     ) {
         self.seen = true;
-        let mut site_judge = structural_arm_judge(program, judge, hypotheses, equations);
+        let mut site_judge = structural_arm_judge(judge, hypotheses, equations);
         if site_judge.hypotheses_contradictory {
             return;
         }
@@ -385,11 +409,19 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                     self.proven = false;
                     return;
                 };
-                site_judge.frame_resolver().and_then(|frames| {
-                    frames.expression_call_reference_subjects(
+                site_judge.call_frames().and_then(|frames| {
+                    let requested =
+                        super::structural_judgment::normal_returns::parameter_dependencies(
+                            program,
+                            [self.expression],
+                            self.parameters,
+                        )?;
+                    frames.expression_call_reference_subjects_for_parameters(
                         owner_machine,
                         self.call_expression,
                         self.parameters,
+                        &requested,
+                        &frames.value_call_write_frame(owner_machine, self.call_expression),
                     )
                 })
             } else {
@@ -409,7 +441,18 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                 self.proven = false;
                 return;
             }
+            let Some(required) = super::structural_judgment::normal_returns::parameter_dependencies(
+                program,
+                [self.expression],
+                self.parameters,
+            ) else {
+                self.proven = false;
+                return;
+            };
             for (parameter, value) in self.parameters.iter().zip(arguments) {
+                if !required.contains(&parameter.symbol) {
+                    continue;
+                }
                 let value = if self.call_expression.is_valid()
                     && crate::reference_shell(program, parameter.type_reference).is_some()
                 {
@@ -419,7 +462,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                         .and_then(|subject| {
                             entry.judge.reference_subject_term(
                                 subject,
-                                environment,
+                                &entry.environment,
                                 (machine, caller_state, caller_state.return_type),
                             )
                         })
@@ -555,7 +598,8 @@ pub(super) fn case_fact_only(
         && case_fact_only(program, binary.left) && case_fact_only(program, binary.right))
 }
 
-/// Establish a prior citation before a later branch can refine its arguments.
+/// Establish a citation from earlier surviving facts before publishing its
+/// own conclusions. The output roster cannot supply this call's premises.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn establish_citation(
     program: &dyn crate::CheckingInput,
@@ -567,12 +611,13 @@ pub(super) fn establish_citation(
     classification: &typed_trees::proof_only::ProofOnlyClassification,
     hypotheses: &[(String, StructuralTerm)],
     equations: &[(StructuralTerm, StructuralTerm)],
-    guarantees: &mut CitationFacts,
+    prior_guarantees: &CitationFacts,
+    produced_guarantees: &mut CitationFacts,
     target: &CitationTarget,
     arguments: &[StructuralTerm],
 ) {
-    let mut site_judge = structural_arm_judge(program, judge, hypotheses, equations);
-    guarantees.intake(&mut site_judge);
+    let mut site_judge = structural_arm_judge(judge, hypotheses, equations);
+    prior_guarantees.intake(&mut site_judge);
     // Runtime invocations transport only checked tag guarantees. Their saved
     // results are individual values, not mathematical applications or an IH.
     if !judge.has_runtime_body_values() {
@@ -597,7 +642,7 @@ pub(super) fn establish_citation(
         true,
     );
     if diagnostics.is_empty() {
-        guarantees.extend(established);
+        produced_guarantees.extend(established);
     }
 }
 

@@ -96,6 +96,23 @@ pub struct CheckedBuildProgram {
     product_declarations: Arc<TypedTrees>,
 }
 
+impl CheckedBuildProgram {
+    pub(crate) fn typed(&self) -> &TypedTrees {
+        &self.checked.typed
+    }
+
+    pub(crate) fn checked(&self) -> &checked_trees::CheckedTrees {
+        &self.checked
+    }
+
+    pub(crate) fn interpreter_program(&self) -> checked_interpreter::BuildMachineProgram<'_> {
+        checked_interpreter::BuildMachineProgram::CheckedClosure {
+            execution: &self.checked,
+            product_declarations: &self.product_declarations,
+        }
+    }
+}
+
 /// Exact build-machine entry owned by one prepared program.
 ///
 /// A raw [`SymbolHandle`] is local to an arena and can have the same numeric

@@ -430,9 +430,10 @@ fn plan_measurement_records_the_kernel_receipt() {
     let AcceptedFactRoute::CertificateDerived { acceptance, .. } = fact.route else {
         panic!("certificate-derived route");
     };
-    let MathematicalCoreDecision::Judged(receipt) = acceptance.mathematical_core else {
+    let MathematicalCoreDecision::Judged(judgment) = acceptance.mathematical_core else {
         panic!("a closed literal certificate judges in the mathematical core");
     };
+    let receipt = judgment.receipt();
     assert_eq!(measurements.certificate_certified, 1);
     assert_eq!(measurements.certificate_attempts(), 1);
     assert_eq!(measurements.kernel_judgments, 1);

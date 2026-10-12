@@ -19,10 +19,16 @@
 //! Source selection declarations are owned by Psi compile-time admission; the
 //! re-exported selection records below are inputs, not a second source decoder.
 
+pub mod assumed_binding_registrations;
+pub mod assumed_binding_relationships;
 pub mod calling_policy_plans;
+pub mod compiler_catalog;
 pub mod component_progress;
 pub mod data_layout_queries;
+pub mod selected_applications;
 pub(crate) use optimization_core::digest_encoder;
+mod direct_foreign_realizations;
+pub use direct_foreign_realizations::direct_boundary_entry_plan;
 pub mod evaluated_via_bindings;
 mod fnv1a;
 mod intrinsic_requirements;
@@ -34,6 +40,7 @@ pub use provider_identity::{
 };
 mod provider_planning;
 mod provider_settlement;
+mod selected_requirement_applications;
 pub mod service_schema;
 #[cfg(test)]
 mod source_guards;
@@ -56,8 +63,8 @@ pub use intrinsic_requirements::{
 };
 pub use provider_planning::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
-    CompilerPrimitiveIntegerComparisonOperation, ProviderPlanDerivation, ProviderSchemaDeclaration,
-    ProviderSelectionProvenance, SelectedProviderReviewProvenance,
+    CompilerPrimitiveIntegerComparisonOperation, ProviderPlanCatalog, ProviderPlanDerivation,
+    ProviderSchemaDeclaration, ProviderSelectionProvenance, SelectedProviderReviewProvenance,
     bind_selected_provider_plan_facts, derive_satisfies_plans, exact_checked_adapter,
     same_semantic_name, satisfies_plan_name, select_derived_provider_plans,
     selected_provider_plan_facts, selected_requirement_checked_adapter, selected_requirement_plan,

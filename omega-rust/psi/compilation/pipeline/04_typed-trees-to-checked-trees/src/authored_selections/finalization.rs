@@ -26,11 +26,12 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelection, AuthoredDeclarationSelectionIntrinsic,
     AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionLateBinding,
     AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionTarget,
-    AuthoredDeclarationSelections, BuildOperation,
+    AuthoredDeclarationSelections,
 };
 use symbols::{JoinedPath, SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
+use typed_trees::references::StaticArgumentCall;
 use validation::selection_resolution::{
     AuthoredSelectionResolution, AuthoredSelectionResolutionTarget, declaration_target,
     finalization_diagnostic, push_consistent_resolution,
@@ -179,25 +180,20 @@ pub(crate) fn finalize_checked_authored_selections(
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedStaticArgument,
                     ExpressionNode::Call(call),
-                ) if matches!(BuildOperation::from_call_target(call.target.as_str()),
-                    Some(BuildOperation::ProviderSelection | BuildOperation::ServiceExclusion)) =>
-                {
-                    let Some(argument_index) = selection.top_level_static_argument_position() else {
+                ) => {
+                    let Some(position) = selection.static_argument_position() else {
                         continue;
                     };
-                    let argument = call.machine_arguments.get(argument_index);
-                    if validation::compiler_operations::is_build_declaration_selection(program, expression) {
-                        let selected = validation::compiler_operations::resolve_build_declaration_operand(
-                            program, expression, argument_index, selection.source_span(),
-                        );
-                        let Some(selected) = selected else {
-                            return Err(Diagnostic::error("Build declaration operand does not resolve to one visible product declaration of the required kind")
-                                .with_source_span(selection.source_span()));
-                        };
-                        declaration_target(selected)
-                    } else {
-                        declaration_target(argument.map(|argument| argument.symbol).unwrap_or_default())
+                    let selected = validation::compiler_operations::resolve_static_argument_selection(
+                        program, StaticArgumentCall::Expression(expression, call), position,
+                    );
+                    if selected.is_none()
+                        && validation::compiler_operations::is_build_declaration_selection(program, expression)
+                    {
+                        return Err(Diagnostic::error("Build declaration operand does not resolve to one visible product declaration of the required kind")
+                            .with_source_span(selection.source_span()));
                     }
+                    declaration_target(selected.unwrap_or_default())
                 }
                 // A sealed quotient request selects compiler vocabulary, not a
                 // declaration: it has no target symbol and produces no checked
@@ -366,7 +362,7 @@ pub(crate) fn finalize_checked_authored_selections(
                         ))
                         .or_else(|| {
                             declaration_target(
-                                validation::token_bound_machine_call_target(program, call)
+                                validation::token_bound_call_target(program, call)
                                     .unwrap_or_else(SymbolHandle::invalid),
                             )
                         })

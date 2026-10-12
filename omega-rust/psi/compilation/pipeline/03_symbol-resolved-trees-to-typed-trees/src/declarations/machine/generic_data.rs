@@ -27,7 +27,30 @@ pub(super) fn is_derived(
                 && machine.name.source_span() == template.name.source_span()
                 && machine.is_public == template.is_public
                 && machine.supply_mode == template.supply_mode
-                && machine.type_parameters.is_empty()
+                && program.data_type_parameters(machine.type_parameters).len()
+                    == program.data_type_parameters(origin.member_parameters).len()
+                && program
+                    .data_type_parameters(machine.type_parameters)
+                    .iter()
+                    .zip(program.data_type_parameters(origin.member_parameters))
+                    .all(|(member, source)| {
+                        member.name.source_span() == source.name.source_span()
+                            && program
+                                .data_type_parameters(template.type_parameters)
+                                .iter()
+                                .any(|parameter| parameter == source)
+                            && std::mem::discriminant(&member.kind)
+                                == std::mem::discriminant(&source.kind)
+                    })
+                && machine.conformance_bounds.len() == template.conformance_bounds.len()
+                && machine
+                    .conformance_bounds
+                    .iter()
+                    .zip(&template.conformance_bounds)
+                    .all(|(member, source)| {
+                        member.binder_name.source_span() == source.binder_name.source_span()
+                            && member.trait_symbol == source.trait_symbol
+                    })
                 && matches!(&owner.generic_instance, Some(TypeReference::Generic(application))
                     if application.base_symbol == template.attached_data_symbol)
         });

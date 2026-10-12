@@ -9,6 +9,7 @@ use super::type_instantiation::{
     TypeBindings, push_generic_application_bindings, substituted_head,
 };
 use crate::value_custody::struct_literals::construction_field_type;
+pub(super) use crate::value_custody::struct_literals::constructor_matches_type as struct_literal_matches_expected_type;
 use symbols::SymbolHandle;
 use typed_trees::data::DataMember;
 use typed_trees::declaration_index::IsolationVerdicts;
@@ -202,27 +203,6 @@ pub(super) fn struct_literal_field_type(
         literal.case_name.as_ref().map(|name| name.as_str()),
         field_name,
     )
-}
-
-pub(super) fn struct_literal_matches_expected_type(
-    program: &dyn crate::CheckingInput,
-    literal: &TableStructLiteral,
-    expected_type: TypeReferenceHandle,
-) -> bool {
-    let Some(expected_type) =
-        crate::value_custody::places::unwrapped_type_reference(program, expected_type)
-    else {
-        return false;
-    };
-    // An authored generic constructor names the declaration, while its exact
-    // prepared storage can have another symbol. Only the retained application
-    // connects those owners; debug spellings cannot establish correspondence.
-    literal.type_symbol.is_valid()
-        && (program
-            .closed_data_constructor_definition(expected_type, literal.type_symbol)
-            .is_some()
-            || matches!(program.type_reference_table.type_reference(expected_type),
-                TypeReferenceNode::Generic { base_symbol, .. } if *base_symbol == literal.type_symbol))
 }
 
 fn type_is_caller_isolated(

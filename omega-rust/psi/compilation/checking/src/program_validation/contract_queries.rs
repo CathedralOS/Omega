@@ -56,6 +56,7 @@ pub fn validate_generic_machine_contract_entailment(
                 machine,
                 &mut diagnostics,
                 &mut Vec::new(),
+                &mut Vec::new(),
             );
         }
     }

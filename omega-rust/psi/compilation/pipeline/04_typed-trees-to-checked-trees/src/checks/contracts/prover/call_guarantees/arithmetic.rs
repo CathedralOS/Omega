@@ -22,7 +22,7 @@ use super::callable::Callable;
 use super::{Invocation, actual_projection, bound_place, direct_place};
 use crate::checks::unsigned;
 use checked_trees::{CheckFacts, FlowStateFact};
-use facts::{ContractFactKind, FactContextHandle, FactOrigin, FactPayload};
+use facts::{FactContextHandle, FactOrigin, FactPayload};
 use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::types::PrimitiveType;
@@ -124,11 +124,11 @@ fn proves_bound(
         }
         let (expression, holds) = match fact.payload {
             FactPayload::ContractBooleanExpression {
-                kind: ContractFactKind::Requires,
+                kind,
                 expression,
                 instantiated,
                 ..
-            } if !instantiated.is_valid() => (expression, true),
+            } if kind.is_body_assumption() && !instantiated.is_valid() => (expression, true),
             FactPayload::BooleanValue { expression, value } => (expression, value),
             _ => continue,
         };
@@ -158,7 +158,7 @@ fn proves_bound(
             hypotheses.push(ScopedArithmeticHypothesis { proposition, holds });
         }
     }
-    validation::scoped_arithmetic_implication(program, machine, &hypotheses, goal)
+    validation::scoped_arithmetic_implication(program, machine.symbol, &hypotheses, goal)
         == StrictArithmeticImplicationJudgment::Proven
 }
 

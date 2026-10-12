@@ -11,6 +11,12 @@ use crate::scalar_lowering::branch_states::prepared::{
 };
 use checked_trees::{CheckedScalarDispatchArm, CheckedScalarDispatchPattern};
 
+pub(crate) struct DispatchEntry {
+    pub(crate) pattern: CheckedScalarDispatchPattern,
+    pub(crate) equality_use: checked_trees::CheckedOperatorUseHandle,
+    pub(crate) target: usize,
+}
+
 impl Expansion<'_> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn dispatch(
@@ -24,12 +30,6 @@ impl Expansion<'_> {
         site: &Site<'_>,
         active: &mut Vec<Computation>,
     ) -> Result<usize, LoweringError> {
-        let subject_type = self.argument_type(
-            identities,
-            &Argument::Computation(subject),
-            site,
-            input_types,
-        )?;
         let plans = &self.checked.facts.values.scalar_computations;
         let arms = plans
             .dispatch_arms
@@ -38,20 +38,82 @@ impl Expansion<'_> {
                 "scalar dispatch has a stale arm span",
             ))?
             .to_vec();
+        for arm in &arms {
+            if self.argument_type(
+                identities,
+                &Argument::Computation(arm.value),
+                site,
+                input_types,
+            )? != result_type
+            {
+                return unsupported("scalar dispatch has an incompatible result");
+            }
+        }
+        let mut entries = Vec::with_capacity(arms.len());
+        for arm in arms {
+            let selected = self.argument(
+                identities,
+                &Argument::Computation(arm.value),
+                input_types,
+                target,
+                site,
+                active,
+            )?;
+            entries.push(DispatchEntry {
+                pattern: arm.pattern,
+                equality_use: arm.equality_use,
+                target: selected,
+            });
+        }
+        self.ordered_dispatch_entries(identities, subject, entries, input_types, site, active)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn ordered_dispatch(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        subject: Computation,
+        arms: Vec<DispatchEntry>,
+        input_types: &[QualifiedScalarType],
+        state: symbols::SymbolHandle,
+        statement: u32,
+        bindings: &crate::expression_preparation::bindings::ScalarBindings,
+    ) -> Result<usize, LoweringError> {
+        self.ordered_dispatch_entries(
+            identities,
+            subject,
+            arms,
+            input_types,
+            &Site {
+                state,
+                statement,
+                bindings,
+            },
+            &mut Vec::new(),
+        )
+    }
+
+    fn ordered_dispatch_entries(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        subject: Computation,
+        arms: Vec<DispatchEntry>,
+        input_types: &[QualifiedScalarType],
+        site: &Site<'_>,
+        active: &mut Vec<Computation>,
+    ) -> Result<usize, LoweringError> {
+        let subject_type = self.argument_type(
+            identities,
+            &Argument::Computation(subject),
+            site,
+            input_types,
+        )?;
+        let plans = &self.checked.facts.values.scalar_computations;
         let mut boolean_coverage = [false; 2];
         let mut covered = false;
         for arm in &arms {
-            if covered
-                || self.argument_type(
-                    identities,
-                    &Argument::Computation(arm.value),
-                    site,
-                    input_types,
-                )? != result_type
-            {
-                return unsupported(
-                    "scalar dispatch has an unreachable arm or incompatible result",
-                );
+            if covered {
+                return unsupported("ordered dispatch has an unreachable arm");
             }
             match arm.pattern {
                 CheckedScalarDispatchPattern::Wildcard => covered = true,
@@ -64,7 +126,7 @@ impl Expansion<'_> {
                     )? != subject_type
                     {
                         return unsupported(
-                            "scalar dispatch subject and pattern carriers disagree",
+                            "ordered dispatch subject and pattern carriers disagree",
                         );
                     }
                     if subject_type == ScalarType::Boolean.into()
@@ -80,7 +142,7 @@ impl Expansion<'_> {
             }
         }
         if !covered {
-            return unsupported("scalar dispatch has no independently covered terminal arm");
+            return unsupported("ordered dispatch has no independently covered terminal arm");
         }
         let mut saved_types = input_types.to_vec();
         saved_types.push(subject_type);
@@ -88,16 +150,8 @@ impl Expansion<'_> {
         tested_types.push(subject_type);
         let mut continuation = None;
         for arm in arms.iter().rev() {
-            // Arm bodies receive the original prefix. The saved subject and
-            // last pattern value are no longer live once an arm is selected.
-            let selected = self.argument(
-                identities,
-                &Argument::Computation(arm.value),
-                input_types,
-                target,
-                site,
-                active,
-            )?;
+            // Both result schedules discard the saved test operands on selection.
+            let selected = arm.target;
             let entry = match arm.pattern {
                 CheckedScalarDispatchPattern::Wildcard => self.push(LoweredScalarBranchState {
                     structural_parameters: Vec::new(),

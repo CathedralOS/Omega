@@ -1,5 +1,8 @@
 //! Local-source capture, immutable publication, and verification.
 
+mod capture_policy;
+pub use capture_policy::LocalSourceCapturePolicy;
+
 pub(crate) mod observation;
 pub mod operations;
 mod recovery;

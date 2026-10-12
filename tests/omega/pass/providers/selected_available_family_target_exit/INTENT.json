@@ -1,0 +1,7 @@
+{
+  "status": "source-only unexecuted",
+  "selected_provider": "MissingProvider",
+  "selected_target": "linux_x86_64",
+  "expected": "native/Terminal0",
+  "materialization": "ordinary tests/omega/pass or fail/providers; five-up std SourcePath assumes that location"
+}

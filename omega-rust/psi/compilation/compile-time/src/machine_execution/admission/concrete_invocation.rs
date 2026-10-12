@@ -58,6 +58,7 @@ pub(super) fn zero_argument_invocation_discharges(
     };
 
     let call = TableCallExpression {
+        source_call: Default::default(),
         authored_machine_application: Default::default(),
         exact_coercion_target: typed_trees::types::TypeReferenceHandle::invalid(),
         receiver: ExpressionHandle::invalid(),
@@ -116,15 +117,17 @@ pub(super) fn zero_argument_invocation_discharges(
 /// Holds only when neither the machine nor its entry state carries an
 /// authored premise and its demanded closure survives ordinary checked lowering;
 /// an entry premise keeps its concrete routes or the conservative fence.
+/// A failed demanded proof keeps its original preparation/checking diagnostics;
+/// it is not absence of an argument-independent admission route.
 pub(super) fn argument_independent_closure_discharges(
     program: &TypedTrees,
     machine: &Machine,
-) -> bool {
+) -> Result<bool, Vec<diagnostics::Diagnostic>> {
     let entry_is_unconditional = !has_authored_requires(program.machine_contracts(machine))
         && entry_state(program, machine)
             .is_some_and(|entry| !has_authored_requires(program.state_contracts(entry)));
     if !entry_is_unconditional {
-        return false;
+        return Ok(false);
     }
     // A layout policy may be admitted before unrelated runtime declarations
     // have their authoritative layout/accessor plans. Those declarations are
@@ -141,12 +144,10 @@ pub(super) fn argument_independent_closure_discharges(
     probe.pending_const_range_endpoints.clear();
     let preparation_request = typed_trees_to_typed_trees::PreparationRequest::preliminary();
     let checking = typed_trees_to_checked_trees::CheckingRequest::new();
-    let Ok((probe, preparation)) =
-        typed_trees_to_typed_trees::prepare_typed_trees(probe, &preparation_request)
-    else {
-        return false;
-    };
-    typed_trees_to_checked_trees::lower_typed_trees(probe, preparation, &checking).is_ok()
+    let (probe, preparation) =
+        typed_trees_to_typed_trees::prepare_typed_trees(probe, &preparation_request)?;
+    typed_trees_to_checked_trees::lower_typed_trees(probe, preparation, &checking)?;
+    Ok(true)
 }
 
 /// The state an invocation of `machine` enters: the one named by the
@@ -202,6 +203,7 @@ pub(crate) fn snapshot_arguments_discharge(
     probe_name: &str,
     preparation_request: &typed_trees_to_typed_trees::PreparationRequest,
     checking: &typed_trees_to_checked_trees::CheckingRequest,
+    selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     expression: ExpressionHandle,
     callee: &str,
     return_type: typed_trees::types::TypeReferenceHandle,
@@ -221,6 +223,36 @@ pub(crate) fn snapshot_arguments_discharge(
     else {
         return Err("constant invocation lost its selected call".into());
     };
+    // A snapshot is a new concrete invocation, not a mutation of the original
+    // source occurrence. Both views must consume the same supplied positional
+    // snapshots; retaining the old source row would make checking read the
+    // unsnapshotted caller expressions from outside this probe's scope.
+    let mut source_call = if call.source_call.is_valid() {
+        let original = probe
+            .expression_table
+            .source_call(&call)
+            .cloned()
+            .ok_or("constant invocation lost its original source payload")?;
+        if probe
+            .expression_table
+            .expression_handles(original.arguments)
+            != probe.expression_table.expression_handles(call.arguments)
+            || (original.receiver != call.receiver
+                && !probe.call_has_no_runtime_receiver_for_target(&original))
+        {
+            return Err("constant snapshot lost its original operand correspondence".into());
+        }
+        Some(original)
+    } else {
+        None
+    };
+    let original_receiver = call.receiver;
+    let original_arguments = probe
+        .expression_table
+        .expression_handles(call.arguments)
+        .to_vec();
+    let mut argument_index = 0;
+    let mut receiver_substituted = false;
     probe.pending_const_range_endpoints.clear();
     for (endpoint, stand_in) in endpoint_stand_ins {
         *probe.expression_table.expression_mut(*endpoint) = stand_in.clone();
@@ -237,6 +269,20 @@ pub(crate) fn snapshot_arguments_discharge(
     }
     let mut arguments = Vec::new();
     for snapshot in snapshots {
+        if snapshot.receiver {
+            if receiver_substituted
+                || !original_receiver.is_valid()
+                || snapshot.original != original_receiver
+            {
+                return Err("constant snapshot does not name its original receiver".into());
+            }
+            receiver_substituted = true;
+        } else {
+            if original_arguments.get(argument_index).copied() != Some(snapshot.original) {
+                return Err("constant snapshot does not name its original argument".into());
+            }
+            argument_index += 1;
+        }
         let expression = match snapshot.literal {
             Some(literal) => probe.expression_table.insert(literal),
             None => snapshot.original,
@@ -247,7 +293,17 @@ pub(crate) fn snapshot_arguments_discharge(
             arguments.push(expression);
         }
     }
+    if argument_index != original_arguments.len() {
+        return Err("constant snapshot does not cover its original argument roster".into());
+    }
     call.arguments = probe.expression_table.insert_expression_handles(arguments);
+    if let Some(mut original) = source_call.take() {
+        original.arguments = call.arguments;
+        if original.receiver == original_receiver {
+            original.receiver = call.receiver;
+        }
+        call.source_call = probe.expression_table.retain_source_call(original)?;
+    }
     let concrete = probe.expression_table.insert(ExpressionNode::Call(call));
     probe
         .expression_table
@@ -271,6 +327,22 @@ pub(crate) fn snapshot_arguments_discharge(
             "constant invocation of `{callee}` retains unhandled {causes:?} routes at its concrete arguments"
         ));
     }
+    // Ordinary checking proves this exact public invocation at its snapshots.
+    // Its operational envelope and every actual supplying/helper body must
+    // still meet semantic execution's floor under the same declaration grants.
+    let prepared = crate::PreparedBuildMachineProgram::from_checked(checked);
+    let admission = super::BuildTimeAdmissionPlan::infer_prepared(&prepared, selection_authority)?;
+    let probe = prepared.typed();
+    let machine = probe
+        .machine_by_symbol(owner)
+        .ok_or("constant invocation lost its checked snapshot probe")?;
+    admission
+        .require_common_floor_for_concrete_premise_invocation(
+            probe,
+            machine,
+            super::BuildTimeInvocationCustody::Source(probe.expression_table.source_span(concrete)),
+        )
+        .map_err(String::from)?;
     Ok(())
 }
 

@@ -3,24 +3,21 @@
 //! This file rewrites one selected call and its runtime subjects.
 //! `type_parameter_substitution.rs` substitutes cloned type parameters,
 //! `const_substitution.rs` substitutes fixed-array and const index
-//! parameters, `machine_arguments.rs` substitutes machine parameter types
-//! and forwarded arguments, `evidence_rewrites.rs` rewrites evidence
-//! arguments and requirements and `cloned_calls.rs` rewrites cloned calls
+//! parameters, and `cloned_calls.rs` consumes shared exact
+//! application evidence while rewriting cloned calls
 //! and static machine transition targets.
 
 use validation::collect_statement_expression_trees;
 
 mod cloned_calls;
 mod const_substitution;
-mod evidence_rewrites;
-mod machine_arguments;
 mod type_parameter_substitution;
 
 pub(crate) use cloned_calls::{rewrite_cloned_calls, statement_span_handles};
 
-pub(crate) use evidence_rewrites::collect_evidence_requirement_closure;
-pub(crate) use evidence_rewrites::{evidence_argument_rewrites, rewrite_index_algebra};
-pub(crate) use machine_arguments::forwarded_static_argument_rewrites;
+pub(crate) use super::application_arguments::{
+    forwarded_static_argument_rewrites, substitute_forwarded_machine_arguments,
+};
 pub(crate) use type_parameter_substitution::{
     cloned_expression_roots, rebind_state_scoped_range_endpoints,
     reject_runtime_bound_static_occurrences, substitute_cloned_type_parameters,

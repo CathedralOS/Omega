@@ -1,0 +1,16 @@
+use omega::language::core::external_binding;
+boundary trait ProcessId { machine current() -> i32; }
+macos_arm64 machine process_id_binding() -> ForeignBinding<26, 7, 0> {
+    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_getpid",
+    }, }
+}
+macos_arm64 machine process_id_leaf() -> i32 satisfies ProcessId::current via process_id_binding();
+ProcessIdProvider satisfies ProcessId { ProcessId::current = process_id_leaf; }
+data Main {}
+machine Main::main(main: &mut Main) reaches ProcessId crashes Trap {
+    let process: i32 = ProcessId::current();
+    transition process > 0 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

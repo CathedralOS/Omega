@@ -21,10 +21,8 @@ use symbols::SymbolHandle;
 /// distinction is load-bearing — an index hop resumes at the element while
 /// a member demand resolves nothing, because a slice declares no fields.
 ///
-/// Position equality is identity equality on the stored evidence — the same
-/// reference handle, the same declaration, or the same element reference —
-/// not type equality: two positions naming equal types through different
-/// stored rows do not join, because neither is evidence for the other.
+/// Positions retain produced evidence identities. Compound result joins are
+/// prepared before checking; this projection query does not elect a child.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum MemberPosition {
     Reference(typed_trees::types::TypeReferenceHandle),
@@ -467,14 +465,27 @@ pub(super) fn expression_type_position(
         // is the operand's position rather than an opaque leaf.
         ExpressionNode::Atomic(atomic) => expression_type_position(program, atomic.value),
         ExpressionNode::Call(call) => {
-            let retained = program
+            let reference = program
                 .expression_table
                 .constructed_value_type_reference(expression);
-            retained
+            if reference.is_valid() {
+                return Some(MemberPosition::Reference(reference));
+            }
+            let original = program.expression_table.source_call(call)?;
+            let application = original.authored_machine_application;
+            if !program
+                .expression_table
+                .static_machine_application_is_valid(application)
+            {
+                return None;
+            }
+            let result = program
+                .expression_table
+                .static_machine_application(application)
+                .public_result_type;
+            result
                 .is_valid()
-                .then_some(retained)
-                .or_else(|| crate::call_target_return_type(program, call.target_symbol))
-                .map(MemberPosition::Reference)
+                .then_some(MemberPosition::Reference(result))
         }
         ExpressionNode::Name(path) => {
             let symbol = first_valid_name_path_symbol(path, &program.expression_table)?;
@@ -564,7 +575,14 @@ pub(super) fn expression_type_position(
                 )
             }
         }
-        ExpressionNode::Match(dispatch) => match_result_position(program, dispatch),
+        ExpressionNode::Match(_) => {
+            let reference = program
+                .expression_table
+                .constructed_value_type_reference(expression);
+            reference
+                .is_valid()
+                .then_some(MemberPosition::Reference(reference))
+        }
         // The remaining leaves produce scalar values — literals, unary and
         // binary results, range operands — whose types own no declaration
         // identity to resume at, so they keep no position rather than
@@ -707,29 +725,6 @@ pub fn expression_place_type_reference(
             .find_named_type_reference(symbol),
         MemberPosition::Sliced(_) => None,
     }
-}
-
-/// A match's value is whichever arm produces it, so every arm must agree on
-/// one exact position — the same stored reference, declaration, or window
-/// element. An opaque arm or a different stored row keeps the dispatch
-/// unproven rather than letting one arm's leaf stand in for the others';
-/// an arm spelled through a distinct handle to an equal type is that same
-/// disagreement, not a join.
-fn match_result_position(
-    program: &dyn crate::CheckingInput,
-    dispatch: &typed_trees::expression::TableMatchExpression,
-) -> Option<MemberPosition> {
-    let mut positions = program
-        .expression_table
-        .match_arms(dispatch.arms)
-        .iter()
-        .map(|arm| expression_type_position(program, arm.value));
-    let Some(Some(first)) = positions.next() else {
-        return None;
-    };
-    positions
-        .all(|position| position == Some(first))
-        .then_some(first)
 }
 
 pub fn effective_member_symbol(

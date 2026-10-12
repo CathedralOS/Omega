@@ -23,6 +23,8 @@ pub(crate) fn prepared_admission(
     operators: &[crate::SelectedBuildTimeBinaryOperator],
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     domain: &crate::build_time_evaluation::EvaluationDomain,
+    roots: &[symbols::SymbolHandle],
+    admission: crate::build_time_evaluation::BuildTimeCheckingAdmission<'_>,
 ) -> Result<
     (
         crate::PreparedBuildMachineProgram,
@@ -37,12 +39,26 @@ pub(crate) fn prepared_admission(
             operators,
         )
         .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
-    let prepared = crate::PreparedBuildMachineProgram::prepare_in(
-        selected_execution.as_ref().unwrap_or(typed),
-        domain,
+    let selected_execution = selected_execution.as_ref().unwrap_or(typed);
+    let roots = crate::machine_execution::selected_operators::selected_execution_roots(
+        roots, provider_bodies,
+    );
+    // Complete only the actual invocation dependencies. The original selected
+    // map and public requirement remain roots, so private body binding cannot
+    // erase conformance/argument obligations or check unrelated pending geometry.
+    let domain = domain.demanded_roots(selected_execution, &roots);
+    let mut execution = domain.execution_program(selected_execution);
+    crate::const_evaluation::range_endpoints::defer_pending_endpoint_calls(&mut execution)?;
+    let (execution, preparation) = typed_trees_to_typed_trees::prepare_typed_trees(
+        execution, &admission.preparation,
     )?;
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        execution, preparation, &admission.checking,
+    )?;
+    let prepared = crate::PreparedBuildMachineProgram::from_checked(checked);
     let execution = prepared.typed();
-    let admission = crate::BuildTimeAdmissionPlan::infer(execution, selection_authority)
+    let admission = crate::BuildTimeAdmissionPlan::infer_prepared(&prepared, selection_authority)
+        .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?
         .with_selected_operators(execution, operators)
         .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
     Ok((prepared, admission))

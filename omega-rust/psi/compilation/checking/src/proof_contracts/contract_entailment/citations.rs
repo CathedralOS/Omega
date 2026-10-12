@@ -42,6 +42,13 @@ pub(super) struct CitationFacts {
 }
 
 impl CitationFacts {
+    pub(super) fn retain_available(&mut self, judge: &StructuralJudge<'_>, epoch: usize) {
+        self.equations
+            .retain(|(left, right)| judge.terms_survive_effects([left, right], epoch));
+        self.cases
+            .retain(|guarantee| judge.case_guarantee_survives_effects(guarantee, epoch));
+    }
+
     pub(super) fn intake(&self, judge: &mut StructuralJudge<'_>) {
         for (left, right) in &self.equations {
             judge.intake_equation(left.clone(), right.clone(), 0);

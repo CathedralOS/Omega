@@ -473,6 +473,20 @@ fn static_const_argument_identity(
         return None;
     }
     let literal = supplied.const_literal.as_ref()?;
+    if let Some(landing) = literal.landing()
+        && (program
+            .type_reference_table
+            .primitive_type(declared_carrier)
+            != Some(typed_trees::types::PrimitiveType::from_landed_integer(
+                landing.landed_type,
+            ))
+            || program
+                .type_reference_table
+                .arithmetic_domain(declared_carrier)
+                != landing.domain)
+    {
+        return None;
+    }
     let value = literal
         .value_i64()
         .map(i128::from)

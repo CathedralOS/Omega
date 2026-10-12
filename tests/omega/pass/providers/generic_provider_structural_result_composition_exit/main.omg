@@ -3,12 +3,13 @@
 // lowering must preserve that body rather than fabricate an identity return.
 // Record-pattern coverage remains metadata through both provider clones; only
 // the extracted field contributes a runtime value.
-data Buffer<Element, const Count: u64> { value: i64; }
-data Indexing {}
-boundary machine [] Indexing::index<Element, const Count: u64>(
-    items: Buffer<Element, Count>, offset: i32
-) -> Buffer<Element, Count>
-requires Count == Count;
+pub data Buffer<Element, const Count: u64> { value: i64; }
+pub boundary trait Indexing {
+    machine [] index<Element, const Count: u64>(
+        items: Buffer<Element, Count>, offset: i32
+    ) -> Buffer<Element, Count>
+    requires Count == Count;
+}
 
 machine relay<Element, const Count: u64>(
     items: Buffer<Element, Count>
@@ -16,11 +17,12 @@ machine relay<Element, const Count: u64>(
     items
 }
 
-data IndexingProvider {}
-machine IndexingProvider::index<Value, const Length: u64>(
+IndexingProvider satisfies Indexing {
+    Indexing::index = index_buffer;
+}
+machine index_buffer<Value, const Length: u64>(
     items: Buffer<Value, Length>, offset: i32
 ) -> Buffer<Value, Length>
-satisfies Indexing::index
 {
     let forwarded: Buffer<Value, Length> = relay(items);
     let { value as forwarded_value } = forwarded;
@@ -28,7 +30,7 @@ satisfies Indexing::index
         + (offset as i64 in Wrapping)) as i64 }
 }
 
-machine main() crashes Trap {
+machine main() reaches Indexing crashes Trap {
     let first: Buffer<i32, 4> = Buffer { value: 70 };
     let second: Buffer<u8, 8> = Buffer { value: 20 };
     let selected_first: Buffer<i32, 4> = first[(11 as i32)];

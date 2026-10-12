@@ -234,6 +234,7 @@ pub(crate) fn evaluate(
         crate::SelectedBuildTimeOperators {
             operators: &[],
             provider_bodies: &[],
+            admission: Default::default(),
         },
         &evaluation_domain,
     );

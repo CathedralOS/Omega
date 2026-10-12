@@ -82,8 +82,8 @@ pub(crate) use initializer_leaves::{
     pending_aggregate_placeholder, pending_const_initializer_leaves,
 };
 pub(crate) use normalized_expressions::{
-    normalization_requires_expression, validate_normalized_const_argument,
-    validate_normalized_expression,
+    normalization_requires_expression, normalized_const_result_matches,
+    validate_normalized_const_argument, validate_normalized_expression,
 };
 pub(crate) use scalar_carriers::{is_builtin_scalar_carrier, is_structural_scalar_carrier};
 pub(crate) use selections::{

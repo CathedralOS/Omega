@@ -93,6 +93,12 @@ pub(in crate::encoding) fn policy(
     })?;
     encoder.field("restricted_build_requests", |encoder| {
         encoder.sequence(&value.restricted_build_requests, restricted_build::request)
+    })?;
+    encoder.field("assumed_binding_contracts", |encoder| {
+        encoder.sequence(
+            value.assumed_binding_contracts.relationships(),
+            super::encode_relationship,
+        )
     })
 }
 

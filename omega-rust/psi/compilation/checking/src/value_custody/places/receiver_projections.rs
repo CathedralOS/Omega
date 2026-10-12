@@ -221,3 +221,120 @@ pub fn projected_statement_receiver_type_reference(
         },
     )
 }
+
+/// Retain the receiving place's full source application path before a generic
+/// call is retargeted to shared storage/code. Namespace qualifiers have no path.
+pub fn projected_statement_receiver_type_application(
+    program: &dyn crate::CheckingInput,
+    state: &typed_trees::state::State,
+    before: usize,
+    call: &typed_trees::statement::TableCall,
+) -> Option<super::CanonicalPlaceTypeApplication> {
+    let (root, segments) = projected_statement_receiver_place(program, state, before, call)?;
+    super::canonical_place_type_application(
+        program,
+        state.symbol,
+        before,
+        &super::CanonicalPlace {
+            root: facts::PlaceRoot::Symbol(root),
+            segments,
+        },
+    )
+}
+
+/// An explicit data operand issued by one exact declaration parameter. Data
+/// attachment grants no implicit receiver; namespace qualifiers never supply
+/// a place. Ambiguous same-carrier formals cannot elect an occurrence.
+pub struct CallDataApplication {
+    pub parameter: SymbolHandle,
+    pub application: super::CanonicalPlaceTypeApplication,
+}
+
+pub fn call_data_application_in_state(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    before: usize,
+    target: SymbolHandle,
+    authored: typed_trees::static_applications::StaticMachineApplicationHandle,
+    arguments: &[ExpressionHandle],
+) -> Option<CallDataApplication> {
+    let actual = program
+        .machine_by_symbol(target)
+        .or_else(|| program.machine_holding_state(target))?;
+    if !actual.attached_data_symbol.is_valid() {
+        return None;
+    }
+    let retained = program
+        .expression_table
+        .static_machine_application_is_valid(authored)
+        .then(|| {
+            program
+                .expression_table
+                .static_machine_application(authored)
+        });
+    let declaration = if let Some(retained) =
+        retained.filter(|application| application.binding_declaration.is_valid())
+    {
+        program.machine_by_symbol(retained.binding_declaration)?
+    } else {
+        actual
+    };
+    if declaration.attached_data_symbol != actual.attached_data_symbol {
+        return None;
+    }
+    if declaration.symbol != actual.symbol {
+        let mut origins = program
+            .machine_specializations
+            .iter()
+            .filter(|origin| origin.instance == actual.symbol);
+        let origin = origins.next()?;
+        if origin.template != declaration.symbol || origins.next().is_some() {
+            return None;
+        }
+    }
+    let operation = retained.map_or(target, |application| application.registration_operation);
+    let parameters = if operation == declaration.symbol {
+        program
+            .machine_states(declaration)
+            .first()
+            .map(|state| program.state_parameters(state))?
+    } else {
+        let state = program
+            .machine_states(declaration)
+            .iter()
+            .find(|state| state.symbol == operation)?;
+        program.state_parameters(state)
+    };
+    let mut formals = parameters.iter().enumerate().filter(|(_, parameter)| {
+        let reference = program
+            .type_reference_table
+            .peeled_type_reference(parameter.type_reference);
+        let nominal = program
+            .closed_data_definition(reference)
+            .map(|data| data.symbol)
+            .unwrap_or_else(|| {
+                super::machine_symbol_from_type_reference_handle(program, reference)
+            });
+        nominal == declaration.attached_data_symbol
+    });
+    let (ordinal, parameter) = formals.next()?;
+    if formals.next().is_some() {
+        return None;
+    }
+    let application = super::expression_type_application_in_state(
+        program,
+        state.symbol,
+        before,
+        *arguments.get(ordinal)?,
+    )?;
+    let receiving = program
+        .closed_data_definition(application.reference)
+        .map(|data| data.symbol)
+        .unwrap_or_else(|| {
+            super::machine_symbol_from_type_reference_handle(program, application.reference)
+        });
+    (receiving == actual.attached_data_symbol).then_some(CallDataApplication {
+        parameter: parameter.symbol,
+        application,
+    })
+}

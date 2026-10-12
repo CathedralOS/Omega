@@ -29,7 +29,17 @@ pub struct GenericApplicationOrigin {
     pub application: Handle<TypeReference>,
 }
 
+/// Completed result correspondence for one exact resolved argument row.
+/// Its containing Generic and original declaration telescope own the receiving
+/// slot. This permits storage-origin comparison only; each use retains and
+/// checks its original operand independently before typed carrier identity.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct NormalizedConstArgument {
+    pub argument: Handle<TypeReference>,
+    pub canonical_result_encoding: String,
+}
+
+#[derive(Debug, Clone, Default)]
 pub enum TypeReference {
     Reference(ReferenceTypeReference),
     Constrained(ConstrainedTypeReference),
@@ -50,14 +60,66 @@ pub enum TypeReference {
         arguments: HandleSpan<TypeReference>,
         supplied_operand_owner: OperandLifetimeOwnerHandle,
     },
+    /// A generated declaration use carries its exact application row. Zero is
+    /// a genuinely ordinary name, not a request to recover a tuple by spelling.
     Named {
         symbol: SymbolHandle,
         name: DiagnosticName,
         supplied_operand_owner: OperandLifetimeOwnerHandle,
+        application_origin: Handle<GenericApplicationOrigin>,
     },
     #[default]
     Unit,
 }
+
+// An occurrence row supplies independent admission custody, not nominal type
+// equality. Keep the pre-existing payload comparison for every semantic field;
+// readers which need this use's original tuple consume application_origin.
+impl PartialEq for TypeReference {
+    fn eq(&self, other: &Self) -> bool {
+        if self.supplied_operand_owner() != other.supplied_operand_owner() {
+            return false;
+        }
+        match (self, other) {
+            (Self::Reference(left), Self::Reference(right)) => left == right,
+            (Self::Constrained(left), Self::Constrained(right)) => left == right,
+            (Self::FixedArray(left), Self::FixedArray(right)) => left == right,
+            (Self::Slice(left), Self::Slice(right)) => left == right,
+            (Self::Generic(left), Self::Generic(right)) => left == right,
+            (Self::ConstExpression(left), Self::ConstExpression(right)) => left == right,
+            (
+                Self::DynamicTrait {
+                    symbol: left,
+                    name: left_name,
+                    arguments: left_arguments,
+                    ..
+                },
+                Self::DynamicTrait {
+                    symbol: right,
+                    name: right_name,
+                    arguments: right_arguments,
+                    ..
+                },
+            ) => left == right && left_name == right_name && left_arguments == right_arguments,
+            (
+                Self::Named {
+                    symbol: left,
+                    name: left_name,
+                    ..
+                },
+                Self::Named {
+                    symbol: right,
+                    name: right_name,
+                    ..
+                },
+            ) => left == right && left_name == right_name,
+            (Self::Unit, Self::Unit) => true,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for TypeReference {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReferenceTypeReference {
@@ -160,7 +222,7 @@ pub struct GenericTypeReference {
     pub storage: GenericTypeReferenceStorage,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default)]
 pub struct GenericTypeReferenceStorage {
     pub supplied_operand_owner: OperandLifetimeOwnerHandle,
     pub base_symbol: SymbolHandle,
@@ -169,7 +231,21 @@ pub struct GenericTypeReferenceStorage {
     /// than symbols and do not participate in runtime generic identity.
     pub lifetime_arguments: Vec<DiagnosticName>,
     pub arguments: HandleSpan<TypeReference>,
+    /// Exact occurrence association, relocated together with this payload.
+    pub application_origin: Handle<GenericApplicationOrigin>,
 }
+
+impl PartialEq for GenericTypeReferenceStorage {
+    fn eq(&self, other: &Self) -> bool {
+        self.supplied_operand_owner == other.supplied_operand_owner
+            && self.base_symbol == other.base_symbol
+            && self.base_name == other.base_name
+            && self.lifetime_arguments == other.lifetime_arguments
+            && self.arguments == other.arguments
+    }
+}
+
+impl Eq for GenericTypeReferenceStorage {}
 
 deref_to_storage!(GenericTypeReference => GenericTypeReferenceStorage);
 
@@ -189,6 +265,7 @@ struct SuppliedOperandOwner {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct TypeReferenceNodeStorage {
     type_references: Arena<TypeReferenceNode>,
+    application_origins: Arena<Handle<GenericApplicationOrigin>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -202,6 +279,7 @@ impl TypeReferenceTable {
         Self {
             nodes: TypeReferenceNodeStorage {
                 type_references: Arena::new(),
+                application_origins: Arena::new(),
             },
             spans: TypeReferenceSpanStorage {
                 type_reference_handles: Arena::new(),
@@ -212,7 +290,23 @@ impl TypeReferenceTable {
     }
 
     pub fn insert(&mut self, type_reference: TypeReferenceNode) -> TypeReferenceHandle {
-        self.nodes.type_references.insert(type_reference)
+        let reference = self.nodes.type_references.insert(type_reference);
+        let origin = self.nodes.application_origins.insert(Handle::invalid());
+        debug_assert_eq!(reference.arena_index(), origin.arena_index());
+        debug_assert_eq!(reference.generation(), origin.generation());
+        reference
+    }
+
+    /// This table is a view within the same resolved program; origin rows stay
+    /// in that program's owned declaration/type arenas, not diagnostic names.
+    pub fn application_origin(
+        &self,
+        reference: TypeReferenceHandle,
+    ) -> Handle<GenericApplicationOrigin> {
+        *self.nodes.application_origins.get(Handle::from_parts(
+            reference.arena_index(),
+            reference.generation(),
+        ))
     }
 
     pub fn supplied_operand_owner(
@@ -385,6 +479,13 @@ impl TypeReferenceTable {
         source_constraints: &Arena<TypeConstraint>,
         source_expressions: &crate::expression::ExpressionTable,
     ) -> TypeReferenceHandle {
+        let origin = match type_reference {
+            TypeReference::Named {
+                application_origin, ..
+            } => *application_origin,
+            TypeReference::Generic(application) => application.application_origin,
+            _ => Handle::invalid(),
+        };
         let reference = match type_reference {
             TypeReference::Reference(reference) => {
                 let referee = self.insert_tree(
@@ -487,6 +588,10 @@ impl TypeReferenceTable {
             }),
             TypeReference::Unit => self.insert(TypeReferenceNode::Unit),
         };
+        *self.nodes.application_origins.get_mut(Handle::from_parts(
+            reference.arena_index(),
+            reference.generation(),
+        )) = origin;
         let owner = type_reference.supplied_operand_owner();
         if owner.is_valid() {
             self.supplied_operand_owners

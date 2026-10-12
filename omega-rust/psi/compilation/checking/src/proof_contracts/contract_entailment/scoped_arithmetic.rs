@@ -159,17 +159,10 @@ pub fn scoped_arithmetic_comparisons_unsatisfiable(
 
 /// Judge `goal` from `hypotheses`, each read under its own roster. An
 /// asserted hypothesis contributes the conjuncts the engine can read; a
-/// hypothesis or goal whose roster fails to install answers `Unknown`.
+/// hypothesis or goal whose roster fails to install answers `Unknown`. The
+/// context is an exact declaration, including a bodyless public signature;
+/// applying a contract does not require manufacturing an executable machine.
 pub fn scoped_arithmetic_implication(
-    program: &dyn crate::CheckingInput,
-    context_machine: &Machine,
-    hypotheses: &[ScopedArithmeticHypothesis],
-    goal: &ScopedArithmeticExpression,
-) -> StrictArithmeticImplicationJudgment {
-    scoped_arithmetic_implication_for_declaration(program, context_machine.symbol, hypotheses, goal)
-}
-
-pub(crate) fn scoped_arithmetic_implication_for_declaration(
     program: &dyn crate::CheckingInput,
     owner: symbols::SymbolHandle,
     hypotheses: &[ScopedArithmeticHypothesis],

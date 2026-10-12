@@ -10,24 +10,38 @@ use typed_trees::statement::{StatementNode, TransitionTargetHandle};
 /// origins for every immutable invocation formal named by the guarantee.
 pub(crate) fn proves_exit(
     program: &dyn ::validation::CheckingInput,
+    facts: &checked_trees::CheckFacts,
     exit: &checked_trees::FlowExitFact,
     fact: &facts::Fact,
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let facts::FactPayload::ContractBooleanExpression { expression, .. } = fact.payload else {
+    let facts::FactPayload::ContractBooleanExpression {
+        fact: contract,
+        expression,
+        ..
+    } = fact.payload
+    else {
         return false;
     };
     let Some((machine, state)) = program.state_flow_site(exit.machine_symbol, exit.state_symbol)
     else {
         return false;
     };
-    let Some(mut values) = CurrentScalarValues::at(
+    let Some(values) = CurrentScalarValues::at(
         program,
         machine,
         state,
         exit.statement_index,
         exit.transition_target,
         frames,
+    ) else {
+        return false;
+    };
+    let Some(correspondence) = crate::semantic::facts::selected_contract_parameter_correspondence(
+        program,
+        &facts.proof,
+        exit.ensures,
+        contract,
     ) else {
         return false;
     };
@@ -49,7 +63,17 @@ pub(crate) fn proves_exit(
         }
         _ => return false,
     };
-    let Some(goal) = values.postcondition(expression, returned) else {
+    let Some(goal) = values.bind_exit_contract(
+        &correspondence,
+        facts
+            .flow
+            .control
+            .exit_parameter_origins
+            .span_or_empty(exit.parameter_origins),
+        contract,
+        expression,
+        returned,
+    ) else {
         return false;
     };
     values.proves(program, machine, &goal)
@@ -69,7 +93,7 @@ pub(crate) fn proves_call(
     else {
         return false;
     };
-    let Some(site) = validation::find_call_site(
+    let Some(site) = validation::find_source_call_site(
         program,
         machine.symbol,
         state.symbol,
@@ -78,8 +102,39 @@ pub(crate) fn proves_call(
     ) else {
         return false;
     };
-    let Some(parameters) = validation::call_target_parameters(program, call.target_symbol) else {
+    let Some(source_target) = site.source_target_symbol(program, call.target_symbol) else {
         return false;
+    };
+    let body = validation::find_machine_by_entry_state(program, source_target)
+        .or_else(|| validation::find_machine_head(program, source_target));
+    let (callee_owner, parameters) = if let Some((_, callee_state)) = body {
+        (callee_state.symbol, program.state_parameters(callee_state))
+    } else {
+        let application = match &site {
+            validation::CallSite::Expression { call: selected, .. }
+                if selected.target_symbol == source_target =>
+            {
+                selected.authored_machine_application
+            }
+            validation::CallSite::Statement(selected)
+                if selected.target_symbol == source_target =>
+            {
+                selected.authored_machine_application
+            }
+            _ => return false,
+        };
+        let Some((definition, signature)) =
+            program.selected_trait_requirement_signature(source_target, application)
+        else {
+            return false;
+        };
+        if !definition.is_boundary {
+            return false;
+        }
+        (
+            signature.symbol,
+            program.state_signature_parameters(signature),
+        )
     };
     let arguments = validation::call_site_argument_expressions(program, &site);
     if arguments.len() != parameters.len() {
@@ -126,14 +181,7 @@ pub(crate) fn proves_call(
             frames.map(|frames| frames.statement_value_write_frame(machine, statement)),
         );
     }
-    let Some((callee, callee_state)) =
-        validation::find_machine_by_entry_state(program, call.target_symbol)
-            .or_else(|| validation::find_machine_head(program, call.target_symbol))
-    else {
-        return false;
-    };
-    let Some(goal) =
-        values.bind_parameters(callee, callee_state, expression, parameters, arguments)
+    let Some(goal) = values.bind_parameters(callee_owner, body, expression, parameters, arguments)
     else {
         return false;
     };

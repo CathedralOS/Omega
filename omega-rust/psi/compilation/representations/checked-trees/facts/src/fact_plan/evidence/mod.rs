@@ -149,6 +149,16 @@ pub enum ContractFactKind {
     #[default]
     Requires,
     Ensures,
+    /// Immutable declaration predicate, admitted by exact static application.
+    Where,
+}
+
+impl ContractFactKind {
+    /// Declaration facts available to body proofs. Runtime call obligations
+    /// select Requires separately; static Where never becomes a call clause.
+    pub fn is_body_assumption(self) -> bool {
+        matches!(self, Self::Requires | Self::Where)
+    }
 }
 
 /// A contract expression after positional call/operator substitution. Typed

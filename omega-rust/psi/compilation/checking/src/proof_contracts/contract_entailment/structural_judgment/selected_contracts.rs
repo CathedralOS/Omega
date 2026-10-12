@@ -347,18 +347,26 @@ pub(super) fn selected_requirement_judgment(
         };
     }
     if super::super::structural_terms::is_case_observation(program, expression) {
-        let Some(map) = parameters
-            .iter()
-            .map(|parameter| {
-                let (_, value) = bindings
-                    .iter()
-                    .find(|(symbol, _)| *symbol == parameter.symbol)?;
-                Some((parameter.name.as_str().to_owned(), value.clone()))
-            })
-            .collect::<Option<Vec<_>>>()
+        let Some(required) =
+            super::normal_returns::parameter_dependencies(program, [expression], parameters)
         else {
             return StructuralJudgment::Unknown;
         };
+        if required
+            .iter()
+            .any(|required| !bindings.iter().any(|(symbol, _)| symbol == required))
+        {
+            return StructuralJudgment::Unknown;
+        }
+        let map = parameters
+            .iter()
+            .filter_map(|parameter| {
+                bindings
+                    .iter()
+                    .find(|(symbol, _)| *symbol == parameter.symbol)
+                    .map(|(_, value)| (parameter.name.as_str().to_owned(), value.clone()))
+            })
+            .collect::<Vec<_>>();
         return judge.instantiated_case_judgment(callable, parameters, expression, &map);
     }
     let Some(required) = bound_term(

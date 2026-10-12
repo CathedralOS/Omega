@@ -183,11 +183,13 @@ impl ExitScalars<'_, '_> {
                 }
                 let expressions = match fact.payload {
                     FactPayload::ContractBooleanExpression {
-                        kind: facts::ContractFactKind::Requires,
+                        kind,
                         expression,
                         instantiated,
                         ..
-                    } if !instantiated.is_valid() => equality_conjuncts(self.program, expression),
+                    } if kind.is_body_assumption() && !instantiated.is_valid() => {
+                        equality_conjuncts(self.program, expression)
+                    }
                     FactPayload::BooleanExpression(expression)
                     | FactPayload::BooleanValue {
                         expression,

@@ -265,6 +265,7 @@ pub(crate) fn lower_evidence_term_ids(
             .expect("arena indices fit the host address space");
         let root = evidence_term_root(&mut parents, index);
         let lane_key = match term.kind {
+            checked_trees::ContractProofFactKind::Where => continue,
             checked_trees::ContractProofFactKind::Requires => {
                 (machine_position, 0_u8, term.lane_position)
             }
@@ -519,6 +520,11 @@ pub(crate) fn lower_evidence_contract_lanes(
                         "selected terminal contract lane has no evidence-term identity",
                     ))?;
             let kind = match term.kind {
+                checked_trees::ContractProofFactKind::Where => {
+                    return Err(LoweringError::Unsupported(
+                        "static where fact cannot declare a runtime evidence lane",
+                    ));
+                }
                 checked_trees::ContractProofFactKind::Requires => {
                     EvidenceContractLaneKind::Requires
                 }

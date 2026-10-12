@@ -68,6 +68,7 @@ pub(crate) fn lower_proof_facts(
             }
             resolved::domain::ProofFact::Membership(membership) => {
                 let value = lower_expression_handle_from_table(
+                    lowerer.source_trees,
                     &lowerer.source_trees.tables.bodies.expressions,
                     &mut lowerer.typed_trees,
                     membership.value,

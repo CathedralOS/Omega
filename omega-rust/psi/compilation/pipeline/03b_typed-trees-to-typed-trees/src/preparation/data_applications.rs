@@ -115,6 +115,14 @@ fn elaborate_value_fields(
     reference: TypeReferenceHandle,
     active: &mut Vec<(SymbolHandle, TypeReferenceHandle)>,
 ) {
+    let original = program
+        .type_reference_table
+        .data_application_origin(reference);
+    let reference = if original.is_valid() {
+        original
+    } else {
+        reference
+    };
     match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => return,
         TypeReferenceNode::Constrained { base_type, .. } => {
@@ -255,14 +263,20 @@ fn elaborate_application(program: &mut TypedTrees, reference: TypeReferenceHandl
         && let Some(identity) = typed_trees::type_identity::applied_type_identity(
             program,
             reference,
-            SymbolHandle::invalid(),
+            typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(
+                SymbolHandle::invalid(),
+            ),
             &[],
+            typed_trees::type_identity::TypeIdentityQualification::Ordinary,
         )
         && typed_trees::type_identity::applied_type_identity(
             program,
             origin,
-            SymbolHandle::invalid(),
+            typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(
+                SymbolHandle::invalid(),
+            ),
             &[],
+            typed_trees::type_identity::TypeIdentityQualification::Ordinary,
         )
         .is_some_and(|retained| retained == identity)
     {

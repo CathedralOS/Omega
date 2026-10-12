@@ -10,7 +10,7 @@ use crate::symbols::top_level::{
 };
 use crate::symbols::type_references::{
     assign_machine_declaration_identity_argument_symbols,
-    assign_proposition_family_argument_symbols,
+    assign_proposition_family_argument_symbols, assign_type_argument_value_expression_symbols,
     assign_type_reference_argument_symbols_with_constraints,
     assign_type_reference_symbol_with_locals_and_constraints,
 };
@@ -134,6 +134,7 @@ pub(super) fn assign_machine_symbols(
                             .unwrap_or(owner_parameter);
                         symbol_resolved_trees::types::TypeReference::Named {
  supplied_operand_owner: Default::default(),
+                            application_origin: arena::Handle::invalid(),
                             symbol: parameter.symbol,
                             name: parameter.name.clone(),
                         }
@@ -142,6 +143,7 @@ pub(super) fn assign_machine_symbols(
                     symbol_resolved_trees::types::GenericTypeReference {
                         storage: symbol_resolved_trees::types::GenericTypeReferenceStorage {
  supplied_operand_owner: Default::default(),
+                            application_origin: arena::Handle::invalid(),
                             base_symbol: definition.symbol,
                             base_name: machine
                                 .attached_data
@@ -202,6 +204,16 @@ pub(super) fn assign_machine_symbols(
             &local_type_parameters,
             crate::symbols::top_level::MachineParameterArm::ResolveWithAuthoredTraitArguments,
             true,
+        );
+
+        crate::symbols::top_level::assign_conformance_bound_symbols(
+            symbols,
+            child_type_references,
+            type_constraints,
+            &local_type_parameters,
+            &mut machine.conformance_bounds,
+            &trait_proposition_slots,
+            &trait_machine_identity_slots,
         );
 
         // Machine-owned value expressions (owned-data initializers and
@@ -353,6 +365,13 @@ pub(super) fn assign_machine_symbols(
                 symbols, child_type_references, &local_type_parameters,
                 conformance.symbol, conformance.arguments,
             );
+            assign_type_argument_value_expression_symbols(
+                symbols,
+                &expression_scope,
+                expression_table,
+                child_type_references,
+                conformance.arguments,
+            );
             if conformance.via_expression.is_valid() {
                 assign_expression_table_symbols(
                     symbols,
@@ -392,15 +411,15 @@ pub(super) fn assign_machine_symbols(
             }
         }
 
-        crate::symbols::top_level::assign_conformance_bound_symbols(
-            symbols,
-            child_type_references,
-            type_constraints,
-            &local_type_parameters,
-            &mut machine.conformance_bounds,
-            &trait_proposition_slots,
-            &trait_machine_identity_slots,
-        );
+        for bound in &machine.conformance_bounds {
+            assign_type_argument_value_expression_symbols(
+                symbols,
+                &expression_scope,
+                expression_table,
+                child_type_references,
+                bound.arguments,
+            );
+        }
 
         for state in machine_state_handles
             .span_or_empty(machine.states)
@@ -461,7 +480,25 @@ pub(super) fn assign_machine_symbols(
                     && template.target_family_interface == machine.target_family_interface
             });
             match (candidates.next(), candidates.next()) {
-                (Some(template), None) => Some((template.symbol, machine.attached_data_symbol)),
+                (Some(template), None) => {
+                    let original = data_type_parameters.span_or_empty(template.type_parameters);
+                    let members = data_type_parameters
+                        .span_or_empty(machine.type_parameters)
+                        .iter()
+                        .map(|parameter| {
+                            let mut candidates = original.iter().filter(|source| {
+                                source.name.source_span() == parameter.name.source_span()
+                                    && std::mem::discriminant(&source.kind)
+                                        == std::mem::discriminant(&parameter.kind)
+                            });
+                            match (candidates.next(), candidates.next()) {
+                                (Some(source), None) => Some(source.clone()),
+                                _ => None,
+                            }
+                        })
+                        .collect::<Option<Vec<_>>>();
+                    members.map(|members| (template.symbol, machine.attached_data_symbol, members))
+                }
                 _ => {
                     diagnostics.push(
                         Diagnostic::error(
@@ -476,9 +513,11 @@ pub(super) fn assign_machine_symbols(
         .collect::<Vec<_>>();
     let mut origins = origins.into_iter();
     machines.for_each_mut(|machine| {
-        if let Some((template, owner)) = origins.next().flatten() {
+        if let Some((template, owner, members)) = origins.next().flatten() {
             machine.generic_data_origin.template = template;
             machine.generic_data_origin.closed_owner = owner;
+            machine.generic_data_origin.member_parameters =
+                data_type_parameters.insert_many(members);
         }
     });
     diagnostics

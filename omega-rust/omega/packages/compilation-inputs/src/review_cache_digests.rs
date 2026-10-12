@@ -13,13 +13,13 @@ use crate::digest_encoder::DomainDigestEncoder;
 use crate::review_record_encoding::{
     authority_class_tag, declaration_kind_tag, purpose_tag, semantic_binding_role_tag,
 };
+use crate::source_snapshot::hash_canonical_source_metadata;
 use crate::{
     AcceptedSemanticBinding, BuildDependencyOccurrence, BuildSnapshotCapture, BuildSnapshotRequest,
     BuildSourceCaptureObligation, IndependentComponentDescription, PackageCompilationInputs,
     PackageDependencyClosure, PackageGeneratedSourceBundle,
 };
 use build_output::{CapturedBuildSourceInput, CapturedSourceEntryKind};
-use filesystem_authority::CanonicalFilesystemMetadataIndex;
 
 const INPUTS_DIGEST_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-INPUTS\x02";
 const SNAPSHOT_DIGEST_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-SNAPSHOT\x01";
@@ -39,7 +39,7 @@ pub fn review_cache_inputs_digest(inputs: &PackageCompilationInputs) -> [u8; 32]
         match inputs.canonical_source_metadata(identity) {
             Some(index) => {
                 digest.byte(1);
-                hash_metadata_index(&mut digest, index);
+                hash_canonical_source_metadata(&mut digest, index);
             }
             None => digest.byte(0),
         }
@@ -79,7 +79,7 @@ pub fn review_cache_snapshot_digest(snapshot: &BuildSnapshotRequest) -> [u8; 32]
         digest.bytes(required);
     }
     match snapshot.capture() {
-        BuildSnapshotCapture::PackageInventory => digest.byte(0),
+        BuildSnapshotCapture::SourceInventory => digest.byte(0),
         BuildSnapshotCapture::Scoped(request) => {
             digest.byte(1);
             for (path, obligation) in request.entries() {
@@ -106,39 +106,8 @@ pub fn review_cache_snapshot_digest(snapshot: &BuildSnapshotRequest) -> [u8; 32]
     digest.finish()
 }
 
-pub(crate) fn hash_metadata_index(
-    digest: &mut DomainDigestEncoder,
-    index: &CanonicalFilesystemMetadataIndex,
-) {
-    digest.u32(index.policy_version());
-    digest.raw(index.source_content_commitment());
-    digest.u64(index.rows().len() as u64);
-    for row in index.rows() {
-        digest.bytes(row.relative_path());
-        match row.kind() {
-            filesystem_authority::CanonicalFilesystemMetadataRowKind::Directory => {
-                digest.byte(0);
-            }
-            filesystem_authority::CanonicalFilesystemMetadataRowKind::File {
-                logical_byte_length,
-                executable,
-            } => {
-                digest.byte(1);
-                digest.u64(logical_byte_length);
-                digest.byte(executable as u8);
-            }
-            filesystem_authority::CanonicalFilesystemMetadataRowKind::Symlink {
-                target_spelling_logical_byte_length,
-            } => {
-                digest.byte(2);
-                digest.u64(target_spelling_logical_byte_length);
-            }
-        }
-    }
-}
-
 fn hash_captured_input(digest: &mut DomainDigestEncoder, input: &CapturedBuildSourceInput) {
-    hash_metadata_index(digest, input.canonical_source_metadata());
+    hash_canonical_source_metadata(digest, input.canonical_source_metadata());
     digest.u64(input.file_bytes());
     digest.u64(input.entries().len() as u64);
     for entry in input.entries() {

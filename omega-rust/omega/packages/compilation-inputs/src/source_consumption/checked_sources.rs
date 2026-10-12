@@ -1,8 +1,8 @@
 //! Seal a compilation's source consumption and retain its generated-source handoff.
 
 use super::{
-    PackageCompilationSubject, PackageSourceConsumptionCommitment,
-    derive_package_compilation_subject, toolchain_source_identities,
+    ConsumedSourceProjection, PackageCompilationSubject, PackageSourceConsumptionCommitment,
+    derive_consumed_source_units, derive_package_compilation_subject, toolchain_source_identities,
 };
 use crate::{PackageCompilationInputs, PackageGeneratedSourceBundle};
 use checked_trees::CheckedTrees;
@@ -21,13 +21,35 @@ pub struct BuildSourceCustody {
 /// Exact source evidence sealed against one final checked program. The package
 /// owner derives identities, checks live custody, and constructs dependency
 /// handoffs; the compiler retains this result without assembling its fields.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct CheckedSourceCustody {
     build: BuildSourceCustody,
     package_purpose: Option<build_declarations::DependencyPurpose>,
-    package_subject: Option<PackageCompilationSubject>,
+    source_subject: Option<CheckedSourceSubject>,
     exact_toolchain_sources: Vec<(source::SourceId, [u8; 32])>,
+    source_owner: Option<std::sync::Arc<source::SourceMap>>,
 }
+
+/// Package graph identity and captured-root source identity are distinct
+/// issuers. Each carries the same original sealed source projection; a source
+/// root does not acquire package or dependency authority through this sum.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum CheckedSourceSubject {
+    Package(PackageCompilationSubject),
+    CapturedRoot(ConsumedSourceProjection),
+}
+
+// Owner pointer joins stay local; canonical source equality keeps its original
+// fields and does not acquire host paths or pointer addresses as identity.
+impl PartialEq for CheckedSourceCustody {
+    fn eq(&self, other: &Self) -> bool {
+        self.build == other.build
+            && self.package_purpose == other.package_purpose
+            && self.source_subject == other.source_subject
+            && self.exact_toolchain_sources == other.exact_toolchain_sources
+    }
+}
+impl Eq for CheckedSourceCustody {}
 
 impl BuildSourceCustody {
     /// Seal a completed Build's generated handoff against its retained typed
@@ -104,7 +126,7 @@ impl BuildSourceCustody {
         Ok(Some((extension, package_inputs)))
     }
 
-    /// Preserve the source-admission order: derive the final package subject,
+    /// Preserve the source-admission order: seal the original source subject,
     /// then identify toolchain sources. Neither step reopens the host: the
     /// frontend read each consumed file once and this seal commits to those
     /// bytes, so there is nothing here for a second read to establish.
@@ -113,21 +135,40 @@ impl BuildSourceCustody {
         program: &CheckedTrees,
         package_inputs: Option<&PackageCompilationInputs>,
     ) -> Result<CheckedSourceCustody, Vec<Diagnostic>> {
-        let package_subject = package_inputs
-            .map(|inputs| {
+        let source_subject = match package_inputs {
+            Some(inputs) => Some(CheckedSourceSubject::Package(
                 derive_package_compilation_subject(
                     program.symbols.source_files(),
                     inputs,
                     &self.generated_source_custody,
-                )
-            })
-            .transpose()?;
+                )?,
+            )),
+            None => match program.symbols.retained_source_map().and_then(|sources| {
+                Some((
+                    sources.retained_source_root()?,
+                    sources.retained_source_root_revision()?,
+                ))
+            }) {
+                Some(captured_root) => {
+                    let (units, coordinates) = derive_consumed_source_units(
+                        program.symbols.source_files(),
+                        &self.generated_source_custody,
+                        Some(captured_root),
+                    )?;
+                    Some(CheckedSourceSubject::CapturedRoot(
+                        ConsumedSourceProjection::from_rows(units, coordinates),
+                    ))
+                }
+                None => None,
+            },
+        };
         let exact_toolchain_sources = toolchain_source_identities(program.symbols.source_files())?;
         Ok(CheckedSourceCustody {
             build: self,
             package_purpose: package_inputs.map(PackageCompilationInputs::compilation_purpose),
-            package_subject,
+            source_subject,
             exact_toolchain_sources,
+            source_owner: program.symbols.retained_source_map().cloned(),
         })
     }
 }
@@ -138,13 +179,16 @@ impl CheckedSourceCustody {
     }
 
     pub const fn package_subject(&self) -> Option<&PackageCompilationSubject> {
-        self.package_subject.as_ref()
+        match self.source_subject.as_ref() {
+            Some(CheckedSourceSubject::Package(subject)) => Some(subject),
+            Some(CheckedSourceSubject::CapturedRoot(_)) | None => None,
+        }
     }
 
     /// Reconciled root package identity of a package-aware compilation.
     /// Standalone compilation has no package identity.
     pub const fn package_identity(&self) -> Option<semantic_vocabulary::PackageKeyIdentity> {
-        match self.package_subject.as_ref() {
+        match self.package_subject() {
             Some(subject) => Some(subject.root()),
             None => None,
         }
@@ -153,7 +197,7 @@ impl CheckedSourceCustody {
     /// Exact source-path-free dependency closure consumed by a package-aware
     /// compilation. Standalone compilation has no package closure.
     pub const fn dependency_closure(&self) -> Option<&crate::PackageDependencyClosure> {
-        match self.package_subject.as_ref() {
+        match self.package_subject() {
             Some(subject) => Some(subject.dependency_closure()),
             None => None,
         }
@@ -164,7 +208,7 @@ impl CheckedSourceCustody {
     pub const fn source_consumption_commitment(
         &self,
     ) -> Option<PackageSourceConsumptionCommitment> {
-        match self.package_subject.as_ref() {
+        match self.package_subject() {
             Some(subject) => Some(subject.source_consumption_commitment()),
             None => None,
         }
@@ -174,6 +218,30 @@ impl CheckedSourceCustody {
         &self,
     ) -> Option<PackageSourceConsumptionCommitment> {
         self.build.base_source_consumption_commitment
+    }
+
+    /// Custody join against the original immutable frontend owner, including
+    /// clones retained before Product pruning. This is not a source recheck.
+    pub fn owns_sources(&self, symbols: &symbols::SymbolTable) -> bool {
+        match (self.source_owner.as_ref(), symbols.retained_source_map()) {
+            (Some(owner), Some(candidate)) => std::sync::Arc::ptr_eq(owner, candidate),
+            _ => false,
+        }
+    }
+
+    /// Original seal-owned source association for either exact package custody
+    /// or an original captured consuming root. Input without either issuer
+    /// stays unavailable; source identity does not grant runtime authority.
+    pub fn consumed_unit_for_source(
+        &self,
+        source_id: source::SourceId,
+    ) -> Option<&super::ConsumedSourceUnit> {
+        match self.source_subject.as_ref()? {
+            CheckedSourceSubject::Package(subject) => subject.consumed_unit_for_source(source_id),
+            CheckedSourceSubject::CapturedRoot(projection) => {
+                projection.consumed_unit_for_source(source_id)
+            }
+        }
     }
 
     pub fn exact_toolchain_sources(&self) -> &[(source::SourceId, [u8; 32])] {
@@ -191,8 +259,7 @@ impl CheckedSourceCustody {
         own_generated_sources: Vec<build_output::PackageGeneratedSource>,
     ) -> Result<PackageGeneratedSourceBundle, &'static str> {
         let subject = self
-            .package_subject
-            .as_ref()
+            .package_subject()
             .ok_or("generated-source bundles require package-aware compilation")?;
         let target =
             selected_target.ok_or("generated-source bundles require one selected target")?;

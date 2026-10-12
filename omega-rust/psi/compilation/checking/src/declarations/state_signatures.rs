@@ -34,7 +34,9 @@ pub(crate) fn validate_callable_state_signatures(
             &format!("machine `{}`", machine.name),
             program.machine_type_parameters(machine),
             TypeParameterScope {
-                lexical_owner: machine.symbol,
+                lexical_owner: typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(
+                    machine.symbol,
+                ),
                 type_parameters: &type_parameters,
                 lifetime_parameters: &lifetime_parameters,
             },
@@ -56,7 +58,9 @@ pub(crate) fn validate_callable_state_signatures(
             diagnostics,
             StateSignatureOwner::Machine(machine),
             TypeParameterScope {
-                lexical_owner: machine.symbol,
+                lexical_owner: typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(
+                    machine.symbol,
+                ),
                 type_parameters: &type_parameters,
                 lifetime_parameters: &lifetime_parameters,
             },
@@ -86,62 +90,53 @@ pub(crate) fn validate_callable_state_signatures(
         );
     }
 
-    for trait_definition in program.traits() {
-        for machine in program
-            .trait_machine_signatures(trait_definition)
-            .iter()
-            .chain(
-                program
-                    .closed_requirement_applications()
-                    .filter(|application| application.declaring_trait == trait_definition.symbol)
-                    .map(|application| application.signature),
-            )
-        {
-            let mut type_parameters = program.trait_type_parameters(trait_definition).to_vec();
-            type_parameters.extend_from_slice(program.state_signature_type_parameters(machine));
-            for lifetime in &machine.lifetime_parameters {
-                if trait_definition
-                    .lifetime_parameters
-                    .iter()
-                    .any(|inherited| inherited == lifetime)
-                {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "trait requirement `{}` redeclares inherited lifetime `'{}'",
-                        machine.name,
-                        lifetime.as_str()
-                    )));
-                }
+    for (trait_definition, machine) in program.public_trait_requirement_signatures() {
+        let mut type_parameters = program.trait_type_parameters(trait_definition).to_vec();
+        type_parameters.extend_from_slice(program.state_signature_type_parameters(machine));
+        for lifetime in &machine.lifetime_parameters {
+            if trait_definition
+                .lifetime_parameters
+                .iter()
+                .any(|inherited| inherited == lifetime)
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "trait requirement `{}` redeclares inherited lifetime `'{}'",
+                    machine.name,
+                    lifetime.as_str()
+                )));
             }
-            let mut lifetime_parameters = trait_definition.lifetime_parameters.clone();
-            lifetime_parameters.extend_from_slice(&machine.lifetime_parameters);
-            validate_state_signature_types(
-                std::iter::once(StateSignatureView {
-                    name: machine.name.as_str(),
-                    lifetime_parameters: &machine.lifetime_parameters,
-                    parameters: program.state_signature_parameters(machine),
-                    return_type: machine.return_type,
-                    contracts: program.state_signature_contracts(machine),
-                }),
-                program,
-                symbols,
-                diagnostics,
-                StateSignatureOwner::Trait(trait_definition.name.as_str()),
-                TypeParameterScope {
-                    lexical_owner: machine.symbol,
-                    type_parameters: &type_parameters,
-                    lifetime_parameters: &lifetime_parameters,
-                },
-            );
-            validate_machine_parameter_signatures(
-                program,
-                symbols,
-                diagnostics,
-                program.state_signature_type_parameters(machine),
-                &type_parameters,
-                &lifetime_parameters,
-                machine.name.as_str(),
-            );
         }
+        let mut lifetime_parameters = trait_definition.lifetime_parameters.clone();
+        lifetime_parameters.extend_from_slice(&machine.lifetime_parameters);
+        validate_state_signature_types(
+            std::iter::once(StateSignatureView {
+                name: machine.name.as_str(),
+                lifetime_parameters: &machine.lifetime_parameters,
+                parameters: program.state_signature_parameters(machine),
+                return_type: machine.return_type,
+                contracts: program.state_signature_contracts(machine),
+            }),
+            program,
+            symbols,
+            diagnostics,
+            StateSignatureOwner::Trait(trait_definition.name.as_str()),
+            TypeParameterScope {
+                lexical_owner: typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(
+                    machine.symbol,
+                ),
+                type_parameters: &type_parameters,
+                lifetime_parameters: &lifetime_parameters,
+            },
+        );
+        validate_machine_parameter_signatures(
+            program,
+            symbols,
+            diagnostics,
+            program.state_signature_type_parameters(machine),
+            &type_parameters,
+            &lifetime_parameters,
+            machine.name.as_str(),
+        );
     }
 }
 
@@ -277,7 +272,9 @@ fn validate_machine_parameter_signatures<'program>(
             diagnostics,
             StateSignatureOwner::Requirement(parameter.name.as_str()),
             TypeParameterScope {
-                lexical_owner: contract.symbol,
+                lexical_owner: typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(
+                    contract.symbol,
+                ),
                 type_parameters: &local_type_parameters,
                 lifetime_parameters: &local_lifetime_parameters,
             },

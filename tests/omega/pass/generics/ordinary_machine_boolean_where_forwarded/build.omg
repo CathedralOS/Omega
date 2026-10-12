@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "ordinary_machine_boolean_where_forwarded");
+    Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
+}

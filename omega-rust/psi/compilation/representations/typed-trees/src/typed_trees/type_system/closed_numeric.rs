@@ -7,6 +7,8 @@
 //! rules as evaluation, and mixed policies never acquire a common implicit type.
 //! Exact integer casts retain the completed result carrier and policy after
 //! checking the unchanged closed value fits; they do not round or clamp it.
+//! Typing retains their target/policy vocabulary before checking. Reading that
+//! shared result query does not establish cast formation or domain membership.
 //! Trapping arithmetic contributes only a representable normal result; failed
 //! arithmetic supplies no value and never supplies executable crash permission.
 //! Record projections are not numeric syntax: selecting their literal leaf
@@ -79,6 +81,68 @@ pub fn evaluate_anonymous_value<const ALLOW_DECIMAL_LITERALS: bool>(
 }
 
 impl TypedTrees {
+    /// Completed noninteger const values retain the selected declaration's
+    /// canonical payload. Integer atoms use the separate graph/carrier query:
+    /// their encoding alone cannot supply arithmetic-policy meaning.
+    pub fn completed_const_argument_atom(
+        &self,
+        argument: TypeReferenceHandle,
+    ) -> Option<language_semantics::const_value::CanonicalConstValue> {
+        use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+        let crate::types::TypeReferenceNode::Named { symbol, .. } =
+            self.type_reference_table.type_reference(argument)
+        else {
+            return None;
+        };
+        let declaration = self.const_declaration_by_symbol(*symbol)?;
+        let encoding = declaration.evaluated_value.as_ref()?.encoding()?;
+        let payload = CanonicalConstValue::new("", encoding, "");
+        let carrier = match payload.decode_encoding()? {
+            DecodedCanonicalConstValue::Boolean(_) => "bool".to_owned(),
+            DecodedCanonicalConstValue::Array { type_name, .. }
+            | DecodedCanonicalConstValue::Record { type_name, .. }
+            | DecodedCanonicalConstValue::Variant { type_name, .. } => type_name,
+            DecodedCanonicalConstValue::Integer { .. }
+            | DecodedCanonicalConstValue::Float { .. } => return None,
+        };
+        Some(CanonicalConstValue::new(carrier, encoding, ""))
+    }
+
+    /// Read an actual const operand in its issuing graph. A named declaration
+    /// supplies its completed initializer and independently declared carrier;
+    /// a decimal display name supplies neither. Runtime binders and missing
+    /// declaration/value custody remain unavailable.
+    pub fn closed_const_integer_argument(
+        &self,
+        argument: TypeReferenceHandle,
+    ) -> Option<ClosedIntegerValue> {
+        match self.type_reference_table.type_reference(argument) {
+            crate::types::TypeReferenceNode::ConstExpression(expression) => {
+                self.closed_integer_value_in(*expression, symbols::SymbolHandle::invalid())
+            }
+            crate::types::TypeReferenceNode::Named { symbol, .. } => {
+                let declaration = self.const_declaration_by_symbol(*symbol)?;
+                declaration.evaluated_value.as_ref()?;
+                let primitive = self
+                    .type_reference_table
+                    .primitive_type(declaration.declared_type)?;
+                if !primitive.accepts_integer_literal() {
+                    return None;
+                }
+                let value = self.closed_integer_value_in(
+                    declaration.materialized_initializer,
+                    declaration.symbol,
+                )?;
+                Some(ClosedIntegerValue {
+                    value: value.value,
+                    primitive: Some(primitive),
+                    type_reference: Some(declaration.declared_type),
+                })
+            }
+            _ => None,
+        }
+    }
+
     /// Exact closed integer meaning, without runtime bindings or flow facts.
     /// Context-free typed operators retain the conservative specialization veto.
     pub fn closed_integer_expression_value(&self, expression: ExpressionHandle) -> Option<BigInt> {
@@ -146,6 +210,7 @@ fn evaluate_value<const ALLOW_DECIMAL_LITERALS: bool>(
         Leave(ExpressionHandle),
         Binary(ExpressionHandle, BinaryOperator),
         Cast(TypeReferenceHandle),
+        MatchLanding(language_core::expression_origin::ConstMatchIntegerMeaning),
     }
     let mut pending = vec![Step::Enter(expression)];
     let mut active = Vec::new();
@@ -164,19 +229,40 @@ fn evaluate_value<const ALLOW_DECIMAL_LITERALS: bool>(
                         let mut selections = selected_arms
                             .iter()
                             .filter(|(owner, _)| *owner == expression);
-                        let (_, selected) = selections.next()?;
-                        if selections.any(|(_, other)| other != selected) {
-                            return None;
-                        }
+                        let produced = program
+                            .expression_table
+                            .selected_const_match_result(expression);
+                        let selected = match selections.next() {
+                            Some((_, selected)) => {
+                                if selections.any(|(_, other)| other != selected)
+                                    || (produced.is_valid() && produced != *selected)
+                                {
+                                    return None;
+                                }
+                                *selected
+                            }
+                            // This edge was selected by the admitted normalization
+                            // of this original graph, not by a numeric reader or
+                            // by a receiving slot's expected carrier.
+                            None if typed_owner.is_some() && produced.is_valid() => produced,
+                            None => return None,
+                        };
                         let arms = program.expression_table.match_arms(dispatch.arms);
                         if arms.len() != dispatch.arms.len()
-                            || !arms.iter().any(|arm| arm.value == *selected)
+                            || !arms.iter().any(|arm| arm.value == selected)
                         {
                             return None;
                         }
                         active.push(expression);
                         pending.push(Step::Leave(expression));
-                        pending.push(Step::Enter(*selected));
+                        if typed_owner.is_some() && produced.is_valid() {
+                            pending.push(Step::MatchLanding(
+                                program
+                                    .expression_table
+                                    .selected_const_match_meaning(expression),
+                            ));
+                        }
+                        pending.push(Step::Enter(selected));
                     }
                     ExpressionNode::Integer(literal) if literal.landing().is_none() => values.push(
                         NumericValue::anonymous(BigRational::from_integer(literal.value_bignum()?)),
@@ -216,20 +302,21 @@ fn evaluate_value<const ALLOW_DECIMAL_LITERALS: bool>(
                     {
                         // Formation proves unchanged denotation independently.
                         // The closed query still checks carrier fit and retains
-                        // the completed cast's policy for surrounding operations.
+                        // the retained cast's policy for surrounding operations.
+                        let result_type = program.cast_result_type_reference(cast)?;
                         if !program
                             .type_reference_table
-                            .contains_type_reference(cast.result_type)
+                            .contains_type_reference(result_type)
                             || !program
                                 .type_reference_table
-                                .primitive_type(cast.result_type)
+                                .primitive_type(result_type)
                                 .is_some_and(PrimitiveType::is_fixed_integer)
                         {
                             return None;
                         }
                         active.push(expression);
                         pending.push(Step::Leave(expression));
-                        pending.push(Step::Cast(cast.result_type));
+                        pending.push(Step::Cast(result_type));
                         pending.push(Step::Enter(cast.value));
                     }
                     ExpressionNode::Binary(binary)
@@ -248,6 +335,49 @@ fn evaluate_value<const ALLOW_DECIMAL_LITERALS: bool>(
                 if active.pop() != Some(expression) {
                     return None;
                 }
+            }
+            Step::MatchLanding(meaning) => {
+                use language_core::expression_origin::ConstMatchIntegerMeaning;
+                let mut value = values.pop()?;
+                match meaning {
+                    ConstMatchIntegerMeaning::Unavailable => return None,
+                    ConstMatchIntegerMeaning::Anonymous if value.primitive.is_none() => {}
+                    ConstMatchIntegerMeaning::Anonymous => return None,
+                    ConstMatchIntegerMeaning::Typed {
+                        primitive: landing,
+                        arithmetic_domain,
+                    } => {
+                        let (primitive, atom) = literal_carrier(landing)?;
+                        if (value.primitive.is_some() && value.type_reference.is_none())
+                            || value.primitive.is_some_and(|actual| actual != primitive)
+                            || value.type_reference.is_some_and(|reference| {
+                                program.type_reference_table.arithmetic_domain(reference)
+                                    != arithmetic_domain
+                            })
+                        {
+                            return None;
+                        }
+                        land_integer(&value.value.to_integer_exact()?, primitive)?;
+                        if value.primitive.is_none() {
+                            let symbol = program
+                                .symbols
+                                .child_handles(program.symbols.root())?
+                                .find(|symbol| {
+                                    program.symbols.builtin_type_atom(*symbol) == Some(atom)
+                                })?;
+                            value.type_reference = Some(
+                                program
+                                    .type_reference_table
+                                    .find_arithmetic_result_type_reference(
+                                        symbol,
+                                        arithmetic_domain,
+                                    )?,
+                            );
+                            value.primitive = Some(primitive);
+                        }
+                    }
+                }
+                values.push(value);
             }
             Step::Cast(reference) => {
                 let source = values.pop()?;
@@ -524,4 +654,70 @@ pub fn has_builtin_anonymous_operands(
                     )
                 })
         })
+}
+
+impl TypedTrees {
+    /// Read original static operand custody; a canonical atom with no retained
+    /// type row cannot invent an earlier arithmetic policy.
+    pub fn static_const_integer_meaning(
+        &self,
+        argument: &crate::expression::StaticMachineArgument,
+    ) -> crate::types::ConstIntegerMeaning {
+        use crate::types::{ConstIntegerMeaning, TypeReferenceNode};
+        if argument.type_reference.is_valid() {
+            if let TypeReferenceNode::ConstExpression(expression) = self
+                .type_reference_table
+                .type_reference(argument.type_reference)
+            {
+                return self
+                    .closed_integer_value_in(*expression, symbols::SymbolHandle::invalid())
+                    .map_or(ConstIntegerMeaning::Unavailable, |value| {
+                        ConstIntegerMeaning::from_closed_value(&value, &self.type_reference_table)
+                    });
+            }
+            if let TypeReferenceNode::Named { symbol, .. } = self
+                .type_reference_table
+                .type_reference(argument.type_reference)
+                && let Some(declaration) = self.const_declaration_by_symbol(*symbol)
+                && let Some(primitive) = self
+                    .type_reference_table
+                    .primitive_type(declaration.declared_type)
+                    .filter(|primitive| primitive.accepts_integer_literal())
+            {
+                return ConstIntegerMeaning::Typed {
+                    primitive,
+                    arithmetic_domain: self
+                        .type_reference_table
+                        .arithmetic_domain(declaration.declared_type),
+                };
+            }
+            return self
+                .type_reference_table
+                .const_integer_meaning(argument.type_reference);
+        }
+        if let Some(literal) = &argument.const_literal {
+            return literal
+                .landing()
+                .map_or(ConstIntegerMeaning::Anonymous, |landing| {
+                    ConstIntegerMeaning::Typed {
+                        primitive: PrimitiveType::from_landed_integer(landing.landed_type),
+                        arithmetic_domain: landing.domain,
+                    }
+                });
+        }
+        if let Some(declaration) = self.const_declaration_by_symbol(argument.symbol)
+            && let Some(primitive) = self
+                .type_reference_table
+                .primitive_type(declaration.declared_type)
+            && primitive.accepts_integer_literal()
+        {
+            return ConstIntegerMeaning::Typed {
+                primitive,
+                arithmetic_domain: self
+                    .type_reference_table
+                    .arithmetic_domain(declaration.declared_type),
+            };
+        }
+        ConstIntegerMeaning::Unavailable
+    }
 }

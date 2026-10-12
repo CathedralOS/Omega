@@ -98,8 +98,15 @@ pub(super) fn intern(
     let typed = &checked.typed;
     let requirement_template = immediate_template(checked, candidate.boundary)?;
     let requirement = if let Some(application) =
-        typed.closed_requirement_application(candidate.boundary)
+        super::requirements::closed_requirement(checked, candidate.boundary)?
     {
+        let (owner, signature) = typed
+            .trait_machine_signature(application.requirement_template)
+            .ok_or(LoweringError::Unsupported(
+                "applied provider requirement lost its original signature",
+            ))?;
+        typed.trait_requirement_callable_identity_text(owner, signature)
+    } else if let Some(application) = typed.closed_requirement_application(candidate.boundary) {
         let (owner, signature) = typed.trait_machine_signature(application.template).ok_or(
             LoweringError::Unsupported("closed provider requirement lost its original signature"),
         )?;
@@ -116,7 +123,7 @@ pub(super) fn intern(
                 "provider requirement template has no callable identity",
             ))?
     } else {
-        typed.callable_identity_text(candidate.requirement_identity)
+        candidate.requirement_identity.portable_identity(checked)?
     };
     let realization_template = immediate_template(checked, candidate.candidate)?;
     let realization_symbol = if realization_template.is_valid() {

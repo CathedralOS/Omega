@@ -37,6 +37,7 @@ pub use callable_applications::{
 pub mod calls;
 mod commitments;
 mod frozen;
+pub mod product_applications;
 pub use frozen::FrozenTypedTrees;
 pub mod control_flow;
 pub mod declaration_index;
@@ -122,6 +123,40 @@ pub struct TypedTrees {
     /// program's roots, never this view. The original frontier retains exact
     /// symbol and interface handles without granting its bodies execution.
     pub product_declaration_frontier: Option<std::sync::Arc<TypedTrees>>,
+    /// Non-executing Product declaration operands retain original selections
+    /// and their relocated payload owner. Only requirement tuples carry an
+    /// application handle; executable Build arenas never own that payload.
+    pub product_declaration_operands: Arena<product_applications::ProductDeclarationOperandSlot>,
+    pub product_static_argument_selections:
+        Arena<product_applications::ProductStaticArgumentSelection>,
+    /// Original non-executing lexical declaration custody for relocated
+    /// Product applications. These rows never become executable roots.
+    pub captured_static_lexical_scopes: Arena<product_applications::CapturedStaticLexicalScopeSlot>,
+    /// Original captured value carriers copied into this payload issuer.
+    pub captured_static_value_carriers: Arena<product_applications::CapturedStaticValueCarrier>,
+    /// Exact non-executing application demands consumed by source preparation.
+    /// Original payload handles and produced symbols keep distinct owners.
+    pub instantiated_static_applications:
+        Arena<crate::static_applications::InstantiatedStaticApplicationSlot>,
+    /// Owned public signatures for exact non-executing trait applications.
+    /// Original conformance rosters remain declaration-owned and unchanged.
+    pub instantiated_requirement_signatures:
+        Arena<crate::static_applications::InstantiatedRequirementSignature>,
+    /// Original-to-applied public fact coordinates, published by header copying.
+    /// Signature instances retain spans; no declaration spelling supplies a join.
+    pub signature_contract_fact_copies: Arena<signature::SignatureContractFactCopy>,
+    /// Original interface applications owned by each produced public header.
+    /// These source coordinates carry no Calling plan or provider authority.
+    pub requirement_interface_applications:
+        Arena<crate::static_applications::RequirementInterfaceApplication>,
+    /// Source conformance edges instantiated under exact required applications.
+    /// These are preparation coordinates, not selected provider authority.
+    pub instantiated_requirement_realizations:
+        Arena<crate::static_applications::InstantiatedRequirementRealization>,
+    /// Completed outer scopes owned by resulting machines and original source
+    /// occurrences. Universal families and concrete member tuples stay distinct.
+    pub machine_conformance_applications:
+        Arena<declarations::machine_conformances::MachineConformanceApplication>,
     /// Sorted exact ledger IDs proven to belong only to projected-away roots.
     /// The ledger itself remains intact; unknown or orphan IDs are never
     /// excluded by root projection and still require ordinary finalization.
@@ -327,6 +362,7 @@ pub struct TypedTreeTables {
     pub trait_machine_signatures: Arena<signature::StateSignature>,
     pub(crate) applied_callable_signatures: Arena<callable_applications::AppliedCallableSignature>,
     pub(crate) callable_substitutions: Arena<callable_applications::CallableSubstitution>,
+    pub(crate) trait_application_binding_parameters: Arena<SymbolHandle>,
     pub(crate) trait_application_frames: Arena<trait_definition::RetainedTraitApplicationFrame>,
     pub(crate) callable_argument_identities: Arena<crate::type_identity::NormalizedTypeIdentity>,
     pub(crate) callable_lifetime_substitutions:
@@ -463,6 +499,16 @@ impl TypedTrees {
         Self {
             identity: ProgramIdentity::default(),
             product_declaration_frontier: None,
+            product_declaration_operands: Arena::new(),
+            product_static_argument_selections: Arena::new(),
+            captured_static_lexical_scopes: Arena::new(),
+            captured_static_value_carriers: Arena::new(),
+            instantiated_static_applications: Arena::new(),
+            instantiated_requirement_signatures: Arena::new(),
+            signature_contract_fact_copies: Arena::new(),
+            requirement_interface_applications: Arena::new(),
+            instantiated_requirement_realizations: Arena::new(),
+            machine_conformance_applications: Arena::new(),
             excluded_authored_selection_occurrences: Vec::new(),
             roots,
             tables,
@@ -570,24 +616,6 @@ pub fn static_const_argument_spelling(
     }
     // A previous specialization may forward a compiler-created atom.
     CanonicalConstValue::from_atom(name.as_str()).map(|value| value.atom())
-}
-
-/// Wrap one static const spelling in the normalized `Named` type identity the
-/// specialization binding records: `named(integer-const(v))` for decimal
-/// spellings, `named(canonical-const(type(T),encoding(E)))` for canonical
-/// atoms. The escaping rules mirror `type_identity`'s atom/compound leaves.
-fn static_const_identity_from_spelling(spelling: &str) -> String {
-    if let Some(value) = language_semantics::const_value::CanonicalConstValue::from_atom(spelling) {
-        return format!(
-            "named(canonical-const(type({}),encoding({})))",
-            escape(&value.type_name),
-            escape(&value.encoding)
-        );
-    }
-    if let Ok(value) = spelling.parse::<i128>() {
-        return format!("named(integer-const({value}))");
-    }
-    format!("named(name({}))", escape(spelling))
 }
 
 impl PhaseSnapshot for TypedTrees {

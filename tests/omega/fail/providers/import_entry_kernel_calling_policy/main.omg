@@ -1,0 +1,80 @@
+use omega_language_std::calling;
+use omega::language::core::external_binding;
+pub data CallbackPolicies {}
+pub ProcessIdCalling satisfies CallingPolicy { CallingPolicy::plan = CallbackPolicies::process_id; }
+machine CallbackPolicies::process_id(signature: BoundarySignature) -> BoundaryPlanResult
+satisfies CallingPolicy::plan
+{
+    let mut plan: BoundaryEntryPlan;
+    plan.call.has_result = true;
+    plan.call.result = CallbackPolicies::word(4, 0);
+    BoundaryPlanResult::Accepted { plan: CallbackPolicies::finish(plan) }
+}
+
+machine CallbackPolicies::word(bytes: u64, register: u64) -> ValuePlacement {
+    let mut value: ValuePlacement;
+    value.shape.class = AbiValueClass::Integer;
+    value.shape.byte_size = bytes;
+    value.shape.alignment = bytes;
+    value.location_count = 1;
+    value.locations[0] = ValueLocation::Register {
+        register: MachineRegister::Aarch64X { index: register },
+        value_byte_offset: 0,
+        byte_size: bytes,
+    };
+    value
+}
+
+machine CallbackPolicies::finish(output: BoundaryEntryPlan) -> BoundaryEntryPlan {
+    let mut plan: BoundaryEntryPlan = output;
+    plan.call.convention = CallingConvention::LinuxSyscallAarch64;
+    plan.call.stack_alignment = 16;
+    plan.call.entry_control = EntryControl::SupervisorCall { number_register: MachineRegister::Aarch64X { index: 8 }, immediate: 0 };
+    plan.call.ordinary_clobbers.register_count = 7;
+    plan.call.ordinary_clobbers.registers[0] = MachineRegister::Aarch64X { index: 0 };
+    plan.call.ordinary_clobbers.registers[1] = MachineRegister::Aarch64X { index: 1 };
+    plan.call.ordinary_clobbers.registers[2] = MachineRegister::Aarch64X { index: 2 };
+    plan.call.ordinary_clobbers.registers[3] = MachineRegister::Aarch64X { index: 3 };
+    plan.call.ordinary_clobbers.registers[4] = MachineRegister::Aarch64X { index: 4 };
+    plan.call.ordinary_clobbers.registers[5] = MachineRegister::Aarch64X { index: 5 };
+    plan.call.ordinary_clobbers.registers[6] = MachineRegister::Aarch64X { index: 8 };
+    plan.state.initial_regime = MachineRegime::Aarch64A64 { exception_level: 0 };
+    plan.state.permitted_transitive_use.general_registers = true;
+    plan.state.permitted_transitive_use.vector_registers = true;
+    plan.state.permitted_transitive_use.flags = true;
+    plan.state.stack = EntryStack::ProviderSelected;
+    plan.state.preemption = Preemption::NotApplicable;
+    plan
+}
+
+// Unexecuted generic kernel-entry proposal: the static Count does not
+// change runtime geometry, but each invocation owns a distinct public row.
+
+boundary trait KernelProbe: Calling<ProcessIdCalling> {
+    machine process_id<const Count: u64>() -> i32
+    where Count == 4 || Count == 8;
+}
+
+linux_arm64 machine process_id_binding() -> ForeignBinding<9, 6, 10> {
+    ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libc.so.6", symbol: "getpid", version: "GLIBC_2.17",
+    }, }
+}
+linux_arm64 machine process_id<const Count: u64>() -> i32
+satisfies KernelProbe::process_id via process_id_binding();
+
+ProbeProvider satisfies KernelProbe {
+    KernelProbe::process_id = process_id;
+}
+
+data Main {}
+machine Main::main(main: &mut Main) reaches KernelProbe crashes Trap {
+    let first: i32 = KernelProbe::process_id<4>();
+    let second: i32 = KernelProbe::process_id<8>();
+    transition first > 0 && first == second {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

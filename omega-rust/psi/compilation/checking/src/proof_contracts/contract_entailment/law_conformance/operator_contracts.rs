@@ -510,7 +510,10 @@ fn operator_contract_expressions_match(
             let left_arguments = table.expression_handles(left.arguments);
             let right_arguments = table.expression_handles(right.arguments);
             target_matches
-                && left.machine_arguments == right.machine_arguments
+                && typed_trees::expression::StaticMachineArgument::semantic_contents_equal(
+                    &left.machine_arguments,
+                    &right.machine_arguments,
+                )
                 && left.operational_acknowledgement == right.operational_acknowledgement
                 && operator_contract_expressions_match(
                     program,

@@ -1,38 +1,67 @@
 //! Provider selection keys, provenance, indices and slot resolution.
 
+use super::UnavailableProviderCandidate;
 use crate::provider_planning::independent_components::IndependentComponentJoin;
 use crate::{DerivedProviderPlan, ProviderPlanProvenance};
 use component_description::VerifiedComponent;
 use effects::CompilerIntrinsicExecutionIdentity;
 use effects::provider_plan::ProviderPlan;
 
-type ProviderSelectionKey = (Option<semantic_vocabulary::PackageKeyIdentity>, String);
+type ProviderSelectionKey = (
+    Option<semantic_vocabulary::PackageKeyIdentity>,
+    String,
+    Option<build_time_evaluation::provider_declarations::receivers::ProviderSelectionReceiver>,
+);
 
 fn provider_slot_key(plan: &effects::provider_plan::ProviderPlan) -> ProviderSelectionKey {
+    schema_slot_key(&plan.schema)
+}
+
+fn schema_slot_key(schema: &effects::provider_plan::ServiceSchema) -> ProviderSelectionKey {
     (
-        plan.schema.trait_package_identity,
-        plan.schema.identity_text(plan.schema.trait_name).to_owned(),
+        schema.trait_package_identity,
+        schema.identity_text(schema.trait_name).to_owned(),
+        schema
+            .receiver_applications
+            .first()
+            .and_then(|application| {
+                crate::service_schema::receiver_identity(&schema.identities, application)
+            }),
     )
 }
 
-fn selected_subject_keys(selection: &crate::ProviderSelection) -> Vec<ProviderSelectionKey> {
-    match &selection.subject {
+fn selected_subject_keys(
+    selection: &crate::ProviderSelection,
+) -> Result<Vec<ProviderSelectionKey>, diagnostics::Diagnostic> {
+    Ok(match &selection.subject {
         crate::ProviderSelectionSubject::BoundaryTrait(identity)
         | crate::ProviderSelectionSubject::BoundaryRequirement(identity) => {
-            vec![(identity.package, identity.canonical_path.clone())]
+            let receiver = identity
+                .receiver
+                .as_ref()
+                .map(|receiver| Ok::<_, diagnostics::Diagnostic>(receiver.clone()))
+                .transpose()?;
+            vec![(identity.package, identity.canonical_path.clone(), receiver)]
         }
         crate::ProviderSelectionSubject::BoundaryOperatorFamily(family) => family
             .coordinates()
             .iter()
-            .map(|coordinate| (family.package, coordinate.requirement_identity.clone()))
+            .map(|coordinate| {
+                (
+                    family.package,
+                    coordinate.requirement_identity.clone(),
+                    None,
+                )
+            })
             .collect(),
-    }
+    })
 }
 
 fn selected_provider_key(selection: &crate::ProviderSelection) -> ProviderSelectionKey {
     (
         selection.provider_type.package,
         selection.provider_type.canonical_path.clone(),
+        None,
     )
 }
 
@@ -40,6 +69,7 @@ fn provider_plan_key(plan: &effects::provider_plan::ProviderPlan) -> ProviderSel
     (
         plan.provider_type_package_identity,
         plan.provider_type.clone(),
+        None,
     )
 }
 
@@ -47,17 +77,23 @@ fn provider_plan_key(plan: &effects::provider_plan::ProviderPlan) -> ProviderSel
 pub enum ProviderSelectionProvenance {
     BuildOverride(Vec<crate::ProviderSelection>),
     TargetDefault(Vec<crate::ProviderSelection>),
-    UniqueCoveringCandidate,
+    /// Compiler-owned settlement publishes its actual retained choice here.
+    /// Ordinary candidate discovery cannot issue this provenance.
+    ToolchainSettlement,
+    /// Exact sealed primitive choice issued by the original catalog owner.
+    CompilerCatalog(crate::compiler_catalog::CompilerCatalogChoice),
 }
 
 impl ProviderSelectionProvenance {
     /// Reconstruct the one build-owned composition choice retained by this
-    /// selected plan. Automatic unique selection and target defaults are
+    /// selected plan. Compiler-owned settlement and target defaults are
     /// always fused: provider packages cannot independently componentize
     /// themselves.
     pub fn composition_mode(&self) -> Result<crate::CompositionMode, String> {
         match self {
-            Self::UniqueCoveringCandidate => Ok(crate::CompositionMode::Fused),
+            Self::ToolchainSettlement | Self::CompilerCatalog(_) => {
+                Ok(crate::CompositionMode::Fused)
+            }
             Self::TargetDefault(declarations) => {
                 if declarations.iter().any(|declaration| {
                     declaration.composition_mode != crate::CompositionMode::Fused
@@ -181,7 +217,8 @@ pub(crate) fn selected_provider_plan_facts_with_independent_components(
         let declarations = match &selected_plan.selected_by {
             ProviderSelectionProvenance::BuildOverride(declarations)
             | ProviderSelectionProvenance::TargetDefault(declarations) => declarations,
-            ProviderSelectionProvenance::UniqueCoveringCandidate => continue,
+            ProviderSelectionProvenance::ToolchainSettlement
+            | ProviderSelectionProvenance::CompilerCatalog(_) => continue,
         };
         if declarations.is_empty() {
             diagnostics.push(diagnostics::Diagnostic::error(format!(
@@ -193,9 +230,11 @@ pub(crate) fn selected_provider_plan_facts_with_independent_components(
             let selecting_source = typed
                 .symbols
                 .symbol_provenance_source_span(declaration.selecting_machine);
-            if !declaration.subject.selects_schema(
+            if !crate::service_schema::selection_matches_schema(
+                &declaration.subject,
                 schema_symbol,
                 plan.schema.identity_text(plan.schema.trait_name),
+                &plan.schema,
             ) || Some(declaration.provider_type.symbol) != provenance.provider_type
                 || selecting_source.is_none_or(|source| {
                     source.source_id != declaration.source_span.source_id
@@ -249,7 +288,8 @@ fn authored_selection_declarations(
     match provenance {
         ProviderSelectionProvenance::BuildOverride(declarations)
         | ProviderSelectionProvenance::TargetDefault(declarations) => declarations,
-        ProviderSelectionProvenance::UniqueCoveringCandidate => &[],
+        ProviderSelectionProvenance::ToolchainSettlement
+        | ProviderSelectionProvenance::CompilerCatalog(_) => &[],
     }
 }
 
@@ -257,7 +297,7 @@ fn same_family_declaration(
     left: &crate::ProviderSelection,
     right: &crate::ProviderSelection,
 ) -> bool {
-    left.subject.same_declaration_as(&right.subject)
+    left.subject.same_subject_as(&right.subject)
         && left.provider_type.symbol == right.provider_type.symbol
 }
 
@@ -346,11 +386,45 @@ fn resolve_provider_selection_slots(
     let mut resolved = Vec::new();
     let mut diagnostics = Vec::new();
     for declaration in declarations {
-        for slot_key in selected_subject_keys(declaration) {
-            if slot_keys.contains(&slot_key) {
-                resolved.push((slot_key, declaration.clone()));
+        let keys = match selected_subject_keys(declaration) {
+            Ok(keys) => keys,
+            Err(diagnostic) => {
+                diagnostics.push(diagnostic);
+                continue;
+            }
+        };
+        for slot_key in keys {
+            let mut nominal_slot_exists = false;
+            let mut matching = Vec::new();
+            for candidate in slot_keys {
+                if candidate.0 != slot_key.0 || candidate.1 != slot_key.1 {
+                    continue;
+                }
+                nominal_slot_exists = true;
+                if slot_key
+                    .2
+                    .as_ref()
+                    .is_none_or(|receiver| candidate.2.as_ref() == Some(receiver))
+                {
+                    matching.push(candidate);
+                }
+            }
+            if !matching.is_empty() {
+                resolved.extend(
+                    matching
+                        .into_iter()
+                        .map(|key| (key.clone(), declaration.clone())),
+                );
             } else {
                 let message = match &declaration.subject {
+                    crate::ProviderSelectionSubject::BoundaryTrait(identity)
+                        if nominal_slot_exists && slot_key.2.is_some() =>
+                    {
+                        format!(
+                            "{owner} selects provider `{}` for boundary slot `{}` with a complete outer application that no loaded provider schema supplies; selection requires the exact receiver tuple",
+                            declaration.provider_type.authored_path, identity.authored_path,
+                        )
+                    }
                     crate::ProviderSelectionSubject::BoundaryTrait(identity) => format!(
                         "{owner} selects provider `{}` for unknown boundary slot `{}`; the slot must exist in the loaded dependency closure",
                         declaration.provider_type.authored_path, identity.authored_path,
@@ -375,6 +449,7 @@ fn resolve_provider_selection_slots(
 
 pub(crate) fn select_provider_plan_indices(
     plans: &[effects::provider_plan::ProviderPlan],
+    unavailable: &[UnavailableProviderCandidate],
     selected_target: target::NativeTarget,
     defaults: &[crate::ProviderSelection],
     requested: &[crate::ProviderSelection],
@@ -395,6 +470,12 @@ pub(crate) fn select_provider_plan_indices(
         .iter()
         .filter(|plan| !plan.schema.methods.is_empty())
         .map(provider_slot_key)
+        .chain(
+            unavailable
+                .iter()
+                .filter(|candidate| !candidate.schema.methods.is_empty())
+                .map(|candidate| schema_slot_key(&candidate.schema)),
+        )
         .collect();
     slot_keys.sort_unstable();
     slot_keys.dedup();
@@ -431,11 +512,11 @@ pub(crate) fn select_provider_plan_indices(
         }
     }
 
-    // Authored whole choices settle before automatic slot inference. Among
-    // automatic choices, a descendant's complete roster settles first. A
-    // selected map can then supply an exact ancestor application without
-    // selecting another map or unioning rows. This order is semantic, not the
-    // alphabetical order of a trait's source name.
+    // Authored whole choices settle before inherited receiver applications.
+    // A descendant's complete roster settles first, so its selected map can
+    // supply an exact ancestor application without selecting another map or
+    // unioning rows. This order is semantic, not the alphabetical order of a
+    // trait's source name.
     let authored = |key: &ProviderSelectionKey| {
         resolved_requests
             .iter()
@@ -481,12 +562,6 @@ pub(crate) fn select_provider_plan_indices(
             .enumerate()
             .filter(|(_, plan)| provider_slot_key(plan) == slot_key && applies(&plan.target))
             .collect();
-        let covering: Vec<(usize, &ProviderPlan)> = candidates
-            .iter()
-            .copied()
-            .filter(|(_, plan)| plan.covers_schema())
-            .collect();
-
         let selected_declaration = if let Some(explicit) = explicit {
             // A slot-owner override intentionally replaces every target
             // default for this slot, including a default whose provider is
@@ -508,7 +583,7 @@ pub(crate) fn select_provider_plan_indices(
                     "slot `{slot_name}` has conflicting target-package defaults: {} -- a target supplies at most one default provider type per slot",
                     distinct_provider_types
                         .iter()
-                        .map(|(_, provider)| format!("`{provider}`"))
+                        .map(|(_, provider, _)| format!("`{provider}`"))
                         .collect::<Vec<_>>()
                         .join(", "),
                 )));
@@ -535,6 +610,26 @@ pub(crate) fn select_provider_plan_indices(
                 .copied()
                 .filter(|(_, plan)| provider_plan_key(plan) == selected_provider)
                 .collect();
+            let unavailable_matches = unavailable
+                .iter()
+                .filter(|candidate| {
+                    schema_slot_key(&candidate.schema) == slot_key
+                        && (
+                            candidate.provider_package,
+                            candidate.provider_type.clone(),
+                            None,
+                        ) == selected_provider
+                        && applies(&candidate.target)
+                })
+                .collect::<Vec<_>>();
+            if !unavailable_matches.is_empty() {
+                diagnostics.push(diagnostics::Diagnostic::error(format!(
+                    "{owner} selects provider `{}` for slot `{slot_name}`, but its original complete map is unavailable for this target: {}",
+                    declaration.provider_type.authored_path,
+                    unavailable_matches.iter().map(|candidate| candidate.reason.as_str()).collect::<Vec<_>>().join("; "),
+                )));
+                continue;
+            }
             match matching.as_slice() {
                 [(candidate, plan)] if plan.covers_schema() => {
                     selected.push(SelectedProviderPlanIndex {
@@ -591,27 +686,9 @@ pub(crate) fn select_provider_plan_indices(
             }
         }
 
-        match covering.as_slice() {
-            [] => {}
-            [(candidate, _)] => selected.push(SelectedProviderPlanIndex {
-                candidate: *candidate,
-                selected_by: ProviderSelectionProvenance::UniqueCoveringCandidate,
-            }),
-            many => {
-                let count = if many.len() == 2 {
-                    "two".to_owned()
-                } else {
-                    many.len().to_string()
-                };
-                diagnostics.push(diagnostics::Diagnostic::error(format!(
-                    "slot `{slot_name}` has {count} covering provider plans for the selected target: {} -- choose one in build.omg with `Build::select_provider<{slot_name}, ProviderType>(b);`",
-                    many.iter()
-                        .map(|(_, plan)| format!("`{}` [{:016x}]", plan.name, plan.report_fingerprint()))
-                        .collect::<Vec<_>>()
-                        .join(", "),
-                )));
-            }
-        }
+        // Discovery retains candidates without choosing an implementation.
+        // Automatic compiler primitives are supplied by their genuine
+        // toolchain settlement owner, not a unique-visible candidate search.
     }
     for (position, selection) in selected.iter().enumerate() {
         let whole = &plans[selection.candidate];

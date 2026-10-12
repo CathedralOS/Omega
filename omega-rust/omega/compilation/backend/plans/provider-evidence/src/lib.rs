@@ -31,11 +31,11 @@ pub use provider_evidence::authority::terminal_authority::{
     CompilerPrimitiveIntegerComparisonOperation, NormalizedForeignArgumentContract,
     NormalizedForeignTerminalMechanismIdentity, PortableFilesystemAuthorityFacet,
     SyscallTerminalMechanismIdentity, TerminalAuthorityClass, TerminalAuthorityClosureLeaf,
-    TerminalAuthorityClosureReviewReceipt, TerminalAuthorityDisposition,
-    TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity,
-    TerminalMechanismIdentity, compiler_intrinsic_execution_identity_bytes, numeric_type_tag,
-    primitive_float_operation_tag, primitive_integer_comparison_operation_tag,
-    terminal_mechanism_identity_bytes,
+    TerminalAuthorityClosureOrigin, TerminalAuthorityClosureReviewReceipt,
+    TerminalAuthorityDisposition, TerminalAuthorityPermissionPolicyIdentity,
+    TerminalAuthorityPolicyIdentity, TerminalMechanismIdentity,
+    compiler_intrinsic_execution_identity_bytes, numeric_type_tag, primitive_float_operation_tag,
+    primitive_integer_comparison_operation_tag, terminal_mechanism_identity_bytes,
 };
 pub use provider_evidence::component_eras::component_era_entry_ledger::{
     EraEntryError, EraQuiescenceError, EraRetirementError,
@@ -54,9 +54,16 @@ pub use provider_evidence::providers::foreign_locator::{
 };
 pub use provider_evidence::providers::provider_plan;
 pub use provider_evidence::{
-    InstallationReachResolution, SelectedProviderPlanFacts, SelectedRequirementSpecialization,
-    SelectedTargetFamilyRealization,
+    InstallationReachResolution, SelectedProviderPlanFacts, SelectedRequirementApplication,
+    SelectedRequirementSpecialization, SelectedTargetFamilyRealization,
 };
 
 #[cfg(test)]
 mod source_guards;
+
+mod compiler_intrinsic_calling;
+mod direct_foreign_realization;
+pub use compiler_intrinsic_calling::compiler_intrinsic_boundary_entry_plan;
+pub use direct_foreign_realization::{
+    DirectCompilerIntrinsicOrigin, DirectForeignBinding, DirectForeignRealization,
+};

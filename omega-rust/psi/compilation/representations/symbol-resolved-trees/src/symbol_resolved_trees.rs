@@ -209,6 +209,7 @@ pub struct SymbolResolvedTypeStorage {
     pub constraints: Arena<types::TypeConstraint>,
     pub references: types::TypeReferenceTable,
     pub generic_application_origins: Arena<types::GenericApplicationOrigin>,
+    pub normalized_const_arguments: Arena<types::NormalizedConstArgument>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -563,6 +564,34 @@ impl SymbolResolvedTrees {
         self.tables
             .authored_declaration_selections
             .retain_top_level_static_argument_position(occurrence, position)
+    }
+
+    pub fn retain_static_argument_position(
+        &mut self,
+        occurrence: AuthoredDeclarationSelectionOccurrenceId,
+        position: language_semantics::declaration_selection::StaticArgumentPosition,
+    ) -> Result<
+        (),
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionFinalizationError,
+    > {
+        self.tables
+            .authored_declaration_selections
+            .retain_static_argument_position(occurrence, position)
+    }
+
+    /// Attach the original call occurrence through the ledger owner. Consumers
+    /// cannot mutate the private ledger behind the program facade.
+    pub fn retain_static_argument_call(
+        &mut self,
+        occurrence: AuthoredDeclarationSelectionOccurrenceId,
+        call: AuthoredDeclarationSelectionOccurrenceId,
+    ) -> Result<
+        (),
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionFinalizationError,
+    > {
+        self.tables
+            .authored_declaration_selections
+            .retain_static_argument_call(occurrence, call)
     }
 
     pub fn data_payload_fields(&self, span: HandleSpan<data::DataField>) -> &[data::DataField] {

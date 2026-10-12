@@ -21,7 +21,12 @@ pub struct ProviderSelectionIdentity {
     pub package: Option<semantic_vocabulary::PackageKeyIdentity>,
     pub canonical_path: String,
     pub authored_path: String,
+    /// Exact applied outer interface; absence is a declaration-family choice.
+    /// Member invocation arguments never participate in this selection.
+    pub receiver: Option<ProviderSelectionReceiver>,
 }
+
+pub use super::receivers::ProviderSelectionReceiver;
 
 /// One exact boundary-operator overload coordinate belonging to an authored
 /// family selection. The readable family path is deliberately absent here:
@@ -279,7 +284,13 @@ impl ProviderSelectionSubject {
         }
     }
 
-    pub fn selects_schema(&self, schema_symbol: SymbolHandle, requirement_identity: &str) -> bool {
+    /// Select the original requirement declaration; Omega separately joins
+    /// an applied receiver to its complete native schema content.
+    pub fn selects_declaration(
+        &self,
+        schema_symbol: SymbolHandle,
+        requirement_identity: &str,
+    ) -> bool {
         match self {
             Self::BoundaryTrait(identity) | Self::BoundaryRequirement(identity) => {
                 identity.symbol == schema_symbol
@@ -291,9 +302,11 @@ impl ProviderSelectionSubject {
         }
     }
 
-    pub fn same_declaration_as(&self, other: &Self) -> bool {
+    pub fn same_subject_as(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::BoundaryTrait(left), Self::BoundaryTrait(right)) => left.symbol == right.symbol,
+            (Self::BoundaryTrait(left), Self::BoundaryTrait(right)) => {
+                left.symbol == right.symbol && left.receiver == right.receiver
+            }
             (Self::BoundaryRequirement(left), Self::BoundaryRequirement(right)) => {
                 left.symbol == right.symbol
             }
@@ -315,4 +328,11 @@ pub struct ProviderSelection {
     pub composition_mode: CompositionMode,
     pub selecting_machine: SymbolHandle,
     pub source_span: source::SourceSpan,
+    /// Executed Build choices retain their original Product operands for
+    /// source evaluation. Default target rows have no executed application.
+    /// Neither these operands nor this choice supplies a native realization.
+    pub source_operands: Option<[
+        checked_trees::typed_trees::typed_trees::product_applications::ProductDeclarationOperand;
+        2
+    ]>,
 }

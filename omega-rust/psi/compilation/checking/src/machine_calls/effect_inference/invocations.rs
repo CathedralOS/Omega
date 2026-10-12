@@ -12,6 +12,7 @@ use typed_trees::machine::Machine;
 use typed_trees::signature::{StateParameter, StateSignature};
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TableCall};
+use typed_trees::static_applications::StaticMachineApplicationHandle;
 
 use flow_effects::{InvocationInferencePlan, InvocationTarget, MachineInvocationInference};
 
@@ -451,6 +452,7 @@ fn collect_transition_target_expression_calls(
                 push_call(
                     program,
                     target,
+                    StaticMachineApplicationHandle::invalid(),
                     *static_machine_parameter,
                     receiver,
                     arguments,
@@ -509,6 +511,7 @@ fn collect_expression_calls(
             state_to_machine,
         ),
         ExpressionNode::Call(call) => {
+            let Some(call) = program.expression_table.source_call(call) else { return; };
             collect_expression_call(
                 program,
                 machine,
@@ -568,6 +571,7 @@ fn collect_table_call(
         machine,
         state,
         call.target_symbol,
+        call.authored_machine_application,
         call.static_machine_parameter,
         receiver,
         program.statement_table.expression_handles(call.arguments),
@@ -586,6 +590,7 @@ fn collect_resolved_call(
     machine: &Machine,
     state: &State,
     target_symbol: SymbolHandle,
+    application: StaticMachineApplicationHandle,
     static_machine_parameter: SymbolHandle,
     receiver: Option<InvocationTarget>,
     argument_handles: &[ExpressionHandle],
@@ -600,6 +605,7 @@ fn collect_resolved_call(
     push_call(
         program,
         target_symbol,
+        application,
         static_machine_parameter,
         receiver,
         arguments,
@@ -701,12 +707,16 @@ fn collect_expression_call(
     calls: &mut Vec<CallWork>,
     state_to_machine: &StateToMachine,
 ) {
+    let Some(call) = program.expression_table.source_call(call) else {
+        return;
+    };
     let receiver = origin_for_expression(program, machine, state, call.receiver);
     collect_resolved_call(
         program,
         machine,
         state,
         call.target_symbol,
+        call.authored_machine_application,
         call.static_machine_parameter,
         receiver,
         program.expression_table.expression_handles(call.arguments),
@@ -719,6 +729,7 @@ fn collect_expression_call(
 fn push_call(
     program: &dyn crate::CheckingInput,
     target: SymbolHandle,
+    application: StaticMachineApplicationHandle,
     static_machine_parameter: SymbolHandle,
     receiver: Option<InvocationTarget>,
     arguments: Vec<Option<InvocationTarget>>,
@@ -726,7 +737,7 @@ fn push_call(
     calls: &mut Vec<CallWork>,
     state_to_machine: &StateToMachine,
 ) {
-    let boundary_signature = boundary_trait_for_signature(program, target);
+    let boundary_signature = boundary_trait_for_call(program, target, application);
     let crosses_boundary = receiver.is_some() || boundary_signature.is_some();
     if let Some(receiver) = receiver {
         typed_trees::invocations::insert_target(direct, receiver);
@@ -789,20 +800,16 @@ fn signature_for_symbol(
         .map(|(_, signature)| signature)
 }
 
-fn boundary_trait_for_signature(
+/// A public header remains a component-boundary call under its original
+/// requirement and exact issuing application. Its copied `invokes` clauses
+/// describe the selected component, not additional caller-local edges.
+fn boundary_trait_for_call(
     program: &dyn crate::CheckingInput,
-    symbol: SymbolHandle,
+    target: SymbolHandle,
+    application: StaticMachineApplicationHandle,
 ) -> Option<SymbolHandle> {
-    program
-        .traits()
-        .iter()
-        .filter(|definition| definition.is_boundary)
-        .find(|definition| {
-            program
-                .trait_machine_signature_by_symbol(definition, symbol)
-                .is_some()
-        })
-        .map(|definition| definition.symbol)
+    let selected = program.selected_public_trait_requirement_signature(target, application)?;
+    selected.owner.is_boundary.then_some(selected.owner.symbol)
 }
 
 fn origin_for_expression(

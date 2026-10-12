@@ -123,7 +123,10 @@ fn same_condition(
                 && left.target_symbol == right.target_symbol
                 && !left.receiver.is_valid()
                 && !right.receiver.is_valid()
-                && left.machine_arguments == right.machine_arguments
+                && typed_trees::expression::StaticMachineArgument::semantic_contents_equal(
+                    &left.machine_arguments,
+                    &right.machine_arguments,
+                )
                 && left.static_requirement_dispatch == right.static_requirement_dispatch
                 && left.quotient_operation.is_none()
                 && right.quotient_operation.is_none()

@@ -32,6 +32,7 @@ pub(crate) fn settle_callback_registrar_imports(
     terminal_module: &TerminalModule,
     callback_placements: &[NativeCallbackPlacement],
     callback_occurrences: impl Iterator<Item = CallbackRegistrarOccurrence> + Clone,
+    selected: &effects::SelectedProviderPlanFacts,
     calling_applications: &[BoundaryCallingApplication],
     external_binding_rows: &[ExternalBindingRow],
 ) -> Result<Vec<ExternalBindingRow>, String> {
@@ -84,11 +85,36 @@ pub(crate) fn settle_callback_registrar_imports(
             "callback registrar import closure names an absent Terminal boundary".to_owned()
         })?;
 
+        // The emitted operation owns the closed public invocation identity.
+        // Provider and calling-policy rows retain the original declaration.
+        // Consume the selected closure's already-produced correspondence;
+        // matching ABI geometry or a generic template is not row authority.
+        let selected_requirement =
+            if let Some(application) = selected.requirement_application(requirement) {
+                selected
+                    .identities()
+                    .text(application.selected_requirement_identity)
+                    .ok_or_else(|| {
+                        "callback registrar application lost its original selected requirement"
+                            .to_owned()
+                    })?
+            } else {
+                requirement
+            };
+        if materialization.registrar_application_commitment == [0; 32] {
+            return Err("callback registrar application has no retained commitment".to_owned());
+        }
         let matching_realizations = calling_applications
             .iter()
             .filter(|realization| {
-                realization.requirement_identity == requirement
+                realization.requirement_identity == selected_requirement
+                    && realization.public_requirement_identity == requirement
                     && realization.callback_context_closed
+                    && realization.commitment == materialization.registrar_application_commitment
+                    && realization.report_fingerprint
+                        == materialization.registrar_application_report_fingerprint
+                    && realization.plan.contract_report_fingerprint()
+                        == materialization.registrar_calling_plan_report_fingerprint
                     && realization.plan.plan() == &materialization.registrar_boundary_entry_plan
             })
             .collect::<Vec<_>>();
@@ -98,10 +124,13 @@ pub(crate) fn settle_callback_registrar_imports(
                 matching_realizations.len(),
             ));
         };
-        let mut matching_rows = rows
-            .iter_mut()
+        // Imports belong to the selected original row. Project its locator
+        // into this exact closed invocation without changing the source row;
+        // another invocation may own a different callback tuple or plan.
+        let matching_rows = external_binding_rows
+            .iter()
             .filter(|row| {
-                row.requirement_identity == requirement
+                row.requirement_identity == selected_requirement
                     && matches!(
                         row.binding,
                         calling_conventions::ExternalBindingKind::Import { .. }
@@ -114,13 +143,49 @@ pub(crate) fn settle_callback_registrar_imports(
             // independently require and settle the exact row.
             continue;
         }
-        let [row] = matching_rows.as_mut_slice() else {
+        let [source_row] = matching_rows.as_slice() else {
             return Err(format!(
                 "callback registrar `{requirement}` rejoins {} retained external import rows",
                 matching_rows.len(),
             ));
         };
-        row.boundary_entry_plan = Some(materialization.registrar_boundary_entry_plan.clone());
+        let mut projected = (*source_row).clone();
+        projected.requirement_identity = requirement.to_owned();
+        projected.boundary_entry_plan = Some(materialization.registrar_boundary_entry_plan.clone());
+        if requirement == selected_requirement {
+            let mut matching = rows.iter_mut().filter(|row| {
+                row.requirement_identity == requirement
+                    && matches!(
+                        row.binding,
+                        calling_conventions::ExternalBindingKind::Import { .. }
+                    )
+            });
+            let (Some(row), None) = (matching.next(), matching.next()) else {
+                return Err("callback registrar lost its unique original import row".to_owned());
+            };
+            *row = projected;
+        } else {
+            let matching = rows
+                .iter()
+                .filter(|row| {
+                    row.requirement_identity == requirement
+                        && matches!(
+                            row.binding,
+                            calling_conventions::ExternalBindingKind::Import { .. }
+                        )
+                })
+                .collect::<Vec<_>>();
+            match matching.as_slice() {
+                [] => rows.push(projected),
+                [row] if **row == projected => {}
+                _ => {
+                    return Err(
+                        "callback registrar closed application has conflicting import custody"
+                            .to_owned(),
+                    );
+                }
+            }
+        };
     }
 
     Ok(rows)

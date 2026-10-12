@@ -7,10 +7,15 @@
 //! normalizer cannot produce Boolean identity or establish operator meaning.
 //! Destination spelling only routes the probe; exact typed identity, admission
 //! and operand checks still precede evaluation and publication of the result.
-//! Every machine argument first needs its original lexical selection, including
+//! Every declaration argument first needs its original lexical selection, including
 //! structural destinations such as fixed arrays. A destination without a name
 //! cannot bypass that obligation and let later canonicalization erase a runtime
-//! operand. Nonscalar values retain their existing materialization path.
+//! operand. Named aggregate values retain that original selection and its
+//! completed declaration value before syntax synthesis erases the operand.
+//! Declaration payload completion is distinct from index eligibility: the
+//! original receiving slot admits aggregate values before an atom is published.
+//! This probe retains declaration selection without prematurely judging its
+//! unprojected declaration carrier or publishing a value atom.
 
 mod call_custody;
 pub(crate) use call_custody::DependencyValue;
@@ -43,8 +48,8 @@ pub(crate) fn evaluate(
             sources.clone(),
             bindings.to_vec(),
         )?;
-    let machine_arguments =
-        syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_machine_const_arguments(
+    let original_arguments =
+        syntax_trees_to_symbol_resolved_trees::pre_resolution::original_scope_const_arguments(
             &syntax,
             sources.clone(),
             bindings.to_vec(),
@@ -54,7 +59,7 @@ pub(crate) fn evaluate(
     // Declaration initializers have already materialized named data indices.
     // Their ordinary canonical-value selection preserves private initializer
     // dependencies without reclassifying them as public expression probes.
-    // Machine indices still need original lexical-scope resolution below.
+    // Other original declaration indices need their own lexical-scope resolution below.
     let mut arguments = data_arguments
         .into_iter()
         .filter(|(argument, _, _)| {
@@ -64,7 +69,7 @@ pub(crate) fn evaluate(
             )
         })
         .collect::<Vec<_>>();
-    for (argument, destination, public) in machine_arguments {
+    for (argument, destination, public) in original_arguments {
         // This is probe routing, not builtin identity. The typed destination
         // must still resolve to the exact primitive before evaluation.
         let scalar = matches!(
@@ -94,16 +99,17 @@ pub(crate) fn evaluate(
                 .replace_type_reference(argument, TypeReferenceNode::ConstExpression(expression));
         }
         if !scalar {
-            aggregate_arguments.push((argument, original));
+            aggregate_arguments.push((argument, destination, original));
             continue;
         }
+        arguments.retain(|(existing, _, _)| *existing != argument);
         arguments.push((argument, destination, public));
-        lexical_arguments.push(argument);
+        lexical_arguments.push((argument, original));
     }
     if !aggregate_arguments.is_empty() {
-        // Aggregate substitution still uses the existing canonical-value route.
-        // Resolve its authored path first so that route cannot capture a static
-        // declaration through a runtime parameter or prior local binding.
+        // Resolve aggregate operands in their original owner before retaining
+        // the completed value. Header-only synthesis cannot distinguish a
+        // declaration constant from a runtime parameter or prior local binding.
         let resolved = syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_const_argument_selection(
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
                 syntax: syntax.clone(),
@@ -111,23 +117,55 @@ pub(crate) fn evaluate(
                 top_level_bindings: bindings.to_vec(),
             },
         )?;
-        for (argument, original) in aggregate_arguments {
-            if let TypeReferenceNode::ConstExpression(expression) =
-                syntax.type_references.type_reference(argument)
-            {
-                lexical_selection::retain(&syntax, &resolved, *expression).map_err(|reason| {
-                    vec![
-                        Diagnostic::error(format!("const argument expression: {reason}"))
-                            .with_source_span(syntax.expressions.source_span(*expression)),
-                    ]
-                })?;
-            }
+        for (argument, _destination, original) in aggregate_arguments {
+            let expression = match syntax.type_references.type_reference(argument) {
+                TypeReferenceNode::ConstExpression(expression) => Some(*expression),
+                _ => None,
+            };
             syntax
                 .type_references
                 .replace_type_reference(argument, original);
+            let Some(expression) = expression else {
+                continue;
+            };
+            let Some(name) = syntax.type_references.type_reference(argument).as_named() else {
+                // This is lexical admission only. Compound value formation is
+                // still owned by the receiving application's normalizer.
+                lexical_selection::retain_closed(&syntax, &resolved, expression).map_err(
+                    |reason| {
+                        vec![
+                            Diagnostic::error(format!("const argument expression: {reason}"))
+                                .with_source_span(syntax.expressions.source_span(expression)),
+                        ]
+                    },
+                )?;
+                continue;
+            };
+            let reference = name.source_span();
+            let Some(selected) =
+                lexical_selection::selected_declaration(&syntax, &resolved, expression, reference)
+                    .map_err(|reason| {
+                        vec![Diagnostic::error(reason).with_source_span(reference)]
+                    })?
+            else {
+                // An authentic open binder supplies no declaration or value.
+                continue;
+            };
+            // The original declaration association survives independently of
+            // payload completion. The actual receiving application supplies
+            // its simultaneous carrier substitutions and index judgment later.
+            syntax.type_references.retain_const_argument_declaration(
+                argument,
+                syntax_trees::types::ConstArgumentDeclaration {
+                    reference,
+                    declaration: selected.declaration_source,
+                    initializer: selected.declaration.initializer_source_span,
+                },
+            );
         }
     }
-    let pending = arguments
+
+    let mut pending = arguments
         .iter()
         .filter_map(|(argument, destination, public)| {
             let TypeReferenceNode::ConstExpression(expression) =
@@ -154,11 +192,12 @@ pub(crate) fn evaluate(
     }
 
     let mut lexical_origins = Vec::new();
+    let mut open_arguments = Vec::new();
     if pending
         .iter()
-        .any(|(argument, _, _, _)| lexical_arguments.contains(argument))
+        .any(|(argument, _, _, _)| lexical_arguments.iter().any(|(owned, _)| owned == argument))
     {
-        // Resolve the original machine owners before placeholder synthesis.
+        // Resolve original declaration owners before placeholder synthesis.
         // Their runtime bodies are neither typed as probes nor executed here.
         let resolved = syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_const_argument_selection(
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
@@ -168,24 +207,43 @@ pub(crate) fn evaluate(
             },
         )?;
         for (argument, expression, _, _) in &pending {
-            if lexical_arguments.contains(argument) {
-                let origins = lexical_selection::retain(&syntax, &resolved, *expression).map_err(
-                    |reason| {
+            if lexical_arguments.iter().any(|(owned, _)| owned == argument) {
+                let origins = lexical_selection::retain_closed(&syntax, &resolved, *expression)
+                    .map_err(|reason| {
                         vec![
                             Diagnostic::error(format!("const argument expression: {reason}"))
                                 .with_source_span(syntax.expressions.source_span(*expression)),
                         ]
-                    },
-                )?;
-                lexical_origins.push((*argument, origins));
+                    })?;
+                if let Some(origins) = origins {
+                    lexical_origins.push((*argument, origins));
+                } else {
+                    open_arguments.push(*argument);
+                }
             }
         }
+    }
+
+    for argument in &open_arguments {
+        if let Some((_, original)) = lexical_arguments
+            .iter()
+            .find(|(owned, _)| owned == argument)
+        {
+            syntax
+                .type_references
+                .replace_type_reference(*argument, original.clone());
+        }
+    }
+    arguments.retain(|(argument, _, _)| !open_arguments.contains(argument));
+    pending.retain(|(argument, _, _, _)| !open_arguments.contains(argument));
+    if pending.is_empty() {
+        return Ok(syntax);
     }
 
     // As in const-generic call evaluation, temporary arguments let the ordinary
     // frontend type the selected expression before any real instance is created.
     // Original expressions and their authored names remain unchanged in the probe.
-    let mut probe = syntax.clone();
+    let mut probe = crate::syntax_probes::expression_probe(&syntax);
     crate::syntax_probes::defer_pending_const_qualifications(
         &mut probe,
         &arguments
@@ -240,6 +298,7 @@ pub(crate) fn evaluate(
             value: result,
             origins,
             operators,
+            selected_matches,
             warnings,
         } = evaluate_probe(&typed, reference, public, authority, expected, &syntax)
             .map_err(&failure)?;
@@ -263,6 +322,9 @@ pub(crate) fn evaluate(
             origins,
             operators,
         );
+        syntax
+            .type_references
+            .retain_const_argument_match_selections(argument, selected_matches);
         syntax.type_references.replace_type_reference(
             argument,
             TypeReferenceNode::Named(Identifier::generated(replacement)),
@@ -797,11 +859,15 @@ fn evaluate_probe_internal(
                 .to_owned(),
         );
     }
-    let (value, warnings) = if let Some((_, calls)) = calls {
-        value::evaluate_scalar(typed, machine, state, *expression, destination, Some(calls))?
-    } else {
-        value::evaluate_scalar(typed, machine, state, *expression, destination, None)?
-    };
+    let (value, selected_matches, warnings) = value::evaluate_scalar_with_correspondence(
+        typed,
+        machine,
+        state,
+        *expression,
+        destination,
+        calls.map(|(_, calls)| calls),
+    )?;
+    let selected_matches = retain_original_match_selections(typed, syntax, selected_matches)?;
     if value.type_name() != destination.name() {
         return Err(format!(
             "landed `{}` result cannot initialize `{}`",
@@ -813,13 +879,73 @@ fn evaluate_probe_internal(
         value,
         origins,
         operators,
+        selected_matches,
         warnings,
     })
+}
+
+/// The probe is lowered from a clone of this retained syntax lineage. Each
+/// chosen edge must rejoin its exact original Match and original arm; display
+/// coordinates and the canonical result cannot manufacture that association.
+pub(super) fn retain_original_match_selections(
+    typed: &typed_trees::TypedTrees,
+    syntax: &SyntaxTrees,
+    selections: Vec<value::SelectedMatchResult>,
+) -> Result<Vec<syntax_trees::types::ConstArgumentMatchSelection>, String> {
+    let mut original_selections = Vec::with_capacity(selections.len());
+    for selection in selections {
+        let integer_meaning = selection.integer_meaning;
+        let (expression, selected) = (selection.expression, selection.selected);
+        let original = |expression| {
+            let origin = typed.expression_table.expression_source_origin(expression);
+            let handle = arena::Handle::from_parts(origin.arena_index(), origin.generation());
+            syntax
+                .expressions
+                .contains_expression(handle)
+                .then_some(handle)
+        };
+        let expression =
+            original(expression).ok_or("evaluated Match lost its original expression birth")?;
+        let selected = original(selected)
+            .ok_or("evaluated Match result lost its original expression birth")?;
+        let syntax_trees::expression::ExpressionNode::Match(dispatch) =
+            syntax.expressions.expression(expression)
+        else {
+            return Err("evaluated Match birth does not name an original Match".into());
+        };
+        if !syntax
+            .expressions
+            .match_arms(dispatch.arms)
+            .iter()
+            .any(|arm| arm.value == selected)
+        {
+            return Err("evaluated Match result is not an original arm".into());
+        }
+        let selection = syntax_trees::types::ConstArgumentMatchSelection {
+            expression,
+            selected,
+            integer_meaning,
+        };
+        if original_selections.iter().any(
+            |previous: &syntax_trees::types::ConstArgumentMatchSelection| {
+                previous.expression == expression
+                    && (previous.selected != selected
+                        || previous.integer_meaning != integer_meaning)
+            },
+        ) {
+            return Err("evaluated Match has ambiguous original arm correspondence".into());
+        }
+        if !original_selections.contains(&selection) {
+            original_selections.push(selection);
+        }
+    }
+    Ok(original_selections)
 }
 
 pub(super) struct ScalarProbeResult {
     pub(super) value: value::ScalarValue,
     pub(super) origins: Vec<ConstArgumentOrigin>,
     pub(super) operators: Vec<SourceSpan>,
+    pub(super) selected_matches: Vec<syntax_trees::types::ConstArgumentMatchSelection>,
     pub(super) warnings: Vec<Diagnostic>,
 }

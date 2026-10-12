@@ -63,11 +63,55 @@ impl SymbolTable {
             .product_dependency_target(requester, alias)
     }
 
+    /// Product-role visibility of an exact already selected declaration.
+    /// Structured type operands have symbol identity after resolution; display
+    /// paths cannot recover the dependency alias that authorized their source.
+    pub fn product_declaration_visible_from_source(
+        &self,
+        symbol: SymbolHandle,
+        is_public: bool,
+        occurrence: SourceSpan,
+    ) -> bool {
+        if !symbol.is_valid() {
+            return false;
+        }
+        if !self.has_source_metadata() {
+            return true;
+        }
+        if self
+            .symbol_provenance_source_span(symbol)
+            .is_some_and(|declaration| self.same_product_package_instance(occurrence, declaration))
+        {
+            return true;
+        }
+        if !is_public {
+            return false;
+        }
+        if self.symbol_source_origin(symbol) == Some(SourceOrigin::Toolchain) {
+            return true;
+        }
+        let Some(requester) = self
+            .source_file(occurrence)
+            .and_then(|file| file.package_identity)
+        else {
+            return false;
+        };
+        let Some(selected) = self.symbol_product_package_identity(symbol) else {
+            return false;
+        };
+        self.sources
+            .as_deref()
+            .is_some_and(|sources| sources.has_product_dependency_to(requester, selected))
+    }
+
     /// Resolve a designated product operand under its author's package scope.
     /// Callers supply declaration candidates and their public visibility; this
     /// never extends ordinary source lookup. Exact module paths take precedence
-    /// over same-package short names. Operator overloads at one exact path name
-    /// one family, represented by its first declaration in candidate order.
+    /// over same-package short names. Exact compiler-installed type atoms are
+    /// source-free vocabulary, independent of package visibility; a dependency
+    /// alias still selects only that dependency's declarations. Operator overloads
+    /// at one exact path name one family, represented by its first declaration in
+    /// candidate order.
     pub fn find_product_declaration_from_source(
         &self,
         path: &str,
@@ -130,6 +174,7 @@ impl SymbolTable {
                             .is_some_and(|declaration| {
                                 self.same_product_package_instance(occurrence, declaration)
                             })
+                            || (is_public && self.builtin_type_atom(symbol).is_some())
                             || (admit_toolchain
                                 && is_public
                                 && self.symbol_source_origin(symbol)
@@ -256,6 +301,12 @@ impl SymbolTable {
 
     pub fn has_source_metadata(&self) -> bool {
         self.sources.is_some()
+    }
+
+    /// Retained immutable frontend owner for cross-product source custody joins.
+    /// Pointer identity is compilation-local custody, never portable identity.
+    pub fn retained_source_map(&self) -> Option<&std::sync::Arc<SourceMap>> {
+        self.sources.as_ref()
     }
 
     /// Exact frontend source custody retained beside authored symbol spans.

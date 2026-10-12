@@ -41,6 +41,7 @@ pub(super) fn call_result_origins(
     resolve_reference: &ReferenceResolver<'_>,
     resolve_origins: &AggregateResolver<'_>,
 ) -> Option<AggregateOrigins> {
+    let call = program.expression_table.source_call(call)?;
     // A stale or missing selected target cannot be repaired by its spelling.
     let (machine, state) = machine_state_by_symbol(program, call.target_symbol)?;
     let parameters = program.state_parameters(state);

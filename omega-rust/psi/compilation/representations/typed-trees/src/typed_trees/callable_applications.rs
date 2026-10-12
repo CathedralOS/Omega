@@ -1,15 +1,16 @@
 //! Apply an authored callable telescope before typed trees are frozen.
 //!
-//! An application owns fresh lexical binders and complete substituted
-//! contracts, not merely substituted runtime carriers. Declaration rows stay
-//! immutable: sharing their binder symbols would make global queries depend on
-//! which application happened to be prepared last.
+//! Lexical applications own fresh binders and complete substituted contracts.
+//! Public call views retain source symbols for their proof frame, with fresh
+//! payloads selected only through the exact application. Declaration rows stay
+//! immutable; no view replaces a global declaration's parameter/type graph.
 //! Trait scopes own universal requirement views; static selection occurrences
 //! own determined provider tuples. Neither view is an admission or an instance.
 
 mod closed_operands;
 mod machine_selections;
 mod payloads;
+mod public_requirements;
 mod requirement_instances;
 mod selected_operands;
 mod signatures;
@@ -81,6 +82,11 @@ enum AppliedCallableOwner {
         local_arguments: arena::HandleSpan<types::TypeReferenceHandle>,
         application: crate::static_applications::StaticMachineApplicationHandle,
     },
+    PublicRequirement {
+        application: crate::static_applications::StaticMachineApplicationHandle,
+        declaration: SymbolHandle,
+        contract_fact_copies: arena::HandleSpan<signature::SignatureContractFactCopy>,
+    },
     MachineSelection {
         invocation: crate::static_applications::StaticMachineApplicationHandle,
         ordinal: usize,
@@ -103,6 +109,9 @@ pub struct CallableSubstitution {
 
 /// A symbolic application is a checking view, not an executable instance.
 pub struct AppliedMachineCallable<'a> {
+    /// The original invoked head owns the caller lifetime formal roster;
+    /// the enclosing lexical owner instead owns named actual operands.
+    pub caller_lifetime_declaration: SymbolHandle,
     pub lexical_owner: SymbolHandle,
     pub provider: crate::static_applications::StaticMachineApplicationHandle,
     pub required: &'a signature::StateSignature,
@@ -158,6 +167,27 @@ impl CallableApplication {
             .ok_or("applied trait operand lost its region declaration ordinal")?
             .clone();
         Ok((name, region))
+    }
+
+    /// A present unnamed operand erases only this invocation's carrier region.
+    /// The retained original application and its loan-source contract remain
+    /// separate; absence of a tuple row never enters this substitution.
+    fn bind_lifetimes<'a>(
+        &mut self,
+        lifetimes: impl Iterator<
+            Item = (
+                &'a crate::name::Identifier,
+                Option<&'a crate::name::Identifier>,
+            ),
+        >,
+    ) {
+        for (parameter, argument) in lifetimes {
+            if let Some(argument) = argument {
+                self.lifetimes.push((parameter.clone(), argument.clone()));
+            } else {
+                self.elided_lifetimes.push(parameter.clone());
+            }
+        }
     }
 
     fn lifetime(&self, original: &crate::name::Identifier) -> crate::name::Identifier {
@@ -244,15 +274,11 @@ impl TypedTrees {
             region_scope: declaration,
             ..CallableApplication::default()
         };
-        for (parameter, argument) in lifetimes {
-            if let Some(argument) = argument {
-                application
-                    .lifetimes
-                    .push((parameter.clone(), argument.clone()));
-            } else {
-                application.elided_lifetimes.push(parameter.clone());
-            }
-        }
+        application.bind_lifetimes(
+            lifetimes
+                .iter()
+                .map(|(parameter, argument)| (parameter, argument.as_ref())),
+        );
         application.type_reference(self, original)
     }
 
@@ -266,16 +292,23 @@ impl TypedTrees {
         &mut self,
         original: types::TypeReferenceHandle,
         substitutions: &[(SymbolHandle, types::TypeReferenceHandle)],
-        lifetimes: &[(crate::name::Identifier, crate::name::Identifier)],
+        lifetimes: &[(
+            crate::name::Identifier,
+            crate::static_applications::StaticMachineLifetimeArgument,
+        )],
         declaration: SymbolHandle,
     ) -> Result<types::TypeReferenceHandle, &'static str> {
-        CallableApplication {
+        let mut application = CallableApplication {
             region_scope: declaration,
             types: substitutions.to_vec(),
-            lifetimes: lifetimes.to_vec(),
             ..CallableApplication::default()
-        }
-        .type_reference(self, original)
+        };
+        application.bind_lifetimes(
+            lifetimes
+                .iter()
+                .map(|(parameter, argument)| (parameter, argument.named())),
+        );
+        application.type_reference(self, original)
     }
 
     /// Prepare nominal callable applications after all declarations are lowered.

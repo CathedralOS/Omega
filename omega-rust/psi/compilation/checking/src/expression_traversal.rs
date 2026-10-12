@@ -3,7 +3,9 @@
 //! `children` exposes every immediate value edge in source order. It retains
 //! invalid handles and repeated edges: destination custody uses their exact
 //! positions, including an absent call receiver at position zero. Consumers own
-//! pruning, live-handle validation, and visitation state.
+//! pruning, live-handle validation, and visitation state. Selected source calls
+//! expose the retained original operands here; executable traversal below keeps
+//! its actual provider operands and the same occurrence handles.
 //!
 //! `collect_expression_nodes` is the recursive preorder used for occurrence
 //! queries. It ignores zero handles and records each generational handle once.
@@ -44,6 +46,9 @@ pub fn children(
             }
         }
         ExpressionNode::Call(call) => {
+            let Some(call) = program.expression_table.source_call(call) else {
+                return;
+            };
             child(call.receiver);
             for argument in program.expression_table.expression_handles(call.arguments) {
                 child(*argument);
@@ -76,10 +81,15 @@ pub(crate) fn executable_children(
     node: &ExpressionNode,
     mut child: impl FnMut(ExpressionHandle),
 ) {
-    if let ExpressionNode::Atomic(atomic) = node {
-        child(atomic.value);
-    } else {
-        children(program, node, child);
+    match node {
+        ExpressionNode::Atomic(atomic) => child(atomic.value),
+        ExpressionNode::Call(call) => {
+            child(call.receiver);
+            for argument in program.expression_table.expression_handles(call.arguments) {
+                child(*argument);
+            }
+        }
+        _ => children(program, node, child),
     }
 }
 

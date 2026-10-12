@@ -88,7 +88,14 @@ omitted at any depth; version-control internals are never package source. At
 the root only, the build output directory and the project control files named
 in [locks](locks.md#source-and-control-state) are omitted as well. Nested
 directories of those names, and nested control-named files, remain ordinary
-source.
+source. An original compilation context also excludes its actual selected
+owned output extent wherever it falls within that mutable capture. The selected
+coordinate and its resolved alias target supply this exclusion; directory names,
+file extensions and unrelated output-looking members do not. A symlink into
+that owned extent rejects under the same omitted-output rule. Directory ancestors
+of the selected output are retained only when they contain an ordinary captured
+child. This treats a pre-existing empty ancestor and one created by an earlier
+compilation equally, without dropping ordinary siblings or drift observations.
 
 Omission narrows captured rows, not observed membership: an excluded member
 appearing or vanishing during capture is drift under the quiescent-tree

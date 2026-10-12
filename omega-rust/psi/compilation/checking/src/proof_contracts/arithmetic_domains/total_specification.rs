@@ -1079,19 +1079,17 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
         );
     }
 
-    for trait_definition in program.traits() {
-        for signature in program.trait_machine_signatures(trait_definition) {
-            validate_state_signature(
-                program,
-                signature,
-                format!(
-                    "trait `{}` state `{}`",
-                    trait_definition.name, signature.name
-                ),
-                &mut seen,
-                diagnostics,
-            );
-        }
+    for (trait_definition, signature) in program.public_trait_requirement_signatures() {
+        validate_state_signature(
+            program,
+            signature,
+            format!(
+                "trait `{}` state `{}`",
+                trait_definition.name, signature.name
+            ),
+            &mut seen,
+            diagnostics,
+        );
     }
 
     for (_, parameter) in program.data_type_parameters.iter() {

@@ -63,9 +63,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         expression: resolved::expression::ExpressionHandle,
         call: &resolved::expression::TableCallExpression,
     ) -> Result<Option<typed::expression::ExpressionHandle>, Diagnostic> {
-        let Some(program) = self.program else {
-            return Ok(None);
-        };
+        let program = self.program;
         if !call.target_symbol.is_valid() {
             return Ok(None);
         }
@@ -199,9 +197,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         &mut self,
         binary: &resolved::expression::TableBinaryExpression,
     ) -> Result<Option<typed::expression::ExpressionHandle>, Diagnostic> {
-        let Some(program) = self.program else {
-            return Ok(None);
-        };
+        let program = self.program;
 
         // A multi-member name path operand is a CLASSIFIER reference (a case
         // or domain, e.g. the guard-layer desugar of match arms comparing the
@@ -381,6 +377,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             .target()
             .insert(typed::expression::ExpressionNode::Call(
                 typed::expression::TableCallExpression {
+                    source_call: Default::default(),
                     authored_machine_application: Default::default(),
                     exact_coercion_target: typed::types::TypeReferenceHandle::invalid(),
                     receiver,
@@ -514,7 +511,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         if !operand.is_valid() {
             return None;
         }
-        let program = self.program?;
+        let program = self.program;
         match self.source.expression(operand) {
             resolved::expression::ExpressionNode::StructLiteral(literal) => {
                 Some(literal.type_name.as_str().to_owned())
@@ -588,9 +585,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         right: &Operand,
         visiting: &mut Vec<String>,
     ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
-        let program = self
-            .program
-            .expect("structural equality requires program context");
+        let program = self.program;
         let members = program.data_members(data.members);
 
         let variants: Vec<&DataVariant> = members
@@ -663,9 +658,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         right: &Operand,
         visiting: &mut Vec<String>,
     ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
-        let program = self
-            .program
-            .expect("structural equality requires program context");
+        let program = self.program;
 
         match (left, right) {
             (
@@ -796,9 +789,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         right: &Operand,
         visiting: &mut Vec<String>,
     ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
-        let program = self
-            .program
-            .expect("structural equality requires program context");
+        let program = self.program;
         let context = || format!("structural equality of `{}`", visiting[0]);
         match field_equality(program, context, data, field)? {
             // A `String` field compares by CONTENT (length AND bytes) through

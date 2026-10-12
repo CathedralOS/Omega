@@ -1132,8 +1132,8 @@ mod tests {
             target::TargetProfile::LinuxX64,
         )
         .expect("normalized ELF import");
-        let provider_plan_commitment =
-            task_plans::SameStackProviderPlanCommitment::from_digest([7; 32]);
+        let provider_plan_commitment: task_plans::SameStackExecutionCommitment =
+            task_plans::SameStackProviderPlanCommitment::from_digest([7; 32]).into();
         let identities = terminal_psi::TerminalIdentityTable::from(vec![
             String::new(),
             "libc::write".to_owned(),

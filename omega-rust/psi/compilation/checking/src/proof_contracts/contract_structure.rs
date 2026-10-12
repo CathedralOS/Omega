@@ -116,6 +116,54 @@ pub fn declared_callable(
     }
 }
 
+/// Machine declaration contracts share one normalized clause projection at
+/// checking publication, template commitments and external review boundaries.
+pub fn declared_machine_contracts(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    binders: &[(SymbolHandle, String)],
+    content_conservation: &[crate::ContentConservationSourcePlan],
+) -> Vec<DeclaredContractClause> {
+    let mut clauses = declared_contracts(
+        program,
+        program.machine_contracts(machine),
+        binders,
+        content_conservation,
+        true,
+    );
+    clauses.extend(declared_where_facts(
+        program,
+        machine.where_facts,
+        binders,
+        content_conservation,
+    ));
+    clauses.sort();
+    clauses.dedup();
+    clauses
+}
+
+/// Predicate eligibility is committed separately from runtime preconditions.
+/// The same fact normalizer owns both clause vocabularies.
+pub fn declared_where_facts(
+    program: &dyn crate::CheckingInput,
+    facts: arena::HandleSpan<typed_trees::domain::ProofFact>,
+    binders: &[(SymbolHandle, String)],
+    content_conservation: &[crate::ContentConservationSourcePlan],
+) -> Vec<DeclaredContractClause> {
+    let mut clauses = program
+        .proof_facts
+        .span_or_empty(facts)
+        .iter()
+        .map(|fact| DeclaredContractClause {
+            kind: DeclaredContractKind::Where,
+            fact: Some(declared_fact(program, fact, binders, content_conservation)),
+        })
+        .collect::<Vec<_>>();
+    clauses.sort();
+    clauses.dedup();
+    clauses
+}
+
 /// Project and sort declared clauses, merging same-cause crash alternatives.
 pub fn declared_contracts(
     program: &dyn crate::CheckingInput,

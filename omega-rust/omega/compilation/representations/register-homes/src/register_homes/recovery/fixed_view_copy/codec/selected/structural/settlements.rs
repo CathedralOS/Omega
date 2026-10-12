@@ -279,7 +279,12 @@ pub(super) fn decode_call_source(
 pub(super) fn decode_provider_execution(
     cursor: &mut Cursor<'_>,
 ) -> Result<ProviderExecutionBinding, FixedViewCopyDecodeError> {
-    let plan = ProviderPlanReportIdentity::new(cursor.u64()?)
+    let report = cursor.u64()?;
+    if report == 0 {
+        return ProviderExecutionBinding::from_direct_foreign(cursor.array::<32>()?)
+            .ok_or(FixedViewCopyDecodeError::InvalidProviderExecution);
+    }
+    let plan = ProviderPlanReportIdentity::new(report)
         .ok_or(FixedViewCopyDecodeError::InvalidProviderExecution)?;
     ProviderExecutionBinding::from_execution_record(
         plan,

@@ -32,8 +32,8 @@ mod target_layout_wire;
 mod task_activation_wire;
 
 use terminal_psi::{
-    TerminalIdentityIndex, TerminalIdentityTable, TerminalModule, TerminalRootServiceReach,
-    VocabularyMarker,
+    TerminalIdentityIndex, TerminalIdentityTable, TerminalLifetimeDeclaration,
+    TerminalLifetimeFormalRole, TerminalModule, TerminalRootServiceReach, VocabularyMarker,
 };
 
 use super::proof_declaration_wire::{
@@ -69,6 +69,20 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
     writer.len("identities", module.identities.entries().len())?;
     for identity in module.identities.entries() {
         writer.string("identity", identity)?;
+    }
+    writer.len(
+        "original lifetime declarations",
+        module.identities.lifetime_declarations().len(),
+    )?;
+    for declaration in module.identities.lifetime_declarations() {
+        writer.u32(declaration.declaration.0);
+        writer.len("original lifetime formals", declaration.formals.len())?;
+        for formal in &declaration.formals {
+            writer.u8(match formal {
+                TerminalLifetimeFormalRole::Captured => 1,
+                TerminalLifetimeFormalRole::Invocation => 2,
+            });
+        }
     }
     super::scalar_qualification_wire::encode(&mut writer, &module.scalar_qualifications)?;
     writer.len("structural types", module.structural_types.len())?;
@@ -265,7 +279,23 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
             ));
         }
     }
-    let identities = TerminalIdentityTable::from(identity_entries);
+    let lifetime_declarations = decode_counted(reader, |reader| {
+        let declaration = TerminalIdentityIndex(reader.u32()?);
+        let formals = decode_counted(reader, |reader| match reader.u8()? {
+            1 => Ok(TerminalLifetimeFormalRole::Captured),
+            2 => Ok(TerminalLifetimeFormalRole::Invocation),
+            tag => Err(CodecError::InvalidTag("TerminalLifetimeFormalRole", tag)),
+        })?;
+        Ok(TerminalLifetimeDeclaration {
+            declaration,
+            formals,
+        })
+    })?;
+    let identities = TerminalIdentityTable::from_entries_and_lifetime_declarations(
+        identity_entries,
+        lifetime_declarations,
+    )
+    .map_err(CodecError::MalformedStructuralFoundation)?;
     let scalar_qualifications = super::scalar_qualification_wire::decode(reader)?;
     let structural_types = decode_counted(reader, decode_structural_type)?;
     let structural_referents = decode_counted(reader, |reader| {

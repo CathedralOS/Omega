@@ -1,0 +1,3 @@
+machine preserve<'a>(value: &'a i32) -> &'a i32 { value }
+machine consume(value: &'ghost i32) { let captured: &'ghost i32 = preserve(value); }
+machine main() {}

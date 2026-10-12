@@ -83,7 +83,11 @@ pub fn stage_local_source_replacement_in_lane(
 ) -> Result<StagedLocalSnapshot, SourceResolveError> {
     let limits = limits.compiler_bounded();
     lane.verify_path_identity()?;
-    let mut captured = capture_local_source(root, limits, SourceTreePolicy::LocalPackage)?;
+    let mut captured = capture_local_source(
+        root,
+        limits,
+        SourceTreePolicy::LocalPackage(Default::default()),
+    )?;
     let original = captured.normalized.clone();
     replace_file(
         &mut captured,

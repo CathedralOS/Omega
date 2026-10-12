@@ -127,10 +127,7 @@ pub(super) fn bind<'host>(
                 if !provisions.is_some_and(|provisions| {
                     provisions.matches_host_requirement(
                         declaration,
-                        binding
-                            .requirement_identity(provisions.selection_identities())
-                            .unwrap_or_default(),
-                        binding.provider_plan_report_identity(),
+                        binding,
                         &program.module().identities,
                     )
                 }) {

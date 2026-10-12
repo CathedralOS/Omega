@@ -82,10 +82,64 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
     {
         return Ok(None);
     }
+    if selection.is_none()
+        && argument_handles.iter().any(|argument| {
+            syntax
+                .type_references
+                .const_argument_declaration(*argument)
+                .is_some()
+        })
+    {
+        // An original lexical receipt cannot borrow the source-free legacy
+        // value map. Its exact namespace remains necessary for normalization.
+        return Ok(None);
+    }
+    // The receiving template owns this complete simultaneous group. A bare
+    // dependent carrier can borrow its actual type argument; composite or open
+    // carriers stay with the existing type-check-only route. Decide readiness
+    // for the whole group before any argument publishes a completed value.
+    let substitutions = base_info
+        .parameter_names
+        .iter()
+        .cloned()
+        .zip(argument_handles.iter().copied())
+        .collect::<crate::preparation::declaration_selection::GenericApplicationSubstitution>();
+    let mut parameter_types = Vec::with_capacity(base_info.const_parameter_types.len());
+    for parameter_type in &base_info.const_parameter_types {
+        let Some(parameter_type) = *parameter_type else {
+            parameter_types.push(None);
+            continue;
+        };
+        let depends_on_parameter = syntax
+            .type_references
+            .type_reference(parameter_type)
+            .as_named()
+            .is_some_and(|name| {
+                base_info
+                    .parameter_names
+                    .iter()
+                    .any(|parameter| parameter == name.as_str())
+            });
+        let actual = match crate::preparation::declaration_selection::resolved_generic_argument(
+            syntax,
+            parameter_type,
+            &substitutions,
+        ) {
+            Ok(actual) => actual,
+            Err(_) => return Ok(None),
+        };
+        if depends_on_parameter
+            && (actual == parameter_type
+                || closed_argument_identity(syntax, selection, actual, false).is_none())
+        {
+            return Ok(None);
+        }
+        parameter_types.push(Some(actual));
+    }
     for ((parameter_name, parameter_type), argument) in base_info
         .parameter_names
         .iter()
-        .zip(&base_info.const_parameter_types)
+        .zip(&parameter_types)
         .zip(&argument_handles)
     {
         let Some(parameter_type) = *parameter_type else {
@@ -107,7 +161,28 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
         {
             TypeReferenceNode::Named(name) => {
                 match ConstScalarSpelling::from_bare_name(name.as_str()) {
-                    Some(ConstScalarSpelling::Canonical(_) | ConstScalarSpelling::Integer(_)) => {
+                    Some(ConstScalarSpelling::Canonical(value)) => {
+                        // Scalar atoms already carry their completed value.
+                        // Structured values still need their original selected
+                        // declaration or constructor, not a new literal receipt.
+                        if matches!(value.decode_encoding(), Some(
+                            language_semantics::const_value::DecodedCanonicalConstValue::Integer { .. }
+                            | language_semantics::const_value::DecodedCanonicalConstValue::Boolean(_)
+                        )) {
+                            retain_scalar_argument_result(syntax, *argument, name.source_span(), value.encoding);
+                        }
+                        continue;
+                    }
+                    Some(ConstScalarSpelling::Integer(value)) => {
+                        retain_scalar_argument_result(
+                            syntax,
+                            *argument,
+                            name.source_span(),
+                            language_semantics::const_value::CanonicalConstIdentity::integer(
+                                "integer", value,
+                            )
+                            .encoding,
+                        );
                         continue;
                     }
                     Some(ConstScalarSpelling::Boolean(value))
@@ -120,6 +195,12 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
                         ) =>
                     {
                         let value = CanonicalConstValue::boolean(value);
+                        retain_scalar_argument_result(
+                            syntax,
+                            *argument,
+                            name.source_span(),
+                            value.encoding.clone(),
+                        );
                         syntax.tables.type_references.replace_type_reference(
                             *argument,
                             TypeReferenceNode::Named(Identifier::generated(value.atom())),
@@ -134,7 +215,8 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
                     // These positions belong only to concrete owners; open
                     // generic binders are excluded by the owner traversal.
                     // An unresolved selection must not use the lexical map.
-                    let Some(definition) = selection.select(syntax, &name)? else {
+                    let Some(definition) = selection.select_argument(syntax, *argument, &name)?
+                    else {
                         continue;
                     };
                     let value = canonicalize_selected_const_definition(syntax, &definition, parameter_type, Some(selection))
@@ -180,10 +262,7 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
                     const_definitions,
                 )?;
                 if let Some(value) = const_values.get(name.as_str()) {
-                    syntax.tables.type_references.replace_type_reference(
-                        *argument,
-                        TypeReferenceNode::Named(Identifier::generated(value.to_string())),
-                    );
+                    super::replace_integer_argument(syntax, *argument, *value);
                     continue;
                 }
                 let Some(definition) = const_definitions.get(name.as_str()) else {
@@ -195,6 +274,13 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
                             "const argument for `{base}::{parameter_name}` is invalid at this index site: {reason}"
                         ))
                     })?;
+                syntax.type_references.retain_const_argument_normalization(
+                    *argument,
+                    name.source_span(),
+                    value.encoding.clone(),
+                    [],
+                    [],
+                );
                 syntax.tables.type_references.replace_type_reference(
                     *argument,
                     TypeReferenceNode::Named(Identifier::generated(value.atom())),
@@ -266,10 +352,7 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
                     validate_syntax_integer_range(integer_type.name(), value)
                         .map_err(Diagnostic::error)?;
                 }
-                syntax.tables.type_references.replace_type_reference(
-                    *argument,
-                    TypeReferenceNode::Named(Identifier::generated(value.to_string())),
-                );
+                super::replace_integer_argument(syntax, *argument, value);
             }
             _ => continue,
         }
@@ -332,9 +415,15 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
 
     let Some(argument_identity) = argument_handles
         .iter()
-        .zip(&base_info.const_parameter_types)
-        .map(|(argument, parameter)| {
-            closed_argument_identity(syntax, selection, *argument, parameter.is_some())
+        .zip(&parameter_types)
+        .map(|(argument, parameter)| match parameter {
+            Some(parameter_type) => super::super::closed_const_argument_identity(
+                syntax,
+                selection,
+                *argument,
+                *parameter_type,
+            ),
+            None => closed_argument_identity(syntax, selection, *argument, false),
         })
         .collect::<Option<Vec<_>>>()
     else {
@@ -348,6 +437,34 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
         argument_identity,
         argument_names,
     }))
+}
+
+/// Every closed scalar occurrence retains its own completed result, including
+/// literals which need no evaluator. Shared generated storage cannot compare a
+/// selected constant's result with a later literal if only the selected use has
+/// a row. This value correspondence grants no carrier or arithmetic policy;
+/// lowering still consumes the original operand and checking admits each slot.
+fn retain_scalar_argument_result(
+    syntax: &mut SyntaxTrees,
+    argument: TypeReferenceHandle,
+    reference: source::SourceSpan,
+    encoding: String,
+) {
+    // Synthesis revisits closed applications. Keep their original graph and
+    // selections rather than replacing an existing receipt with a display atom.
+    if syntax
+        .type_references
+        .const_argument_normalization(argument)
+        .is_none()
+    {
+        syntax.type_references.retain_const_argument_normalization(
+            argument,
+            reference,
+            encoding,
+            [],
+            [],
+        );
+    }
 }
 
 pub(in crate::preparation::generic_data) fn const_arguments_fit_declarations(

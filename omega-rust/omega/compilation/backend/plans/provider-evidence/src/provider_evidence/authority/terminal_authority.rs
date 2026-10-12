@@ -791,11 +791,31 @@ impl TerminalAuthorityPermissionPolicyIdentity {
 /// allow-all nor a deny-all row, and it cannot be replayed as admission
 /// evidence.
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TerminalAuthorityClosureOrigin {
+    SelectedProvider(crate::provider_plan::ProviderPlanDigest),
+    DirectForeign(std::sync::Arc<crate::DirectForeignRealization>),
+}
+impl TerminalAuthorityClosureOrigin {
+    pub fn commitment(&self) -> [u8; 32] {
+        match self {
+            Self::SelectedProvider(plan) => *plan.as_bytes(),
+            Self::DirectForeign(direct) => direct.identity(),
+        }
+    }
+    pub const fn tag(&self) -> u8 {
+        match self {
+            Self::SelectedProvider(_) => 0,
+            Self::DirectForeign(_) => 1,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalAuthorityClosureLeaf {
     service_schema: crate::provider_plan::ServiceSchemaDigest,
     /// Index into the terminal module's `identities` table.
     requirement_identity: terminal_psi::TerminalIdentityIndex,
-    provider_plan: crate::provider_plan::ProviderPlanDigest,
+    origin: TerminalAuthorityClosureOrigin,
     mechanism: TerminalMechanismIdentity,
     exercised: Option<TerminalAuthorityDisposition>,
     permitted: Option<TerminalAuthorityDisposition>,
@@ -813,13 +833,35 @@ impl TerminalAuthorityClosureLeaf {
         let leaf = Self {
             service_schema,
             requirement_identity,
-            provider_plan,
+            origin: TerminalAuthorityClosureOrigin::SelectedProvider(provider_plan),
             mechanism,
             exercised,
             permitted,
         };
         leaf.validate()?;
         Ok(leaf)
+    }
+
+    pub fn from_direct_realization(
+        requirement_identity: terminal_psi::TerminalIdentityIndex,
+        direct: std::sync::Arc<crate::DirectForeignRealization>,
+        mechanism: TerminalMechanismIdentity,
+        exercised: Option<TerminalAuthorityDisposition>,
+        permitted: Option<TerminalAuthorityDisposition>,
+    ) -> Result<Self, TerminalAuthorityClosureReviewBuildError> {
+        let leaf = Self {
+            service_schema: direct.schema().identity_digest(),
+            requirement_identity,
+            origin: TerminalAuthorityClosureOrigin::DirectForeign(direct),
+            mechanism,
+            exercised,
+            permitted,
+        };
+        leaf.validate()?;
+        Ok(leaf)
+    }
+    pub const fn origin(&self) -> &TerminalAuthorityClosureOrigin {
+        &self.origin
     }
 
     fn validate(&self) -> Result<(), TerminalAuthorityClosureReviewBuildError> {
@@ -848,8 +890,11 @@ impl TerminalAuthorityClosureLeaf {
         self.requirement_identity
     }
 
-    pub const fn provider_plan(&self) -> crate::provider_plan::ProviderPlanDigest {
-        self.provider_plan
+    pub const fn provider_plan(&self) -> Option<crate::provider_plan::ProviderPlanDigest> {
+        match &self.origin {
+            TerminalAuthorityClosureOrigin::SelectedProvider(plan) => Some(*plan),
+            _ => None,
+        }
     }
 
     pub const fn mechanism(&self) -> TerminalMechanismIdentity {
@@ -1012,9 +1057,10 @@ fn compare_closure_leaves(
                 .cmp(&identities.text(right.requirement_identity))
         })
         .then_with(|| {
-            left.provider_plan
-                .as_bytes()
-                .cmp(right.provider_plan.as_bytes())
+            left.origin
+                .tag()
+                .cmp(&right.origin.tag())
+                .then_with(|| left.origin.commitment().cmp(&right.origin.commitment()))
         })
         .then_with(|| {
             terminal_mechanism_identity_bytes(left.mechanism)
@@ -1030,7 +1076,7 @@ fn same_closure_leaf_key(
 ) -> bool {
     left.service_schema == right.service_schema
         && left.requirement_identity == right.requirement_identity
-        && left.provider_plan == right.provider_plan
+        && left.origin == right.origin
 }
 
 fn terminal_authority_closure_review_identity(
@@ -1043,7 +1089,11 @@ fn terminal_authority_closure_review_identity(
     identities: &terminal_psi::TerminalIdentityTable,
 ) -> [u8; 32] {
     let mut digest = crate::provider_evidence::digest_encoder::DomainDigestEncoder::new(
-        b"omega.terminal-authority.closure-review.v3\0",
+        if leaves.iter().any(|leaf| leaf.origin.tag() != 0) {
+            b"omega.terminal-authority.closure-review.v4\0"
+        } else {
+            b"omega.terminal-authority.closure-review.v3\0"
+        },
     );
     digest.raw(&terminal_artifact_identity);
     digest.byte(match target.architecture {
@@ -1078,7 +1128,11 @@ fn terminal_authority_closure_review_identity(
             .unwrap_or_default();
         digest.raw(&(requirement.len() as u64).to_be_bytes());
         digest.raw(requirement.as_bytes());
-        digest.raw(leaf.provider_plan.as_bytes());
+        if leaf.origin.tag() != 0 {
+            digest.byte(0xff);
+            digest.byte(leaf.origin.tag());
+        }
+        digest.raw(&leaf.origin.commitment());
         let mechanism = terminal_mechanism_identity_bytes(leaf.mechanism);
         digest.raw(&(mechanism.len() as u64).to_be_bytes());
         digest.raw(&mechanism);

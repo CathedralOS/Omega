@@ -171,16 +171,12 @@ pub fn provider_row_matches(
         let Some(entry) = named_provider_row(context, plan, row) else {
             return false;
         };
-        let Some(realization) = typed.machine(entry.realization_machine) else {
+        let Ok(realization) =
+            crate::target_machines::named_row_realization(context, entry, Some(&plan.target))
+        else {
             return false;
         };
         let realization_states = typed.machine_states(realization);
-        if !realization_states
-            .first()
-            .is_some_and(|state| state.symbol == entry.realization_state)
-        {
-            return false;
-        }
         if realization.symbol == machine.symbol {
             return true;
         }
@@ -194,18 +190,122 @@ pub fn provider_row_matches(
             .machine_specializations
             .iter()
             .filter(|specialization| {
-                specialization.template == entry.realization_machine
+                specialization.template == realization.symbol
                     && specialization.instance == machine.symbol
             })
             .count()
             == 1
     } else {
-        machine.attached_data_symbol.is_valid()
+        let direct_attachment = machine.attached_data_symbol.is_valid()
             && context.contains(machine.attached_data_symbol)
             && typed.attached_data_path(machine).as_deref() == Some(plan.provider_type.as_str())
             && typed
                 .symbols
                 .symbol_package_identity(machine.attached_data_symbol)
-                == plan.provider_type_package_identity
+                == plan.provider_type_package_identity;
+        let trait_member = typed
+            .machine_trait_conformances(machine)
+            .iter()
+            .any(|edge| {
+                typed
+                    .trait_machine_signature(edge.requirement_symbol)
+                    .is_some_and(|(declaration, requirement)| {
+                        typed.trait_requirement_callable_identity_text(declaration, requirement)
+                            == plan.identities.text(row.requirement_identity)
+                    })
+            });
+        if !trait_member {
+            // Operator and top-level requirement rows keep their own genuine
+            // application owners; they have no whole boundary receiver roster.
+            return direct_attachment;
+        }
+        let original = direct_attachment
+            && typed
+                .machine_trait_conformances(machine)
+                .iter()
+                .enumerate()
+                .any(|(ordinal, _)| {
+                    typed
+                        .machine_conformance_sources(
+                            machine,
+                            machine.satisfies.handle_at(ordinal as u32),
+                        )
+                        .into_iter()
+                        .any(|source| {
+                            source.family.symbol == machine.symbol
+                                && source.provider == machine.attached_data_symbol
+                                && source_edge_matches_row(typed, plan, row, &source)
+                                && crate::service_schema::source_receiver_matches_schema(
+                                    typed,
+                                    source.scope,
+                                    &plan.schema,
+                                )
+                        })
+                });
+        if original {
+            return true;
+        }
+        // A checked adapter is the original universal callable. A changed
+        // attached provider is supplied only by its issued specialization edge,
+        // with complete receiver identity under that original occurrence.
+        typed
+            .machines()
+            .iter()
+            .filter(|instance| {
+                instance.symbol != machine.symbol
+                    && typed
+                        .authored_conformance_machine(instance)
+                        .is_ok_and(|family| family.symbol == machine.symbol)
+            })
+            .filter(|instance| {
+                context.contains(instance.symbol)
+                    && instance.attached_data_symbol.is_valid()
+                    && context.contains(instance.attached_data_symbol)
+                    && typed.attached_data_path(instance).as_deref()
+                        == Some(plan.provider_type.as_str())
+                    && typed
+                        .symbols
+                        .symbol_package_identity(instance.attached_data_symbol)
+                        == plan.provider_type_package_identity
+            })
+            .any(|instance| {
+                typed
+                    .machine_trait_conformances(instance)
+                    .iter()
+                    .enumerate()
+                    .any(|(ordinal, _)| {
+                        typed
+                            .machine_conformance_sources(
+                                instance,
+                                instance.satisfies.handle_at(ordinal as u32),
+                            )
+                            .into_iter()
+                            .any(|source| {
+                                source.family.symbol == machine.symbol
+                                    && source.provider == instance.attached_data_symbol
+                                    && source_edge_matches_row(typed, plan, row, &source)
+                                    && crate::service_schema::source_receiver_matches_schema(
+                                        typed,
+                                        source.scope,
+                                        &plan.schema,
+                                    )
+                            })
+                    })
+            })
     }
+}
+
+fn source_edge_matches_row(
+    typed: &checked_trees::typed_trees::TypedTrees,
+    plan: &ProviderPlan,
+    row: &ProviderPlanRow,
+    source: &checked_trees::typed_trees::typed_trees::declarations::machine_conformances::MachineConformanceSource<'_>,
+) -> bool {
+    source.edge.requirement_symbol.is_valid()
+        && typed
+            .trait_machine_signature(source.edge.requirement_symbol)
+            .is_some_and(|(declaration, requirement)| {
+                typed.trait_requirement_callable_identity_text(declaration, requirement)
+                    == plan.identities.text(row.requirement_identity)
+            })
 }

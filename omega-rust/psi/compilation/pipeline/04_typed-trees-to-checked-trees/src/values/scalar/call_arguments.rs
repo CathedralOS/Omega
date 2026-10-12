@@ -354,25 +354,16 @@ pub(crate) fn nested_structural_call_return_type(
             Some(_) => return None,
             None => call.target_symbol,
         };
-        let mut signatures = program
-            .traits()
-            .iter()
-            .filter(|definition| definition.is_boundary)
-            .flat_map(|definition| {
-                program
-                    .trait_machine_signatures(definition)
-                    .iter()
-                    .filter(move |signature| signature.symbol == requirement)
-                    .map(move |signature| (definition, signature))
-            });
-        let (definition, signature) = signatures.next()?;
-        if signatures.next().is_some()
+        // A completed result belongs to the call's selected public signature,
+        // including an issued application header. Reading only the authored
+        // conformance roster discards the copied result carrier and tuple.
+        let (definition, signature) = program
+            .selected_trait_requirement_signature(requirement, call.authored_machine_application)?;
+        if !definition.is_boundary
             || if selected.is_some() {
                 call.receiver.is_valid()
             } else {
-                !program.expression_table.expression_is_valid(call.receiver)
-                    || !matches!(program.expression_table.expression(call.receiver),
-                        ExpressionNode::Name(name) if name.symbol == definition.symbol)
+                !program.call_has_no_runtime_receiver_for_target(call)
             }
         {
             return None;

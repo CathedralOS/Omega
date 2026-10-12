@@ -10,6 +10,9 @@ use semantic_vocabulary::PackageKeyIdentity;
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SourceMap {
     files: Vec<SourceFile>,
+    retained_filesystem: Option<Arc<crate::SourceFileSystem>>,
+    retained_source_root: Option<PathBuf>,
+    retained_source_root_revision: Option<[u8; 32]>,
     /// Authorized product-scope dependency edges by requesting package:
     /// requester identity, then `alias -> target` identity. Only
     /// `DependencyPurpose::Product` edges may enter this roster; build-scope
@@ -21,9 +24,43 @@ pub struct SourceMap {
 }
 
 impl SourceMap {
+    /// Retain the invocation's original captured namespace beside its loaded
+    /// source instances. Later Build inventory and custody consumers use these
+    /// same immutable bytes; physical mount paths remain routing payload.
+    pub fn retain_source_filesystem(
+        &mut self,
+        source_root: PathBuf,
+        filesystem: Arc<crate::SourceFileSystem>,
+        source_root_revision: Option<[u8; 32]>,
+    ) {
+        self.retained_source_root = Some(source_root);
+        self.retained_filesystem = Some(filesystem);
+        self.retained_source_root_revision = source_root_revision;
+    }
+
+    /// Original consuming root of that namespace, used only to select the
+    /// captured inventory. This host routing path is not a portable owner key.
+    pub fn retained_source_root(&self) -> Option<&std::path::Path> {
+        self.retained_source_root.as_deref()
+    }
+
+    /// Original acquisition's path-free inventory revision for this consuming
+    /// root. This source-only coordinate does not identify an anonymous package,
+    /// dependencies, execution authority or receiving consent.
+    pub const fn retained_source_root_revision(&self) -> Option<[u8; 32]> {
+        self.retained_source_root_revision
+    }
+
+    pub fn retained_source_filesystem(&self) -> Option<&Arc<crate::SourceFileSystem>> {
+        self.retained_filesystem.as_ref()
+    }
+
     pub fn from_files(files: Vec<SourceFile>) -> Self {
         Self {
             files,
+            retained_filesystem: None,
+            retained_source_root: None,
+            retained_source_root_revision: None,
             product_dependencies: BTreeMap::new(),
         }
     }
@@ -40,6 +77,18 @@ impl SourceMap {
                 .or_default()
                 .insert(alias.to_owned(), target);
         }
+    }
+
+    /// Direct Product-role authority for an already selected declaration's
+    /// package. Several aliases can name one package; identity owns this query.
+    pub fn has_product_dependency_to(
+        &self,
+        requester: PackageKeyIdentity,
+        selected: PackageKeyIdentity,
+    ) -> bool {
+        self.product_dependencies
+            .get(&requester)
+            .is_some_and(|dependencies| dependencies.values().any(|target| *target == selected))
     }
 
     /// The product-scope dependency `alias` authorizes for `requester`, or

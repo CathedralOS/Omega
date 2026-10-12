@@ -1,0 +1,15 @@
+// Both direct scalar call results become positional actuals of another call.
+// Distinct authored operands preserve evaluation and argument correspondence.
+machine twice(value: u64 in Wrapping) -> u64 in Wrapping { value + value }
+machine combine(left: u64 in Wrapping, right: u64 in Wrapping) -> u64 in Wrapping {
+    left + right
+}
+machine main() crashes Trap {
+    let result: u64 in Wrapping = combine(twice(5), twice(7));
+    transition result == 24 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -180,7 +180,8 @@ impl ProofPlanMeasurements {
             return;
         };
         match &acceptance.mathematical_core {
-            MathematicalCoreDecision::Judged(receipt) => {
+            MathematicalCoreDecision::Judged(judgment) => {
+                let receipt = judgment.receipt();
                 self.kernel_judgments += 1;
                 self.kernel_declarations += u64::from(receipt.declarations);
                 self.kernel_assumption_closure += u64::from(receipt.assumption_closure);

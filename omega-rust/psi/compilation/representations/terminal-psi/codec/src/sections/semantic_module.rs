@@ -18,6 +18,7 @@ mod machine_declaration_wire;
 pub(crate) mod machine_wire;
 pub(crate) mod mathematical_certificate_wire;
 pub(crate) mod module_foundation_validation;
+mod module_identity_validation;
 pub(crate) mod module_wire;
 pub(crate) mod proof_declaration_wire;
 pub(crate) mod proof_term_wire;
@@ -67,15 +68,20 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Target layout applications retain invariant Schema inputs and guarded geometries.
 // Identities live in the module-owned interned table rather than per-row text.
 // Dynamic slots retain structural result shapes and public result claim paths.
-// Boundary owner/role rows and dynamic results share this combined format;
-// earlier candidate format 142 did not yet encode the owner/role fields.
-// Reborrow custody retains opaque selector formation occurrences.
-// Structural declarations retain checked no-code affine cleanup authority.
+// Boundary owner/role rows, dynamic results, complete static application
+// tuples, scalar projections and selector occurrences share this format.
+// Structural declarations also retain checked no-code affine cleanup
+// authority; earlier candidate and main markers omit part of this grammar.
+// Original declaration lifetime-role rosters accompany the issuing identity
+// table; anonymous operands require invocation membership at foreign ingress.
+// Marker147 retains cleanup/static applications but omits these rosters.
 // State-exit reborrow certificates are not an executable Terminal product.
+// Marker149 predates occurrence-owned provider receiving regions.
 // Provider candidates retain checked receiving applications and ordered regions.
 // Descriptor cleanup admits exclusive pointers without disposal of their referees.
 // Whole byte operands retain their exact descriptor projection and access.
-pub(crate) const FORMAT_MARKER: u16 = 150;
+// Marker153 combines descriptor custody with original application/region grammar.
+pub(crate) const FORMAT_MARKER: u16 = 153;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -133,6 +139,7 @@ pub fn decode_module(bytes: &[u8]) -> Result<TerminalModule, CodecError> {
     if reader.remaining() != 0 {
         return Err(CodecError::TrailingBytes(reader.remaining()));
     }
+    module_identity_validation::validate_boundary_application_identities(&module)?;
     scalar_qualification_wire::validate(&module.scalar_qualifications)?;
     validate_canonical_order(&module)?;
     validate_structural_foundation(&module)?;
@@ -209,4 +216,24 @@ fn fingerprint_bytes(bytes: &[u8]) -> SemanticFingerprint {
     digest.raw(&byte_len.to_le_bytes());
     digest.raw(&bytes);
     SemanticFingerprint::from_bytes(digest.finish())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CodecError, MAGIC, decode_module};
+
+    #[test]
+    fn semantic_module_format_rejects_previous_scalar_read_grammar() {
+        let previous_format = 144_u16.to_le_bytes();
+        let mut module_bytes = MAGIC.to_vec();
+        module_bytes.extend_from_slice(&previous_format);
+        assert!(matches!(
+            decode_module(&module_bytes),
+            Err(CodecError::UnsupportedFormatMarker(144))
+        ));
+        assert!(matches!(
+            super::provider_candidate_wire::decode_provider_candidate_record(&previous_format),
+            Err(CodecError::UnsupportedFormatMarker(144))
+        ));
+    }
 }

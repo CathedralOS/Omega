@@ -26,7 +26,7 @@ pub(crate) fn prepare_premises(program: &mut SymbolResolvedTrees) -> Result<(), 
         })
         .collect::<Vec<_>>();
     for position in interfaces {
-        let mut interface = program.machines[position].clone();
+        let interface = program.machines[position].clone();
         let members = program
             .machines
             .iter()
@@ -41,13 +41,23 @@ pub(crate) fn prepare_premises(program: &mut SymbolResolvedTrees) -> Result<(), 
                 interface.name,
             ))]);
         }
-        interface.type_parameters = join_property_demands(program, &interface, &members)
+        join_property_demands(program, &interface, &members)
             .map_err(|diagnostic| vec![diagnostic])?;
-        program.machines[position].type_parameters = interface.type_parameters;
+        // This flag is issued only by source target-family synthesis. Authored
+        // boundary/trait interfaces are separate declarations and retain their
+        // own predicates; member predicates refine those public goals instead.
         let mut contracts = Vec::new();
+        let mut copied_where_facts = Vec::new();
         for member in &members {
             let symbols = telescope_correspondence(program, &interface, member)
                 .map_err(|diagnostic| vec![diagnostic])?;
+            for fact in member.where_facts.handles() {
+                let copied = program.copy_proof_fact_with_symbols(fact, &symbols);
+                copied_where_facts.push((
+                    program.tables.declarations.proof_facts.get(copied).clone(),
+                    program.proof_fact_source_span(copied),
+                ));
+            }
             let mut member_contracts = program.machine_contracts(member).to_vec();
             if let Some(entry) = program.machine_state_handles(member.states).first() {
                 member_contracts.extend_from_slice(
@@ -69,6 +79,18 @@ pub(crate) fn prepare_premises(program: &mut SymbolResolvedTrees) -> Result<(), 
             .declarations
             .signature_contracts
             .insert_many(contracts);
+        let mut where_facts = HandleSpan::empty();
+        for (fact, source_span) in copied_where_facts {
+            let handle = program
+                .tables
+                .declarations
+                .proof_facts
+                .append_to_span(&mut where_facts, fact);
+            if let Some(source_span) = source_span {
+                program.set_proof_fact_source_span(handle, source_span);
+            }
+        }
+        program.machines[position].where_facts = where_facts;
         program.machines[position].target_family_contracts_prepared = true;
     }
     Ok(())
@@ -82,7 +104,7 @@ fn join_property_demands(
     program: &mut SymbolResolvedTrees,
     interface: &Machine,
     members: &[Machine],
-) -> Result<HandleSpan<symbol_resolved_trees::data::TypeParameter>, Diagnostic> {
+) -> Result<(), Diagnostic> {
     use language_semantics::Multiplicity;
 
     let mut parameters = program.machine_type_parameters(interface).to_vec();
@@ -121,11 +143,21 @@ fn join_property_demands(
             }
         }
     }
-    Ok(program
+    // These rows already own resolved declaration symbols. Publish the
+    // validated conjunction on that canonical telescope rather than append
+    // another declaration roster carrying the same symbols. Const-argument
+    // lexical selection and contract copying must consume the same owners.
+    for (declared, joined) in program
         .tables
         .declarations
         .data_type_parameters
-        .insert_many(parameters))
+        .span_mut_or_empty(interface.type_parameters)
+        .iter_mut()
+        .zip(parameters)
+    {
+        declared.bounds = joined.bounds;
+    }
+    Ok(())
 }
 
 fn telescope_correspondence(

@@ -3,9 +3,7 @@
 //! instances own a closed tuple shared by their callers. Neither row grants
 //! permission to satisfy a bound. Immutable checking owes that judgment.
 
-use super::{
-    CallSelection, CallSite, Candidate, ExpressionNode, StatementNode, SymbolHandle, TypedTrees,
-};
+use super::{CallSelection, CallSite, Candidate, StatementNode, SymbolHandle, TypedTrees};
 use typed_trees::static_applications::{
     StaticMachineApplicationHandle, StaticMachineBinding, StaticMachineBindingValue,
 };
@@ -76,14 +74,14 @@ pub(super) fn candidate_bindings(candidate: &Candidate) -> Vec<StaticMachineBind
     bindings
 }
 
-pub(super) fn retain_authored_call(
+pub(crate) fn retain_authored_call(
     program: &mut TypedTrees,
     site: CallSite,
     lexical_owner: SymbolHandle,
 ) -> StaticMachineApplicationHandle {
     let (application, target_symbol, target, arguments) = match site {
         CallSite::Expression(handle) => {
-            let Some(call) = program.expression_table.call_node(handle) else {
+            let Some(call) = program.expression_table.source_call_node(handle) else {
                 return StaticMachineApplicationHandle::invalid();
             };
             (
@@ -105,7 +103,7 @@ pub(super) fn retain_authored_call(
             )
         }
     };
-    if application.is_valid() {
+    let application = if application.is_valid() {
         application
     } else {
         let application = program.expression_table.retain_static_machine_application(
@@ -119,10 +117,10 @@ pub(super) fn retain_authored_call(
             .lexical_owner = lexical_owner;
         match site {
             CallSite::Expression(handle) => {
-                let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle)
-                else {
-                    unreachable!()
-                };
+                let call = program
+                    .expression_table
+                    .source_call_node_mut(handle)
+                    .expect("retained original invocation remained occupied");
                 call.authored_machine_application = application;
             }
             CallSite::Statement(handle) => {
@@ -134,7 +132,30 @@ pub(super) fn retain_authored_call(
             }
         }
         application
+    };
+    // Region-only calls have no specialization candidate to publish their
+    // receiving declaration later. The retained original registration owns
+    // this coordinate independently of any executable instance or tuple.
+    let retained = program
+        .expression_table
+        .static_machine_application(application);
+    if !retained.binding_declaration.is_valid() {
+        let declaration =
+            typed_trees::static_applications::StaticApplicationDeclaration::for_selected_interface(
+                program,
+                retained.registration_operation,
+                retained.selected_interface,
+            )
+            .map(|declaration| declaration.symbol())
+            .unwrap_or_default();
+        if declaration.is_valid() {
+            program
+                .expression_table
+                .static_machine_application_mut(application)
+                .binding_declaration = declaration;
+        }
     }
+    application
 }
 
 pub(super) fn retain_call(
@@ -152,6 +173,28 @@ pub(super) fn retain_call(
         .binding_declaration = candidate.template.template_symbol;
     program
         .expression_table
+        .set_static_machine_application_receiving_data_parameter(
+            application,
+            selection.receiving_data_parameter,
+        );
+    let previous = program
+        .expression_table
+        .static_machine_application(application)
+        .enclosing_data_applications;
+    if program
+        .type_reference_table
+        .type_reference_handles(previous)
+        != selection.enclosing_data_applications
+    {
+        let applications = program
+            .type_reference_table
+            .insert_type_reference_handles(selection.enclosing_data_applications.iter().copied());
+        program
+            .expression_table
+            .set_static_machine_application_enclosing_data_applications(application, applications);
+    }
+    program
+        .expression_table
         .set_static_machine_application_bindings(application, &candidate_bindings(candidate));
 }
 
@@ -160,7 +203,7 @@ pub(super) fn retain_instance(
     program: &mut TypedTrees,
     candidate: &Candidate,
     instance: SymbolHandle,
-) -> StaticMachineApplicationHandle {
+) -> Result<StaticMachineApplicationHandle, diagnostics::Diagnostic> {
     let mut bindings = candidate_bindings(candidate);
     // Carrier sharing does not make an instance the author of its operands.
     // Preserve the representative source application's lexical region scope;
@@ -181,6 +224,34 @@ pub(super) fn retain_instance(
     } else {
         (instance, Vec::new())
     };
+    let captured_lexical_scope = if candidate.binding_application.is_valid() {
+        let origin = source.unwrap_or(program);
+        let captured = origin
+            .expression_table
+            .static_machine_application(candidate.binding_application)
+            .captured_lexical_scope;
+        if captured.is_valid() {
+            Some(
+                origin
+                    .captured_static_lexical_scope(captured)
+                    .ok_or_else(|| {
+                        diagnostics::Diagnostic::error(
+                            "source instance lost its original lexical capture",
+                        )
+                    })?
+                    .clone(),
+            )
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+    let captured_lexical_scope = captured_lexical_scope
+        .as_ref()
+        .map(|scope| super::captured_lexical_scopes::retain(program, scope))
+        .transpose()?
+        .unwrap_or_default();
     // Runtime callers share a carrier-specialized instance. No one caller's
     // subject belongs to that instance's static tuple.
     for binding in &mut bindings {
@@ -203,6 +274,10 @@ pub(super) fn retain_instance(
     program
         .expression_table
         .static_machine_application_mut(application)
+        .captured_lexical_scope = captured_lexical_scope;
+    program
+        .expression_table
+        .static_machine_application_mut(application)
         .binding_declaration = candidate.template.template_symbol;
     program
         .expression_table
@@ -210,5 +285,5 @@ pub(super) fn retain_instance(
     program
         .expression_table
         .set_static_machine_application_lifetimes(application, &lifetimes);
-    application
+    Ok(application)
 }

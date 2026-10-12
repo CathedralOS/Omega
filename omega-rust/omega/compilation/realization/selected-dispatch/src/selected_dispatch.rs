@@ -39,6 +39,7 @@ pub(crate) fn settle_selected_execution_dispatch(
     calling_plans: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
     selected_provider_plans: &SelectedProviderPlanFacts,
     selected_provider_provenance: &[provider_planning::SelectedProviderReviewProvenance],
+    selected_target_profile: Option<target::TargetProfile>,
 ) -> Result<SelectedExecutionDispatch, Vec<Diagnostic>> {
     if selected_provider_provenance.iter().any(|provider| {
         selected_provider_plans
@@ -57,11 +58,13 @@ pub(crate) fn settle_selected_execution_dispatch(
         checked,
         calling_plans,
         selected_provider_plans,
+        selected_provider_provenance,
     )?;
     let float_comparisons = float_comparisons::selected_executions(
         checked,
         source::DependencyScope::Product,
         selected_provider_provenance,
+        selected_target_profile,
     )?;
     Ok(SelectedExecutionDispatch {
         boundary_adapters,
@@ -77,9 +80,14 @@ pub fn settle_selected_comparison_execution(
     checked: &mut CheckedTrees,
     scope: source::DependencyScope,
     selected_provider_provenance: &[provider_planning::SelectedProviderReviewProvenance],
+    selected_target_profile: Option<target::TargetProfile>,
 ) -> Result<(), Vec<Diagnostic>> {
-    let executions =
-        float_comparisons::selected_executions(checked, scope, selected_provider_provenance)?;
+    let executions = float_comparisons::selected_executions(
+        checked,
+        scope,
+        selected_provider_provenance,
+        selected_target_profile,
+    )?;
     float_comparisons::replace_executions(checked, executions);
     Ok(())
 }

@@ -35,7 +35,7 @@ pub(super) fn lower_call_statement(
             .iter()
             .map(|argument| {
                 crate::expressions::expression::lower_static_machine_argument(
-                    Some(lowerer.source_trees),
+                    lowerer.source_trees,
                     &mut lowerer.typed_trees,
                     lowerer.type_reference_exposure,
                     argument,

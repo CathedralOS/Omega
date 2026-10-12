@@ -123,20 +123,33 @@ fn type_reaches_opaque_data(
                 .type_reference_table
                 .type_reference_handles(*arguments)
                 .to_vec();
-            if arguments
-                .iter()
-                .any(|argument| type_reaches_opaque_data(program, *argument, visiting, bindings))
-            {
-                return true;
-            }
             let mark = bindings.len();
             let Some(definition) =
                 push_generic_application_bindings(program, *base_symbol, &arguments, bindings)
             else {
                 return true;
             };
-            let reaches =
-                data_definition_reaches_opaque_data(program, definition, visiting, bindings);
+            // Preserve the Type-operand reach check under the exact original
+            // telescope. A Const/Value index is an operand, not a storage type;
+            // its admitted carrier cannot invent a held reference here. Actual
+            // operands belong to the enclosing scope, including compound ones;
+            // the new application must not reinterpret their child binders.
+            let mut argument_bindings = bindings[..mark].to_vec();
+            let arguments_reach = program
+                .data_type_parameters(definition)
+                .iter()
+                .zip(&arguments)
+                .any(|(parameter, argument)| {
+                    matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+                        && type_reaches_opaque_data(
+                            program,
+                            *argument,
+                            visiting,
+                            &mut argument_bindings,
+                        )
+                });
+            let reaches = arguments_reach
+                || data_definition_reaches_opaque_data(program, definition, visiting, bindings);
             bindings.truncate(mark);
             reaches
         }

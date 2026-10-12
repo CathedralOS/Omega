@@ -9,6 +9,7 @@ use typed_trees::types::TypeReferenceHandle;
 mod integer_predicates;
 mod licenses;
 pub(super) mod normal_returns;
+mod path_state;
 mod selected_contracts;
 mod storage_effects;
 mod value_predicates;
@@ -201,15 +202,16 @@ impl StructuralTerm {
 pub(super) struct StructuralJudge<'program> {
     program: &'program dyn crate::CheckingInput,
     entry_machines: std::sync::Arc<EntryMachines>,
+    // Path clones share immutable call resolution, including a failed build.
+    // Constructing every machine's symbol table per observed term defeats the
+    // resolver's existing query memos; source inputs stay frozen throughout.
+    call_frames: std::sync::Arc<std::sync::OnceLock<Option<crate::CallFrameResolver<'program>>>>,
     machine_symbol: SymbolHandle,
     // Runtime prefix facts belong to the current state invocation. Keep its
     // declaration frame separate from the machine's dependency identity.
     declaration_state: SymbolHandle,
-    premise_facts: Vec<ExpressionHandle>,
-    // Term-bearing fact vectors are Arc-shared so the per-leaf judge clone
-    // (one per recognized case-arm path) costs refcount bumps instead of
-    // deep StructuralTerm copies; writers go through Arc::make_mut and pay
-    // one copy only for the field they actually change.
+    path_state: path_state::StructuralPathState,
+    // Invocation-local term vectors share unchanged path storage.
     normal_results: Arc<Vec<(ExpressionHandle, StructuralTerm)>>,
     invalidated_storage: Arc<Vec<SymbolHandle>>,
     capture_sequence: usize,
@@ -238,11 +240,6 @@ pub(super) struct StructuralJudge<'program> {
     ring_licenses: Vec<RingLicense>,
     /// Tier-2: paired add/mul licenses with a conformed distributivity law.
     semiring_licenses: Vec<SemiringLicense>,
-    /// Frame resolution is program-pure for every judge on one program: the
-    /// shared cell builds it once per judge tree instead of once per probe
-    /// site (per-leaf clones all share the same cell).
-    frame_resolver:
-        Arc<std::sync::OnceLock<Option<crate::machine_calls::calls::CallFrameResolver<'program>>>>,
 }
 
 impl Clone for StructuralJudge<'_> {
@@ -250,9 +247,10 @@ impl Clone for StructuralJudge<'_> {
         Self {
             program: self.program,
             entry_machines: std::sync::Arc::clone(&self.entry_machines),
+            call_frames: std::sync::Arc::clone(&self.call_frames),
             machine_symbol: self.machine_symbol,
             declaration_state: self.declaration_state,
-            premise_facts: self.premise_facts.clone(),
+            path_state: self.path_state.clone(),
             normal_results: Arc::clone(&self.normal_results),
             invalidated_storage: Arc::clone(&self.invalidated_storage),
             capture_sequence: self.capture_sequence,
@@ -268,12 +266,17 @@ impl Clone for StructuralJudge<'_> {
             hypotheses_contradictory: self.hypotheses_contradictory,
             ring_licenses: self.ring_licenses.clone(),
             semiring_licenses: self.semiring_licenses.clone(),
-            frame_resolver: Arc::clone(&self.frame_resolver),
         }
     }
 }
 
 impl<'program> StructuralJudge<'program> {
+    pub(super) fn call_frames(&self) -> Option<&crate::CallFrameResolver<'program>> {
+        self.call_frames
+            .get_or_init(|| crate::CallFrameResolver::new(self.program))
+            .as_ref()
+    }
+
     pub(super) fn from_case_requires(
         program: &'program dyn crate::CheckingInput,
         judged_machine: &Machine,
@@ -296,6 +299,9 @@ impl<'program> StructuralJudge<'program> {
     ) -> Self {
         let mut judge = Self::from_case_requires(program, judged_machine, requires);
         judge.runtime_body_values = true;
+        for fact in requires {
+            judge.intake_preserved_predicate(*fact);
+        }
         judge
     }
 
@@ -309,16 +315,12 @@ impl<'program> StructuralJudge<'program> {
         requires: &[ExpressionHandle],
     ) -> Self {
         let mut judge = Self::from_runtime_requires(program, machine, &[]);
-        judge.declaration_state = state.symbol;
-        judge.premise_facts.extend_from_slice(requires);
+        judge.enter_observation_frame(state.symbol);
         for fact in requires {
             judge.intake(program, *fact);
+            judge.intake_preserved_predicate(*fact);
         }
         judge
-    }
-
-    pub(super) fn premise_facts(&self) -> &[ExpressionHandle] {
-        &self.premise_facts
     }
 
     pub(super) fn has_runtime_body_values(&self) -> bool {
@@ -327,16 +329,6 @@ impl<'program> StructuralJudge<'program> {
 
     pub(super) fn requires_value_preservation(&self) -> bool {
         self.runtime_body_values && !self.case_facts_only
-    }
-
-    /// Frame writes are program-pure; every probe on a judge tree resolves
-    /// the same tables, so the resolver is built once behind the shared cell.
-    pub(super) fn frame_resolver(
-        &self,
-    ) -> Option<&crate::machine_calls::calls::CallFrameResolver<'program>> {
-        self.frame_resolver
-            .get_or_init(|| crate::machine_calls::calls::CallFrameResolver::new(self.program))
-            .as_ref()
     }
 
     /// Tag preservation does not preserve scalar premises or payload equations.
@@ -381,8 +373,9 @@ impl<'program> StructuralJudge<'program> {
                 || EntryMachines::of(program),
             ),
             machine_symbol: owner,
+            call_frames: std::sync::Arc::new(std::sync::OnceLock::new()),
             declaration_state: SymbolHandle::invalid(),
-            premise_facts: requires.to_vec(),
+            path_state: path_state::StructuralPathState::default(),
             normal_results: Arc::new(Vec::new()),
             invalidated_storage: Arc::new(Vec::new()),
             capture_sequence: 0,
@@ -393,7 +386,6 @@ impl<'program> StructuralJudge<'program> {
             case_facts_only: false,
             substitutions: Arc::new(Vec::new()),
             rewrites: Arc::new(rewrite_table::RewriteTable::default()),
-            frame_resolver: Arc::new(std::sync::OnceLock::new()),
             case_facts: Arc::new(Vec::new()),
             case_substitutions: Arc::new(Vec::new()),
             hypotheses_contradictory: false,
@@ -563,11 +555,11 @@ impl<'program> StructuralJudge<'program> {
             let Some(subject) = self.declaration_term(binary.left) else {
                 return;
             };
-            Arc::make_mut(&mut self.case_facts).push((
-                subject.clone(),
-                definition.symbol,
-                variant.symbol,
-            ));
+            self.intake_case_guarantee(&CaseGuarantee {
+                subject: subject.clone(),
+                data: definition.symbol,
+                case: variant.symbol,
+            });
             // A tag fact alone establishes a complete value only when there
             // are no common or payload fields. Other arm refinements retain
             // their symbolic fields at the case-flow owner.
@@ -642,6 +634,12 @@ impl<'program> StructuralJudge<'program> {
     ) {
         if self.case_facts_only || depth >= 32 {
             return;
+        }
+        if depth == 0 {
+            self.record_contribution(path_state::Contribution::Equation(
+                left.clone(),
+                right.clone(),
+            ));
         }
         let left = self.resolve(left);
         let right = self.resolve(right);
@@ -1059,6 +1057,7 @@ impl<'program> StructuralJudge<'program> {
             self.callee_term(
                 projected.value,
                 &environment,
+                &[],
                 &machine_environment,
                 None,
                 depth + 1,
@@ -1174,6 +1173,7 @@ impl<'program> StructuralJudge<'program> {
                 let term = self.callee_term(
                     local.initial_value,
                     &environment,
+                    &[],
                     &machine_environment,
                     Some((machine, state, state.return_type)),
                     depth + 1,
@@ -1190,6 +1190,7 @@ impl<'program> StructuralJudge<'program> {
                         self.callee_term(
                             *expression,
                             &environment,
+                            &[],
                             &machine_environment,
                             Some((machine, state, state.return_type)),
                             depth + 1,
@@ -1263,6 +1264,7 @@ impl<'program> StructuralJudge<'program> {
             return self.callee_term(
                 *value,
                 &environment,
+                &[],
                 &machine_environment,
                 Some((machine, state, state.return_type)),
                 depth + 1,
@@ -1304,13 +1306,33 @@ impl<'program> StructuralJudge<'program> {
         environment: &[(String, StructuralTerm)],
         depth: usize,
     ) -> Option<StructuralTerm> {
-        self.callee_term(expression, environment, &[], scope, depth)
+        // Source-frame value binders are already supplied to this invocation.
+        // A body unfold has only its captured argument environments and must
+        // not import an unsupplied callee binder from the declaration arena.
+        let value_symbols = scope.map_or_else(Vec::new, |(machine, _, _)| {
+            let (parameters, _) = self
+                .program
+                .machine_type_reference_scope(machine, |left, right| left.symbol == right.symbol);
+            parameters
+                .iter()
+                .filter(|parameter| {
+                    matches!(
+                        parameter.kind,
+                        typed_trees::data::TypeParameterKind::Const { .. }
+                            | typed_trees::data::TypeParameterKind::Value { .. }
+                    )
+                })
+                .map(|parameter| parameter.symbol)
+                .collect::<Vec<_>>()
+        });
+        self.callee_term(expression, environment, &value_symbols, &[], scope, depth)
     }
 
     fn callee_term(
         &self,
         expression: ExpressionHandle,
         environment: &[(String, StructuralTerm)],
+        value_symbols: &[SymbolHandle],
         machine_environment: &[(
             SymbolHandle,
             String,
@@ -1335,6 +1357,13 @@ impl<'program> StructuralJudge<'program> {
         let program = self.program;
         match program.expression_table.expression(expression) {
             ExpressionNode::Name(path) => {
+                if let Some(symbol) =
+                    super::structural_terms::value_parameter_symbol(program, expression)
+                {
+                    return value_symbols
+                        .contains(&symbol)
+                        .then_some(StructuralTerm::BoundValue(symbol));
+                }
                 if path.symbol.is_valid()
                     && program.symbols.get(path.symbol).kind == symbols::SymbolKind::Const
                 {
@@ -1367,6 +1396,7 @@ impl<'program> StructuralJudge<'program> {
                             self.callee_term(
                                 *argument,
                                 environment,
+                                value_symbols,
                                 machine_environment,
                                 scope,
                                 depth + 1,
@@ -1412,6 +1442,7 @@ impl<'program> StructuralJudge<'program> {
                 let receiver_term = self.callee_term(
                     member.receiver,
                     environment,
+                    value_symbols,
                     machine_environment,
                     scope,
                     depth + 1,
@@ -1423,6 +1454,7 @@ impl<'program> StructuralJudge<'program> {
                     self.callee_term(
                         field.value,
                         environment,
+                        value_symbols,
                         machine_environment,
                         scope,
                         depth + 1,
@@ -1463,6 +1495,7 @@ impl<'program> StructuralJudge<'program> {
                     arguments.push(self.callee_term(
                         *argument,
                         environment,
+                        value_symbols,
                         machine_environment,
                         scope,
                         depth + 1,
@@ -1505,6 +1538,7 @@ impl<'program> StructuralJudge<'program> {
             ExpressionNode::Borrow(borrow) => self.callee_term(
                 borrow.target,
                 environment,
+                value_symbols,
                 machine_environment,
                 scope,
                 depth + 1,
@@ -1522,6 +1556,7 @@ impl<'program> StructuralJudge<'program> {
                 self.callee_term(
                     indexed.collection,
                     environment,
+                    value_symbols,
                     machine_environment,
                     scope,
                     depth + 1,
@@ -1529,6 +1564,7 @@ impl<'program> StructuralJudge<'program> {
                 self.callee_term(
                     indexed.index,
                     environment,
+                    value_symbols,
                     machine_environment,
                     scope,
                     depth + 1,
@@ -1542,6 +1578,7 @@ impl<'program> StructuralJudge<'program> {
                 self.callee_term(
                     binary.left,
                     environment,
+                    value_symbols,
                     machine_environment,
                     scope,
                     depth + 1,
@@ -1549,6 +1586,7 @@ impl<'program> StructuralJudge<'program> {
                 self.callee_term(
                     binary.right,
                     environment,
+                    value_symbols,
                     machine_environment,
                     scope,
                     depth + 1,
@@ -1983,6 +2021,7 @@ impl<'program> StructuralJudge<'program> {
     }
 
     pub(super) fn intake_case_guarantee(&mut self, guarantee: &CaseGuarantee) {
+        self.record_contribution(path_state::Contribution::Case(guarantee.clone()));
         Arc::make_mut(&mut self.case_facts).push((
             guarantee.subject.clone(),
             guarantee.data,
@@ -2068,6 +2107,12 @@ impl<'program> StructuralJudge<'program> {
     ) {
         if depth >= 32 {
             return;
+        }
+        if depth == 0 {
+            self.record_contribution(path_state::Contribution::CaseEquation(
+                left.clone(),
+                right.clone(),
+            ));
         }
         let (Some(left), Some(right)) = (
             self.resolve_case_subject(left, 0),
@@ -2263,8 +2308,8 @@ impl<'program> StructuralJudge<'program> {
 
     /// RECORD ETA: does `constructor` rebuild every declared field of the
     /// plain-record variable `variable` from that variable's own field
-    /// reads? All fields must be present, matched BY NAME to `{v}.{field}`
-    /// opaques -- a permutation or a partial rebuild does not match.
+    /// reads? Every declared field must match its canonical projection of the
+    /// same formed variable; a permutation or partial rebuild does not match.
     fn record_eta_matches(&self, constructor: &StructuralTerm, variable: &StructuralTerm) -> bool {
         let StructuralTerm::Constructor { data, case, fields } = constructor else {
             return false;
@@ -2272,9 +2317,9 @@ impl<'program> StructuralJudge<'program> {
         if !case.is_empty() {
             return false;
         }
-        let StructuralTerm::Variable(name) = variable else {
+        if !matches!(variable, StructuralTerm::Variable(_)) {
             return false;
-        };
+        }
         let Some(definition) = self.program.data_definition_by_name_str(data.as_str()) else {
             return false;
         };
@@ -2291,13 +2336,13 @@ impl<'program> StructuralJudge<'program> {
             return false;
         }
         declared.iter().all(|field_name| {
+            let Some(expected) =
+                super::observed_projections::project_field(variable.clone(), field_name)
+            else {
+                return false;
+            };
             fields.iter().any(|(field, value)| {
-                field == field_name
-                    && matches!(
-                        self.resolve(value.clone()),
-                        StructuralTerm::Opaque(opaque)
-                            if opaque == format!("{name}.{field_name}")
-                    )
+                field == field_name && self.resolve(value.clone()) == expected
             })
         })
     }

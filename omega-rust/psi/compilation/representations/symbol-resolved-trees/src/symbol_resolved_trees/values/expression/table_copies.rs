@@ -70,6 +70,18 @@ impl ExpressionTable {
         // declaration-selection occurrences are minted. Keep the exact source
         // coordinate so finalization can reunite every retained copy.
         let source_span = origin.source_span(expression);
+        let source_origin = origin.expression_source_origin(expression);
+        let selected = origin.selected_const_match_result(expression);
+        let selected_meaning = origin.selected_const_match_meaning(expression);
+        let selected_ordinal =
+            if let ExpressionNode::Match(dispatch) = origin.expression(expression) {
+                origin
+                    .match_arms(dispatch.arms)
+                    .iter()
+                    .position(|arm| arm.value == selected)
+            } else {
+                None
+            };
         let occurrences = origin
             .authored_selection_occurrences(expression)
             .collect::<Vec<_>>();
@@ -235,6 +247,13 @@ impl ExpressionTable {
             }
         };
         self.set_source_span(copied, source_span);
+        self.retain_expression_source_origin(copied, source_origin);
+        if let Some(ordinal) = selected_ordinal
+            && let ExpressionNode::Match(dispatch) = self.expression(copied)
+        {
+            let selected = self.match_arms(dispatch.arms)[ordinal].value;
+            self.retain_selected_const_match_result(copied, selected, selected_meaning);
+        }
         if let Some(exposure) = authored_exposure {
             self.set_authored_expression_exposure(copied, exposure);
         }

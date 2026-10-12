@@ -347,6 +347,7 @@ fn reaching_float_store_checks_sibling_argument_effects() {
         .program
         .expression_table
         .insert(ExpressionNode::Call(TableCallExpression {
+            source_call: Default::default(),
             authored_machine_application: Default::default(),
             exact_coercion_target: typed_trees::types::TypeReferenceHandle::invalid(),
             receiver: ExpressionHandle::invalid(),

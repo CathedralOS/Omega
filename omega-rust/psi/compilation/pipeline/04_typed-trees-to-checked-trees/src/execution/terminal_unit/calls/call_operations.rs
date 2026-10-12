@@ -245,11 +245,12 @@ pub(in crate::execution) fn build_call_operation(
 
     let selected_realization =
         exact_external_leaf_boundary_requirement(program, call.target_symbol);
-    let requirement = match boundary_requirement(program, call.target_symbol) {
-        BoundaryTarget::Requirement(requirement) => Some(requirement),
-        BoundaryTarget::Body => None,
-        BoundaryTarget::Ambiguous => return None,
-    };
+    let requirement =
+        match boundary_requirement(program, call.target_symbol, call.authored_application) {
+            BoundaryTarget::Requirement(requirement) => Some(requirement),
+            BoundaryTarget::Body => None,
+            BoundaryTarget::Ambiguous => return None,
+        };
     if let Some(requirement) = requirement {
         return super::trait_boundary_call::build(
             program,
@@ -618,44 +619,42 @@ pub(super) enum BoundaryTarget<'program> {
 /// executable target before a call is planned, and projecting its
 /// requirement here would make an open generic entry executable and bypass
 /// its selected implementation. Both declaration spellings retain a
-/// requirement edge; the planner sees the authored signature, never its
-/// selected provider.
+/// requirement edge; the planner sees the exact applied public signature,
+/// never its selected provider. Owned headers require the original invocation
+/// application captured by the source-custody publisher.
 pub(super) fn boundary_requirement(
     program: &dyn ::validation::CheckingInput,
     target: SymbolHandle,
+    application: typed_trees::static_applications::StaticMachineApplicationHandle,
 ) -> BoundaryTarget<'_> {
     let direct = exact_external_leaf_boundary_requirement(program, target)
         .map(|(requirement, _)| requirement)
         .unwrap_or(target);
-    let static_boundaries = program
-        .traits()
-        .iter()
-        .filter(|definition| definition.is_boundary)
-        .flat_map(|definition| {
-            program
-                .trait_machine_instances(definition)
-                .filter(move |signature| signature.symbol == direct)
-                .map(move |signature| (definition, signature))
-        })
-        .collect::<Vec<_>>();
-    match static_boundaries.as_slice() {
-        [(definition, signature)] => {
-            BoundaryTarget::Requirement(super::trait_boundary_call::BoundaryRequirement::Trait {
-                definition,
-                signature,
-            })
+    if let Some((definition, signature)) =
+        program.selected_trait_requirement_signature(direct, application)
+    {
+        if definition.is_boundary {
+            return BoundaryTarget::Requirement(
+                super::trait_boundary_call::BoundaryRequirement::Trait {
+                    definition,
+                    signature,
+                },
+            );
         }
-        [] => program
-            .operators()
-            .iter()
-            .find(|operator| operator.is_boundary && operator.symbol == direct)
-            .map_or(BoundaryTarget::Body, |operator| {
-                BoundaryTarget::Requirement(
-                    super::trait_boundary_call::BoundaryRequirement::Operator(operator),
-                )
-            }),
-        _ => BoundaryTarget::Ambiguous,
+    } else if program.trait_machine_signature(direct).is_some() {
+        // A public declaration exists but its invocation does not own the
+        // selected header. It cannot fall through to an ordinary body route.
+        return BoundaryTarget::Ambiguous;
     }
+    program
+        .operators()
+        .iter()
+        .find(|operator| operator.is_boundary && operator.symbol == direct)
+        .map_or(BoundaryTarget::Body, |operator| {
+            BoundaryTarget::Requirement(super::trait_boundary_call::BoundaryRequirement::Operator(
+                operator,
+            ))
+        })
 }
 
 /// The machine and state a call to `target` executes. Source custody can name

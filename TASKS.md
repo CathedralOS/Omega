@@ -4276,40 +4276,35 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   type/constant/layout or optimization computation. Interpreted entries get no
   fabricated code size or region.
 
-- **ASSUMED-BINDING-CONTRACTS.** (new-scope) The root-only
-  [`Build::assume_binding_contract<Required::operation, Supplied::operation>(builder)`](wiki/spec/build/assumed_binding_contracts.md)
-  relationship is not delivered. Psi classifies the call
-  (`BuildOperation::AssumedBindingContract` in
-  `omega-rust/psi/foundation/language-semantics/src/declaration_selection/mod.rs`,
-  admitted in stage 04's `authored_selections/intrinsic_calls.rs`), the
-  terminal interpreter accepts an `AssumedBindingSelection` policy input
-  (`omega-rust/psi/interpreter/terminal-interpreter/src/effects.rs`), and
-  review evidence has an `AssumedBindingContract` row kind
-  (`omega-rust/omega/packages/review-evidence/src/record/rows.rs`). Build
-  evaluation (`omega-rust/omega/compilation/build-evaluation/`) does not
-  harvest the call, provider installation and native call custody do not
-  honor it, and no corpus fixture uses it.
+- **ASSUMED-BINDING-CONTRACTS.** (new-scope) Complete the authentic portable
+  relationship commitments, consuming-root/receiving acceptance, transitive
+  risk review and installed runtime provider occurrence for
+  [`Build::assume_binding_contract<Required::operation, Supplied::operation>(builder)`](wiki/spec/build/assumed_binding_contracts.md).
+  Keep both bodies checked against their own contracts. Retain complete
+  original source/proof/qualification dependencies and exact domain entry/result
+  establishment, then join the current relationship risk row to the consuming
+  Product occurrence's own acceptance and install its Required-to-Supplied call.
+  Registration, provider selection and preparation supply neither that consent
+  nor installation. Preserve the original service-scoped crossing, inherited
+  static `result == Count`, nested borrowed Binding supplier and inherited
+  Calling controls through the ordinary application/header route.
+  **Design blocked:** only the anonymous nominal owner's discovery/default-source
+  phase awaits the [Build discovery entry decision](OWNER_QUESTIONS.md#q9---how-does-a-build-select-its-core-only-discovery-entry).
+  Other source-dependency, occurrence, consent and runtime joins remain
+  implementation work.
 
-  Retain exact entry/exit assumptions, authorized issuer/subject mapping and
-  the selected implementation closure through erasure and inlining. Both
-  bodies remain checked against their own contracts.
-
-  Acceptance: a corpus caller executes through the root-selected link with
-  caller-facing qualification, including input-side authority; direct supplier
-  calls gain none. Fail fixtures reject carrier/order, passing-mode, ABI,
-  lifetime/custody and operational incompatibility; incomplete, competing or
-  cyclic supply; unapproved roots; stale project acceptance; and use from
-  helpers, generators, const/layout evaluation and automatic tests, including
-  erased reliance. Install/update/audit disclose **Extremely high risk**
-  transitively, and lock rows commit to the contracts, mapping and closure,
-  requiring renewed acceptance when they change. Preserve the
-  [refutable-connection exception](wiki/spec/build/assumed_binding_contracts.md#known-contradictions-at-the-trust-crossing):
-  an accepted supplier guaranteeing `result == 0` may supply a requirement
-  guaranteeing `result == 1`; audit distinguishes unknown from refuted and
-  covers an input-side contradiction; no runtime value or controlled trap is
-  promised under the false premise. Ordinary refutable grants, invalid
-  `satisfies` and stale approval still reject. No unchecked body, override flag
-  or parallel approval.
+  Acceptance: the original caller executes through the root-selected link with
+  input/result qualification; direct supplier calls gain none. Reject
+  carrier/order, passing-mode, ABI, lifetime/custody and operational mismatch,
+  incomplete/competing/cyclic supply, unapproved or stale acceptance, and
+  reliance by helpers, generators, const/layout evaluation and automatic tests,
+  including erasure. Install/update/audit disclose **Extremely high risk**
+  transitively; complete contract/mapping/closure changes require renewed
+  acceptance. Preserve the [refutable-connection exception](wiki/spec/build/assumed_binding_contracts.md#known-contradictions-at-the-trust-crossing):
+  distinguish unknown from refuted, including input-side contradictions, without
+  promising runtime values or controlled traps under false premises. Ordinary
+  refutable grants and invalid `satisfies` still reject. No unchecked body,
+  override flag or parallel approval.
 
 ## P3 - Terminal Psi, proofs, and observation
 

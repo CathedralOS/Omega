@@ -25,13 +25,28 @@ pub fn prepare_filesystem_scope(
     filesystem_sponsor: Option<BuildMachineFilesystemSponsor>,
     build_snapshot: Option<&crate::BuildSnapshotRequest>,
 ) -> Result<BuildMachineFilesystemScope, Vec<Diagnostic>> {
-    let build_dir = build_dir.map(Path::to_path_buf).unwrap_or_else(|| {
-        root_path
-            .parent()
-            .filter(|parent| !parent.as_os_str().is_empty())
-            .map(|parent| parent.join("build"))
-            .unwrap_or_else(|| std::path::PathBuf::from("build"))
-    });
+    let source_root = package_inputs
+        .map(|inputs| {
+            inputs
+                .package_root(inputs.root())
+                .expect("validated package inputs retain their root")
+                .to_path_buf()
+        })
+        .or_else(|| {
+            required_sources
+                .retained_source_root()
+                .map(Path::to_path_buf)
+        })
+        .unwrap_or_else(|| {
+            root_path
+                .parent()
+                .filter(|parent| !parent.as_os_str().is_empty())
+                .map(Path::to_path_buf)
+                .unwrap_or_else(|| std::path::PathBuf::from("."))
+        });
+    let build_dir = build_dir
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| source_root.join("build"));
     let mut build_machine_filesystem_scope = if let Some(inputs) = package_inputs {
         crate::BuildMachineFilesystemScope::for_package_root(
             inputs
@@ -44,11 +59,40 @@ pub fn prepare_filesystem_scope(
         )
         .with_package_activation(inputs.root(), inputs.root_role())
     } else {
-        crate::BuildMachineFilesystemScope::for_root(root_path, build_dir, filesystem_sponsor)
+        crate::BuildMachineFilesystemScope::for_source_root(
+            source_root.clone(),
+            build_dir,
+            filesystem_sponsor,
+        )
     }
     .with_execution_profile(build_execution_profile);
-    let retained_input =
+    // The loader already captured this namespace before parsing. Deriving
+    // Build's metadata from those original trees performs no host read and
+    // cannot pick up a later import, deleted member or changed source byte.
+    let package_input =
         package_inputs.and_then(|inputs| inputs.captured_source_input(inputs.root()));
+    let loader_input = if package_input.is_none() {
+        required_sources
+            .retained_source_filesystem()
+            .map(|filesystem| filesystem.captured_tree_at(&source_root))
+            .transpose()
+            .map_err(|error| {
+                vec![Diagnostic::error(format!(
+                    "could not select the retained Build source input: {error}"
+                ))]
+            })?
+            .flatten()
+            .map(|tree| crate::source_snapshot::retained_source_input(&tree))
+            .transpose()
+            .map_err(|reason| {
+                vec![Diagnostic::error(format!(
+                    "could not derive retained Build source metadata: {reason}"
+                ))]
+            })?
+    } else {
+        None
+    };
+    let retained_input = package_input.or(loader_input.as_ref());
     // Retained custody always supplies the Source view, including callers
     // that did not select an explicit snapshot request. It must never become
     // a real-host grant merely because this activation has no output roster.
@@ -122,51 +166,38 @@ pub fn prepare_filesystem_scope(
         // One capture authority produces the immutable input inventory and
         // its canonical metadata index together; the scope rejects a captured
         // inventory that disagrees with the binding's validated index.
-        let source_root = package_inputs
-            .map(|inputs| {
-                inputs
-                    .package_root(inputs.root())
-                    .expect("validated package inputs retain their root")
-                    .to_path_buf()
-            })
-            .unwrap_or_else(|| {
-                root_path
-                    .parent()
-                    .filter(|parent| !parent.as_os_str().is_empty())
-                    .map(Path::to_path_buf)
-                    .unwrap_or_else(|| std::path::PathBuf::from("."))
-            });
         let captured_input = match build_snapshot.capture() {
-            crate::BuildSnapshotCapture::PackageInventory => {
-                // The package-inventory form is the package custody route:
-                // a standalone request must name its members explicitly
-                // rather than silently admitting the whole source root.
-                let Some(inputs) = package_inputs else {
-                    return Err(vec![Diagnostic::error(
-                        "a package-inventory build snapshot requires package source custody; a standalone build must declare an explicit source capture request",
-                    )]);
-                };
-                if inputs.canonical_source_metadata(inputs.root()).is_none() {
-                    return Err(vec![Diagnostic::error(
-                        "a package-inventory build snapshot requires compiler-validated canonical Source metadata",
-                    )]);
-                }
-                match retained_input {
-                    Some(input) => input.clone(),
-                    None => {
-                        crate::capture_package_source_input(&source_root).map_err(|reason| {
-                            vec![Diagnostic::error(format!(
-                                "could not capture the build source snapshot: {reason}"
-                            ))]
-                        })?
+            crate::BuildSnapshotCapture::SourceInventory => match retained_input {
+                Some(input) => input.clone(),
+                None => {
+                    let Some(inputs) = package_inputs else {
+                        return Err(vec![Diagnostic::error(
+                            "a complete Build source inventory requires retained loader capture or package source custody",
+                        )]);
+                    };
+                    if inputs.canonical_source_metadata(inputs.root()).is_none() {
+                        return Err(vec![Diagnostic::error(
+                            "a complete Build source inventory requires compiler-validated canonical Source metadata",
+                        )]);
                     }
+                    crate::capture_package_source_input(&source_root).map_err(|reason| {
+                        vec![Diagnostic::error(format!(
+                            "could not capture the build source snapshot: {reason}"
+                        ))]
+                    })?
                 }
-            }
+            },
             crate::BuildSnapshotCapture::Scoped(request) => {
                 let captured = if let Some(complete) = retained_input {
-                    let filesystem = package_inputs
-                        .expect("retained source input belongs to validated package inputs")
-                        .source_filesystem();
+                    let filesystem = required_sources
+                        .retained_source_filesystem()
+                        .map(std::sync::Arc::as_ref)
+                        .or_else(|| package_inputs.map(PackageCompilationInputs::source_filesystem))
+                        .ok_or_else(|| {
+                            vec![Diagnostic::error(
+                                "retained source capture has no original compilation filesystem",
+                            )]
+                        })?;
                     let mut required_members = Vec::new();
                     for file in required_sources.files() {
                         // Toolchain and injected sources are not members of

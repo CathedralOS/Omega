@@ -50,6 +50,10 @@ pub struct CheckedProductSource {
     /// All authored Product defaults, shared unchanged across target settlement.
     pub provider_defaults:
         Arc<[build_time_evaluation::provider_declarations::TargetProviderDefaults]>,
+    /// Supplying source associations retain their original occurrence graph.
+    /// They are not retained checking or actual-consumption evidence and cannot
+    /// substitute native provider agreement for a completed source judgment.
+    pub source_constants: Arc<[build_time_evaluation::SourceConstantSupply]>,
     pub computed_build_config: Arc<ComputedBuildConfig>,
     pub admission: BuildAdmission,
     pub sources: Arc<package_compilation::CheckedSourceCustody>,

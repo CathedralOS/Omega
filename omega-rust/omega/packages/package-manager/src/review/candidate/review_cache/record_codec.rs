@@ -652,6 +652,10 @@ fn encode_consumed_unit(unit: &ConsumedSourceUnit, out: &mut Vec<u8>) {
         }
         ConsumedSourceUnitKind::ToolchainVirtual => out.push(2),
         ConsumedSourceUnitKind::ToolchainOwned => out.push(3),
+        ConsumedSourceUnitKind::CapturedRootAuthored(revision) => {
+            out.push(4);
+            out.extend_from_slice(&revision);
+        }
     }
     encode_optional(unit.package().as_ref(), out, |identity, out| {
         encode_identity(*identity, out)
@@ -679,6 +683,7 @@ fn recover_consumed_unit(cursor: &mut ObservationCursor<'_>) -> Option<ConsumedS
         }),
         2 => ConsumedSourceUnitKind::ToolchainVirtual,
         3 => ConsumedSourceUnitKind::ToolchainOwned,
+        4 => ConsumedSourceUnitKind::CapturedRootAuthored(cursor_digest(cursor)?),
         _ => return None,
     };
     let package = recover_optional(cursor, recover_identity)?;

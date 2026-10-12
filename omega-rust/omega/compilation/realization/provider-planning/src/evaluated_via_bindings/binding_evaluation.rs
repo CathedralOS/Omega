@@ -484,27 +484,17 @@ fn binding_widths(
     }
     let mut widths = [0u64; 3];
     for (index, argument) in arguments.iter().enumerate() {
-        let TypeReferenceNode::Named { symbol, name } =
-            typed.type_reference_table.type_reference(*argument)
-        else {
-            return Err(
-                "ordinary external `via` Binding widths must be closed decimal constants"
-                    .to_owned(),
-            );
-        };
-        if symbol.is_valid()
-            || name.as_str().is_empty()
-            || !name.as_str().bytes().all(|byte| byte.is_ascii_digit())
-        {
-            return Err(
-                "ordinary external `via` Binding widths must be closed decimal constants"
-                    .to_owned(),
-            );
-        }
-        widths[index] = name
-            .as_str()
-            .parse::<u64>()
-            .map_err(|_| "ordinary external `via` Binding width does not fit u64".to_owned())?;
+        // Source admission already established the ForeignBinding telescope.
+        // Decode its retained value and original integer meaning: normalized
+        // const atoms and literal payloads are the same semantic coordinate.
+        let literal = typed
+            .static_const_literal_from_type_reference(*argument)
+            .ok_or_else(|| {
+                "ordinary external `via` Binding widths must be closed integer constants".to_owned()
+            })?;
+        widths[index] = literal
+            .value_u64()
+            .ok_or_else(|| "ordinary external `via` Binding width does not fit u64".to_owned())?;
     }
     Ok(widths)
 }

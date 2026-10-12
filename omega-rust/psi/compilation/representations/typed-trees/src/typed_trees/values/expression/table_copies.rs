@@ -76,6 +76,9 @@ impl ExpressionTable {
         let arguments = origin
             .static_machine_application_arguments(application)
             .to_vec();
+        let argument_parameters = origin
+            .static_machine_application_argument_parameters(application)
+            .to_vec();
         let bindings = origin
             .static_machine_application_bindings(application)
             .to_vec();
@@ -92,8 +95,21 @@ impl ExpressionTable {
         );
         self.static_machine_application_mut(copy).lexical_owner = declaration.lexical_owner;
         self.static_machine_application_mut(copy)
+            .captured_lexical_scope = declaration.captured_lexical_scope;
+        self.static_machine_application_mut(copy)
             .binding_declaration = declaration.binding_declaration;
+        self.static_machine_application_mut(copy).selected_interface =
+            declaration.selected_interface;
+        self.static_machine_application_mut(copy)
+            .receiving_data_parameter = declaration.receiving_data_parameter;
+        // Expression storage does not own type arenas. The shared semantic
+        // append cursor relocates this source span together with binding graphs.
+        self.set_static_machine_application_enclosing_data_applications(
+            copy,
+            declaration.enclosing_data_applications,
+        );
         self.set_static_machine_application_bindings(copy, &bindings);
+        self.set_static_machine_application_argument_parameters(copy, &argument_parameters);
         self.set_static_machine_application_selected_machines(copy, &selected);
         self.set_static_machine_application_lifetimes(copy, &lifetimes);
         copy
@@ -185,38 +201,8 @@ impl ExpressionTable {
             }
             ExpressionNode::Cast(cast) => self.remap_symbols_in_inner(cast.value, symbols, visited),
             ExpressionNode::Call(call) => {
-                self.remap_symbols_in_inner(call.receiver, symbols, visited);
-                if call.authored_machine_application.is_valid() {
-                    let application =
-                        self.static_machine_application_mut(call.authored_machine_application);
-                    application.lexical_owner = remapped(application.lexical_owner, symbols);
-                    for argument in self
-                        .static_machine_application_arguments_mut(call.authored_machine_application)
-                    {
-                        argument.remap_symbols(symbols);
-                    }
-                    for binding in self
-                        .static_machine_application_bindings_mut(call.authored_machine_application)
-                    {
-                        binding.remap_symbols(symbols);
-                    }
-                    for argument in self.static_machine_application_selected_machines_mut(
-                        call.authored_machine_application,
-                    ) {
-                        argument.remap_symbols(symbols);
-                    }
-                }
-                let arguments = self.expression_handles(call.arguments).to_vec();
-                for argument in arguments {
-                    self.remap_symbols_in_inner(argument, symbols, visited);
-                }
-                let ExpressionNode::Call(call) = self.expression_mut(root) else {
-                    unreachable!();
-                };
-                call.target_symbol = remapped(call.target_symbol, symbols);
-                for argument in &mut call.machine_arguments {
-                    argument.remap_symbols(symbols);
-                }
+                let call = self.remap_call_symbols(call, symbols, visited);
+                *self.expression_mut(root) = ExpressionNode::Call(call);
             }
             ExpressionNode::Indexed(indexed) => {
                 self.remap_symbols_in_inner(indexed.collection, symbols, visited);
@@ -266,6 +252,58 @@ impl ExpressionTable {
         }
     }
 
+    fn remap_call_symbols(
+        &mut self,
+        mut call: TableCallExpression,
+        symbols: &[(SymbolHandle, SymbolHandle)],
+        visited: &mut Vec<ExpressionHandle>,
+    ) -> TableCallExpression {
+        if call.source_call.is_valid() {
+            let original = self.source_calls.get(call.source_call).clone();
+            let original = self.remap_call_symbols(original, symbols, visited);
+            *self.source_calls.get_mut(call.source_call) = original;
+        }
+        self.remap_symbols_in_inner(call.receiver, symbols, visited);
+        if call.authored_machine_application.is_valid() {
+            let application =
+                self.static_machine_application_mut(call.authored_machine_application);
+            if !application.captured_lexical_scope.is_valid() {
+                application.lexical_owner = remapped(application.lexical_owner, symbols);
+            }
+            for argument in
+                self.static_machine_application_arguments_mut(call.authored_machine_application)
+            {
+                argument.remap_symbols(symbols);
+            }
+            for binding in
+                self.static_machine_application_bindings_mut(call.authored_machine_application)
+            {
+                binding.remap_symbols(symbols);
+            }
+            for argument in self
+                .static_machine_application_selected_machines_mut(call.authored_machine_application)
+            {
+                argument.remap_symbols(symbols);
+            }
+        }
+        let arguments = self.expression_handles(call.arguments).to_vec();
+        for argument in arguments {
+            self.remap_symbols_in_inner(argument, symbols, visited);
+        }
+        call.target_symbol = remapped(call.target_symbol, symbols);
+        call.static_machine_parameter = remapped(call.static_machine_parameter, symbols);
+        if let Some(dispatch) = &mut call.static_requirement_dispatch {
+            dispatch.realization_machine = remapped(dispatch.realization_machine, symbols);
+            dispatch.realization_state = remapped(dispatch.realization_state, symbols);
+            dispatch.requirement = remapped(dispatch.requirement, symbols);
+            dispatch.declaring_trait = remapped(dispatch.declaring_trait, symbols);
+        }
+        for argument in &mut call.machine_arguments {
+            argument.remap_symbols(symbols);
+        }
+        call
+    }
+
     pub fn copy_expression_handles_from(
         &mut self,
         source: &ExpressionTable,
@@ -311,6 +349,35 @@ impl ExpressionTable {
         self.copy_expression_list_with_occurrences(source, expressions, retain, &mut Vec::new())
     }
 
+    /// Source and executable call payloads share one copy operation. Their
+    /// operands use the same DAG correspondence, so retained public arguments
+    /// cannot become separately evaluated copies of the executable arguments.
+    fn copy_call_payload<RetainField>(
+        &mut self,
+        source: CopySource<'_>,
+        mut call: TableCallExpression,
+        retain: &RetainField,
+        copies: &mut Vec<(ExpressionHandle, ExpressionHandle)>,
+    ) -> TableCallExpression
+    where
+        RetainField: Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
+    {
+        if call.source_call.is_valid() {
+            let original = source
+                .table(self)
+                .source_calls
+                .get(call.source_call)
+                .clone();
+            let copied = self.copy_call_payload(source, original, retain, copies);
+            call.source_call = self.source_calls.insert(copied);
+        }
+        call.receiver = self.copy_optional_subtree(source, call.receiver, retain, copies);
+        call.arguments = self.copy_expression_span(source, call.arguments, retain, copies);
+        call.authored_machine_application =
+            self.copy_static_machine_application(source, call.authored_machine_application);
+        call
+    }
+
     fn copy_subtree_with_occurrences<RetainField>(
         &mut self,
         source: CopySource<'_>,
@@ -326,6 +393,18 @@ impl ExpressionTable {
         }
         let origin = source.table(self);
         let source_span = origin.source_span(expression);
+        let source_origin = origin.expression_source_origin(expression);
+        let selected = origin.selected_const_match_result(expression);
+        let selected_meaning = origin.selected_const_match_meaning(expression);
+        let selected_ordinal =
+            if let ExpressionNode::Match(dispatch) = origin.expression(expression) {
+                origin
+                    .match_arms(dispatch.arms)
+                    .iter()
+                    .position(|arm| arm.value == selected)
+            } else {
+                None
+            };
         let authority = origin.index_expression_authority(expression).cloned();
         let occurrences = origin
             .authored_selection_occurrences(expression)
@@ -401,26 +480,8 @@ impl ExpressionTable {
                 }))
             }
             ExpressionNode::Call(call) => {
-                let receiver = self.copy_optional_subtree(source, call.receiver, retain, copies);
-                let arguments = self.copy_expression_span(source, call.arguments, retain, copies);
-                let authored_machine_application =
-                    self.copy_static_machine_application(source, call.authored_machine_application);
-                self.insert(ExpressionNode::Call(TableCallExpression {
-                    authored_machine_application,
-                    exact_coercion_target: call.exact_coercion_target,
-                    receiver,
-                    target_symbol: call.target_symbol,
-                    target: call.target,
-                    static_requirement_dispatch: call.static_requirement_dispatch,
-                    static_machine_parameter: call.static_machine_parameter,
-                    machine_arguments: call.machine_arguments,
-                    quotient_operation: call.quotient_operation,
-                    private_layout_operation: call.private_layout_operation,
-                    layout_query: call.layout_query,
-                    arguments,
-                    evidence_arguments: call.evidence_arguments,
-                    operational_acknowledgement: call.operational_acknowledgement,
-                }))
+                let call = self.copy_call_payload(source, call, retain, copies);
+                self.insert(ExpressionNode::Call(call))
             }
             ExpressionNode::Float(value) => self.insert(ExpressionNode::Float(value)),
             ExpressionNode::UndeterminedNaN(format) => {
@@ -499,6 +560,13 @@ impl ExpressionTable {
             }
         };
         self.set_source_span(copied, source_span);
+        self.retain_expression_source_origin(copied, source_origin);
+        if let Some(ordinal) = selected_ordinal
+            && let ExpressionNode::Match(dispatch) = self.expression(copied)
+        {
+            let selected = self.match_arms(dispatch.arms)[ordinal].value;
+            self.retain_selected_const_match_result(copied, selected, selected_meaning);
+        }
         self.attach_authored_selection_occurrences(copied, occurrences);
         if let Some(mut authority) = authority {
             if let Some(operation) = &mut authority.operation {

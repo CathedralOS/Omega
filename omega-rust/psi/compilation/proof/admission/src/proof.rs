@@ -85,6 +85,9 @@ pub struct CertificateAcceptance {
     pub mathematical_core: MathematicalCoreDecision,
 }
 
+mod mathematical_judgment;
+pub use mathematical_judgment::{AcceptedMathematicalAssumption, AcceptedMathematicalJudgment};
+
 /// The common mathematical core's part in one accepted certificate.
 ///
 /// This is the receiving checker's own record, never a producer claim: it
@@ -94,8 +97,9 @@ pub struct CertificateAcceptance {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MathematicalCoreDecision {
     /// The certificate denoted into the core and the kernel re-decided the
-    /// judgment `Γ ⊢ t : ⟦goal⟧`; the receipt measures that judgment.
-    Judged(MathematicalJudgmentReceipt),
+    /// judgment `Γ ⊢ t : ⟦goal⟧`; the original owner, used assumptions
+    /// and receipt remain together.
+    Judged(AcceptedMathematicalJudgment),
     /// A valid certificate construction the denotation does not cover —
     /// named by the payload — so the kernel decided nothing and the
     /// bounded rules stand alone. Refusal is never a rejection.
@@ -322,7 +326,7 @@ fn re_decide_in_mathematical_core(
         // recursion has returned; collect the exact closure on that same
         // stack instead of spawning a second worker per accepted certificate.
         Ok(denoted) => Ok(MathematicalCoreDecision::Judged(
-            denoted.receipt_on_current_thread(),
+            denoted.into_accepted_judgment_on_current_thread(),
         )),
         Err(BoundedDenotationError::Unsupported(family)) => {
             Ok(MathematicalCoreDecision::Refused(family))

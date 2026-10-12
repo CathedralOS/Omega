@@ -16,6 +16,8 @@ use symbols::SymbolHandle;
 use typed_trees::data::DataMember;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+mod data_members;
+
 type Substitutions = Vec<(SymbolHandle, TypeReferenceHandle)>;
 
 /// Whether the occurrence's facts rule out the case a residual path selects.
@@ -353,39 +355,18 @@ fn visit(
             has_erased_obligations,
             inactive_case,
         ),
-        TypeReferenceNode::Generic {
-            base_symbol,
-            arguments,
-            ..
-        } => {
-            let data = program.data_definition_by_symbol(*base_symbol)?;
-            let parameters = program.data_type_parameters(data);
-            let arguments = program
-                .type_reference_table
-                .type_reference_handles(*arguments);
-            if parameters.len() != arguments.len() {
-                return None;
-            }
-            let mut nested: Substitutions = substitutions.to_vec();
-            nested.extend(
-                parameters
-                    .iter()
-                    .zip(arguments)
-                    .map(|(parameter, argument)| (parameter.symbol, *argument)),
-            );
-            visit_owner(
-                program,
-                *base_symbol,
-                reference,
-                &nested,
-                removed,
-                active,
-                path,
-                leaves,
-                has_erased_obligations,
-                inactive_case,
-            )
-        }
+        TypeReferenceNode::Generic { base_symbol, .. } => visit_owner(
+            program,
+            *base_symbol,
+            reference,
+            substitutions,
+            removed,
+            active,
+            path,
+            leaves,
+            has_erased_obligations,
+            inactive_case,
+        ),
         // A selector names an implementation table and owns no data, so it
         // contributes no cleanup leaf.
         TypeReferenceNode::Reference { .. }
@@ -443,7 +424,7 @@ fn visit_owner(
     let symbol = program
         .machine_by_symbol(symbol)
         .map_or(symbol, |machine| machine.attached_data_symbol);
-    let Some(data) = program.data_definition_by_symbol(symbol) else {
+    let Some(owner) = data_members::owner(program, reference, substitutions) else {
         return match program.symbols.get(symbol).kind {
             symbols::SymbolKind::BuiltinType => Some(()),
             symbols::SymbolKind::TypeParameter if removed.is_empty() => {
@@ -456,6 +437,8 @@ fn visit_owner(
             _ => None,
         };
     };
+    let data = owner.declaration;
+    let substitutions = owner.substitutions.as_slice();
     let nominal = validation::nominal_cleanup_machine_for_type(program, reference, substitutions)
         .map(|machine| machine.symbol);
     if data.properties.multiplicity == Multiplicity::Linear && nominal.is_none() {
@@ -667,48 +650,22 @@ fn select_type(
         return Some((reference, substitutions.to_vec()));
     }
     reference = resolve_peeled_type_reference(program, reference, substitutions);
-    let (symbol, nested) = match program.type_reference_table.type_reference(reference) {
-        TypeReferenceNode::FixedArray {
-            element_type,
-            length,
-        } => {
-            let length = program.closed_array_extent(length, substitutions)?;
-            let PlaceSegment::FixedIndex { index } = path[0] else {
-                return None;
-            };
-            return (index < length)
-                .then(|| select_type(program, *element_type, substitutions, &path[1..]))
-                .flatten();
-        }
-        TypeReferenceNode::Named { symbol, .. } => (*symbol, substitutions.to_vec()),
-        TypeReferenceNode::Generic {
-            base_symbol,
-            arguments,
-            ..
-        } => {
-            let data = program.data_definition_by_symbol(*base_symbol)?;
-            let arguments = program
-                .type_reference_table
-                .type_reference_handles(*arguments);
-            let parameters = program.data_type_parameters(data);
-            if arguments.len() != parameters.len() {
-                return None;
-            }
-            let mut nested = substitutions.to_vec();
-            nested.extend(
-                parameters
-                    .iter()
-                    .zip(arguments)
-                    .map(|(parameter, argument)| (parameter.symbol, *argument)),
-            );
-            (*base_symbol, nested)
-        }
-        _ => return None,
-    };
-    let symbol = program
-        .machine_by_symbol(symbol)
-        .map_or(symbol, |machine| machine.attached_data_symbol);
-    let data = program.data_definition_by_symbol(symbol)?;
+    if let TypeReferenceNode::FixedArray {
+        element_type,
+        length,
+    } = program.type_reference_table.type_reference(reference)
+    {
+        let length = program.closed_array_extent(length, substitutions)?;
+        let PlaceSegment::FixedIndex { index } = path[0] else {
+            return None;
+        };
+        return (index < length)
+            .then(|| select_type(program, *element_type, substitutions, &path[1..]))
+            .flatten();
+    }
+    let owner = data_members::owner(program, reference, substitutions)?;
+    let data = owner.declaration;
+    let nested = owner.substitutions;
     let members = program.data_members(data);
     let (field, suffix) = match path[0] {
         PlaceSegment::Field { symbol } => {

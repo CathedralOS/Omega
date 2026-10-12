@@ -10,7 +10,10 @@
 //! reserve. Their independent settlement rejoins the exact syscall and plan;
 //! preparation never grants receiving authority or recognizes service names.
 
+mod direct_foreign;
 mod syscalls;
+pub use direct_foreign::PreparedDirectForeignBinding;
+pub(crate) use direct_foreign::prepare_direct_foreign_bindings;
 
 use super::{NativeBoundaryRealization, NativeProviderSettlement};
 use diagnostics::Diagnostic;
@@ -88,7 +91,10 @@ pub(crate) fn prepare_source_evaluated_bindings<'input>(
         SourceImportEvidence::Supplied(rejoin_external_import_settlements(&exact_plans, supplied)?)
     };
     let syscalls = syscalls::prepare_system_calls(plans, demanded)?;
-    Ok(PreparedSourceEvaluatedBindings { evidence, syscalls })
+    Ok(PreparedSourceEvaluatedBindings {
+        evidence,
+        syscalls,
+    })
 }
 
 impl PreparedSourceEvaluatedBindings<'_> {
@@ -256,14 +262,14 @@ fn mint_source_evaluated_imports<'plan>(
             match admit_same_stack_contribution(
                 SameStackContributionAdmissionCandidate {
                     provider_plan_report_identity: plan_report_identity,
-                    provider_plan_commitment: plan_commitment,
+                    provider_plan_commitment: plan_commitment.into(),
                     requirement_identity: requirement_index,
                     receipt,
                     bytes: SAME_STACK_BYTES,
                     alignment: SAME_STACK_ALIGNMENT,
                 },
                 plan_report_identity,
-                plan_commitment,
+                plan_commitment.into(),
                 requirement_index,
             ) {
                 Ok(same_stack) => minted.push(MintedSourceEvaluatedImport {

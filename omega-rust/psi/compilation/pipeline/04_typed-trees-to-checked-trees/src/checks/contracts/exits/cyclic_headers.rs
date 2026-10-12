@@ -40,7 +40,7 @@
 use crate::checks::unsigned;
 use arena::Handle;
 use checked_trees::{CheckFacts, ContractProofFactKind, FlowExitFact, FlowStateFact};
-use facts::{ContractFactKind, FactOrigin, FactPayload};
+use facts::{FactOrigin, FactPayload};
 use language_core::OperatorSpelling;
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
@@ -273,7 +273,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
         hypotheses: &[ScopedArithmeticHypothesis],
         goal: &ScopedArithmeticExpression,
     ) -> bool {
-        scoped_arithmetic_implication(self.program, self.machine, hypotheses, goal)
+        scoped_arithmetic_implication(self.program, self.machine.symbol, hypotheses, goal)
             == StrictArithmeticImplicationJudgment::Proven
     }
 
@@ -425,11 +425,11 @@ impl<'program, 'facts> Header<'program, 'facts> {
         }
         let (expression, holds) = match fact.payload {
             FactPayload::ContractBooleanExpression {
-                kind: ContractFactKind::Requires,
+                kind,
                 expression,
                 instantiated,
                 ..
-            } if !instantiated.is_valid() => (expression, true),
+            } if kind.is_body_assumption() && !instantiated.is_valid() => (expression, true),
             FactPayload::BooleanValue { expression, value } => (expression, value),
             _ => return None,
         };

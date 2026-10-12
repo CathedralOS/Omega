@@ -229,6 +229,25 @@ pub fn evaluate_pre_resolution(
 pub struct SelectedBuildTimeOperators<'a> {
     pub operators: &'a [SelectedBuildTimeBinaryOperator],
     pub provider_bodies: &'a [SelectedBuildTimeProviderBody],
+    pub admission: BuildTimeCheckingAdmission<'a>,
+}
+
+/// The source invocation's actual elaboration and declaration admission.
+/// Dependency checking and its interpreter consume the same preparation;
+/// provider choice cannot supply package or completion authority.
+#[derive(Clone, Copy)]
+pub struct BuildTimeCheckingAdmission<'request> {
+    pub preparation: typed_trees_to_typed_trees::PreparationRequest<'request>,
+    pub checking: typed_trees_to_checked_trees::CheckingRequest<'request>,
+}
+
+impl Default for BuildTimeCheckingAdmission<'_> {
+    fn default() -> Self {
+        Self {
+            preparation: typed_trees_to_typed_trees::PreparationRequest::settled(),
+            checking: typed_trees_to_checked_trees::CheckingRequest::new(),
+        }
+    }
 }
 
 /// The sources one syntax-phase evaluation resolves against: the source map,
@@ -447,7 +466,7 @@ impl PreCheckEvaluation {
             typed,
             self.selection_authority.clone(),
             &self.domain,
-        )? || data_layout_queries::pending_layout_queries_need_operator_selection(typed)
+        )? || data_layout_queries::pending_layout_queries_in(typed, &self.domain)
         {
             range_endpoints::defer_pending_endpoint_calls_in(typed, &self.domain)?;
             const_applications::defer_pending_const_applications(typed, &self.domain)?;
@@ -479,6 +498,47 @@ impl PreCheckEvaluation {
         Ok(pending)
     }
 
+    /// Resume pending source positions with executed Build choices, before any
+    /// target realization. This uses the existing evaluator and its ordinary
+    /// checking; no source provider choice is a native execution commitment.
+    pub fn complete_source(
+        self,
+        typed: &mut typed_trees::TypedTrees,
+        selections: &[crate::SourceProviderSelection],
+        admission: BuildTimeCheckingAdmission<'_>,
+    ) -> Result<crate::SourceConstantOutcome, Vec<diagnostics::Diagnostic>> {
+        let mut demands = crate::source_constants::SourceConstantDemands::default();
+        const_lengths::source_constant_demands(typed, &self.domain, &mut demands);
+        const_applications::source_constant_demands(typed, &self.domain, &mut demands);
+        range_endpoints::source_constant_demands(typed, &self.domain, &mut demands)?;
+        const_domain_facts::source_constant_demands(typed, &self.domain, &mut demands);
+        let bodies = match crate::source_constants::source_provider_bodies(
+            typed, &self.domain, &demands, selections,
+        )? {
+            crate::source_constants::SourceProviderBodies::Complete(bodies) => bodies,
+            crate::source_constants::SourceProviderBodies::Retained(reason) => {
+                return Ok(crate::SourceConstantOutcome::Retained { continuation: self, reason });
+            }
+        };
+        // Target observations retain their original operands. Until this
+        // common recipe can be lowered through Terminal, neither a target's
+        // layout nor an arbitrary scalar can complete the source judgment.
+        if data_layout_queries::pending_layout_queries_in(typed, &self.domain) {
+            return Ok(crate::SourceConstantOutcome::Retained {
+                continuation: self,
+                reason: "portable source layout observation remains a retained recipe",
+            });
+        }
+        self.evaluate_selected_operators(typed, SelectedBuildTimeOperators {
+            operators: &[], provider_bodies: &bodies, admission,
+        })?;
+        Ok(crate::SourceConstantOutcome::Completed {
+            supplies: bodies.into_iter().map(|body| crate::SourceConstantSupply {
+                body,
+            }).collect(),
+        })
+    }
+
     /// Finish the deferred const work under exact selected execution.
     /// `operators` supplies the sealed primitive-float meanings and
     /// `provider_bodies` the exact selected checked provider bodies; each
@@ -500,7 +560,7 @@ impl PreCheckEvaluation {
         )?;
         self.selected_operators = selected.operators.to_vec();
         self.provider_bodies = selected.provider_bodies.to_vec();
-        self.evaluate(typed)
+        self.evaluate_admitted(typed, selected.admission)
     }
 
     /// Consume the exact continuation produced before name resolution.
@@ -509,13 +569,22 @@ impl PreCheckEvaluation {
     /// but the language-level evaluation order and selection authority remain
     /// owned by this continuation.
     pub fn evaluate(
-        mut self,
+        self,
         typed: &mut typed_trees::TypedTrees,
     ) -> Result<(), Vec<diagnostics::Diagnostic>> {
-        const_lengths::evaluate_const_array_lengths_in(
+        self.evaluate_admitted(typed, BuildTimeCheckingAdmission::default())
+    }
+
+    fn evaluate_admitted(
+        mut self,
+        typed: &mut typed_trees::TypedTrees,
+        admission: BuildTimeCheckingAdmission<'_>,
+    ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+        const_lengths::evaluate_admitted_array_lengths(
             typed,
             self.selection_authority.clone(),
             &self.domain,
+            admission,
         )?;
         range_endpoints::evaluate_selected_range_endpoints(
             typed,
@@ -523,6 +592,7 @@ impl PreCheckEvaluation {
             SelectedBuildTimeOperators {
                 operators: &self.selected_operators,
                 provider_bodies: &self.provider_bodies,
+                admission,
             },
             &self.domain,
         )?;
@@ -532,6 +602,7 @@ impl PreCheckEvaluation {
             SelectedBuildTimeOperators {
                 operators: &self.selected_operators,
                 provider_bodies: &self.provider_bodies,
+                admission,
             },
             &self.domain,
         )?;
@@ -541,6 +612,7 @@ impl PreCheckEvaluation {
             SelectedBuildTimeOperators {
                 operators: &self.selected_operators,
                 provider_bodies: &self.provider_bodies,
+                admission,
             },
             &mut self.domain,
         )?;
@@ -548,6 +620,7 @@ impl PreCheckEvaluation {
             typed,
             self.selection_authority.clone(),
             &self.domain,
+            admission,
         )?;
         plan_laid::compute_plan_laid_layouts_in(
             typed,

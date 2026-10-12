@@ -30,6 +30,7 @@ mod sealed {
     impl Sealed for super::CheckingProjection<'_> {}
     impl Sealed for crate::layout_checking::LayoutCheckingContext<'_> {}
     impl Sealed for typed_trees::FrozenTypedTrees {}
+    impl Sealed for crate::mathematical_applications::SourceContractJudgment<'_> {}
 }
 
 /// Read-only source checking input. A prepared invocation owns reusable memos;

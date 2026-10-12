@@ -7,11 +7,14 @@
 //! (`src/proof.rs`); `checked-trees-to-lowered-psi` reads it through
 //! `checked.facts.proof`.
 //!
-//! `obligations` defines the proof obligation rows; `contracts` the contract
+//! `obligations` defines the proof obligation rows and their original accepted
+//! judgments (including kernel-local declaration owners); `contracts` the contract
 //! proof facts, evidence terms and arguments, proof-output calls and
 //! outcome-specific guarantees; `float_meaning` the proof-only float meaning projections and semantic
 //! applications; `propositions` the nominal proposition vocabulary; and
-//! `mathematical` the checked mathematical declarations. `lemmas` defines
+//! `mathematical` the checked mathematical declarations. `source_entailment`
+//! retains original positive source guarantees and their prepared application
+//! reads separately from kernel acceptance. `lemmas` defines
 //! `LemmaFacts` (length, bounds and window lemmas and quantified range
 //! facts), which is not a field of `ProofFacts`.
 
@@ -22,6 +25,7 @@ mod mathematical;
 mod obligations;
 mod propositions;
 mod roots;
+mod source_entailment;
 
 pub use contracts::{
     BoundaryQualificationAuthorization, CheckedEvidenceTerm, ContractCallFact,
@@ -50,11 +54,13 @@ pub use lemmas::{
     LemmaFacts, ProofLemmaFact, ProofLemmaKind, QuantifiedBoundFact, QuantifiedRangeFact,
 };
 pub use mathematical::{
+    CheckedMathematicalApplication, CheckedMathematicalApplicationCapture,
     CheckedMathematicalBinder, CheckedMathematicalBinderKind, CheckedMathematicalBody,
     CheckedMathematicalDeclaration, CheckedMathematicalParameter, CheckedMathematicalSignature,
 };
 pub use obligations::{
-    CheckedIntegerAssignmentDecision, ProofFactKind, ProofObligationFact, ProofObligationOwner,
+    CheckedIntegerAssignmentDecision, CheckedProofJudgment, ProofFactKind, ProofObligationFact,
+    ProofObligationOwner,
 };
 pub use propositions::{
     CheckedEvidenceInterfaceIdentity, CheckedEvidenceProjection,
@@ -64,3 +70,7 @@ pub use propositions::{
     CheckedPropositionVocabulary,
 };
 pub use roots::ProofFacts;
+pub use source_entailment::{
+    CheckedSourceContractDecision, CheckedSourceContractEntailment,
+    CheckedSourceContractEntailments,
+};

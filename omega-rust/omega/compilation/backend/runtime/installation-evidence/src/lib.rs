@@ -29,9 +29,10 @@ impl InstalledArtifactOccurrenceDigest {
 /// Exact admitted provider-execution identity projected into terminal
 /// lowering and installation records.
 pub trait ProviderExecutionEvidence: std::fmt::Debug {
-    /// Canonical terminal requirement identity selected by this admitted
-    /// execution. Lowering compares this value with the exact bodyless
-    /// boundary declaration before it projects the numeric execution record.
+    /// Original requirement identity selected by this admitted execution.
+    /// Stage-00 admission joins it to the exact public bodyless boundary using
+    /// selected-plan application custody. Target lowering retains that admitted
+    /// correspondence beside this unchanged evidence before projecting reports.
     fn requirement_identity(&self) -> &str;
     fn provider_plan_report_identity(&self) -> u64;
     fn provider_execution_report_identity(&self) -> u64;

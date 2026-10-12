@@ -178,7 +178,7 @@ pub(super) fn value_call_result_is_admitted(
     ) {
         return true;
     }
-    let Some(call) = program.expression_table.call_node(expression) else {
+    let Some(call) = program.expression_table.source_call_node(expression) else {
         return false;
     };
     let Some((_, state)) = machine_state_by_symbol(program, call.target_symbol).or_else(|| {

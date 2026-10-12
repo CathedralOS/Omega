@@ -132,12 +132,11 @@ pub(super) fn infer_hoist_temp_type(
             };
             let target_name = call.target.as_str().to_string();
             let mut machine_substitutions = Vec::new();
-            let declared_state = crate::expressions::call_results::declared_call_state(
+            let declared_result = crate::expressions::call_results::declared_call_return_type(
                 lowerer.source_trees,
                 target_symbol,
             );
-            let declared_return = declared_state
-                    .and_then(|candidate| candidate.storage.return_type.clone())
+            let declared_return = declared_result.cloned()
                     .or_else(|| {
                         static_conformance_requirement_return(lowerer, state, call)
                     })

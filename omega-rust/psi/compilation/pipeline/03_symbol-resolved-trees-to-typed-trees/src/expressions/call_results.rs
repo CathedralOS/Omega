@@ -21,6 +21,36 @@ pub(crate) fn declared_call_state(
         .map(|(_, state)| state)
 }
 
+/// Source typing reads the selected declaration's authored result before
+/// preparation produces public application headers. Requirement signatures
+/// live in their own arena; they must not be mistaken for machine states.
+/// Preserve the original generic graph here, as for ordinary machines; the
+/// existing inferred-result refresh consumes the completed application later.
+pub(crate) fn declared_call_return_type(
+    program: &resolved::SymbolResolvedTrees,
+    target: SymbolHandle,
+) -> Option<&resolved::types::TypeReference> {
+    if let Some(state) = declared_call_state(program, target) {
+        return state.storage.return_type.as_ref();
+    }
+    if !target.is_valid() || program.symbols.get(target).kind != SymbolKind::State {
+        return None;
+    }
+    let owner = program.trait_definition(program.symbols.get(target).parent)?;
+    if !owner.is_boundary {
+        return None;
+    }
+    let mut signatures = program
+        .trait_machine_signatures(owner.storage.machines)
+        .iter()
+        .filter(|signature| signature.symbol == target);
+    let signature = signatures.next()?;
+    if signatures.next().is_some() {
+        return None;
+    }
+    signature.storage.return_type.as_ref()
+}
+
 pub(crate) fn peel<'program>(
     program: &'program resolved::SymbolResolvedTrees,
     mut reference: &'program resolved::types::TypeReference,

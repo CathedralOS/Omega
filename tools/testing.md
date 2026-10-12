@@ -329,7 +329,13 @@ Duplicate execution-fact keys are malformed runner evidence and fail as
 infrastructure errors rather than overwriting an earlier observation.
 These native oracles are enforced before golden comparison or `--record`, so
 re-recording cannot bless a wrong runtime result. Bind the host in `build.omg`
-when providing an oracle. Without an oracle, the existing observation-only
+when providing an oracle. A successfully built foreign artifact with no launcher
+on the physical host records `native:skipped-target`, `native-target:<target>`
+and `native-host:<host>` from the runner's actual target profiles. This explicit
+disposition skips native exit and stream comparisons; it is not an observed
+exit or output match. On-host missing execution, refusals and incomplete skip
+records still fail. Interpreter oracles remain mandatory. Without an oracle,
+the existing observation-only
 golden behavior is unchanged. `--both` also attempts the admitted Terminal
 program/instance core, sharing the native report's exact artifact/profile for
 identical targets without replaying Build. `interpreter:trapped` requires the

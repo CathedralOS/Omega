@@ -41,6 +41,9 @@ pub struct FlowCallFact {
     /// `Namespace::requirement(...)` call's selected boundary declaration, or
     /// a named transition's path. `target_symbol` is the resolved state.
     pub authored_target: SymbolHandle,
+    /// Original invocation tuple under this same typed-tree owner. Generated
+    /// public headers must rejoin it before their copied formals are consumed.
+    pub authored_application: typed_trees::static_applications::StaticMachineApplicationHandle,
     /// Explicit arguments in source order, without a receiver spelled before
     /// the call. Rows live in [`super::FlowControlFacts::call_arguments`].
     pub authored_arguments: HandleSpan<typed_trees::expression::ExpressionHandle>,

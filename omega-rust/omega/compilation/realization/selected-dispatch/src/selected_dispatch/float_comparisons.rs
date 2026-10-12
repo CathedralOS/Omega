@@ -16,6 +16,7 @@ pub(super) fn selected_executions(
     checked: &CheckedTrees,
     scope: source::DependencyScope,
     providers: &[SelectedProviderReviewProvenance],
+    selected_target_profile: Option<target::TargetProfile>,
 ) -> Result<Vec<CheckedSelectedFloatComparisonExecution>, Vec<Diagnostic>> {
     let context = ProviderPlanningContext::new(checked, scope);
     let mut executions = Vec::new();
@@ -62,22 +63,42 @@ pub(super) fn selected_executions(
             }
             continue;
         };
+        let [realization] = provider.provider.row_realizations.as_slice() else {
+            return Err(fail("selected provider lost its exact realization custody"));
+        };
         if matches.next().is_some()
             || provider.provider.row_requirements.as_slice() != [requirement]
-            || provider.provider.row_realizations.len() != 1
-            || !context.contains(provider.provider.row_realizations[0])
+            || !context.contains(*realization)
         {
             return Err(fail(
                 "selected provider lost its exact requirement or realization custody",
             ));
         }
         let plan = &provider.plan;
-        let execution = super::derive_selected_primitive_float_binary_execution(
-            checked,
-            plan,
-            operator_use.selected_operator_symbol,
-        )
-        .map_err(|diagnostic| vec![diagnostic])?;
+        let execution = match &provider.selected_by {
+            provider_planning::ProviderSelectionProvenance::CompilerCatalog(choice) => {
+                let identity = choice
+                    .row_execution(
+                        plan,
+                        requirement,
+                        *realization,
+                        selected_target_profile.map(target::TargetProfile::target_name),
+                    )
+                    .map_err(|diagnostic| vec![diagnostic])?;
+                match identity {
+                    identity @ CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary {
+                        ..
+                    } => Some(identity),
+                    _ => None,
+                }
+            }
+            _ => super::derive_selected_primitive_float_binary_execution(
+                checked,
+                plan,
+                operator_use.selected_operator_symbol,
+            )
+            .map_err(|diagnostic| vec![diagnostic])?,
+        };
         let Some(execution) = execution else {
             // A checked adapter is not an intrinsic execution child. Its
             // separate call custody cannot be inferred from source equality.

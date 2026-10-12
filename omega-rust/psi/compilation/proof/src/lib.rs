@@ -1,8 +1,10 @@
 //! Typed-program proof obligations and their checking.
 //!
 //! The checking stage calls `obligations::build_proof_plan` to collect obligations
-//! from typed trees, then `checker::check_proof_plan` to discharge them or report
-//! diagnostics. `obligations` owns construction and identity; `checker` owns
+//! from typed trees, then `checker::check_proof_plan_with_decisions` to discharge
+//! them or report diagnostics. Successful checking transfers original accepted
+//! judgments and integer assignment decisions into checked-tree fact arenas;
+//! downstream consumers do not reconstruct the kernel assumption closure. `obligations` owns construction and identity; `checker` owns
 //! the checking sequence, range reasoning and certificate decisions. Both read
 //! the shared type, place and dehoisting queries in `typed_expressions`.
 //!

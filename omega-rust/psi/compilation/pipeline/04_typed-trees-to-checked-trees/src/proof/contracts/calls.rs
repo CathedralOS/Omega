@@ -21,8 +21,23 @@ pub(crate) fn build_contract_call_facts(
 
     for state in borrow.states.iter().map(|(_, state)| state) {
         for call in borrow.calls.span_or_empty(state.calls) {
-            let Some(contract_owner) =
-                contract_target_from_state_symbol(program, call.target_symbol)
+            let Some(source_site) = validation::find_source_call_site(
+                program,
+                state.machine_symbol,
+                state.state_symbol,
+                call.statement_index,
+                call.call_ordinal,
+            ) else {
+                // Common invocation validation rejects missing source custody.
+                // A private provider endpoint cannot supply its public contract.
+                continue;
+            };
+            let Some(source_target) = source_site.source_target_symbol(program, call.target_symbol)
+            else {
+                continue;
+            };
+            let call_site = Some(source_site);
+            let Some(contract_owner) = contract_target_from_state_symbol(program, source_target)
             else {
                 continue;
             };
@@ -31,19 +46,12 @@ pub(crate) fn build_contract_call_facts(
             // Naming the requirement as the target would pair its formals with
             // operands one position early.
             let (target_machine_symbol, target_state_symbol) =
-                if program.dynamic_slot_by_symbol(call.target_symbol).is_some() {
-                    (call.target_symbol, call.target_symbol)
+                if program.dynamic_slot_by_symbol(source_target).is_some() {
+                    (source_target, source_target)
                 } else {
                     contract_owner
                 };
 
-            let call_site = validation::find_call_site(
-                program,
-                state.machine_symbol,
-                state.state_symbol,
-                call.statement_index,
-                call.call_ordinal,
-            );
             let contract_target = call_site
                 .as_ref()
                 .and_then(validation::CallSite::static_requirement_dispatch)
@@ -345,11 +353,7 @@ pub(crate) fn contract_target_from_state_symbol(
     // A call through a trait-typed receiver targets a trait machine signature
     // rather than a machine state; the owning trait stands in for the machine
     // so the signature's requires/ensures contracts attach to the call.
-    if let Some(target_trait) = program.traits().iter().find(|trait_definition| {
-        program
-            .trait_machine_signature_by_symbol(trait_definition, target_state_symbol)
-            .is_some()
-    }) {
+    if let Some((target_trait, _)) = program.trait_machine_signature(target_state_symbol) {
         return Some((target_trait.symbol, target_state_symbol));
     }
 

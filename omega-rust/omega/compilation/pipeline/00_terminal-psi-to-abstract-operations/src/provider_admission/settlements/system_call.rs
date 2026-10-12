@@ -1,4 +1,6 @@
-//! Join a kernel entry to its exact selected provider and evaluated ABI.
+//! Join a public kernel application to its original selected provider authority.
+//! The applied external row owns physical geometry; the original selected row
+//! still owns the syscall number, target, requirement and provider commitment.
 //! A syscall number is payload, never authority or a service-name recognizer.
 //! Unlike imports this entry needs no foreign same-stack reserve. Native
 //! lowering must independently match the retained plan to the caller's actual
@@ -16,6 +18,7 @@ pub(super) fn rejoin_system_call(
     selected_plan: &ProviderPlan,
     external_rows: &[ExternalBindingRow],
     requirement: &str,
+    binding_application: &str,
     target: NativeTarget,
 ) -> Result<NormalizedForeignCallBinding, Vec<Diagnostic>> {
     let invalid = |reason| {
@@ -48,7 +51,7 @@ pub(super) fn rejoin_system_call(
     }
     let mut retained = external_rows
         .iter()
-        .filter(|row| row.requirement_identity == requirement);
+        .filter(|row| row.requirement_identity == binding_application);
     let external = retained
         .next()
         .ok_or_else(|| invalid("has no retained external row"))?;
@@ -101,6 +104,7 @@ pub(super) fn rejoin_system_call(
     Ok(NormalizedForeignCallBinding {
         boundary_entry_plan: entry.clone(),
         mechanism: NormalizedForeignCallMechanism::SystemCall(NormalizedSystemCallBinding {
+            direct_foreign_realization: None,
             target: profile,
             number,
             requirement_identity: requirement.to_owned(),

@@ -1,0 +1,7 @@
+{
+  "status": "source-only unexecuted",
+  "purpose": "Exact two-symbol Bool equality survives authentic public-to-provider positional binder renaming. false,false is eligible and returns seven; Main exits zero.",
+  "placement": "Materialize in ordinary tests/omega/pass/providers before execution; five-up Source::Path assumes that location.",
+  "expected_native_exit": 0,
+  "expected_interpreter_exit": 0
+}

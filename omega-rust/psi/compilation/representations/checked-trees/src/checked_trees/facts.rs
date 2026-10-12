@@ -17,11 +17,13 @@ mod contextual_cleanup;
 // operator crash sites, termination, blocking, suspension, synchronous
 // invocation, service reach, mutation frames, and qualifications with their
 // content projections.
+mod assumed_binding_contracts;
 mod blocking;
 mod checked_crash_operator_site;
 mod content;
 mod contract_plans;
 mod mutation;
+mod public_contract_sources;
 mod qualifications;
 mod service_reaches;
 mod suspensions;
@@ -62,6 +64,12 @@ mod state_locals;
 mod stored_integer_writes;
 pub use stored_integer_writes::{CheckedStoredIntegerWrite, StoredIntegerWriteSite};
 
+pub use assumed_binding_contracts::{
+    AssumedBindingContractSide, AssumedBindingDirectionalObligations, AssumedBindingPublicClaim,
+    AssumedBindingResultCase, AssumedBindingSemanticConnection, AssumedBindingSemanticDirection,
+    AssumedBindingSemanticJudgment, AssumedBindingSemanticObligation, AssumedBindingSemanticSource,
+    AssumedBindingSemanticSubject, CheckedAssumedBindingContracts, CheckedPublicContractOwner,
+};
 pub use blocking::{BlockingFacts, MachineBlockingFact};
 pub use calls::{
     CheckedBoundaryAdapterDispatch, CheckedFactCallProjection, CheckedIntrinsicCallFact,
@@ -118,6 +126,9 @@ pub use nominal_machine_uses::{
 pub use placement::CheckedPlacedViewInput;
 pub use provider_closed_requirements::{
     CheckedProviderClosedRequirement, CheckedProviderClosedRequirements,
+};
+pub use public_contract_sources::{
+    CheckedContentConservationSource, CheckedPublicContractSources, CheckedPublicSignatureContent,
 };
 pub use qualifications::{
     CheckedValueQualification, MachineQualifications, QualificationFacts, VacuousQualificationUse,

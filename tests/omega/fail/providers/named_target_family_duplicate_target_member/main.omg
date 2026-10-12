@@ -1,0 +1,94 @@
+// Both specializations have the same runtime layout, but distinct identities.
+// A provider calls an ordinary helper and constructs a changed record; provider
+// lowering must preserve that body rather than fabricate an identity return.
+// Record-pattern coverage remains metadata through both provider clones; only
+// the extracted field contributes a runtime value.
+pub data Buffer<Element, const Count: u64> { value: i64; }
+pub boundary trait Indexing {
+    machine [] index<Element, const Count: u64>(
+        items: Buffer<Element, Count>, offset: i32
+    ) -> Buffer<Element, Count>
+    requires Count == Count;
+}
+
+machine relay<Element, const Count: u64>(
+    items: Buffer<Element, Count>
+) -> Buffer<Element, Count> {
+    items
+}
+
+pub data First { }
+pub data Second { }
+
+IndexingProvider satisfies Indexing {
+    Indexing::index = First::index_buffer;
+}
+linux_x86_64 machine First::index_buffer<Value, const Length: u64>(
+    items: Buffer<Value, Length>, offset: i32
+) -> Buffer<Value, Length>
+{
+    let forwarded: Buffer<Value, Length> = relay(items);
+    let { value as forwarded_value } = forwarded;
+    Buffer { value: ((forwarded_value as i64 in Wrapping)
+        + (offset as i64 in Wrapping)) as i64 }
+}
+
+
+linux_x86_64 machine Second::index_buffer<Value, const Length: u64>(items: Buffer<Value, Length>, offset: i32) -> Buffer<Value, Length> { items }
+
+linux_arm64 machine First::index_buffer<Value, const Length: u64>(
+    items: Buffer<Value, Length>, offset: i32
+) -> Buffer<Value, Length>
+{
+    let forwarded: Buffer<Value, Length> = relay(items);
+    let { value as forwarded_value } = forwarded;
+    Buffer { value: ((forwarded_value as i64 in Wrapping)
+        + (offset as i64 in Wrapping)) as i64 }
+}
+
+
+linux_arm64 machine Second::index_buffer<Value, const Length: u64>(items: Buffer<Value, Length>, offset: i32) -> Buffer<Value, Length> { items }
+
+windows_x86_64 machine First::index_buffer<Value, const Length: u64>(
+    items: Buffer<Value, Length>, offset: i32
+) -> Buffer<Value, Length>
+{
+    let forwarded: Buffer<Value, Length> = relay(items);
+    let { value as forwarded_value } = forwarded;
+    Buffer { value: ((forwarded_value as i64 in Wrapping)
+        + (offset as i64 in Wrapping)) as i64 }
+}
+
+
+windows_x86_64 machine Second::index_buffer<Value, const Length: u64>(items: Buffer<Value, Length>, offset: i32) -> Buffer<Value, Length> { items }
+
+macos_arm64 machine First::index_buffer<Value, const Length: u64>(
+    items: Buffer<Value, Length>, offset: i32
+) -> Buffer<Value, Length>
+{
+    let forwarded: Buffer<Value, Length> = relay(items);
+    let { value as forwarded_value } = forwarded;
+    Buffer { value: ((forwarded_value as i64 in Wrapping)
+        + (offset as i64 in Wrapping)) as i64 }
+}
+
+
+macos_arm64 machine Second::index_buffer<Value, const Length: u64>(items: Buffer<Value, Length>, offset: i32) -> Buffer<Value, Length> { items }
+
+machine main() reaches Indexing crashes Trap {
+    let first: Buffer<i32, 4> = Buffer { value: 70 };
+    let second: Buffer<u8, 8> = Buffer { value: 20 };
+    let selected_first: Buffer<i32, 4> = first[(11 as i32)];
+    let selected_second: Buffer<u8, 8> = second[(22 as i32)];
+    transition selected_first.value == 81 && selected_second.value == 42 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+linux_x86_64 machine First::index_buffer<Value, const Length: u64>(items: Buffer<Value, Length>, offset: i64) -> Buffer<Value, Length> { items }
+linux_arm64 machine First::index_buffer<Value, const Length: u64>(items: Buffer<Value, Length>, offset: i64) -> Buffer<Value, Length> { items }
+windows_x86_64 machine First::index_buffer<Value, const Length: u64>(items: Buffer<Value, Length>, offset: i64) -> Buffer<Value, Length> { items }
+macos_arm64 machine First::index_buffer<Value, const Length: u64>(items: Buffer<Value, Length>, offset: i64) -> Buffer<Value, Length> { items }

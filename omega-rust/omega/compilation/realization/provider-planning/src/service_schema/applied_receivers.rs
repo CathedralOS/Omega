@@ -1,95 +1,127 @@
-//! Applied ancestor views stay beneath one whole provider schema.
+//! Omega interns portable receiver content in its own schema table.
 //!
-//! A declaration-only visited set loses applied diamonds and phantom arguments.
-//! Collect exact scopes first, then publish each boundary receiver's complete
-//! original requirement roster. Neither operation selects or constructs another
-//! provider plan. The source derivation and review replay establish these views;
-//! the digest commits to them without turning an annotation into authority.
+//! Psi owns source scope projection and complete requirement rosters. Native
+//! schemas retain their own table; joins compare issued content, including
+//! receiver regions, rather than process-local table identifiers.
 
+pub(super) use build_time_evaluation::provider_declarations::receivers::collect_scopes;
 use checked_trees::typed_trees::trait_definition::AppliedTraitScope;
 use effects::provider_plan::{ProviderIdentityTable, ServiceReceiverApplication};
-
-pub(super) fn collect_scopes<'program>(
-    program: &'program checked_trees::typed_trees::TypedTrees,
-    root: AppliedTraitScope<'program>,
-) -> Option<Vec<AppliedTraitScope<'program>>> {
-    let mut scopes: Vec<AppliedTraitScope<'_>> = Vec::new();
-    let mut ambiguous = false;
-    root.visit(program, &mut |scope| {
-        if let Some(existing) = scopes
-            .iter()
-            .find(|existing| existing.declaration.symbol == scope.declaration.symbol)
-        {
-            ambiguous |= !existing.same_application(program, scope);
-        } else {
-            scopes.push(scope.clone());
-        }
-    });
-    // A whole map cannot pick the first path of an applied diamond: retained
-    // conformance rows name one original declaration, not one path per row.
-    (!ambiguous).then_some(scopes)
-}
 
 pub(super) fn receiver_applications(
     program: &checked_trees::typed_trees::TypedTrees,
     scopes: &[AppliedTraitScope<'_>],
     identities: &mut ProviderIdentityTable,
 ) -> Option<Vec<ServiceReceiverApplication>> {
-    let mut applications = Vec::new();
-    for scope in scopes.iter().filter(|scope| scope.declaration.is_boundary) {
-        let mut argument_identities = Vec::new();
-        for parameter in program.trait_type_parameters(scope.declaration) {
-            let Some(identity) = scope.portable_parameter_identity(program, parameter.symbol)
-            else {
-                // A legacy caller may not supply occurrence custody. Retain no
-                // receiver view rather than license an erased-carrier join.
-                return Some(Vec::new());
-            };
-            argument_identities.push(identities.intern(&program.type_identity_text(identity)?));
+    let applications =
+        build_time_evaluation::provider_declarations::receivers::receiver_applications(
+            program, scopes,
+        )?;
+    Some(
+        applications
+            .into_iter()
+            .map(|application| ServiceReceiverApplication {
+                trait_name: identities.intern(&application.declaration),
+                trait_package_identity: application.package,
+                argument_identities: application
+                    .arguments
+                    .iter()
+                    .map(|identity| identities.intern(identity))
+                    .collect(),
+                lifetime_argument_identities: application
+                    .lifetimes
+                    .iter()
+                    .map(|identity| identities.intern(identity))
+                    .collect(),
+                requirement_identities: application
+                    .requirements
+                    .iter()
+                    .map(|identity| identities.intern(identity))
+                    .collect(),
+            })
+            .collect(),
+    )
+}
+
+pub(crate) fn receiver_identity(
+    table: &ProviderIdentityTable,
+    application: &ServiceReceiverApplication,
+) -> Option<build_time_evaluation::provider_declarations::receivers::ProviderSelectionReceiver> {
+    let text = |identity| {
+        let content = table.text(identity);
+        (!content.is_empty()).then(|| content.to_owned())
+    };
+    Some(
+        build_time_evaluation::provider_declarations::receivers::ProviderSelectionReceiver {
+            package: application.trait_package_identity,
+            declaration: text(application.trait_name)?,
+            arguments: application
+                .argument_identities
+                .iter()
+                .map(|identity| text(*identity))
+                .collect::<Option<Vec<_>>>()?,
+            lifetimes: application
+                .lifetime_argument_identities
+                .iter()
+                .map(|identity| text(*identity))
+                .collect::<Option<Vec<_>>>()?,
+            requirements: application
+                .requirement_identities
+                .iter()
+                .map(|identity| text(*identity))
+                .collect::<Option<Vec<_>>>()?,
+        },
+    )
+}
+
+pub(crate) fn selection_matches_schema(
+    subject: &crate::ProviderSelectionSubject,
+    symbol: symbols::SymbolHandle,
+    requirement: &str,
+    schema: &effects::provider_plan::ServiceSchema,
+) -> bool {
+    if !subject.selects_declaration(symbol, requirement) {
+        return false;
+    }
+    let receiver = match subject {
+        crate::ProviderSelectionSubject::BoundaryTrait(identity)
+        | crate::ProviderSelectionSubject::BoundaryRequirement(identity) => {
+            identity.receiver.as_ref()
         }
-        let Some(lifetimes) = scope.portable_lifetime_arguments(program) else {
-            return Some(Vec::new());
-        };
-        let lifetime_argument_identities = lifetimes
+        crate::ProviderSelectionSubject::BoundaryOperatorFamily(_) => None,
+    };
+    receiver.is_none_or(|receiver| {
+        schema.receiver_applications.iter().any(|application| {
+            receiver_identity(&schema.identities, application)
+                .is_some_and(|candidate| candidate == *receiver)
+        })
+    })
+}
+
+/// Compare Psi-issued source receiver content with Omega's schema roster.
+/// Scope projection remains in the shared Psi provider declaration facade.
+pub(crate) fn source_receiver_matches_schema(
+    program: &checked_trees::typed_trees::TypedTrees,
+    scope: AppliedTraitScope<'_>,
+    schema: &effects::provider_plan::ServiceSchema,
+) -> bool {
+    let Some(scopes) = collect_scopes(program, scope) else {
+        return false;
+    };
+    let Some(applications) =
+        build_time_evaluation::provider_declarations::receivers::receiver_applications(
+            program, &scopes,
+        )
+    else {
+        return false;
+    };
+    !applications.is_empty()
+        && applications.len() == schema.receiver_applications.len()
+        && applications
             .iter()
-            .map(|identity| Some(identities.intern(&program.type_identity_text(*identity)?)))
-            .collect::<Option<Vec<_>>>()?;
-        let mut requirement_identities = Vec::new();
-        scope.visit(program, &mut |declaring| {
-            for signature in program.trait_machine_signatures(declaring.declaration) {
-                let identity = identities.intern(
-                    &program
-                        .trait_requirement_callable_identity_text(declaring.declaration, signature),
-                );
-                if !requirement_identities.contains(&identity) {
-                    requirement_identities.push(identity);
-                }
-            }
-        });
-        requirement_identities
-            .sort_by(|left, right| identities.text(*left).cmp(identities.text(*right)));
-        applications.push(ServiceReceiverApplication {
-            trait_name: identities.intern(&program.trait_declaration_path(scope.declaration)),
-            trait_package_identity: program
-                .symbols
-                .symbol_package_identity(scope.declaration.symbol),
-            argument_identities,
-            lifetime_argument_identities,
-            requirement_identities,
-        });
-    }
-    // Keep the root prominent while making ancestor commitment independent of
-    // inheritance traversal order and process-local identity mint order.
-    if let Some(ancestors) = applications.get_mut(1..) {
-        ancestors.sort_by(|left, right| {
-            identities
-                .text(left.trait_name)
-                .cmp(identities.text(right.trait_name))
-                .then_with(|| {
-                    left.trait_package_identity
-                        .cmp(&right.trait_package_identity)
-                })
-        });
-    }
-    Some(applications)
+            .zip(&schema.receiver_applications)
+            .all(|(actual, required)| {
+                receiver_identity(&schema.identities, required)
+                    .is_some_and(|required| *actual == required)
+            })
 }

@@ -16,6 +16,7 @@ use terminal_psi::{CheckedProgramEntryReceiverEligibility, TerminalPsiIdentity};
 pub struct TerminalRuntimeHostProvision {
     pub boundary: BoundaryMachineId,
     pub realization: target_operations::BoundarySettlementRealization,
+    pub direct_foreign_realization: Option<std::sync::Arc<effects::DirectForeignRealization>>,
 }
 
 /// The original call contract served by one exact admitted foreign row.
@@ -26,7 +27,8 @@ struct RuntimeHostRequirement {
     boundary: BoundaryMachineId,
     boundary_identity: String,
     selected_requirement_identity: String,
-    provider_plan_report_identity: u64,
+    binding: target_operations::NormalizedForeignCallBinding,
+    direct_foreign_realization: Option<std::sync::Arc<effects::DirectForeignRealization>>,
 }
 
 /// Entry and provider facts for the exact produced Terminal program. Source
@@ -45,6 +47,7 @@ pub struct TerminalRuntimeProvisions {
     /// The selection facts table the admitted same-stack requirement indices
     /// resolve against — provider-side texts never enter the module table.
     selection_identities: terminal_psi::TerminalIdentityTable,
+    module_identities: terminal_psi::TerminalIdentityTable,
     /// Parallel to `fused_services`: exact retained requirement slots of the
     /// same admitted schema/plan, not a provider-name or trait-prefix lookup.
     fused_service_boundary_slots: Vec<Vec<BoundaryMachineId>>,
@@ -84,28 +87,62 @@ impl TerminalRuntimeProvisions {
             let boundary = matching
                 .next()
                 .ok_or("runtime host provision lost its exact boundary declaration")?;
-            if matching.next().is_some()
-                || !selected.selected_row_matches_requirement(
-                    identities.text(boundary.identity).unwrap_or_default(),
-                    binding
-                        .requirement_identity(selected.identities())
-                        .unwrap_or_default(),
-                    binding.provider_plan_report_identity(),
-                )
-            {
-                return Err("runtime host provision lost its exact selected requirement row");
+            let boundary_identity = identities
+                .text(boundary.identity)
+                .ok_or("runtime host provision lost its original identity owner")?;
+            let binding_identities = if provision.direct_foreign_realization.is_some() {
+                identities
+            } else {
+                selected.identities()
+            };
+            let requirement_identity = binding
+                .requirement_identity(binding_identities)
+                .ok_or("runtime host provision lost its binding identity owner")?;
+            if matching.next().is_some() {
+                return Err("runtime host provision repeats its original boundary");
+            }
+            match &provision.direct_foreign_realization {
+                Some(direct) => {
+                    let commitment = match &binding.mechanism {
+                        target_operations::NormalizedForeignCallMechanism::Import {
+                            same_stack_contribution,
+                            ..
+                        } => {
+                            matches!(same_stack_contribution.provider_plan_commitment(), task_plans::SameStackExecutionCommitment::DirectForeign(value) if value == direct.identity())
+                        }
+                        target_operations::NormalizedForeignCallMechanism::SystemCall(kernel) => {
+                            kernel.direct_foreign_realization == Some(direct.identity())
+                        }
+                    };
+                    if direct.callable_identity() != boundary_identity
+                        || requirement_identity != boundary_identity
+                        || direct.target() != target_slot.owner
+                        || direct.boundary_entry_plan() != Some(&binding.boundary_entry_plan)
+                        || !commitment
+                    {
+                        return Err(
+                            "runtime direct host provision lost its original declaration custody",
+                        );
+                    }
+                }
+                None => {
+                    if !selected.selected_row_matches_requirement(
+                        boundary_identity,
+                        requirement_identity,
+                        binding.provider_plan_report_identity(),
+                    ) {
+                        return Err(
+                            "runtime host provision lost its exact selected requirement row",
+                        );
+                    }
+                }
             }
             host_requirements.push(RuntimeHostRequirement {
                 boundary: boundary.id,
-                boundary_identity: identities
-                    .text(boundary.identity)
-                    .unwrap_or_default()
-                    .to_owned(),
-                selected_requirement_identity: binding
-                    .requirement_identity(selected.identities())
-                    .unwrap_or_default()
-                    .to_owned(),
-                provider_plan_report_identity: binding.provider_plan_report_identity(),
+                boundary_identity: boundary_identity.to_owned(),
+                selected_requirement_identity: requirement_identity.to_owned(),
+                binding: binding.clone(),
+                direct_foreign_realization: provision.direct_foreign_realization.clone(),
             });
         }
         let mut fused_service_boundary_slots = Vec::with_capacity(fused_services.len());
@@ -171,6 +208,7 @@ impl TerminalRuntimeProvisions {
             fused_services: fused_services.to_vec(),
             plan_identities: plan_identities.clone(),
             selection_identities: selected.identities().clone(),
+            module_identities: identities.clone(),
             fused_service_boundary_slots,
             installation: installation.cloned(),
             target_provider_proposals: Vec::new(),
@@ -186,8 +224,7 @@ impl TerminalRuntimeProvisions {
     pub fn matches_host_requirement(
         &self,
         declaration: &terminal_psi::BoundaryMachineDeclaration,
-        selected_requirement: &str,
-        provider_plan_report_identity: u64,
+        binding: &target_operations::NormalizedForeignCallBinding,
         identities: &terminal_psi::TerminalIdentityTable,
     ) -> bool {
         let mut matching = self
@@ -196,8 +233,15 @@ impl TerminalRuntimeProvisions {
             .filter(|row| row.boundary == declaration.id);
         matching.next().is_some_and(|row| {
             identities.text(declaration.identity) == Some(row.boundary_identity.as_str())
-                && row.selected_requirement_identity == selected_requirement
-                && row.provider_plan_report_identity == provider_plan_report_identity
+                && row.selected_requirement_identity
+                    == binding
+                        .requirement_identity(if row.direct_foreign_realization.is_some() {
+                            &self.module_identities
+                        } else {
+                            &self.selection_identities
+                        })
+                        .unwrap_or_default()
+                && row.binding == *binding
         }) && matching.next().is_none()
     }
 

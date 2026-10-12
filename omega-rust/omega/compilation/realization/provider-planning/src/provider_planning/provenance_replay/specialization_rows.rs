@@ -1,23 +1,14 @@
-//! Rebind template-keyed selected plan rows to their exact closed
-//! requirement instances once specialization evidence exists.
+//! Rebind authentic selected typed rows through their retained source join.
 //!
-//! Provider plans derive before checked specialization settles, so a generic
-//! token-machine requirement's selected row retains the authored template
-//! identities while Terminal boundary declarations and provider candidates
-//! name the closed identities specialization minted. This derivation replays
-//! the retained specialization receipts and the provider instance's recorded
-//! operator realizations — never display names or runtime signatures — and
-//! publishes the exact template↔closed roster the selected closure carries.
-//! Every retained closed requirement instance of a bound template must
-//! resolve to exactly one specialized provider instance of the selected plan;
-//! missing or ambiguous coverage rejects here rather than surfacing as a
-//! mismatched Terminal identity downstream.
+//! Source dispatch and specialization provenance consume the same original
+//! declaration, choosing map or machine edge, and produced application. A
+//! named realization has no synthetic machine satisfaction edge. Physical
+//! leaves retain their separate selected payload and ABI authority.
 
-use super::adapter_conformance::exact_checked_adapter;
-use super::requirement_identities::satisfied_row_requirement;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
+
 use crate::provider_planning::ProviderBinding;
-
-mod trait_requirements;
 
 pub(crate) fn derive_selected_requirement_specializations(
     typed: &checked_trees::typed_trees::TypedTrees,
@@ -28,51 +19,14 @@ pub(crate) fn derive_selected_requirement_specializations(
         Vec<effects::SelectedRequirementSpecialization>,
         terminal_psi::TerminalIdentityTable,
     ),
-    Vec<diagnostics::Diagnostic>,
+    Vec<Diagnostic>,
 > {
-    let provider_context =
-        crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
+    let context = crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
     let mut diagnostics = Vec::new();
     let mut rows = Vec::new();
     let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
     for plan in selected.plans() {
-        trait_requirements::append(
-            typed,
-            check_facts,
-            plan,
-            &mut rows,
-            &mut identities,
-            &mut diagnostics,
-        );
-        let templates = typed
-            .machines()
-            .iter()
-            .filter(|requirement| {
-                requirement.supply_mode
-                    == language_semantics::MachineSupplyMode::TopLevelRequirement
-                    && !typed.machine_type_parameters(requirement).is_empty()
-                    && crate::service_schema::from_typed_boundary_requirement(
-                        provider_context,
-                        requirement,
-                    )
-                    .as_ref()
-                        == Some(&plan.schema)
-            })
-            .collect::<Vec<_>>();
-        let [template] = templates.as_slice() else {
-            if templates.len() > 1 {
-                diagnostics.push(diagnostics::Diagnostic::error(format!(
-                    "selected provider plan `{}` binds {} generic requirement templates",
-                    plan.name,
-                    templates.len(),
-                )));
-            }
-            continue;
-        };
-        let template_identity = typed
-            .machine_callable_identity_text(template)
-            .unwrap_or_default();
-        for row in &plan.rows {
+        for (ordinal, row) in plan.rows.iter().enumerate() {
             let ProviderBinding::CheckedAdapter {
                 machine_identity: selected_machine_identity,
                 machine_package_identity,
@@ -80,130 +34,103 @@ pub(crate) fn derive_selected_requirement_specializations(
             else {
                 continue;
             };
-            if plan.identities.text(row.requirement_identity) != template_identity.as_str() {
-                diagnostics.push(diagnostics::Diagnostic::error(format!(
-                    "selected provider plan `{}` checked-adapter row `{}` does not retain the generic requirement template `{template_identity}` its schema binds",
-                    plan.name,
-                    plan.identities.text(row.requirement_identity),
-                )));
-                continue;
-            }
-            let provider = match exact_checked_adapter(provider_context, plan, row) {
-                Ok(provider) => provider,
-                Err(diagnostic) => {
-                    diagnostics.push(diagnostic);
-                    continue;
-                }
-            };
-            for receipt in typed
-                .machine_specializations
-                .iter()
-                .filter(|receipt| receipt.template == provider.symbol)
-            {
-                // A provider instance may realize several requirement
-                // templates through separate conformance edges; only the
-                // retained realization naming this template serves it.
-                if !receipt
-                    .operator_realizations
-                    .iter()
-                    .any(|application| application.requirement_symbol == template.symbol)
-                {
-                    continue;
-                }
-                let Some(instance) = typed.machine(receipt.instance) else {
-                    diagnostics.push(diagnostics::Diagnostic::error(format!(
-                        "selected provider `{}` specialization retains no typed instance",
-                        provider.name,
-                    )));
-                    continue;
-                };
-                if !typed.machine_type_parameters(instance).is_empty() {
-                    diagnostics.push(diagnostics::Diagnostic::error(format!(
-                        "selected provider specialization instance `{}` remains generic",
-                        instance.name,
-                    )));
-                    continue;
-                }
-                if typed.symbols.symbol_package_identity(instance.symbol)
-                    != *machine_package_identity
-                {
-                    diagnostics.push(diagnostics::Diagnostic::error(format!(
-                        "selected provider instance `{}` drifts from its template's exact package identity",
-                        instance.name,
-                    )));
-                    continue;
-                }
-                let Some(closed) =
-                    satisfied_row_requirement(typed, check_facts, instance, template)
+            let result = (|| {
+                let Some(requirement) = original_requirement(typed, context, plan, ordinal)?
                 else {
-                    diagnostics.push(diagnostics::Diagnostic::error(format!(
-                        "selected provider instance `{}` realizes requirement template `{}` without one exact closed requirement",
-                        instance.name, template.name,
-                    )));
-                    continue;
+                    // Legacy operator declarations own a different application
+                    // vocabulary; they are not machine or trait requirements.
+                    return Ok(Vec::new());
                 };
-                if closed.symbol == template.symbol {
-                    diagnostics.push(diagnostics::Diagnostic::error(format!(
-                        "selected provider instance `{}` replays requirement template `{}` onto itself",
-                        instance.name, template.name,
-                    )));
-                    continue;
+                let source =
+                    crate::selected_applications::selected_checked_requirement_row_for_plan(
+                        typed,
+                        check_facts,
+                        plan,
+                        ordinal,
+                        requirement,
+                    )?;
+                let mut applications = Vec::new();
+                for application in source.applications()? {
+                    if application.requirement_instance() == requirement {
+                        continue;
+                    }
+                    let implementation = typed
+                        .machine(application.realization_instance())
+                        .ok_or_else(|| {
+                            Diagnostic::error("selected source application lost its implementation")
+                        })?;
+                    if typed
+                        .symbols
+                        .symbol_package_identity(implementation.symbol)
+                        != *machine_package_identity
+                    {
+                        return Err(Diagnostic::error(
+                            "selected source application changed its realizing package",
+                        ));
+                    }
+                    let requirement_identity = requirement_identity(
+                        typed,
+                        application.requirement_instance(),
+                    )
+                    .ok_or_else(|| {
+                        Diagnostic::error(
+                            "selected source application lost its public requirement identity",
+                        )
+                    })?;
+                    let machine_identity = typed
+                        .machine_callable_identity_text(implementation)
+                        .filter(|identity| !identity.is_empty())
+                        .ok_or_else(|| {
+                            Diagnostic::error(
+                                "selected source application lost its implementation identity",
+                            )
+                        })?;
+                    applications.push(effects::SelectedRequirementSpecialization {
+                        provider_plan_report_identity: plan.report_fingerprint(),
+                        selected_requirement_identity: identities
+                            .intern(plan.identity_text(row.requirement_identity)),
+                        selected_machine_identity: identities
+                            .intern(plan.identity_text(*selected_machine_identity)),
+                        requirement_identity: identities.intern(&requirement_identity),
+                        machine_identity: identities.intern(&machine_identity),
+                    });
                 }
-                let requirement_identity = typed
-                    .machine_callable_identity_text(closed)
-                    .unwrap_or_default();
-                let machine_identity = typed
-                    .machine_callable_identity_text(instance)
-                    .unwrap_or_default();
-                if requirement_identity.is_empty() || machine_identity.is_empty() {
-                    diagnostics.push(diagnostics::Diagnostic::error(format!(
-                        "selected provider instance `{}` or closed requirement `{}` has no normalized identity",
-                        instance.name, closed.name,
-                    )));
-                    continue;
+                // A top-level machine plan binds that requirement's complete
+                // demand family. Trait headers also retain outer interface
+                // applications: another map may own a different outer tuple of
+                // the same member. Their typed interface roster and exact
+                // source application query own coverage, not this ambient list.
+                let mut demanded = typed
+                    .machine_specializations
+                    .iter()
+                    .filter(|receipt| receipt.template == requirement)
+                    .map(|receipt| receipt.instance)
+                    .collect::<Vec<_>>();
+                demanded.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+                demanded.dedup();
+                for instance in demanded {
+                    let identity = requirement_identity(typed, instance).ok_or_else(|| {
+                        Diagnostic::error("selected source demand lost its public identity")
+                    })?;
+                    if applications
+                        .iter()
+                        .filter(|application| {
+                            identities.text(application.requirement_identity)
+                                == Some(identity.as_str())
+                        })
+                        .count()
+                        != 1
+                    {
+                        return Err(Diagnostic::error(
+                            "selected provider does not cover one exact retained requirement application",
+                        ));
+                    }
                 }
-                rows.push(effects::SelectedRequirementSpecialization {
-                    provider_plan_report_identity: plan.report_fingerprint(),
-                    selected_requirement_identity: identities
-                        .intern(plan.identities.text(row.requirement_identity)),
-                    selected_machine_identity: identities
-                        .intern(plan.identity_text(*selected_machine_identity)),
-                    requirement_identity: identities.intern(&requirement_identity),
-                    machine_identity: identities.intern(&machine_identity),
-                });
-            }
-        }
-        // Coverage: every retained closed requirement instance of the bound
-        // template must resolve through exactly one roster row under the
-        // selected plan. A closed instance exists because checked demand
-        // applied the template, so an uncovered one names a provider that can
-        // never serve it.
-        for closed_receipt in typed
-            .machine_specializations
-            .iter()
-            .filter(|receipt| receipt.template == template.symbol)
-        {
-            let Some(instance) = typed.machine(closed_receipt.instance) else {
-                continue;
-            };
-            if instance.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement {
-                continue;
-            }
-            let Some(identity) = typed.machine_callable_identity_text(instance) else {
-                continue;
-            };
-            let matching = rows
-                .iter()
-                .filter(|row| {
-                    row.provider_plan_report_identity == plan.report_fingerprint()
-                        && identities.text(row.requirement_identity) == Some(identity.as_str())
-                })
-                .count();
-            if matching != 1 {
-                diagnostics.push(diagnostics::Diagnostic::error(format!(
-                    "selected provider plan `{}` resolves retained closed requirement `{identity}` to {matching} specialized provider instances; exactly one must serve it",
-                    plan.name,
-                )));
+                Ok(applications)
+            })();
+            match result {
+                Ok(applications) => rows.extend(applications),
+                Err(diagnostic) => diagnostics.push(diagnostic),
             }
         }
     }
@@ -212,4 +139,73 @@ pub(crate) fn derive_selected_requirement_specializations(
     } else {
         Err(diagnostics)
     }
+}
+
+fn original_requirement(
+    typed: &checked_trees::typed_trees::TypedTrees,
+    context: crate::ProviderPlanningContext<'_>,
+    plan: &effects::provider_plan::ProviderPlan,
+    ordinal: usize,
+) -> Result<Option<SymbolHandle>, Diagnostic> {
+    let row = &plan.rows[ordinal];
+    if crate::provider_identity::named_provider(context, plan).is_some() {
+        return crate::provider_identity::named_provider_row(context, plan, row)
+            .map(|row| Some(row.requirement))
+            .ok_or_else(|| {
+                Diagnostic::error("selected named provider lost its original requirement row")
+            });
+    }
+    let mut requirements = typed
+        .machines()
+        .iter()
+        .filter(|requirement| {
+            requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+                && crate::service_schema::from_typed_boundary_requirement(context, requirement)
+                    .as_ref()
+                    == Some(&plan.schema)
+        })
+        .map(|requirement| requirement.symbol)
+        .collect::<Vec<_>>();
+    let adapter = super::adapter_conformance::exact_checked_adapter(context, plan, row)?;
+    requirements.extend(
+        typed
+            .public_trait_requirement_signatures()
+            .filter(|(definition, signature)| {
+                definition.is_boundary
+                    && typed.trait_requirement_callable_identity_text(definition, signature)
+                        == plan.identity_text(row.requirement_identity)
+                    && crate::provider_trait_requirement_matches(
+                        context,
+                        plan,
+                        row,
+                        adapter,
+                        definition.symbol,
+                        signature.symbol,
+                    )
+            })
+            .map(|(_, signature)| signature.symbol),
+    );
+    requirements.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+    requirements.dedup();
+    match requirements.as_slice() {
+        [] => Ok(None),
+        [requirement] => Ok(Some(*requirement)),
+        _ => Err(Diagnostic::error(
+            "selected typed row has multiple original requirement declarations",
+        )),
+    }
+}
+
+fn requirement_identity(
+    typed: &checked_trees::typed_trees::TypedTrees,
+    requirement: SymbolHandle,
+) -> Option<String> {
+    if let Some(machine) = typed.machine(requirement) {
+        return typed
+            .machine_callable_identity_text(machine)
+            .filter(|identity| !identity.is_empty());
+    }
+    let (definition, signature) = typed.trait_machine_signature(requirement)?;
+    let identity = typed.trait_requirement_callable_identity_text(definition, signature);
+    (!identity.is_empty()).then_some(identity)
 }

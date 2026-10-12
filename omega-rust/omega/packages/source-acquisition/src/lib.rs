@@ -34,6 +34,7 @@ pub use identity::{
     SourceRelativePath, WorkspaceLineageIdentity, WorkspaceMemberLineage,
 };
 pub use limits::LocalSourceLimits;
+pub use local::LocalSourceCapturePolicy;
 pub use local::operations::resolve_local_source;
 pub use local::resolution_observations::{ResolvedLocalSnapshot, ResolvedLocalSource};
 pub use observations::resolved::{GitAcquisitionPin, ResolvedGitSource};

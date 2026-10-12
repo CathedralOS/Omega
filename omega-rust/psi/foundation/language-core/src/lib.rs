@@ -18,6 +18,7 @@ pub mod atomic;
 pub mod cast_form;
 pub mod constant_value;
 pub mod data_layout_queries;
+pub mod expression_origin;
 pub mod inline_assembly;
 pub mod operator_spelling;
 mod source_semantics;

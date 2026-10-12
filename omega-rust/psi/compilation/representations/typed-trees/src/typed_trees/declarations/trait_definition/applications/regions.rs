@@ -9,32 +9,60 @@ use crate::data::TypeParameterKind;
 use crate::name::Identifier;
 use crate::type_identity::{
     AppliedTypeIdentityScope, IndexIdentityArgument, NormalizedTypeIdentity,
-    applied_lifetime_identity, applied_type_identity, local_trait_application_identity,
-    portable_applied_lifetime_identity, portable_applied_type_identity,
+    applied_lifetime_identity, local_trait_application_identity,
+    portable_applied_lifetime_identity,
 };
 use symbols::SymbolHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct AppliedDeclarationRegionScope {
     pub(super) declaration: SymbolHandle,
-    pub(super) lifetimes: Vec<(String, String)>,
+    pub(super) lifetimes: Vec<(String, Option<String>)>,
+    pub(super) role: crate::type_identity::AppliedTypeIdentityRegionRole,
+    pub(super) binding_application: crate::static_applications::StaticMachineApplicationHandle,
+    /// Exact contract-captured source binders, retaining static categories that
+    /// cannot be represented by the TypeReference substitution lane.
+    pub(super) binding_parameters: Vec<SymbolHandle>,
 }
 
 impl AppliedDeclarationRegionScope {
     pub(super) fn new(
         declaration: SymbolHandle,
         parameters: &[Identifier],
-        arguments: &[Identifier],
+        arguments: &[impl crate::static_applications::StaticLifetimeOperand],
     ) -> Self {
         Self {
             declaration,
+            binding_application:
+                crate::static_applications::StaticMachineApplicationHandle::invalid(),
+            binding_parameters: Vec::new(),
+            role: crate::type_identity::AppliedTypeIdentityRegionRole::Supplied,
             lifetimes: parameters
                 .iter()
                 .zip(arguments)
                 .map(|(parameter, argument)| {
-                    (parameter.as_str().to_owned(), argument.as_str().to_owned())
+                    (
+                        parameter.as_str().to_owned(),
+                        argument
+                            .named()
+                            .map(|argument| argument.as_str().to_owned()),
+                    )
                 })
                 .collect(),
+        }
+    }
+
+    pub(super) fn declaration(
+        declaration: SymbolHandle,
+        binding_application: crate::static_applications::StaticMachineApplicationHandle,
+        binding_parameters: Vec<SymbolHandle>,
+    ) -> Self {
+        Self {
+            declaration,
+            lifetimes: Vec::new(),
+            binding_application,
+            binding_parameters,
+            role: crate::type_identity::AppliedTypeIdentityRegionRole::Declaration,
         }
     }
 }
@@ -67,23 +95,32 @@ impl AppliedTraitScope<'_> {
             {
                 return None;
             }
-            crate::type_identity::lifetime_parameter_identity(
-                program,
-                argument_owner,
-                binding.argument.as_str(),
-            )?;
+            if let Some(argument) = binding.argument.named() {
+                crate::type_identity::lifetime_parameter_identity(
+                    program,
+                    argument_owner,
+                    argument.as_str(),
+                )?;
+            }
             lifetimes.push((
                 binding.parameter.as_str().to_owned(),
-                binding.argument.as_str().to_owned(),
+                binding
+                    .argument
+                    .named()
+                    .map(|argument| argument.as_str().to_owned()),
             ));
         }
         self.argument_owner = argument_owner;
+        self.captured_argument_owner = None;
         self.substitution_scope_starts.insert(0, 0);
         self.region_scopes.insert(
             0,
             AppliedDeclarationRegionScope {
                 declaration,
                 lifetimes,
+                role: crate::type_identity::AppliedTypeIdentityRegionRole::Supplied,
+                binding_application: Default::default(),
+                binding_parameters: Vec::new(),
             },
         );
         Some(self)
@@ -117,13 +154,19 @@ impl AppliedTraitScope<'_> {
         program: &TypedTrees,
         parameter: SymbolHandle,
     ) -> Option<NormalizedTypeIdentity> {
-        let (reference, outer) = self.parameter_application(parameter)?;
+        let parameter = program
+            .trait_type_parameters(self.declaration)
+            .iter()
+            .find(|binder| binder.symbol == parameter)?;
+        self.parameter_application(parameter.symbol)?;
         self.with_identity_scopes(program, |scopes| {
-            portable_applied_type_identity(
+            crate::type_identity::applied_static_parameter_identity(
                 program,
-                reference,
-                self.argument_owner,
-                &scopes[..outer],
+                parameter,
+                IndexIdentityArgument::Subject(parameter.symbol),
+                self.argument_identity_owner(),
+                scopes,
+                crate::type_identity::TypeIdentityQualification::PackageQualified,
             )
         })
     }
@@ -143,7 +186,7 @@ impl AppliedTraitScope<'_> {
                     portable_applied_lifetime_identity(
                         program,
                         parameter.as_str(),
-                        self.argument_owner,
+                        self.argument_identity_owner(),
                         scopes,
                     )
                 })
@@ -188,6 +231,38 @@ impl AppliedTraitScope<'_> {
                     .get(ordinal + 1)
                     .copied()
                     .unwrap_or(self.substitutions.len());
+                let region = &self.region_scopes[ordinal];
+                if region.binding_application.is_valid() {
+                    return program
+                        .expression_table
+                        .static_machine_application_bindings(region.binding_application)
+                        .iter()
+                        .filter(|binding| {
+                            // Full member custody is separate from source row
+                            // identity. Keep only this edge's contract coordinates,
+                            // including captured Machine/Conformance operands.
+                            region.binding_parameters.contains(&binding.parameter)
+                        })
+                        .map(|binding| {
+                            use crate::static_applications::StaticMachineBindingValue;
+                            let argument = match &binding.value {
+                                StaticMachineBindingValue::Type(reference) => {
+                                    IndexIdentityArgument::TypeArgument(*reference)
+                                }
+                                StaticMachineBindingValue::Const(reference)
+                                | StaticMachineBindingValue::RuntimeValue {
+                                    type_reference: reference,
+                                    ..
+                                } => IndexIdentityArgument::TypeReference(*reference),
+                                StaticMachineBindingValue::Machine(argument)
+                                | StaticMachineBindingValue::Conformance(argument) => {
+                                    IndexIdentityArgument::StaticArgument(argument)
+                                }
+                            };
+                            (binding.parameter, argument)
+                        })
+                        .collect::<Vec<_>>();
+                }
                 self.substitutions[*start..end]
                     .iter()
                     .map(|(parameter, argument)| {
@@ -200,6 +275,20 @@ impl AppliedTraitScope<'_> {
                                         self.region_scopes[ordinal].declaration,
                                     )
                                     .map(|declaration| program.data_type_parameters(declaration))
+                            })
+                            .or_else(|| {
+                                program
+                                    .trait_machine_signature(
+                                        self.region_scopes[ordinal].declaration,
+                                    )
+                                    .map(|(_, member)| {
+                                        program.state_signature_type_parameters(member)
+                                    })
+                            })
+                            .or_else(|| {
+                                program
+                                    .machine_by_symbol(self.region_scopes[ordinal].declaration)
+                                    .map(|machine| program.machine_type_parameters(machine))
                             })
                             .is_some_and(|parameters| {
                                 parameters.iter().any(|binder| {
@@ -224,6 +313,7 @@ impl AppliedTraitScope<'_> {
             .iter()
             .zip(&arguments)
             .map(|(region, arguments)| AppliedTypeIdentityScope {
+                region_role: region.role,
                 declaration: region.declaration,
                 arguments,
                 lifetimes: &region.lifetimes,
@@ -240,11 +330,19 @@ impl AppliedTraitScope<'_> {
                 .trait_type_parameters(self.declaration)
                 .iter()
                 .map(|parameter| {
-                    let Some((reference, scope)) = self.parameter_application(parameter.symbol)
-                    else {
+                    if self.parameter_application(parameter.symbol).is_none() {
                         return program.normalized_nominal_type_identity(parameter.symbol);
-                    };
-                    applied_type_identity(program, reference, self.argument_owner, &scopes[..scope])
+                    }
+                    // Identity follows the original declared category and full
+                    // simultaneous carrier scope, including Const width/policy.
+                    crate::type_identity::applied_static_parameter_identity(
+                        program,
+                        parameter,
+                        IndexIdentityArgument::Subject(parameter.symbol),
+                        self.argument_identity_owner(),
+                        scopes,
+                        crate::type_identity::TypeIdentityQualification::Ordinary,
+                    )
                 })
                 .collect::<Option<Vec<_>>>()?;
             let lifetimes = self
@@ -255,7 +353,7 @@ impl AppliedTraitScope<'_> {
                     applied_lifetime_identity(
                         program,
                         parameter.as_str(),
-                        self.argument_owner,
+                        self.argument_identity_owner(),
                         scopes,
                     )
                 })

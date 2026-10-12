@@ -70,6 +70,20 @@ struct ConstApplicationPlan {
     calls: Vec<PendingApplicationCall>,
 }
 
+pub(crate) fn source_constant_demands(
+    typed: &TypedTrees,
+    domain: &EvaluationDomain,
+    demands: &mut crate::source_constants::SourceConstantDemands,
+) {
+    let plan = const_application_plan(typed, domain);
+    for application in plan.applications {
+        demands.expression(application.root);
+    }
+    for call in plan.calls {
+        demands.machine(call.machine);
+    }
+}
+
 /// Whether any retained const application can only execute once Omega
 /// supplies exact provider bodies. The deferral scan mirrors
 /// `pending_endpoint_calls_need_operator_selection`: prepare once so static
@@ -159,6 +173,7 @@ pub(crate) fn evaluate_selected_const_applications(
     let crate::SelectedBuildTimeOperators {
         operators,
         provider_bodies,
+        admission,
     } = selected;
     // Folds published by earlier rounds, with their authored originals and the
     // marks the deferral path set. A round that ends in rejection restores
@@ -191,6 +206,7 @@ pub(crate) fn evaluate_selected_const_applications(
             selection_authority.clone(),
             operators,
             provider_bodies,
+            admission,
             &mut warnings,
             domain,
         ) {
@@ -751,18 +767,22 @@ fn evaluate_application_round(
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     operators: &[crate::SelectedBuildTimeBinaryOperator],
     provider_bodies: &[crate::SelectedBuildTimeProviderBody],
+    admission: crate::BuildTimeCheckingAdmission<'_>,
     warnings: &mut Vec<Diagnostic>,
     domain: &EvaluationDomain,
 ) -> Result<ApplicationRound, Vec<Diagnostic>> {
     // Bind exact authored provider occurrences before cloning specializations,
     // on a private copy: the caller's tree keeps its authored selection and
     // source-owned handles for final checking.
+    let checking_admission = admission;
     let (prepared, admission) = crate::const_evaluation::prepared_admission(
         typed,
         provider_bodies,
         operators,
         selection_authority.clone(),
         domain,
+        &plan.calls.iter().map(|call| call.machine).collect::<Vec<_>>(),
+        admission,
     )?;
     let execution = prepared.typed();
 
@@ -772,11 +792,12 @@ fn evaluate_application_round(
     };
     for application in &plan.applications {
         match evaluate_const_application(
-            typed,
             execution,
             &admission,
             application,
             selection_authority.as_deref(),
+            selection_authority.as_ref(),
+            checking_admission,
             warnings,
         ) {
             Ok(fold) => round.folds.push(fold),
@@ -794,11 +815,12 @@ fn evaluate_application_round(
 }
 
 fn evaluate_const_application(
-    typed: &TypedTrees,
     execution: &TypedTrees,
     admission: &crate::BuildTimeAdmissionPlan,
     application: &PendingConstApplication,
     selection_authority: Option<&dyn crate::BuildTimeSelectionAuthority>,
+    authority_owner: Option<&std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
+    checking_admission: crate::BuildTimeCheckingAdmission<'_>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<ApplicationFold, String> {
     require_closed_expression_custody(execution, application.root, selection_authority)?;
@@ -814,10 +836,11 @@ fn evaluate_const_application(
             .to_owned(),
     )?;
     let invocation = crate::const_evaluation::range_endpoints::arguments::Invocation {
-        working: typed,
         execution,
         admission,
         authority: selection_authority,
+        authority_owner,
+        checking_admission,
     };
     let (value, additions) =
         crate::const_evaluation::const_generic_expressions::value::evaluate_closed_const_argument(

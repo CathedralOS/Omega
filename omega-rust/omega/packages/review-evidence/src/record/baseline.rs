@@ -1,4 +1,5 @@
 //! Inert package policy composition, independent of compiler replay evidence.
+use crate::record::PackagePolicyAssumedBindingContracts;
 use crate::record::PackagePolicyBoundaryApplications;
 use crate::record::PackagePolicyCallables;
 use crate::record::PackagePolicyExternalExecutableSupply;
@@ -39,4 +40,28 @@ pub struct PackagePolicyBaseline {
     /// row so accepted meaning survives in `omega.lock` without host paths or
     /// live grant state.
     pub(crate) restricted_build_requests: Vec<PackagePolicyRestrictedBuildRequest>,
+    /// Exact runtime relationships retained in the same comparison and lock
+    /// model as ordinary obligations. Partial preparation cannot populate this.
+    pub(crate) assumed_binding_contracts: PackagePolicyAssumedBindingContracts,
+}
+
+impl PackagePolicyBaseline {
+    /// Attach a complete compiler-produced relationship roster to this exact
+    /// checked Product review. This composes inert review meaning; it accepts
+    /// nothing and cannot turn Build registration into evidence. The review
+    /// collector owns root/Product selection and authenticated source context.
+    pub fn with_assumed_binding_contracts(
+        mut self,
+        contracts: PackagePolicyAssumedBindingContracts,
+    ) -> Result<Self, &'static str> {
+        if contracts.package() != self.package || contracts.target() != self.target {
+            return Err("assumed binding contracts belong to another package or target");
+        }
+        self.assumed_binding_contracts = contracts;
+        Ok(self)
+    }
+
+    pub const fn assumed_binding_contracts(&self) -> &PackagePolicyAssumedBindingContracts {
+        &self.assumed_binding_contracts
+    }
 }

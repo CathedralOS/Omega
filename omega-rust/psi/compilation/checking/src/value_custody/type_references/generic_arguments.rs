@@ -1,6 +1,6 @@
 use super::{
-    TopLevelSymbols, TypeParameterScope, TypeReferenceOwner, type_reference_label,
-    type_references_match,
+    DeclaredValueCarrier, TopLevelSymbols, TypeParameterScope, TypeReferenceOwner,
+    declared_value_carriers_match, type_reference_label, type_references_match,
 };
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{
@@ -11,7 +11,9 @@ use symbols::SymbolHandle;
 use typed_trees::data::{
     DataField, DataMember, MachineParameterContract, TypeParameter, TypeParameterKind,
 };
-use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{
+    ConstIntegerMeaning, FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
+};
 
 pub(crate) fn validate_machine_data_argument(
     program: &dyn crate::CheckingInput,
@@ -122,16 +124,22 @@ pub(super) fn validate_symbolic_array_length(
         )));
         return;
     };
-    let (TypeParameterKind::Const { type_reference } | TypeParameterKind::Value { type_reference }) =
-        parameter.kind
-    else {
+    let (TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }) = parameter.kind else {
         diagnostics.push(Diagnostic::error(format!(
             "{owner} uses type parameter `{name}` as a fixed-array length; array lengths \
              must name a `const` parameter"
         )));
         return;
     };
-    let Some(primitive) = program.type_reference_table.primitive_type(type_reference) else {
+    let primitive = type_parameter_scope
+        .value_carrier(program.typed_program(), parameter)
+        .and_then(|carrier| {
+            carrier
+                .program
+                .type_reference_table
+                .primitive_type(carrier.type_reference)
+        });
+    let Some(primitive) = primitive else {
         diagnostics.push(Diagnostic::error(format!(
             "{owner} uses const parameter `{name}` with a non-primitive type as a \
              fixed-array length; array lengths require an integer primitive"
@@ -186,7 +194,9 @@ pub fn validate_closed_const_argument(
         type_reference,
         argument,
         TypeParameterScope {
-            lexical_owner: symbols::SymbolHandle::invalid(),
+            lexical_owner: typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(
+                symbols::SymbolHandle::invalid(),
+            ),
             type_parameters: &[],
             lifetime_parameters: &[],
         },
@@ -227,7 +237,9 @@ pub(crate) fn const_argument_matches_parameter(
         type_reference,
         argument,
         TypeParameterScope {
-            lexical_owner: symbols::SymbolHandle::invalid(),
+            lexical_owner: typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(
+                symbols::SymbolHandle::invalid(),
+            ),
             type_parameters: caller_parameters,
             lifetime_parameters: &[],
         },
@@ -236,7 +248,42 @@ pub(crate) fn const_argument_matches_parameter(
     !diagnostics.iter().any(Diagnostic::is_error)
 }
 
-pub(crate) fn validate_const_data_argument(
+/// Trait, call and data applications share the declared const carrier judgment.
+/// The argument's lexical telescope is separate from the selected declaration;
+/// a runtime value binder cannot satisfy a compile-time const slot.
+pub(crate) fn validate_const_application_argument(
+    program: &dyn crate::CheckingInput,
+    owner: &str,
+    parameter: &TypeParameter,
+    carrier: TypeReferenceHandle,
+    argument: TypeReferenceHandle,
+    caller_scope: TypeParameterScope<'_>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if matches!(parameter.kind, TypeParameterKind::Const { .. })
+        && matches!(program.type_reference_table.type_reference(argument),
+            TypeReferenceNode::Named { symbol, .. }
+                if caller_scope.type_parameters.iter().any(|caller| caller.symbol == *symbol
+                    && matches!(caller.kind, TypeParameterKind::Value { .. })))
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "const parameter `{}` of `{owner}` requires a static const, not a runtime value binder",
+            parameter.name,
+        )));
+        return;
+    }
+    validate_const_data_argument(
+        program,
+        owner,
+        parameter,
+        carrier,
+        argument,
+        caller_scope,
+        diagnostics,
+    );
+}
+
+pub(super) fn validate_const_data_argument(
     program: &dyn crate::CheckingInput,
     base_name: &str,
     parameter: &TypeParameter,
@@ -245,7 +292,7 @@ pub(crate) fn validate_const_data_argument(
     type_parameter_scope: TypeParameterScope<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let primitive = program.type_reference_table.primitive_type(parameter_type);
+    let primitive = const_carrier_primitive(program, parameter_type);
     let is_integer_parameter = primitive.is_some_and(PrimitiveType::accepts_integer_literal);
     if let TypeReferenceNode::ConstExpression(root) =
         program.type_reference_table.type_reference(argument)
@@ -255,6 +302,37 @@ pub(crate) fn validate_const_data_argument(
         // is known. Preliminary checking tolerates the authored shape; every
         // other mode rejects surviving marks before reaching this argument.
         if program.pending_const_range_endpoints.contains(root) {
+            return;
+        }
+        if let Some(value) = program.closed_integer_value_in(*root, SymbolHandle::invalid())
+            && let Some(integer) = value
+                .value
+                .to_i64()
+                .map(i128::from)
+                .or_else(|| value.value.to_u64().map(i128::from))
+        {
+            if value.type_reference.is_some_and(|actual| {
+                program.type_reference_table.arithmetic_domain(actual)
+                    != program
+                        .type_reference_table
+                        .arithmetic_domain(parameter_type)
+            }) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "const parameter `{}` of `{base_name}` requires its declared arithmetic policy",
+                    parameter.name,
+                )));
+                return;
+            }
+            validate_integer_const_argument(
+                program,
+                base_name,
+                parameter,
+                parameter_type,
+                primitive,
+                value.primitive,
+                integer,
+                diagnostics,
+            );
             return;
         }
     }
@@ -276,52 +354,107 @@ pub(crate) fn validate_const_data_argument(
     };
 
     if let Some(value) = CanonicalConstValue::from_atom(name.as_str()) {
-        if exact_structured_const_carrier_is_eligible(program, parameter_type, &mut Vec::new()) {
-            if let Err(reason) =
-                validate_exact_const_identity(program, parameter_type, &value.identity())
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "const parameter `{}` of `{base_name}` has an invalid canonical value: {reason}",
-                    parameter.name
-                )));
-            }
-            return;
-        }
-        if let Err(reason) =
-            validate_typed_const_index_type(program, parameter_type, &mut HashSet::new())
-        {
+        validate_canonical_const_argument(
+            program,
+            base_name,
+            parameter,
+            parameter_type,
+            &value,
+            program.type_reference_table.const_integer_meaning(argument),
+            diagnostics,
+        );
+        return;
+    }
+    if symbol.is_valid()
+        && let Some(declaration) = program.const_declaration_by_symbol(*symbol)
+    {
+        let Some(encoding) = declaration
+            .evaluated_value
+            .as_ref()
+            .and_then(|value| value.encoding())
+        else {
             diagnostics.push(Diagnostic::error(format!(
-                "const parameter `{}` of `{base_name}` has an ineligible index type: {reason}",
-                parameter.name
+                "const parameter `{}` of `{base_name}` names `{name}` without a canonical checked value",
+                parameter.name,
+            )));
+            return;
+        };
+        if let Err(reason) = validate_exact_const_value_encoding(
+            program,
+            const_carrier_reference(program, declaration.declared_type),
+            encoding,
+        ) {
+            diagnostics.push(Diagnostic::error(format!(
+                "const parameter `{}` of `{base_name}` names an invalid declared value: {reason}",
+                parameter.name,
             )));
             return;
         }
-        let required_type = type_reference_label(program, parameter_type);
-        if value.type_name != required_type {
+        if !type_references_match(program, declaration.declared_type, parameter_type) {
             diagnostics.push(Diagnostic::error(format!(
-                "const parameter `{}` of `{base_name}` has type `{required_type}`, but its canonical value has type `{}`",
-                parameter.name, value.type_name
+                "const parameter `{}` of `{base_name}` requires `{}`, but named constant `{name}` declares `{}`",
+                parameter.name, type_reference_label(program, parameter_type),
+                type_reference_label(program, declaration.declared_type),
             )));
+            return;
         }
+        let value = CanonicalConstValue::new(
+            canonical_carrier_label(program, declaration.declared_type),
+            encoding.to_owned(),
+            name.as_str().to_owned(),
+        );
+        let meaning = program
+            .type_reference_table
+            .primitive_type(declaration.declared_type)
+            .filter(|primitive| primitive.accepts_integer_literal())
+            .map_or(ConstIntegerMeaning::Unavailable, |primitive| {
+                ConstIntegerMeaning::Typed {
+                    primitive,
+                    arithmetic_domain: program
+                        .type_reference_table
+                        .arithmetic_domain(declaration.declared_type),
+                }
+            });
+        validate_canonical_const_argument(
+            program,
+            base_name,
+            parameter,
+            parameter_type,
+            &value,
+            meaning,
+            diagnostics,
+        );
         return;
     }
 
     if let Ok(value) = name.as_str().parse::<i128>() {
-        let Some(primitive) = primitive.filter(|primitive| primitive.accepts_integer_literal())
-        else {
-            diagnostics.push(Diagnostic::error(format!(
-                "const parameter `{}` of `{base_name}` requires a `{}` value, not integer `{value}`",
-                parameter.name,
-                type_reference_label(program, parameter_type),
-            )));
-            return;
+        let meaning = program.type_reference_table.const_integer_meaning(argument);
+        let selected = match meaning {
+            ConstIntegerMeaning::Typed {
+                primitive,
+                arithmetic_domain,
+            } if arithmetic_domain
+                == program
+                    .type_reference_table
+                    .arithmetic_domain(parameter_type) =>
+            {
+                Some(primitive)
+            }
+            ConstIntegerMeaning::Anonymous => None,
+            _ => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "const parameter `{}` of `{base_name}` cannot establish its declared arithmetic policy from the original const value", parameter.name,
+                )));
+                return;
+            }
         };
-        validate_const_integer_range(
+        validate_integer_const_argument(
             program,
             base_name,
             parameter,
             parameter_type,
             primitive,
+            selected,
             value,
             diagnostics,
         );
@@ -365,13 +498,170 @@ pub(crate) fn validate_const_data_argument(
         )));
         return;
     };
-    if !type_references_match(program, forwarded_type, parameter_type) {
+    let issuer = type_parameter_scope.issuing_program(program.typed_program());
+    if !type_parameter_scope
+        .value_carrier(program.typed_program(), forwarded)
+        .is_some_and(|carrier| {
+            declared_value_carriers_match(
+                carrier,
+                DeclaredValueCarrier {
+                    program: program.typed_program(),
+                    type_reference: parameter_type,
+                    lexical_owner:
+                        typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(
+                            parameter.symbol,
+                        ),
+                },
+                typed_trees::type_identity::TypeIdentityQualification::Ordinary,
+            )
+        })
+    {
         diagnostics.push(Diagnostic::error(format!(
             "const parameter `{}` of `{base_name}` has type `{}`, but forwarded const parameter `{}` has type `{}`",
             parameter.name,
             type_reference_label(program, parameter_type),
             forwarded.name,
-            type_reference_label(program, forwarded_type),
+            type_reference_label(issuer, forwarded_type),
+        )));
+    }
+}
+
+fn const_carrier_reference(
+    program: &dyn crate::CheckingInput,
+    mut reference: TypeReferenceHandle,
+) -> TypeReferenceHandle {
+    while let TypeReferenceNode::Constrained { base_type, .. } =
+        program.type_reference_table.type_reference(reference)
+    {
+        reference = *base_type;
+    }
+    reference
+}
+
+fn const_carrier_primitive(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Option<PrimitiveType> {
+    exact_const_primitive(program, const_carrier_reference(program, reference))
+}
+
+fn validate_integer_const_argument(
+    program: &dyn crate::CheckingInput,
+    owner: &str,
+    parameter: &TypeParameter,
+    carrier: TypeReferenceHandle,
+    required: Option<PrimitiveType>,
+    actual: Option<PrimitiveType>,
+    value: i128,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(required) = required.filter(|primitive| primitive.accepts_integer_literal()) else {
+        diagnostics.push(Diagnostic::error(format!(
+            "const parameter `{}` of `{owner}` requires a `{}` value, not integer `{value}`",
+            parameter.name,
+            type_reference_label(program, carrier),
+        )));
+        return;
+    };
+    if actual.is_some_and(|actual| actual != required) {
+        diagnostics.push(Diagnostic::error(format!(
+            "const parameter `{}` of `{owner}` requires `{}`, but its value already has carrier `{}`",
+            parameter.name, required.name(), actual.map_or("", PrimitiveType::name),
+        )));
+        return;
+    }
+    validate_const_integer_range(
+        program,
+        owner,
+        parameter,
+        carrier,
+        required,
+        value,
+        diagnostics,
+    );
+}
+
+fn validate_canonical_const_argument(
+    program: &dyn crate::CheckingInput,
+    base_name: &str,
+    parameter: &TypeParameter,
+    parameter_type: TypeReferenceHandle,
+    value: &CanonicalConstValue,
+    meaning: ConstIntegerMeaning,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if let Some(primitive) = const_carrier_primitive(program, parameter_type)
+        && primitive.accepts_integer_literal()
+    {
+        if let Some(DecodedCanonicalConstValue::Integer {
+            type_name,
+            value: integer,
+        }) = value.decode_encoding()
+            && value.type_name == type_name
+            && type_name == primitive.name()
+        {
+            let required_domain = program
+                .type_reference_table
+                .arithmetic_domain(parameter_type);
+            let meaning_matches = match meaning {
+                ConstIntegerMeaning::Typed {
+                    primitive: actual,
+                    arithmetic_domain,
+                } => actual == primitive && arithmetic_domain == required_domain,
+                // Only an actual anonymous producer can acquire the destination's
+                // policy. Older atoms carry no proof of any arithmetic policy.
+                ConstIntegerMeaning::Anonymous => true,
+                ConstIntegerMeaning::Unavailable => false,
+            };
+            if !meaning_matches {
+                diagnostics.push(Diagnostic::error(format!(
+                    "const parameter `{}` of `{base_name}` cannot establish its declared arithmetic policy from the original const value",
+                    parameter.name,
+                )));
+                return;
+            }
+            validate_const_integer_range(
+                program,
+                base_name,
+                parameter,
+                parameter_type,
+                primitive,
+                integer,
+                diagnostics,
+            );
+        } else {
+            diagnostics.push(Diagnostic::error(format!(
+                "const parameter `{}` of `{base_name}` requires `{}`, but its canonical value has type `{}` or invalid integer encoding",
+                parameter.name, primitive.name(), value.type_name,
+            )));
+        }
+        return;
+    }
+    if exact_structured_const_carrier_is_eligible(program, parameter_type, &mut Vec::new()) {
+        if let Err(reason) =
+            validate_exact_const_identity(program, parameter_type, &value.identity())
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "const parameter `{}` of `{base_name}` has an invalid canonical value: {reason}",
+                parameter.name
+            )));
+        }
+        return;
+    }
+    if let Err(reason) =
+        validate_typed_const_index_type(program, parameter_type, &mut HashSet::new())
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "const parameter `{}` of `{base_name}` has an ineligible index type: {reason}",
+            parameter.name
+        )));
+        return;
+    }
+    let required_type = type_reference_label(program, parameter_type);
+    if value.type_name != required_type {
+        diagnostics.push(Diagnostic::error(format!(
+            "const parameter `{}` of `{base_name}` has type `{required_type}`, but its canonical value has type `{}`",
+            parameter.name, value.type_name
         )));
     }
 }
@@ -485,6 +775,9 @@ fn canonical_carrier_label(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> String {
+    if let Some(primitive) = const_carrier_primitive(program, reference) {
+        return primitive.name().to_owned();
+    }
     match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Named { symbol, .. } => {
             crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)
@@ -941,6 +1234,14 @@ fn validate_const_integer_range(
                 end_inclusive,
             } = constraint
             else {
+                if !matches!(
+                    constraint,
+                    typed_trees::types::TypeConstraintNode::ArithmeticDomain(_)
+                ) {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "const argument `{value}` for `{base_name}::{}` cannot establish its declared non-range qualification from integer meaning", parameter.name,
+                    )));
+                }
                 continue;
             };
             let bounds = crate::closed_integer_range_bound(program, *minimum).zip(

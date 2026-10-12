@@ -106,11 +106,13 @@ pub(super) fn candidate_instance<'program>(
         .iter()
         .map(|binding| binding.map(|binding| source.normalized_type_identity_text(binding)))
         .collect::<Option<Vec<_>>>()?;
-    let const_arguments = candidate
-        .const_bindings
-        .iter()
-        .map(|binding| binding.map(|binding| source.normalized_type_identity_text(binding)))
-        .collect::<Option<Vec<_>>>()?;
+    let const_arguments = super::application_arguments::const_binding_identities(
+        source,
+        &candidate.template,
+        &candidate.type_bindings,
+        &candidate.const_bindings,
+        &candidate.runtime_value_bindings,
+    )?;
     let machine_arguments = candidate
         .machine_bindings
         .iter()

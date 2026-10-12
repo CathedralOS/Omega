@@ -24,7 +24,7 @@ use target_operations::{CallSiteOwner, ProviderExecutionBinding};
 pub(crate) fn hosted_builtin_settlement_identity(
     occurrence: &OptimizedBoundaryOccurrence,
     requirement_identity: &str,
-    selected_plan_digest: NativeSelectedProviderPlanDigest,
+    origin: &super::hosted_builtins::HostedBuiltinOrigin<'_>,
     target: NativeTarget,
     identity_tags: [u8; 2],
     scalar_argument: Option<&CompilerBuiltinScalarArgument>,
@@ -32,17 +32,19 @@ pub(crate) fn hosted_builtin_settlement_identity(
 ) -> Result<[u8; 32], &'static str> {
     // Structural-result custody has its own domain; scalar-only and unit-result
     // custody share the original builtin domain.
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(match result {
-        CompilerBuiltinResult::Unit => {
-            b"omega.d41-boundary-trait-settlement.sha256.v1\0".as_slice()
-        }
-        CompilerBuiltinResult::Structural(_) => {
-            b"omega.d41-boundary-trait-settlement.sha256.v3\0".as_slice()
-        }
-    });
+    let mut digest =
+        crate::digest_encoder::DomainDigestEncoder::new(match (origin.is_direct(), result) {
+            (true, _) => b"omega.d41-direct-compiler-intrinsic-settlement.sha256.v1\0".as_slice(),
+            (false, CompilerBuiltinResult::Unit) => {
+                b"omega.d41-boundary-trait-settlement.sha256.v1\0".as_slice()
+            }
+            (false, CompilerBuiltinResult::Structural(_)) => {
+                b"omega.d41-boundary-trait-settlement.sha256.v3\0".as_slice()
+            }
+        });
     digest.raw(&occurrence.identity().bytes());
     hash_bytes(&mut digest, requirement_identity.as_bytes());
-    digest.raw(selected_plan_digest.as_bytes());
+    digest.raw(&origin.commitment());
     hash_target(&mut digest, target);
     digest.byte(1); // HostedV1 compiler-builtin catalog.
     digest.raw(&identity_tags);
@@ -104,12 +106,63 @@ pub(crate) fn admitted_provider_boundary_trait_settlement_identity(
     structural_arguments: &[terminal_psi::StructuralArgument],
     structural_parameters: &[terminal_psi::StructuralParameterDeclaration],
 ) -> [u8; 32] {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+    foreign_settlement_identity(
         b"omega.d41-boundary-trait-settlement.sha256.v7\0",
-    );
+        *selected_plan_digest.as_bytes(),
+        occurrence,
+        requirement_identity,
+        target,
+        execution,
+        boundary_plan_identity,
+        mechanism,
+        structural_arguments,
+        structural_parameters,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn direct_foreign_settlement_identity(
+    occurrence: &OptimizedBoundaryOccurrence,
+    callable_identity: &str,
+    commitment: [u8; 32],
+    target: NativeTarget,
+    execution: ProviderExecutionBinding,
+    boundary_plan_identity: [u8; 32],
+    mechanism: &target_operations::NormalizedForeignCallMechanism,
+    structural_arguments: &[terminal_psi::StructuralArgument],
+    structural_parameters: &[terminal_psi::StructuralParameterDeclaration],
+) -> [u8; 32] {
+    foreign_settlement_identity(
+        b"omega.d41-direct-foreign-settlement.sha256.v1\0",
+        commitment,
+        occurrence,
+        callable_identity,
+        target,
+        execution,
+        boundary_plan_identity,
+        mechanism,
+        structural_arguments,
+        structural_parameters,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn foreign_settlement_identity(
+    domain: &'static [u8],
+    origin_commitment: [u8; 32],
+    occurrence: &OptimizedBoundaryOccurrence,
+    requirement_identity: &str,
+    target: NativeTarget,
+    execution: ProviderExecutionBinding,
+    boundary_plan_identity: [u8; 32],
+    mechanism: &target_operations::NormalizedForeignCallMechanism,
+    structural_arguments: &[terminal_psi::StructuralArgument],
+    structural_parameters: &[terminal_psi::StructuralParameterDeclaration],
+) -> [u8; 32] {
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(domain);
     digest.raw(&occurrence.identity().bytes());
     hash_bytes(&mut digest, requirement_identity.as_bytes());
-    digest.raw(selected_plan_digest.as_bytes());
+    digest.raw(&origin_commitment);
     hash_target(&mut digest, target);
     digest.byte(2); // AdmittedProvider::NormalizedForeignCall.
     digest.raw(

@@ -44,6 +44,11 @@ pub fn encode_provider_execution(
     bytes: &mut Vec<u8>,
     execution: target_operations::ProviderExecutionBinding,
 ) {
+    if let Some(direct) = execution.direct_foreign_realization() {
+        bytes.extend_from_slice(&0u64.to_le_bytes());
+        bytes.extend_from_slice(&direct);
+        return;
+    }
     bytes.extend_from_slice(
         &execution
             .provider_plan_report_identity()

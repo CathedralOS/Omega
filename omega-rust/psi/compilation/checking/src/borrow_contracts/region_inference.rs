@@ -9,6 +9,10 @@ use typed_trees::types::TypeReferenceHandle;
 #[derive(Clone, Default)]
 pub(super) struct InputRegionApplication {
     fresh: Vec<(usize, RegionIdentity)>,
+    // Only the original full input correspondence joins these supplied formals.
+    // Scope ownership stays exact; no anonymous class grants captured storage or
+    // a universally fresh invocation. Results consume the established map.
+    anonymous: Vec<(symbols::SymbolHandle, usize, RegionIdentity)>,
     pub(super) elided: Vec<(usize, TypeReferenceHandle, RegionIdentity)>,
 }
 
@@ -21,6 +25,11 @@ impl PartialEq for InputRegionApplication {
                 .fresh
                 .iter()
                 .all(|binding| other.fresh.contains(binding))
+            && self.anonymous.len() == other.anonymous.len()
+            && self
+                .anonymous
+                .iter()
+                .all(|binding| other.anonymous.contains(binding))
             && self.elided.len() == other.elided.len()
             && self
                 .elided
@@ -47,6 +56,21 @@ impl InputRegionApplication {
                     true
                 }
             }
+            Some(RegionIdentity::AnonymousInvocation(declaration, ordinal)) => {
+                if !matches!(required, RegionIdentity::AnonymousInvocation(_, _)) {
+                    return false;
+                }
+                if let Some((_, _, region)) = self
+                    .anonymous
+                    .iter()
+                    .find(|(owner, source, _)| *owner == declaration && *source == ordinal)
+                {
+                    *region == required
+                } else {
+                    self.anonymous.push((declaration, ordinal, required));
+                    true
+                }
+            }
             Some(actual) => actual == required,
             None => {
                 if let Some((_, _, region)) =
@@ -70,8 +94,15 @@ impl InputRegionApplication {
     ) -> Result<(), &'static str> {
         let mut invocation_count = 0;
         for source in 0..actual_count {
+            // A universally checked body may instantiate at a supplied named
+            // or anonymous requirement operand. Such a closed operand cannot
+            // discharge any remaining required fresh invocation binder.
             if self.fresh.iter().any(|(ordinal, region)| {
-                *ordinal == source && matches!(region, RegionIdentity::Captured(_, _))
+                *ordinal == source
+                    && matches!(
+                        region,
+                        RegionIdentity::Captured(_, _) | RegionIdentity::AnonymousInvocation(_, _)
+                    )
             }) {
                 continue;
             }
@@ -97,11 +128,12 @@ impl InputRegionApplication {
             }
         }
         if required_count != 0 && invocation_count + implicit.len() != required_count {
-            if self
-                .fresh
-                .iter()
-                .any(|(_, region)| matches!(region, RegionIdentity::Captured(_, _)))
-            {
+            if self.fresh.iter().any(|(_, region)| {
+                matches!(
+                    region,
+                    RegionIdentity::Captured(_, _) | RegionIdentity::AnonymousInvocation(_, _)
+                )
+            }) {
                 // A binder used by a captured Type operand is not available
                 // as an independent universal invocation binder as well.
                 return Err("callable type does not preserve its region identity");
@@ -112,6 +144,16 @@ impl InputRegionApplication {
     }
 
     pub(super) fn apply(&self, region: &mut RegionIdentity) {
+        if let RegionIdentity::AnonymousInvocation(declaration, ordinal) = region {
+            if let Some((_, _, target)) = self
+                .anonymous
+                .iter()
+                .find(|(owner, source, _)| owner == declaration && source == ordinal)
+            {
+                *region = target.clone();
+            }
+            return;
+        }
         if let RegionIdentity::Fresh(ordinal) = region
             && let Some((_, target)) = self.fresh.iter().find(|(source, _)| source == ordinal)
         {

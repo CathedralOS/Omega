@@ -27,6 +27,13 @@ use source::SourceSpan;
 use std::sync::Arc;
 use symbols::SymbolHandle;
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct ExpressionCorrespondence {
+    source: language_core::expression_origin::ExpressionSourceOrigin,
+    selected_match_result: ExpressionHandle,
+    selected_match_meaning: language_core::expression_origin::ConstMatchIntegerMeaning,
+}
+
 pub type ExpressionHandle = Handle<ExpressionNode>;
 
 /// Arena dummy storage for an occurrence identity. `None` exists only to
@@ -55,6 +62,7 @@ pub struct ExpressionTable {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ExpressionNodeStorage {
     expressions: Arena<ExpressionNode>,
+    correspondences: Arena<ExpressionCorrespondence>,
     source_spans: Vec<SourceSpan>,
     authored_expression_exposures: Vec<Option<AuthoredDeclarationSelectionExposure>>,
     compiler_selection_partitions: Vec<Option<CompilerDerivedSelectionPartition>>,
@@ -87,6 +95,7 @@ impl ExpressionTable {
         Self {
             nodes: ExpressionNodeStorage {
                 expressions: Arena::new(),
+                correspondences: Arena::new(),
                 source_spans: Vec::new(),
                 authored_expression_exposures: Vec::new(),
                 compiler_selection_partitions: Vec::new(),
@@ -105,6 +114,7 @@ impl ExpressionTable {
 
     pub fn clear(&mut self) {
         self.nodes.expressions.reset_retain_capacity();
+        self.nodes.correspondences.reset_retain_capacity();
         self.nodes.source_spans.clear();
         self.nodes.authored_expression_exposures.clear();
         self.nodes.compiler_selection_partitions.clear();
@@ -121,6 +131,12 @@ impl ExpressionTable {
 
     pub fn insert(&mut self, expression: ExpressionNode) -> ExpressionHandle {
         let handle = self.nodes.expressions.insert(expression);
+        let correspondence = self
+            .nodes
+            .correspondences
+            .insert(ExpressionCorrespondence::default());
+        debug_assert_eq!(handle.arena_index(), correspondence.arena_index());
+        debug_assert_eq!(handle.generation(), correspondence.generation());
         self.nodes.source_spans.push(SourceSpan::default());
         self.nodes.authored_expression_exposures.push(None);
         self.nodes.compiler_selection_partitions.push(None);
@@ -141,6 +157,81 @@ impl ExpressionTable {
             self.nodes.authored_selection_occurrences.len() - 1
         );
         handle
+    }
+
+    pub fn expression_source_origin(
+        &self,
+        expression: ExpressionHandle,
+    ) -> language_core::expression_origin::ExpressionSourceOrigin {
+        self.nodes
+            .correspondences
+            .get(Handle::from_parts(
+                expression.arena_index(),
+                expression.generation(),
+            ))
+            .source
+    }
+
+    pub fn retain_expression_source_origin(
+        &mut self,
+        expression: ExpressionHandle,
+        source: language_core::expression_origin::ExpressionSourceOrigin,
+    ) {
+        self.nodes
+            .correspondences
+            .get_mut(Handle::from_parts(
+                expression.arena_index(),
+                expression.generation(),
+            ))
+            .source = source;
+    }
+
+    /// Completed evaluation owns this edge; consumers never choose an arm here.
+    pub fn selected_const_match_result(&self, expression: ExpressionHandle) -> ExpressionHandle {
+        self.nodes
+            .correspondences
+            .get(Handle::from_parts(
+                expression.arena_index(),
+                expression.generation(),
+            ))
+            .selected_match_result
+    }
+
+    pub fn selected_const_match_meaning(
+        &self,
+        expression: ExpressionHandle,
+    ) -> language_core::expression_origin::ConstMatchIntegerMeaning {
+        self.nodes
+            .correspondences
+            .get(Handle::from_parts(
+                expression.arena_index(),
+                expression.generation(),
+            ))
+            .selected_match_meaning
+    }
+
+    pub fn retain_selected_const_match_result(
+        &mut self,
+        expression: ExpressionHandle,
+        selected: ExpressionHandle,
+        meaning: language_core::expression_origin::ConstMatchIntegerMeaning,
+    ) {
+        let ExpressionNode::Match(dispatch) = self.expression(expression) else {
+            panic!("selected const result belongs to a Match occurrence");
+        };
+        assert!(
+            self.match_arms(dispatch.arms)
+                .iter()
+                .any(|arm| arm.value == selected)
+        );
+        let row = self.nodes.correspondences.get_mut(Handle::from_parts(
+            expression.arena_index(),
+            expression.generation(),
+        ));
+        assert!(!row.selected_match_result.is_valid() || row.selected_match_result == selected);
+        assert!(!row.selected_match_result.is_valid() || row.selected_match_meaning == meaning);
+        row.selected_match_result = selected;
+        row.selected_match_meaning = meaning;
     }
 
     pub fn source_span(&self, handle: ExpressionHandle) -> SourceSpan {

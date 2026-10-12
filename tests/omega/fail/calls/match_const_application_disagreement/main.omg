@@ -1,0 +1,11 @@
+data Carrier<Payload, const Shape: u64> { value: Payload; }
+data Main { value: u64; }
+machine make(value: u64) -> Carrier<u64, 4> { Carrier { value: value } }
+machine make_other(value: u64) -> Carrier<u64, 8> { Carrier { value: value } }
+machine Carrier::choose<Payload, const Shape: u64>(carrier: &Carrier<Payload, Shape>) -> u64 { transition { _ -> Shape } }
+machine Main::main(main: &mut Main) crashes Trap {
+    let result: u64 = Carrier::choose(&(match main.value == 0 { true -> make(main.value), _ -> make_other(main.value), }));
+    transition result == 4 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

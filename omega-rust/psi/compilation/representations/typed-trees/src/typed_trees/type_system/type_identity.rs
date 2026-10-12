@@ -5,6 +5,9 @@
 //! authored spelling has an order and may repeat terms. This module owns the
 //! canonical form used by type equality, specialization, and published plan
 //! identities (decision 19 / DOM4).
+//! Integer value bytes and typed carrier meaning have separate producers.
+//! Canonical integer keys retain the original width and arithmetic policy beside
+//! the value encoding; missing meaning never inherits a receiving slot policy.
 //! Ordinary identities distinguish authored and toolchain declaration
 //! namespaces even when their visible paths agree. Package-review identities
 //! additionally retain exact package owners; neither route uses a display name
@@ -25,6 +28,9 @@ mod normalized_identities;
 mod open_index_identity;
 mod result_dispatch_terms;
 mod substitution;
+
+pub(crate) use constraint_identity::{atom as identity_atom, compound as identity_compound};
+pub use identity_context::canonical_const_identity_with_meaning;
 
 pub use callable_identity::{
     CallableIdentityId, CallableIdentityMemo, CallableIdentityTable, CallableParametersId,
@@ -79,44 +85,77 @@ pub enum IndexIdentityArgument<'argument> {
     StaticArgument(&'argument crate::expression::StaticMachineArgument),
 }
 
+/// A supplied application maps region formals into its supplying context. A
+/// source family instead owns arbitrary declaration regions; a member call
+/// cannot replace that telescope with its own concrete borrow mapping.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AppliedTypeIdentityRegionRole {
+    Supplied,
+    Declaration,
+}
+
 /// One simultaneous declaration telescope. Its operands belong to the outer
 /// scope, never to another binder in this same telescope.
 #[derive(Clone, Copy)]
 pub struct AppliedTypeIdentityScope<'argument> {
+    pub region_role: AppliedTypeIdentityRegionRole,
     pub declaration: SymbolHandle,
     pub arguments: &'argument [(SymbolHandle, IndexIdentityArgument<'argument>)],
-    pub lifetimes: &'argument [(String, String)],
+    /// A present None is an admitted anonymous invocation operand; an absent
+    /// formal row remains missing correspondence. Captured queries reject None.
+    pub lifetimes: &'argument [(String, Option<String>)],
+}
+
+/// The authentic lexical namespace for an applied type's erased regions.
+/// Captures remain independent of same-numbered generated Product symbols.
+#[derive(Clone, Copy)]
+pub enum AppliedTypeIdentityOwner<'owner> {
+    Declaration(SymbolHandle),
+    Captured(&'owner crate::typed_trees::product_applications::CapturedStaticLexicalScope),
 }
 
 /// Local application equality retains erased regions as lexical-owner and
 /// declaration-order identities. It shares the ordinary structural/index
 /// normalizer, but is not a replacement for runtime-carrier identity or a new
-/// published commitment encoding. Missing region custody fails closed.
+/// published commitment encoding. The caller selects local or package-qualified
+/// nominal identities in the same normalizer. Missing region custody fails closed.
 pub fn applied_type_identity(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
-    lexical_owner: SymbolHandle,
+    lexical_owner: AppliedTypeIdentityOwner<'_>,
     scopes: &[AppliedTypeIdentityScope<'_>],
+    qualification: TypeIdentityQualification,
 ) -> Option<NormalizedTypeIdentity> {
-    qualified_applied_type_identity(
+    let (application_owner, application_capture) = match lexical_owner {
+        AppliedTypeIdentityOwner::Declaration(symbol) => (symbol, None),
+        AppliedTypeIdentityOwner::Captured(scope) => (scope.symbol(), Some(scope)),
+    };
+    let invalid = Cell::new(false);
+    let identity = normalize_type_reference(
         program,
         reference,
-        lexical_owner,
-        scopes,
-        TypeIdentityQualification::Ordinary,
-    )
+        &TypeIdentityContext {
+            application_scopes: scopes,
+            application_owner,
+            application_capture,
+            invalid_application: Some(&invalid),
+            invalid_index_argument: Some(&invalid),
+            qualification,
+            ..TypeIdentityContext::default()
+        },
+    );
+    (!invalid.get()).then_some(program_intern_type_identity(program, identity))
 }
 
-/// Exact application identity for publication. Nominals retain package owners;
-/// regions retain their supplying declaration kind, overload and ordinal.
-/// This is not a loan, provider admission, or a generic coverage theorem.
+/// Exact application identity for publication retains the original lexical
+/// issuer as well as package-qualified nominal and region coordinates.
 pub fn portable_applied_type_identity(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
-    lexical_owner: SymbolHandle,
+    lexical_owner: AppliedTypeIdentityOwner<'_>,
     scopes: &[AppliedTypeIdentityScope<'_>],
 ) -> Option<NormalizedTypeIdentity> {
-    qualified_applied_type_identity(
+    applied_type_identity(
         program,
         reference,
         lexical_owner,
@@ -125,36 +164,13 @@ pub fn portable_applied_type_identity(
     )
 }
 
-fn qualified_applied_type_identity(
-    program: &TypedTrees,
-    reference: TypeReferenceHandle,
-    lexical_owner: SymbolHandle,
-    scopes: &[AppliedTypeIdentityScope<'_>],
-    qualification: TypeIdentityQualification,
-) -> Option<NormalizedTypeIdentity> {
-    let invalid = Cell::new(false);
-    let identity = normalize_type_reference(
-        program,
-        reference,
-        &TypeIdentityContext {
-            application_scopes: scopes,
-            application_owner: lexical_owner,
-            qualification,
-            invalid_application: Some(&invalid),
-            invalid_index_argument: Some(&invalid),
-            ..TypeIdentityContext::default()
-        },
-    );
-    (!invalid.get()).then_some(program_intern_type_identity(program, identity))
-}
-
 /// Resolve one erased region through the same simultaneous application scopes
 /// as its containing type. This is local semantic identity, not loan authority
 /// or a portable artifact coordinate.
 pub fn applied_lifetime_identity(
     program: &TypedTrees,
     name: &str,
-    lexical_owner: SymbolHandle,
+    lexical_owner: AppliedTypeIdentityOwner<'_>,
     scopes: &[AppliedTypeIdentityScope<'_>],
 ) -> Option<NormalizedTypeIdentity> {
     qualified_applied_lifetime_identity(
@@ -166,12 +182,12 @@ pub fn applied_lifetime_identity(
     )
 }
 
-/// Publish one resolved region through the same simultaneous scopes as its
-/// containing argument, including unused public lifetime operands.
+/// Publish the original resolved region through the same simultaneous scopes,
+/// including unused public lifetime operands and retained captured issuers.
 pub fn portable_applied_lifetime_identity(
     program: &TypedTrees,
     name: &str,
-    lexical_owner: SymbolHandle,
+    lexical_owner: AppliedTypeIdentityOwner<'_>,
     scopes: &[AppliedTypeIdentityScope<'_>],
 ) -> Option<NormalizedTypeIdentity> {
     qualified_applied_lifetime_identity(
@@ -186,14 +202,19 @@ pub fn portable_applied_lifetime_identity(
 fn qualified_applied_lifetime_identity(
     program: &TypedTrees,
     name: &str,
-    lexical_owner: SymbolHandle,
+    lexical_owner: AppliedTypeIdentityOwner<'_>,
     scopes: &[AppliedTypeIdentityScope<'_>],
     qualification: TypeIdentityQualification,
 ) -> Option<NormalizedTypeIdentity> {
+    let (application_owner, application_capture) = match lexical_owner {
+        AppliedTypeIdentityOwner::Declaration(symbol) => (symbol, None),
+        AppliedTypeIdentityOwner::Captured(scope) => (scope.symbol(), Some(scope)),
+    };
     let invalid = Cell::new(false);
     let identity = TypeIdentityContext {
         application_scopes: scopes,
-        application_owner: lexical_owner,
+        application_owner,
+        application_capture,
         qualification,
         invalid_application: Some(&invalid),
         ..TypeIdentityContext::default()
@@ -266,6 +287,130 @@ pub(crate) fn portable_trait_application_identity(
     ))
 }
 
+/// Rejoin a declared static slot through its original simultaneous application
+/// scopes. The caller supplies the actual declaration category and lexical owner;
+/// this shares type/index and declared-carrier normalization without admitting an
+/// operand, reconstructing a value, or erasing a missing region correspondence.
+/// Returned handles compare only within this issuing program, like applied type
+/// identities; qualification selects the existing nominal-owner grammar.
+pub fn applied_static_parameter_identity(
+    program: &TypedTrees,
+    parameter: &crate::data::TypeParameter,
+    argument: IndexIdentityArgument<'_>,
+    lexical_owner: AppliedTypeIdentityOwner<'_>,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+    qualification: TypeIdentityQualification,
+) -> Option<NormalizedTypeIdentity> {
+    let (application_owner, application_capture) = match lexical_owner {
+        AppliedTypeIdentityOwner::Declaration(symbol) => (symbol, None),
+        AppliedTypeIdentityOwner::Captured(capture) => (capture.symbol(), Some(capture)),
+    };
+    let invalid = Cell::new(false);
+    let context = TypeIdentityContext {
+        application_scopes: scopes,
+        application_owner,
+        application_capture,
+        invalid_application: Some(&invalid),
+        invalid_index_argument: Some(&invalid),
+        qualification,
+        ..TypeIdentityContext::default()
+    };
+    let identity = static_parameter_identity(program, parameter, argument, &context)?;
+    (!invalid.get()).then(|| program_intern_type_identity(program, identity))
+}
+
+/// Region-free receiver arguments use the same original declared-slot grammar
+/// as application tuples. Anonymous values land in their declared carrier;
+/// already typed values retain their width and policy. This query establishes
+/// identity only, independently of source argument admission.
+pub(crate) fn region_free_static_parameter_identity(
+    program: &TypedTrees,
+    parameter: &crate::data::TypeParameter,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+    qualification: TypeIdentityQualification,
+) -> Option<NormalizedTypeIdentity> {
+    let invalid = Cell::new(false);
+    let encountered_regions = Cell::new(false);
+    let context = TypeIdentityContext {
+        application_scopes: scopes,
+        encountered_regions: Some(&encountered_regions),
+        invalid_application: Some(&invalid),
+        invalid_index_argument: Some(&invalid),
+        qualification,
+        ..TypeIdentityContext::default()
+    };
+    let identity = static_parameter_identity(
+        program,
+        parameter,
+        IndexIdentityArgument::Subject(parameter.symbol),
+        &context,
+    )?;
+    (!invalid.get() && !encountered_regions.get())
+        .then(|| program_intern_type_identity(program, identity))
+}
+
+fn static_parameter_identity(
+    program: &TypedTrees,
+    parameter: &crate::data::TypeParameter,
+    argument: IndexIdentityArgument<'_>,
+    context: &TypeIdentityContext<'_>,
+) -> Option<String> {
+    Some(match parameter.kind {
+        crate::data::TypeParameterKind::Const { type_reference }
+        | crate::data::TypeParameterKind::Value { type_reference } => {
+            substitution::declared_const_argument(program, argument, type_reference, context)?
+        }
+        crate::data::TypeParameterKind::Type => {
+            substitution::index_argument(program, argument, context)
+        }
+        crate::data::TypeParameterKind::Machine { .. }
+        | crate::data::TypeParameterKind::Implementation => {
+            applied_declaration_argument_identity(program, argument, context)?
+        }
+        crate::data::TypeParameterKind::Proposition { .. } => return None,
+    })
+}
+
+fn applied_declaration_argument_identity(
+    program: &TypedTrees,
+    argument: IndexIdentityArgument<'_>,
+    context: &TypeIdentityContext<'_>,
+) -> Option<String> {
+    let symbol = match argument {
+        IndexIdentityArgument::Subject(symbol) => symbol,
+        IndexIdentityArgument::TypeReference(reference)
+        | IndexIdentityArgument::TypeArgument(reference) => {
+            if !program
+                .type_reference_table
+                .contains_type_reference(reference)
+            {
+                return None;
+            }
+            match program.type_reference_table.type_reference(reference) {
+                crate::types::TypeReferenceNode::Named { symbol, .. } => *symbol,
+                _ => SymbolHandle::invalid(),
+            }
+        }
+        IndexIdentityArgument::StaticArgument(argument) => argument.symbol,
+        IndexIdentityArgument::Expression(_) => return None,
+    };
+    if let Some((actual, outer)) = context.applied_argument(symbol) {
+        return applied_declaration_argument_identity(program, actual, &outer);
+    }
+    match argument {
+        IndexIdentityArgument::TypeReference(reference)
+        | IndexIdentityArgument::TypeArgument(reference) => {
+            let actual = program.static_operand_from_type_reference(reference).ok()?;
+            Some(substitution::index_argument(
+                program,
+                IndexIdentityArgument::StaticArgument(&actual),
+                context,
+            ))
+        }
+        _ => Some(substitution::index_argument(program, argument, context)),
+    }
+}
+
 /// Compare static indices and local fact operands through the same licensed
 /// normalizer as type identity. Replacements belong to the caller's scope and
 /// are therefore simultaneous: a swapped telescope must not bind twice.
@@ -274,6 +419,7 @@ pub fn normalized_index_identity(
     program: &TypedTrees,
     argument: IndexIdentityArgument<'_>,
     substitutions: &[(SymbolHandle, IndexIdentityArgument<'_>)],
+    qualification: TypeIdentityQualification,
 ) -> Option<String> {
     let invalid = Cell::new(false);
     let identity = substitution::index_argument(
@@ -282,10 +428,66 @@ pub fn normalized_index_identity(
         &TypeIdentityContext {
             index_substitutions: substitutions,
             invalid_index_argument: Some(&invalid),
+            qualification,
             ..TypeIdentityContext::default()
         },
     );
     (!invalid.get()).then_some(identity)
+}
+
+/// Project an original index operand with the same exact source and region
+/// custody used by portable applied types. Local index equality deliberately
+/// allows unowned diagnostic names; callable commitments must not inherit that
+/// fallback. The caller supplies the original lexical namespace and actual
+/// loaded toolchain source roster, including an explicitly empty roster when
+/// that dependency is unavailable.
+pub(crate) fn exact_owner_index_identity(
+    program: &TypedTrees,
+    argument: IndexIdentityArgument<'_>,
+    lexical_owner: AppliedTypeIdentityOwner<'_>,
+    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+) -> Option<String> {
+    let (application_owner, application_capture) = match lexical_owner {
+        AppliedTypeIdentityOwner::Declaration(symbol) => (symbol, None),
+        AppliedTypeIdentityOwner::Captured(capture) => (capture.symbol(), Some(capture)),
+    };
+    let invalid = Cell::new(false);
+    let identity = substitution::index_argument(
+        program,
+        argument,
+        &TypeIdentityContext {
+            application_owner,
+            application_capture,
+            invalid_application: Some(&invalid),
+            invalid_index_argument: Some(&invalid),
+            missing_exact_nominal_owner: Some(&invalid),
+            exact_toolchain_sources,
+            qualification: TypeIdentityQualification::PackageQualified,
+            ..TypeIdentityContext::default()
+        },
+    );
+    (!invalid.get()).then_some(identity)
+}
+
+/// Identify a const operand under its original declared slot. Anonymous
+/// values acquire only that slot's resolved carrier; typed values and missing
+/// receipts keep their independent meaning in the shared structural grammar.
+pub fn declared_const_argument_identity(
+    program: &TypedTrees,
+    argument: IndexIdentityArgument<'_>,
+    carrier: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> Option<String> {
+    substitution::declared_const_argument(
+        program,
+        argument,
+        carrier,
+        &TypeIdentityContext {
+            substitutions,
+            substitution_semantics: SubstitutionSemantics::Simultaneous,
+            ..TypeIdentityContext::default()
+        },
+    )
 }
 
 /// Normalize a symbolic expression with declaration-local binder identities.
@@ -850,6 +1052,60 @@ impl TypedTrees {
         (!missing_exact_nominal_owner.get()).then_some(identity)
     }
 
+    /// Portable applied identity uses the same type/index normalizer as local
+    /// equality, with exact nominal declaration custody for every retained
+    /// region. Captured namespaces are read through their original owner;
+    /// compilation-local capture and arena identities never enter this output.
+    pub fn exact_owner_applied_type_identity(
+        &self,
+        request: ExactOwnerTypeIdentityRequest<'_>,
+        lexical_owner: AppliedTypeIdentityOwner<'_>,
+    ) -> Option<NormalizedTypeIdentity> {
+        self.exact_owner_scoped_applied_type_identity(request, lexical_owner, &[])
+    }
+
+    /// Source declaration carriers use their original simultaneous telescope.
+    /// Actual operands leave that telescope before normalization; an original
+    /// region without a retained formal correspondence remains unavailable.
+    pub(crate) fn exact_owner_scoped_applied_type_identity(
+        &self,
+        request: ExactOwnerTypeIdentityRequest<'_>,
+        lexical_owner: AppliedTypeIdentityOwner<'_>,
+        scopes: &[AppliedTypeIdentityScope<'_>],
+    ) -> Option<NormalizedTypeIdentity> {
+        if !self
+            .type_reference_table
+            .contains_type_reference(request.type_reference)
+        {
+            return None;
+        }
+        let (application_owner, application_capture) = match lexical_owner {
+            AppliedTypeIdentityOwner::Declaration(symbol) => (symbol, None),
+            AppliedTypeIdentityOwner::Captured(scope) => (scope.symbol(), Some(scope)),
+        };
+        let invalid = Cell::new(false);
+        let identity = normalize_type_reference(
+            self,
+            request.type_reference,
+            &TypeIdentityContext {
+                application_scopes: scopes,
+                binders: request.binders,
+                substitutions: request.substitutions,
+                substitution_semantics: SubstitutionSemantics::Simultaneous,
+                application_owner,
+                application_capture,
+                invalid_application: Some(&invalid),
+                missing_application_region_correspondence: (!scopes.is_empty()).then_some(&invalid),
+                invalid_index_argument: Some(&invalid),
+                exact_toolchain_sources: request.exact_toolchain_sources,
+                missing_exact_nominal_owner: Some(&invalid),
+                qualification: TypeIdentityQualification::PackageQualified,
+                ..TypeIdentityContext::default()
+            },
+        );
+        (!invalid.get()).then_some(program_intern_type_identity(self, identity))
+    }
+
     /// Exact-owner identity for one already-resolved nominal declaration.
     /// Compiler builtins use their closed semantic atom; authored nominals
     /// require a managed package owner or exact toolchain source.
@@ -907,6 +1163,33 @@ impl TypedTrees {
         &self,
         machine: &crate::machine::Machine,
     ) -> Option<callable_identity::CallableIdentityParts> {
+        // Producer receipts normally point from a fresh instance to its
+        // existing template. Check the complete handle lineage before the
+        // recursive interner consult so duplicate/cyclic receipts cannot make
+        // identity derivation recurse indefinitely.
+        let mut lineage = Vec::new();
+        let mut declaration = machine.symbol;
+        loop {
+            if lineage.contains(&declaration) {
+                return None;
+            }
+            lineage.push(declaration);
+            let mut origins = self
+                .machine_specializations
+                .iter()
+                .filter(|row| row.instance == declaration);
+            let Some(origin) = origins.next() else {
+                break;
+            };
+            if origins.next().is_some() {
+                return None;
+            }
+            if !origin.binding_application.is_valid() {
+                break;
+            }
+            self.machine(origin.template)?;
+            declaration = origin.template;
+        }
         let entry = self.machine_states(machine).first()?;
         // Module ownership lives on the exact symbol, not the authored
         // machine spelling. Module-free and source-free semantic fixtures
@@ -923,13 +1206,41 @@ impl TypedTrees {
                 machine.name
             )
         });
-        Some(self.named_callable_identity_parts(
+        let mut identity = self.named_callable_identity_parts(
             module_path.as_deref().unwrap_or(machine.name.as_str()),
             machine.symbol,
             self.machine_type_parameters(machine),
             self.state_parameters(entry),
             entry.return_type,
-        ))
+        );
+        let mut applications = self
+            .machine_specializations
+            .iter()
+            .filter(|row| row.instance == machine.symbol);
+        if let Some(application) = applications.next() {
+            if applications.next().is_some() || application.template == machine.symbol {
+                return None;
+            }
+            if application.binding_application.is_valid() {
+                let template = self.machine(application.template)?;
+                let template_identity = self.machine_callable_identity_text(template)?;
+                let tuple = crate::static_applications::static_application_identity_text(
+                    self,
+                    application.binding_application,
+                )
+                .ok()?;
+                identity.path = self.symbols.display_path(template.symbol, "::");
+                identity.parameters = compound(
+                    "applied-machine",
+                    [
+                        atom("template", &template_identity),
+                        tuple,
+                        atom("parameters", &identity.parameters),
+                    ],
+                );
+            }
+        }
+        Some(identity)
     }
 
     /// The complete entry result type, normalized with the machine's generic
@@ -1000,7 +1311,7 @@ impl TypedTrees {
         &self,
         trait_definition: &crate::trait_definition::TraitDefinition,
         requirement: &crate::signature::StateSignature,
-    ) -> callable_identity::CallableIdentityParts {
+    ) -> Option<callable_identity::CallableIdentityParts> {
         let mut type_parameters = self.trait_type_parameters(trait_definition).to_vec();
         type_parameters.extend_from_slice(self.state_signature_type_parameters(requirement));
         // As with concrete machines, a requirement belongs to its full module
@@ -1038,7 +1349,7 @@ impl TypedTrees {
                 .map(|identity| self.type_identity_text(*identity).unwrap_or_default())
                 .collect::<Vec<_>>();
             identity.parameters = compound(
-                "closed-requirement",
+                "applied-requirement",
                 [
                     atom("template", &template_identity),
                     atom("trait-application", &outer),
@@ -1046,8 +1357,47 @@ impl TypedTrees {
                     atom("parameters", &identity.parameters),
                 ],
             );
+        } else {
+            let selected = self.public_trait_requirement_signature(requirement.symbol)?;
+            if selected.application.is_valid() {
+                if !std::ptr::eq(selected.signature, requirement)
+                    || selected.owner.symbol != trait_definition.symbol
+                {
+                    return None;
+                }
+                // The retained header producer names an original declaration;
+                // another produced header is not a source-template DAG edge.
+                let original =
+                    self.public_trait_requirement_signature(selected.declaration.symbol)?;
+                if original.application.is_valid()
+                    || !std::ptr::eq(original.signature, selected.declaration)
+                    || original.owner.symbol != trait_definition.symbol
+                {
+                    return None;
+                }
+                let template = self.trait_requirement_callable_identity_text(
+                    trait_definition,
+                    selected.declaration,
+                );
+                if template.is_empty() {
+                    return None;
+                }
+                let application = crate::static_applications::static_application_identity_text(
+                    self,
+                    selected.application,
+                )
+                .ok()?;
+                identity.parameters = compound(
+                    "applied-requirement",
+                    [
+                        atom("template", &template),
+                        application,
+                        atom("parameters", &identity.parameters),
+                    ],
+                );
+            }
         }
-        identity
+        Some(identity)
     }
 
     /// The derived parts of one explicitly named operator requirement

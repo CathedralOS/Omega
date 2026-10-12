@@ -47,7 +47,9 @@ pub(super) fn validate(
             generic_depth: 0,
         },
         crate::value_custody::type_references::TypeParameterScope {
-            lexical_owner: machine.symbol,
+            lexical_owner: typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(
+                machine.symbol,
+            ),
             type_parameters: &type_parameters,
             lifetime_parameters: &lifetime_parameters,
         },

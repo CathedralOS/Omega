@@ -23,6 +23,7 @@ impl ProviderPlanReportIdentity {
 /// and serialization only and cannot recreate admission.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProviderExecutionBinding {
+    direct_foreign_realization: Option<[u8; 32]>,
     provider_plan_report_identity: ProviderPlanReportIdentity,
     provider_execution_report_identity: u64,
     provider_execution_report_fingerprint: u64,
@@ -526,6 +527,27 @@ impl From<ProviderExecutionBinding> for BoundaryExecutionBinding {
 }
 
 impl ProviderExecutionBinding {
+    /// Execution projection for an exact direct binding. Its compact report
+    /// coordinate grants no provider selection; strong custody is this distinct
+    /// direct realization commitment, retained through physical artifact review.
+    pub fn from_direct_foreign(realization: [u8; 32]) -> Option<Self> {
+        if realization == [0; 32] {
+            return None;
+        }
+        let report = u64::from_le_bytes(realization[..8].try_into().ok()?).max(1);
+        Some(Self {
+            direct_foreign_realization: Some(realization),
+            provider_plan_report_identity: ProviderPlanReportIdentity::new(report)?,
+            provider_execution_report_identity: report,
+            provider_execution_report_fingerprint: report,
+            normalized_root_report_identity: report,
+            boundary_contract_report_fingerprint: report,
+        })
+    }
+    pub const fn direct_foreign_realization(self) -> Option<[u8; 32]> {
+        self.direct_foreign_realization
+    }
+
     /// Non-authoritative data projection. Production lowering obtains these
     /// fields from selected-provider and installation evidence; constructing
     /// a record does not grant entry admission or executable authority.
@@ -545,6 +567,7 @@ impl ProviderExecutionBinding {
         .iter()
         .all(|identity| *identity != 0)
         .then_some(Self {
+            direct_foreign_realization: None,
             provider_plan_report_identity,
             provider_execution_report_identity,
             provider_execution_report_fingerprint,

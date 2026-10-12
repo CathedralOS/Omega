@@ -527,7 +527,8 @@ mod tests {
             )
         }
         .unwrap();
-        let commitment = task_plans::SameStackProviderPlanCommitment::from_digest([0x42; 32]);
+        let commitment: task_plans::SameStackExecutionCommitment =
+            task_plans::SameStackProviderPlanCommitment::from_digest([0x42; 32]).into();
         let identities = terminal_psi::TerminalIdentityTable::from(vec![
             String::new(),
             "Foreign::leaf".to_owned(),

@@ -1,0 +1,1 @@
+plan places 3 parameters for a boundary signature with 1 native parameters

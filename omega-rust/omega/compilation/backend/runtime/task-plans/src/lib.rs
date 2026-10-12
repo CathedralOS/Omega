@@ -34,10 +34,11 @@ pub use task_plans::identities::{
 };
 pub use task_plans::stack_composition::{
     AdmittedSameStackContribution, CallTargetBinding, SameStackContributionAdmissionCandidate,
-    SameStackContributionCommitment, SameStackProviderPlanCommitment, StackCallContribution,
-    TaskStackFrameSummary, UnresolvedCallKind, UnresolvedCallSite, ValidatedTaskStackFrameSummary,
-    admit_same_stack_contribution, compose_task_stack_demand, project_wcsu_stack_plan,
-    task_stack_frame_validation_identity, validate_task_stack_frame_summary,
+    SameStackContributionCommitment, SameStackExecutionCommitment, SameStackProviderPlanCommitment,
+    StackCallContribution, TaskStackFrameSummary, UnresolvedCallKind, UnresolvedCallSite,
+    ValidatedTaskStackFrameSummary, admit_same_stack_contribution, compose_task_stack_demand,
+    project_wcsu_stack_plan, task_stack_frame_validation_identity,
+    validate_task_stack_frame_summary,
 };
 pub use task_plans::{
     ActivationCarryObligations, ActivationPlanCandidate, CanonicalSuspensionCrossing,

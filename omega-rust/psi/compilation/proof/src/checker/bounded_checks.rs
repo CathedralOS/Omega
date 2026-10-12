@@ -9,6 +9,7 @@ use crate::checker::certificate::{
     CertificateVerdict, bounded_integer_value_verdict, guarded_transition_integer_verdict_measured,
     state_return_integer_verdict,
 };
+use crate::checker::decisions::ProofCheckRecorder;
 use crate::checker::dependent_bounds::{
     dependent_call_field_floor, dependent_field_floor, guard_proves_dependent_upper,
     guard_proves_sibling_len_upper, incoming_guard_proves_dependent_call_upper,
@@ -34,7 +35,6 @@ use crate::checker::integer_ranges::{
     guarded_integer_range_for_transition_argument, integer_range_for_call_argument,
     integer_range_for_initializer, integer_range_from_constraints, type_constraints,
 };
-use crate::checker::measurement::ProofPlanMeasurements;
 use crate::checker::named_constraints::{
     check_assignment_named_constraints, check_call_named_constraints,
     check_initializer_named_constraints, check_return_named_constraints,
@@ -56,7 +56,7 @@ pub(crate) fn check_bounded_assignment<'program>(
     context: &AssignmentRangeContext<'program>,
     seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
-    measurements: &mut ProofPlanMeasurements,
+    checking: &mut ProofCheckRecorder,
     derivations: Option<&mut DerivationConsultation<'_>>,
 ) -> Option<crate::obligations::IntegerRange> {
     // Chapter 11 invariant windows: an intermediate store need not itself
@@ -86,7 +86,7 @@ pub(crate) fn check_bounded_assignment<'program>(
             &target_range,
             seed,
             false,
-            measurements,
+            checking,
             derivations,
         ) {
             CertificateVerdict::Certified => {}
@@ -296,7 +296,7 @@ pub(crate) fn check_bounded_initializer(
     obligation: &BoundedInitializerObligation,
     seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
-    measurements: &mut ProofPlanMeasurements,
+    checking: &mut ProofCheckRecorder,
     derivations: Option<&mut DerivationConsultation<'_>>,
 ) {
     check_initializer_named_constraints(proof_plan, obligation, diagnostics);
@@ -314,7 +314,7 @@ pub(crate) fn check_bounded_initializer(
             &target_range,
             seed,
             false,
-            measurements,
+            checking,
             derivations,
         ) {
             CertificateVerdict::Certified => {}
@@ -389,7 +389,7 @@ pub(crate) fn check_bounded_state_return<'program>(
     context: &AssignmentRangeContext<'program>,
     seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
-    measurements: &mut ProofPlanMeasurements,
+    checking: &mut ProofCheckRecorder,
     derivations: Option<&mut DerivationConsultation<'_>>,
 ) {
     check_return_named_constraints(proof_plan, obligation, diagnostics);
@@ -407,7 +407,7 @@ pub(crate) fn check_bounded_state_return<'program>(
             context,
             &target_range,
             seed,
-            measurements,
+            checking,
             derivations,
         ) {
             CertificateVerdict::Certified => {}
@@ -470,7 +470,7 @@ pub(crate) fn check_bounded_call_argument(
     obligation: &BoundedCallArgumentObligation,
     seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
-    measurements: &mut ProofPlanMeasurements,
+    checking: &mut ProofCheckRecorder,
     derivations: Option<&mut DerivationConsultation<'_>>,
 ) {
     check_call_named_constraints(proof_plan, obligation, diagnostics);
@@ -488,7 +488,7 @@ pub(crate) fn check_bounded_call_argument(
             &target_range,
             seed,
             true,
-            measurements,
+            checking,
             derivations,
         ) {
             CertificateVerdict::Certified => {}
@@ -621,7 +621,7 @@ pub(crate) fn check_bounded_transition_argument(
     obligation: &BoundedTransitionArgumentObligation,
     seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
-    measurements: &mut ProofPlanMeasurements,
+    checking: &mut ProofCheckRecorder,
     mut derivations: Option<&mut DerivationConsultation<'_>>,
 ) {
     check_transition_named_constraints(proof_plan, obligation, diagnostics);
@@ -641,7 +641,7 @@ pub(crate) fn check_bounded_transition_argument(
             &target_range,
             seed,
             true,
-            measurements,
+            checking,
             derivations.as_deref_mut(),
         ) {
             CertificateVerdict::Certified => {}
@@ -661,7 +661,7 @@ pub(crate) fn check_bounded_transition_argument(
                     obligation,
                     &target_range,
                     seed,
-                    measurements,
+                    checking,
                     derivations,
                 ) {
                     CertificateVerdict::Certified => {}

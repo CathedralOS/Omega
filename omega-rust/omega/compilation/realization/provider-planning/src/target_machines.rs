@@ -168,23 +168,31 @@ fn called_machine(
 }
 
 /// Resolve an explicit execution edge against the complete retained family.
-/// A head has no authored target or states; visiting it would hide both a
+/// A head has no authored target body; visiting it would hide both a
 /// missing member and calls inside the selected member. Exact member references
 /// instead keep their own target and never redirect into another sibling.
-fn realized_machine<'program>(
+pub(crate) fn realized_machine<'program>(
     typed: &'program TypedTrees,
     machine: &'program checked_trees::typed_trees::machine::Machine,
     target: TargetProfile,
 ) -> Option<&'program checked_trees::typed_trees::machine::Machine> {
     if machine.target_family_interface {
-        let family = typed
+        let mut families = typed
             .target_machine_families
             .iter()
-            .find(|family| family.canonical == machine.symbol)?;
-        let member = family
+            .filter(|family| family.canonical == machine.symbol);
+        let family = families.next()?;
+        if families.next().is_some() {
+            return None;
+        }
+        let mut members = family
             .members
             .iter()
-            .find(|member| member.target.as_str() == target.target_name())?;
+            .filter(|member| member.target.as_str() == target.target_name());
+        let member = members.next()?;
+        if members.next().is_some() {
+            return None;
+        }
         return typed.machine_by_symbol(member.machine);
     }
     typed
@@ -194,6 +202,54 @@ fn realized_machine<'program>(
                 .is_ok_and(|resolved| resolved == target)
         })
         .then_some(machine)
+}
+
+/// Realize a named map's original declaration through the same retained
+/// target-family operation as an execution edge. The map keeps its portable
+/// family and original entry; the returned machine is the selected member,
+/// never a replacement source row or a newly elected provider.
+pub(crate) fn named_row_realization<'program>(
+    context: crate::ProviderPlanningContext<'program>,
+    row: &checked_trees::typed_trees::trait_definition::ConformanceRow,
+    target: Option<&str>,
+) -> Result<&'program checked_trees::typed_trees::machine::Machine, String> {
+    let typed = context.typed;
+    let original = typed
+        .machine_by_symbol(row.realization_machine)
+        .ok_or_else(|| "provider map lost its original realization declaration".to_owned())?;
+    if !context.contains(original.symbol)
+        || !typed
+            .machine_states(original)
+            .first()
+            .is_some_and(|entry| entry.symbol == row.realization_state)
+    {
+        return Err("provider map lost its admitted original declaration and entry".to_owned());
+    }
+    if context.scope == source::DependencyScope::Build {
+        return realizes_machine(context, original, target)
+            .then_some(original)
+            .ok_or_else(|| "provider map has no admitted Build realization".to_owned());
+    }
+    let target = target
+        .filter(|target| !target.is_empty())
+        .map(TargetProfile::from_canonical_target_name)
+        .transpose()
+        .map_err(|_| "provider map has an unrecognized realization target".to_owned())?
+        .unwrap_or_else(TargetProfile::host);
+    let selected = realized_machine(typed, original, target).ok_or_else(|| format!(
+        "provider row `{}` names retained family `{}`, which has no unique member for target `{}`",
+        row.requirement_name.as_str(), original.name.as_str(), target.target_name(),
+    ))?;
+    (realizes_machine(context, selected, Some(target.target_name()))
+        && !typed.machine_states(selected).is_empty())
+    .then_some(selected)
+    .ok_or_else(|| {
+        format!(
+            "provider row `{}` has no admitted executable body for target `{}`",
+            row.requirement_name.as_str(),
+            target.target_name(),
+        )
+    })
 }
 
 /// Select declaration candidates without changing the shared source program.

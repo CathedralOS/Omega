@@ -24,7 +24,7 @@ mod dynamic_elf;
 mod emission;
 mod identity;
 mod mixed_structural_scalar;
-mod provider_execution;
+pub(crate) mod provider_execution;
 #[cfg(test)]
 mod tests;
 
@@ -137,6 +137,7 @@ impl NativeArtifact {
             &parts.selected_provider_plans,
             &parts.provider_executions,
             parts.boundary_application_coverage.as_ref(),
+            Some(&parts.terminal_authority_closure_review),
         )? {
             NativePhysicalEvidenceDerivation::Complete(evidence) => (Some(evidence), None),
             NativePhysicalEvidenceDerivation::Unavailable => (None, None),
@@ -189,6 +190,7 @@ impl NativeArtifact {
             &parts.selected_provider_plans,
             &parts.provider_executions,
             parts.boundary_application_coverage.as_ref(),
+            Some(&parts.terminal_authority_closure_review),
         )? {
             NativePhysicalEvidenceDerivation::Blocked(gap) => Some(gap),
             NativePhysicalEvidenceDerivation::Unavailable
@@ -278,6 +280,7 @@ impl NativeArtifact {
             self.image.foreign_calls(),
             &self.selected_provider_plans,
             &self.provider_executions,
+            &self.terminal_authority_closure_review,
         )
         .map_err(provider_execution::ProviderExecutionReplayError::direct_message)?;
         let (expected_physical_evidence, expected_physical_evidence_gap) =
@@ -291,6 +294,7 @@ impl NativeArtifact {
                 &self.selected_provider_plans,
                 &self.provider_executions,
                 self.boundary_application_coverage.as_ref(),
+                Some(&self.terminal_authority_closure_review),
             )? {
                 NativePhysicalEvidenceDerivation::Unavailable => (None, None),
                 NativePhysicalEvidenceDerivation::Complete(evidence) => (Some(evidence), None),
@@ -604,8 +608,9 @@ pub struct NativeSelectedProviderPlan {
     report_identity: u64,
     plan_digest: NativeSelectedProviderPlanDigest,
     requirement_identities: Vec<String>,
+    requirement_applications: Vec<effects::SelectedRequirementApplication>,
     family_realization_rows: Vec<effects::SelectedTargetFamilyRealization>,
-    family_realization_identities: terminal_psi::TerminalIdentityTable,
+    selection_identities: terminal_psi::TerminalIdentityTable,
 }
 
 impl NativeSelectedProviderPlan {
@@ -637,13 +642,19 @@ impl NativeSelectedProviderPlan {
                     ),
                     requirements,
                 );
+                projected.requirement_applications = selection
+                    .requirement_applications()
+                    .iter()
+                    .filter(|row| row.provider_plan_report_identity == report_identity)
+                    .cloned()
+                    .collect();
                 projected.family_realization_rows = selection
                     .family_realization_rows()
                     .iter()
                     .filter(|row| row.provider_plan_report_identity == report_identity)
                     .cloned()
                     .collect();
-                projected.family_realization_identities = selection.identities().clone();
+                projected.selection_identities = selection.identities().clone();
                 projected
             })
             .collect::<Vec<_>>();
@@ -662,10 +673,9 @@ impl NativeSelectedProviderPlan {
             report_identity,
             plan_digest,
             requirement_identities,
+            requirement_applications: Vec::new(),
             family_realization_rows: Vec::new(),
-            family_realization_identities: terminal_psi::TerminalIdentityTable::from(vec![
-                String::new(),
-            ]),
+            selection_identities: terminal_psi::TerminalIdentityTable::from(vec![String::new()]),
         }
     }
 
@@ -685,27 +695,52 @@ impl NativeSelectedProviderPlan {
         &self.family_realization_rows
     }
 
-    /// Identity table the stored family-realization row indices resolve
-    /// against, cloned from the selected facts that projected them.
-    pub fn family_realization_identities(&self) -> &terminal_psi::TerminalIdentityTable {
-        &self.family_realization_identities
+    /// The issuing table for both original application and family associations.
+    pub fn selection_identities(&self) -> &terminal_psi::TerminalIdentityTable {
+        &self.selection_identities
+    }
+
+    pub fn requirement_applications(&self) -> &[effects::SelectedRequirementApplication] {
+        &self.requirement_applications
+    }
+
+    /// Occurrence membership remains independent of its selected execution row.
+    pub fn contains_requirement(&self, requirement: &str) -> bool {
+        self.requirement_identities
+            .binary_search_by(|identity| identity.as_str().cmp(requirement))
+            .is_ok()
+    }
+
+    /// Executions and same-stack contributions keep the original selected row.
+    pub fn contains_selected_requirement(&self, requirement: &str) -> bool {
+        self.requirement_identities
+            .iter()
+            .any(|identity| self.selected_requirement_identity(identity) == Some(requirement))
     }
 
     /// Recover the authority requirement without rewriting the original
     /// callable occurrence. These rows were projected from the exact selected
     /// closure and remain committed by both closure and artifact identities.
-    pub fn selected_requirement_identity<'a>(&'a self, requirement: &'a str) -> &'a str {
+    pub fn selected_requirement_identity<'a>(&'a self, requirement: &'a str) -> Option<&'a str> {
+        if !self.contains_requirement(requirement) {
+            return None;
+        }
+        if let Some(row) = self.requirement_applications.iter().find(|row| {
+            self.selection_identities.text(row.requirement_identity) == Some(requirement)
+        }) {
+            return self
+                .selection_identities
+                .text(row.selected_requirement_identity);
+        }
         self.family_realization_rows
             .iter()
             .find(|row| {
-                self.family_realization_identities.text(row.head_identity) == Some(requirement)
-                    || self.family_realization_identities.text(row.member_identity)
-                        == Some(requirement)
+                self.selection_identities.text(row.head_identity) == Some(requirement)
+                    || self.selection_identities.text(row.member_identity) == Some(requirement)
             })
-            .map_or(requirement, |row| {
-                self.family_realization_identities
+            .map_or(Some(requirement), |row| {
+                self.selection_identities
                     .text(row.selected_requirement_identity)
-                    .unwrap_or(requirement)
             })
     }
 }

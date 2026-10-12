@@ -80,8 +80,9 @@ pub use mathematical_core::{
     certificate_assumption_closure, check_signature, check_signature_with_attribution, check_type,
     convertible, convertible_retaining, denote_bounded_certificate, identity_substitution,
     indexed_correctness, indexed_scheme, infer_sort, infer_type, instantiate_levels,
-    judgment_assumption_closure, quotient_scheme, shift, substitute, verify_bounded_certificate,
-    verify_mathematical_certificate, weak_head_normalize, weak_head_normalize_retaining,
+    judgment_assumption_closure, quotient_scheme, shift, substitute, term_declaration_references,
+    verify_bounded_certificate, verify_mathematical_certificate, weak_head_normalize,
+    weak_head_normalize_retaining,
 };
 pub use predicate_denotation::{
     CheckedPredicateDenotations, PredicateDenotationError, check_predicate_denotations,
@@ -89,7 +90,8 @@ pub use predicate_denotation::{
     check_value_equality_denotation,
 };
 pub use proof::{
-    AcceptedPremise, AcceptedProofRule, CertificateAcceptance, MathematicalCoreDecision,
+    AcceptedMathematicalAssumption, AcceptedMathematicalJudgment, AcceptedPremise,
+    AcceptedProofRule, CertificateAcceptance, MathematicalCoreDecision,
     MathematicalJudgmentReceipt, ProofError, ProofNode, ProofRule, accept_certificate,
     accept_certificate_with_machine_parameters, check_certificate, lift_exact_integer_order,
     lift_fixed_integer_relation, lower_integer_math_relation,

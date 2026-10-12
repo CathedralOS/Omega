@@ -8,7 +8,7 @@
 
 use crate::TypedTrees;
 use crate::machine::Machine;
-use crate::service::inspect_service_parameter_contract;
+use crate::service::exact_parameter_boundary_requirement;
 use crate::signature::{
     AuthoredInvocation, AuthoredInvocationTarget, StateParameter, StateSignature,
 };
@@ -60,35 +60,16 @@ pub fn machine_entry_parameters<'a>(
         .unwrap_or_default()
 }
 
-/// The service a call-target roster entry names: a parameter's exact bound
-/// service requirement, falling back to its type's head symbol.
-pub fn boundary_requirement_symbol(
-    program: &TypedTrees,
-    type_reference: TypeReferenceHandle,
-) -> SymbolHandle {
-    inspect_service_parameter_contract(program, type_reference)
-        .ok()
-        .flatten()
-        .map(|parameter| parameter.carrier.requirement)
-        .unwrap_or_else(|| {
-            program
-                .type_reference_table
-                .type_reference(type_reference)
-                .type_symbol(&program.type_reference_table)
-        })
-}
-
-/// The boundary service `type_reference` resolves to, when it names one.
+/// Resolve an original parameter's boundary through the shared exact carrier
+/// classifier. Invalid routed carriers retain their refusal; their type head
+/// cannot provide a substitute requirement.
 pub fn boundary_service_for_type(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
-    let symbol = boundary_requirement_symbol(program, type_reference);
-    program
-        .traits()
-        .iter()
-        .any(|definition| definition.is_boundary && definition.symbol == symbol)
-        .then_some(symbol)
+    exact_parameter_boundary_requirement(program, type_reference)
+        .ok()
+        .flatten()
 }
 
 /// Insert one normalized target, keeping ordinal-then-symbol ordering.

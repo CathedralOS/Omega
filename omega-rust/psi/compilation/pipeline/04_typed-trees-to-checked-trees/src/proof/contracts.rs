@@ -7,6 +7,7 @@ fn next_contract_lane_position(
     let counter = match kind {
         ContractProofFactKind::Requires => requires_position,
         ContractProofFactKind::Ensures => ensures_position,
+        ContractProofFactKind::Where => unreachable!("where facts have no named evidence lane"),
     };
     let position = *counter;
     *counter += 1;
@@ -105,6 +106,21 @@ pub(crate) fn append_machine_contract_facts(
 ) {
     let mut requires_position = 0usize;
     let mut ensures_position = 0usize;
+    // A body's declaration predicates are established by the original full
+    // static application judgment. Keep their exact source facts in the distinct
+    // Where assumption lane; runtime Requires consumers must never select them.
+    for fact in crate::proof::proposition_vocabulary::fact_handles(machine.where_facts) {
+        contract_facts.append(ContractProofFact {
+            kind: ContractProofFactKind::Where,
+            owner: ContractProofFactOwner::Machine {
+                machine_symbol: machine.symbol,
+            },
+            fact,
+            evidence_term: None,
+            qualification_authorization: None,
+            inherited_scope: None,
+        });
+    }
     for contract in program.machine_contracts(machine) {
         let Some(kind) = crate::proof::proposition_vocabulary::contract_fact_kind(&contract.kind)
         else {
@@ -210,7 +226,7 @@ pub(crate) fn append_state_contract_facts(
                         requires_position += 1;
                         position
                     }
-                    ContractProofFactKind::Ensures => {
+                    ContractProofFactKind::Ensures | ContractProofFactKind::Where => {
                         unreachable!("states admit only arrival requires contracts")
                     }
                 };
@@ -297,6 +313,16 @@ pub(crate) fn append_state_signature_contract_facts(
         };
         let mut requires_position = 0usize;
         let mut ensures_position = 0usize;
+        for fact in crate::proof::proposition_vocabulary::fact_handles(signature.where_facts) {
+            contract_facts.append(ContractProofFact {
+                kind: ContractProofFactKind::Where,
+                owner,
+                fact,
+                evidence_term: None,
+                qualification_authorization: None,
+                inherited_scope: None,
+            });
+        }
         for contract in program.state_signature_contracts(signature) {
             let Some(kind) =
                 crate::proof::proposition_vocabulary::contract_fact_kind(&contract.kind)

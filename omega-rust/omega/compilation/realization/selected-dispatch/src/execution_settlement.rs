@@ -26,6 +26,9 @@ pub struct SelectedExecution {
     pub x86_scalar_fma_plan_associations:
         Vec<provider_planning::x86_fma_plan_association::CheckedX86ScalarFmaPlanAssociation>,
     pub selected_provider_plan_facts: effects::SelectedProviderPlanFacts,
+    /// Exact direct native declarations retain their own issuer independently
+    /// of the selected abstract provider rows.
+    pub direct_foreign_realizations: Vec<Arc<effects::DirectForeignRealization>>,
     /// Authored Build grants resolved to the exact selected plans.
     pub selected_provider_grants: Vec<trust_model::ResolvedAuthoredSelectedProviderGrant>,
     /// Target-owned recipes joined to checked nominal uses. Engines consume
@@ -37,6 +40,10 @@ pub struct SelectedExecution {
     pub resolved_semantic_bindings: Vec<crate::ResolvedAcceptedSemanticBinding>,
     pub component_progress: Option<effects::ComponentProgressManifest>,
     pub task_activations: task_plans::TaskActivationPlanSet,
+    /// Independent checked relationship obligations. These grant no receiving
+    /// consent and do not synthesize required-side provider dispatch.
+    pub assumed_binding_relationships:
+        Vec<provider_planning::assumed_binding_relationships::PreparedAssumedBindingRelationship>,
 }
 
 impl SelectedExecution {
@@ -178,6 +185,7 @@ impl SelectedExecution {
 /// second asserted component root. This remains a checked-tree realization
 /// boundary; it does not claim the intended Terminal-only provider handoff.
 pub struct SelectedExecutionRequest<'a> {
+    pub direct_foreign_realizations: &'a [Arc<effects::DirectForeignRealization>],
     pub calling_plans:
         &'a [provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
     pub selected_program_entry:
@@ -189,6 +197,8 @@ pub struct SelectedExecutionRequest<'a> {
     pub selected_provider_provenance: Vec<provider_planning::SelectedProviderReviewProvenance>,
     pub opaque_representation_selections:
         &'a [representation_planning::OpaqueRepresentationSelection],
+    pub assumed_binding_relationships:
+        Vec<provider_planning::assumed_binding_relationships::PreparedAssumedBindingRelationship>,
 }
 
 /// Consume a complete checked surface and settle every selected execution
@@ -223,6 +233,7 @@ pub fn settle_selected_execution(
         settlement.calling_plans,
         &checked.selected_provider_plan_facts,
         &settlement.selected_provider_provenance,
+        settlement.selected_target_profile,
     )?;
     let accepted_binding = |role| {
         settlement
@@ -252,6 +263,11 @@ pub fn settle_selected_execution(
             .map(target::TargetProfile::target_name),
         accepted_binding(AcceptedSemanticBindingRole::ConsoleExitProcessI32),
         accepted_binding(AcceptedSemanticBindingRole::ProcessExitExitProcessI32),
+    )?;
+    provider_planning::assumed_binding_relationships::retain_assumed_binding_physical_dependencies(
+        &mut settlement.assumed_binding_relationships,
+        &settlement.selected_provider_provenance,
+        settlement.selected_target_profile,
     )?;
     let resolved_filesystem_binding = resolve_service_binding(accepted_binding(
         AcceptedSemanticBindingRole::FilesystemHostService,
@@ -307,6 +323,17 @@ pub fn settle_selected_execution(
             .map_err(|message| vec![Diagnostic::error(message)])?;
     }
 
+    let mut direct_foreign_realizations = settlement.direct_foreign_realizations.to_vec();
+    direct_foreign_realizations.extend(
+        crate::compiler_intrinsic::retain_direct_compiler_intrinsics(
+            &checked.program,
+            settlement.selected_target_profile,
+            &settlement.selected_provider_provenance,
+            settlement.calling_plans,
+            settlement.opaque_representation_selections,
+        )?,
+    );
+
     Ok(SelectedExecution {
         program: checked.program,
         dispatch,
@@ -315,6 +342,7 @@ pub fn settle_selected_execution(
         x86_scalar_fma_provider: settlement.x86_scalar_fma_provider,
         x86_scalar_fma_plan_associations,
         selected_provider_plan_facts: checked.selected_provider_plan_facts,
+        direct_foreign_realizations,
         selected_provider_grants: checked.selected_provider_grants,
         callback_placements: checked.callback_placements,
         accepted_template_classifications: checked.accepted_template_classifications,
@@ -327,5 +355,6 @@ pub fn settle_selected_execution(
             .collect(),
         component_progress,
         task_activations,
+        assumed_binding_relationships: settlement.assumed_binding_relationships,
     })
 }

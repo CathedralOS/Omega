@@ -5,6 +5,7 @@ use crate::record::{
     PackagePolicyRowUsage, PackagePolicyTerminalPermissions,
 };
 mod assembly;
+pub(in crate::encoding) mod assumed_bindings;
 mod builder;
 mod components;
 mod declarations;
