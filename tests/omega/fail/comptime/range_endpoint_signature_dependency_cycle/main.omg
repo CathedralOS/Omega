@@ -1,0 +1,2 @@
+machine first() -> u64[0..=second()] { 1 }
+machine second() -> u64[0..=first()] { 1 }
