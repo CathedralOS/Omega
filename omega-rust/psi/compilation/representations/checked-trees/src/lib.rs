@@ -18,6 +18,7 @@ pub use checked_trees::{CheckedCleanupCaseCondition, CheckedCleanupControlPlans}
 pub use checked_trees::{CheckedStructuralCaseRoot, CheckedStructuralCaseSubject};
 
 pub use checked_trees::CheckedValueQualification;
+pub use checked_trees::operators::{DestinationConversion, RequirementRealization};
 pub use checked_trees::{
     AssumedBindingContractSide, AssumedBindingDirectionalObligations, AssumedBindingPublicClaim,
     AssumedBindingResultCase, AssumedBindingSemanticConnection, AssumedBindingSemanticDirection,

@@ -8,6 +8,8 @@
 use crate::{CheckedValueOrigin, CrashCause};
 mod application_operands;
 mod comparisons;
+mod requirement_realization;
+pub use requirement_realization::{DestinationConversion, RequirementRealization};
 mod selected_float_comparison_execution;
 pub use application_operands::{
     CheckedBoundaryApplicationOperands, checked_operator_application_matches_realization,
