@@ -704,16 +704,16 @@ fn captured_read_prefix(
 
 /// Value IDs denote completed scalar captures. Structural observations keep
 /// live storage meaning after place transport, even inside nested arithmetic.
-pub(super) fn erased_scalar_observes_storage(term: &terminal_psi::ScalarTerm) -> bool {
+pub(super) fn erased_scalar_observes_storage(term: &semantic_vocabulary::ScalarTerm) -> bool {
     let mut pending = vec![term];
     while let Some(term) = pending.pop() {
         if matches!(
             term,
-            terminal_psi::ScalarTerm::StructuralRead { .. }
-                | terminal_psi::ScalarTerm::BooleanField { .. }
-                | terminal_psi::ScalarTerm::IntegerField { .. }
-                | terminal_psi::ScalarTerm::IeeeFloatField { .. }
-                | terminal_psi::ScalarTerm::ViewExtent { .. }
+            semantic_vocabulary::ScalarTerm::StructuralRead { .. }
+                | semantic_vocabulary::ScalarTerm::BooleanField { .. }
+                | semantic_vocabulary::ScalarTerm::IntegerField { .. }
+                | semantic_vocabulary::ScalarTerm::IeeeFloatField { .. }
+                | semantic_vocabulary::ScalarTerm::ViewExtent { .. }
         ) {
             return true;
         }
@@ -722,20 +722,22 @@ pub(super) fn erased_scalar_observes_storage(term: &terminal_psi::ScalarTerm) ->
     false
 }
 
-pub(super) fn erased_proof_observes_storage(term: &terminal_psi::ProofTerm) -> bool {
+pub(super) fn erased_proof_observes_storage(term: &semantic_vocabulary::ProofTerm) -> bool {
     let mut pending = vec![term];
     while let Some(term) = pending.pop() {
         match term {
-            terminal_psi::ProofTerm::Scalar(term) if erased_scalar_observes_storage(term) => {
+            semantic_vocabulary::ProofTerm::Scalar(term)
+                if erased_scalar_observes_storage(term) =>
+            {
                 return true;
             }
-            terminal_psi::ProofTerm::Construction { fields, .. } => {
+            semantic_vocabulary::ProofTerm::Construction { fields, .. } => {
                 pending.extend(fields.iter().map(|field| &field.term))
             }
             // Formal admission may include reference-bearing proof carriers.
             // It is not an immutable-content certificate merely by erasure.
-            terminal_psi::ProofTerm::Formal { .. } => return true,
-            terminal_psi::ProofTerm::Scalar(_) => {}
+            semantic_vocabulary::ProofTerm::Formal { .. } => return true,
+            semantic_vocabulary::ProofTerm::Scalar(_) => {}
         }
     }
     false

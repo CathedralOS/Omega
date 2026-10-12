@@ -1109,19 +1109,48 @@ impl StateGraphEmission<'_, '_> {
                     return unsupported("cleanup does not preserve an erased argument observation");
                 }
             }
-            for (source, term) in edge
+            for ((source, term), parameter) in edge
                 .erased_proof_arguments
                 .iter()
                 .zip(&erased_proof_arguments)
+                .zip(&target_state.erased_proof_parameters)
             {
+                let role = if edge.is_continuation {
+                    checked_trees::CheckedProofTermRole::TransitionContinuationArgument {
+                        argument_ordinal: parameter.source_position,
+                    }
+                } else {
+                    checked_trees::CheckedProofTermRole::TransitionArgument {
+                        argument_ordinal: parameter.source_position,
+                    }
+                };
+                let located = checked
+                    .facts
+                    .values
+                    .proof_terms
+                    .located_term_at(state.state, edge.statement_ordinal, role)
+                    .filter(|located| &located.term == source);
                 if super::loan_arrivals::erased_proof_observes_storage(term)
-                    && !(cleanup_coverage && preservation.is_some_and(|row|
-                        checked.facts.erased_exit_observations.span_or_empty(row.erased_observations).iter()
-                            .any(|observation| observation.expression == source.expression
-                                && matches!(source.role, checked_trees::CheckedProofTermRole::TransitionArgument { argument_ordinal }
-                                    if argument_ordinal == observation.argument_ordinal)
-                                && observation.preserved))) {
-                    return unsupported("cleanup does not preserve an erased proof argument observation");
+                    && !(cleanup_coverage
+                        && preservation.is_some_and(|row| {
+                            located.is_some_and(|located| {
+                                checked
+                                    .facts
+                                    .erased_exit_observations
+                                    .span_or_empty(row.erased_observations)
+                                    .iter()
+                                    .any(|observation| {
+                                        observation.expression == located.expression
+                                            && observation.argument_ordinal
+                                                == parameter.source_position
+                                            && observation.preserved
+                                    })
+                            })
+                        }))
+                {
+                    return unsupported(
+                        "cleanup does not preserve an erased proof argument observation",
+                    );
                 }
             }
         }
