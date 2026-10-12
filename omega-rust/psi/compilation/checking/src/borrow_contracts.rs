@@ -322,7 +322,14 @@ mod region_correspondence;
 mod region_inference;
 
 pub(crate) use callable_refinement::lexical_region_owner;
-pub use callable_refinement::{CallableBorrowContract, validate_callable_borrow_refinement};
+pub use callable_refinement::{
+    CallableBorrowContract, infer_callable_input_lifetime_application,
+    validate_callable_borrow_refinement,
+};
+pub use region_correspondence::{
+    InputLifetimeArgument, InputLifetimeBinding, InputTypeRegionScope,
+    infer_type_input_lifetime_application,
+};
 
 /// Call admission and caller-side loans consume one applied requirement
 /// relation. Invocation binders retain their declaration identity independently

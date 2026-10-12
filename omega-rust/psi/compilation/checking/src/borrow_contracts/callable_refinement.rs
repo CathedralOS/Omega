@@ -116,6 +116,49 @@ fn captured_type_parameters(
     captured
 }
 
+/// Retain the same input-only application used by ordinary callable refinement.
+/// The result cannot choose a region, and this projection grants no result loan.
+pub fn infer_callable_input_lifetime_application(
+    program: &dyn crate::CheckingInput,
+    required: CallableBorrowContract<'_>,
+    actual: CallableBorrowContract<'_>,
+) -> Result<Vec<super::region_correspondence::InputLifetimeBinding>, &'static str> {
+    let symbolic = program
+        .data_type_parameters
+        .iter()
+        .filter_map(|(_, parameter)| {
+            matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+                .then_some(parameter.symbol)
+        })
+        .collect::<Vec<_>>();
+    let required_frontier = contract_frontier(
+        program,
+        &required,
+        &symbolic,
+        required.substitution_scope_starts,
+    )?;
+    let actual_frontier = contract_frontier(
+        program,
+        &actual,
+        &symbolic,
+        actual.substitution_scope_starts,
+    )?;
+    let application = super::region_correspondence::infer_inputs(
+        program,
+        &required,
+        &actual,
+        &required_frontier.regions,
+        &actual_frontier.regions,
+        &actual_frontier.inputs,
+    )?;
+    if actual.supplied_telescope && !actual.lifetime_bindings.is_empty() {
+        return Err(
+            "input application projection requires the original unsupplied declaration telescope",
+        );
+    }
+    super::region_correspondence::project_application(actual.lifetime_parameters, &application)
+}
+
 pub fn validate_callable_borrow_refinement(
     program: &dyn crate::CheckingInput,
     required: CallableBorrowContract<'_>,
