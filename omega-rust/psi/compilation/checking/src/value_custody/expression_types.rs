@@ -240,13 +240,8 @@ fn argument_matches_type_reference_using(
         // descriptor as though that were an owned value of the referee type.
         // Keep the same declared/carrier correspondence the consumer selected;
         // this type relation supplies neither access authority nor a loan.
-        let mut substitutions = Vec::new();
-        if let Some(actual) = reference_values::declared_value_type(
-            program,
-            inner_expression.target,
-            &mut substitutions,
-        )
-        .and_then(|actual| reference_values::substituted_reference(program, actual, &substitutions))
+        if let Some(actual) =
+            reference_values::declared_value_type(program, inner_expression.target)
             && matches!(
                 program.type_reference_table.type_reference(actual),
                 TypeReferenceNode::Reference { .. }
@@ -263,23 +258,15 @@ fn argument_matches_type_reference_using(
                     ..
                 } = program.type_reference_table.type_reference(actual)
             {
-                return program.type_identity(TypeIdentityRequest {
-                    substitutions: &substitutions,
-                    ..TypeIdentityRequest::ordinary(*actual_referee)
-                }) == program.type_identity_with_simultaneous_substitutions(
-                    TypeIdentityRequest {
-                        substitutions: required_substitutions,
-                        ..TypeIdentityRequest::ordinary(*referee)
-                    },
-                );
+                return program.type_identity(TypeIdentityRequest::ordinary(*actual_referee))
+                    == program.type_identity_with_simultaneous_substitutions(
+                        TypeIdentityRequest {
+                            substitutions: required_substitutions,
+                            ..TypeIdentityRequest::ordinary(*referee)
+                        },
+                    );
             }
-            return correspondence(
-                program,
-                actual,
-                type_reference,
-                &substitutions,
-                required_substitutions,
-            );
+            return correspondence(program, actual, type_reference, &[], required_substitutions);
         }
         return argument_matches_type_reference_using(
             program,
@@ -447,10 +434,7 @@ fn argument_matches_type_reference_using(
                         )
                     });
             }
-            let mut substitutions = Vec::new();
-            let Some(actual) =
-                reference_values::declared_value_type(program, argument, &mut substitutions)
-            else {
+            let Some(actual) = reference_values::declared_value_type(program, argument) else {
                 return false;
             };
             // The enclosing constraint arm delegates only carrier matching;
@@ -459,19 +443,18 @@ fn argument_matches_type_reference_using(
             let actual = program
                 .type_reference_table
                 .unconstrained_type_reference(actual);
-            program.type_identity(TypeIdentityRequest {
-                substitutions: &substitutions,
-                ..TypeIdentityRequest::ordinary(actual)
-            }) == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
-                substitutions: required_substitutions,
-                ..TypeIdentityRequest::ordinary(type_reference)
-            }) || reference_values::fixed_array_binds_open_length(
-                program,
-                actual,
-                type_reference,
-                &substitutions,
-                required_substitutions,
-            )
+            program.type_identity(TypeIdentityRequest::ordinary(actual))
+                == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+                    substitutions: required_substitutions,
+                    ..TypeIdentityRequest::ordinary(type_reference)
+                })
+                || reference_values::fixed_array_binds_open_length(
+                    program,
+                    actual,
+                    type_reference,
+                    &[],
+                    required_substitutions,
+                )
         }
         TypeReferenceNode::Slice { element_type } => {
             // A string literal is a byte sequence, so it satisfies a `[u8]` slice
@@ -494,17 +477,11 @@ fn argument_matches_type_reference_using(
             // A produced value retains its full application. A same-named
             // nominal head cannot change an explicit type or const operand;
             // actual and required telescopes have independent substitutions.
-            let mut substitutions = Vec::new();
-            if let Some(actual) =
-                reference_values::declared_value_type(program, argument, &mut substitutions)
-            {
+            if let Some(actual) = reference_values::declared_value_type(program, argument) {
                 let actual = program
                     .type_reference_table
                     .unconstrained_type_reference(actual);
-                let actual_identity = program.type_identity(TypeIdentityRequest {
-                    substitutions: &substitutions,
-                    ..TypeIdentityRequest::ordinary(actual)
-                });
+                let actual_identity = program.type_identity(TypeIdentityRequest::ordinary(actual));
                 let required_identity =
                     program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
                         substitutions: required_substitutions,

@@ -386,25 +386,13 @@ pub(super) fn subslice_view_matches_reference(
     correspondence: ReferenceCorrespondence,
     required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
-    let mut substitutions = Vec::new();
-    let Some(collection) =
-        selected_value_type(program, indexed.collection, &mut substitutions, None, None)
-    else {
-        return false;
-    };
-    let Some(collection) = substituted_reference(program, collection, &substitutions) else {
+    let Some(collection) = selected_value_type(program, indexed.collection, None, None) else {
         return false;
     };
     matches!(
         program.type_reference_table.type_reference(collection),
         TypeReferenceNode::Reference { .. }
-    ) && correspondence(
-        program,
-        collection,
-        required,
-        &substitutions,
-        required_substitutions,
-    )
+    ) && correspondence(program, collection, required, &[], required_substitutions)
 }
 
 pub(super) fn projected_matches_reference(
@@ -414,20 +402,10 @@ pub(super) fn projected_matches_reference(
     correspondence: ReferenceCorrespondence,
     required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
-    let mut substitutions = Vec::new();
-    let Some(actual) = declared_value_type(program, expression, &mut substitutions) else {
+    let Some(actual) = declared_value_type(program, expression) else {
         return false;
     };
-    let Some(actual) = substituted_reference(program, actual, &substitutions) else {
-        return false;
-    };
-    correspondence(
-        program,
-        actual,
-        required,
-        &substitutions,
-        required_substitutions,
-    )
+    correspondence(program, actual, required, &[], required_substitutions)
 }
 
 pub(super) fn declared_value_matches_reference(
@@ -666,34 +644,11 @@ fn constrained_referee_forgets_qualification(
         })
 }
 
-pub(super) fn substituted_reference(
-    program: &dyn crate::CheckingInput,
-    mut reference: TypeReferenceHandle,
-    substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
-) -> Option<TypeReferenceHandle> {
-    for _ in 0..=substitutions.len() {
-        let TypeReferenceNode::Named { symbol, .. } =
-            program.type_reference_table.type_reference(reference)
-        else {
-            return Some(reference);
-        };
-        let Some((_, replacement)) = substitutions
-            .iter()
-            .find(|(parameter, _)| parameter == symbol)
-        else {
-            return Some(reference);
-        };
-        reference = *replacement;
-    }
-    None
-}
-
 pub(super) fn declared_value_type(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
-    substitutions: &mut Vec<(symbols::SymbolHandle, TypeReferenceHandle)>,
 ) -> Option<TypeReferenceHandle> {
-    selected_value_type(program, expression, substitutions, None, None)
+    selected_value_type(program, expression, None, None)
 }
 
 /// A known current-state root supplies identity, not a new loan. Intermediate
@@ -704,20 +659,15 @@ pub(crate) fn place_forwards_mutable_reference(
     root: symbols::SymbolHandle,
     root_type: TypeReferenceHandle,
 ) -> bool {
-    let mut substitutions = Vec::new();
     let Some(selected) = selected_value_type(
         program,
         expression,
-        &mut substitutions,
         Some((root, root_type)),
         Some(ReferenceAccess::Mutable),
     ) else {
         return false;
     };
-    let Some(mut selected) = substituted_reference(program, selected, &substitutions) else {
-        return false;
-    };
-    selected = program
+    let selected = program
         .type_reference_table
         .unconstrained_type_reference(selected);
     matches!(
@@ -764,20 +714,12 @@ pub(crate) fn place_permits_reference_borrow(
     {
         expression = indexed.collection;
     }
-    let mut substitutions = Vec::new();
-    let Some(selected) = selected_value_type(
-        program,
-        expression,
-        &mut substitutions,
-        Some((root, root_type)),
-        Some(access),
-    ) else {
+    let Some(selected) =
+        selected_value_type(program, expression, Some((root, root_type)), Some(access))
+    else {
         return false;
     };
-    let Some(mut selected) = substituted_reference(program, selected, &substitutions) else {
-        return false;
-    };
-    selected = program
+    let selected = program
         .type_reference_table
         .unconstrained_type_reference(selected);
     match program.type_reference_table.type_reference(selected) {
@@ -808,11 +750,9 @@ fn reference_access_permits(source: ReferenceAccess, required: ReferenceAccess) 
 fn projection_receiver_type(
     program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
-    substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
     required_access: Option<ReferenceAccess>,
 ) -> Option<TypeReferenceHandle> {
     for _ in 0..128 {
-        reference = substituted_reference(program, reference, substitutions)?;
         reference = match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Constrained { base_type, .. } => *base_type,
             TypeReferenceNode::Reference {
@@ -834,7 +774,6 @@ fn projection_receiver_type(
 fn selected_value_type(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
-    substitutions: &mut Vec<(symbols::SymbolHandle, TypeReferenceHandle)>,
     forwarding_root: Option<(symbols::SymbolHandle, TypeReferenceHandle)>,
     required_projection_access: Option<ReferenceAccess>,
 ) -> Option<TypeReferenceHandle> {
@@ -882,102 +821,47 @@ fn selected_value_type(
             let receiver = selected_value_type(
                 program,
                 member.receiver,
-                substitutions,
                 forwarding_root,
                 required_projection_access,
             )?;
-            let receiver = projection_receiver_type(
-                program,
-                receiver,
-                substitutions,
-                required_projection_access,
-            )?;
-            let (symbol, arguments) = match program.type_reference_table.type_reference(receiver) {
-                TypeReferenceNode::Named { symbol, .. } => (*symbol, &[][..]),
-                TypeReferenceNode::Generic {
-                    base_symbol,
-                    arguments,
-                    ..
-                } => (
-                    *base_symbol,
-                    program
-                        .type_reference_table
-                        .type_reference_handles(*arguments),
-                ),
-                _ => return None,
-            };
-            // A `&mut self` / `&self` receiver's referee names the machine
-            // symbol; its attached data declaration carries the fields. Other
-            // receivers already name the data declaration directly.
-            let symbol = if program.data_definition_by_symbol(symbol).is_some() {
-                symbol
-            } else {
-                program
-                    .machine(symbol)
-                    .map(|machine| machine.attached_data_symbol)
-                    .unwrap_or(symbol)
-            };
-            let mut definitions = program
-                .data_definitions()
-                .iter()
-                .filter(|definition| symbol.is_valid() && definition.symbol == symbol);
-            let definition = definitions.next()?;
-            if definitions.next().is_some()
-                || program.data_type_parameters(definition).len() != arguments.len()
+            let receiver = projection_receiver_type(program, receiver, required_projection_access)?;
+            // Prepared field views have already applied each enclosing data
+            // telescope. Rebinding raw fields into one accumulating environment
+            // conflates repeated applications such as Wrapper<Wrapper<T>>.
+            // Keep the actual receiver and its retained member correspondence.
+            let receiver = if let TypeReferenceNode::Named { symbol, .. } =
+                program.type_reference_table.type_reference(receiver)
+                && let Some(machine) = program.machine(*symbol)
             {
-                return None;
-            }
-            // A payload's authored field type belongs to the data telescope,
-            // not its caller's same-spelled binder. Compare it under the exact
-            // receiver application without inventing a reference or a loan.
-            for (parameter, argument) in program
-                .data_type_parameters(definition)
-                .iter()
-                .zip(arguments)
-            {
-                if let Some((_, existing)) = substitutions
-                    .iter()
-                    .find(|(symbol, _)| *symbol == parameter.symbol)
-                {
-                    // Re-entering this telescope with different arguments needs
-                    // scoped type views. This flat comparison cannot safely
-                    // rebind earlier argument payloads, so retain rejection.
-                    if program.type_identity(TypeIdentityRequest {
-                        substitutions,
-                        ..TypeIdentityRequest::ordinary(*existing)
-                    }) != program.type_identity(TypeIdentityRequest {
-                        substitutions,
-                        ..TypeIdentityRequest::ordinary(*argument)
-                    }) {
+                if machine.attached_data_application.is_valid() {
+                    machine.attached_data_application
+                } else {
+                    // Nongeneric self storage is owned by its exact attached
+                    // declaration; a retained conflicting field still rejects.
+                    let definition = program.attached_data_definition(machine)?;
+                    if !program.data_type_parameters(definition).is_empty() {
                         return None;
                     }
-                } else {
-                    substitutions.push((parameter.symbol, *argument));
+                    return crate::value_custody::places::exact_data_member_field(
+                        program,
+                        definition,
+                        member.member_symbol,
+                        member.member.as_str(),
+                        member.case_variant.as_ref().map(|variant| variant.as_str()),
+                    )
+                    .map(|field| field.type_reference);
                 }
-            }
-            let field = crate::value_custody::places::exact_data_member_field(
-                program,
-                definition,
-                member.member_symbol,
-                member.member.as_str(),
-                member.case_variant.as_ref().map(|variant| variant.as_str()),
-            );
-            // Through a forwarding root the declared field symbol can differ
-            // from the member's resolved symbol (a generic telescope re-keys
-            // it); the name is already unique inside a data declaration, so
-            // a name-only lookup stays exact.
-            let field = match (field, forwarding_root) {
-                (Some(field), _) => Some(field),
-                (None, None) => None,
-                (None, Some(_)) => crate::value_custody::places::exact_data_member_field(
-                    program,
-                    definition,
-                    symbols::SymbolHandle::invalid(),
+            } else {
+                receiver
+            };
+            program
+                .applied_data_projected_field(
+                    receiver,
+                    member.member_symbol,
                     member.member.as_str(),
                     member.case_variant.as_ref().map(|variant| variant.as_str()),
-                ),
-            };
-            field.map(|field| field.type_reference)
+                )
+                .map(|field| field.type_reference)
         }
         // Preparation retains the complete constructed value before checking
         // freezes it. Projection needs that producer's applied type, not the
@@ -1002,23 +886,12 @@ fn selected_value_type(
             let collection = selected_value_type(
                 program,
                 indexed.collection,
-                substitutions,
                 forwarding_root,
                 required_projection_access,
             )?;
-            // Selection needs the applied collection, not a raw field
-            // telescope whose substituted elements could match another
-            // authored operator. This query does not materialize types.
-            if !substitutions.is_empty()
-                && program.normalized_type_identity(collection)
-                    != program.type_identity(TypeIdentityRequest {
-                        substitutions,
-                        ..TypeIdentityRequest::ordinary(collection)
-                    })
-            {
-                return None;
-            }
-            let index_type = declared_value_type(program, indexed.index, &mut Vec::new());
+            // Index meaning consumes the same fully applied collection that
+            // member projection retains; selection never rebuilds its telescope.
+            let index_type = declared_value_type(program, indexed.index);
             let meaning_is_builtin =
                 if let Some(machine) = place_machine_symbol(program, indexed.collection) {
                     typed_trees::operator::has_builtin_spelled_expression_meaning(
@@ -1060,12 +933,8 @@ fn selected_value_type(
             {
                 return None;
             }
-            let collection = projection_receiver_type(
-                program,
-                collection,
-                substitutions,
-                required_projection_access,
-            )?;
+            let collection =
+                projection_receiver_type(program, collection, required_projection_access)?;
             crate::value_custody::places::collection_element_type(program, collection)
         }
         _ => None,
