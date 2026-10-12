@@ -81,14 +81,18 @@ pub fn evaluate_anonymous_value<const ALLOW_DECIMAL_LITERALS: bool>(
 }
 
 impl TypedTrees {
-    /// Completed noninteger const values retain the selected declaration's
-    /// canonical payload. Integer atoms use the separate graph/carrier query:
-    /// their encoding alone cannot supply arithmetic-policy meaning.
+    /// A completed source operand retains its observed canonical value while
+    /// keeping the original graph. Integer policy comes from the independent
+    /// issuing meaning row, never from this value's encoded carrier claim.
+    /// Named noninteger declarations retain their existing initializer route.
     pub fn completed_const_argument_atom(
         &self,
         argument: TypeReferenceHandle,
     ) -> Option<language_semantics::const_value::CanonicalConstValue> {
         use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+        if let Some(value) = self.type_reference_table.completed_const_result(argument) {
+            return Some(value.clone());
+        }
         let crate::types::TypeReferenceNode::Named { symbol, .. } =
             self.type_reference_table.type_reference(argument)
         else {
@@ -665,6 +669,15 @@ impl TypedTrees {
     ) -> crate::types::ConstIntegerMeaning {
         use crate::types::{ConstIntegerMeaning, TypeReferenceNode};
         if argument.type_reference.is_valid() {
+            if self
+                .type_reference_table
+                .completed_const_result(argument.type_reference)
+                .is_some()
+            {
+                return self
+                    .type_reference_table
+                    .const_integer_meaning(argument.type_reference);
+            }
             if let TypeReferenceNode::ConstExpression(expression) = self
                 .type_reference_table
                 .type_reference(argument.type_reference)

@@ -50,11 +50,12 @@ pub(crate) fn lower_domain_definition(
         subject_symbol: domain.subject_symbol,
         type_parameters: HandleSpan::empty(),
         target_type: lower_type_reference_into_table(lowerer, &domain.target_type)?,
-        index_arguments: lowerer
-            .source_trees
-            .child_type_references(domain.index_arguments)
-            .iter()
-            .map(|argument| lower_type_reference_into_table(lowerer, argument))
+        index_arguments: domain
+            .index_arguments
+            .handles()
+            .map(|argument| {
+                crate::type_reference::lower_child_type_reference_into_table(lowerer, argument)
+            })
             .collect::<Result<Vec<_>, _>>()?,
         is_public: domain.is_public,
         alias,

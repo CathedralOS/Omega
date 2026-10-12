@@ -17,26 +17,30 @@ pub fn static_const_literal_from_type_reference(
     program: &crate::TypedTrees,
     handle: TypeReferenceHandle,
 ) -> Option<numerics::literals::IntegerLiteral> {
-    let TypeReferenceNode::Named { name, .. } = program.type_reference_table.type_reference(handle)
-    else {
-        return None;
+    let retained = program
+        .type_reference_table
+        .completed_const_result(handle)
+        .cloned();
+    let spelling = match program.type_reference_table.type_reference(handle) {
+        TypeReferenceNode::Named { name, .. } => name.as_str(),
+        TypeReferenceNode::ConstExpression(_) if retained.is_some() => "",
+        _ => return None,
     };
     let meaning = program.type_reference_table.const_integer_meaning(handle);
-    let canonical_integer = language_semantics::const_value::CanonicalConstValue::from_atom(
-        name.as_str(),
-    )
-    .and_then(|value| match value.decode_encoding()? {
-        language_semantics::const_value::DecodedCanonicalConstValue::Integer { value, .. } => {
-            Some(value.to_string())
-        }
-        _ => None,
-    });
+    let canonical_integer = retained
+        .or_else(|| language_semantics::const_value::CanonicalConstValue::from_atom(spelling))
+        .and_then(|value| match value.decode_encoding()? {
+            language_semantics::const_value::DecodedCanonicalConstValue::Integer {
+                value, ..
+            } => Some(value.to_string()),
+            _ => None,
+        });
     // An atom without its original integer meaning remains a named atom. The
     // receiving slot cannot donate a landing to an older missing receipt.
     if meaning == crate::types::ConstIntegerMeaning::Unavailable {
         return None;
     }
-    let mut spelling = canonical_integer.as_deref().unwrap_or(name.as_str());
+    let mut spelling = canonical_integer.as_deref().unwrap_or(spelling);
     let negative = spelling.starts_with('-');
     if negative {
         spelling = &spelling[1..];

@@ -106,8 +106,12 @@ pub(crate) fn lower_type_parameter_kind(
                         "nominal machine-parameter requirement",
                     )?;
                     let mut lowered_arguments = Vec::new();
-                    for argument in lowerer.source_trees.child_type_references(*trait_arguments) {
-                        lowered_arguments.push(lower_type_reference_into_table(lowerer, argument)?);
+                    for argument in trait_arguments.handles() {
+                        lowered_arguments.push(
+                            crate::type_reference::lower_child_type_reference_into_table(
+                                lowerer, argument,
+                            )?,
+                        );
                     }
                     typed::data::MachineParameterContract::Nominal {
                         trait_definition: *trait_definition,
