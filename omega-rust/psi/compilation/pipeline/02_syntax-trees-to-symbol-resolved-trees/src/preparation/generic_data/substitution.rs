@@ -711,6 +711,16 @@ pub(crate) fn substitute_type_reference(
                 const_values,
                 warnings,
             );
+            let original_operand = syntax
+                .type_references
+                .fixed_array_length_operand(type_reference);
+            let substituted_operand = match &length {
+                FixedArrayLength::ConstParameter(name) => substitution
+                    .get(name.as_str())
+                    .copied()
+                    .unwrap_or(original_operand),
+                _ => original_operand,
+            };
             let substituted_length = match length {
                 FixedArrayLength::ConstParameter(name) => substitution
                     .get(name.as_str())
@@ -724,13 +734,17 @@ pub(crate) fn substitute_type_reference(
                     .unwrap_or(FixedArrayLength::ConstParameter(name)),
                 length => length,
             };
-            syntax
+            let array = syntax
                 .tables
                 .type_references
                 .insert(TypeReferenceNode::FixedArray {
                     element_type: substituted_element,
                     length: substituted_length,
-                })
+                });
+            syntax
+                .type_references
+                .retain_fixed_array_length_operand(array, substituted_operand);
+            array
         }
         TypeReferenceNode::Reference {
             referee,

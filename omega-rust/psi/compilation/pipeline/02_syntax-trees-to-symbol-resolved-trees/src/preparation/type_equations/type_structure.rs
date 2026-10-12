@@ -294,11 +294,14 @@ impl Solver<'_, '_> {
                             span,
                         ));
                     }
-                    return self.bind_integer(
-                        position,
-                        BigInt::from_u64(actual_length as u64),
-                        span,
-                    );
+                    self.bind_integer(position, BigInt::from_u64(actual_length as u64), span)?;
+                    if !self.integer_operands[position].is_valid() {
+                        self.integer_operands[position] = self
+                            .syntax
+                            .type_references
+                            .fixed_array_length_operand(actual);
+                    }
+                    return Ok(());
                 }
                 let expected = self.closed_array_length(&length, span)?.ok_or_else(|| {
                     self.type_structure_error("requires an explicit array length", span)
@@ -456,15 +459,31 @@ impl Solver<'_, '_> {
                 let Some(element_type) = self.construct_type_structure(element_type, span)? else {
                     return Ok(None);
                 };
+                let operand = match &length {
+                    FixedArrayLength::ConstParameter(name) => self
+                        .parameter_position(name.as_str())
+                        .and_then(|(position, _)| self.integer_operands.get(position))
+                        .copied()
+                        .unwrap_or_default(),
+                    _ => self
+                        .syntax
+                        .type_references
+                        .fixed_array_length_operand(pattern),
+                };
                 let Some(length) = self.closed_array_length(&length, span)? else {
                     return Ok(None);
                 };
-                return Ok(Some(self.syntax.type_references.insert(
-                    TypeReferenceNode::FixedArray {
+                let array = self
+                    .syntax
+                    .type_references
+                    .insert(TypeReferenceNode::FixedArray {
                         element_type,
                         length: FixedArrayLength::Literal(length),
-                    },
-                )));
+                    });
+                self.syntax
+                    .type_references
+                    .retain_fixed_array_length_operand(array, operand);
+                return Ok(Some(array));
             }
             TypeReferenceNode::Generic { .. } => return self.construct_application(pattern, span),
             TypeReferenceNode::Constrained { constraints, .. }

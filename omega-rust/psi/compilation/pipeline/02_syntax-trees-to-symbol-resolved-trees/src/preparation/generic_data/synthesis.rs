@@ -903,6 +903,12 @@ fn synthesize_instance(
                     length: FixedArrayLength::Literal(length),
                 },
             );
+            // The supplied graph, not the normalized extent number, owns its
+            // declaration/landing. A missing supplied graph remains unavailable.
+            let operand = member_substitution.get(&name).copied().unwrap_or_default();
+            syntax
+                .type_references
+                .retain_fixed_array_length_operand(handle, operand);
         }
         replace_machine_const_expression_names_from(
             syntax,
