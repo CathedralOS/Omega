@@ -36,13 +36,14 @@ mod dependencies;
 pub fn evaluate_const_generic_calls(
     mut syntax: SyntaxTrees,
     context: crate::BuildTimeSources<'_>,
+    inputs: &mut Vec<crate::CheckedConstantInput>,
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
     loop {
         // Readiness precedes admission: a provisional carrier can reveal exact
         // dependencies but must not supply an executable layout. Every layer
         // settles original argument handles, so at most N layers can progress.
         // Provider-waiting leaves (and their dependants) remain authored.
-        let (evaluated, progress) = evaluate_application_group(syntax, context.clone())?;
+        let (evaluated, progress) = evaluate_application_group(syntax, context.clone(), inputs)?;
         syntax = evaluated;
         if !progress {
             return Ok(syntax);
@@ -53,6 +54,7 @@ pub fn evaluate_const_generic_calls(
 fn evaluate_application_group(
     mut syntax: SyntaxTrees,
     context: crate::BuildTimeSources<'_>,
+    inputs: &mut Vec<crate::CheckedConstantInput>,
 ) -> Result<(SyntaxTrees, bool), Vec<Diagnostic>> {
     let mut progress = false;
     let crate::BuildTimeSources {
@@ -304,7 +306,7 @@ fn evaluate_application_group(
             };
             let invocation = checked.calls_for_source(reference).map_err(&failure)?;
             let evaluated = invocation
-                .evaluate_application_probe(reference, *public, &syntax)
+                .evaluate_application_probe(reference, *public, &syntax, inputs)
                 .map_err(&failure)?;
             let (_, origins, calls) = lexical_selections
                 .iter()
@@ -383,7 +385,7 @@ fn evaluate_application_group(
                 admission: Default::default(),
             },
             &evaluation_domain,
-            &mut Vec::new(),
+            inputs,
         )?;
         for (expression, source_span) in endpoint_leaves {
             let value = typed
