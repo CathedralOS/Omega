@@ -189,6 +189,7 @@ fn prepare_structural_argument_projection(
         ));
     }
     let mut prepared = Vec::new();
+    let mut remainder = projection;
     if published_root != logical_root.id {
         let mut carriers = types.iter().filter(|row| row.id == published_root);
         let carrier = carriers.next().ok_or(LoweringError::Unsupported(
@@ -207,10 +208,16 @@ fn prepare_structural_argument_projection(
         prepared.push(PreparedStructuralPathSegment::Static(
             StructuralPathSegment::Referent,
         ));
+        // The plan's own path spells that same hop when its projection begins
+        // at the reference's referent; replaying it would dereference the
+        // referent root a second time.
+        if matches!(remainder.first(), Some(CheckedUnitStructuralPathSegment::Referent)) {
+            remainder = &remainder[1..];
+        }
     }
     prepared.extend(prepare_argument_path(
         identities,
-        projection,
+        remainder,
         logical_root.id,
         types,
     )?);
