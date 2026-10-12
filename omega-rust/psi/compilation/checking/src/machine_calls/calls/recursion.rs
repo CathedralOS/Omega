@@ -13,7 +13,7 @@ use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTarge
 mod proof_machines;
 pub use proof_machines::ValidatedSelfCallDescent;
 
-pub(crate) use proof_machines::proof_call_has_structural_descent;
+pub(crate) use proof_machines::proof_entry_call_has_structural_descent;
 pub(crate) use proof_machines::validate_proof_machine_recursion;
 
 /// Runtime recursion must not leave a pending caller computation. Exact
