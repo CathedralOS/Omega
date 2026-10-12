@@ -63,15 +63,16 @@ pub(crate) use const_evaluation::{
     prove_declared_const_domain_constraints,
 };
 pub(in crate::preparation::generic_data) use const_evaluation::{
-    EvaluatedConst, canonicalize_closed_domain_indices, canonicalize_const_definition,
-    canonicalize_selected_declaration_value, capture_machine_runtime_template_names,
-    checked_fact_integer, collect_data_type_reference_positions,
-    collect_lexical_type_reference_positions, const_integer_in_envelope, const_integer_type,
-    domain_index_parameters, evaluate_const_argument_expression, generic_const_integer_types,
-    integer_literal_value, normalize_generic_template_const_expressions,
-    prepare_closed_application, prove_const_leaf_domain_constraints, qualified_const_name,
-    replace_const_expression_names_from, replace_machine_const_expression_names_from,
-    syntax_type_identity, validate_const_index_type, validate_syntax_integer_range,
+    EvaluatedConst, SourceTraitApplication, canonicalize_closed_domain_indices,
+    canonicalize_const_definition, canonicalize_selected_declaration_value,
+    capture_machine_runtime_template_names, checked_fact_integer,
+    collect_data_type_reference_positions, collect_lexical_type_reference_inventory,
+    const_integer_in_envelope, const_integer_type, domain_index_parameters,
+    evaluate_const_argument_expression, generic_const_integer_types, integer_literal_value,
+    normalize_generic_template_const_expressions, prepare_closed_application,
+    prove_const_leaf_domain_constraints, qualified_const_name, replace_const_expression_names_from,
+    replace_machine_const_expression_names_from, syntax_type_identity, validate_const_index_type,
+    validate_syntax_integer_range,
 };
 pub(in crate::preparation) use const_evaluation::{
     canonicalize_selected_const_definition, collect_type_positions,
@@ -86,6 +87,47 @@ pub(crate) use substitution::{
 use synthesis::desugar_generic_data_instances;
 pub(crate) use synthesis::desugar_generic_data_instances_in;
 pub(crate) use work_domain::GenericDataWorkDomain;
+
+/// Source-owned const-expression positions, not every node in the arena.
+/// Normalization keeps an archived original operand for custody after replacing
+/// its declared argument. That recipe is not a second pending evaluation job.
+/// An original handle still reached by a live declaration remains a position;
+/// no source-span or retained-value correspondence reconstructs its receiver.
+pub fn source_const_expression_positions(
+    syntax: &SyntaxTrees,
+) -> Vec<(
+    TypeReferenceHandle,
+    syntax_trees::expression::ExpressionHandle,
+)> {
+    let inventory = collect_lexical_type_reference_inventory(syntax);
+    let mut expressions = Vec::new();
+    for position in inventory.positions {
+        // Static machine/requirement operands retain their invocation telescope,
+        // including runtime Value roles. A genuine container use of the same
+        // handle still owes its own declared const destination below.
+        if inventory.invocation_arguments.contains(&position)
+            && !inventory.container_arguments.contains(&position)
+        {
+            continue;
+        }
+        if syntax
+            .type_references
+            .const_argument_normalization(position)
+            .is_some()
+        {
+            continue;
+        }
+        if let TypeReferenceNode::ConstExpression(expression) =
+            syntax.type_references.type_reference(position)
+            && !expressions
+                .iter()
+                .any(|(retained, _)| *retained == position)
+        {
+            expressions.push((position, *expression));
+        }
+    }
+    expressions
+}
 
 /// Authored constant arguments in concrete data fields and constant declarations.
 /// Open templates and machine lexical scopes cannot borrow a standalone probe.
@@ -108,6 +150,7 @@ pub fn closed_data_const_argument_expressions(
         &positions,
         &public_positions,
         false,
+        &[],
     ))
 }
 
@@ -121,13 +164,14 @@ pub fn original_scope_const_arguments(
 ) -> Result<Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>, Vec<Diagnostic>> {
     let selection =
         declaration_selection::ConstantSelection::new(syntax, sources, top_level_bindings)?;
-    let (positions, public_positions) = collect_lexical_type_reference_positions(syntax);
+    let inventory = collect_lexical_type_reference_inventory(syntax);
     Ok(collect_closed_const_arguments(
         syntax,
         &selection,
-        &positions,
-        &public_positions,
+        &inventory.positions,
+        &inventory.public_positions,
         true,
+        &inventory.trait_applications,
     ))
 }
 
@@ -137,6 +181,7 @@ fn collect_closed_const_arguments(
     positions: &[TypeReferenceHandle],
     public_positions: &[TypeReferenceHandle],
     include_machine_casts: bool,
+    trait_applications: &[SourceTraitApplication],
 ) -> Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)> {
     let mut pending = Vec::new();
     let mut retain_arguments = |parameters: &[TypeParameter], arguments: &[TypeReferenceHandle]| {
@@ -173,19 +218,9 @@ fn collect_closed_const_arguments(
                 arguments,
                 ..
             } => {
-                let mut definitions = syntax.root_items().filter_map(|item| match item {
-                    Item::Data(definition) if definition.name.as_str() == base_name.as_str() => {
-                        Some(definition)
-                    }
-                    _ => None,
-                });
-                let Some(definition) = definitions.next() else {
+                let Ok(definition) = selection.data(syntax, base_name) else {
                     continue;
                 };
-                // Ambiguous template selection is not resolved by visitation order.
-                if definitions.next().is_some() {
-                    continue;
-                }
                 retain_arguments(
                     syntax.items.type_parameters(definition.type_parameters),
                     syntax.type_references.type_reference_handles(*arguments),
@@ -214,6 +249,39 @@ fn collect_closed_const_arguments(
             }
             _ => {}
         }
+    }
+    // The source selection owner supplies exact headers, just as trait-default
+    // synthesis does. A leaf name or a copied ABI signature cannot supply this
+    // receiving telescope.
+    let headers = syntax
+        .root_items()
+        .filter_map(|item| {
+            let Item::Trait(definition) = item else {
+                return None;
+            };
+            Some((
+                selection.trait_lookup(&definition.name).unique()?,
+                definition.type_parameters,
+            ))
+        })
+        .collect::<Vec<_>>();
+    for application in trait_applications {
+        let Some(symbol) = selection.trait_lookup(&application.name).unique() else {
+            continue;
+        };
+        let mut matching = headers.iter().filter(|(header, _)| *header == symbol);
+        let Some((_, parameters)) = matching.next() else {
+            continue;
+        };
+        if matching.next().is_some() {
+            continue;
+        }
+        retain_arguments(
+            syntax.items.type_parameters(*parameters),
+            syntax
+                .type_references
+                .type_reference_handles(application.arguments),
+        );
     }
     if include_machine_casts {
         for (_, expression) in syntax.expressions.iter_expressions() {
