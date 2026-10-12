@@ -71,11 +71,41 @@ pub struct CheckRequest<'request> {
     pub retain: bool,
 }
 
+/// Coverage actually retained for completed source constants. Original binding
+/// associations do not include the consumed checked closure or invocation
+/// judgment; an empty roster cannot claim those dependencies were absent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SourceConstantInputCoverage {
+    OriginalAssociations,
+}
+
+/// The original successful source judgment before Product pruning/erasure.
+/// Only the actual check operation constructs this immutable input record.
+/// It is compiler-local source custody, not a portable artifact, complete
+/// semantic-dependency commitment, receiving authority or installation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalCheckedSourceInput {
+    checked: Arc<checked_trees::CheckedTrees>,
+    source_constants: Arc<[build_time_evaluation::SourceConstantSupply]>,
+    source_constant_coverage: SourceConstantInputCoverage,
+}
+impl OriginalCheckedSourceInput {
+    pub fn checked(&self) -> &Arc<checked_trees::CheckedTrees> {
+        &self.checked
+    }
+    pub fn source_constants(&self) -> &[build_time_evaluation::SourceConstantSupply] {
+        &self.source_constants
+    }
+    pub const fn source_constant_coverage(&self) -> SourceConstantInputCoverage {
+        self.source_constant_coverage
+    }
+}
+
 /// Successful language judgment, before optional whole-product root selection.
 pub struct CheckedSource {
+    original_input: Arc<OriginalCheckedSourceInput>,
     prepared_build: Option<CheckedBuildMachineProgram>,
-    pub program: Arc<checked_trees::CheckedTrees>,
-    pub source_constants: Vec<build_time_evaluation::SourceConstantSupply>,
+    program: Arc<checked_trees::CheckedTrees>,
     pub retained: Option<RetainedCheck>,
     pub reused: bool,
 }
@@ -132,10 +162,10 @@ impl std::ops::Deref for CheckedBuildMachineProgram {
 /// Shared source product with the exact optional root-selection evidence.
 #[derive(Clone)]
 pub struct SelectedCheckedSource {
+    pub original_input: Arc<OriginalCheckedSourceInput>,
     pub program: Arc<checked_trees::CheckedTrees>,
     pub provider_defaults:
         Arc<[build_time_evaluation::provider_declarations::TargetProviderDefaults]>,
-    pub source_constants: Vec<build_time_evaluation::SourceConstantSupply>,
     pub retained: Option<RetainedCheck>,
     pub selection: Option<CheckedTreeProductSelection>,
 }
@@ -226,10 +256,15 @@ impl CheckRequest<'_> {
                 })
             })
             .transpose()?;
+        let original_input = Arc::new(OriginalCheckedSourceInput {
+            checked: Arc::clone(&outcome.checked),
+            source_constants: source_constants.into(),
+            source_constant_coverage: SourceConstantInputCoverage::OriginalAssociations,
+        });
         Ok(CheckedSource {
+            original_input,
             prepared_build,
             program: outcome.checked,
-            source_constants,
             retained: outcome.retained,
             reused: outcome.took_prior,
         })
@@ -237,6 +272,12 @@ impl CheckRequest<'_> {
 }
 
 impl CheckedSource {
+    /// Read the actual successful output; a caller cannot replace it before
+    /// Product selection while retaining this judgment's original input.
+    pub fn program(&self) -> &Arc<checked_trees::CheckedTrees> {
+        &self.program
+    }
+
     pub fn into_prepared_build(
         self,
     ) -> Result<(CheckedBuildMachineProgram, Option<RetainedCheck>), Vec<Diagnostic>> {
@@ -268,9 +309,9 @@ impl CheckedSource {
         let (program, selection) =
             typed_trees_to_checked_trees::select_checked_tree_product(self.program, roots)?;
         Ok(SelectedCheckedSource {
+            original_input: self.original_input,
             program,
             provider_defaults: provider_defaults.into(),
-            source_constants: self.source_constants,
             retained: self.retained,
             selection,
         })
@@ -300,7 +341,7 @@ impl ProductSelections {
     ) -> Result<SelectedCheckedSource, Vec<Diagnostic>> {
         // Pruning may share a checked graph only when no incomplete source
         // supply association would be moved onto another producer's handles.
-        if !checked.source_constants.is_empty() {
+        if !checked.original_input.source_constants().is_empty() {
             return checked.select_product(roots);
         }
         if let Some(prior) = self
@@ -309,6 +350,7 @@ impl ProductSelections {
             .find(|prior| Arc::ptr_eq(&prior.input, &checked.program) && prior.roots == roots)
         {
             let mut selected = prior.output.clone();
+            selected.original_input = Arc::clone(&checked.original_input);
             selected.retained = checked.retained;
             return Ok(selected);
         }

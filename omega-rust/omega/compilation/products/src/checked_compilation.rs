@@ -48,6 +48,8 @@ pub struct RetainedCompilationChecks {
 /// independently reconstruct their evidence.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedCompilationInputs {
+    /// Actual successful source input retained whole across target settlement.
+    pub original_input: Arc<psi_compiler::OriginalCheckedSourceInput>,
     /// Checked semantics with target/entry custody and every selected-execution
     /// sidecar, produced by selected dispatch.
     pub settled: SelectedExecution,
@@ -103,6 +105,10 @@ impl PartialEq for CheckedCompilation {
 impl Eq for CheckedCompilation {}
 
 impl CheckedCompilation {
+    pub fn original_source_input(&self) -> &Arc<psi_compiler::OriginalCheckedSourceInput> {
+        &self.execution.original_input
+    }
+
     /// Retain a target's settlement beside the common source closure. Source
     /// checking already sealed that closure; realization must not hash it again.
     /// This assembles products, not package admission or publication authority.
