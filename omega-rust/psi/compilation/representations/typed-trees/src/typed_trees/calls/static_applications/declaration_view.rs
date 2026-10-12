@@ -205,6 +205,44 @@ impl<'declaration> StaticApplicationDeclaration<'declaration> {
         )>,
         &'static str,
     > {
+        self.bind_lifetime_formals(program, handle, &self.lifetimes)
+    }
+
+    /// A nonexecuting requirement description may leave its invocation family
+    /// universally quantified. Captured interface regions remain supplied and
+    /// owe the same exact original-formal correspondence as ordinary calls.
+    pub fn bind_captured_lifetimes<'application>(
+        &self,
+        program: &'application TypedTrees,
+        handle: StaticMachineApplicationHandle,
+    ) -> Result<
+        Vec<(
+            DeclaredStaticLifetime<'declaration>,
+            &'application super::StaticMachineLifetimeBinding,
+        )>,
+        &'static str,
+    > {
+        let formals = self
+            .lifetimes
+            .iter()
+            .copied()
+            .filter(|formal| !formal.invocation)
+            .collect::<Vec<_>>();
+        self.bind_lifetime_formals(program, handle, &formals)
+    }
+
+    fn bind_lifetime_formals<'application>(
+        &self,
+        program: &'application TypedTrees,
+        handle: StaticMachineApplicationHandle,
+        formals: &[DeclaredStaticLifetime<'declaration>],
+    ) -> Result<
+        Vec<(
+            DeclaredStaticLifetime<'declaration>,
+            &'application super::StaticMachineLifetimeBinding,
+        )>,
+        &'static str,
+    > {
         if !program
             .expression_table
             .static_machine_application_is_valid(handle)
@@ -219,13 +257,13 @@ impl<'declaration> StaticApplicationDeclaration<'declaration> {
         let source_lifetimes = program
             .expression_table
             .static_machine_application_lifetimes(handle);
-        if source_lifetimes.len() != self.lifetimes.len() {
+        if source_lifetimes.len() != formals.len() {
             return Err(
                 "static application does not retain its complete original lifetime correspondence",
             );
         }
         let mut lifetimes = Vec::with_capacity(source_lifetimes.len());
-        for formal in &self.lifetimes {
+        for formal in formals {
             let binding = self.lifetime_binding(source_lifetimes, *formal)?;
             if !formal.invocation && binding.argument.named().is_none() {
                 return Err(
