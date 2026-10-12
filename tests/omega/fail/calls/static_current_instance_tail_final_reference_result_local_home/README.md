@@ -1,0 +1,1 @@
+The reference-returning `lend` call establishes the final tail holder, but its backing `home` is local to the reused `step`. The next activation cannot retain that home across its retirement and re-establishment. Strict ranking and static tuple identity do not establish storage survival.
