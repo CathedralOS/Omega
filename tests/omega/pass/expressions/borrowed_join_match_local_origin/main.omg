@@ -1,0 +1,21 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+data Pair { left: u64; right: u64; }
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    let p: Pair = Pair { left: 0, right: 0 };
+    let q: Pair = Pair { left: 0, right: 0 };
+    let flag: bool = p.left == 0;
+    let r: &mut Pair = match flag {
+        true -> &mut p,
+        _ -> &mut q
+    };
+    r.left = 35;
+    r.right = 35;
+    transition p.left | p.right == 35 {
+        true -> good(main)
+        _ -> bad(main)
+    }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
+}
