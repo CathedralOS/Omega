@@ -796,7 +796,8 @@ impl TypedTrees {
     /// Normalization may retain the template selection; only the matching
     /// declaration position, identity and relevance authorize its translation.
     /// Foreign and sibling-instance selections cannot be repaired by spelling.
-    /// The receiver is unwrapped, and case payloads retain their separate query.
+    /// The receiver is unwrapped. Declaration recovery does not establish the
+    /// membership proof owed by a payload access.
     pub fn closed_data_member_field(
         &self,
         reference: TypeReferenceHandle,
@@ -813,7 +814,8 @@ impl TypedTrees {
     /// same-spelled payload or a sibling application. Symbolic application
     /// views expose their substituted fields without claiming closed storage;
     /// translating a different retained namespace still owes the complete
-    /// constructor correspondence below.
+    /// constructor correspondence below. An unqualified payload still owes
+    /// ordinary membership checking; this query recovers only its declaration.
     pub fn applied_data_projected_field(
         &self,
         reference: TypeReferenceHandle,
@@ -824,11 +826,24 @@ impl TypedTrees {
         let instance = self
             .data_application_definition(reference)
             .or_else(|| self.closed_data_definition(reference))?;
+        // Retained selectors distinguish repeated payload names. A selector
+        // from the source template must first rejoin this receiver through
+        // declaration correspondence; spelling cannot donate that identity.
+        let corresponding = if retained.is_valid() {
+            self.closed_data_constructor_field(reference, instance.symbol, retained)
+                .map(|field| field.symbol)
+                .unwrap_or(retained)
+        } else {
+            retained
+        };
         let mut fields = self
             .data_members(instance)
             .iter()
             .flat_map(|member| match (member, case_name) {
                 (crate::data::DataMember::Field(field), None) => std::slice::from_ref(field),
+                (crate::data::DataMember::Variant(variant), None) => {
+                    self.data_payload_fields(variant)
+                }
                 (crate::data::DataMember::Variant(variant), Some(name))
                     if variant.name.as_str() == name =>
                 {
@@ -836,7 +851,10 @@ impl TypedTrees {
                 }
                 _ => &[],
             })
-            .filter(|field| field.name.as_str() == member_name);
+            .filter(|field| {
+                field.name.as_str() == member_name
+                    && (!corresponding.is_valid() || field.symbol == corresponding)
+            });
         let selected = fields.next()?;
         if fields.next().is_some()
             || !selected.symbol.is_valid()
@@ -847,22 +865,13 @@ impl TypedTrees {
             return None;
         }
         let parent = self.symbols.get(selected.symbol).parent;
-        if match case_name {
-            None => parent != instance.symbol,
-            Some(_) => {
-                !parent.is_valid()
-                    || self.symbols.get(parent).kind != symbols::SymbolKind::Variant
-                    || self.symbols.get(parent).parent != instance.symbol
-            }
-        } {
+        let case_payload = parent.is_valid()
+            && self.symbols.get(parent).kind == symbols::SymbolKind::Variant
+            && self.symbols.get(parent).parent == instance.symbol;
+        if !(case_payload || (case_name.is_none() && parent == instance.symbol)) {
             return None;
         }
-        if !retained.is_valid() || retained == selected.symbol {
-            return Some(selected);
-        }
-        let corresponding =
-            self.closed_data_constructor_field(reference, instance.symbol, retained)?;
-        (corresponding.symbol == selected.symbol).then_some(selected)
+        Some(selected)
     }
 
     /// Canonical identity for an exact resolved declaration that may cross a
