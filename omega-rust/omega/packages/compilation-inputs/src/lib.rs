@@ -64,8 +64,8 @@ pub use semantic_bindings::{
     program_entry_semantic_binding_role,
 };
 pub use source_consumption::{
-    BuildSourceCustody, CheckedSourceCustody, ConsumedSourceUnit, ConsumedSourceUnitKind,
-    PackageSourceConsumptionCommitment, derive_package_compilation_subject,
+    BuildSourceCustody, CheckedSourceCustody, ConsumedDeclarationSource, ConsumedSourceUnit,
+    ConsumedSourceUnitKind, PackageSourceConsumptionCommitment, derive_package_compilation_subject,
     derive_source_consumption_commitment, toolchain_source_identities,
     toolchain_source_identity_digest,
 };

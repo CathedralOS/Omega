@@ -107,7 +107,9 @@ pub struct ComputedBuildConfig {
     pub optimization_report_request: optimization_core::OptimizationReportRequest,
     pub evaluation_usage: Option<package_compilation::BuildEvaluationUsage>,
     pub observation_summary: Option<package_compilation::BuildObservationSummary>,
-    pub selected_build_machine_symbol: Option<symbols::SymbolHandle>,
+    /// Issued by the successful exact prepared evaluation; never reconstructed
+    /// from an exported name, writable symbol, or final pruned declaration.
+    pub executed_build_root: Option<package_compilation::ExecutedSelectedBuildRoot>,
     pub generated_sources: Vec<build_output::PackageGeneratedSource>,
 }
 
@@ -241,27 +243,16 @@ impl ComputedBuildConfig {
         }
     }
 
-    /// Require the Build's selected symbol to remain present and canonically
-    /// named in the final typed continuation after generated-source extension.
-    pub fn selected_machine_identity(
-        &self,
-        typed: &typed_trees::TypedTrees,
-    ) -> Result<Option<String>, Vec<diagnostics::Diagnostic>> {
-        self.selected_build_machine_symbol
-            .map(|selected| {
-                let machine = typed.machine(selected).ok_or_else(|| {
-                    vec![diagnostics::Diagnostic::error(
-                        "selected build machine disappeared before final checking",
-                    )]
-                })?;
-                typed
-                    .machine_callable_identity_text(machine)
-                    .ok_or_else(|| {
-                        vec![diagnostics::Diagnostic::error(
-                            "selected build machine has no canonical callable identity",
-                        )]
-                    })
-            })
-            .transpose()
+    /// Read the original executed entry. Absence means no Build activation;
+    /// helpers and nonexecuting declarations cannot supply this projection.
+    pub fn selected_build_machine_symbol(&self) -> Option<symbols::SymbolHandle> {
+        self.executed_build_root.as_ref().map(|root| root.symbol())
+    }
+
+    /// Final Product pruning cannot erase or replace the executed root identity.
+    pub fn selected_machine_identity(&self) -> Option<String> {
+        self.executed_build_root
+            .as_ref()
+            .map(|root| root.callable_identity().to_owned())
     }
 }

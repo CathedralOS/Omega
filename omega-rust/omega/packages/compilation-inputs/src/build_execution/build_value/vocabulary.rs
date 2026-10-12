@@ -16,7 +16,7 @@ pub(crate) fn is_build_machine(
     machine: &typed_trees::machine::Machine,
     build_source_id: Option<source::SourceId>,
 ) -> bool {
-    if machine.name.as_str() != BUILD_MACHINE {
+    if machine.name.as_str() != BUILD_MACHINE || machine.attached_data.is_some() {
         return false;
     }
     let Some(build_source_id) = build_source_id else {

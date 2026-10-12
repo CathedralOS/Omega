@@ -28,15 +28,20 @@ pub(crate) fn check_product_source(
     let build = &computed_build_config.config;
     let source_constants = psi_compiler::SourceConstantRequest {
         pending: pending_pre_checks,
-        selections: build.provider_selections.iter().filter_map(|selection| {
-            selection.source_operands.clone().map(|operands| {
-                build_time_evaluation::SourceProviderSelection { operands }
+        selections: build
+            .provider_selections
+            .iter()
+            .filter_map(|selection| {
+                selection
+                    .source_operands
+                    .clone()
+                    .map(|operands| build_time_evaluation::SourceProviderSelection { operands })
             })
-        }).collect(),
+            .collect(),
     };
     let representations = representation_planning::rederive_opaque_representation_selections(
         &typed,
-        computed_build_config.selected_build_machine_symbol,
+        computed_build_config.selected_build_machine_symbol(),
         &build.opaque_representation_selections,
     )?;
     let opaque_properties = representations
@@ -110,7 +115,7 @@ pub(crate) fn check_product_source(
         .record(TYPED_TREES_TO_CHECKED_TREES, || {
             let started = std::time::Instant::now();
             let result = psi_compiler::CheckRequest {
-                program: typed,
+                program: typed.into(),
                 constants: source_constants,
                 admission: source_admission,
                 previous: &previous,

@@ -76,10 +76,11 @@ impl std::error::Error for BuildMachineEvaluationError {}
 /// typed tree unchanged so later checking can retain template and
 /// specialization-contract evidence.
 pub struct PreparedBuildMachineProgram {
-    program: PreparedBuildMachineBody,
+    program: Arc<PreparedBuildMachineBody>,
     identity: Arc<PreparedBuildMachineProgramIdentity>,
 }
 
+#[derive(Clone)]
 enum PreparedBuildMachineBody {
     Typed(Box<TypedTrees>),
     Checked(CheckedBuildProgram),
@@ -101,7 +102,7 @@ impl CheckedBuildProgram {
         &self.checked.typed
     }
 
-    pub(crate) fn checked(&self) -> &checked_trees::CheckedTrees {
+    pub fn checked(&self) -> &checked_trees::CheckedTrees {
         &self.checked
     }
 
@@ -143,18 +144,81 @@ impl PreparedBuildMachineProgram {
     /// facts keep naming the exact arena the interpreter consumes.
     /// Host grants and the exact entry's operational contract remain caller duties.
     pub fn from_checked(program: checked_trees::CheckedTrees) -> Self {
+        Self::from_checked_shared(Arc::new(program))
+    }
+
+    /// Retain the actual shared checked output without copying its arenas.
+    /// This ordinary content entrance grants no selected Build role.
+    pub fn from_checked_shared(program: Arc<checked_trees::CheckedTrees>) -> Self {
         let product_declarations = program
             .typed
             .product_declaration_frontier
             .clone()
             .unwrap_or_else(|| Arc::new(program.typed.as_ref().clone()));
         Self {
-            program: PreparedBuildMachineBody::Checked(CheckedBuildProgram {
-                checked: Arc::new(program),
+            program: Arc::new(PreparedBuildMachineBody::Checked(CheckedBuildProgram {
+                checked: program,
                 product_declarations,
-            }),
+            })),
             identity: Arc::new(PreparedBuildMachineProgramIdentity { _private: 0 }),
         }
+    }
+
+    /// Execution settlement may replace only its selected comparison facts.
+    /// The checked declarations stay owned; the facade retains its projection.
+    pub fn with_selected_comparison_executions(
+        self,
+        executions: Vec<checked_trees::CheckedSelectedFloatComparisonExecution>,
+    ) -> Self {
+        let mut body = Arc::try_unwrap(self.program).unwrap_or_else(|shared| (*shared).clone());
+        if let PreparedBuildMachineBody::Checked(program) = &mut body {
+            Arc::make_mut(&mut program.checked)
+                .facts
+                .operators
+                .replace_selected_float_comparisons(executions);
+        }
+        Self {
+            program: Arc::new(body),
+            identity: Arc::new(PreparedBuildMachineProgramIdentity { _private: 0 }),
+        }
+    }
+
+    /// Fix the complete invocation before effects. Ordinary proof, constant and
+    /// helper calls acquire no selected Build role or source-root record.
+    pub fn activation(
+        &self,
+        entry: &PreparedBuildMachineEntry,
+        arguments: Vec<BuildTimeValue>,
+        mode: BuildMachineExecutionMode,
+    ) -> Result<PreparedBuildMachineActivation, BuildMachineEvaluationError> {
+        self.validate_entry(entry)?;
+        let description = None;
+        Ok(PreparedBuildMachineActivation {
+            program: Arc::clone(&self.program),
+            entry: entry.clone(),
+            arguments,
+            mode,
+            description,
+            identity: BuildMachineActivationIdentity(Arc::new(BuildMachineActivationOwner {
+                _private: 0,
+            })),
+        })
+    }
+
+    /// Capture this actual source entry before effects. The caller still owes
+    /// the selected Build role; a raw evaluation record grants none.
+    pub fn source_root_activation(
+        &self,
+        entry: &PreparedBuildMachineEntry,
+        arguments: Vec<BuildTimeValue>,
+        mode: BuildMachineExecutionMode,
+    ) -> Result<PreparedBuildMachineActivation, BuildMachineEvaluationError> {
+        let mut activation = self.activation(entry, arguments, mode)?;
+        activation.description = Some(PreparedBuildRootDescription::capture(
+            self,
+            self.validate_entry(entry)?,
+        )?);
+        Ok(activation)
     }
 
     pub fn prepare(program: &TypedTrees) -> Result<Self, Vec<diagnostics::Diagnostic>> {
@@ -176,13 +240,13 @@ impl PreparedBuildMachineProgram {
         crate::const_evaluation::range_endpoints::defer_pending_endpoint_calls(&mut typed)?;
         let typed = typed_trees_to_typed_trees::prepare_constant_execution(typed)?;
         Ok(Self {
-            program: PreparedBuildMachineBody::Typed(Box::new(typed)),
+            program: Arc::new(PreparedBuildMachineBody::Typed(Box::new(typed))),
             identity: Arc::new(PreparedBuildMachineProgramIdentity { _private: 0 }),
         })
     }
 
     pub fn typed(&self) -> &TypedTrees {
-        match &self.program {
+        match self.program.as_ref() {
             PreparedBuildMachineBody::Typed(typed) => typed,
             PreparedBuildMachineBody::Checked(program) => &program.checked.typed,
         }
@@ -191,7 +255,7 @@ impl PreparedBuildMachineProgram {
     /// Retain the complete immutable checked program, including CheckFacts.
     /// This is content only, never the preparation's executable entry token.
     pub fn checked_program(&self) -> Option<CheckedBuildProgram> {
-        match &self.program {
+        match self.program.as_ref() {
             PreparedBuildMachineBody::Checked(program) => Some(program.clone()),
             PreparedBuildMachineBody::Typed(_) => None,
         }
@@ -206,7 +270,7 @@ impl PreparedBuildMachineProgram {
         entry: &PreparedBuildMachineEntry,
         operators: &[crate::SelectedBuildTimeBinaryOperator],
     ) -> Result<BuildTimeValue, String> {
-        if !matches!(self.program, PreparedBuildMachineBody::Checked(_)) {
+        if !matches!(self.program.as_ref(), PreparedBuildMachineBody::Checked(_)) {
             return Err("constant invocation requires a checked preparation".into());
         }
         let symbol = self
@@ -224,7 +288,7 @@ impl PreparedBuildMachineProgram {
     }
 
     fn interpreter_program(&self) -> checked_interpreter::BuildMachineProgram<'_> {
-        match &self.program {
+        match self.program.as_ref() {
             PreparedBuildMachineBody::Typed(typed) => {
                 checked_interpreter::BuildMachineProgram::Typed(typed)
             }
@@ -274,12 +338,173 @@ impl PreparedBuildMachineProgram {
     }
 }
 
+/// Identity of one privately fixed invocation, separate from entry and cache
+/// identity. Two admissions of the same source/profile still name different
+/// activations until they genuinely share this exact private record.
+#[derive(Clone)]
+pub struct BuildMachineActivationIdentity(Arc<BuildMachineActivationOwner>);
+struct BuildMachineActivationOwner {
+    _private: u8,
+}
+impl std::fmt::Debug for BuildMachineActivationIdentity {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("BuildMachineActivationIdentity(..)")
+    }
+}
+impl PartialEq for BuildMachineActivationIdentity {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+impl Eq for BuildMachineActivationIdentity {}
+
+/// Exact prepared entry, arguments and execution mode owned before effects.
+/// No consumer can attach this identity to a replacement argument/mode tuple.
+pub struct PreparedBuildMachineActivation {
+    program: Arc<PreparedBuildMachineBody>,
+    entry: PreparedBuildMachineEntry,
+    arguments: Vec<BuildTimeValue>,
+    mode: BuildMachineExecutionMode,
+    description: Option<PreparedBuildRootDescription>,
+    identity: BuildMachineActivationIdentity,
+}
+impl PreparedBuildMachineActivation {
+    pub fn identity(&self) -> BuildMachineActivationIdentity {
+        self.identity.clone()
+    }
+    pub fn arguments(&self) -> &[BuildTimeValue] {
+        &self.arguments
+    }
+    pub fn mode(&self) -> &BuildMachineExecutionMode {
+        &self.mode
+    }
+}
+
+#[derive(Clone)]
+struct PreparedBuildRootDescription {
+    owner: Arc<PreparedBuildMachineBody>,
+    symbol: SymbolHandle,
+    callable_identity: String,
+    source_span: source::SourceSpan,
+}
+impl PreparedBuildRootDescription {
+    fn capture(
+        program: &PreparedBuildMachineProgram,
+        symbol: SymbolHandle,
+    ) -> Result<Self, BuildMachineEvaluationError> {
+        let typed = program.typed();
+        let machine = typed.machine(symbol).ok_or_else(|| {
+            BuildMachineEvaluationError::Entry(
+                "executed Build entry lost its original declaration".to_owned(),
+            )
+        })?;
+        let callable_identity = typed
+            .machine_callable_identity_text(machine)
+            .filter(|identity| !identity.is_empty())
+            .ok_or_else(|| {
+                BuildMachineEvaluationError::Entry(
+                    "executed Build entry has no original canonical identity".to_owned(),
+                )
+            })?;
+        let source_span = typed
+            .symbols
+            .symbol_provenance_source_span(symbol)
+            .ok_or_else(|| {
+                BuildMachineEvaluationError::Entry(
+                    "executed Build entry has no original source occurrence".to_owned(),
+                )
+            })?;
+        let file = typed.symbols.source_file(source_span).ok_or_else(|| {
+            BuildMachineEvaluationError::Entry(
+                "executed Build entry lost its original source owner".to_owned(),
+            )
+        })?;
+        if source_span.span.start >= source_span.span.end
+            || source_span.span.end > file.source.len()
+            || !file.source.is_char_boundary(source_span.span.start)
+            || !file.source.is_char_boundary(source_span.span.end)
+        {
+            return Err(BuildMachineEvaluationError::Entry(
+                "executed Build entry has no complete original source span".to_owned(),
+            ));
+        }
+        Ok(Self {
+            owner: Arc::clone(&program.program),
+            symbol,
+            callable_identity,
+            source_span,
+        })
+    }
+}
+
+/// Published only by successful evaluation of the privately fixed activation.
+/// Description validation happened before the evaluator could perform effects.
+#[derive(Clone)]
+pub struct ExecutedBuildMachineRoot {
+    description: PreparedBuildRootDescription,
+    activation: BuildMachineActivationIdentity,
+}
+impl ExecutedBuildMachineRoot {
+    pub const fn symbol(&self) -> SymbolHandle {
+        self.description.symbol
+    }
+    pub fn callable_identity(&self) -> &str {
+        &self.description.callable_identity
+    }
+    pub const fn source_span(&self) -> source::SourceSpan {
+        self.description.source_span
+    }
+    pub fn activation_identity(&self) -> &BuildMachineActivationIdentity {
+        &self.activation
+    }
+    pub fn owner(&self) -> &TypedTrees {
+        match self.description.owner.as_ref() {
+            PreparedBuildMachineBody::Typed(owner) => owner,
+            PreparedBuildMachineBody::Checked(owner) => owner.typed(),
+        }
+    }
+}
+impl std::fmt::Debug for ExecutedBuildMachineRoot {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ExecutedBuildMachineRoot")
+            .field("symbol", &self.symbol())
+            .field("callable_identity", &self.callable_identity())
+            .field("source_span", &self.source_span())
+            .field("activation", &self.activation)
+            .finish_non_exhaustive()
+    }
+}
+impl PartialEq for ExecutedBuildMachineRoot {
+    fn eq(&self, other: &Self) -> bool {
+        self.activation == other.activation
+            && Arc::ptr_eq(&self.description.owner, &other.description.owner)
+            && self.symbol() == other.symbol()
+            && self.callable_identity() == other.callable_identity()
+            && self.source_span() == other.source_span()
+    }
+}
+impl Eq for ExecutedBuildMachineRoot {}
+
+pub struct ExecutedBuildMachineEvaluation<T> {
+    measured: MeasuredBuildMachineEvaluation<T>,
+    root: Option<ExecutedBuildMachineRoot>,
+}
+impl<T> ExecutedBuildMachineEvaluation<T> {
+    pub fn into_parts(
+        self,
+    ) -> (
+        MeasuredBuildMachineEvaluation<T>,
+        Option<ExecutedBuildMachineRoot>,
+    ) {
+        (self.measured, self.root)
+    }
+}
+
 /// One measured build-machine invocation: the exact prepared entry, its arguments, the
 /// pure or granted execution mode, and the sponsor that pays for its custody.
 pub struct BuildMachineInvocation<'a> {
-    pub entry: &'a PreparedBuildMachineEntry,
-    pub arguments: Vec<BuildTimeValue>,
-    pub mode: BuildMachineExecutionMode,
+    pub activation: &'a PreparedBuildMachineActivation,
     pub sponsor: Option<&'a BuildEvaluationSponsor>,
     pub product_entry_compatibility: Option<&'a dyn checked_interpreter::ProductEntryCompatibility>,
 }
@@ -290,16 +515,21 @@ pub struct BuildMachineInvocation<'a> {
 pub fn evaluate_build_machine_measured(
     program: &PreparedBuildMachineProgram,
     invocation: BuildMachineInvocation<'_>,
-) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, BuildMachineEvaluationError> {
-    let symbol = program.validate_entry(invocation.entry)?;
+) -> Result<ExecutedBuildMachineEvaluation<Vec<BuildTimeValue>>, BuildMachineEvaluationError> {
+    if !Arc::ptr_eq(&program.program, &invocation.activation.program) {
+        return Err(BuildMachineEvaluationError::Entry(
+            "fixed activation belongs to a different immutable prepared execution body".to_owned(),
+        ));
+    }
+    let symbol = program.validate_entry(&invocation.activation.entry)?;
     let request = checked_interpreter::BuildMachineEvaluationRequest {
         entry: checked_interpreter::BuildMachineEntry::Symbol(symbol),
-        arguments: invocation.arguments,
+        arguments: invocation.activation.arguments.clone(),
         operators: &[],
         sponsor: invocation.sponsor,
         product_entry_compatibility: invocation.product_entry_compatibility,
     };
-    match invocation.mode {
+    let measured = match invocation.activation.mode.clone() {
         BuildMachineExecutionMode::Pure => checked_interpreter::evaluate_build_machine_arguments(
             program.interpreter_program(),
             request,
@@ -318,5 +548,14 @@ pub fn evaluate_build_machine_measured(
             },
         )
         .map_err(BuildMachineEvaluationError::Granted),
-    }
+    }?;
+    let root = invocation
+        .activation
+        .description
+        .as_ref()
+        .map(|description| ExecutedBuildMachineRoot {
+            description: description.clone(),
+            activation: invocation.activation.identity.clone(),
+        });
+    Ok(ExecutedBuildMachineEvaluation { measured, root })
 }
