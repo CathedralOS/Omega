@@ -98,12 +98,16 @@ pub fn static_application_identity(
     )
 }
 
-/// Canonical content of one original complete application. Local equality
+/// Canonical content of one original complete supplied application. A bare
+/// nonexecuting description may select an invocation lifetime family instead
+/// of supplying those regions; that family needs its own declaration projection
+/// and is deliberately not converted to anonymous invocation rows here.
+/// Local equality
 /// identities deliberately retain arena/capture namespaces, so this projection
 /// instead uses the existing exact-owner type and original-region queries.
 /// This owner has no loaded toolchain source roster: a source-backed toolchain
 /// operand without a managed owner therefore remains unavailable here.
-pub(crate) fn static_application_identity_text(
+pub fn static_application_identity_text(
     owner: &TypedTrees,
     application: StaticMachineApplicationHandle,
 ) -> Result<String, Diagnostic> {
@@ -120,7 +124,98 @@ pub(crate) fn static_application_identity_text(
         view.bindings(),
         &lifetimes,
         crate::type_identity::AppliedTypeIdentityRegionRole::Supplied,
-        Vec::new(),
+        None,
+    )
+}
+
+/// Canonical content of one nonexecuting original boundary requirement
+/// description. Explicit invocation operands keep ordinary supplied identity;
+/// an omitted invocation roster denotes the authentic declaration family.
+/// Captured interface regions are always actual supplied coordinates. This
+/// query neither fills missing actual call rows nor admits a static tuple.
+pub fn requirement_description_application_identity_text(
+    owner: &TypedTrees,
+    handle: StaticMachineApplicationHandle,
+) -> Result<String, Diagnostic> {
+    use crate::type_identity::{identity_atom as atom, identity_compound as compound};
+    if !owner
+        .expression_table
+        .static_machine_application_is_valid(handle)
+    {
+        return Err(Diagnostic::error(
+            "requirement description lost its original application",
+        ));
+    }
+    let application = owner.expression_table.static_machine_application(handle);
+    // Restrict the family interpretation to the public description vocabulary;
+    // an executable call with missing lifetime rows is still incomplete.
+    crate::product_requirements::product_requirement_application_declaration(owner, application)
+        .ok_or_else(|| {
+            Diagnostic::error("application is not an original boundary requirement description")
+        })?;
+    let declaration = super::StaticApplicationDeclaration::for_application(owner, application)
+        .map_err(Diagnostic::error)?;
+    let supplied = owner
+        .expression_table
+        .static_machine_application_lifetimes(handle);
+    if supplied.len() == declaration.lifetimes().len() {
+        return static_application_identity_text(owner, handle);
+    }
+    let bindings = declaration
+        .bind_arguments(owner, handle)
+        .map_err(Diagnostic::error)?;
+    let captured = declaration
+        .bind_captured_lifetimes(owner, handle)
+        .map_err(Diagnostic::error)?;
+    let lexical_owner = application.type_identity_owner(owner).ok_or_else(|| {
+        Diagnostic::error("requirement description lost its original lexical capture")
+    })?;
+    let mut regions = Vec::with_capacity(declaration.lifetimes().len());
+    let mut captured_regions = captured.iter();
+    for formal in declaration.lifetimes() {
+        if formal.invocation {
+            if owner
+                .original_declaration_lifetime_parameter(formal.declaration, formal.name.as_str())
+                != Some((formal.declaration, formal.ordinal))
+            {
+                return Err(Diagnostic::error(
+                    "requirement family lost its original invocation formal",
+                ));
+            }
+            regions.push(compound(
+                "invocation-formal",
+                [atom("ordinal", &formal.ordinal.to_string())],
+            ));
+        } else {
+            let (bound_formal, binding) = captured_regions.next().ok_or_else(|| {
+                Diagnostic::error("requirement description lost its captured region roster")
+            })?;
+            if bound_formal.declaration != formal.declaration
+                || bound_formal.ordinal != formal.ordinal
+            {
+                return Err(Diagnostic::error(
+                    "requirement description changed its captured region correspondence",
+                ));
+            }
+            regions.push(region_identity_text(
+                owner,
+                lexical_owner,
+                &binding.argument,
+            )?);
+        }
+    }
+    let lifetimes = captured
+        .iter()
+        .map(|(formal, binding)| (*formal, &binding.argument))
+        .collect::<Vec<_>>();
+    application_identity_text(
+        owner,
+        application,
+        &declaration,
+        &bindings,
+        &lifetimes,
+        crate::type_identity::AppliedTypeIdentityRegionRole::Supplied,
+        Some(regions),
     )
 }
 
@@ -186,7 +281,7 @@ pub(crate) fn machine_family_application_identity_text(
         &bindings,
         &[],
         crate::type_identity::AppliedTypeIdentityRegionRole::Declaration,
-        regions,
+        Some(regions),
     )
 }
 
@@ -200,7 +295,7 @@ fn application_identity_text(
         &super::StaticMachineLifetimeArgument,
     )],
     region_role: crate::type_identity::AppliedTypeIdentityRegionRole,
-    regions: Vec<String>,
+    regions: Option<Vec<String>>,
 ) -> Result<String, Diagnostic> {
     use crate::type_identity::{identity_atom as atom, identity_compound as compound};
     let lexical_owner = application.type_identity_owner(owner).ok_or_else(|| {
@@ -330,12 +425,12 @@ fn application_identity_text(
     };
     // Keep actual application normalization's original binding-before-region
     // judgment order. Declaration families supply their authenticated roster.
-    let regions = match region_role {
-        crate::type_identity::AppliedTypeIdentityRegionRole::Supplied => lifetimes
+    let regions = match regions {
+        Some(regions) => regions,
+        None => lifetimes
             .iter()
             .map(|(_, argument)| region_identity_text(owner, lexical_owner, *argument))
             .collect::<Result<Vec<_>, _>>()?,
-        crate::type_identity::AppliedTypeIdentityRegionRole::Declaration => regions,
     };
     Ok(compound(
         "static-application",
