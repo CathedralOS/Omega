@@ -23,8 +23,9 @@ pub use declaration_view::{
 
 pub use identity::{
     StaticApplicationIdentity, StaticApplicationRegionIdentity,
-    requirement_interface_application_identity, static_application_identities_equal,
-    static_application_identity, static_binding_identity,
+    requirement_description_application_identity_text, requirement_interface_application_identity,
+    static_application_identities_equal, static_application_identity,
+    static_application_identity_text, static_binding_identity,
 };
 pub use interface_identity::{
     requirement_call_interface_identity, requirement_provider_application_identity,
@@ -416,6 +417,4 @@ impl crate::TypedTrees {
     }
 }
 
-pub(crate) use identity::{
-    machine_family_application_identity_text, static_application_identity_text,
-};
+pub(crate) use identity::machine_family_application_identity_text;

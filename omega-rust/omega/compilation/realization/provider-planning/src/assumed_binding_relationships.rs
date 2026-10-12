@@ -23,6 +23,8 @@
 //! Domain establishment routes are queried through the retained declaration owner;
 //! neither those authored routes nor checked issuer authorization is a receipt.
 
+mod application_content;
+pub use application_content::AssumedBindingApplicationContent;
 mod calling_compatibility;
 mod compatibility;
 mod declaration_revisions;
@@ -98,6 +100,7 @@ pub struct PreparedAssumedBindingRelationship {
     declaration_owner: Arc<CheckedTrees>,
     registration: AssumedBindingRegistration,
     subjects: Vec<AssumedBindingSubjectCorrespondence>,
+    application_content: Option<AssumedBindingApplicationContent>,
     required_declaration_coordinate: declaration_revisions::DeclarationCoordinate,
     supplied_declaration_coordinate: declaration_revisions::DeclarationCoordinate,
     declaration_revisions: Option<AssumedBindingDeclarationRevisions>,
@@ -143,6 +146,13 @@ impl PreparedAssumedBindingRelationship {
 
     pub fn subjects(&self) -> &[AssumedBindingSubjectCorrespondence] {
         &self.subjects
+    }
+
+    /// Complete original description content, including declaration-owned
+    /// invocation families. Missing portable source/region custody is unavailable;
+    /// absence never changes source admission or manufactures a runtime tuple.
+    pub const fn application_content(&self) -> Option<AssumedBindingApplicationContent> {
+        self.application_content
     }
 
     /// None means missing seal-owned revision evidence, including unmanaged
@@ -404,6 +414,10 @@ pub fn prepare_assumed_binding_relationships(
                 declaration_owner: Arc::clone(program),
                 registration: registration.clone(),
                 subjects,
+                application_content: application_content::capture(
+                    &registration.required,
+                    &registration.supplied,
+                ),
                 required_declaration_coordinate:
                     declaration_revisions::DeclarationCoordinate::capture(&required),
                 supplied_declaration_coordinate:
