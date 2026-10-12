@@ -442,29 +442,6 @@ pub(super) fn selected_declaration<'resolved>(
     if open_binder {
         return Ok(None);
     }
-    if origin.is_none() && std::env::var_os("OMEGA_CONST_EQUATION_ORIGIN_TRACE").is_some() {
-        eprintln!(
-            "TRACE_MISSING_CONST_LEXICAL authored={authored_expression:?} origin={authored_origin:?} node={:?} reference={reference:?}",
-            syntax.expressions.expression(authored_expression)
-        );
-        for (expression, node) in table.iter_expressions() {
-            if let symbol_resolved_trees::expression::ExpressionNode::Name(path) = node {
-                let members = table.name_path_members(path.members);
-                if members.first().is_some_and(|first| {
-                    first.source_span().source_id == reference.source_id
-                        && first.source_span().span.start == reference.span.start
-                }) {
-                    eprintln!(
-                        "TRACE_MISSING_CONST_LEXICAL_CANDIDATE expression={expression:?} origin={:?} path={path:?} members={members:?} occurrences={:?}",
-                        table.expression_source_origin(expression),
-                        table
-                            .authored_selection_occurrences(expression)
-                            .collect::<Vec<_>>()
-                    );
-                }
-            }
-        }
-    }
     origin
         .map(Some)
         .ok_or_else(|| "machine index operand lost its original lexical occurrence".to_owned())

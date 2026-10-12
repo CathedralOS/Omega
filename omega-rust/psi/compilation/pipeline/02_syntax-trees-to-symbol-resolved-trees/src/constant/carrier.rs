@@ -269,22 +269,6 @@ pub(super) fn receiving_parameters(
         }
     }
     if conflicting || !selected.is_valid() {
-        if std::env::var_os("OMEGA_SOURCE_CONSTANT_INPUT_TRACE").is_some() {
-            eprintln!(
-                "const-owner receiving-span {:?} selected={:?} conflicting={conflicting}",
-                arguments, selected
-            );
-            for argument in program.child_type_references(arguments).iter().take(8) {
-                eprintln!("const-owner receiving-argument {:?}", argument);
-            }
-            for (_, reference) in declarations.child_type_references.iter() {
-                if let TypeReference::Generic(application) = reference
-                    && application.arguments == arguments
-                {
-                    eprintln!("const-owner receiving-parent {:?}", reference);
-                }
-            }
-        }
         return None;
     }
     if let Some(template) = program.data_definition_by_symbol(selected) {

@@ -424,65 +424,6 @@ impl BuildTimeAdmissionPlan {
         discharge_authored_requires: bool,
     ) -> Result<(), BuildTimeAdmissionRejection> {
         crate::validate_selected_operators(program, &self.selected_operators)?;
-        if std::env::var_os("OMEGA_SOURCE_CONSTANT_INPUT_TRACE").is_some() {
-            let closure = self.reachable_machine_symbols(&[machine.symbol]);
-            eprintln!(
-                "CONST FLOOR root={} checked={} operators={} closure={:?}",
-                machine.name,
-                self.checked_execution.is_some(),
-                self.selected_operators.len(),
-                closure
-            );
-            for symbol in closure.iter().filter(|symbol| symbol.is_valid()).take(8) {
-                let target = program.machine_by_symbol(*symbol);
-                let summary = self
-                    .checked_execution
-                    .as_ref()
-                    .and_then(|checked| checked.checked().facts.termination.for_machine(*symbol))
-                    .map(|plan| &plan.checked_summary);
-                eprintln!(
-                    "CONST FLOOR member={symbol:?} name={} mode={:?} retained={summary:?}",
-                    program.symbols.name(*symbol),
-                    target.map(|machine| machine.supply_mode)
-                );
-            }
-            if let Some(checked) = &self.checked_execution {
-                let control = &checked.checked().facts.flow.control;
-                for (_, state) in control
-                    .states
-                    .iter()
-                    .filter(|(_, state)| closure.contains(&state.machine_symbol))
-                    .take(8)
-                {
-                    for call in control.calls.span_or_empty(state.calls).iter().take(8) {
-                        let physical = call
-                            .authored_expression
-                            .is_valid()
-                            .then(|| program.expression_table.call_node(call.authored_expression))
-                            .flatten()
-                            .map(|row| row.target_symbol);
-                        let original = call
-                            .authored_expression
-                            .is_valid()
-                            .then(|| {
-                                program
-                                    .expression_table
-                                    .source_call_node(call.authored_expression)
-                            })
-                            .flatten()
-                            .map(|row| row.target_symbol);
-                        eprintln!(
-                            "CONST FLOOR call state={:?} statement={} ordinal={} flow={:?} physical={physical:?} original={original:?} retired={}",
-                            state.state_symbol,
-                            call.statement_index,
-                            call.call_ordinal,
-                            call.target_symbol,
-                            control.is_retired(state.state_symbol, call)
-                        );
-                    }
-                }
-            }
-        }
         // Preserve the caller's public invocation envelope, then check each
         // physically reached body's own envelope. A selected private body
         // cannot inherit empty reach/suspension/blocking from its requirement.

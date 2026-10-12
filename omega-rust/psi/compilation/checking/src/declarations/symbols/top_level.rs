@@ -135,55 +135,6 @@ impl<'program> TopLevelSymbols<'program> {
                         })
                     });
             if conflicts {
-                if std::env::var_os("OMEGA_SOURCE_CONSTANT_INPUT_TRACE").is_some() {
-                    for declaration in program
-                        .data_definitions()
-                        .iter()
-                        .filter(|declaration| {
-                            declaration.name.as_str() == data_definition.name.as_str()
-                        })
-                        .take(8)
-                    {
-                        eprintln!(
-                            "const-owner duplicate-data symbol={:?} source={:?} origin={:?}",
-                            declaration.symbol,
-                            program.symbols.symbol_source_span(declaration.symbol),
-                            declaration.generic_instance
-                        );
-                        if let Some(origin) = declaration.generic_instance
-                            && origin.is_valid()
-                        {
-                            eprintln!(
-                                "const-owner duplicate-origin {:?}",
-                                program.type_reference_table.type_reference(origin)
-                            );
-                            if let typed_trees::types::TypeReferenceNode::Generic {
-                                arguments,
-                                ..
-                            } = program.type_reference_table.type_reference(origin)
-                            {
-                                for argument in program
-                                    .type_reference_table
-                                    .type_reference_handles(*arguments)
-                                    .iter()
-                                    .take(8)
-                                {
-                                    eprintln!(
-                                        "const-owner duplicate-argument {:?} node={:?} result={:?} meaning={:?}",
-                                        argument,
-                                        program.type_reference_table.type_reference(*argument),
-                                        program
-                                            .type_reference_table
-                                            .completed_const_result(*argument),
-                                        program
-                                            .type_reference_table
-                                            .const_integer_meaning(*argument)
-                                    );
-                                }
-                            }
-                        }
-                    }
-                }
                 diagnostics.push(Diagnostic::error(format!(
                     "duplicate data `{}`",
                     data_definition.name

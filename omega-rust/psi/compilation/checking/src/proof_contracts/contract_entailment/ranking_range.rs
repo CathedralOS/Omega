@@ -1050,18 +1050,7 @@ fn prove_edge(
             receiving,
             arguments,
             &coordinates,
-        )
-        .or_else(|| {
-            if std::env::var_os("OMEGA_RANK_ARRIVAL_TRACE").is_some() {
-                eprintln!(
-                    "rank-judgment missing {} state {} at {}",
-                    machine.name,
-                    state.name,
-                    line!()
-                );
-            }
-            None
-        })?;
+        )?;
     }
     for (guard, _) in guards {
         admit(*guard)?;
@@ -1135,49 +1124,25 @@ fn prove_edge(
         &expressions,
     )?;
     if let Some(field) = &mut field_rank {
-        field
-            .install(
-                program,
-                state,
-                root,
-                entry_parameters,
-                &mut engine,
-                &expressions,
-            )
-            .or_else(|| {
-                if std::env::var_os("OMEGA_RANK_ARRIVAL_TRACE").is_some() {
-                    eprintln!(
-                        "rank-judgment missing {} state {} at {}",
-                        machine.name,
-                        state.name,
-                        line!()
-                    );
-                }
-                None
-            })?;
+        field.install(
+            program,
+            state,
+            root,
+            entry_parameters,
+            &mut engine,
+            &expressions,
+        )?;
     }
     if let Some(slice) = &mut slice_rank {
-        slice
-            .install(
-                program,
-                machine,
-                state,
-                root,
-                entry_parameters,
-                &mut engine,
-                &expressions,
-            )
-            .or_else(|| {
-                if std::env::var_os("OMEGA_RANK_ARRIVAL_TRACE").is_some() {
-                    eprintln!(
-                        "rank-judgment missing {} state {} at {}",
-                        machine.name,
-                        state.name,
-                        line!()
-                    );
-                }
-                None
-            })?;
+        slice.install(
+            program,
+            machine,
+            state,
+            root,
+            entry_parameters,
+            &mut engine,
+            &expressions,
+        )?;
     }
     // Saved caller observations ride this site's scope: a state-local `let`
     // the saved-observation bar admits denotes the exact value its
@@ -1362,57 +1327,33 @@ fn prove_edge(
         program.state_parameters(destination.map_or(state, |destination| destination.state));
     for (parameter, argument) in target_parameters.iter().zip(arguments) {
         if let Some(field) = &field_rank {
-            field
-                .substitute(
-                    program,
-                    machine,
-                    state,
-                    entry_parameters,
-                    destination,
-                    parameter,
-                    &demanded_coordinates,
-                    &mut engine,
-                    parameter.symbol,
-                    *argument,
-                    &mut substitutions,
-                )
-                .or_else(|| {
-                    if std::env::var_os("OMEGA_RANK_ARRIVAL_TRACE").is_some() {
-                        eprintln!(
-                            "rank-judgment missing {} state {} at {}",
-                            machine.name,
-                            state.name,
-                            line!()
-                        );
-                    }
-                    None
-                })?;
+            field.substitute(
+                program,
+                machine,
+                state,
+                entry_parameters,
+                destination,
+                parameter,
+                &demanded_coordinates,
+                &mut engine,
+                parameter.symbol,
+                *argument,
+                &mut substitutions,
+            )?;
         }
         if let Some(slice) = &slice_rank {
-            slice
-                .substitute(
-                    program,
-                    machine,
-                    state,
-                    entry_parameters,
-                    destination,
-                    &mut engine,
-                    parameter.symbol,
-                    *argument,
-                    &length_bindings,
-                    &mut substitutions,
-                )
-                .or_else(|| {
-                    if std::env::var_os("OMEGA_RANK_ARRIVAL_TRACE").is_some() {
-                        eprintln!(
-                            "rank-judgment missing {} state {} at {}",
-                            machine.name,
-                            state.name,
-                            line!()
-                        );
-                    }
-                    None
-                })?;
+            slice.substitute(
+                program,
+                machine,
+                state,
+                entry_parameters,
+                destination,
+                &mut engine,
+                parameter.symbol,
+                *argument,
+                &length_bindings,
+                &mut substitutions,
+            )?;
         }
         let target_readings = match destination {
             Some(destination) => destination
@@ -1454,18 +1395,7 @@ fn prove_edge(
                     &mut engine,
                     *argument,
                     &length_bindings,
-                )
-                .or_else(|| {
-                    if std::env::var_os("OMEGA_RANK_ARRIVAL_TRACE").is_some() {
-                        eprintln!(
-                            "rank-judgment missing {} state {} at {}",
-                            machine.name,
-                            state.name,
-                            line!()
-                        );
-                    }
-                    None
-                })?;
+                )?;
                 if let Some(existing) = substitutions.get(identity) {
                     if !engine.requires_unsatisfiable
                         && !comparison_proven(&engine, BinaryOperator::Equal, existing, &actual)
@@ -1494,18 +1424,7 @@ fn prove_edge(
                 &reading.destination,
                 &mut engine,
                 *argument,
-            )
-            .or_else(|| {
-                if std::env::var_os("OMEGA_RANK_ARRIVAL_TRACE").is_some() {
-                    eprintln!(
-                        "rank-judgment missing {} state {} at {}",
-                        machine.name,
-                        state.name,
-                        line!()
-                    );
-                }
-                None
-            })?;
+            )?;
             if let Some(existing) = substitutions.get(identity) {
                 if !engine.requires_unsatisfiable
                     && !comparison_proven(&engine, BinaryOperator::Equal, existing, &actual)

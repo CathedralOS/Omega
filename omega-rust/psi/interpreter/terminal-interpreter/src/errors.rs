@@ -168,13 +168,6 @@ impl std::error::Error for TerminalArtifactInterpretError {}
 /// closed rather than continuing on a malformed operation.
 #[track_caller]
 pub(crate) fn malformed() -> TerminalInterpretError {
-    if std::env::var_os("OMEGA_TERMINAL_MALFORMED_TRACE").is_some() {
-        eprintln!(
-            "terminal-malformed caller={} backtrace={}",
-            std::panic::Location::caller(),
-            std::backtrace::Backtrace::force_capture()
-        );
-    }
     TerminalInterpretError::VerifiedOperationMalformed
 }
 

@@ -327,7 +327,6 @@ impl CheckRequest<'_> {
                 })
             })
             .transpose()?;
-        trace_source_constant_inputs(&original_input);
         Ok(CheckedSource {
             original_input,
             prepared_build,
@@ -436,106 +435,5 @@ impl ProductSelections {
             output: output.clone(),
         });
         Ok(output)
-    }
-}
-
-/// Temporary opt-in observation of the actual successful facade output. This
-/// reads retained records only; names/source coordinates are diagnostic payload,
-/// never identity, complete dependency coverage or new checking authority.
-fn trace_source_constant_inputs(original: &OriginalCheckedSourceInput) {
-    if std::env::var_os("OMEGA_SOURCE_CONSTANT_INPUT_TRACE").is_none() {
-        return;
-    }
-    eprintln!(
-        "source-constant-inputs coverage={:?} supplies={} executed={} snapshots={} source-preparation={}",
-        original.source_constant_coverage(),
-        original.source_constants().len(),
-        original.executed_constant_inputs().len(),
-        original.snapshot_admissions().len(),
-        original.source_preparation_inputs().len(),
-    );
-    for (phase, inputs) in [
-        ("final", original.snapshot_admissions().to_vec()),
-        (
-            "source-preparation",
-            original
-                .source_preparation_inputs()
-                .iter()
-                .filter_map(|input| match input {
-                    build_time_evaluation::CheckedConstantInput::SnapshotAdmission(input) => {
-                        Some(input.clone())
-                    }
-                    _ => None,
-                })
-                .collect(),
-        ),
-    ] {
-        for (ordinal, input) in inputs.iter().enumerate() {
-            eprintln!(
-                "source-constant-snapshot phase={phase} ordinal={ordinal} checked-original={} owner={:?} call={:?} probe-owner={:?} probe-call={:?} return={:?} operands={:?} endpoints={:?}",
-                input.original_checked_program().is_some(),
-                input.probe_source_owner(),
-                input.original_call(),
-                input.probe_owner(),
-                input.probe_call(),
-                input.original_return_type(),
-                input.operands(),
-                input.endpoint_stand_ins()
-            );
-        }
-    }
-    for (ordinal, input) in original.executed_constant_inputs().iter().enumerate() {
-        let checked = input.checked();
-        let symbols = &checked.symbols;
-        let entry = input.entry();
-        let result = match input.result() {
-            build_time_evaluation::BuildTimeValue::Unit => "unit".to_owned(),
-            build_time_evaluation::BuildTimeValue::Int(value) => format!("integer:{value}"),
-            build_time_evaluation::BuildTimeValue::Bool(value) => format!("boolean:{value}"),
-            build_time_evaluation::BuildTimeValue::Float(value) => {
-                format!("float-bits:{:016x}", value.to_bits())
-            }
-            build_time_evaluation::BuildTimeValue::UndeterminedNaN(format) => {
-                format!("undetermined-nan:{format:?}")
-            }
-            build_time_evaluation::BuildTimeValue::Text(bytes) => {
-                format!("text-bytes:{}", bytes.len())
-            }
-            build_time_evaluation::BuildTimeValue::Struct { fields, .. } => {
-                format!("struct-fields:{}", fields.len())
-            }
-            build_time_evaluation::BuildTimeValue::Case { payload, .. } => {
-                format!("case-fields:{}", payload.len())
-            }
-            build_time_evaluation::BuildTimeValue::Array(values) => {
-                format!("array-elements:{}", values.len())
-            }
-        };
-        eprintln!(
-            "source-constant-input ordinal={ordinal} entry={} origin={:?} package={:?} source={:?} arguments={} result={result} checked-machines={} product-machines={}",
-            symbols.display_path(entry, "::"),
-            symbols.symbol_source_origin(entry),
-            symbols.symbol_package_identity(entry),
-            symbols.symbol_provenance_source_span(entry),
-            input.arguments().len(),
-            checked.typed.machines().len(),
-            input.product_declarations().machines().len(),
-        );
-        // Bound the display, not the retained closure. The count above remains
-        // the actual full roster; no omitted debug row becomes absent evidence.
-        for machine in checked.typed.machines().iter().take(32) {
-            eprintln!(
-                "source-constant-closure ordinal={ordinal} machine={} origin={:?} source={:?}",
-                symbols.display_path(machine.symbol, "::"),
-                symbols.symbol_source_origin(machine.symbol),
-                symbols.symbol_provenance_source_span(machine.symbol),
-            );
-        }
-        if checked.typed.machines().len() > 32 {
-            eprintln!(
-                "source-constant-closure ordinal={ordinal} omitted={}",
-                checked.typed.machines().len() - 32
-            );
-        }
     }
 }

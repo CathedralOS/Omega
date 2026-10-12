@@ -211,41 +211,6 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
                 continue;
             }
         }
-        if std::env::var_os("OMEGA_LIFETIME_CORRESPONDENCE_TRACE").is_some()
-            && invocation_lifetimes.len() != callee_machine.lifetime_parameters.len()
-        {
-            eprintln!(
-                "lifetime-correspondence caller={} state={} callee={} expected={:?} actual={:?}",
-                caller_machine.name,
-                caller_state.name,
-                callee_machine.name,
-                callee_machine.lifetime_parameters,
-                invocation_lifetimes
-            );
-            for argument in &call.arguments {
-                let source_application =
-                    argument_scopes::source_application(program, caller_state, *argument);
-                let place = validation::canonical_place_from_expression_in_state(
-                    program,
-                    caller_state.symbol,
-                    usize::MAX,
-                    *argument,
-                );
-                eprintln!(
-                    "lifetime-operand node={:?} place={place:?} source={:?}",
-                    program.expression_table.expression(*argument),
-                    source_application
-                        .as_ref()
-                        .map(|(reference, applications)| (
-                            program.display_type_reference(*reference),
-                            applications
-                                .iter()
-                                .map(|application| program.display_type_reference(*application))
-                                .collect::<Vec<_>>()
-                        ))
-                );
-            }
-        }
         if conflicting_call_lifetime {
             diagnostics.push(Diagnostic::error(format!(
                 "call to `{}` has conflicting ordinary borrow constraints for an erased lifetime",
@@ -916,19 +881,6 @@ fn visit_lifetime_bindings_in_scope(
     let Some((actual, actual_scope)) = actual_scope.resolve(program, actual) else {
         return;
     };
-    if std::env::var_os("OMEGA_LIFETIME_CORRESPONDENCE_TRACE").is_some() {
-        eprintln!(
-            "lifetime-pair caller={caller:?} required={required:?} required-node={:?} actual={actual:?} actual-node={:?} actual-owner={:?} frames={:?}",
-            program.type_reference_table.type_reference(required),
-            program.type_reference_table.type_reference(actual),
-            actual_scope.owner,
-            actual_scope
-                .frames
-                .iter()
-                .map(|frame| (frame.declaration, frame.lifetimes))
-                .collect::<Vec<_>>()
-        );
-    }
     match (
         program.type_reference_table.type_reference(required),
         program.type_reference_table.type_reference(actual),
