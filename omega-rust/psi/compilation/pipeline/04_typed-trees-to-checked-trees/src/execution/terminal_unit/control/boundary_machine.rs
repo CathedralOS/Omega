@@ -252,6 +252,30 @@ pub(crate) fn build_static_boundary_requirements(
         .public_trait_requirement_signatures()
         .filter(|(definition, _)| definition.is_boundary)
     {
+        if std::env::var_os("OMEGA_BOUNDARY_PLAN_TRACE").is_some() {
+            eprintln!(
+                "TRACE_BOUNDARY_PLAN_INPUT symbol={:?} name={} owner={:?} selected={:?} parameters={} result={:?} capsule={} reach={:?}",
+                signature.symbol,
+                signature.name.as_str(),
+                definition.symbol,
+                program
+                    .public_trait_requirement_signature(signature.symbol)
+                    .map(|selected| (
+                        selected.declaration.symbol,
+                        selected.application,
+                        selected.selected_interface
+                    )),
+                program.state_signature_type_parameters(signature).len(),
+                signature.return_type,
+                facts
+                    .contract_plans
+                    .crash_capsule(definition.symbol, signature.symbol)
+                    .is_some(),
+                boundary_signature_reaches
+                    .iter()
+                    .find(|(symbol, _)| *symbol == signature.symbol),
+            );
+        }
         let Some(selected) = program.public_trait_requirement_signature(signature.symbol) else {
             continue;
         };
@@ -442,6 +466,9 @@ pub(crate) fn build_static_boundary_requirements(
                 })
             })
             .collect();
+        if std::env::var_os("OMEGA_BOUNDARY_PLAN_TRACE").is_some() {
+            eprintln!("TRACE_BOUNDARY_PLAN_READY symbol={:?}", signature.symbol);
+        }
         plans.push(CheckedBoundaryMachinePlan {
             machine: signature.symbol,
             kind: semantic_vocabulary::BoundaryRequirementKind::Trait,
