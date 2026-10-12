@@ -1,0 +1,28 @@
+// Complete dispatch enters a state whose final source expression is the tail call.
+// Both cycle edges strictly decrease the original natural ranking.
+data Main { value: u64; }
+
+machine countdown<const Flag: bool>(remaining: u64) -> u64
+where Flag == true
+terminates by remaining -> Nat::Descending;
+{
+    transition remaining > 1 {
+        true -> step(remaining - 1)
+        false -> 7
+    }
+    state step(remaining: u64) -> u64
+    requires remaining > 0
+    {
+        countdown<true>(remaining - 1)
+    }
+}
+
+machine Main::main(main: &mut Main) crashes Trap {
+    let result: u64 = countdown<true>(2);
+    transition result == 7 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
