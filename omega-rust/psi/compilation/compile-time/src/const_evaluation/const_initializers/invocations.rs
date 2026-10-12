@@ -1099,6 +1099,7 @@ impl Invocation<'_> {
         reference: source::SourceSpan,
         public: bool,
         syntax: &syntax_trees::SyntaxTrees,
+        inputs: &mut Vec<crate::CheckedConstantInput>,
     ) -> Result<ApplicationProbeEvaluation, String> {
         let typed = self.program.typed();
         let roots = self.probe_roots()?;
@@ -1132,7 +1133,7 @@ impl Invocation<'_> {
             expression,
             destination,
             Some(self),
-            &mut Vec::new(),
+            inputs,
         )?;
         let value = value.into_index()?;
         let selected_matches =
