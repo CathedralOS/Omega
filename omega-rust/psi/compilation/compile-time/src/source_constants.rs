@@ -291,6 +291,7 @@ pub struct SourceConstantSupply {
 pub enum SourceConstantOutcome {
     Completed {
         supplies: Vec<SourceConstantSupply>,
+        /// Actual successful checked invocations; earlier folds remain uncovered.
         executed_inputs: Vec<checked_interpreter::ExecutedCheckedConstantInput>,
     },
     Retained {
