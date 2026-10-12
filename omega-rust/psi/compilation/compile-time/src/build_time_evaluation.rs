@@ -184,6 +184,7 @@ pub fn evaluate_pre_resolution(
             source_scoped_top_level_bindings,
             selection_authority: selection_authority.clone(),
         },
+        &mut source_preparation_inputs,
     )?;
     syntax_trees_to_symbol_resolved_trees::pre_resolution::synthesize_trait_defaults(
         &mut syntax_trees,
