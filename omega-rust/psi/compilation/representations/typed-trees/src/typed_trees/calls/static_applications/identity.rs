@@ -107,16 +107,106 @@ pub(crate) fn static_application_identity_text(
     owner: &TypedTrees,
     application: StaticMachineApplicationHandle,
 ) -> Result<String, Diagnostic> {
-    use crate::type_identity::{identity_atom as atom, identity_compound as compound};
     let view = super::StaticApplicationView::new(owner, application).map_err(Diagnostic::error)?;
-    let lexical_owner = view
-        .application()
-        .type_identity_owner(owner)
-        .ok_or_else(|| {
-            Diagnostic::error("callable application lost its original lexical capture")
-        })?;
-    let arguments = view
-        .bindings()
+    let lifetimes = view
+        .lifetimes()
+        .iter()
+        .map(|(formal, binding)| (*formal, &binding.argument))
+        .collect::<Vec<_>>();
+    application_identity_text(
+        owner,
+        view.application(),
+        view.declaration(),
+        view.bindings(),
+        &lifetimes,
+        crate::type_identity::AppliedTypeIdentityRegionRole::Supplied,
+        Vec::new(),
+    )
+}
+
+/// A specialized declaration still owns its invocation lifetime family.
+/// Actual source calls separately owe complete supplied correspondence; their
+/// representative caller region cannot become this shared family's identity.
+pub(crate) fn machine_family_application_identity_text(
+    owner: &TypedTrees,
+    template: &crate::machine::Machine,
+    instance: &crate::machine::Machine,
+    handle: StaticMachineApplicationHandle,
+) -> Result<String, Diagnostic> {
+    use crate::type_identity::{identity_atom as atom, identity_compound as compound};
+    if !owner
+        .expression_table
+        .static_machine_application_is_valid(handle)
+    {
+        return Err(Diagnostic::error(
+            "callable family lost its retained original application",
+        ));
+    }
+    let application = owner.expression_table.static_machine_application(handle);
+    let declaration = super::StaticApplicationDeclaration::for_application(owner, application)
+        .map_err(Diagnostic::error)?;
+    if declaration.symbol() != template.symbol
+        || template.lifetime_parameters.len() != instance.lifetime_parameters.len()
+    {
+        return Err(Diagnostic::error(
+            "callable family lost its original declaration telescope",
+        ));
+    }
+    let bindings = declaration
+        .bind_arguments(owner, handle)
+        .map_err(Diagnostic::error)?;
+    let mut regions = Vec::with_capacity(declaration.lifetimes().len());
+    for formal in declaration.lifetimes() {
+        let Some(parameter) = instance.lifetime_parameters.get(formal.ordinal) else {
+            return Err(Diagnostic::error(
+                "callable family lost an original invocation formal",
+            ));
+        };
+        let original =
+            owner.original_declaration_lifetime_parameter(template.symbol, formal.name.as_str());
+        if !formal.invocation
+            || formal.declaration != template.symbol
+            || original.is_none()
+            || owner.original_declaration_lifetime_parameter(instance.symbol, parameter.as_str())
+                != original
+        {
+            return Err(Diagnostic::error(
+                "callable family changed its original invocation correspondence",
+            ));
+        }
+        regions.push(compound(
+            "invocation-formal",
+            [atom("ordinal", &formal.ordinal.to_string())],
+        ));
+    }
+    application_identity_text(
+        owner,
+        application,
+        &declaration,
+        &bindings,
+        &[],
+        crate::type_identity::AppliedTypeIdentityRegionRole::Declaration,
+        regions,
+    )
+}
+
+fn application_identity_text(
+    owner: &TypedTrees,
+    application: &super::StaticMachineApplication,
+    declaration: &super::StaticApplicationDeclaration<'_>,
+    bindings: &[&StaticMachineBinding],
+    lifetimes: &[(
+        super::DeclaredStaticLifetime<'_>,
+        &super::StaticMachineLifetimeArgument,
+    )],
+    region_role: crate::type_identity::AppliedTypeIdentityRegionRole,
+    regions: Vec<String>,
+) -> Result<String, Diagnostic> {
+    use crate::type_identity::{identity_atom as atom, identity_compound as compound};
+    let lexical_owner = application.type_identity_owner(owner).ok_or_else(|| {
+        Diagnostic::error("callable application lost its original lexical capture")
+    })?;
+    let arguments = bindings
         .iter()
         .map(|binding| {
             let argument = match &binding.value {
@@ -139,15 +229,10 @@ pub(crate) fn static_application_identity_text(
             Ok((binding.parameter, argument))
         })
         .collect::<Result<Vec<_>, Diagnostic>>()?;
-    let lifetimes = view
-        .lifetimes()
-        .iter()
-        .map(|(formal, binding)| (*formal, &binding.argument))
-        .collect::<Vec<_>>();
-    let mut bindings = Vec::with_capacity(view.bindings().len());
+    let mut binding_identities = Vec::with_capacity(bindings.len());
     // The view supplies all original binders, including conformance bounds
     // outside the type-parameter span, in declaration order.
-    for (ordinal, binding) in view.bindings().iter().enumerate() {
+    for (ordinal, binding) in bindings.iter().enumerate() {
         let value = match &binding.value {
             StaticMachineBindingValue::Type(reference) => compound(
                 "type",
@@ -158,8 +243,7 @@ pub(crate) fn static_application_identity_text(
                 )?],
             ),
             StaticMachineBindingValue::Const(reference) => {
-                let parameter = view
-                    .declaration()
+                let parameter = declaration
                     .parameters()
                     .iter()
                     .find(|parameter| parameter.symbol == binding.parameter)
@@ -192,7 +276,8 @@ pub(crate) fn static_application_identity_text(
                                 parameter.symbol,
                                 lexical_owner,
                                 &arguments,
-                                &lifetimes,
+                                lifetimes,
+                                region_role,
                             )?,
                         ),
                         atom(
@@ -226,16 +311,16 @@ pub(crate) fn static_application_identity_text(
                 ));
             }
         };
-        bindings.push(compound(
+        binding_identities.push(compound(
             "binding",
             [atom("ordinal", &ordinal.to_string()), value],
         ));
     }
-    let selected_interface = if view.application().selected_interface.is_valid() {
-        view.application().selected_interface
+    let selected_interface = if application.selected_interface.is_valid() {
+        application.selected_interface
     } else {
         owner
-            .trait_machine_signature(view.application().binding_declaration)
+            .trait_machine_signature(application.binding_declaration)
             .map_or(SymbolHandle::invalid(), |(definition, _)| definition.symbol)
     };
     let selected_interface = if selected_interface.is_valid() {
@@ -243,16 +328,20 @@ pub(crate) fn static_application_identity_text(
     } else {
         String::new()
     };
-    let regions = view
-        .lifetimes()
-        .iter()
-        .map(|(_, binding)| region_identity_text(owner, lexical_owner, &binding.argument))
-        .collect::<Result<Vec<_>, _>>()?;
+    // Keep actual application normalization's original binding-before-region
+    // judgment order. Declaration families supply their authenticated roster.
+    let regions = match region_role {
+        crate::type_identity::AppliedTypeIdentityRegionRole::Supplied => lifetimes
+            .iter()
+            .map(|(_, argument)| region_identity_text(owner, lexical_owner, *argument))
+            .collect::<Result<Vec<_>, _>>()?,
+        crate::type_identity::AppliedTypeIdentityRegionRole::Declaration => regions,
+    };
     Ok(compound(
         "static-application",
         [
             atom("interface", &selected_interface),
-            compound("bindings", bindings),
+            compound("bindings", binding_identities),
             compound("regions", regions),
         ],
     ))
@@ -401,6 +490,7 @@ fn argument_identity_text(
                                         lexical_owner,
                                         &original_arguments,
                                         &original_lifetimes,
+                                        crate::type_identity::AppliedTypeIdentityRegionRole::Supplied,
                                     )?,
                                 ),
                                 atom("value", &identity),
@@ -461,6 +551,7 @@ fn declared_carrier_identity_text<LifetimeArgument: super::StaticLifetimeOperand
     lexical_owner: AppliedTypeIdentityOwner<'_>,
     arguments: &[(SymbolHandle, IndexIdentityArgument<'_>)],
     lifetimes: &[(super::DeclaredStaticLifetime<'_>, &LifetimeArgument)],
+    region_role: crate::type_identity::AppliedTypeIdentityRegionRole,
 ) -> Result<String, Diagnostic> {
     if !parameter.is_valid() {
         return Err(Diagnostic::error(
@@ -492,7 +583,7 @@ fn declared_carrier_identity_text<LifetimeArgument: super::StaticLifetimeOperand
         })
         .collect::<Vec<_>>();
     let scope = crate::type_identity::AppliedTypeIdentityScope {
-        region_role: crate::type_identity::AppliedTypeIdentityRegionRole::Supplied,
+        region_role,
         declaration,
         arguments,
         lifetimes: &lifetimes,

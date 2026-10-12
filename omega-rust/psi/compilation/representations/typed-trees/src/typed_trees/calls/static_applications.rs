@@ -416,4 +416,6 @@ impl crate::TypedTrees {
     }
 }
 
-pub(crate) use identity::static_application_identity_text;
+pub(crate) use identity::{
+    machine_family_application_identity_text, static_application_identity_text,
+};
