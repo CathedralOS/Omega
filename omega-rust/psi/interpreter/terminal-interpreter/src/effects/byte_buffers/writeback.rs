@@ -213,7 +213,7 @@ impl BoundaryByteBufferBinding {
                     .insert(field, ByteSequenceView::new(buffer.bytes));
             }
             ByteSequenceBinding::MutableOwner { home, .. } => {
-                *execution.byte_owner_bytes_mut(home)? = ByteSequenceView::new(buffer.bytes);
+                *execution.byte_owner_bytes_mut(&home)? = ByteSequenceView::new(buffer.bytes);
             }
             ByteSequenceBinding::Immutable(_) => return Err(malformed()),
         }

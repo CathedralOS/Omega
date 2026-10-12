@@ -1,0 +1,35 @@
+// Expected exit: 0. Array elements keep their own byte domains, live lengths
+// and backing through construction, copies, returns and exclusive loans.
+domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+data Container [copy] { entries: [[u8; 8] in Utf8; 2]; }
+
+machine make() -> [[u8; 8] in Utf8; 2] { ["a", "slot"] }
+machine size(bytes: &[u8; 8] in Utf8) -> u64 { bytes.len }
+machine observe(entries: &[[u8; 8] in Utf8; 2]) -> u64 { size(&entries[1]) }
+machine replace(bytes: &mut [u8; 8] in Utf8) -> bool { bytes = "é"; true }
+machine edit(entries: &mut [[u8; 8] in Utf8; 2]) -> bool { replace(&mut entries[1]) }
+machine nested(container: &Container) -> u64 { observe(&container.entries) }
+
+machine initialize(bytes: &write [u8; 8] in Utf8) { bytes = "ok"; }
+machine forward_write(bytes: &write [u8; 8] in Utf8) { initialize(&write bytes); }
+machine write_owner(bytes: &mut [u8; 8] in Utf8) {
+    forward_write(&write bytes);
+}
+
+machine main() crashes Trap {
+    let entries: [[u8; 8] in Utf8; 2] = make();
+    let before: [[u8; 8] in Utf8; 2] = entries;
+    let changed: bool = edit(&mut entries);
+    let container: Container = Container { entries: entries };
+    let empty: [[u8; 8] in Utf8; 2] = ["", ""];
+    let was_empty: bool = observe(&empty) == 0;
+    write_owner(&mut empty[1]);
+    transition changed && observe(&entries) == 2 && observe(&before) == 4
+        && nested(&container) == 2 && observe(&empty) == 2
+        && was_empty {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

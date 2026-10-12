@@ -604,23 +604,21 @@ impl TerminalExecution<'_> {
         parameter: &StructuralParameterDeclaration,
         argument: &StructuralArgument,
     ) -> Result<ByteSequenceBinding, TerminalInterpretError> {
-        if argument.path.is_empty() {
-            let value = self
-                .structural_values
-                .get(&argument.place)
-                .ok_or_else(malformed)?;
+        if let Some(value) = self.declared_byte_owner(argument)? {
             if value.structural_type != parameter.structural_type {
                 return Err(malformed());
             }
-            let binding = self
-                .byte_sequence_values
-                .get(&argument.place)
-                .ok_or_else(malformed)?;
-            if let ByteSequenceBinding::Immutable(_) = binding {
-                return self.lend_frame_owner(parameter, argument.place, value);
+            // Lending identifies storage, not readable descriptor contents.
+            // In particular, a write-only formal can forward its existing
+            // owner loan without acquiring read authority.
+            if argument.path.is_empty()
+                && let Some(binding) = self.byte_sequence_values.get(&argument.place)
+                && !matches!(binding, ByteSequenceBinding::Immutable(_))
+            {
+                binding.validate_mutable_referent(self, &value)?;
+                return Ok(binding.clone());
             }
-            binding.validate_mutable_referent(self, value)?;
-            return Ok(binding.clone());
+            return self.lend_declared_owner(parameter, argument, &value);
         }
         let (mut parent, identity, field, namespace) =
             self.structural_field_binding_frame(argument)?;
@@ -657,20 +655,28 @@ impl TerminalExecution<'_> {
         Ok(binding)
     }
 
-    /// A frame-local bounded owner lent exclusively stays in its activation:
-    /// the loan pins that home under the owner's own identity, and every
-    /// write through it lands in the owner. The formal must name exactly the
-    /// owner's domains, since writes through it re-prove only those.
-    fn lend_frame_owner(
+    /// A declared owner keeps either its frame binding or its typed subtree
+    /// cell. The formal must preserve the selected owner's domains; a storage
+    /// coordinate and a matching capacity do not establish those memberships.
+    fn lend_declared_owner(
         &self,
         parameter: &StructuralParameterDeclaration,
-        place: semantic_vocabulary::PlaceId,
+        argument: &StructuralArgument,
         owner: &TerminalStructuralValue,
     ) -> Result<ByteSequenceBinding, TerminalInterpretError> {
-        let (crate::byte_sequences::write::MutableByteSequenceStorage::Owned(home), _) =
-            self.mutable_byte_sequence_storage(place)?
-        else {
-            return Err(malformed());
+        let coordinate = StructuralRuntimePlace::from(owner);
+        let home = if self.structural_byte_storage.contains_key(&coordinate) {
+            crate::byte_sequences::binding::ByteOwnerHome::Storage(coordinate)
+        } else {
+            if !argument.path.is_empty() {
+                return Err(malformed());
+            }
+            let (crate::byte_sequences::write::MutableByteSequenceStorage::Owned(home), _) =
+                self.mutable_byte_sequence_storage(argument.place)?
+            else {
+                return Err(malformed());
+            };
+            home
         };
         let Some(ByteSequenceCarrier::BoundedOwned { capacity }) = self
             .program
@@ -683,7 +689,7 @@ impl TerminalExecution<'_> {
         else {
             return Err(malformed());
         };
-        if home.place != place || owner.qualifications != parameter.qualifications {
+        if owner.qualifications != parameter.qualifications {
             return Err(malformed());
         }
         let binding = ByteSequenceBinding::MutableOwner {
@@ -702,13 +708,9 @@ impl TerminalExecution<'_> {
         parameter: &StructuralParameterDeclaration,
         argument: &StructuralArgument,
     ) -> Result<(TerminalStructuralValue, ByteSequenceBinding), TerminalInterpretError> {
-        if !argument.path.is_empty() {
+        let Some(value) = self.declared_byte_owner(argument)? else {
             return self.resolve_shared_boundary_binding(parameter, argument);
-        }
-        let value = self
-            .structural_values
-            .get(&argument.place)
-            .ok_or_else(malformed)?;
+        };
         if value.structural_type != parameter.structural_type
             || parameter
                 .qualifications
@@ -735,54 +737,48 @@ impl TerminalExecution<'_> {
         if argument.access != StructuralAccess::SharedBorrow {
             return Err(malformed());
         }
-        let (coordinate, bytes, capacity) = if argument.path.is_empty() {
-            let value = self
-                .structural_values
-                .get(&argument.place)
-                .ok_or_else(malformed)?;
-            let Some(StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned {
-                capacity,
-            })) = self
-                .program
-                .structural_types()
-                .get(&value.structural_type)
-                .map(|row| &row.shape)
-            else {
-                return Err(malformed());
+        let (coordinate, bytes, capacity) =
+            if let Some(value) = self.declared_byte_owner(argument)? {
+                let Some(StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned {
+                    capacity,
+                })) = self
+                    .program
+                    .structural_types()
+                    .get(&value.structural_type)
+                    .map(|row| &row.shape)
+                else {
+                    return Err(malformed());
+                };
+                let binding = self.byte_descriptor_binding(argument, &value)?;
+                let ByteSequenceBinding::Immutable(bytes) = self.reborrow_byte_sequence_binding(
+                    &binding,
+                    &value,
+                    StructuralAccess::SharedBorrow,
+                )?
+                else {
+                    return Err(malformed());
+                };
+                (StructuralRuntimePlace::from(&value), bytes, *capacity)
+            } else {
+                let (mut parent, identity, field, namespace) =
+                    self.structural_field_binding_frame(argument)?;
+                let Some(ByteSequenceCarrier::BoundedOwned { capacity }) =
+                    field.field_type.byte_sequence_carrier()
+                else {
+                    return Err(malformed());
+                };
+                let bytes = self
+                    .structural_byte_sequence_fields
+                    .get(&StructuralByteSequenceRuntimeField {
+                        parent: StructuralRuntimePlace::from(&parent),
+                        namespace,
+                        field: field.id,
+                    })
+                    .ok_or_else(malformed)?
+                    .clone();
+                parent.path.push(StructuralPathSegment::Field(identity));
+                (StructuralRuntimePlace::from(&parent), bytes, capacity)
             };
-            let binding = self
-                .byte_sequence_values
-                .get(&argument.place)
-                .ok_or_else(malformed)?;
-            let ByteSequenceBinding::Immutable(bytes) = self.reborrow_byte_sequence_binding(
-                binding,
-                value,
-                StructuralAccess::SharedBorrow,
-            )?
-            else {
-                return Err(malformed());
-            };
-            (StructuralRuntimePlace::from(value), bytes, *capacity)
-        } else {
-            let (mut parent, identity, field, namespace) =
-                self.structural_field_binding_frame(argument)?;
-            let Some(ByteSequenceCarrier::BoundedOwned { capacity }) =
-                field.field_type.byte_sequence_carrier()
-            else {
-                return Err(malformed());
-            };
-            let bytes = self
-                .structural_byte_sequence_fields
-                .get(&StructuralByteSequenceRuntimeField {
-                    parent: StructuralRuntimePlace::from(&parent),
-                    namespace,
-                    field: field.id,
-                })
-                .ok_or_else(malformed)?
-                .clone();
-            parent.path.push(StructuralPathSegment::Field(identity));
-            (StructuralRuntimePlace::from(&parent), bytes, capacity)
-        };
         if bytes.len() as u128 > u128::from(capacity) {
             return Err(malformed());
         }

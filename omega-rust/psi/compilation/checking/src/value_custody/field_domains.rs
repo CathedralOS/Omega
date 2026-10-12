@@ -415,13 +415,13 @@ pub fn owned_nominal_data_definition(
         .find(|data| data.symbol == symbol && data.type_parameters.is_empty())
 }
 
-/// The declared field `(path, domain, instance)` obligations an OWNED result of
-/// `type_reference` carries: nominal data fields directly, or each element of
-/// a fixed array of nominal data at its exact `FixedIndex` prefix. A
-/// `Constrained` return (`-> T in D`) still owns `T` storage; a reference
-/// return (`-> &T`, `-> &mut T`, `-> &[T]`) produces no owned result storage
-/// and returns no paths -- borrowed fields stay proven through their source
-/// places so a later source write still invalidates them.
+/// Declared child obligations of result storage or an explicitly selected
+/// exclusive referent. Entry and normal return use the same roster: a
+/// qualified array element is an obligation just like a qualified data field.
+/// A second nominal-only walk would lose element qualifications after calls.
+/// Root qualifications have their own contract; fixed-array extent rollups
+/// are evidence, not additional obligations. Reference results themselves own
+/// no storage, so their callers must explicitly select the readable referent.
 pub fn declared_result_field_domain_paths(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
@@ -429,32 +429,17 @@ pub fn declared_result_field_domain_paths(
     let reference = program
         .type_reference_table
         .unconstrained_type_reference(type_reference);
-    if let Some(data) = owned_nominal_data_definition(program, reference) {
-        return declared_field_domain_paths(program, data);
+    if matches!(
+        program.type_reference_table.type_reference(reference),
+        TypeReferenceNode::Reference { .. }
+    ) {
+        return Vec::new();
     }
-    if let TypeReferenceNode::FixedArray {
-        element_type,
-        length: FixedArrayLength::Literal(length),
-    } = program.type_reference_table.type_reference(reference)
-    {
-        // Every element owns the same paths; derive them once and place them
-        // under each index.
-        let element_paths = declared_result_field_domain_paths(program, *element_type);
-        if element_paths.is_empty() {
-            return element_paths;
-        }
-        let mut paths = Vec::new();
-        for index in 0..*length {
-            for (element_path, domain_symbol, semantic_domain) in &element_paths {
-                let mut path = Vec::with_capacity(element_path.len() + 1);
-                path.push(facts::PlaceSegment::FixedIndex { index });
-                path.extend_from_slice(element_path);
-                paths.push((path, *domain_symbol, *semantic_domain));
-            }
-        }
-        return paths;
-    }
-    Vec::new()
+    declared_type_domain_rows(program, type_reference)
+        .into_iter()
+        .filter(|row| !row.transfer && !row.path.is_empty())
+        .map(|row| (row.path, row.domain_symbol, row.semantic_domain))
+        .collect()
 }
 
 /// Exact field path and declared domain instance; an indexed family symbol
@@ -671,26 +656,6 @@ pub fn domain_is_vacuous(
         return vacuous;
     }
     !domain.predicate_body.is_present() && domain.establishment_routes.is_empty()
-}
-
-/// Every `(place path, domain, instance)` a nominal value of `data` promises by
-/// declaration: the exact obligations in the same declaration
-/// roster used for state entry. Payload paths remain conditional on their
-/// exact `Case` segments; transporting them does not select a case. Fixed-array
-/// rollup rows are evidence only, while a slice's whole extent is an obligation.
-pub fn declared_field_domain_paths(
-    program: &dyn crate::CheckingInput,
-    data: &typed_trees::data::DataDefinition,
-) -> Vec<FieldDomainIdentity> {
-    declared_data_field_domain_rows(program, data)
-        .into_iter()
-        // Bodyless qualifications are still declared occurrence memberships.
-        // Readable mutable entry and normal-exit checking consume this same
-        // roster; filtering them here lost a repaired field after a call.
-        // Consumers separately fence routed issuance and predicate reproof.
-        .filter(|row| !row.transfer)
-        .map(|row| (row.path, row.domain_symbol, row.semantic_domain))
-        .collect()
 }
 
 /// The data-type name a field's type reference names (peeling `&`/`&mut` and a

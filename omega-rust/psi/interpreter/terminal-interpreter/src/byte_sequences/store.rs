@@ -33,7 +33,7 @@ impl TerminalExecution<'_> {
                 field, capacity, ..
             } => (ReplacedOwner::Field(field.clone()), *capacity),
             ByteSequenceBinding::MutableOwner { home, capacity, .. } => {
-                (ReplacedOwner::Frame(*home), *capacity)
+                (ReplacedOwner::Declared(home.clone()), *capacity)
             }
             ByteSequenceBinding::Immutable(_) | ByteSequenceBinding::MutableArray { .. } => {
                 return Err(malformed());
@@ -66,8 +66,8 @@ impl TerminalExecution<'_> {
             ReplacedOwner::Field(field) => {
                 self.structural_byte_sequence_fields.insert(field, bytes);
             }
-            ReplacedOwner::Frame(home) => {
-                *self.byte_owner_bytes_mut(home)? = bytes.detached_descriptor();
+            ReplacedOwner::Declared(home) => {
+                *self.byte_owner_bytes_mut(&home)? = bytes.detached_descriptor();
             }
         }
         Ok(())
@@ -78,5 +78,5 @@ impl TerminalExecution<'_> {
 /// or a pinned frame-local owner.
 enum ReplacedOwner {
     Field(crate::values::StructuralByteSequenceRuntimeField),
-    Frame(crate::byte_sequences::binding::ByteOwnerHome),
+    Declared(crate::byte_sequences::binding::ByteOwnerHome),
 }

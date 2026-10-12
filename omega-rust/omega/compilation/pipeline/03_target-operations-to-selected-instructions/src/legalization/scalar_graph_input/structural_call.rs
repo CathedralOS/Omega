@@ -106,19 +106,42 @@ pub(in crate::legalization) fn argument_at(
             custody,
         );
     }
-    // A scalar projection borrows the root's retained storage, whether it
-    // arrived owned, arrived borrowed, or was established here. Aggregate
-    // reconstruction rejoins that home without treating an owned parameter's
-    // ABI fragments as an incoming borrow pointer. Dispatch by the callee's
-    // carrier: byte/element views keep their descriptor presentation routes.
+    // A typed subtree borrows its root's retained storage, whether the root
+    // arrived or was established here. This includes declared byte owners,
+    // not only scalar leaves. Inline byte fields unresolved by the typed query
+    // retain their field adapter; descriptor endpoints keep their presentation
+    // route. Selecting through a descriptor root still uses its actual backing.
+    let root_type = caller
+        .arrival_parameter(semantic.place)
+        .map(|parameter| parameter.structural_type)
+        .or_else(|| {
+            caller
+                .structural_place(semantic.place)
+                .and_then(|place| place.kind.produced_structural_type())
+        });
     if !semantic.path.is_empty()
-        && super::primitive_locals::scalar(
+        && find_structural_type(
             &plan.structural_types,
             destination_parameter.structural_type,
         )
-        .is_some()
+        .is_some_and(|declaration| {
+            !declaration.shape.is_borrowed_byte_carrier()
+                && !matches!(
+                    declaration.shape,
+                    terminal_psi::StructuralTypeShape::ElementView { .. }
+                )
+        })
+        && root_type.is_some_and(|root| {
+            crate::structural_inputs::structural_reference_input::runtime_borrowed_projection(
+                root,
+                &semantic.path,
+                semantic.access,
+                &plan.structural_types,
+            )
+            .is_some_and(|(selected, _, _)| selected == destination_parameter.structural_type)
+        })
     {
-        return super::aggregate_results::call_argument(
+        return super::aggregate_results::borrowed_arguments::reconstruct(
             semantic,
             position,
             call_operation,
@@ -127,7 +150,6 @@ pub(in crate::legalization) fn argument_at(
             call,
             native,
             plan,
-            custody,
         );
     }
     if let Some(argument) = owned_byte_loan(

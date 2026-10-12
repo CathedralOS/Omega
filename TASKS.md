@@ -3473,10 +3473,15 @@ of a check the same flow already performed, not the check itself.
   Carry these compositions through execution, without restoring native
   permission replay. Include qualified descriptor replacement and detached-copy
   content observations; local observations cannot acquire entry provenance.
-  Qualified bounded-byte array elements still lack retained element predicates:
-  `ShapeCollector::add_type` rejects `[[u8; 8] in Utf8; 2]`. Preserve that fence
-  until array establishment and loans retain each element's requirements;
-  record/case field predicates cannot substitute for element evidence.
+  Include `runtime_qualified_byte_array_storage_exit` and its element-domain,
+  replacement and mutable-domain-loss controls in full qualification. Array
+  elements retain their own memberships through construction, copies, returned
+  storage and loans; record/case fields cannot substitute for that evidence.
+  Remaining qualified-owner compositions: forwarding a mutable owner through
+  `Held { bytes: &mut [u8; 8] in Utf8 }` then `replace(held.bytes)` loses the
+  enclosing caller's root-domain restoration; direct `&write entries[1]` from
+  `&mut [[u8; 8] in Utf8; 2]` rejects at projected write-only admission. Both
+  are source-checking gaps, not permission to weaken the owner invariant.
   Include prepared lifetime-bearing field
   views, independent nested regions, repeated generic heads, authored callable
   templates, symbolic view-free arrays, inherited const arguments and complete

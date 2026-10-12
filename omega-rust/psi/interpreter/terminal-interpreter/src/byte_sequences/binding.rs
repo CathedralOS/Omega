@@ -32,8 +32,8 @@ pub(crate) enum ByteSequenceBinding {
         parent_type: StructuralTypeId,
         referent: TerminalStructuralValue,
     },
-    /// An exclusive loan of a frame-local bounded owner. Its bytes stay in
-    /// the owner's activation; the loan pins that home and writes it in place.
+    /// An exclusive loan of a declared bounded owner. Its bytes stay at the
+    /// original frame or typed subtree home throughout the loan.
     MutableOwner {
         home: ByteOwnerHome,
         capacity: u64,
@@ -41,15 +41,16 @@ pub(crate) enum ByteSequenceBinding {
     },
 }
 
-/// The exact activation and place holding one frame-local bounded owner.
-/// Stack depth is stable across nested calls and state edges; the machine
-/// prevents a later activation at the same depth from answering for it.
-/// This is the frame-home contract primitive and array loans already use.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) struct ByteOwnerHome {
-    pub(crate) depth: usize,
-    pub(crate) machine: semantic_vocabulary::MachineId,
-    pub(crate) place: semantic_vocabulary::PlaceId,
+/// Frame bindings retain their activation; typed subtree cells retain their
+/// execution-wide storage coordinate. Neither home grants loan authority.
+#[derive(Clone, PartialEq, Eq)]
+pub(crate) enum ByteOwnerHome {
+    Frame {
+        depth: usize,
+        machine: semantic_vocabulary::MachineId,
+        place: semantic_vocabulary::PlaceId,
+    },
+    Storage(crate::values::StructuralRuntimePlace),
 }
 
 impl ByteSequenceBinding {
@@ -119,13 +120,23 @@ impl ByteSequenceBinding {
             };
         }
         if let Self::MutableOwner {
-            capacity, referent, ..
+            home,
+            capacity,
+            referent,
         } = self
         {
-            // The owner's own value under the formal's exact domains: a whole,
-            // unprojected bounded owner of the loan's capacity.
+            // A formal's type cannot authenticate an unrelated subtree cell.
+            // Rejoin the stored coordinate to its live containing owner too.
+            let exact_home = match home {
+                ByteOwnerHome::Frame { .. } => referent.path.is_empty(),
+                ByteOwnerHome::Storage(home) => {
+                    *home == crate::values::StructuralRuntimePlace::from(referent)
+                        && execution.actual_storage_type_from_owner(home)?
+                            == referent.structural_type
+                }
+            };
             return if value == referent
-                && referent.path.is_empty()
+                && exact_home
                 && structural_types
                     .get(&referent.structural_type)
                     .is_some_and(|declaration| {
@@ -192,6 +203,31 @@ impl ByteSequenceBinding {
 }
 
 impl TerminalExecution<'_> {
+    /// Select a declared byte owner at its live home. Inline fields have no
+    /// standalone declaration and retain their declaration-keyed storage;
+    /// every other projection keeps the selected nominal type and memberships.
+    pub(crate) fn declared_byte_owner(
+        &self,
+        argument: &StructuralArgument,
+    ) -> Result<Option<TerminalStructuralValue>, TerminalInterpretError> {
+        let root = self
+            .structural_values
+            .get(&argument.place)
+            .ok_or_else(malformed)?;
+        let types = self.program.structural_types();
+        if crate::custody::inline_structural_field(&types, root.structural_type, &argument.path)
+            .is_some_and(|field| field.field_type.byte_sequence_carrier().is_some())
+        {
+            return Ok(None);
+        }
+        let selected =
+            self.resolve_live_projection(argument.place, &argument.path, argument.access)?;
+        Ok(types
+            .get(&selected.structural_type)
+            .is_some_and(|row| row.shape.is_bounded_owned_byte_sequence())
+            .then_some(selected))
+    }
+
     /// Rejoin an already resolved descriptor to its exact frame binding or
     /// retained aggregate slot. Cloning a binding retains its backing/window;
     /// it neither consumes the source nor copies mutable storage. A whole-home
@@ -559,7 +595,7 @@ impl TerminalExecution<'_> {
                 .get(field)
                 .ok_or_else(malformed)?
                 .clone(),
-            ByteSequenceBinding::MutableOwner { home, .. } => self.byte_owner_bytes(*home)?.clone(),
+            ByteSequenceBinding::MutableOwner { home, .. } => self.byte_owner_bytes(home)?.clone(),
             ByteSequenceBinding::Immutable(_) => unreachable!(),
         };
         Ok(ByteSequenceBinding::Immutable(
@@ -583,7 +619,7 @@ impl TerminalExecution<'_> {
                 *capacity,
             ),
             ByteSequenceBinding::MutableOwner { home, capacity, .. } => {
-                (self.byte_owner_bytes(*home)?, *capacity)
+                (self.byte_owner_bytes(home)?, *capacity)
             }
             ByteSequenceBinding::Immutable(_) | ByteSequenceBinding::MutableArray { .. } => {
                 return Err(malformed());
@@ -595,39 +631,62 @@ impl TerminalExecution<'_> {
         Ok((bytes, capacity))
     }
 
-    /// The live bytes of a pinned frame-local owner. Its activation must still
-    /// be the one the loan captured, and the owner must still hold its value.
+    /// The live bytes of the captured owner. Storage cells must already exist;
+    /// frame homes must still belong to the captured activation.
     pub(crate) fn byte_owner_bytes(
         &self,
-        home: ByteOwnerHome,
+        home: &ByteOwnerHome,
     ) -> Result<&ByteSequenceView, TerminalInterpretError> {
-        let (machine, values) = if home.depth == self.call_stack.len() {
+        let (depth, expected_machine, place) = match home {
+            ByteOwnerHome::Frame {
+                depth,
+                machine,
+                place,
+            } => (depth, machine, place),
+            ByteOwnerHome::Storage(home) => {
+                return self.structural_byte_storage.get(home).ok_or_else(malformed);
+            }
+        };
+        let (machine, values) = if *depth == self.call_stack.len() {
             (self.current_machine, &self.byte_sequence_values)
         } else {
-            let frame = self.call_stack.get(home.depth).ok_or_else(malformed)?;
+            let frame = self.call_stack.get(*depth).ok_or_else(malformed)?;
             (frame.current_machine, &frame.byte_sequence_values)
         };
-        if machine != home.machine {
+        if machine != *expected_machine {
             return Err(malformed());
         }
-        values.get(&home.place).ok_or_else(malformed)?.immutable()
+        values.get(place).ok_or_else(malformed)?.immutable()
     }
 
     /// The same pinned owner's bytes, for an exclusive write through its loan.
     pub(crate) fn byte_owner_bytes_mut(
         &mut self,
-        home: ByteOwnerHome,
+        home: &ByteOwnerHome,
     ) -> Result<&mut ByteSequenceView, TerminalInterpretError> {
-        let (machine, values) = if home.depth == self.call_stack.len() {
+        let (depth, expected_machine, place) = match home {
+            ByteOwnerHome::Frame {
+                depth,
+                machine,
+                place,
+            } => (depth, machine, place),
+            ByteOwnerHome::Storage(home) => {
+                return self
+                    .structural_byte_storage
+                    .get_mut(home)
+                    .ok_or_else(malformed);
+            }
+        };
+        let (machine, values) = if *depth == self.call_stack.len() {
             (self.current_machine, &mut self.byte_sequence_values)
         } else {
-            let frame = self.call_stack.get_mut(home.depth).ok_or_else(malformed)?;
+            let frame = self.call_stack.get_mut(*depth).ok_or_else(malformed)?;
             (frame.current_machine, &mut frame.byte_sequence_values)
         };
-        if machine != home.machine {
+        if machine != *expected_machine {
             return Err(malformed());
         }
-        match values.get_mut(&home.place) {
+        match values.get_mut(place) {
             Some(ByteSequenceBinding::Immutable(bytes)) => Ok(bytes),
             _ => Err(malformed()),
         }

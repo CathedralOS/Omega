@@ -339,6 +339,20 @@ impl ConstructorStorage {
             self.byte_arrays
                 .insert(destination.clone(), bytes.detached_descriptor());
         }
+        if execution
+            .program
+            .structural_types()
+            .get(&child.structural_type)
+            .is_some_and(|row| row.shape.is_bounded_owned_byte_sequence())
+        {
+            let source = terminal_psi::StructuralArgument {
+                access: terminal_psi::StructuralAccess::SharedBorrow,
+                ..argument.clone()
+            };
+            let (_, bytes) = execution.bounded_owner_snapshot(&source)?;
+            self.byte_arrays
+                .insert(destination.clone(), bytes.detached_descriptor());
+        }
         self.stage_subtree(
             execution,
             &StructuralRuntimePlace::from(child),

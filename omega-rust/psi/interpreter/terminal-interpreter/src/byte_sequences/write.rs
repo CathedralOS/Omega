@@ -142,7 +142,7 @@ impl TerminalExecution<'_> {
                 MutableByteSequenceStorage::Field(field.clone())
             }
             ByteSequenceBinding::MutableOwner { home, .. } => {
-                MutableByteSequenceStorage::Owned(*home)
+                MutableByteSequenceStorage::Owned(home.clone())
             }
             ByteSequenceBinding::Immutable(_) | ByteSequenceBinding::MutableArray { .. } => {
                 return Err(malformed());
@@ -244,7 +244,7 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         Ok((
-            MutableByteSequenceStorage::Owned(ByteOwnerHome {
+            MutableByteSequenceStorage::Owned(ByteOwnerHome::Frame {
                 depth: self.call_stack.len(),
                 machine: self.current_machine,
                 place,
@@ -302,7 +302,7 @@ impl TerminalExecution<'_> {
                         .copied()
                         .ok_or_else(malformed),
                     MutableByteSequenceStorage::Owned(home) => self
-                        .byte_owner_bytes(home)?
+                        .byte_owner_bytes(&home)?
                         .get(index)
                         .copied()
                         .ok_or_else(malformed),
@@ -342,7 +342,7 @@ impl TerminalExecution<'_> {
             MutableByteSequenceStorage::Owned(home) => {
                 // The payload may also back earlier field snapshots. Detach via
                 // replace_byte so mutation never changes those immutable values.
-                (Some(self.byte_owner_bytes_mut(home)?), byte_index)
+                (Some(self.byte_owner_bytes_mut(&home)?), byte_index)
             }
             MutableByteSequenceStorage::Field(field) => (
                 self.structural_byte_sequence_fields.get_mut(&field),

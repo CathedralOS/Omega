@@ -3434,6 +3434,13 @@ fail/text/local_record_byte_field_replacement_breaks_domain rejected 5052ms expe
 	cannot prove the value assigned to `row.text` in main is in domain `[u8; N]::Ascii`; a place declared `in [u8; N]::Ascii` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
 fail/text/owned_byte_parameter_write_breaks_domain rejected 1660ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call observe from corrupt: bytes in [u8; N]::Ascii (invalidated by prior mutation of bytes[0]; bytes is part of [u8; N]::Ascii)
+fail/text/qualified_byte_array_element_domain rejected 426ms expected @c0d817d0e753+wt
+	cannot prove default-domain field requirement for return from bad at statement 0: ["a", "\\xc3\\xa9"][1] requires [u8; N]::Ascii
+fail/text/qualified_byte_array_element_replacement rejected 470ms expected @c0d817d0e753+wt
+	cannot prove the value assigned to `entries[1]` in corrupt is in domain `[u8; N]::Ascii`; a place declared `in [u8; N]::Ascii` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
+fail/text/qualified_byte_array_mutable_domain_loss rejected 449ms expected @c0d817d0e753+wt
+	cannot prove requires contract for call replace from bad: entries[1] in [u8; N]::Utf8
+	cannot prove default-domain field requirement for return from bad at statement 1: entries[1] requires [u8; N]::Ascii
 fail/text/qualified_byte_owner_state_loan_breaks_domain rejected 1659ms expected @dca1c7cd7e6f+wt
 	cannot prove requires contract for call step from main: output in [u8; N]::Utf8 (invalidated by prior mutation of output[__hoist_32]; output is part of [u8; N]::Utf8)
 fail/text/qualified_byte_state_domain_widening rejected 4955ms expected @a9ae30e1c334+wt
@@ -6161,6 +6168,7 @@ pass/text/runtime_number_to_decimal_exit checked 11709ms check-target:macos_arm6
 pass/text/runtime_owned_string_byte_view_exit checked 11252ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/runtime_param_domain_forward_exit checked 11252ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/runtime_param_domain_literal_read_exit checked 12013ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/text/runtime_qualified_byte_array_storage_exit checked 4037ms check-target:macos_arm64 @c0d817d0e753+wt
 pass/text/runtime_qualified_owner_view_open_exit checked 3079ms check-target:macos_arm64 @b7075f98d14c+wt
 pass/text/runtime_slice_indexed_string_guard_exit checked 11632ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/runtime_stdin_command_branch_exit incomplete 5713ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt

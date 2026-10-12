@@ -272,15 +272,11 @@ impl ScalarBindings {
                 ..captured
             });
         }
-        // A shared read retains the established place and its qualifications;
-        // it cannot invalidate them. Mutable borrowing still needs a separate
-        // preservation contract for both root and descendant memberships.
-        let supports_parameter = |source: &StructuralParameterDeclaration| {
-            supports_borrow(source.access)
-                && ((source.qualifications.is_empty()
-                    && source.projected_qualifications.is_empty())
-                    || argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow)
-        };
+        // Locating a parameter home does not erase its qualifications. The
+        // checked call and return contracts retain the selected path's exact
+        // memberships and restoration obligations, just as for a local home.
+        // Custody here depends on access, not whether the containing parameter
+        // has any qualified descendants (including disjoint siblings).
         let storage_root = argument
             .structural_storage_root()
             .or_else(|| match argument.source {
@@ -353,7 +349,7 @@ impl ScalarBindings {
                             .ok_or(LoweringError::Unsupported(
                                 "computed borrow lost its parameter",
                             ))?;
-                        if !supports_parameter(source) {
+                        if !supports_borrow(source.access) {
                             return unsupported("computed borrow widens its parameter custody");
                         }
                         StructuralArgument {
@@ -387,7 +383,7 @@ impl ScalarBindings {
                     .ok_or(LoweringError::Unsupported(
                         "computed borrow lost its parameter",
                     ))?;
-                if !supports_parameter(source) {
+                if !supports_borrow(source.access) {
                     return unsupported("computed borrow widens its parameter custody");
                 }
                 StructuralArgument {

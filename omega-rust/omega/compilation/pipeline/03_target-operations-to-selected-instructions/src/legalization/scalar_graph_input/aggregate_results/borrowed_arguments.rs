@@ -9,7 +9,7 @@ use super::{
 use crate::legalization::scalar_graph_input::aggregate_results::home_layout;
 use crate::legalization::scalar_graph_input::structural_case;
 use crate::legalization::scalar_graph_input::structural_parameters;
-pub(super) fn reconstruct(
+pub(in crate::legalization::scalar_graph_input) fn reconstruct(
     argument: &terminal_psi::StructuralArgument,
     position: usize,
     call_operation: semantic_vocabulary::OperationId,

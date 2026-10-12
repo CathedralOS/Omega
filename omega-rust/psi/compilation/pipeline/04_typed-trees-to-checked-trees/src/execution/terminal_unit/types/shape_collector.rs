@@ -665,8 +665,9 @@ impl<'program> ShapeCollector<'program> {
             }
             let element = substituted_formal_type(self.program, *element_type, substitutions);
             // Each scalar element now retains its own declaration predicate.
-            // Recursive collection rejects an unrepresentable scalar contract;
-            // byte predicates still need their separate element vocabulary.
+            // Recursive collection rejects an unrepresentable scalar contract.
+            // Byte element domains use the ordinary projected qualification
+            // contract; completed operands must carry those memberships.
             let missing_membership =
                 self.program
                     .primitive_type_reference(element)
@@ -683,14 +684,7 @@ impl<'program> ShapeCollector<'program> {
                         ) && validation::unrestricted_builtin_primitive(self.program, element)
                             != Some(primitive)
                     });
-            let element_type_identity = if missing_membership
-                || byte_sequence_carrier(self.program, element, substitutions).is_some()
-                    && !typed_trees::byte_predicates::type_reference_domain_predicates(
-                        self.program,
-                        element,
-                    )
-                    .is_empty()
-            {
+            let element_type_identity = if missing_membership {
                 None
             } else {
                 self.add_stored_type(element, binders, substitutions)

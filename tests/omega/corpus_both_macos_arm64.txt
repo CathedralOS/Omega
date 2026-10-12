@@ -930,3 +930,4 @@ pass/traits/runtime_finite_family_owned_state_result_exit built 3722ms exit:70 i
 pass/traits/runtime_finite_family_structural_result_exit built 3738ms exit:70 interpreter-exit:70 interpreter:agrees @7e763bd2f4f6+wt
 pass/domains/runtime_case_constructor_child_memberships_exit built 3458ms exit:0 interpreter-exit:0 interpreter:agrees @2bf22d08e81a+wt
 pass/slices/runtime_captured_subslice_predicates_exit built 3471ms exit:0 interpreter-exit:0 interpreter:agrees @7451127fc8f8+wt
+pass/text/runtime_qualified_byte_array_storage_exit built 3334ms exit:0 interpreter-exit:0 interpreter:agrees @c0d817d0e753+wt
