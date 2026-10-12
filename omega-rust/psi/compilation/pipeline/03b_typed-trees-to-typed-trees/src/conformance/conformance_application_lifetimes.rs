@@ -78,6 +78,7 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
         else {
             continue;
         };
+        let binding_declaration = program.lifetime_declaration_owner(callee_machine.symbol);
         let Some(caller_machine) = program.machine_by_symbol(call.caller_machine) else {
             continue;
         };
@@ -434,7 +435,6 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
             }
             arguments.clone_from_slice(&call.machine_arguments);
         }
-        let binding_declaration = program.lifetime_declaration_owner(callee_machine.symbol);
         let source = program
             .expression_table
             .static_machine_application_mut(application);
