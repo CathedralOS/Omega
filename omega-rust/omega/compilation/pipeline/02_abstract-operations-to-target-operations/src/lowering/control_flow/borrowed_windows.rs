@@ -41,7 +41,7 @@ use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use semantic_vocabulary::StructuralFieldId;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
 use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralPathSegment,
@@ -83,6 +83,7 @@ pub(super) fn move_field(
     ) || !root_window_loan(
         function,
         live,
+        types,
         source,
         path,
         *field,
@@ -97,8 +98,11 @@ pub(super) fn move_field(
         });
     let mut path = field_path(types, geometry_type, geometry_path, *field)
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-    if referent.is_some() {
-        path.insert(0, StructuralPathSegment::Referent);
+    if let Some(referent) = &referent {
+        let mut full = referent.carrier_path.clone();
+        full.push(StructuralPathSegment::Referent);
+        full.extend(path);
+        path = full;
     }
     if live
         .references
@@ -109,6 +113,12 @@ pub(super) fn move_field(
     }
     let mut relocations = Vec::new();
     let mut moved_leaves = BTreeSet::new();
+    let (storage, storage_path) =
+        if super::references::contains_reference(types, result.structural_type) {
+            super::references::window_storage(function, types, live, source.place(), &path)?
+        } else {
+            (source.place(), path.clone())
+        };
     super::references::subtree_leaves(
         function,
         types,
@@ -116,8 +126,8 @@ pub(super) fn move_field(
         &[],
         result.structural_type,
         &StructuralArgument {
-            place: source.place(),
-            path: path.clone(),
+            place: storage,
+            path: storage_path,
             access: StructuralAccess::Owned,
         },
         true,
@@ -177,6 +187,7 @@ pub(super) fn store_field(
     ) || !root_window_loan(
         function,
         live,
+        types,
         destination,
         path,
         *field,
@@ -193,12 +204,15 @@ pub(super) fn store_field(
     let full_path = field_path(types, geometry_type, geometry_path, *field)
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     let (field_type, shape, byte_offset, indices) =
-        crate::lowering::structural_layout::runtime_projection(
-            geometry_type,
-            &full_path,
+        crate::lowering::structural_layout::reference_referent_projection(
+            destination.structural_type(),
+            &{
+                let mut full = path.clone();
+                full.extend_from_slice(&full_path[geometry_path.len()..]);
+                full
+            },
+            disposition.required_access(),
             types,
-            &mut BTreeMap::new(),
-            &mut BTreeSet::new(),
         )?;
     // The value must be a complete owned value of the declared field type
     // whose layout is the field's own extent: the reseat writes exactly
@@ -236,13 +250,27 @@ pub(super) fn store_field(
     // descriptor slot. Installing a replacement cannot silently retire a loan
     // still held in that region or release a disjoint sibling.
     let mut custody_path = full_path;
-    if referent.is_some() {
-        custody_path.insert(0, StructuralPathSegment::Referent);
+    if let Some(referent) = &referent {
+        let mut full = referent.carrier_path.clone();
+        full.push(StructuralPathSegment::Referent);
+        full.extend(custody_path);
+        custody_path = full;
     }
+    let (storage, custody_path) = if super::references::contains_reference(types, field_type) {
+        super::references::window_storage(
+            function,
+            types,
+            live,
+            destination.place(),
+            &custody_path,
+        )?
+    } else {
+        (destination.place(), custody_path)
+    };
     if live
         .references
         .keys()
-        .any(|(carrier, path)| *carrier == destination.place() && path.starts_with(&custody_path))
+        .any(|(carrier, path)| *carrier == storage && path.starts_with(&custody_path))
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
@@ -259,7 +287,7 @@ pub(super) fn store_field(
         &mut relocations,
         &mut moved_leaves,
     )?;
-    super::references::relocate_leaves(live, destination.place(), relocations, moved_leaves);
+    super::references::relocate_leaves(live, storage, relocations, moved_leaves);
     // The store consumes an owned value as record construction consumes a
     // field operand; an unrestricted value's home stays readable.
     if multiplicity != StructuralMultiplicity::Unrestricted {
@@ -288,15 +316,18 @@ pub(super) fn window_referent(
     path: &[StructuralPathSegment],
     required_access: StructuralAccess,
 ) -> Result<Option<super::references::ReferentProjection>, LoweringError> {
-    if !matches!(path.first(), Some(StructuralPathSegment::Referent)) {
+    if !path.contains(&StructuralPathSegment::Referent) {
         return Ok(None);
     }
-    if root.parameter().is_some() {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
-    }
-    let referent =
-        super::references::referent_projection(live, types, root.place(), path, required_access)
-            .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+    let referent = super::references::window_projection(
+        function,
+        live,
+        types,
+        root.place(),
+        path,
+        required_access,
+    )
+    .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     if referent.carrier_type != root.structural_type() {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
@@ -309,6 +340,7 @@ pub(super) fn window_referent(
 fn root_window_loan(
     function: &AbstractFunction,
     live: &LiveDefinitions,
+    types: &StructuralTypeLookup<'_>,
     root: &abstract_operations::StructuralWindowRoot,
     path: &[StructuralPathSegment],
     field: Option<StructuralFieldId>,
@@ -320,10 +352,12 @@ fn root_window_loan(
     if path.is_empty() {
         return root.parameter().is_some();
     }
-    if path.first() != Some(&StructuralPathSegment::Referent) {
+    if !path.contains(&StructuralPathSegment::Referent) {
         return false;
     }
-    let Some(loan) = live.references.get(&(root.place(), Vec::new())) else {
+    let Ok(descriptors) =
+        super::references::window_descriptors(function, types, live, root.place(), path)
+    else {
         return false;
     };
     // A retained alias uses its own pointer and live permission, but every
@@ -336,7 +370,10 @@ fn root_window_loan(
                 .iter()
                 .flat_map(|block| &block.structural_parameters),
         ),
-        loan.root.origins().into_iter().map(|origin| origin.root),
+        descriptors
+            .into_iter()
+            .flat_map(|leaf| leaf.root.origins())
+            .map(|origin| origin.root),
         required_access,
         |place| {
             live.structural_homes.get(&place).is_some_and(|home| {

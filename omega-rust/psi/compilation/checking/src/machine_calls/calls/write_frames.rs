@@ -73,6 +73,7 @@ pub(crate) use demand::{CallFrameCaches, InvocationReferenceSubject};
 pub use demand::{CallFrameResolver, frame_paths_overlap, operand_call_plans};
 pub use place_paths::ScalarStorageCoordinate;
 pub use place_paths::frame_coordinate_path;
+pub use reference_subjects::assignment_stored_value_type;
 pub use stored_calls::StoredReferenceEffect;
 pub(crate) use transition_topology::named_state_transition_subgraph_is_acyclic;
 

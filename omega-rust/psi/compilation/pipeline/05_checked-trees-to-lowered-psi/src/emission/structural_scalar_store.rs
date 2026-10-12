@@ -557,6 +557,16 @@ pub(crate) fn lower_window_path<'a>(
                     ));
                 }
             }
+            CheckedUnitStructuralPathSegment::Referent => {
+                let StructuralTypeShape::Reference { referent, .. } = field_owner.shape else {
+                    return unsupported("structural window referent crossing names no reference");
+                };
+                field_owner = terminal_psi::find_structural_type(structural_types, referent)
+                    .ok_or(LoweringError::Unsupported(
+                        "structural window referent type is absent",
+                    ))?;
+                steps.push(ProjectionStep::Static(StructuralPathSegment::Referent));
+            }
             _ => return unsupported("structural window carrier path is unsupported"),
         }
     }

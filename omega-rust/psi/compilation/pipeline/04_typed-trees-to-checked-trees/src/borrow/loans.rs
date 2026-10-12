@@ -403,12 +403,9 @@ fn assignment_borrow_loans(
     // reference keeps the installed descriptors live through its backing.
     let target_symbol = target.root.as_symbol().unwrap_or(state.symbol);
     let owner_name: Identifier = program.symbols.name(target_symbol).into();
-    let Some(target_type) = validation::expression_type_reference_in_state(
-        program,
-        state.symbol,
-        statement_index,
-        assignment.target,
-    ) else {
+    let Some(target_type) = program.machine(machine_symbol).and_then(|machine| {
+        validation::assignment_stored_value_type(program, machine, state, assignment)
+    }) else {
         return Vec::new();
     };
     if !is_reference_type(program, target_type) && !is_borrow_carrying_data(program, target_type) {
@@ -445,10 +442,19 @@ fn assignment_borrow_loans(
             loan_trackers,
         )
     };
+    let writes_referent = validation::expression_type_reference_in_state(
+        program,
+        state.symbol,
+        statement_index,
+        assignment.target,
+    )
+    .is_some_and(|reference| is_reference_type(program, reference))
+        && !is_reference_type(program, target_type);
     let destinations = store_destination_places(
         program,
         state,
         target,
+        writes_referent,
         loan_trackers.iter().map(|loan| {
             (
                 loan.storage_owner,

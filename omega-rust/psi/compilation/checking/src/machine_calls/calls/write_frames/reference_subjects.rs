@@ -118,6 +118,29 @@ pub(super) fn replaces_reference_binding(
     ))
 }
 
+/// The installed value is the reference descriptor for a rebinding and the
+/// referent for a write through it. Loan formation and stored-origin transfer
+/// must use this same choice: a reference-typed destination does not imply
+/// that an owned replacement borrows its source carrier.
+pub fn assignment_stored_value_type(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    assignment: &typed_trees::statement::TableAssignment,
+) -> Option<TypeReferenceHandle> {
+    let reference = crate::value_custody::places::declared_place_type_raw(
+        program,
+        machine,
+        Some(state),
+        assignment.target,
+    )?;
+    if reference_value_replaces_binding(program, machine, state, reference, assignment.value) {
+        Some(reference)
+    } else {
+        Some(crate::reference_shell(program, reference).map_or(reference, |shell| shell.referee))
+    }
+}
+
 fn reference_value_replaces_binding(
     program: &dyn crate::CheckingInput,
     machine: &Machine,

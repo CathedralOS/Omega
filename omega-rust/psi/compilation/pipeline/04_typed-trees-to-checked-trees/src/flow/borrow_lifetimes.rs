@@ -116,6 +116,7 @@ pub(crate) fn filter_reassigned_borrow_loans(
     // Reference carriers have the same lifetime rule at a root or a projection:
     // writing through one preserves its captured loan, while replacing it ends
     // the old occurrence. Classify the typed target before comparing owner paths.
+    let mut writes_referent = false;
     if let Some(assignment) = statement.as_assignment()
         && let Some((machine, state)) =
             validation::find_state(program, program.symbols.get(reassigned_symbol).parent)
@@ -131,12 +132,12 @@ pub(crate) fn filter_reassigned_borrow_loans(
             program.type_reference_table.type_reference(reference),
             typed_trees::types::TypeReferenceNode::Reference { .. }
         ) {
-            let replacement = call_frames.and_then(|frames| {
+            let Some(replacement) = call_frames.and_then(|frames| {
                 frames.assignment_replaces_reference_binding(machine, statement)
-            });
-            if replacement != Some(true) {
+            }) else {
                 return source;
-            }
+            };
+            writes_referent = !replacement;
         }
     }
 
@@ -152,6 +153,7 @@ pub(crate) fn filter_reassigned_borrow_loans(
                     program,
                     state,
                     target.clone(),
+                    writes_referent,
                     constraint_refs
                         .span_or_empty(source)
                         .iter()
@@ -171,7 +173,7 @@ pub(crate) fn filter_reassigned_borrow_loans(
                         }),
                 )
             })
-            .unwrap_or_else(|| vec![target]);
+            .unwrap_or_else(|| vec![target.clone()]);
     let [destination] = destinations.as_slice() else {
         // A may-alias set cannot prove which old slot was replaced.
         return source;
@@ -185,6 +187,9 @@ pub(crate) fn filter_reassigned_borrow_loans(
                 // value and must survive it. Older loans carried by the
                 // overwritten whole/place are invalidated precisely.
                 let keep = active.storage_owner != destination.root
+                    || (writes_referent
+                        && destination == &target
+                        && borrow.loan_owner_path(active).len() == target.segments.len())
                     || active.statement_index == statement_index
                     || !borrow_owner_path_overlaps_place(
                         program,

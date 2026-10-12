@@ -364,7 +364,9 @@ pub(crate) fn projected_argument_path(
             },
         )?;
         let mut count = 0usize;
-        while let Some(shell) = validation::reference_shell(program, reference) {
+        while let Some(shell) = validation::reference_shell(program, reference)
+            && validation::stores_reference_shape(program, reference, &[])
+        {
             count += 1;
             reference = shell.referee;
         }
@@ -373,10 +375,19 @@ pub(crate) fn projected_argument_path(
     let mut payload_field = None;
     for (position, segment) in place.segments.iter().enumerate() {
         // Parameters already denote their borrowed storage. Below that root,
-        // a stored reference is an address-bearing value: retain every
-        // crossing before selecting the next member. The canonical source
+        // a stored Reference shape retains a pointer crossing. Slice and
+        // byte-view shells already store descriptors, so indexing them must
+        // not invent another Referent hop. Use the shape collector's same
+        // classification before selecting the next member. The canonical source
         // place keeps the authored field path for borrow-fact correspondence.
-        if position > 0 && matches!(segment, facts::PlaceSegment::Field { .. }) {
+        if position > 0
+            && matches!(
+                segment,
+                facts::PlaceSegment::Field { .. }
+                    | facts::PlaceSegment::FixedIndex { .. }
+                    | facts::PlaceSegment::Index { .. }
+            )
+        {
             let mut reference = prefix_container_type_reference(
                 program,
                 state_symbol,
@@ -385,7 +396,9 @@ pub(crate) fn projected_argument_path(
                 position,
             )?;
             let mut crossings = 0usize;
-            while let Some(shell) = validation::reference_shell(program, reference) {
+            while let Some(shell) = validation::reference_shell(program, reference)
+                && validation::stores_reference_shape(program, reference, &[])
+            {
                 crossings += 1;
                 reference = shell.referee;
             }

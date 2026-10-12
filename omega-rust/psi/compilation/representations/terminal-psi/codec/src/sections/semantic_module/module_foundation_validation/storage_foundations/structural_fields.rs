@@ -361,15 +361,22 @@ fn window_root_type(
         // Serialization proves the carrier and referent geometry. Ordered
         // custody must additionally authenticate the reference's backing as
         // live owned or exclusive ingress storage, with no live descendants.
-        if path.first() != Some(&terminal_psi::StructuralPathSegment::Referent) {
+        let (terminal_psi::StructuralPathSegment::Referent, carrier_path) = path.split_last()?
+        else {
             return None;
-        }
+        };
         let root_type = borrowed_field_store_root_type(machine, place, required_access)?;
+        let carrier = terminal_semantics::structural_window_projection(
+            module.structural_types.iter(),
+            root_type,
+            carrier_path,
+            None,
+        )?;
         module
             .structural_types
             .iter()
             .any(|declaration| {
-                declaration.id == root_type
+                declaration.id == carrier.structural_type
                     && matches!(
                         declaration.shape,
                         terminal_psi::StructuralTypeShape::Reference {

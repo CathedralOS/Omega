@@ -718,6 +718,62 @@ impl Retirement<'_> {
         found
     }
 
+    /// A source owner in the result roster is provenance, not a statement
+    /// that an anonymous result is the owner's carrier. Translate an owned
+    /// extraction's selected subtree; borrowed extractions retain their carrier.
+    fn disposed_result_path(
+        &self,
+        binding_ordinal: u32,
+        path: &[CheckedUnitStructuralPathSegment],
+        loan: &BorrowLoanFact,
+    ) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
+        let mut holders = self
+            .results
+            .iter()
+            .filter(|(holder, _)| holder.binding_ordinal == binding_ordinal);
+        let (holder, _) = holders.next()?;
+        if holders.next().is_some() {
+            return None;
+        }
+        if holder.local.symbol == loan.owner_symbol
+            && holder.statement_index as usize == loan.statement_index
+        {
+            return Some(path.to_vec());
+        }
+        let mut producers = self
+            .operations
+            .iter()
+            .chain(self.pending)
+            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+            .filter_map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::MoveStructuralField {
+                    source,
+                    result,
+                    expression,
+                } if result.binding_ordinal == binding_ordinal => {
+                    Some((source, result, expression))
+                }
+                _ => None,
+            });
+        let (source, result, expression) = producers.next()?;
+        // An old detached value cannot settle a later occurrence installed
+        // in the same slot. A statement can extract the old value before
+        // forming its replacement loan, so equality is insufficient too.
+        if result.statement_index as usize <= loan.statement_index
+            || producers.next().is_some()
+            || source.source
+                != (CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                    symbol: loan.owner_symbol,
+                })
+            || !transfers::extraction_owns_source(self.program, source, result, *expression)?
+        {
+            return None;
+        }
+        let mut selected = source.path.clone();
+        selected.extend_from_slice(path);
+        Some(selected)
+    }
+
     /// Disposal ends an occurrence, not all future values in the same local.
     /// Replacement's checked boundary captures the old destination after RHS
     /// evaluation. A release instead names the exact retained loan group.
@@ -819,28 +875,33 @@ impl Retirement<'_> {
                         return false;
                     }
                     cleanup_actions.iter().any(|discard| {
-                        let owner = match *discard.source() {
-                            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
-                                Some(symbol)
-                            }
-                            CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                                binding_ordinal,
-                            } => self.results.iter().find_map(|(holder, root)| {
-                                (holder.binding_ordinal == binding_ordinal)
-                                    .then_some(root.as_symbol())
-                                    .flatten()
-                            }),
-                            _ => None,
-                        };
-                        owner == Some(loan.owner_symbol)
-                            && validation::reference_result_custody::loan_owner_path(
-                                self.program,
-                                local.type_reference,
-                                discard.path(),
-                            )
-                            .is_some_and(|path| {
-                                self.facts.borrow.loan_owner_path(loan).starts_with(&path)
-                            })
+                        let path =
+                            match *discard.source() {
+                                CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                                    symbol,
+                                } if symbol == loan.owner_symbol => discard.path().to_vec(),
+                                CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                                    binding_ordinal,
+                                } => {
+                                    let Some(path) = self.disposed_result_path(
+                                        binding_ordinal,
+                                        discard.path(),
+                                        loan,
+                                    ) else {
+                                        return false;
+                                    };
+                                    path
+                                }
+                                _ => return false,
+                            };
+                        validation::reference_result_custody::loan_owner_path(
+                            self.program,
+                            local.type_reference,
+                            &path,
+                        )
+                        .is_some_and(|path| {
+                            self.facts.borrow.loan_owner_path(loan).starts_with(&path)
+                        })
                     })
                 }
                 _ => false,

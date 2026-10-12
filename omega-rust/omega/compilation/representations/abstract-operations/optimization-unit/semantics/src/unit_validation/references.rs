@@ -159,75 +159,6 @@ pub(crate) fn referent(
     }
 }
 
-/// The Terminal plain-owned referent rule, independently reconstructed from
-/// declarations. Byte predicates constrain owned bytes; views and references
-/// instead carry separate permissions and cannot be absorbed into this rule.
-fn plain_referent_storage(
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
-    root: StructuralTypeId,
-) -> bool {
-    use terminal_psi::{ByteSequenceCarrier, StructuralFieldType, StructuralTypeShape};
-    let mut pending = vec![(root, false)];
-    let mut active = BTreeSet::new();
-    let mut complete = BTreeSet::new();
-    while let Some((current, exiting)) = pending.pop() {
-        if exiting {
-            active.remove(&current);
-            complete.insert(current);
-            continue;
-        }
-        if complete.contains(&current) {
-            continue;
-        }
-        if !active.insert(current) {
-            return false;
-        }
-        let Some(declaration) = types.get(&current) else {
-            return false;
-        };
-        pending.push((current, true));
-        let fields: Vec<_> = match &declaration.shape {
-            StructuralTypeShape::PrimitiveScalar(_)
-            | StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. }) => {
-                continue;
-            }
-            StructuralTypeShape::Record { fields, .. } => fields.iter().collect(),
-            StructuralTypeShape::Sum { cases } => {
-                cases.iter().flat_map(|case| &case.fields).collect()
-            }
-            StructuralTypeShape::Mixed { fields, cases } => fields
-                .iter()
-                .chain(cases.iter().flat_map(|case| &case.fields))
-                .collect(),
-            StructuralTypeShape::FixedArray { element, .. } => {
-                pending.push((*element, false));
-                continue;
-            }
-            _ => return false,
-        };
-        for field in fields {
-            if field.relevance.is_erased() {
-                return false;
-            }
-            match &field.field_type {
-                StructuralFieldType::Scalar(_)
-                | StructuralFieldType::Atomic(_)
-                | StructuralFieldType::RefinedScalar(_)
-                | StructuralFieldType::BoundedInteger(_)
-                | StructuralFieldType::IeeeFloat(_) => {}
-                StructuralFieldType::Structural(child) => pending.push((*child, false)),
-                StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })
-                | StructuralFieldType::PredicateByteSequence {
-                    carrier: ByteSequenceCarrier::BoundedOwned { .. },
-                    ..
-                } => {}
-                _ => return false,
-            }
-        }
-    }
-    true
-}
-
 /// Resolve an unqualified owned affine carrier's current declaration, without
 /// granting authority over its backing. Consumers independently check its
 /// reference shape and live loan, including suspended and released permissions.
@@ -251,8 +182,9 @@ pub fn unqualified_owned_reference_carrier(
     .then_some(source.structural_type)
 }
 
-/// Declared referent geometry behind an unqualified owned carrier. This
-/// declaration alone supplies no live loan or authority over its backing.
+/// Declared geometry and attenuated access through stored reference paths.
+/// This declaration supplies no live loan or authority over displaced contents;
+/// ordered replay authenticates each descriptor and transfers its leaf roster.
 pub(crate) fn record_field_destination<'path>(
     function: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
@@ -263,18 +195,19 @@ pub(crate) fn record_field_destination<'path>(
     StructuralTypeId,
     &'path [terminal_psi::StructuralPathSegment],
 )> {
-    let (terminal_psi::StructuralPathSegment::Referent, suffix) = path.split_first()? else {
+    if !path.contains(&terminal_psi::StructuralPathSegment::Referent) {
         return None;
-    };
-    let carrier_type = unqualified_owned_reference_carrier(function, destination)?;
-    let referent = referent(types, carrier_type)?;
-    (access_covers(reference_access(types, carrier_type)?, required_access)
-        && matches!(
-            types.get(&referent)?.shape,
-            terminal_psi::StructuralTypeShape::Record { .. }
-        )
-        && plain_referent_storage(types, referent))
-    .then_some((referent, suffix))
+    }
+    let (referent, prefix) = access_referent_tail(
+        function,
+        types,
+        &terminal_psi::StructuralArgument {
+            place: destination,
+            path: path.to_vec(),
+            access: required_access,
+        },
+    )?;
+    Some((referent, &path[prefix..]))
 }
 
 /// A field-only carrier path ending at a reference leaf, then its referent.

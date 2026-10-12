@@ -149,7 +149,7 @@ impl TerminalExecution<'_> {
             .machines()
             .get(&self.current_machine)
             .ok_or_else(malformed)?;
-        if path.first() == Some(&StructuralPathSegment::Referent)
+        if path.contains(&StructuralPathSegment::Referent)
             || self.element_view_values.contains_key(&root)
             || machine
                 .structural_parameter(root)

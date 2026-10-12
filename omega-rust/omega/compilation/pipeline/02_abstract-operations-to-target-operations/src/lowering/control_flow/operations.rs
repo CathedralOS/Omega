@@ -490,6 +490,7 @@ pub(super) fn lower_operation(
                 AbstractOperation::StructuralScalarFieldStore {
                     destination, path, ..
                 } => super::references::referent_projection(
+                    function,
                     live,
                     structural_types,
                     destination.place(),

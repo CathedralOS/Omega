@@ -255,6 +255,7 @@ fn writable_byte_field(
     carrier_admitted: impl Fn(terminal_psi::ByteSequenceCarrier) -> bool,
 ) -> Result<terminal_psi::StructuralArgument, LoweringError> {
     let reference_destination = super::references::referent_projection(
+        function,
         live,
         structural_types,
         destination,

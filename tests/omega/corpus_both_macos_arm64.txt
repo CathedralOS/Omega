@@ -886,3 +886,8 @@ pass/recast/reference_view_shared_primitive_neighbor_exit built 3457ms exit:0 in
 pass/termination/runtime_rank_arrival_field_premise_disjoint_write_exit built 4745ms exit:0 interpreter-exit:0 interpreter:agrees @5135246a13ab+wt
 pass/termination/rank_range_call_component built 4824ms exit:0 interpreter-exit:0 interpreter:agrees @c1125926bef7
 pass/termination/rank_arrival_fresh_nested_owner built 4586ms exit:0 interpreter-exit:0 interpreter:agrees @40ca79be5457
+pass/borrows/runtime_reference_aggregate_call_replacement_exit built 3774ms exit:0 interpreter-exit:0 interpreter:agrees @b886c487061b+wt
+pass/borrows/runtime_reference_aggregate_alias_replacement_exit built 3856ms exit:0 interpreter-exit:0 interpreter:agrees @b886c487061b+wt
+pass/borrows/runtime_reference_aggregate_projected_replacement_exit built 2798ms exit:0 interpreter-exit:0 interpreter:agrees @b886c487061b+wt
+pass/borrows/runtime_reference_aggregate_array_alias_replacement_exit built 3939ms exit:0 interpreter-exit:0 interpreter:agrees @b886c487061b+wt
+pass/borrows/runtime_reference_aggregate_call_result_replacement_exit built 2798ms exit:0 interpreter-exit:0 interpreter:agrees @b886c487061b+wt

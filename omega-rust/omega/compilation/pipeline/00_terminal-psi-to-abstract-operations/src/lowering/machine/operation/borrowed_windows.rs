@@ -30,8 +30,8 @@ use abstract_operations::{
 use semantic_vocabulary::{PlaceId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId};
 use terminal_psi::{
     Operation, OperationKind, OperationResult, StructuralAccess, StructuralArgument,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalMachine,
 };
 
 use crate::lowering::LoweringError;
@@ -259,8 +259,7 @@ fn root_window_loan(
     terminal_semantics::structural_window_selects_child(path, field)
         // This is the declared route, not live authority. Current loan replay
         // authenticates all of its owned or exclusive ingress origins.
-        || (path.first() == Some(&StructuralPathSegment::Referent)
-            && root.parameter().is_none())
+        || path.contains(&StructuralPathSegment::Referent)
         || (path.is_empty() && root.parameter().is_some())
 }
 
@@ -278,17 +277,22 @@ fn declared_window_projection(
     // The carrier owns its permission, not the referent bytes. Only the
     // explicit crossing changes geometry; keep the original root and path on
     // the emitted operation for loan replay and native pointer transport.
-    if path.first() == Some(&StructuralPathSegment::Referent) {
-        if root.parameter().is_some() {
-            return None;
-        }
+    if let Some(crossing) = path
+        .iter()
+        .rposition(|segment| *segment == StructuralPathSegment::Referent)
+    {
+        let carrier = terminal_semantics::structural_window_projection(
+            structural_types.iter(),
+            root.structural_type(),
+            &path[..crossing],
+            None,
+        )?;
         let StructuralTypeShape::Reference { access, .. } =
-            terminal_psi::find_structural_type(structural_types, root.structural_type())?.shape
+            terminal_psi::find_structural_type(structural_types, carrier.structural_type)?.shape
         else {
             return None;
         };
         if !required_access.admits_referent(access)
-            || root.multiplicity() != StructuralMultiplicity::Affine
             || matches!(root, StructuralWindowRoot::OwnedResult { result, .. } if !result.qualification_establishments.is_empty())
         {
             return None;

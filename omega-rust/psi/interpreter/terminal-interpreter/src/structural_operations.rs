@@ -1093,10 +1093,10 @@ impl TerminalExecution<'_> {
         }
         // Resolve a reference crossing against its live runtime referent first;
         // the shared window geometry receives storage, never carrier ownership.
-        let prefix_length = usize::from(matches!(
-            path.first(),
-            Some(StructuralPathSegment::Referent)
-        ));
+        let prefix_length = path
+            .iter()
+            .rposition(|segment| matches!(segment, StructuralPathSegment::Referent))
+            .map_or(0, |position| position + 1);
         let base = if prefix_length == 0 {
             storage.clone()
         } else {

@@ -124,6 +124,7 @@ pub(in crate::execution::terminal_unit) fn from_storage(
             && query.owner().is_some_and(|symbol| {
                 store.destination.root == (checked_trees::CheckedStoreRoot::Local { symbol })
             })
+            && query.local_store_owns_destination(store)?
             && selection.starts_with(&store.destination.path)
         {
             break;
@@ -234,9 +235,13 @@ impl Query<'_> {
         // A window extraction transfers the selected value to its detached
         // holder just like an explicit operand. Its old aggregate keeps only
         // the complement; ending a loan cannot dispose the moved cells again.
-        if let CheckedUnitEffectOperationPlan::MoveStructuralField { source, result, .. } =
-            operation
+        if let CheckedUnitEffectOperationPlan::MoveStructuralField {
+            source,
+            result,
+            expression,
+        } = operation
             && self.belongs(source)
+            && extraction_owns_source(self.program, source, result, *expression)?
         {
             output.append(self.leaf(
                 source.path.clone(),
@@ -267,6 +272,38 @@ impl Query<'_> {
         }
         Some(output)
     }
+    fn local_store_owns_destination(
+        &self,
+        store: &checked_trees::CheckedStorePlan,
+    ) -> Option<bool> {
+        let checked_trees::CheckedStoreRoot::Local { symbol } = store.destination.root else {
+            return None;
+        };
+        if store
+            .destination
+            .path
+            .contains(&CheckedUnitStructuralPathSegment::Referent)
+        {
+            return Some(false);
+        }
+        let state = local_state(self.program, symbol)?;
+        let typed_trees::statement::StatementNode::Assignment(assignment) = self
+            .program
+            .statement_table
+            .statements(state.statement_nodes)
+            .get(store.statement_index as usize)?
+        else {
+            return None;
+        };
+        local_place_is_owned(
+            self.program,
+            symbol,
+            store.statement_index,
+            assignment.target,
+            store.installed_value()?.type_identity,
+        )
+    }
+
     fn belongs(&self, argument: &CheckedUnitStructuralArgumentPlan) -> bool {
         argument.access == CheckedStructuralAccess::Owned
             && (argument.source == self.source
@@ -532,4 +569,75 @@ impl Query<'_> {
         }
         Some(output)
     }
+}
+
+// Window operands name the extracted value with Owned access, even when
+// the storage belongs to a referent. Only an inline extraction transfers
+// custody out of this carrier. Reuse the planner's typed-place judgment:
+// its implicit root reference crossing is not present in the checked path.
+pub(in crate::execution::terminal_unit) fn extraction_owns_source(
+    program: &dyn ::validation::CheckingInput,
+    source: &CheckedUnitStructuralArgumentPlan,
+    result: &CheckedUnitStructuralResultBindingPlan,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<bool> {
+    if source
+        .path
+        .contains(&CheckedUnitStructuralPathSegment::Referent)
+    {
+        return Some(false);
+    }
+    match source.source {
+        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+            local_place_is_owned(
+                program,
+                symbol,
+                result.statement_index,
+                expression,
+                result.type_identity,
+            )
+        }
+        // Parameter vacancy queries are made only for owned parameters;
+        // their nested descriptor crossings are explicit in the path.
+        CheckedUnitStructuralArgumentSourcePlan::Parameter { .. } => Some(true),
+        _ => None,
+    }
+}
+
+fn local_state(
+    program: &dyn ::validation::CheckingInput,
+    symbol: SymbolHandle,
+) -> Option<&typed_trees::state::State> {
+    let positions = program.local_data_positions_for_symbol(symbol);
+    let [position] = positions.as_slice() else {
+        return None;
+    };
+    let machine = program.machines().get(position.0 as usize)?;
+    program.machine_states(machine).get(position.1 as usize)
+}
+
+fn local_place_is_owned(
+    program: &dyn ::validation::CheckingInput,
+    symbol: SymbolHandle,
+    statement: u32,
+    expression: typed_trees::expression::ExpressionHandle,
+    selected_type: typed_trees::type_identity::TypeIdentityId,
+) -> Option<bool> {
+    let state = local_state(program, symbol)?;
+    let place = validation::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        statement as usize,
+        expression,
+    )?;
+    Some(
+        super::borrowed_windows::owned_assignment_source(
+            program,
+            state,
+            &[],
+            statement as usize,
+            &place,
+            Some(selected_type),
+        ) == Some(CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }),
+    )
 }

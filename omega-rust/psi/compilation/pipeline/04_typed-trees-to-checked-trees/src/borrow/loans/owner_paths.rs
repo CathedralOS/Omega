@@ -3,10 +3,13 @@ use super::super::tracker::BorrowOwnerSegment;
 /// Resolve the storage containing a replaced reference slot. A carried loan
 /// is an address crossing only where the declaration itself is a reference;
 /// the old loan held by the slot being replaced is deliberately not crossed.
+/// A referent write also crosses the selected descriptor itself; rebinding
+/// that descriptor crosses only its ancestors.
 pub(crate) fn store_destination_places<'loan>(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     target: checked_trees::CapturedPlace,
+    writes_referent: bool,
     loans: impl Iterator<
         Item = (
             facts::PlaceRoot,
@@ -29,7 +32,8 @@ pub(crate) fn store_destination_places<'loan>(
     let mut destinations = Vec::new();
     for (owner, owner_path, incoming_reference, source, source_path) in loans {
         if owner != target.root
-            || owner_path.len() >= target.segments.len()
+            || owner_path.len() > target.segments.len()
+            || (owner_path.len() == target.segments.len() && !writes_referent)
             || !owner_path_matches(program, owner_path, &target.segments)
             || !owner_type
                 .and_then(|reference| {

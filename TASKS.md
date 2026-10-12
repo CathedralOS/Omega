@@ -4373,7 +4373,9 @@ and `mapped` need matching-host measurements, including the full-i32 status.
     a host output offer do not prove native non-observation;
   - aggregate replacement carrying retained reference resources or conserved
     displaced custody, preserving whole-value validity without observing old
-    contents through write-only access;
+    contents through write-only access. Preserve the mutable controls
+    `borrows/runtime_reference_aggregate_{call,alias,projected,array_alias,call_result}_replacement_exit`
+    (0), including exact old/new loan lifetimes and projected reference storage;
   - computed IEEE store/readback (through **FLOAT-PROVIDERS**; the mutable
     controls stop in caller guard planning).
 

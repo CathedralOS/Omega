@@ -158,6 +158,7 @@ pub(super) fn reseat(
     let LegalizedScalarInstructionKind::StoreStructuralField {
         destination,
         path,
+        field,
         value,
         byte_offset,
         shape,
@@ -203,45 +204,52 @@ pub(super) fn reseat(
             .extend(row.fuel.iter().cloned());
         return Ok(());
     }
-    let pointer_of = |place| {
-        builder
-            .transport
-            .pointers
-            .iter()
-            .find(|(owner, _)| *owner == place)
-            .map(|(_, pointer)| *pointer)
-            .ok_or_else(|| invalid())
-    };
-    let root = if matches!(
-        path.first(),
-        Some(terminal_psi::StructuralPathSegment::Referent)
-    ) {
-        let root = pointer_of(destination.place())?;
-        crate::selection::reference_input::store_destination(
-            source,
-            destination,
-            path,
-            terminal_psi::StructuralAccess::WriteOnlyBorrow,
+    // Reuse the ordinary projection's ordered pointer regions. A descriptor
+    // field is addressed in its containing home before loading its referent;
+    // later offsets and selectors are relative to that loaded pointer.
+    let types = &source
+        .structural
+        .as_ref()
+        .ok_or(invalid())?
+        .structural_types;
+    let projection = terminal_semantics::structural_window_projection(
+        types.iter(),
+        destination.structural_type(),
+        path,
+        *field,
+    )
+    .ok_or(invalid())?;
+    let geometry = crate::structural_inputs::structural_reference_input::reference_source_geometry(
+        destination.structural_type(),
+        &projection.path,
+        types,
+    )
+    .ok_or(invalid())?;
+    if geometry.byte_offset != *byte_offset
+        || !crate::structural_inputs::structural_reference_input::runtime_indices_match(
+            indices,
+            &geometry.elements,
         )
-        .ok_or(invalid())?;
-        super::reference::load(builder, row, destination.place(), root)?
-    } else if path.is_empty() {
-        pointer_of(destination.place())?
-    } else {
-        // A view element is reseated in the view's backing, exactly where
-        // the move copied it from; the descriptor itself is never indexed.
-        super::runtime_address::projection_base(
-            source,
-            builder,
-            row,
-            destination.place(),
-            *byte_offset,
-        )?
-        .ok_or_else(invalid)?
-    };
-    // The spelled path may end in a runtime element (`nodes[i] = node`): the
-    // destination pointer scales each selector by its stride, in path order,
-    // before the inverse copy lands the vacated extent.
+    {
+        return Err(invalid());
+    }
+    let (root, pointer_slots) = super::runtime_address::projection_origin(
+        source,
+        builder,
+        row,
+        destination.place(),
+        *byte_offset,
+        &geometry.pointer_slots,
+    )?;
+    let (root, leaf_index) = super::runtime_address::cross_references(
+        builder,
+        row,
+        destination.place(),
+        root.ok_or_else(invalid)?,
+        indices,
+        pointer_slots,
+    )?;
+    let indices = indices.get(leaf_index..).ok_or_else(invalid)?;
     let root = super::runtime_address::scale(
         builder,
         row,

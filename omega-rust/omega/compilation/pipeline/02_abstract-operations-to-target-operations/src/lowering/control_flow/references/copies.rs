@@ -4,40 +4,15 @@
 
 use super::*;
 
-pub(in super::super) fn copied_leaves(
+/// Resolve the actual storage selected by a logical path through current descriptors.
+/// Copies may join alternatives; an exact storage mutation must select one region.
+pub(in super::super) fn storage_regions(
     function: &AbstractFunction,
     types: &StructuralTypeLookup<'_>,
     live: &LiveDefinitions,
-    result: &StructuralOperationResult,
     source: PlaceId,
-    path: &abstract_operations::StructuralCopyPath,
-) -> Result<BTreeMap<(PlaceId, Vec<StructuralPathSegment>), ReferenceStorage>, LoweringError> {
-    let mut copied = BTreeMap::new();
-    if !contains_reference(types, result.structural_type) {
-        return Ok(copied);
-    }
-    let source_type = source_contract(function, live, source)
-        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-    let path: std::borrow::Cow<'_, [StructuralPathSegment]> = match path {
-        abstract_operations::StructuralCopyPath::Ordinary(path) => std::borrow::Cow::Borrowed(path),
-        abstract_operations::StructuralCopyPath::Case(path) => std::borrow::Cow::Owned(
-            terminal_semantics::canonical_structural_storage_path(
-                types.values().copied(),
-                source_type,
-                path,
-            )
-            .ok_or(LoweringError::unsupported_control_flow(function.machine))?,
-        ),
-    };
-    if leaf_type(types, source_type, &path) != Some(result.structural_type)
-        || live
-            .references
-            .keys()
-            .any(|(carrier, _)| *carrier == result.place)
-        || live.structural_homes.contains_key(&result.place)
-    {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
-    }
+    path: &[StructuralPathSegment],
+) -> Result<Vec<(PlaceId, Vec<StructuralPathSegment>)>, LoweringError> {
     // Follow descriptor associations to the actual selected storage before
     // rebasing resident leaves. The logical path can cross several carriers;
     // no leaf lives at a synthetic `root/Referent/...` metadata key.
@@ -93,10 +68,50 @@ pub(in super::super) fn copied_leaves(
         cursors = next;
         segment_start = position + 1;
     }
+    for (_, prefix) in &mut cursors {
+        prefix.extend_from_slice(&path[segment_start..]);
+    }
+    Ok(cursors)
+}
+
+pub(in super::super) fn copied_leaves(
+    function: &AbstractFunction,
+    types: &StructuralTypeLookup<'_>,
+    live: &LiveDefinitions,
+    result: &StructuralOperationResult,
+    source: PlaceId,
+    path: &abstract_operations::StructuralCopyPath,
+) -> Result<BTreeMap<(PlaceId, Vec<StructuralPathSegment>), ReferenceStorage>, LoweringError> {
+    let mut copied = BTreeMap::new();
+    if !contains_reference(types, result.structural_type) {
+        return Ok(copied);
+    }
+    let source_type = source_contract(function, live, source)
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+    let path: std::borrow::Cow<'_, [StructuralPathSegment]> = match path {
+        abstract_operations::StructuralCopyPath::Ordinary(path) => std::borrow::Cow::Borrowed(path),
+        abstract_operations::StructuralCopyPath::Case(path) => std::borrow::Cow::Owned(
+            terminal_semantics::canonical_structural_storage_path(
+                types.values().copied(),
+                source_type,
+                path,
+            )
+            .ok_or(LoweringError::unsupported_control_flow(function.machine))?,
+        ),
+    };
+    if leaf_type(types, source_type, &path) != Some(result.structural_type)
+        || live
+            .references
+            .keys()
+            .any(|(carrier, _)| *carrier == result.place)
+        || live.structural_homes.contains_key(&result.place)
+    {
+        return Err(LoweringError::unsupported_control_flow(function.machine));
+    }
+    let cursors = storage_regions(function, types, live, source, &path)?;
     let mut candidates: BTreeMap<Vec<StructuralPathSegment>, Vec<ReferenceStorage>> =
         BTreeMap::new();
-    for (carrier, mut prefix) in cursors {
-        prefix.extend_from_slice(&path[segment_start..]);
+    for (carrier, prefix) in cursors {
         let root = source_contract(function, live, carrier)
             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
         let selected = terminal_semantics::StructuralStorageSelection::new(

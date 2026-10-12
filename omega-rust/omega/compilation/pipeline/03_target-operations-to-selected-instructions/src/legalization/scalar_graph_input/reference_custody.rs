@@ -169,6 +169,7 @@ impl Custody {
 pub(in crate::legalization) struct ReferentDestination {
     pub(in crate::legalization) carrier_type: StructuralTypeId,
     pub(in crate::legalization) referent: StructuralTypeId,
+    pub(in crate::legalization) carrier_path: Vec<StructuralPathSegment>,
     pub(in crate::legalization) path: Vec<StructuralPathSegment>,
 }
 
@@ -180,45 +181,109 @@ pub(in crate::legalization) fn referent_destination(
     path: &[StructuralPathSegment],
     required_access: StructuralAccess,
 ) -> Option<ReferentDestination> {
-    let (StructuralPathSegment::Referent, tail) = path.split_first()? else {
-        return None;
-    };
-    let leaf = custody.leaf(carrier, &[])?;
-    // Formation provenance survives transport; the current declaration
-    // supplies carrier custody, not authority over the loan's backing.
-    let carrier_type =
-        optimization_unit_semantics::unqualified_owned_reference_carrier(function, carrier)?;
+    optimization_unit_semantics::unqualified_owned_reference_carrier(function, carrier)?;
+    let projected = window_destination(function, custody, types, carrier, path, required_access)?;
+    matches!(
+        find_structural_type(types, projected.referent)?.shape,
+        StructuralTypeShape::Record { .. }
+    )
+    .then_some(projected)
+}
+
+/// A window uses the exact descriptor selected inside its current carrier.
+/// The original place remains the physical pointer source.
+pub(in crate::legalization) fn window_destination(
+    function: &PsiOptimizationFunction,
+    custody: &Custody,
+    types: &[StructuralTypeDeclaration],
+    carrier: PlaceId,
+    path: &[StructuralPathSegment],
+    required_access: StructuralAccess,
+) -> Option<ReferentDestination> {
+    let crossing = path
+        .iter()
+        .rposition(|segment| *segment == StructuralPathSegment::Referent)?;
+    let carrier_path = &path[..crossing];
+    let carrier_type = source_contract(function, custody, carrier)?;
+    let descriptor = leaf_type(types, carrier_type, carrier_path)?;
     let StructuralTypeShape::Reference { referent, access } =
-        &find_structural_type(types, carrier_type)?.shape
+        find_structural_type(types, descriptor)?.shape
     else {
         return None;
     };
-    if !access_covers(*access, required_access) {
+    if !access_covers(access, required_access) {
         return None;
     }
-    // A whole `Referent` path is also the established primitive-reference
-    // spelling. Only a record referent may enter this aggregate-origin route.
-    if !matches!(
-        &find_structural_type(types, *referent)?.shape,
-        StructuralTypeShape::Record { .. }
-    ) {
-        return None;
-    }
-    if *referent != leaf.referent
-        || custody
-            .leaves
-            .values()
-            .any(|child| child.parents.contains(&leaf.identity))
-    {
-        return None;
-    }
-    // The retained formation has already authenticated backing and view
-    // interpretation. Origin type equality would erase byte-backed views.
+    call_paths::call_reference_custody(
+        function,
+        custody,
+        types,
+        &StructuralArgument {
+            place: carrier,
+            path: path.to_vec(),
+            access: required_access,
+        },
+    )
+    .ok()?;
     Some(ReferentDestination {
         carrier_type,
-        referent: *referent,
-        path: tail.to_vec(),
+        carrier_path: carrier_path.to_vec(),
+        referent,
+        path: path[crossing + 1..].to_vec(),
     })
+}
+
+/// Select mutation storage through the same current-descriptor observation as
+/// calls. One runtime alternative cannot retire every possible backing.
+pub(in crate::legalization) fn window_regions(
+    function: &PsiOptimizationFunction,
+    custody: &Custody,
+    types: &[StructuralTypeDeclaration],
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+    access: StructuralAccess,
+) -> Result<Vec<(PlaceId, Vec<StructuralPathSegment>)>, LegalizationError> {
+    let Some(crossing) = path
+        .iter()
+        .rposition(|segment| *segment == StructuralPathSegment::Referent)
+    else {
+        return Ok(vec![(place, path.to_vec())]);
+    };
+    let observed = call_paths::call_reference_custody(
+        function,
+        custody,
+        types,
+        &StructuralArgument {
+            place,
+            path: path.to_vec(),
+            access,
+        },
+    )?;
+    let mut regions = Vec::new();
+    for origin in observed.origins.into_iter().flat_map(|root| root.origins()) {
+        let mut prefix = origin.path;
+        prefix.extend_from_slice(&path[crossing + 1..]);
+        let region = (origin.root, prefix);
+        if !regions.contains(&region) {
+            regions.push(region);
+        }
+    }
+    Ok(regions)
+}
+
+fn window_storage(
+    function: &PsiOptimizationFunction,
+    custody: &Custody,
+    types: &[StructuralTypeDeclaration],
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+    access: StructuralAccess,
+) -> Result<(PlaceId, Vec<StructuralPathSegment>), LegalizationError> {
+    let mut regions = window_regions(function, custody, types, place, path, access)?;
+    if regions.len() != 1 {
+        return Err(invalid());
+    }
+    regions.pop().ok_or_else(invalid)
 }
 
 #[track_caller]
@@ -1782,9 +1847,20 @@ pub(in crate::legalization) fn apply(
             let extent = super::borrowed_windows::moved(
                 function, source, path, *field, result, plan, custody,
             )?;
+            if !contains_reference(types, result.structural_type) {
+                return Ok(());
+            }
+            let (place, path) = window_storage(
+                function,
+                custody,
+                types,
+                source.place(),
+                &extent.path,
+                StructuralAccess::MutableBorrow,
+            )?;
             let argument = StructuralArgument {
-                place: source.place(),
-                path: extent.path,
+                place,
+                path,
                 access: StructuralAccess::Owned,
             };
             relocate_subtree_leaves(
@@ -1812,12 +1888,23 @@ pub(in crate::legalization) fn apply(
                 custody,
                 disposition.required_access(),
             )?;
+            if !contains_reference(types, extent.field_type) {
+                return Ok(());
+            }
+            let (place, path) = window_storage(
+                function,
+                custody,
+                types,
+                destination.place(),
+                &extent.path,
+                disposition.required_access(),
+            )?;
             relocate_subtree_leaves(
                 custody,
                 function,
                 types,
-                destination.place(),
-                [(value, extent.field_type, extent.path)],
+                place,
+                [(value, extent.field_type, path)],
             )?;
         }
         AbstractOperation::CallStructural {

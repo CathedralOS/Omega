@@ -36,8 +36,6 @@ use super::{
 use crate::execution::terminal_unit::structural_scalar_store::TargetSelectors;
 use crate::execution::terminal_unit::types::ShapeCollector;
 
-use crate::execution::terminal_unit::types::terminal_field_identity;
-
 use checked_trees::CheckFacts;
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::ExpressionHandle;
@@ -97,7 +95,7 @@ fn assignment_path(
 /// loan/window ledger below. Mutability is source admission, not storage
 /// identity. A deferred local's first initialization has no old value to
 /// displace or borrowed hole to restore.
-fn owned_assignment_source(
+pub(super) fn owned_assignment_source(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     parameters: &[CheckedUnitStructuralParameterPlan],
@@ -105,6 +103,32 @@ fn owned_assignment_source(
     place: &CanonicalPlace,
     replacement_type: Option<typed_trees::type_identity::TypeIdentityId>,
 ) -> Option<CheckedUnitStructuralArgumentSourcePlan> {
+    // Owned descriptors do not own storage reached through them. Classify
+    // every crossed prefix, including the selected slot when its replacement
+    // has the referent's type rather than the descriptor's type.
+    for depth in 0..=place.segments.len() {
+        let reference = validation::canonical_place_type_reference(
+            program,
+            state.symbol,
+            statement_index,
+            &CanonicalPlace {
+                root: place.root,
+                segments: place.segments[..depth].to_vec(),
+            },
+        )?;
+        if validation::reference_shell(program, reference).is_some()
+            && (depth < place.segments.len()
+                || replacement_type
+                    != Some(validation::stored_structural_type_identity(
+                        program,
+                        reference,
+                        &[],
+                        &[],
+                    )))
+        {
+            return None;
+        }
+    }
     let symbol = place.root.as_symbol()?;
     if let Some((ordinal, local)) = program.state_local_declaration(state, symbol) {
         return (ordinal < statement_index
@@ -185,7 +209,7 @@ pub(super) fn capture_assignment_destination(
         &access.segments,
     );
     let place = CanonicalPlace { root, segments };
-    let (source, path) = if let Some(source) = owned_source {
+    let (source, mut path) = if let Some(source) = owned_source {
         (
             source,
             assignment_path(
@@ -221,7 +245,14 @@ pub(super) fn capture_assignment_destination(
     };
     let declared =
         validation::declared_place_type_raw(program, machine, Some(state), assignment.target)?;
-    let declared = validation::assignment_value_type(program, declared);
+    let stored = validation::assignment_stored_value_type(program, machine, state, assignment)?;
+    if !path.is_empty()
+        && validation::reference_shell(program, declared).is_some()
+        && stored != declared
+    {
+        path.push(CheckedUnitStructuralPathSegment::Referent);
+    }
+    let declared = stored;
     // Byte/scalar stores already own their target evaluation in their store
     // operation. This capture belongs to structural replacement sequencing.
     if program.primitive_type_reference(declared).is_some()
@@ -354,21 +385,24 @@ pub(in crate::execution::terminal_unit) fn window_place(
             parameter.access != CheckedStructuralAccess::Owned,
         )
     };
-    let lower_path = |segments: &[PlaceSegment]| {
-        segments
-            .iter()
-            .map(|segment| match segment {
-                PlaceSegment::Field { symbol } => terminal_field_identity(program, *symbol)
-                    .map(CheckedUnitStructuralPathSegment::Field),
-                PlaceSegment::FixedIndex { index } => Some(
-                    CheckedUnitStructuralPathSegment::FixedIndex(u64::try_from(*index).ok()?),
-                ),
-                PlaceSegment::Index { expression } => selector(*expression),
-                _ => None,
-            })
-            .collect::<Option<Vec<_>>>()
+    let (machine, _) = validation::find_state(program, state.symbol)?;
+    let path_root = match source {
+        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+            PlaceRoot::Symbol(symbol)
+        }
+        _ => storage.root,
     };
-    let path = lower_path(path)?;
+    let (_, path) = super::calls::projected_evaluated_path(
+        program,
+        machine.symbol,
+        state.symbol,
+        statement_index,
+        &CanonicalPlace {
+            root: path_root,
+            segments: path.to_vec(),
+        },
+        Some(selector),
+    )?;
     Some(WindowPlace {
         storage,
         source,
@@ -738,7 +772,7 @@ impl OpenWindows {
             segments: resolved_segments,
         };
         let owned_rebind = owned_source.is_some();
-        let (source, path, opening_binding, needs_displacement, needs_cleanup) =
+        let (source, mut path, opening_binding, needs_displacement, needs_cleanup) =
             if let Some(source) = owned_source {
                 let path = assignment_path(
                     program,
@@ -824,6 +858,19 @@ impl OpenWindows {
                     needs_displacement && produced.multiplicity == Multiplicity::Affine,
                 )
             };
+        let declared = validation::canonical_place_type_reference(
+            program,
+            state.symbol,
+            index,
+            &access_place,
+        )?;
+        if !path.is_empty()
+            && validation::reference_shell(program, declared).is_some()
+            && validation::stored_structural_type_identity(program, declared, &[], &[])
+                != produced.type_identity
+        {
+            path.push(CheckedUnitStructuralPathSegment::Referent);
+        }
         // An owned old value dies through its checked contextual disposition,
         // including an owner-authorized linear hook. A borrowed displacement
         // still needs a separate exact linear restoration contract.

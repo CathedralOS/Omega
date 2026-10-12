@@ -287,17 +287,44 @@ fn retire_replaced_carrier_loans(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     current: &mut Vec<StateLoanTracker>,
 ) {
+    if matches!(statement, typed_trees::statement::StatementNode::Call(_)) {
+        if let Some(effects) =
+            call_frames.and_then(|frames| frames.stored_reference_effects(machine, statement))
+        {
+            // The same exact effects retire flow loans and install replacement
+            // loans. Keeping old origins in this formation roster would revive
+            // them when a later projection captures the replaced field.
+            current.retain(|loan| {
+                !effects.iter().any(|effect| {
+                    !effect.retains_incoming
+                        && loan.storage_owner
+                            == facts::PlaceRoot::Symbol(effect.destination.local_symbol)
+                        && super::loans::place_path_matches_owner_prefix(
+                            program,
+                            &effect.destination.local_segments,
+                            &loan.owner_path,
+                        )
+                })
+            });
+        }
+        return;
+    }
     let Some(assignment) = statement.as_assignment() else {
         return;
     };
-    if validation::declared_place_type_raw(program, machine, Some(state), assignment.target)
-        .is_some_and(|reference| validation::reference_shell(program, reference).is_some())
-        && call_frames
-            .and_then(|frames| frames.assignment_replaces_reference_binding(machine, statement))
-            != Some(true)
-    {
-        return;
-    }
+    let writes_referent =
+        if validation::declared_place_type_raw(program, machine, Some(state), assignment.target)
+            .is_some_and(|reference| validation::reference_shell(program, reference).is_some())
+        {
+            let Some(replaces_binding) = call_frames.and_then(|frames| {
+                frames.assignment_replaces_reference_binding(machine, statement)
+            }) else {
+                return;
+            };
+            !replaces_binding
+        } else {
+            false
+        };
     let Some(target) = super::accesses::borrow_access_place(
         program,
         state.symbol,
@@ -310,7 +337,8 @@ fn retire_replaced_carrier_loans(
     let destinations = super::loans::store_destination_places(
         program,
         state,
-        target,
+        target.clone(),
+        writes_referent,
         current.iter().map(|loan| {
             (
                 loan.storage_owner,
@@ -327,6 +355,9 @@ fn retire_replaced_carrier_loans(
     };
     current.retain(|loan| {
         loan.storage_owner != destination.root
+            || (writes_referent
+                && destination == &target
+                && loan.owner_path.len() == target.segments.len())
             || !super::loans::place_path_matches_owner_prefix(
                 program,
                 &destination.segments,

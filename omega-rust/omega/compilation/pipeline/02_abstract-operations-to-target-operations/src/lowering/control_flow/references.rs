@@ -151,49 +151,21 @@ impl ReferenceRoot {
 pub(in crate::lowering) struct ReferentProjection {
     pub(in crate::lowering) carrier_type: StructuralTypeId,
     pub(in crate::lowering) referent: StructuralTypeId,
+    /// Exact descriptor prefix before the final crossing.
+    pub(in crate::lowering) carrier_path: Vec<StructuralPathSegment>,
     /// Relative to the referent, excluding the explicit crossing.
     pub(in crate::lowering) path: Vec<StructuralPathSegment>,
 }
 
 pub(super) fn referent_projection(
+    function: &AbstractFunction,
     live: &LiveDefinitions,
     types: &StructuralTypeLookup<'_>,
     carrier: PlaceId,
     path: &[StructuralPathSegment],
     required_access: StructuralAccess,
 ) -> Option<ReferentProjection> {
-    let (StructuralPathSegment::Referent, tail) = path.split_first()? else {
-        return None;
-    };
-    let leaf = live.references.get(&(carrier, Vec::new()))?;
     let home = live.structural_homes.get(&carrier)?;
-    let declaration = types.get(&home.structural_type())?;
-    let StructuralTypeShape::Reference { referent, access } = &declaration.shape else {
-        return None;
-    };
-    if *access != required_access
-        && !(*access == StructuralAccess::MutableBorrow
-            && matches!(
-                required_access,
-                StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
-            ))
-    {
-        return None;
-    }
-    // A whole `Referent` path is also the established primitive-reference
-    // spelling. Only a record referent may enter this aggregate-origin route.
-    if !matches!(
-        &types.get(referent)?.shape,
-        StructuralTypeShape::Record { .. }
-    ) {
-        return None;
-    }
-    if *referent != leaf.referent {
-        return None;
-    }
-    // Formation authenticated backing and view interpretation. Reads and
-    // writes use this live carrier's access independently of owning its
-    // descriptor; backing need not have its semantic type.
     if home.access() != StructuralAccess::Owned
         || home.multiplicity() != StructuralMultiplicity::Affine
         || !home.qualifications().is_empty()
@@ -204,10 +176,55 @@ pub(super) fn referent_projection(
     {
         return None;
     }
+    let projected = window_projection(function, live, types, carrier, path, required_access)?;
+    matches!(
+        types.get(&projected.referent)?.shape,
+        StructuralTypeShape::Record { .. }
+    )
+    .then_some(projected)
+}
+
+/// Resolve a window through the exact stored descriptor; its enclosing home
+/// remains the physical root, including when the referent is an array.
+pub(super) fn window_projection(
+    function: &AbstractFunction,
+    live: &LiveDefinitions,
+    types: &StructuralTypeLookup<'_>,
+    carrier: PlaceId,
+    path: &[StructuralPathSegment],
+    required_access: StructuralAccess,
+) -> Option<ReferentProjection> {
+    let crossing = path
+        .iter()
+        .rposition(|segment| *segment == StructuralPathSegment::Referent)?;
+    let carrier_path = &path[..crossing];
+    let root_type = source_contract(function, live, carrier)?;
+    let descriptor = leaf_type(types, root_type, carrier_path)?;
+    let StructuralTypeShape::Reference { referent, access } = types.get(&descriptor)?.shape else {
+        return None;
+    };
+    if !required_access.admits_referent(access) {
+        return None;
+    }
+    crate::lowering::structural_layout::reference_referent_projection(
+        root_type,
+        path,
+        required_access,
+        types,
+    )
+    .ok()?;
+    let descriptors = window_descriptors(function, types, live, carrier, path).ok()?;
+    if descriptors
+        .iter()
+        .any(|leaf| leaf.carrier_type != descriptor || leaf.referent != referent)
+    {
+        return None;
+    }
     Some(ReferentProjection {
-        carrier_type: home.structural_type(),
-        referent: *referent,
-        path: tail.to_vec(),
+        carrier_type: root_type,
+        carrier_path: carrier_path.to_vec(),
+        referent,
+        path: path[crossing + 1..].to_vec(),
     })
 }
 
@@ -994,6 +1011,74 @@ pub(super) fn discard_subtree(
     live.references
         .retain(|(carrier, path), _| *carrier != source || !path.starts_with(prefix));
     Ok(true)
+}
+
+/// Authenticate the descriptor before the final reference crossing. Runtime
+/// selector prefixes enumerate their declared candidates, each of which must
+/// retain its live permission. The final backing may use an interpreted byte
+/// presentation: authority does not require it to have the referent's type.
+pub(super) fn window_descriptors<'live>(
+    function: &AbstractFunction,
+    types: &StructuralTypeLookup<'_>,
+    live: &'live LiveDefinitions,
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+) -> Result<Vec<&'live ReferenceStorage>, LoweringError> {
+    let invalid = || LoweringError::unsupported_control_flow(function.machine);
+    let crossing = path
+        .iter()
+        .rposition(|segment| *segment == StructuralPathSegment::Referent)
+        .ok_or_else(invalid)?;
+    let regions = copies::storage_regions(function, types, live, place, &path[..crossing])?;
+    let budget = live
+        .references
+        .len()
+        .max(1)
+        .checked_mul(path.len().max(1))
+        .ok_or_else(invalid)?;
+    let mut descriptors = Vec::new();
+    for (carrier, prefix) in regions {
+        let root = source_contract(function, live, carrier).ok_or_else(invalid)?;
+        let candidates = terminal_semantics::stored_descriptor_paths(
+            types.values().copied(),
+            root,
+            &prefix,
+            budget,
+        )
+        .ok_or_else(invalid)?;
+        for candidate in candidates {
+            let leaf = live
+                .references
+                .get(&(carrier, candidate.clone()))
+                .ok_or_else(invalid)?;
+            if leaf_type(types, root, &candidate) != Some(leaf.carrier_type) {
+                return Err(invalid());
+            }
+            descriptors.push(leaf);
+        }
+    }
+    if descriptors.is_empty() {
+        return Err(invalid());
+    }
+    Ok(descriptors)
+}
+
+/// Mutation follows one actual backing region. Possible origins cannot be
+/// erased together merely because one runtime descriptor selects among them.
+pub(super) fn window_storage(
+    function: &AbstractFunction,
+    types: &StructuralTypeLookup<'_>,
+    live: &LiveDefinitions,
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+) -> Result<(PlaceId, Vec<StructuralPathSegment>), LoweringError> {
+    let mut regions = copies::storage_regions(function, types, live, place, path)?;
+    if regions.len() != 1 {
+        return Err(LoweringError::unsupported_control_flow(function.machine));
+    }
+    regions
+        .pop()
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))
 }
 
 /// Structural storage transfer moves carriers, not referents. Stage the exact

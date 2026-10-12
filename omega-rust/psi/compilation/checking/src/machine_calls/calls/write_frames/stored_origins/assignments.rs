@@ -92,17 +92,10 @@ fn assigned_stored_origins(
     {
         return None;
     }
-    let target_type = crate::value_custody::places::declared_place_type_raw(
-        program,
-        machine,
-        Some(state),
-        assignment.target,
-    )?;
-    // A reference-typed bare name is a local rebinding that stays with the
-    // alias paths. A member path instead writes inside its root's storage:
-    // a stored leaf's slot is replaced in place. Shared and exclusive leaves
-    // use the same captured value origin; unreadable or unresolved values keep
-    // an explicit unknown row rather than recovering the old slot's source.
+    let target_type =
+        reference_subjects::assignment_stored_value_type(program, machine, state, assignment)?;
+    // Bare descriptor replacement belongs to alias transport. A value-shaped
+    // assignment through a reference replaces the referent's stored subtree.
     if super::super::type_reference_is_reference(program, target_type) && source.segments.is_empty()
     {
         return None;

@@ -6423,3 +6423,14 @@ fail/slices/same_carrier_inline_cast_wrong_collection rejected 765ms expected @2
 	cannot prove index `index as u64` is within unknown slice length of `other` in read::entry
 fail/slices/signed_to_unsigned_cast_does_not_inherit_position rejected 291ms expected @2ab552549670+wt
 	Exact integer cast in machine `read` state `entry` from `i64` to `u64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+pass/borrows/runtime_reference_aggregate_call_replacement_exit checked 3771ms check-target:macos_arm64 @b886c487061b+wt
+pass/borrows/runtime_reference_aggregate_alias_replacement_exit checked 3771ms check-target:macos_arm64 @b886c487061b+wt
+pass/borrows/runtime_reference_aggregate_projected_replacement_exit checked 2693ms check-target:macos_arm64 @b886c487061b+wt
+pass/borrows/runtime_reference_aggregate_array_alias_replacement_exit checked 3771ms check-target:macos_arm64 @b886c487061b+wt
+fail/borrows/reference_aggregate_replacement_new_loan rejected 305ms expected @b886c487061b+wt
+	statement 6 mutates `main.right.value` while local borrow `held` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/borrows/reference_aggregate_replacement_detached_loan rejected 303ms expected @b886c487061b+wt
+	statement 6 mutates `main.left.value` while local borrow `old` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/borrows/reference_aggregate_conditional_replacement_loan rejected 307ms expected @b886c487061b+wt
+	statement 5 mutates `main.left.value` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 6)
+pass/borrows/runtime_reference_aggregate_call_result_replacement_exit checked 2693ms check-target:macos_arm64 @b886c487061b+wt

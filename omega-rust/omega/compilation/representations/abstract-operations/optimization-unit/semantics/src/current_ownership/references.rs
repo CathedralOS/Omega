@@ -36,6 +36,7 @@ pub enum CallRegion {
 }
 
 mod access_paths;
+mod windows;
 use access_paths::{access_reference_custody, call_dependency_conflict};
 
 fn origin_place(origin: &ReferenceOrigin) -> PlaceId {
@@ -163,10 +164,7 @@ pub(super) fn window_hole(
     field: Option<semantic_vocabulary::StructuralFieldId>,
     required_access: StructuralAccess,
 ) -> Option<Vec<terminal_psi::StructuralPathSegment>> {
-    let (geometry_root, suffix) = if matches!(
-        path.first(),
-        Some(terminal_psi::StructuralPathSegment::Referent)
-    ) {
+    let (geometry_root, suffix) = if path.contains(&terminal_psi::StructuralPathSegment::Referent) {
         crate::unit_validation::references::record_field_destination(
             function,
             types,
@@ -186,107 +184,6 @@ pub(super) fn window_hole(
     let mut hole = path[..path.len() - suffix.len()].to_vec();
     hole.extend(projection.path);
     Some(hole)
-}
-
-/// A restoration pair does not move its parent permission carrier. It borrows
-/// the referent through the same active carrier as a field store; the exact
-/// carrier-relative hole remains on the operation. Terminal verification owns
-/// restoration-debt replay; this ledger independently preserves loan authority,
-/// parent suspension and the prohibition on displacing contained permissions.
-#[allow(clippy::too_many_arguments)]
-fn check_window_access(
-    function: &PsiOptimizationFunction,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    block: BlockId,
-    node: u32,
-    live: &[LiveReference],
-    root: &abstract_operations::StructuralWindowRoot,
-    path: &[terminal_psi::StructuralPathSegment],
-    field: Option<semantic_vocabulary::StructuralFieldId>,
-    required_access: StructuralAccess,
-) -> Result<(), OptimizationUnitValidationError> {
-    let crosses_reference = matches!(
-        path.first(),
-        Some(terminal_psi::StructuralPathSegment::Referent)
-    );
-    if crosses_reference {
-        check_record_field_access(
-            function,
-            types,
-            block,
-            node,
-            live,
-            root.place(),
-            path,
-            field,
-            required_access,
-        )?;
-        if !terminal_semantics::structural_window_selects_child(path, field) {
-            let origin = live
-                .iter()
-                .find(|loan| loan.carrier == root.place() && loan.carrier_path.is_empty())
-                .map(|loan| origin_place(&loan.root));
-            if !terminal_semantics::structural_window_origins(
-                function.structural_parameters.iter().chain(
-                    function
-                        .blocks
-                        .iter()
-                        .flat_map(|block| &block.structural_parameters),
-                ),
-                origin,
-                required_access,
-                |place| crate::structural_place_supports_window_restoration(function, place),
-            ) {
-                return Err(invalid(
-                    function,
-                    block,
-                    Some(node),
-                    "whole-referent restoration requires live owned or exclusive ingress storage",
-                ));
-            }
-        }
-    }
-    let hole = window_hole(
-        function,
-        types,
-        root.place(),
-        root.structural_type(),
-        path,
-        field,
-        required_access,
-    )
-    .ok_or_else(|| {
-        invalid(
-            function,
-            block,
-            Some(node),
-            "restoration window does not resolve to a declared field",
-        )
-    })?;
-    let accessed = ReferenceOrigin::IngressLeaf(ReferenceIdentity {
-        place: root.place(),
-        path: hole.clone(),
-    });
-    if live.iter().any(|reference| {
-        // Exclude exactly the already-checked parent carrier, not every
-        // permission beneath this root or any original ingress candidate.
-        let parent_carrier = crosses_reference
-            && reference.carrier == root.place()
-            && reference.carrier_path.is_empty();
-        (!parent_carrier
-            && reference.carrier == root.place()
-            && (reference.carrier_path.starts_with(&hole)
-                || hole.starts_with(&reference.carrier_path)))
-            || (!crosses_reference && origins_overlap(&reference.root, &accessed))
-    }) {
-        return Err(invalid(
-            function,
-            block,
-            Some(node),
-            "restoration window accesses suspended or reference-bearing storage",
-        ));
-    }
-    Ok(())
 }
 
 pub(super) fn check_root_access(
@@ -360,35 +257,22 @@ fn check_record_field_access(
     field: Option<semantic_vocabulary::StructuralFieldId>,
     required_access: StructuralAccess,
 ) -> Result<(), OptimizationUnitValidationError> {
-    if !matches!(
-        path.first(),
-        Some(terminal_psi::StructuralPathSegment::Referent)
-    ) {
+    if !path.contains(&terminal_psi::StructuralPathSegment::Referent) {
         let region = super::storage_regions::projected(function, types, place, path, field);
         return check_region_access(function, block, node, live, place, region.direct_path());
     }
-    let valid_shape = crate::unit_validation::references::record_field_destination(
+    access_reference_custody(
         function,
         types,
-        place,
-        path,
-        required_access,
-    )
-    .is_some();
-    let mut carriers = live
-        .iter()
-        .filter(|reference| reference.carrier == place && reference.carrier_path.is_empty());
-    let available = carriers.next().is_some_and(|carrier| {
-        !live.iter().any(|child| matches!(&child.parent, ReferenceParent::Reference(parent) if parent == &carrier.identity))
-    }) && carriers.next().is_none();
-    if !valid_shape || !available {
-        return Err(invalid(
-            function,
-            block,
-            Some(node),
-            "record field access has no active reference carrier with the required access",
-        ));
-    }
+        block,
+        node,
+        live,
+        &StructuralArgument {
+            place,
+            path: path.to_vec(),
+            access: required_access,
+        },
+    )?;
     Ok(())
 }
 
@@ -1280,9 +1164,10 @@ pub(super) fn apply_operation(
             source,
             path,
             field,
+            result,
             ..
         } => {
-            check_window_access(
+            return windows::transfer(
                 function,
                 structural_types,
                 block,
@@ -1292,16 +1177,30 @@ pub(super) fn apply_operation(
                 path,
                 *field,
                 StructuralAccess::MutableBorrow,
-            )?;
+                result.structural_type,
+                result.place,
+                true,
+            );
         }
         O::StoreStructuralField {
             disposition,
             destination,
             path,
             field,
+            value,
             ..
         } => {
-            check_window_access(
+            let value_type = structural_source_contract(function, value.place)
+                .ok_or_else(|| {
+                    invalid(
+                        function,
+                        block,
+                        Some(node),
+                        "window store value has no declaration",
+                    )
+                })?
+                .structural_type;
+            return windows::transfer(
                 function,
                 structural_types,
                 block,
@@ -1311,7 +1210,10 @@ pub(super) fn apply_operation(
                 path,
                 *field,
                 disposition.required_access(),
-            )?;
+                value_type,
+                value.place,
+                false,
+            );
         }
         O::StructuralLeafCopy {
             result,

@@ -53,11 +53,8 @@ pub(in crate::legalization) fn extent(
     custody: &super::reference_custody::Custody,
     required_access: StructuralAccess,
 ) -> Result<WindowExtent, LegalizationError> {
-    let referent = if matches!(path.first(), Some(StructuralPathSegment::Referent)) {
-        if root.parameter().is_some() {
-            return Err(LegalizationError::custody());
-        }
-        let referent = super::reference_custody::referent_destination(
+    let referent = if path.contains(&StructuralPathSegment::Referent) {
+        let referent = super::reference_custody::window_destination(
             function,
             custody,
             &plan.structural_types,
@@ -66,9 +63,7 @@ pub(in crate::legalization) fn extent(
             required_access,
         )
         .ok_or(LegalizationError::custody())?;
-        if referent.carrier_type != root.structural_type()
-            || root.multiplicity() != terminal_psi::StructuralMultiplicity::Affine
-        {
+        if referent.carrier_type != root.structural_type() {
             return Err(LegalizationError::custody());
         }
         Some(referent)
@@ -120,8 +115,21 @@ pub(in crate::legalization) fn extent(
     // Reference crossings retain whole-root authority requirements; only a
     // following field or element selects a child of that referent.
     if !terminal_semantics::structural_window_selects_child(path, field) {
-        let authenticated = if referent.is_some() {
-            custody.leaf(root.place(), &[]).is_some_and(|loan| {
+        let authenticated = if let Some(referent) = &referent {
+            super::reference_custody::window_regions(
+                function,
+                custody,
+                types,
+                root.place(),
+                &{
+                    let mut full = referent.carrier_path.clone();
+                    full.push(StructuralPathSegment::Referent);
+                    full.extend_from_slice(path);
+                    full
+                },
+                required_access,
+            )
+            .is_ok_and(|regions| {
                 terminal_semantics::structural_window_origins(
                     function.structural_parameters.iter().chain(
                         function
@@ -129,7 +137,7 @@ pub(in crate::legalization) fn extent(
                             .iter()
                             .flat_map(|block| &block.structural_parameters),
                     ),
-                    loan.root.origins().into_iter().map(|origin| origin.root),
+                    regions.into_iter().map(|(place, _)| place),
                     required_access,
                     |place| {
                         optimization_unit_semantics::structural_place_supports_window_restoration(
@@ -154,17 +162,22 @@ pub(in crate::legalization) fn extent(
             .ok_or(LegalizationError::custody())?;
     let mut full = projection.path;
     let field_type = projection.structural_type;
-    let (endpoint, byte_offset, elements) =
-        structural_reference_input::runtime_projection(root_type, &full, types)
+    if let Some(referent) = &referent {
+        let mut original = referent.carrier_path.clone();
+        original.push(StructuralPathSegment::Referent);
+        original.extend(full);
+        full = original;
+    }
+    let geometry =
+        structural_reference_input::reference_source_geometry(root.structural_type(), &full, types)
             .ok_or(LegalizationError::custody())?;
+    let (endpoint, byte_offset, elements) =
+        (geometry.selected, geometry.byte_offset, geometry.elements);
     if endpoint != field_type {
         return Err(LegalizationError::custody());
     }
     let shape =
         structural_reference_input::shape(field_type, types).ok_or(LegalizationError::custody())?;
-    if referent.is_some() {
-        full.insert(0, StructuralPathSegment::Referent);
-    }
     Ok(WindowExtent {
         path: full,
         field_type,

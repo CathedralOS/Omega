@@ -1211,9 +1211,8 @@ fn root_window_loan(
 ) -> bool {
     terminal_semantics::structural_window_selects_child(path, field)
         // Declaration geometry is separate from the live ancestry check in
-        // current_ownership::references::check_window_access.
-        || (path.first() == Some(&terminal_psi::StructuralPathSegment::Referent)
-            && root.parameter().is_none())
+        // current_ownership::references::windows.
+        || path.contains(&terminal_psi::StructuralPathSegment::Referent)
         || (path.is_empty() && root.parameter().is_some())
 }
 
@@ -1229,13 +1228,7 @@ fn window_field_type(
     field: Option<semantic_vocabulary::StructuralFieldId>,
     required_access: terminal_psi::StructuralAccess,
 ) -> Option<StructuralTypeId> {
-    let (root, path) = if matches!(
-        path.first(),
-        Some(terminal_psi::StructuralPathSegment::Referent)
-    ) {
-        if root.parameter().is_some() {
-            return None;
-        }
+    let (root, path) = if path.contains(&terminal_psi::StructuralPathSegment::Referent) {
         crate::unit_validation::references::record_field_destination(
             function,
             structural_types,
