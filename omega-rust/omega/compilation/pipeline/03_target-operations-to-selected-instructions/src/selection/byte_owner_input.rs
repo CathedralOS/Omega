@@ -17,6 +17,7 @@ pub(super) fn view_argument(
     operation: semantic_vocabulary::OperationId,
     semantic: &terminal_psi::StructuralArgument,
     target: &target_operations::TargetStructuralArgument,
+    indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
 ) -> Option<(u32, u64)> {
     let signature = function.structural.as_ref()?;
     if !matches!(
@@ -27,7 +28,6 @@ pub(super) fn view_argument(
         || target.path != semantic.path
         || target.fixed_array_length.is_some()
         || target.element_stride.is_some()
-        || !target.indices.is_empty()
         || target.shape != calling_conventions::ValueShape::borrowed_reference(16, 8)
     {
         return None;
@@ -42,7 +42,18 @@ pub(super) fn view_argument(
         target.structural_type,
         &signature.structural_types,
     )?;
-    (target.source_byte_offset == geometry.0).then_some(geometry)
+    (target.source_byte_offset == geometry.offset
+        && crate::structural_inputs::structural_reference_input::runtime_indices_match(
+            indices,
+            &geometry.elements,
+        )
+        && target.indices.len() == indices.len()
+        && target.indices.iter().zip(indices).all(|(target, index)| {
+            target.operand.source_value() == index.operand.value
+                && target.operand.scalar_type() == index.operand.scalar_type
+                && target.stride == index.stride
+        }))
+    .then_some((geometry.offset, geometry.capacity))
 }
 
 /// Rejoin the exact owner storage named by the retained target source. This is

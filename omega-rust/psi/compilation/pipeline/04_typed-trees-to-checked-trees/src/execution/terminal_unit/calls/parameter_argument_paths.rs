@@ -434,6 +434,23 @@ impl ParameterArgument<'_> {
             place,
             self.selectors,
         )?;
-        (base_type_identity(program, projected, &[], &[])? == self.target_identity).then_some(path)
+        let (projected, path) = super::argument_paths::borrowed_argument_endpoint(
+            program,
+            projected,
+            path,
+            self.target,
+        )?;
+        // A captured selector changes storage coordinates, not the formal's
+        // presentation. Static and evaluated projections share this relation.
+        let presentation = super::argument_presentation::classify(
+            program,
+            projected,
+            self.target,
+            self.target_identity,
+            &[],
+        )?;
+        (presentation != ArgumentPresentation::FixedArraySlice
+            || custody.lends_unrestricted_borrow())
+        .then_some(path)
     }
 }

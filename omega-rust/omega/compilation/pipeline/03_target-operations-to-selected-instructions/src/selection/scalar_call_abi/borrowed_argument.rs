@@ -219,8 +219,9 @@ pub(super) fn validate_borrowed_argument(
     // fixed array it has no projected carrier identity, so the field's own
     // record geometry supplies the offset and the callee's type supplies the
     // view identity.
-    let byte_field =
-        crate::selection::byte_owner_input::view_argument(source, operation, semantic, target);
+    let byte_field = crate::selection::byte_owner_input::view_argument(
+        source, operation, semantic, target, indices,
+    );
     let byte_owner = signature
         .parameters
         .iter()

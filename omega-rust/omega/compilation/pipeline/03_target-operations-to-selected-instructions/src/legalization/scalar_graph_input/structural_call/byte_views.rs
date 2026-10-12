@@ -27,10 +27,10 @@ pub(super) fn argument(
 ) -> Result<Option<TargetStructuralArgument>, LegalizationError> {
     if actual.access != StructuralAccess::SharedBorrow
         || actual.path.iter().any(|segment| {
-            !matches!(
+            matches!(
                 segment,
-                terminal_psi::StructuralPathSegment::Field(_)
-                    | terminal_psi::StructuralPathSegment::FixedIndex(_)
+                terminal_psi::StructuralPathSegment::Referent
+                    | terminal_psi::StructuralPathSegment::FixedByteRange { .. }
             )
         })
         || formal.access != actual.access
@@ -141,11 +141,11 @@ pub(super) fn argument(
     // Descriptor payload and bounded-owner presentation are distinct physical
     // carriers. A completed descriptor already has the formal's exact payload;
     // an owner needs the existing backing/extent presentation adapter.
-    let (offset, fixed_array_length) = if actual.path.is_empty()
+    let (offset, fixed_array_length, elements) = if actual.path.is_empty()
         && super::super::byte_views::descriptor_result(caller, actual.place, &plan.structural_types)
             .is_some_and(|(_, identity)| identity == formal.structural_type)
     {
-        (0, None)
+        (0, None, Vec::new())
     } else if !actual.path.is_empty()
         && let Some((selected, offset, elements)) =
             crate::structural_inputs::structural_reference_input::runtime_borrowed_projection(
@@ -155,11 +155,10 @@ pub(super) fn argument(
                 &plan.structural_types,
             )
         && selected == formal.structural_type
-        && elements.is_empty()
     {
         // A stored descriptor lends its existing payload. Its source may be
         // an arrival or a dominating local owner; neither synthesizes a view.
-        (offset, None)
+        (offset, None, elements)
     } else if let Some((offset, length)) =
         crate::structural_inputs::structural_reference_input::fixed_byte_array_view(
             &root,
@@ -171,9 +170,9 @@ pub(super) fn argument(
         // Reconstruct the static extent from the exact source declaration.
         // A bounded view carries a pointer, not an inline array or a dynamic
         // descriptor; the existing geometry owner authenticates that window.
-        (offset, Some(length))
+        (offset, Some(length), Vec::new())
     } else {
-        let Some((offset, _)) =
+        let Some(geometry) =
             crate::structural_inputs::structural_reference_input::bounded_byte_view(
                 &root,
                 actual,
@@ -183,7 +182,7 @@ pub(super) fn argument(
         else {
             return Ok(None);
         };
-        (offset, None)
+        (geometry.offset, None, geometry.elements)
     };
     let destination = call
         .parameters
@@ -207,7 +206,12 @@ pub(super) fn argument(
         source_byte_offset: offset,
         fixed_array_length,
         element_stride: fixed_array_length.map(|_| 1),
-        indices: Vec::new(),
+        indices: super::super::target::control_flow::sources::call_indices(
+            native,
+            caller,
+            call_operation,
+            &elements,
+        )?,
         source,
         destination: destination.clone(),
     }))

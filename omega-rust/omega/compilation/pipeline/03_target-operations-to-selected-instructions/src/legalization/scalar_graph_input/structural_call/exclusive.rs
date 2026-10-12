@@ -39,6 +39,7 @@ pub(super) fn argument(
         destination.structural_type,
         types,
     );
+    let byte_field_projection = byte_field.as_ref().map(|geometry| geometry.offset);
     let byte_owner = crate::structural_inputs::structural_reference_input::bounded_byte_field_owner(
         source,
         semantic,
@@ -73,19 +74,24 @@ pub(super) fn argument(
     // record walk supplies the field offset and the destination supplies the
     // borrowed-view type the descriptor presents. The same holds for a fixed
     // array loaned through an element view.
-    let (structural_type, source_byte_offset) =
-        match (projection, byte_field, byte_view, element_view, byte_owner) {
-            (None, None, None, None, Some((offset, _))) => (destination.structural_type, offset),
-            // A `&[u8]` view over a `[u8; N]` array satisfies both the byte
-            // and the u8 element view lookups; their windows coincide, so the
-            // byte view wins like in `borrowed_argument`.
-            (_, None, Some((offset, _)), _, None) | (_, None, None, Some((offset, _, _)), None) => {
-                (destination.structural_type, offset)
-            }
-            (Some((projected, offset)), None, None, None, None) => (projected, offset),
-            (None, Some((offset, _)), None, None, None) => (destination.structural_type, offset),
-            _ => return Err(LegalizationError::custody()),
-        };
+    let (structural_type, source_byte_offset) = match (
+        projection,
+        byte_field_projection,
+        byte_view,
+        element_view,
+        byte_owner,
+    ) {
+        (None, None, None, None, Some((offset, _))) => (destination.structural_type, offset),
+        // A `&[u8]` view over a `[u8; N]` array satisfies both the byte
+        // and the u8 element view lookups; their windows coincide, so the
+        // byte view wins like in `borrowed_argument`.
+        (_, None, Some((offset, _)), _, None) | (_, None, None, Some((offset, _, _)), None) => {
+            (destination.structural_type, offset)
+        }
+        (Some((projected, offset)), None, None, None, None) => (projected, offset),
+        (None, Some(offset), None, None, None) => (destination.structural_type, offset),
+        _ => return Err(LegalizationError::custody()),
+    };
     let descriptor = byte_view.is_some() || byte_field.is_some() || element_view.is_some();
     let shape =
         crate::structural_inputs::structural_reference_input::parameter_shape(destination, types)
@@ -139,9 +145,14 @@ pub(super) fn argument(
             native,
             caller,
             call_operation,
-            geometry
-                .as_ref()
-                .map_or(&[], |(_, _, elements)| elements.as_slice()),
+            byte_field.as_ref().map_or_else(
+                || {
+                    geometry
+                        .as_ref()
+                        .map_or(&[][..], |(_, _, elements)| elements.as_slice())
+                },
+                |geometry| geometry.elements.as_slice(),
+            ),
         )?,
         source: source_placement,
         destination: call.parameters[scalar_count].clone(),

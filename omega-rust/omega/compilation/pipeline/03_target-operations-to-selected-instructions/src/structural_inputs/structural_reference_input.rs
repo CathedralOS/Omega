@@ -835,8 +835,11 @@ pub(crate) fn borrowed_byte_view_presentation(
     {
         return Some((offset, Some(length), Some(1)));
     }
+    // This foreign-ABI adapter currently transports a static window only.
+    // Never erase runtime coordinates from an owner presentation.
     bounded_byte_view(source, argument, view_type, declarations)
-        .map(|(offset, _)| (offset, None, None))
+        .filter(|geometry| geometry.elements.is_empty())
+        .map(|geometry| (geometry.offset, None, None))
 }
 
 /// Reconstruct an initialized fixed-array loan, not an existing slice descriptor.
@@ -1136,12 +1139,18 @@ pub(crate) fn collection_view_region_geometry(
 /// onto the view formal; call semantics has already proved the view's weaker
 /// promises. This returns metadata geometry only — it grants neither byte
 /// access nor authority to replace the storage.
+pub(crate) struct BoundedByteViewGeometry {
+    pub(crate) offset: u32,
+    pub(crate) capacity: u64,
+    pub(crate) elements: Vec<RuntimeElement>,
+}
+
 pub(crate) fn bounded_byte_view(
     source: &terminal_psi::StructuralParameterDeclaration,
     argument: &terminal_psi::StructuralArgument,
     view_type: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],
-) -> Option<(u32, u64)> {
+) -> Option<BoundedByteViewGeometry> {
     if source.place != argument.place
         || source.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
         || source.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
@@ -1154,7 +1163,13 @@ pub(crate) fn bounded_byte_view(
     // expose a whole owner without copying its primitive predicate roster onto
     // the view formal.
     if argument.access != terminal_psi::StructuralAccess::SharedBorrow {
-        return bounded_byte_field_borrow(source, argument, view_type, declarations, false);
+        return bounded_byte_field_borrow(source, argument, view_type, declarations, false).map(
+            |(offset, capacity)| BoundedByteViewGeometry {
+                offset,
+                capacity,
+                elements: Vec::new(),
+            },
+        );
     }
     let expected = terminal_psi::StructuralParameterDeclaration {
         place: argument.place,
@@ -1171,12 +1186,33 @@ pub(crate) fn bounded_byte_view(
         argument,
         &expected,
     )?;
-    if argument.path.is_empty() {
-        return Some((0, capacity));
+    // A stored view's selector crosses backing storage, even without Referent.
+    // A descriptor-relative offset cannot describe that owner's live header.
+    if !storage_projection_regions(source.structural_type, &argument.path, declarations)?
+        .pointer_slots
+        .is_empty()
+    {
+        return None;
     }
-    let (offset, field_capacity) =
-        bounded_byte_field_borrow(source, argument, view_type, declarations, false)?;
-    (field_capacity == capacity).then_some((offset, capacity))
+    let (selected, offset, elements) =
+        collection_projection(source.structural_type, &argument.path, declarations)?;
+    if *selected
+        != StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
+            capacity,
+        })
+        || u64::from(offset)
+            .checked_add(runtime_reach(&elements)?)?
+            .checked_add(8)?
+            .checked_add(capacity)?
+            > u64::from(shape(source.structural_type, declarations)?.byte_size)
+    {
+        return None;
+    }
+    Some(BoundedByteViewGeometry {
+        offset,
+        capacity,
+        elements,
+    })
 }
 
 pub(crate) fn bounded_byte_field_owner(
@@ -1871,6 +1907,22 @@ pub(crate) fn collection_projection<'types>(
     Some((shape, offset, elements))
 }
 
+/// Selector geometry depends on the actual storage occurrence, not on whether
+/// its final inline leaf has a standalone declaration. Access admission belongs
+/// to the consuming operation; this query grants no leaf presentation.
+pub(crate) fn runtime_projection_elements(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<Vec<RuntimeElement>> {
+    let regions = storage_projection_regions(root, path, declarations)?;
+    let (_, _, leaf_elements) =
+        runtime_storage_projection(regions.root, &path[regions.segment_start..], declarations)?;
+    let mut elements = regions.elements;
+    elements.extend(leaf_elements);
+    Some(elements)
+}
+
 fn project_inner(
     root: StructuralTypeId,
     path: impl Iterator<Item = Projection>,
@@ -2056,6 +2108,26 @@ fn runtime_projection_with_leaf_type(
     declarations: &[StructuralTypeDeclaration],
     leaf_type: fn(&StructuralFieldType) -> Option<StructuralFieldType>,
 ) -> Option<(StructuralTypeId, u32, Vec<RuntimeElement>)> {
+    let (storage, offset, elements) = runtime_storage_projection(root, path, declarations)?;
+    let selected = match &*storage {
+        StructuralFieldType::Structural(identity) => *identity,
+        field => leaf_type(field)?.leaf_declaration(declarations.iter())?.id,
+    };
+    Some((selected, offset, elements))
+}
+
+/// A byte element uses its primitive storage geometry; aggregate projections
+/// retain the selected field contract. Neither needs an endpoint declaration
+/// until a consumer requests a typed presentation.
+fn runtime_storage_projection<'types>(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &'types [StructuralTypeDeclaration],
+) -> Option<(
+    std::borrow::Cow<'types, StructuralFieldType>,
+    u32,
+    Vec<RuntimeElement>,
+)> {
     if !path.is_empty()
         && matches!(
             find_structural_type(declarations, root).map(|row| &row.shape),
@@ -2065,18 +2137,15 @@ fn runtime_projection_with_leaf_type(
         let scalar =
             terminal_semantics::primitive_projection_type(declarations.iter(), root, path)?;
         let (offset, _, elements) = primitive_geometry(root, path, scalar, declarations)?;
-        let endpoint =
-            terminal_semantics::primitive_projection_declaration(declarations.iter(), root, path)?;
-        return Some((endpoint, offset, elements));
+        return Some((
+            std::borrow::Cow::Owned(StructuralFieldType::Scalar(scalar)),
+            offset,
+            elements,
+        ));
     }
     // Static and runtime selectors consume the same retained field placement.
     // Splitting a path into static runs discarded authored repeated strides.
-    project_inner(
-        root,
-        path.iter().map(Projection::from),
-        declarations,
-        leaf_type,
-    )
+    project_storage(root, path.iter().map(Projection::from), declarations)
 }
 
 /// The field-store geometry: the static offset of `field` beneath the

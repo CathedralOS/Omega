@@ -276,6 +276,7 @@ fn referent_pointer(
             operation.operation,
             semantic,
             target,
+            indices,
         )
     };
     let pointer = if let Some(address) = &reference {
@@ -398,6 +399,7 @@ fn referent_pointer(
                 .map_err(|_| SelectedInstructionError::custody())?,
             pointer,
             field_offset,
+            indices,
         )?)
     } else {
         None

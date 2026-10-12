@@ -17,6 +17,16 @@ requires index < 2 {
     measure_text(bytes)
 }
 
+machine measure_direct(entries: &[Text; 2], index: u64) -> u64
+requires index < 2 {
+    measure_text(&entries[index].bytes)
+}
+
+machine measure_nested(main: &Main, index: u64) -> u64
+requires index < 2 {
+    measure_text(&main.entries[index].bytes)
+}
+
 machine fill(room: &mut Room) {
     room.description.bytes = "before";
     room.description.bytes = "é";
@@ -40,9 +50,14 @@ machine Main::main(main: &mut Main) crashes Trap {
     main.entries[0].bytes = "one";
     main.entries[1].bytes = "four";
     let indexed_count: u64 = measure_at(&main.entries, 1);
+    let direct_count: u64 = measure_direct(&main.entries, 0);
+    let nested_count: u64 = measure_nested(main, 1);
+    main.entries[0].bytes = "";
+    let empty_count: u64 = measure_direct(&main.entries, 0);
     transition main.output == "é" && copied_count == 2
         && room.description.bytes == "changed" && count == 2
-        && local_count == 7 && local_copy_count == 7 && indexed_count == 4 {
+        && local_count == 7 && local_copy_count == 7 && indexed_count == 4
+        && direct_count == 3 && nested_count == 4 && empty_count == 0 {
         true -> passed()
         false -> failed()
     }

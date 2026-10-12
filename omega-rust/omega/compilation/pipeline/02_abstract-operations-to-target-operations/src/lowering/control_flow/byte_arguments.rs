@@ -29,13 +29,12 @@ pub(super) fn shared_owner_view(
     types: &StructuralTypeLookup<'_>,
 ) -> Result<Option<TargetStructuralArgument>, LoweringError> {
     if argument.access != StructuralAccess::SharedBorrow
-        || argument.path.iter().any(|segment| {
-            !matches!(
-                segment,
-                terminal_psi::StructuralPathSegment::Field(_)
-                    | terminal_psi::StructuralPathSegment::FixedIndex(_)
-            )
-        })
+        // Pointer crossings and explicit windows have different physical
+        // presentations, owned by their existing call adapters.
+        || argument.path.iter().any(|segment| matches!(segment,
+            terminal_psi::StructuralPathSegment::Referent
+                | terminal_psi::StructuralPathSegment::FixedByteRange { .. }
+        ))
         || declaration.access != StructuralAccess::SharedBorrow
         || !types
             .get(&declaration.structural_type)
@@ -98,23 +97,34 @@ pub(super) fn shared_owner_view(
         };
     let mut shapes = BTreeMap::new();
     let mut active = BTreeSet::new();
-    let geometry = if argument.path.is_empty() {
-        types.get(&root_type).and_then(|root| match root.shape {
-            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity }) => {
-                Some((0, capacity))
-            }
-            _ => None,
-        })
-    } else {
-        crate::lowering::structural_layout::bounded_byte_field_geometry(
+    // An element view crosses its backing pointer even without an explicit
+    // Referent marker. This adapter stages a descriptor over contiguous owner
+    // storage; crossing-aware call transport owns other address regions.
+    if !crate::lowering::structural_layout::reference_projection_regions(
+        root_type,
+        &argument.path,
+        types,
+    )
+    .ok_or(LoweringError::UnsupportedStructuralReference(root_type))?
+    .pointer_slots
+    .is_empty()
+    {
+        return Ok(None);
+    }
+    let (selected, _, offset, runs) =
+        crate::lowering::structural_layout::runtime_storage_projection(
             root_type,
             &argument.path,
             types,
             &mut shapes,
             &mut active,
-        )?
+        )?;
+    let Some(selected_shape) = selected.shape(types) else {
+        return Ok(None);
     };
-    let Some((offset, capacity)) = geometry else {
+    let StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity }) =
+        *selected_shape
+    else {
         return Ok(None);
     };
     // Inspect extra custody only after this operand is an owner presentation;
@@ -163,7 +173,11 @@ pub(super) fn shared_owner_view(
         source_byte_offset: offset,
         fixed_array_length: None,
         element_stride: None,
-        indices: Vec::new(),
+        indices: super::scalar_sources::runtime_indices(
+            runs,
+            function,
+            &super::scalar_sources::ScalarSources::from(live),
+        )?,
         source,
         destination: destination.placement.clone(),
     }))

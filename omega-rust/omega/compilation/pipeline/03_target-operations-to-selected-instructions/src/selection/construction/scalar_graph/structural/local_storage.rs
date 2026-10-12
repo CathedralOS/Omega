@@ -121,7 +121,8 @@ pub(in crate::selection::construction::scalar_graph) fn fixed_array_argument(
 /// Stage only the descriptor; the field's live length word and bytes remain in
 /// the caller's record. `field` points at the inline storage itself, so the
 /// length is loaded there and the data begins eight bytes later — the declared
-/// capacity is never the descriptor's length.
+/// capacity is never the descriptor's length. The same runtime coordinates
+/// that selected `field` remain on the header read's memory footprint.
 pub(in crate::selection::construction::scalar_graph) fn byte_field_argument(
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,
@@ -129,19 +130,21 @@ pub(in crate::selection::construction::scalar_graph) fn byte_field_argument(
     argument_index: u32,
     field: VirtualRegisterId,
     field_offset: u32,
+    indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
 ) -> Result<PresentedDescriptor, SelectedInstructionError> {
     let slot = LocalStorageSlotId::StructuralCallArgument {
         operation: row.operation,
         argument_index,
     };
     let length = transport_register(builder, place, field_offset)?;
-    memory(
+    super::runtime_address::footprint(
         builder,
         row,
         place,
         field_offset,
         8,
-        SelectedMemoryAccessRole::ReadPlace,
+        indices,
+        super::runtime_address::Written::None,
     )?;
     builder.emit_load64(0, field, length, provenance(row))?;
     let data = transport_register(

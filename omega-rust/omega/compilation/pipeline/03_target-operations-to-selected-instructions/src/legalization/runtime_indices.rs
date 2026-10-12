@@ -77,12 +77,11 @@ pub(in crate::legalization) fn defined_type(
         .map(|definition| definition.scalar_type)
 }
 
-/// Join a projection's runtime elements under its retained endpoint access.
-/// A shared call may observe a constrained scalar's carrier without acquiring
-/// an owned or writable leaf. Use the same access-aware geometry as call
-/// placement and instruction selection; otherwise selector joining rejects a
-/// valid shared endpoint before those consumers see it. Storage extraction and
-/// restoration retain canonical owned geometry. A static path mints no indices.
+/// Join a projection's runtime elements without demanding a declaration for
+/// its final inline leaf. Call placement and storage operations own endpoint
+/// presentation and access; selector transport keeps the actual occurrence's
+/// strides and obligations. Explicit reference crossings still require their
+/// access-aware pointer regions. A static path mints no indices.
 pub(crate) fn projection(
     optimized: &PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
@@ -110,14 +109,12 @@ pub(crate) fn projection(
         .ok_or(LegalizationError::custody())?
         .elements
     } else {
-        crate::structural_inputs::structural_reference_input::runtime_borrowed_projection(
+        crate::structural_inputs::structural_reference_input::runtime_projection_elements(
             root,
             path,
-            access,
             declarations,
         )
         .ok_or(LegalizationError::custody())?
-        .2
     };
     operands(optimized, unit, operation, &elements)
 }
