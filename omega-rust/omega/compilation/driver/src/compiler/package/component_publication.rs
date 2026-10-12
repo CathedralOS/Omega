@@ -1,6 +1,6 @@
 //! Publish a dependency's checked component for an independent consumer.
 
-use compiler::CheckedCompilation;
+use crate::CheckedCompilation;
 use component_description::{
     ComponentDescriptionFacts, DescribeError, publish_component_description,
 };
@@ -17,7 +17,7 @@ use package_compilation::IndependentComponentDescription;
 /// product: the embedded canonical artifact, the selected provider-plan facts
 /// that compilation settled, and any build-bound progress manifest. Both
 /// coordinates the carrier binds beside the bytes come from that compilation
-/// rather than from a caller assertion or from the description itself — the
+/// rather than from a caller assertion or from the description itself â€” the
 /// package identity is the dependency's own checked package custody, and the
 /// expected subject is the Terminal Psi identity observed on the module this
 /// compilation produced.
@@ -27,7 +27,7 @@ use package_compilation::IndependentComponentDescription;
 /// profile, and a root whose `Independent` selection reaches no published
 /// description still rejects at the component-closure fence rather than
 /// compiling as a fused edge.
-pub(crate) fn publish_checked_component(
+pub fn publish_checked_component(
     checked: CheckedCompilation,
 ) -> Result<IndependentComponentDescription, Vec<Diagnostic>> {
     let package = checked.sources().package_identity().ok_or_else(|| {
@@ -40,7 +40,7 @@ pub(crate) fn publish_checked_component(
     // compilation settled, not one recomputed beside it.
     let selected_provider_plans = checked.execution().selected_provider_plan_facts.clone();
     let component_progress = checked.execution().component_progress.as_ref().cloned();
-    let (retained, _timings) = compiler::retained_terminal_artifact_from_checked_package(
+    let (retained, _timings) = super::retained_terminal_artifact_from_checked_package(
         checked,
         optimization_core::OptimizationRollback::default(),
     )?;

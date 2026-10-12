@@ -1045,7 +1045,7 @@ impl ClosurePass<'_> {
         {
             let demanded = self.fresh_components.contains(&(key.identity(), purpose));
             let component_description = demanded
-                .then(|| crate::build_session::publish_checked_component(checked.clone()).ok())
+                .then(|| compiler::publish_checked_component(checked.clone()).ok())
                 .flatten();
             if let Some(record) = super::super::review_cache::record_compiled_review(
                 &review,
@@ -1131,7 +1131,7 @@ fn publish_independent_component_descriptions(
         }
         let description = match component_candidates.get(&(component, purpose)) {
             Some(OccurrenceCompile::Checked(component_checked)) => {
-                crate::build_session::publish_checked_component(component_checked.clone()).map_err(
+                compiler::publish_checked_component(component_checked.clone()).map_err(
                     |diagnostics| CompileResolvedPackageReviewsError::Compilation {
                         package: key.clone(),
                         diagnostics,

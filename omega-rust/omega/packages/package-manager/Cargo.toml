@@ -16,7 +16,6 @@ build-output = { path = "../build-output" }
 boundary-applications = { path = "../../compilation/backend/artifacts/boundary-applications" }
 compiler = { path = "../../compilation/driver" }
 compilation-products = { path = "../../compilation/products" }
-component-description = { path = "../../compilation/backend/artifacts/component-description" }
 effects = { path = "../../compilation/backend/plans/provider-evidence" }
 native-artifact = { path = "../../compilation/backend/artifacts/native-artifact" }
 package-evidence = { path = "../review-evidence" }

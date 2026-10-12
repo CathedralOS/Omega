@@ -135,9 +135,11 @@ Package callers supply source custody and fresh grants, not frontend or proof
 cache slots. A reused language judgment lends its checked arenas; equal Product
 root selections share the pruning output. Package native requests complete as
 one roster through the same Terminal producer as standalone requests.
-Package-manager batches still assemble separate Build/Product continuations
-and return checked activations to their callers. These are unfinished ownership
-moves, not the intended route:
+Package-manager batches supply dependency-ordered custody/consent plans; the
+compiler owns generated-output joins, Build/Product continuations and independent
+component publication. Target plans still enter separately and return checked
+activations to their callers. Consolidating those plans into one source
+completion remains unfinished, not the intended route:
 
 | Input → output | Owner |
 | --- | --- |
@@ -290,8 +292,8 @@ reference checked interpreter receives those explicit execution bindings.
 Matching source-owner/entry/Psi-optimization requests share one Terminal
 production and backing allocation, including in retained native images. Each
 target independently admits the unoptimized composition and retains its own
-entry receipt and native proposal. Distinct roots and callbacks remain separate
-productions until the whole-program entry roster is implemented.
+entry receipt and native proposal. Distinct roots and callbacks are retained
+in that same whole-program Terminal roster.
 These remain checked-tree realization seams with package-input custody;
 moving them out of the coordinator does not establish the intended Terminal-only
 handoff. Callback proposal production now closes source placements into body,

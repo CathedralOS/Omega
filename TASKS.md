@@ -2393,10 +2393,9 @@ crash and native exit behavior.
   lint alone does not close this outcome.
   - Remove the current violations rather than grandfathering them:
     `compiler.rs` checks Product once and shares checked arenas and Terminal
-    storage for matching entry/optimization requests. Distinct entry roots and
-    callback bodies still need one whole-program Terminal roster rather than
-    separate productions. Package-manager batches retain separate
-    checked activations. `checked/checking/execution_settlement.rs` plans
+    storage across distinct entry roots and callback bodies. Package-manager
+    batches supply dependency-ordered input plans but still retain separate
+    checked activations per target. `execution_settlement.rs` plans
     providers after checking but before Terminal production. Target-layout source
     folding is removed,
     with portable layout-query execution tracked by **TARGET-SEMANTIC-APPLICATIONS**;
@@ -3053,11 +3052,12 @@ crash and native exit behavior.
   - Package product completion now calls the driver's `finish_compilation`;
     check/native report sequencing and the unused checked-program observer are
     removed from package operations. Inspection uses the compiler's Terminal
-    production operation; the CLI no longer imports numbered stages. Remaining:
-    move checked-compilation ownership out of `operations/accepted_compilation.rs`
-    and the package build session. Package manager supplies resolved/accepted
-    source custody, lock decisions, grants and review policy rather than returning
-    `CheckedCompilation`. Check, compile, run and inspection must drive the same
+    production operation; the CLI no longer imports numbered stages.
+    Accepted package operations now supply dependency-ordered custody/consent
+    plans: the compiler owns generated-output joins, Build continuations and
+    independent-component publication. Remaining: stop returning
+    `CheckedCompilation` through package operations and consolidate per-target
+    plans before source completion. Check, compile, run and inspection must drive the same
     source-to-product request, not just share product completion.
   - Keep each stage's independent representation and transformation crate,
     single-target command behavior, Build-effect custody and per-target

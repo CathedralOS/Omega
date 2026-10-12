@@ -8,10 +8,9 @@ mod identity;
 pub(crate) use identity::compiler_input_identity;
 
 use crate::build_session::{
-    PackageBuildSession, dependency_first_package_order, publish_checked_component,
-    reconcile_build_inputs,
+    PackageBuildSession, dependency_first_package_order, reconcile_build_inputs,
 };
-use crate::declarations::{DependencyPurpose, PackageKey, purpose_slot};
+use crate::declarations::{PackageKey, purpose_slot};
 use crate::lock::{PackageCheckedContext, PackageLockTarget, PackageOccurrenceRoster};
 use crate::resolution::PackageCompilationScope;
 use crate::resolution::graph::{
@@ -19,10 +18,8 @@ use crate::resolution::graph::{
     ExactTargetPackageSourceClosure,
 };
 use crate::review::{CompileResolvedPackageReviewsError, RestrictedBuildCheckpoint};
-use compilation_products::PreparedPackageBuild;
-use compiler::{CheckedCompilation, CheckedCompileRequest};
+use compiler::{CheckedCompilation, CheckedCompileRequest, PackageCompilationRequest};
 use diagnostics::Diagnostic;
-use package_compilation::{IndependentComponentDescription, PackageGeneratedSourceBundle};
 use std::path::Path;
 
 type Error = CompileResolvedPackageReviewsError;
@@ -39,14 +36,6 @@ pub(super) struct AcceptedCompilationRequest<'request> {
     pub timings: bool,
 }
 
-struct OccurrenceProducts {
-    generated: PackageGeneratedSourceBundle,
-    /// Only an actual independent-product request consumes this continuation.
-    /// Fused consumers check the dependency modules they import themselves.
-    prepared: Option<PreparedPackageBuild>,
-    description: Option<IndependentComponentDescription>,
-}
-
 fn failure(package: &PackageKey, message: impl Into<String>) -> Error {
     Error::Compilation {
         package: package.clone(),
@@ -54,8 +43,9 @@ fn failure(package: &PackageKey, message: impl Into<String>) -> Error {
     }
 }
 
-/// Validate acceptance, execute required Builds dependency-first, then check the
-/// consumer once. No review projection or discovery/bound compilation is called.
+/// Validate acceptance and submit a dependency-ordered custody/consent plan.
+/// The compiler owns Build execution and Product completion. No review
+/// projection or discovery/bound compilation is called.
 ///
 /// The caller owns the invocation: one session covers every target of a batch
 /// request instead of each target entering its own checked activation with a
@@ -70,7 +60,14 @@ pub(super) fn compile_accepted_project(
         identity::require_current_acceptance(request.closure, accepted, compiler_identity)
             .map_err(|error| failure(root, error))?;
     }
-    let result = compile_occurrences(&request, session);
+    let (plan, packages) = prepare_occurrences(&request, session)?;
+    let result = session
+        .compiler
+        .check_package(plan)
+        .map_err(|error| Error::Compilation {
+            package: packages.get(error.occurrence).unwrap_or(root).clone(),
+            diagnostics: error.failure.into_diagnostics(),
+        });
     // Loaded Rust identity is immutable; the external library is not. Reject
     // edits during compilation instead of labeling mixed inputs as accepted.
     result.and_then(|checked| {
@@ -85,10 +82,10 @@ pub(super) fn compile_accepted_project(
     })
 }
 
-fn compile_occurrences(
+fn prepare_occurrences(
     request: &AcceptedCompilationRequest<'_>,
     session: &mut PackageBuildSession,
-) -> Result<CheckedCompilation, Error> {
+) -> Result<(PackageCompilationRequest, Vec<PackageKey>), Error> {
     let closure = request.closure.source_closure();
     let graph = closure.graph();
     let root = graph.root();
@@ -111,9 +108,8 @@ fn compile_occurrences(
     } else {
         request.accepted.map(RestrictedBuildCheckpoint::derive)
     };
-    let mut products: Vec<[Option<OccurrenceProducts>; 2]> =
-        graph.packages().iter().map(|_| [None, None]).collect();
-    let mut checked_root = None;
+    let mut occurrences = Vec::new();
+    let mut packages = Vec::new();
 
     for key in dependency_first_package_order(closure) {
         let position = graph
@@ -127,7 +123,6 @@ fn compile_occurrences(
             .ok_or_else(|| failure(&key, "resolved package has no occurrence roster"))?;
         let mut root_binding = None;
         for &purpose in purposes {
-            let started = std::time::Instant::now();
             let target = if purpose.is_product() {
                 request.closure.target_profile()
             } else {
@@ -150,35 +145,10 @@ fn compile_occurrences(
                 .and_then(|occurrence| occurrence.compilation())
                 .map(|compilation| compilation.semantic_bindings().to_vec())
                 .unwrap_or_default();
-            let mut inputs = PackageCompilationScope::new(closure, &key)
+            let inputs = PackageCompilationScope::new(closure, &key)
                 .compilation_inputs_reusing(&mut root_binding)
                 .and_then(|inputs| inputs.with_compilation_purpose(purpose))
                 .and_then(|inputs| inputs.with_accepted_semantic_bindings(bindings))
-                .map_err(|errors| Error::CompilationInputs {
-                    package: key.clone(),
-                    errors,
-                })?;
-            let required = inputs.required_dependency_source_instances();
-            let mut generated = Vec::with_capacity(required.len());
-            for (dependency_position, package) in graph.packages().iter().enumerate() {
-                for dependency_purpose in DependencyPurpose::ALL {
-                    if !required.contains(&(package.source().key().identity(), dependency_purpose))
-                    {
-                        continue;
-                    }
-                    let product = products[dependency_position][purpose_slot(dependency_purpose)]
-                        .as_ref()
-                        .ok_or_else(|| {
-                            failure(
-                                &key,
-                                "dependency Build output is missing for its required purpose",
-                            )
-                        })?;
-                    generated.push(product.generated.clone());
-                }
-            }
-            inputs = inputs
-                .with_complete_dependency_generated_sources(generated)
                 .map_err(|errors| Error::CompilationInputs {
                     package: key.clone(),
                     errors,
@@ -228,113 +198,9 @@ fn compile_occurrences(
                 collect_timings: request.timings,
                 ..CheckedCompileRequest::new(&entry, Some(target.target_name()))
             };
-            let outcome = session.compiler.prepare_build(compile_request);
-            let prepared = outcome.map_err(|failure| Error::Compilation {
-                package: key.clone(),
-                diagnostics: failure.into_diagnostics(),
-            })?;
-            let descriptions = selected_component_descriptions(
-                &key,
-                purpose,
-                prepared.build().independent_components().selections,
-                graph,
-                &mut products,
-                &mut session.compiler,
-            )?;
-            let prepared = prepared
-                .with_independent_component_descriptions(descriptions)
-                .map_err(|errors| Error::CompilationInputs {
-                    package: key.clone(),
-                    errors,
-                })?;
-            if is_root {
-                let outcome = session.compiler.check_build(prepared);
-                checked_root = Some(outcome.result.map_err(|failure| Error::Compilation {
-                    package: key.clone(),
-                    diagnostics: failure.into_diagnostics(),
-                })?);
-            } else {
-                products[position][purpose_slot(purpose)] = Some(OccurrenceProducts {
-                    generated: prepared.generated_source_bundle().clone(),
-                    prepared: Some(prepared),
-                    description: None,
-                });
-            }
-            if request.timings {
-                eprintln!(
-                    "omega_compile_timings stage=package {} purpose={purpose:?} micros={}",
-                    key.name().as_str(),
-                    started.elapsed().as_micros()
-                );
-            }
+            occurrences.push(compile_request);
+            packages.push(key.clone());
         }
     }
-    checked_root.ok_or_else(|| failure(root, "ordinary compilation produced no checked root"))
-}
-
-fn selected_component_descriptions(
-    consumer: &PackageKey,
-    purpose: DependencyPurpose,
-    selections: Vec<compilation_products::IndependentComponentSelection>,
-    graph: &crate::resolution::graph::ResolvedPackageClosure,
-    products: &mut [[Option<OccurrenceProducts>; 2]],
-    compilation: &mut compiler::CompilationSession,
-) -> Result<Vec<IndependentComponentDescription>, Error> {
-    let mut descriptions = Vec::new();
-    for selection in selections {
-        let Some(component) = selection.component else {
-            continue;
-        };
-        if component == consumer.identity()
-            || descriptions
-                .iter()
-                .any(|description: &IndependentComponentDescription| {
-                    description.package() == component
-                })
-        {
-            continue;
-        }
-        let position = graph
-            .packages()
-            .iter()
-            .position(|package| package.source().key().identity() == component)
-            .ok_or_else(|| {
-                failure(
-                    consumer,
-                    "independent component is outside the resolved package closure",
-                )
-            })?;
-        let products = products[position][purpose_slot(purpose)]
-            .as_mut()
-            .ok_or_else(|| {
-                failure(
-                    consumer,
-                    "independent component has no prepared Build for this purpose",
-                )
-            })?;
-        if products.description.is_none() {
-            let prepared = products.prepared.take().ok_or_else(|| {
-                failure(
-                    consumer,
-                    "independent component continuation was already consumed",
-                )
-            })?;
-            let checked = compilation
-                .check_build(prepared)
-                .result
-                .map_err(|failure| Error::Compilation {
-                    package: consumer.clone(),
-                    diagnostics: failure.into_diagnostics(),
-                })?;
-            products.description =
-                Some(publish_checked_component(checked).map_err(|diagnostics| {
-                    Error::Compilation {
-                        package: consumer.clone(),
-                        diagnostics,
-                    }
-                })?);
-        }
-        descriptions.extend(products.description.iter().cloned());
-    }
-    Ok(descriptions)
+    Ok((PackageCompilationRequest { occurrences }, packages))
 }

@@ -4,8 +4,6 @@
 //! fresh compilation attempt receives an explicitly sponsored empty directory;
 //! checked results retain immutable output custody after session disposal.
 
-mod component_publication;
-pub(crate) use component_publication::publish_checked_component;
 mod bindings;
 mod inputs;
 mod order;

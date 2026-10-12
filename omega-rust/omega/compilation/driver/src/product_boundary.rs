@@ -32,6 +32,27 @@ fn package_operations_do_not_assemble_compiler_products() {
 }
 
 #[test]
+fn accepted_packages_supply_plans_not_compiler_continuations() {
+    let source =
+        include_str!("../../../packages/package-manager/src/operations/accepted_compilation.rs");
+    for forbidden in [
+        "PreparedPackageBuild",
+        ".prepare_build(",
+        ".check_build(",
+        "with_complete_dependency_generated_sources(",
+        "with_independent_component_descriptions(",
+        "publish_checked_component(",
+    ] {
+        assert!(
+            !source.contains(forbidden),
+            "package operation owns {forbidden}"
+        );
+    }
+    let manifest = include_str!("../../../packages/package-manager/Cargo.toml");
+    assert!(!manifest.contains("component-description ="));
+}
+
+#[test]
 fn native_product_consumes_terminal_without_producing_it() {
     let source = include_str!("native.rs");
     assert!(source.contains("terminal: compilation_products::RetainedTerminalArtifact"));

@@ -23,10 +23,10 @@ request/result exports remain conveniences for the compilation entrypoints.
 [compiler.rs](src/compiler.rs) sequences request admission, one source/Build
 prefix, then the Check / Terminal / Native product dispatch. It settles all
 targets before producing Terminal. Targets with the same checked source owner,
-entry and Psi optimization share that production and artifact storage; target
+and Psi optimization share that production and artifact storage; target
 receipts and exclusion judgments stay separate. Native production receives the
-artifact explicitly and never calls Psi. Distinct roots and callbacks remain
-separate productions until the whole-program Terminal entry roster lands.
+artifact explicitly and never calls Psi. Distinct roots and callbacks belong
+to the shared whole-program Terminal entry roster.
 `cargo run -p compiler --example terminal_sharing` exercises two native targets
 through this route and checks actual production counts and shared backing
 storage. It does not execute a foreign-host image.
@@ -43,8 +43,18 @@ Its compiler session shares checked storage, and package targets finish through
 the common Terminal batch. Source completion still needs convergence with the
 whole-program request. Native production consumes each
 target's retained Terminal artifact without a second scheduling pass. Product
-reports belong to their product owners; [package.rs](src/compiler/package.rs)
-sequences package custody admission and Terminal production.
+reports belong to their product owners.
+
+Accepted package compilation supplies a dependency-ordered
+`PackageCompilationRequest` to the session's
+[`check_package`](src/checked/package_compilation.rs) entrance. That operation
+joins generated dependency outputs, executes Builds and retains their pending
+Product continuations. It completes selected independent components before
+checking the root. Package code supplies custody, consent and staging, not
+per-Build compiler calls or continuation tables. Independent-component publication
+belongs to [package.rs](src/compiler/package.rs), including when review requests
+a description. Per-target package requests still need consolidation into one
+shared source completion; this ownership cut does not claim that work is done.
 
 Checked-only consumers supply `CheckedCompileRequest` to `CompilationSession::check`.
 Package inputs, build staging and session sponsors are request

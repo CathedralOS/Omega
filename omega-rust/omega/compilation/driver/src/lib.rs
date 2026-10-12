@@ -31,9 +31,9 @@ mod terminal;
 pub use crate::checked::{
     CheckedCompilation, CheckedCompileRequest, CompilationSession, IndependentComponentDiscovery,
     IndependentComponentSelection, OptimizationRollback, OptimizationRollbackInputError,
-    PreparedPackageBuild, RestrictedBuildGrants, checked_compilation_call_count,
-    preliminary_check_totals, settled_check_totals, source_assembly_invocation_count,
-    typed_frontier_reuse_count,
+    PackageCompilationRequest, PackageCompileFailure, RestrictedBuildGrants,
+    checked_compilation_call_count, preliminary_check_totals, settled_check_totals,
+    source_assembly_invocation_count, typed_frontier_reuse_count,
 };
 pub use build_evaluation::BuildSnapshotRequest;
 pub use compilation_products::{
@@ -44,7 +44,7 @@ pub use compilation_products::{
     CompileOutputKind, CompileReport, ExecutablePublicationReceipt, OptimizationRollbackReceipt,
     RetainedBuildOutputs, RetainedNativeArtifact,
 };
-pub use compiler::package::retained_terminal_artifact_from_checked_package;
+pub use compiler::package::publish_checked_component;
 pub use compiler::{
     CompilationProduct, CompilationProductError, CompilationResults, compile, finish_compilation,
 };

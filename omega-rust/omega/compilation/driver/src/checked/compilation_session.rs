@@ -1,9 +1,10 @@
 //! One compiler invocation owns reusable source and language judgments.
 //!
-//! Package callers supply an admitted graph and execute dependency Builds in
-//! dependency order. They never move parser frontiers, checker snapshots or
-//! completed Pure Build values between compiler calls. This owner keeps them
-//! across review rounds and target requests, and drops them with the invocation.
+//! Package callers supply dependency-ordered custody and consent; the compiler
+//! executes their Builds and Product continuations. Callers never move parser
+//! frontiers, checker snapshots or completed Pure Build values between calls.
+//! This owner keeps them across review rounds and target requests, and drops
+//! them with the invocation.
 //!
 //! Reuse conveys no authority: source custody, declaration selection, restricted
 //! consent, staging and sponsor charges still pass through each request. Psi
@@ -62,7 +63,7 @@ impl CompilationSession {
 
     /// Execute a dependency Build. Its output can feed source assembly before
     /// an actual independent Product request consumes the continuation.
-    pub fn prepare_build(
+    pub(super) fn prepare_build(
         &mut self,
         request: CheckedCompileRequest,
     ) -> Result<PreparedPackageBuild, CompileFailure> {
@@ -78,7 +79,7 @@ impl CompilationSession {
     }
 
     /// Resume the completed Build, never recreate its grants or execute it twice.
-    pub fn check_build(&mut self, build: PreparedPackageBuild) -> CheckedCompileOutcome {
+    pub(super) fn check_build(&mut self, build: PreparedPackageBuild) -> CheckedCompileOutcome {
         counters::record_checked_compilation();
         run_on_compile_thread(|| {
             let (_, target, inputs, rollback, prepared) = build.into_continuation();
