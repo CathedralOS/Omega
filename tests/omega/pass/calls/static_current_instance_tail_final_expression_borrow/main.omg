@@ -1,0 +1,37 @@
+// The second actual snapshots the old field before the third increments it.
+// The mutable reference is staged last, after the nested call closes its loan.
+// A sibling state completes with the whole call as its final expression.
+// The state graph owns that transfer and retains its ordered borrowed actuals.
+data Counter { value: u64 in Wrapping; }
+data Main { value: u64; }
+machine advance(counter: &mut Counter) -> u64 in Wrapping {
+    counter.value = counter.value + 1;
+    counter.value
+}
+machine countdown<const Flag: bool>(remaining: u64, copied: u64 in Wrapping,
+    latest: u64 in Wrapping, counter: &mut Counter) -> u64 in Wrapping
+where Flag == true
+terminates by remaining -> Nat::Descending;
+{
+    transition remaining > 1 {
+        true -> step(remaining - 1, copied, latest, counter)
+        false -> copied
+    }
+    state step(remaining: u64, copied: u64 in Wrapping,
+        latest: u64 in Wrapping, counter: &mut Counter) -> u64 in Wrapping
+    requires remaining > 0
+    {
+        countdown<true>(remaining - 1, counter.value, advance(counter), counter)
+    }
+}
+machine Main::main(main: &mut Main) crashes Trap {
+    let mut counter: Counter;
+    counter.value = 0;
+    let result: u64 in Wrapping = countdown<true>(6, 0, 0, &mut counter);
+    transition result == 2 && counter.value == 3 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
