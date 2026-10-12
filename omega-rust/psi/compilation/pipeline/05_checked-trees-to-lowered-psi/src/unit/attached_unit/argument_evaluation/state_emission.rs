@@ -133,7 +133,7 @@ pub(super) fn emit_state(
                 .ok_or(LoweringError::Unsupported(
                     "selector call names a requirement absent from its interface",
                 ))?;
-            let roster: Vec<Vec<String>> = operations
+            let roster: Vec<Vec<typed_trees::finite_family::FamilyScalarValue>> = operations
                 .dynamic_dispatch
                 .interface_slots(interface)
                 .ok_or(LoweringError::Unsupported(
@@ -144,10 +144,10 @@ pub(super) fn emit_state(
                     usize::try_from(slot)
                         .map_err(|_| LoweringError::Unsupported("dynamic family slot overflows"))?,
                 )
-                .take_while(|(requirement, tuple)| {
-                    *requirement == call.requirement_identity && !tuple.is_empty()
+                .take_while(|row| {
+                    row.requirement == call.requirement_identity && !row.values.is_empty()
                 })
-                .map(|(_, tuple)| tuple.clone())
+                .map(|row| row.values.clone())
                 .collect();
             let produced_decl = ValueDeclaration {
                 qualifications: Default::default(),

@@ -58,15 +58,14 @@ pub(crate) fn build_dynamic_conformance_facts(
                     realization_state: row.realization_state,
                     realization_identity,
                     family_tuple: Box::default(),
+                    family_values: Box::default(),
                     source,
                 }),
                 FamilyRows::Finite(tuples) => {
                     for tuple in &tuples {
-                        let Some(instance) = family_specialization_instance(
-                            program,
-                            row.realization_machine,
-                            tuple,
-                        ) else {
+                        let Some(instance) =
+                            family_specialization_instance(program, row.realization_machine, tuple)
+                        else {
                             diagnostics.push(diagnostics::Diagnostic::error(format!(
                                 "dynamic implementation row `{}::{}` has no checked specialization for declared family tuple {}",
                                 row.declaring_trait_name,
@@ -75,11 +74,9 @@ pub(crate) fn build_dynamic_conformance_facts(
                             )));
                             continue;
                         };
-                        let Some(instance_state) = family_realization_state(
-                            program,
-                            instance,
-                            row.realization_state,
-                        ) else {
+                        let Some(instance_state) =
+                            family_realization_state(program, instance, row.realization_state)
+                        else {
                             diagnostics.push(diagnostics::Diagnostic::error(format!(
                                 "dynamic family specialization `{}` has no realization state for tuple {}",
                                 program.symbols.name(instance),
@@ -99,6 +96,7 @@ pub(crate) fn build_dynamic_conformance_facts(
                             realization_identity: program
                                 .machine_callable_identity(instance_machine),
                             family_tuple: tuple.identities.clone(),
+                            family_values: tuple.values.clone(),
                             source,
                         });
                     }
@@ -141,8 +139,7 @@ fn family_roster(
     let Some(definition) = program.trait_definition_by_symbol(row.declaring_trait) else {
         return FamilyRows::Exact;
     };
-    let Some(signature) =
-        program.trait_machine_signature_by_symbol(definition, row.requirement)
+    let Some(signature) = program.trait_machine_signature_by_symbol(definition, row.requirement)
     else {
         return FamilyRows::Exact;
     };
@@ -167,8 +164,7 @@ fn family_specialization_instance(
         .iter()
         .find(|specialization| {
             specialization.template == template
-                && specialization.const_argument_identities.as_slice()
-                    == tuple.identities.as_ref()
+                && specialization.const_argument_identities.as_slice() == tuple.identities.as_ref()
                 && specialization.is_const_only()
         })
         .map(|specialization| specialization.instance)

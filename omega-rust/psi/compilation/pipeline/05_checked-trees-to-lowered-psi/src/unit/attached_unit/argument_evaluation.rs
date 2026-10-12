@@ -1651,7 +1651,7 @@ pub(super) fn emit_dynamic_family_dispatch(
     next_value: &mut u64,
     next_block: &mut u64,
     next_edge: &mut u64,
-    tuples: &[Vec<String>],
+    tuples: &[Vec<typed_trees::finite_family::FamilyScalarValue>],
     family_actuals: &[ValueId],
     family_actual_types: &[ScalarType],
     merge_result: &OperationResult,
@@ -1824,7 +1824,7 @@ pub(super) fn emit_dynamic_family_dispatch(
 /// `binder` against the call's evaluated actual, inside the caller's current
 /// operation segment.
 fn emit_tuple_test(
-    tuples: &[Vec<String>],
+    tuples: &[Vec<typed_trees::finite_family::FamilyScalarValue>],
     family_actuals: &[ValueId],
     family_actual_types: &[ScalarType],
     next_value: &mut u64,
@@ -1832,47 +1832,51 @@ fn emit_tuple_test(
     tuple_index: usize,
     binder: usize,
 ) -> Result<ValueId, LoweringError> {
-    let carrier = family_actual_types[binder]
-        .as_integer()
-        .ok_or(LoweringError::Unsupported(
-            "dynamic family actual has no integer carrier",
-        ))?;
-    let value = family_tuple_integer(&tuples[tuple_index][binder], carrier.sign())?;
+    use typed_trees::finite_family::FamilyScalarValue;
+    let scalar_type = family_actual_types[binder];
+    let kind = match tuples[tuple_index][binder] {
+        FamilyScalarValue::Integer(value) => {
+            let carrier = scalar_type.as_integer().ok_or(LoweringError::Unsupported(
+                "dynamic family integer actual has no integer carrier",
+            ))?;
+            let value = semantic_vocabulary::IntegerValue::for_sign(carrier.sign(), value)
+                .map_err(|_| {
+                    LoweringError::Unsupported("dynamic family tuple overflows its binder carrier")
+                })?;
+            OperationKind::IntegerConstant { value }
+        }
+        FamilyScalarValue::Boolean(value) if scalar_type == ScalarType::Boolean => {
+            OperationKind::BooleanConstant { value }
+        }
+        FamilyScalarValue::Boolean(_) => {
+            return unsupported("dynamic family Boolean actual has no Boolean carrier");
+        }
+    };
     let constant = crate::emission::operation_emission::expressions::emit_scalar_leaf(
-        OperationKind::IntegerConstant { value },
-        family_actual_types[binder],
+        kind,
+        scalar_type,
         next_value,
         operations,
     );
+    let comparison = if scalar_type == ScalarType::Boolean {
+        OperationKind::BooleanEqual {
+            left: family_actuals[binder],
+            right: constant,
+        }
+    } else {
+        OperationKind::IntegerEqual {
+            left: family_actuals[binder],
+            right: constant,
+        }
+    };
     Ok(
         crate::emission::operation_emission::expressions::emit_scalar_leaf(
-            OperationKind::IntegerEqual {
-                left: family_actuals[binder],
-                right: constant,
-            },
+            comparison,
             ScalarType::Boolean,
             next_value,
             operations,
         ),
     )
-}
-
-/// Decode one canonical family tuple member (`named(integer-const(v))`) into
-/// the integer constant the binder's signedness carries.
-fn family_tuple_integer(
-    identity: &str,
-    sign: semantic_vocabulary::IntegerSign,
-) -> Result<semantic_vocabulary::IntegerValue, LoweringError> {
-    let value = identity
-        .strip_prefix("named(integer-const(")
-        .and_then(|inner| inner.strip_suffix("))"))
-        .and_then(|digits| digits.parse::<i128>().ok())
-        .ok_or(LoweringError::Unsupported(
-            "dynamic family tuple identity is not an integer constant",
-        ))?;
-    semantic_vocabulary::IntegerValue::for_sign(sign, value).map_err(|_| {
-        LoweringError::Unsupported("dynamic family tuple overflows its binder carrier")
-    })
 }
 
 fn dispatch_successor_edge(
