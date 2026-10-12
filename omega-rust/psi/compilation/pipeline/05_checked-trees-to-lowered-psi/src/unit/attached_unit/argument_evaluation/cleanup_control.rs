@@ -68,9 +68,10 @@ impl Evaluation {
                     .filter_map(|operation| operation.result.scalar()),
             )
             .filter(|declaration| declaration.id == value);
-        let declaration = declarations.next().ok_or(LoweringError::Unsupported(
-            "completed scalar has no emitted declaration",
-        ))?;
+        let declaration = declarations.next().ok_or_else(|| {
+            eprintln!("TEMP completed scalar missing: machine={:?} block={:?} value={:?} values={:?} parameters={:?} block_parameters={:?} operations={:?}", self.machine, self.current, value, values, self.parameters, self.blocks.iter().map(|block| (&block.id, &block.parameters)).collect::<Vec<_>>(), operations.iter().filter_map(|operation| operation.result.scalar()).collect::<Vec<_>>());
+            LoweringError::Unsupported("completed scalar has no emitted declaration")
+        })?;
         if declarations.any(|other| other.value_type() != declaration.value_type()) {
             return Err(LoweringError::Unsupported(
                 "completed scalar has inconsistent emitted carriers",
