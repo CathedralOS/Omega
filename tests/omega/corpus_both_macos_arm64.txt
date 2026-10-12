@@ -968,3 +968,5 @@ pass/atomics/runtime_authored_fence_name_exit built 7027ms exit:0 interpreter-ex
 pass/contracts/saved_call_case_guarantee_requires_exit built 4676ms exit:0 interpreter-exit:0 interpreter:agrees @b2d763407d51+wt
 pass/atomics/runtime_atomic_case_field_state_exit built 7044ms exit:0 interpreter-exit:0 interpreter:agrees @38b196bc35a5+wt
 pass/contracts/runtime_case_payload_write_preserves_tag_exit built 5667ms exit:0 interpreter-exit:0 interpreter:agrees @38b196bc35a5+wt
+pass/borrows/borrowed_case_leaf_copy_exit built 6012ms exit:70 interpreter-exit:70 interpreter:agrees @6043bf4a18bd+wt
+pass/borrows/runtime_computed_case_copy_order_exit built 5013ms exit:0 interpreter-exit:0 interpreter:agrees @6043bf4a18bd+wt

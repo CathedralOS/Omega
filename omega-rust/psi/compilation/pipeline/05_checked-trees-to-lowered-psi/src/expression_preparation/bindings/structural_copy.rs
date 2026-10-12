@@ -1,6 +1,7 @@
 //! Readable aggregate snapshots share the published source-home and selector
-//! namespace with loans. Preparation binds source identities; the scheduled
-//! effect evaluates selectors and copies contents without moving the source.
+//! namespace with loans. Preparation binds source identities and schedules
+//! selectors in path order before the copy effect. Captured coordinates survive
+//! later selector calls; copying contents never moves the source.
 
 use super::{
     LoweredDirectExpression, LoweringError, PlaceId, PrimitiveType, ScalarBindings,
@@ -25,6 +26,13 @@ pub(crate) enum PreparedCopyPathSegment {
     Index(LoweredDirectExpression),
 }
 
+/// A selector participates in the enclosing operand schedule. Computations can
+/// branch or call; even direct reads must be captured before later selectors.
+pub(crate) enum StructuralCopySelector {
+    Computation(checked_trees::CheckedScalarComputationHandle),
+    Value(LoweredDirectExpression),
+}
+
 impl ScalarBindings {
     /// Resolve a readable copy operand through the same published local/formal
     /// namespace as a loan. Its relative path selects contents; it never gives
@@ -37,6 +45,10 @@ impl ScalarBindings {
         machine: &checked_trees::machine::Machine,
         parameters: &[checked_trees::signature::StateParameter],
         types: &[StructuralTypeDeclaration],
+        mut capture: impl FnMut(
+            &mut terminal_psi::TerminalIdentityTableBuilder,
+            StructuralCopySelector,
+        ) -> Result<LoweredDirectExpression, LoweringError>,
     ) -> Result<PreparedStructuralCopy, LoweringError> {
         if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
             return unsupported("copied value requires readable source custody");
@@ -58,7 +70,7 @@ impl ScalarBindings {
             root_type,
             types,
         )?);
-        self.structural_copy_source(identities, source.place, &path, types)
+        self.structural_copy_source(identities, source.place, &path, types, &mut capture)
     }
 
     /// Bind selector reads now, but evaluate them only at the copy's scheduled
@@ -70,6 +82,10 @@ impl ScalarBindings {
         place: PlaceId,
         path: &[structural_paths::PreparedStructuralPathSegment],
         types: &[StructuralTypeDeclaration],
+        mut capture: impl FnMut(
+            &mut terminal_psi::TerminalIdentityTableBuilder,
+            StructuralCopySelector,
+        ) -> Result<LoweredDirectExpression, LoweringError>,
     ) -> Result<PreparedStructuralCopy, LoweringError> {
         use structural_paths::PreparedStructuralPathSegment as Segment;
         use terminal_psi::{StructuralPathSegment, StructuralTypeShape, find_structural_type};
@@ -79,7 +95,11 @@ impl ScalarBindings {
         };
         let indexed_root = matches!(
             path.first(),
-            Some(Segment::RuntimeIndex(_) | Segment::Static(StructuralPathSegment::FixedIndex(_)))
+            Some(
+                Segment::RuntimeIndex(_)
+                    | Segment::ComputedIndex(_)
+                    | Segment::Static(StructuralPathSegment::FixedIndex(_))
+            )
         );
         let length_observation = if indexed_root {
             let root_type = self
@@ -140,7 +160,13 @@ impl ScalarBindings {
                             "copied projection has no retained nested descriptor home",
                         );
                     }
-                    Segment::ComputedIndex(_) | Segment::RuntimeIndex(_) => {
+                    Segment::ComputedIndex(root) => {
+                        return Ok(PreparedCopyPathSegment::Index(capture(
+                            identities,
+                            StructuralCopySelector::Computation(*root),
+                        )?));
+                    }
+                    Segment::RuntimeIndex(_) => {
                         return unsupported("copy selector belongs to a store destination");
                     }
                     Segment::Static(StructuralPathSegment::FixedIndex(index))
@@ -155,7 +181,10 @@ impl ScalarBindings {
                         return Ok(PreparedCopyPathSegment::Static(segment.clone()));
                     }
                 };
-                Ok(PreparedCopyPathSegment::Index(index))
+                Ok(PreparedCopyPathSegment::Index(capture(
+                    identities,
+                    StructuralCopySelector::Value(index),
+                )?))
             })
             .collect::<Result<Vec<_>, LoweringError>>()?;
         let contract = self

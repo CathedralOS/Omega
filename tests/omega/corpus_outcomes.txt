@@ -6451,3 +6451,6 @@ fail/contracts/case_requirement_replaced_through_parameter rejected 382ms expect
 	cannot prove requires contract for call observe from exercise: choice == constructor:6:Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/contracts/case_requirement_selector_changed rejected 384ms expected @6c0183cab07b
 	cannot prove requires contract for call observe from exercise: choices[position.index] == constructor:6:Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+pass/borrows/runtime_computed_case_copy_order_exit checked 4847ms check-target:macos_arm64 @6043bf4a18bd+wt
+fail/borrows/computed_case_copy_requires_live_bounds rejected 428ms expected @6043bf4a18bd+wt
+	cannot prove index `select()` is within unknown slice length of `cells` in copy::entry

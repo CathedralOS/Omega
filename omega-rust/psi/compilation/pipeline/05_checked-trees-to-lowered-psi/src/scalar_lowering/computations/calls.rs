@@ -31,6 +31,8 @@ enum Operand {
     /// Exact byte materialization at the operand, before subsequent arguments.
     ByteLiteral(literals::Slot),
     Scalar(Argument),
+    /// A copy projection's saved coordinate, never a callee argument.
+    Snapshot(Argument),
     /// A selector call's dispatch operand: evaluated first, then named by the
     /// call as its selector rather than passed as an argument.
     DispatchSelector(Argument),
@@ -370,14 +372,45 @@ impl Expansion<'_> {
                         structural_type: slot.structural_type,
                         source: actual.clone(),
                     };
+                    // Selectors are ordinary operands before the snapshot. They
+                    // retain their values through later selectors and argument calls.
+                    let mut position = input_types.len()
+                        + operands
+                            .iter()
+                            .filter(|operand| {
+                                matches!(
+                                    operand,
+                                    Operand::Scalar(_)
+                                        | Operand::DispatchSelector(_)
+                                        | Operand::Selector { .. }
+                                        | Operand::Snapshot(_)
+                                )
+                            })
+                            .count();
+                    let source = site.bindings.structural_copy_source(
+                        identities,
+                        actual.place,
+                        &actual.path,
+                        self.structural_types,
+                        |identities, selector| {
+                            use crate::expression_preparation::bindings::StructuralCopySelector;
+                            let argument = match selector {
+                                StructuralCopySelector::Computation(root) => {
+                                    Argument::Computation(root)
+                                }
+                                StructuralCopySelector::Value(value) => Argument::Value(value),
+                            };
+                            let value_type =
+                                self.argument_type(identities, &argument, site, input_types)?;
+                            operands.push(Operand::Snapshot(argument));
+                            let saved = super::parameter(position, value_type);
+                            position += 1;
+                            Ok(saved)
+                        },
+                    )?;
                     operands.push(Operand::Copy {
                         effect: LoweredScalarEffect::CopyStructuralValue {
-                            source: site.bindings.structural_copy_source(
-                                identities,
-                                actual.place,
-                                &actual.path,
-                                self.structural_types,
-                            )?,
+                            source,
                             place: slot.place,
                             structural_type: slot.structural_type,
                         },
@@ -436,6 +469,9 @@ impl Expansion<'_> {
                     let value_type = self.argument_type(identities, argument, site, input_types)?;
                     scalar_actuals.push(parameter(prefix.len(), value_type));
                     prefix.push(value_type);
+                }
+                Operand::Snapshot(argument) => {
+                    prefix.push(self.argument_type(identities, argument, site, input_types)?);
                 }
                 Operand::DispatchSelector(argument) => {
                     let value_type = self.argument_type(identities, argument, site, input_types)?;
@@ -501,10 +537,9 @@ impl Expansion<'_> {
             for family_ordinal in 0usize.. {
                 let role = checked_trees::CheckedScalarExpressionRole::DynamicFamilyArgument {
                     call_ordinal,
-                    family_ordinal: u32::try_from(family_ordinal)
-                        .map_err(|_| LoweringError::Unsupported(
-                            "dynamic family operand ordinal overflows",
-                        ))?,
+                    family_ordinal: u32::try_from(family_ordinal).map_err(|_| {
+                        LoweringError::Unsupported("dynamic family operand ordinal overflows")
+                    })?,
                 };
                 let Some((_, expression)) = self
                     .checked
@@ -646,7 +681,8 @@ impl Expansion<'_> {
                         .iter()
                         .enumerate()
                         .filter_map(|(earlier, operand)| match operand {
-                            Operand::Scalar(Argument::Computation(computation))
+                            Operand::Snapshot(Argument::Computation(computation))
+                            | Operand::Scalar(Argument::Computation(computation))
                             | Operand::DispatchSelector(Argument::Computation(computation))
                             | Operand::Selector {
                                 value: Argument::Computation(computation),
@@ -671,6 +707,7 @@ impl Expansion<'_> {
                 );
             continuation = match operand {
                 Operand::Scalar(argument)
+                | Operand::Snapshot(argument)
                 | Operand::DispatchSelector(argument)
                 | Operand::Selector {
                     value: argument, ..

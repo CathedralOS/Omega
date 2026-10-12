@@ -22,7 +22,9 @@ pub(crate) mod structural_cases;
 mod structural_copy;
 pub(crate) mod structural_fields;
 pub(crate) mod structural_paths;
-pub(crate) use structural_copy::{PreparedCopyPathSegment, PreparedStructuralCopy};
+pub(crate) use structural_copy::{
+    PreparedCopyPathSegment, PreparedStructuralCopy, StructuralCopySelector,
+};
 pub(crate) mod view_locals;
 pub(crate) use structural_fields::{StructuralFieldBindings, StructuralScalarFieldBinding};
 

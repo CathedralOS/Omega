@@ -111,6 +111,10 @@ enum Step {
         destination: StructuralParameterDeclaration,
         prefix: Vec<QualifiedScalarType>,
     },
+    Snapshot {
+        value: LoweredDirectExpression,
+        prefix: Vec<QualifiedScalarType>,
+    },
     Scalar {
         role: CheckedScalarExpressionRole,
         result_type: QualifiedScalarType,
@@ -567,9 +571,13 @@ impl Preparation<'_> {
             if self.checked.type_multiplicity(reference) != Multiplicity::Unrestricted {
                 return unsupported("affine operand must retain its checked membership roster");
             }
-            let mut source =
-                self.bindings
-                    .structural_copy_source(identities, place, &[], self.types)?;
+            let mut source = self.bindings.structural_copy_source(
+                identities,
+                place,
+                &[],
+                self.types,
+                |_, _| unsupported("whole-value copy unexpectedly contains a selector"),
+            )?;
             source.formation_qualifications = decisions
                 .iter()
                 .map(|decision| decision.semantic_domain)
@@ -588,12 +596,52 @@ impl Preparation<'_> {
         if let CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } = &node.kind {
             let (machine, state) =
                 crate::declarations::state_declaration(self.checked, self.state)?;
+            let mut selector_ordinal = 0;
             let mut source = self.bindings.copied_place_source(
                 identities,
                 source,
                 machine,
                 self.checked.state_parameters(state),
                 self.types,
+                |identities, selector| {
+                    use crate::expression_preparation::bindings::StructuralCopySelector;
+                    let position = self.prefix.len();
+                    let result_type = match selector {
+                        StructuralCopySelector::Computation(root) => {
+                            let result_type = computations::computation_value_type(
+                                identities,
+                                self.checked,
+                                self.qualifications,
+                                root,
+                                self.bindings,
+                                &self.prefix,
+                            )?;
+                            self.steps.push(Step::Scalar {
+                                role: CheckedScalarExpressionRole::StructuralValueSelector {
+                                    expression: node.expression,
+                                    selector_ordinal,
+                                },
+                                result_type,
+                                prefix: self.prefix.clone(),
+                            });
+                            selector_ordinal += 1;
+                            result_type
+                        }
+                        StructuralCopySelector::Value(value) => {
+                            let result_type = value.value_type(&self.prefix)?;
+                            self.steps.push(Step::Snapshot {
+                                value,
+                                prefix: self.prefix.clone(),
+                            });
+                            result_type
+                        }
+                    };
+                    self.prefix.push(result_type);
+                    Ok(LoweredDirectExpression::Parameter {
+                        position,
+                        scalar_type: result_type.scalar_type,
+                    })
+                },
             )?;
             source.formation_qualifications = self
                 .checked
@@ -1128,6 +1176,7 @@ impl PreparedValue {
                 | Step::Argument { prefix, .. }
                 | Step::Value { prefix, .. }
                 | Step::Scalar { prefix, .. }
+                | Step::Snapshot { prefix, .. }
                 | Step::Aggregate { prefix, .. }
                 | Step::Establish { prefix, .. }
                 | Step::Zeroed { prefix, .. }
@@ -1194,6 +1243,9 @@ impl PreparedValue {
                             cleanup_actions: Vec::new(),
                         },
                     })
+                }
+                Step::Snapshot { value, prefix } => {
+                    computations.direct_value(&prefix, target, value)?
                 }
                 Step::Scalar {
                     role,

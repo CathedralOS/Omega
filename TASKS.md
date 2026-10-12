@@ -1722,10 +1722,12 @@ defines the complete product bar.
   carry the current descriptor through calls, states and returns in native and
   Terminal execution; an earlier child retains its captured selector and backing
   when the parent view or selector local changes. Invalid replacement bounds,
-  local-backing escapes and overlapping child loans reject. Retain these controls,
-  close the remaining domain/proof compositions below, and qualify the other
-  declared hosts. The whole application remains the acceptance driver; its README
-  carries the public commands.
+  local-backing escapes and overlapping child loans reject. Owned copies of
+  borrowed case leaves capture computed selectors in path order before later
+  operands can mutate them or the source; local and slice copies retain the same
+  bounds obligations. Retain these controls, close the remaining domain/proof
+  compositions below, and qualify the other declared hosts. The whole application
+  remains the acceptance driver; its README carries the public commands.
 
   Acceptance:
   - Paired qualified/free-machine corpus cases over the same established
