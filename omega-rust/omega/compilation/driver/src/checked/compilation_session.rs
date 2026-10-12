@@ -39,6 +39,28 @@ struct PreparedSource {
 }
 
 impl CompilationSession {
+    /// Complete one source request at its requested stop. Intermediate source
+    /// custody never leaves the invocation to be handed back for production.
+    pub fn produce(
+        &mut self,
+        mut request: CheckedCompileRequest,
+        product: crate::CompilationProduct,
+    ) -> Result<crate::CompilationOutput, crate::CompilationProductError> {
+        let root = request.root_path.clone();
+        request.optimization_rollback = product.optimization_rollback();
+        let checked = self.check(request).result.map_err(|failure| {
+            crate::CompilationProductError::Production(failure.into_diagnostics())
+        })?;
+        crate::compiler::finish_compilation(vec![(checked, root, product)])
+            .into_iter()
+            .next()
+            .ok_or_else(|| {
+                crate::CompilationProductError::Production(vec![diagnostics::Diagnostic::error(
+                    "compiler lost the requested source product",
+                )])
+            })?
+    }
+
     /// Check one complete source request without publishing native output.
     /// Discovery observations survive a target-settlement rejection.
     pub fn check(&mut self, request: CheckedCompileRequest) -> CheckedCompileOutcome {

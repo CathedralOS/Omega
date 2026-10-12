@@ -240,6 +240,9 @@ publishes demanded independent components; package operations no longer drive
 `prepare_build` / `check_build` or retain their continuations. Review requests
 component descriptions through the compiler too, without a backend-publication
 dependency in this package.
+Check, native and inspection requests name their finished product up front.
+The compiler owns root permission comparison and completion; ordinary package
+operations do not return checked source or hand it back to finish production.
 Each returned package review also exposes borrowed access to its complete typed
 `PackagePolicyBaseline`, projected from that same final checked source and
 target. The closure retains at most 64 MiB in aggregate canonical policy

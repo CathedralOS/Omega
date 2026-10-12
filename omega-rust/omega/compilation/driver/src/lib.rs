@@ -16,7 +16,7 @@
 mod compiler;
 mod execution_settlement;
 mod identity;
-pub mod inspection;
+mod inspection;
 
 #[cfg(test)]
 mod product_boundary;
@@ -45,8 +45,6 @@ pub use compilation_products::{
     RetainedBuildOutputs, RetainedNativeArtifact,
 };
 pub use compiler::package::publish_checked_component;
-pub use compiler::{
-    CompilationProduct, CompilationProductError, CompilationResults, compile, finish_compilation,
-};
+pub use compiler::{CompilationOutput, CompilationProduct, CompilationProductError, compile};
 pub use target::ExplicitTargetSet;
 pub use terminal_psi_to_abstract_operations::provider_admission::SourceEvaluatedImportSettlement;

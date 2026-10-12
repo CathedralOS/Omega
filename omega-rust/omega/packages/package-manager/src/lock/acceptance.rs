@@ -7,7 +7,7 @@ use super::PackageLockError;
 use crate::declarations::DependencyPurpose;
 use package_evidence::record::{
     PACKAGE_POLICY_ROW_VERSION, PackagePolicyBaseline, PackagePolicyRow, PackagePolicyRowKind,
-    PackagePolicyRowLimits, PackagePolicyRowUsage, PackagePolicyTerminalPermissions,
+    PackagePolicyRowLimits, PackagePolicyRowUsage,
 };
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
@@ -116,39 +116,22 @@ impl PackagePolicyAcceptance {
         &self.rows
     }
 
-    /// Join freshly checked supplied permissions to this occurrence's exact
-    /// retained consent, without reconstructing any other package-review rows.
-    /// The caller selects the root Product occurrence; dependency and Build
-    /// bindings do not supply root terminal authority.
-    pub(crate) fn validate_terminal_permissions(
+    /// Pass the selected occurrence's consent into compilation. The compiler
+    /// compares it with fresh checked service declarations before production.
+    pub(crate) fn terminal_permissions(
         &self,
-        permissions: &PackagePolicyTerminalPermissions,
-    ) -> Result<(), PackageLockError> {
-        let mismatch = || PackageLockError::TerminalPermissionsMismatch {
+    ) -> package_evidence::permission_acceptance::TerminalPermissionAcceptance {
+        package_evidence::permission_acceptance::TerminalPermissionAcceptance {
+            schema_version: self.schema_version,
             package: self.package,
-        };
-        if self.schema_version != PACKAGE_POLICY_ROW_VERSION
-            || permissions.package() != self.package
-            || permissions.target() != self.target
-        {
-            return Err(mismatch());
+            target: self.target,
+            rows: self
+                .rows
+                .iter()
+                .filter(|row| row.kind == PackagePolicyRowKind::TerminalPermission)
+                .map(|row| (row.key, row.text.clone()))
+                .collect(),
         }
-        let (rows, _) = permissions
-            .acceptance_rows_with_limits(PackagePolicyRowLimits::default())
-            .map_err(PackageLockError::Encoding)?;
-        let mut rows: Vec<_> = rows
-            .into_iter()
-            .map(PackageAcceptanceRow::from_row)
-            .collect();
-        rows.sort_unstable_by_key(|row| (row.kind, row.key));
-        let accepted = self
-            .rows
-            .iter()
-            .filter(|row| row.kind == PackagePolicyRowKind::TerminalPermission);
-        if !accepted.eq(rows.iter()) {
-            return Err(mismatch());
-        }
-        Ok(())
     }
     pub(crate) fn into_rows(self) -> Vec<PackageAcceptanceRow> {
         self.rows

@@ -102,7 +102,9 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
             .map(|(profile, outcome)| {
                 CompileTargetOutcome::new(
                     profile,
-                    outcome.map_err(CompilationProductError::into_diagnostics),
+                    outcome
+                        .and_then(CompilationOutput::into_report)
+                        .map_err(CompilationProductError::into_diagnostics),
                 )
             })
             .collect();
@@ -145,6 +147,46 @@ pub enum CompilationProduct {
     Check,
     Terminal(crate::OptimizationRollback),
     Native(NativeProductRequest),
+    /// Describe a named checked machine without granting executable authority.
+    Inspection(String),
+}
+
+impl CompilationProduct {
+    pub fn optimization_rollback(&self) -> crate::OptimizationRollback {
+        match self {
+            Self::Terminal(rollback) => rollback.clone(),
+            Self::Native(request) => request.optimization_rollback.clone(),
+            Self::Check | Self::Inspection(_) => Default::default(),
+        }
+    }
+}
+
+/// Finished output; checked source and continuation state stay in the compiler.
+pub enum CompilationOutput {
+    Report(CompileReport),
+    Inspection(terminal_codec::CanonicalTerminalArtifact),
+}
+
+impl CompilationOutput {
+    pub fn into_report(self) -> Result<CompileReport, CompilationProductError> {
+        match self {
+            Self::Report(report) => Ok(report),
+            Self::Inspection(_) => Err(CompilationProductError::Production(vec![
+                Diagnostic::error("requested a report from an inspection product"),
+            ])),
+        }
+    }
+
+    pub fn into_inspection(
+        self,
+    ) -> Result<terminal_codec::CanonicalTerminalArtifact, CompilationProductError> {
+        match self {
+            Self::Inspection(artifact) => Ok(artifact),
+            Self::Report(_) => Err(CompilationProductError::Production(vec![
+                Diagnostic::error("requested an inspection from a compilation report"),
+            ])),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -161,47 +203,19 @@ impl CompilationProductError {
     }
 }
 
-/// Continue the one compilation pipeline after package policy has accepted its
-/// checked inputs. Both standalone and package compilation use this operation;
-/// callers neither choose stage entrances nor assemble product reports.
-/// This consumes the checkpoint without repeating checking or Build effects.
-pub fn finish_compilation(
+/// Internal completion of a checked roster. Public callers submit desired
+/// products up front; no checked intermediate is returned for resubmission.
+pub(crate) fn finish_compilation(
     requests: Vec<(CheckedCompilation, PathBuf, CompilationProduct)>,
-) -> CompilationResults {
-    CompilationResults(finish_compilations(
+) -> Vec<Result<CompilationOutput, CompilationProductError>> {
+    finish_compilations(
         requests
             .into_iter()
             .map(|(checked, root, product)| {
                 Ok((PendingRealization::Installed(checked), root, product))
             })
             .collect(),
-    ))
-}
-
-/// Ordered completion results. One requested product is the one-element case,
-/// not a separate producer route.
-pub struct CompilationResults(Vec<Result<CompileReport, CompilationProductError>>);
-
-impl CompilationResults {
-    pub fn into_results(self) -> Vec<Result<CompileReport, CompilationProductError>> {
-        self.0
-    }
-
-    pub fn into_single(self) -> Result<CompileReport, CompilationProductError> {
-        if self.0.len() != 1 {
-            return Err(CompilationProductError::Production(vec![
-                Diagnostic::error(format!(
-                    "expected one compilation product, received {}",
-                    self.0.len()
-                )),
-            ]));
-        }
-        self.0.into_iter().next().ok_or_else(|| {
-            CompilationProductError::Production(vec![Diagnostic::error(
-                "compilation lost its product outcome",
-            )])
-        })?
-    }
+    )
 }
 
 struct PendingProduct {
@@ -266,7 +280,7 @@ fn settle_product_rollback(
 ) -> optimization_core::OptimizationRollbackSettlement {
     let default_rollback = crate::OptimizationRollback::default();
     let rollback = match requested {
-        CompilationProduct::Check => &default_rollback,
+        CompilationProduct::Check | CompilationProduct::Inspection(_) => &default_rollback,
         CompilationProduct::Terminal(rollback) => rollback,
         CompilationProduct::Native(request) => &request.optimization_rollback,
     };
@@ -280,12 +294,21 @@ fn finish_compilations(
     requests: Vec<
         Result<(PendingRealization, PathBuf, CompilationProduct), CompilationProductError>,
     >,
-) -> Vec<Result<CompileReport, CompilationProductError>> {
+) -> Vec<Result<CompilationOutput, CompilationProductError>> {
     let mut outcomes: Vec<_> = (0..requests.len()).map(|_| None).collect();
     let mut pending = Vec::new();
     for (request_index, request) in requests.into_iter().enumerate() {
         match request {
             Err(error) => outcomes[request_index] = Some(Err(error)),
+            Ok((realization, _, CompilationProduct::Inspection(machine))) => {
+                outcomes[request_index] = Some(
+                    realization
+                        .install()
+                        .and_then(|checked| crate::inspection::inspect_terminal(checked, &machine))
+                        .map(CompilationOutput::Inspection)
+                        .map_err(CompilationProductError::Production),
+                );
+            }
             Ok((realization, root, requested)) => {
                 if matches!(requested, CompilationProduct::Check) {
                     // Check products produce nothing: install now, keep the
@@ -297,7 +320,8 @@ fn finish_compilations(
                     match prepared {
                         Ok(product) => {
                             if let CheckedProductReport::Complete(report) = product.settlement {
-                                outcomes[request_index] = Some(Ok(report));
+                                outcomes[request_index] =
+                                    Some(Ok(CompilationOutput::Report(report)));
                             } else {
                                 let rollback = product.rollback;
                                 pending.push((
@@ -344,7 +368,7 @@ fn finish_compilations(
                         rollback.effective(),
                     )
                     .map_err(CompilationProductError::Production)?;
-                    finish_product(product, terminal)
+                    finish_product(product, terminal).map(CompilationOutput::Report)
                 }),
         );
     }
@@ -378,6 +402,11 @@ fn prepare_product(
             RequestedCompileProduct::NativeArtifact,
             &request.optimization_rollback,
         ),
+        CompilationProduct::Inspection(_) => {
+            return Err(CompilationProductError::Production(vec![
+                Diagnostic::error("inspection cannot request executable product settlement"),
+            ]));
+        }
     };
     let settlement = checked
         .prepare_product_report(root_path, kind, rollback)

@@ -50,9 +50,7 @@ impl std::error::Error for InspectTerminalError {}
 pub fn inspect_terminal(
     request: &InspectTerminalRequest,
 ) -> Result<TerminalInspection, InspectTerminalError> {
-    let checked = check_inspection_sources(request)?;
-    let artifact = compiler::inspection::inspect_terminal(checked, &request.machine)
-        .map_err(InspectTerminalError::Diagnostics)?;
+    let artifact = compile_inspection(request)?;
     Ok(TerminalInspection { artifact })
 }
 
@@ -67,9 +65,9 @@ pub fn inspect_terminal(
 /// With the profile resolved, the checked compile keeps it so package
 /// inputs and target attachments agree; a standalone root without a target
 /// stays targetless, as before.
-fn check_inspection_sources(
+fn compile_inspection(
     request: &InspectTerminalRequest,
-) -> Result<compiler::CheckedCompilation, InspectTerminalError> {
+) -> Result<CanonicalTerminalArtifact, InspectTerminalError> {
     let target = crate::invocation_target_profile(request.target_name.as_deref())
         .map_err(|diagnostic| InspectTerminalError::Diagnostics(vec![diagnostic]))?;
     let prepared = packages::prepare_local_project(
@@ -82,12 +80,12 @@ fn check_inspection_sources(
     .map_err(InspectTerminalError::Preparation)?;
     let Some(prepared) = prepared else {
         return compiler::CompilationSession::default()
-            .check(CheckedCompileRequest::new(
-                &request.root_path,
-                request.target_name.as_deref(),
-            ))
-            .result
-            .map_err(|failure| failure.into_diagnostics())
+            .produce(
+                CheckedCompileRequest::new(&request.root_path, request.target_name.as_deref()),
+                compiler::CompilationProduct::Inspection(request.machine.clone()),
+            )
+            .and_then(compiler::CompilationOutput::into_inspection)
+            .map_err(compiler::CompilationProductError::into_diagnostics)
             .map_err(InspectTerminalError::Diagnostics);
     };
     let build_dir = CompileOptions {
@@ -96,6 +94,6 @@ fn check_inspection_sources(
         target_name: None,
     }
     .build_dir();
-    packages::check_prepared_local_project_for_inspection(prepared, &build_dir, target)
+    packages::inspect_prepared_local_project(prepared, &build_dir, target, &request.machine)
         .map_err(InspectTerminalError::Review)
 }

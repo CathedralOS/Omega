@@ -7,9 +7,7 @@
 
 use super::CompilationSession;
 use build_declarations::DependencyPurpose;
-use compilation_products::{
-    CheckedCompilation, CheckedCompileRequest, CompileFailure, PreparedPackageBuild,
-};
+use compilation_products::{CheckedCompileRequest, CompileFailure, PreparedPackageBuild};
 use diagnostics::Diagnostic;
 use package_compilation::{IndependentComponentDescription, PackageGeneratedSourceBundle};
 use semantic_vocabulary::PackageKeyIdentity;
@@ -18,6 +16,11 @@ use semantic_vocabulary::PackageKeyIdentity;
 /// earlier requests are dependency occurrences, including separate Build roles.
 pub struct PackageCompilationRequest {
     pub occurrences: Vec<CheckedCompileRequest>,
+    pub product: crate::CompilationProduct,
+    /// Present only for a locked root Product. No lock supplies no permissions;
+    /// a missing occurrence inside an existing lock must reject at admission.
+    pub terminal_permissions:
+        Option<package_evidence::permission_acceptance::TerminalPermissionAcceptance>,
 }
 
 /// The occurrence responsible for a rejected compiler request. Package naming
@@ -36,31 +39,76 @@ struct OccurrenceProduct {
 }
 
 impl CompilationSession {
-    /// Admit all target plans, then complete matching Product source once.
-    /// Generated dependencies and component descriptions travel forward; neither
-    /// a root nor a component reruns a Build to consume its continuation.
-    pub fn check_packages(
+    /// Compile the complete admitted roster through its requested products.
+    /// Source checking, consent comparison and production belong to this call;
+    /// package operations provide policy inputs, not a mid-pipeline callback.
+    pub fn compile_packages(
         &mut self,
         requests: Vec<PackageCompilationRequest>,
-    ) -> Vec<Result<CheckedCompilation, PackageCompileFailure>> {
+    ) -> Vec<Result<crate::CompilationOutput, PackageCompileFailure>> {
         let mut outcomes: Vec<_> = (0..requests.len()).map(|_| None).collect();
-        let mut positions = Vec::new();
+        let mut selections = Vec::new();
         let mut builds = Vec::new();
-        for (position, request) in requests.into_iter().enumerate() {
+        for (position, mut request) in requests.into_iter().enumerate() {
             let root = request.occurrences.len().saturating_sub(1);
-            match self.prepare_package(request) {
+            let path = request
+                .occurrences
+                .last()
+                .map(|root| root.root_path.clone())
+                .unwrap_or_default();
+            for occurrence in &mut request.occurrences {
+                occurrence.optimization_rollback = request.product.optimization_rollback();
+            }
+            match self.prepare_package(request.occurrences) {
                 Ok(build) => {
-                    positions.push((position, root));
+                    selections.push((
+                        position,
+                        root,
+                        path,
+                        request.product,
+                        request.terminal_permissions,
+                    ));
                     builds.push(build);
                 }
                 Err(error) => outcomes[position] = Some(Err(error)),
             }
         }
-        for ((position, root), checked) in positions.into_iter().zip(self.check_build_batch(builds))
+
+        // All roots enter source completion together. Consent consumes the
+        // resulting declarations, before any requested native product exists.
+        let mut positions = Vec::new();
+        let mut products = Vec::new();
+        for (checked, (position, root, path, product, permissions)) in
+            self.check_build_batch(builds).into_iter().zip(selections)
         {
-            outcomes[position] = Some(checked.result.map_err(|failure| PackageCompileFailure {
+            let checked = checked.result.and_then(|checked| {
+                if let Some(permissions) = permissions {
+                    permissions
+                        .validate(&checked)
+                        .map_err(CompileFailure::from)?;
+                }
+                Ok(checked)
+            });
+            match checked {
+                Ok(checked) => {
+                    positions.push((position, root));
+                    products.push((checked, path, product));
+                }
+                Err(failure) => {
+                    outcomes[position] = Some(Err(PackageCompileFailure {
+                        occurrence: root,
+                        failure,
+                    }))
+                }
+            }
+        }
+        for ((position, root), product) in positions
+            .into_iter()
+            .zip(crate::compiler::finish_compilation(products))
+        {
+            outcomes[position] = Some(product.map_err(|error| PackageCompileFailure {
                 occurrence: root,
-                failure,
+                failure: error.into_diagnostics().into(),
             }));
         }
         outcomes
@@ -69,8 +117,10 @@ impl CompilationSession {
                 outcome.unwrap_or_else(|| {
                     Err(PackageCompileFailure {
                         occurrence: 0,
-                        failure: vec![Diagnostic::error("package batch lost a requested target")]
-                            .into(),
+                        failure: vec![Diagnostic::error(
+                            "package compilation lost a requested product",
+                        )]
+                        .into(),
                     })
                 })
             })
@@ -79,19 +129,16 @@ impl CompilationSession {
 
     fn prepare_package(
         &mut self,
-        mut request: PackageCompilationRequest,
+        mut request: Vec<CheckedCompileRequest>,
     ) -> Result<PreparedPackageBuild, PackageCompileFailure> {
         validate_order(&request)?;
-        let root = request
-            .occurrences
-            .pop()
-            .ok_or_else(|| PackageCompileFailure {
-                occurrence: 0,
-                failure: vec![Diagnostic::error("package compilation has no Product root")].into(),
-            })?;
-        let root_position = request.occurrences.len();
+        let root = request.pop().ok_or_else(|| PackageCompileFailure {
+            occurrence: 0,
+            failure: vec![Diagnostic::error("package compilation has no Product root")].into(),
+        })?;
+        let root_position = request.len();
         let mut products = Vec::with_capacity(root_position);
-        for (position, occurrence) in request.occurrences.into_iter().enumerate() {
+        for (position, occurrence) in request.into_iter().enumerate() {
             let prepared =
                 self.prepare_occurrence(occurrence, &mut products)
                     .map_err(|failure| PackageCompileFailure {
@@ -191,14 +238,14 @@ impl CompilationSession {
 
 /// Refuse malformed plans before any Build effect. Order is supplied by the
 /// package resolver; checking it is request admission, not graph reconstruction.
-fn validate_order(request: &PackageCompilationRequest) -> Result<(), PackageCompileFailure> {
-    if request.occurrences.is_empty() {
+fn validate_order(request: &[CheckedCompileRequest]) -> Result<(), PackageCompileFailure> {
+    if request.is_empty() {
         return Err(PackageCompileFailure {
             occurrence: 0,
             failure: vec![Diagnostic::error("package compilation has no Product root")].into(),
         });
     }
-    for (position, occurrence) in request.occurrences.iter().enumerate() {
+    for (position, occurrence) in request.iter().enumerate() {
         let refuse = |message| PackageCompileFailure {
             occurrence: position,
             failure: vec![Diagnostic::error(message)].into(),
@@ -207,7 +254,7 @@ fn validate_order(request: &PackageCompilationRequest) -> Result<(), PackageComp
             .package_inputs
             .as_ref()
             .ok_or_else(|| refuse("package compilation requires source custody"))?;
-        let previous = &request.occurrences[..position];
+        let previous = &request[..position];
         if previous
             .iter()
             .filter_map(|request| request.package_inputs.as_ref())
@@ -229,7 +276,7 @@ fn validate_order(request: &PackageCompilationRequest) -> Result<(), PackageComp
                 ));
             }
         }
-        if position + 1 == request.occurrences.len() && !inputs.compilation_purpose().is_product() {
+        if position + 1 == request.len() && !inputs.compilation_purpose().is_product() {
             return Err(refuse("package compilation must end at its Product root"));
         }
     }

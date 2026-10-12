@@ -9,6 +9,12 @@ Capture consumes the immutable `CheckedCompilation` product directly from
 coordinator or Build evaluator; compiler execution is a test-only dependency for
 constructing fixtures.
 
+[`permission_acceptance.rs`](src/permission_acceptance.rs) compares exact root
+Product permission consent supplied by the package manager with freshly checked
+service declarations. Compilation invokes this narrow comparison before native
+production; it does not reconstruct a full review or create consent. Schema,
+package, target, row coordinates and complete readable meanings must match.
+
 Aggregate policy capture borrows the supplied semantic program in one
 `CheckingContext`, carried through `PackageReviewInput` into its read-only
 queries. Standalone projections use the bare program; neither path discovers

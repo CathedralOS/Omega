@@ -10,6 +10,7 @@ autotests = false
 
 
 [dependencies]
+package-evidence = { path = "../../packages/review-evidence" }
 arena = { path = "../../../psi/foundation/arena" }
 native-production = { path = "../native-production" }
 compilation-products = { path = "../products" }

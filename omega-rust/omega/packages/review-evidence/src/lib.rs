@@ -9,6 +9,7 @@
 
 mod capture;
 pub mod encoding;
+pub mod permission_acceptance;
 pub mod record;
 
 pub use capture::{project_checked_package_policy, project_checked_terminal_permission_policy};

@@ -22,6 +22,8 @@ fn package_operations_do_not_assemble_compiler_products() {
             "CheckedProductReport::",
             "produce_native_product(",
             "produce_retained_terminal_artifacts(",
+            "CheckedCompilation",
+            "finish_compilation(",
         ] {
             assert!(
                 !source.contains(forbidden),
@@ -42,6 +44,8 @@ fn accepted_packages_supply_plans_not_compiler_continuations() {
         "with_complete_dependency_generated_sources(",
         "with_independent_component_descriptions(",
         "publish_checked_component(",
+        "CheckedCompilation",
+        "finish_compilation(",
     ] {
         assert!(
             !source.contains(forbidden),
@@ -62,7 +66,7 @@ fn package_target_batches_submit_source_work_together() {
     }
     let source =
         include_str!("../../../packages/package-manager/src/operations/accepted_compilation.rs");
-    assert!(source.contains("session.compiler.check_packages(plans)"));
+    assert!(source.contains("session.compiler.compile_packages(plans)"));
     assert!(!source.contains(".check_package("));
 }
 

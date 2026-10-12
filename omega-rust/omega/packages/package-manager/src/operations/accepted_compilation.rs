@@ -18,7 +18,9 @@ use crate::resolution::graph::{
     ExactTargetPackageSourceClosure,
 };
 use crate::review::{CompileResolvedPackageReviewsError, RestrictedBuildCheckpoint};
-use compiler::{CheckedCompilation, CheckedCompileRequest, PackageCompilationRequest};
+use compiler::{
+    CheckedCompileRequest, CompilationOutput, CompilationProduct, PackageCompilationRequest,
+};
 use diagnostics::Diagnostic;
 use std::path::Path;
 
@@ -34,7 +36,7 @@ pub(super) struct AcceptedCompilationRequest<'request> {
     pub snapshot: Option<&'request build_evaluation::BuildSnapshotRequest>,
     pub verify: bool,
     pub timings: bool,
-    pub optimization_rollback: optimization_core::OptimizationRollback,
+    pub product: CompilationProduct,
 }
 
 fn failure(package: &PackageKey, message: impl Into<String>) -> Error {
@@ -54,7 +56,7 @@ fn failure(package: &PackageKey, message: impl Into<String>) -> Error {
 pub(super) fn compile_accepted_project(
     request: AcceptedCompilationRequest<'_>,
     session: &mut PackageBuildSession,
-) -> Result<CheckedCompilation, Error> {
+) -> Result<CompilationOutput, Error> {
     let root = request.closure.source_closure().graph().root().clone();
     compile_accepted_projects(vec![request], session)
         .into_iter()
@@ -67,7 +69,7 @@ pub(super) fn compile_accepted_project(
 pub(super) fn compile_accepted_projects(
     requests: Vec<AcceptedCompilationRequest<'_>>,
     session: &mut PackageBuildSession,
-) -> Vec<Result<CheckedCompilation, Error>> {
+) -> Vec<Result<CompilationOutput, Error>> {
     let mut outcomes: Vec<_> = (0..requests.len()).map(|_| None).collect();
     let roots: Vec<_> = requests
         .iter()
@@ -75,7 +77,7 @@ pub(super) fn compile_accepted_projects(
         .collect();
     let mut positions = Vec::new();
     let mut plans = Vec::new();
-    for (position, request) in requests.iter().enumerate() {
+    for (position, request) in requests.into_iter().enumerate() {
         match prepare_accepted_project(request, session) {
             Ok((plan, packages, identity)) => {
                 positions.push((position, packages, identity));
@@ -84,7 +86,7 @@ pub(super) fn compile_accepted_projects(
             Err(error) => outcomes[position] = Some(Err(error)),
         }
     }
-    let checked = session.compiler.check_packages(plans);
+    let checked = session.compiler.compile_packages(plans);
     // Rust identity is immutable, but the external library can change during
     // the batch. Never label mixed compiler inputs as accepted.
     let current_identity = compiler_input_identity();
@@ -119,7 +121,7 @@ pub(super) fn compile_accepted_projects(
 }
 
 fn prepare_accepted_project(
-    request: &AcceptedCompilationRequest<'_>,
+    request: AcceptedCompilationRequest<'_>,
     session: &mut PackageBuildSession,
 ) -> Result<(PackageCompilationRequest, Vec<PackageKey>, [u8; 32]), Error> {
     let root = request.closure.source_closure().graph().root();
@@ -128,14 +130,31 @@ fn prepare_accepted_project(
         identity::require_current_acceptance(&request.closure, accepted, compiler_identity)
             .map_err(|error| failure(root, error))?;
     }
-    let (plan, packages) = prepare_occurrences(request, session)?;
+    let terminal_permissions = if matches!(request.product, CompilationProduct::Native(_)) {
+        request.accepted.map(|accepted| {
+            accepted.occurrences().iter().find(|occurrence| {
+                occurrence.acceptance().package() == root.identity()
+                    && occurrence.context().purpose().is_product()
+                    && occurrence.context().target() == request.closure.target_profile()
+            }).map(|occurrence| occurrence.acceptance().terminal_permissions())
+                .ok_or_else(|| failure(root, "locked target has no accepted root Product occurrence; run omega update"))
+        }).transpose()?
+    } else {
+        None
+    };
+    let (occurrences, packages) = prepare_occurrences(&request, session)?;
+    let plan = PackageCompilationRequest {
+        occurrences,
+        product: request.product,
+        terminal_permissions,
+    };
     Ok((plan, packages, compiler_identity))
 }
 
 fn prepare_occurrences(
     request: &AcceptedCompilationRequest<'_>,
     session: &mut PackageBuildSession,
-) -> Result<(PackageCompilationRequest, Vec<PackageKey>), Error> {
+) -> Result<(Vec<CheckedCompileRequest>, Vec<PackageKey>), Error> {
     let closure = request.closure.source_closure();
     let graph = closure.graph();
     let root = graph.root();
@@ -246,12 +265,12 @@ fn prepare_occurrences(
                     )) as Box<dyn compiler::RestrictedBuildGrants>
                 }),
                 collect_timings: request.timings,
-                optimization_rollback: request.optimization_rollback.clone(),
+                optimization_rollback: request.product.optimization_rollback(),
                 ..CheckedCompileRequest::new(&entry, Some(target.target_name()))
             };
             occurrences.push(compile_request);
             packages.push(key.clone());
         }
     }
-    Ok((PackageCompilationRequest { occurrences }, packages))
+    Ok((occurrences, packages))
 }

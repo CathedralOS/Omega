@@ -3101,16 +3101,14 @@ crash and native exit behavior.
     supplies stage 00; build-time evaluation, dynamic binding, const evaluation
     and semantic pruning belong inside stages 02–04. Carry discovery, grants,
     sponsors and snapshots in the owning stage inputs/outputs.
-  - Package product completion now calls the driver's `finish_compilation`;
-    check/native report sequencing and the unused checked-program observer are
-    removed from package operations. Inspection uses the compiler's Terminal
-    production operation; the CLI no longer imports numbered stages.
-    Accepted package operations now supply dependency-ordered custody/consent
-    plans: the compiler owns generated-output joins, Build continuations and
-    independent-component publication. Remaining: stop returning
-    `CheckedCompilation` through package operations. Check, compile, run and
-    inspection must drive the same
-    source-to-product request, not just share product completion.
+  - Check, native, run and inspection now request finished products; package
+    operations no longer return `CheckedCompilation` or resume the pipeline.
+    Root Product permission consent is input, compared with fresh declarations
+    inside compilation before native production. The compiler owns generated
+    joins, Build continuations and independent-component publication.
+    Remaining: converge session and standalone source preparation, and move
+    provider settlement behind Terminal as required above. The private
+    installed-checkpoint completion route is not yet that final boundary.
   - Keep each stage's independent representation and transformation crate,
     single-target command behavior, Build-effect custody and per-target
     publication.

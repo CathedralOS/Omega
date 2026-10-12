@@ -9,12 +9,11 @@ use super::accepted_compilation::{AcceptedCompilationRequest, compile_accepted_p
 
 use super::{PrepareLocalProjectError, PreparedLocalProject};
 use crate::build_session::PackageBuildSession;
-use crate::declarations::PackageKey;
 use crate::review::CompileResolvedPackageReviewsError;
 use compiler::{CompileReport, OptimizationRollback};
 use diagnostics::Diagnostic;
 use std::fmt;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use terminal_psi_to_abstract_operations::provider_admission::{
     TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy, current_terminal_authority_policy,
 };
@@ -107,11 +106,6 @@ pub enum CompilePreparedLocalProjectNativeError {
     /// on; reported per target in the multi-target route.
     Prepare(PrepareLocalProjectError),
     Review(CompileResolvedPackageReviewsError),
-    MissingAcceptance(PackageKey),
-    Acceptance {
-        package: PackageKey,
-        error: crate::lock::PackageLockError,
-    },
     TrustAdmission(Vec<Diagnostic>),
     Native(Vec<Diagnostic>),
 }
@@ -123,18 +117,6 @@ impl fmt::Display for CompilePreparedLocalProjectNativeError {
             Self::Review(error) => {
                 write!(formatter, "cannot compile accepted package inputs: {error}")
             }
-            Self::MissingAcceptance(package) => {
-                write!(
-                    formatter,
-                    "package `{}` has no accepted compilation inputs; run omega update before native compilation",
-                    package.name().as_str(),
-                )
-            }
-            Self::Acceptance { package, error } => write!(
-                formatter,
-                "accepted package `{}` has inconsistent compilation permissions: {error}; run omega update before native compilation",
-                package.name().as_str(),
-            ),
             Self::TrustAdmission(diagnostics) => {
                 write!(formatter, "cannot admit package trust:")?;
                 crate::review::render_diagnostics(formatter, diagnostics)
@@ -246,147 +228,46 @@ pub fn compile_prepared_local_project_for_native_targets(
                 snapshot: build_snapshot.as_ref(),
                 verify: false,
                 timings,
-                optimization_rollback: optimization_rollback.clone(),
+                product: compiler::CompilationProduct::Native(
+                    compilation_products::NativeProductRequest {
+                        terminal_authority_policy: terminal_authority_policy.clone(),
+                        terminal_authority_permission_policy:
+                            receiving_terminal_authority_permission_policy.clone(),
+                        optimization_rollback: optimization_rollback.clone(),
+                    },
+                ),
             })
         })
         .collect();
-    let mut checked = compile_accepted_projects(requests, &mut session).into_iter();
-    let prepared = targets
+    let mut products = compile_accepted_projects(requests, &mut session).into_iter();
+    let outcomes = targets
         .into_iter()
-        .map(|prepared_target| {
-            let profile = prepared_target.profile;
-            let result = prepared_target
+        .map(|target| {
+            let result = target
                 .accepted
                 .map_err(CompilePreparedLocalProjectNativeError::Prepare)
-                .and_then(|accepted| {
-                    let checked = checked
+                .and_then(|_| {
+                    products
                         .next()
                         .ok_or_else(|| {
                             CompilePreparedLocalProjectNativeError::Native(vec![Diagnostic::error(
                                 "compiler lost a package target outcome",
                             )])
                         })?
-                        .map_err(CompilePreparedLocalProjectNativeError::Review)?;
-                    prepare_target_product(
-                        checked,
-                        profile,
-                        accepted.as_ref(),
-                        &source_closure,
-                        &entry_path,
-                        &optimization_rollback,
-                        terminal_authority_policy.clone(),
-                        receiving_terminal_authority_permission_policy.clone(),
-                    )
-                });
-            (profile, result)
-        })
-        .collect::<Vec<_>>();
-    // Complete the admitted roster together. The compiler owns grouping by
-    // checked program and Psi optimizations, then native realization per target.
-    let mut outcomes = Vec::with_capacity(prepared.len());
-    let mut products = Vec::new();
-    let mut positions = Vec::new();
-    for (target, result) in prepared {
-        let position = outcomes.len();
-        match result {
-            Ok(product) => {
-                positions.push((position, target));
-                products.push(product);
-                outcomes.push(CompiledProjectTargetOutcome {
-                    target,
-                    result: Err(CompilePreparedLocalProjectNativeError::Native(vec![
-                        Diagnostic::error("compiler did not return the requested target product"),
-                    ])),
-                });
+                        .map_err(CompilePreparedLocalProjectNativeError::Review)
+                })
+                .and_then(|product| product.into_report().map_err(product_failure));
+            CompiledProjectTargetOutcome {
+                target: target.profile,
+                result,
             }
-            Err(error) => outcomes.push(CompiledProjectTargetOutcome {
-                target,
-                result: Err(error),
-            }),
-        }
-    }
-    for ((position, target), result) in positions
-        .into_iter()
-        .zip(compiler::finish_compilation(products).into_results())
-    {
-        outcomes[position] = CompiledProjectTargetOutcome {
-            target,
-            result: result.map_err(product_failure),
-        };
-    }
+        })
+        .collect();
     // Staging cleanup is disposal work, not a target outcome; the shared
     // Drop would otherwise swallow it silently.
     let _ = session.close();
 
     outcomes
-}
-
-/// Produce one prepared target inside the shared request. A locked target's
-/// restricted-request checkpoint arms the pass; an unlocked target supplies
-/// no such grants. In either case, a restricted request without a grant
-/// rejects before its build effect executes or generated sources reach
-/// realization.
-#[allow(clippy::too_many_arguments)]
-fn prepare_target_product(
-    checked: compiler::CheckedCompilation,
-    target_profile: target::TargetProfile,
-    accepted_target: Option<&crate::lock::PackageLockTarget>,
-    source_closure: &crate::resolution::graph::ResolvedPackageSourceClosure,
-    entry_path: &Path,
-    optimization_rollback: &OptimizationRollback,
-    terminal_authority_policy: TerminalAuthorityPolicy,
-    receiving_terminal_authority_permission_policy: Option<TerminalAuthorityPermissionPolicy>,
-) -> Result<
-    (
-        compiler::CheckedCompilation,
-        std::path::PathBuf,
-        compiler::CompilationProduct,
-    ),
-    CompilePreparedLocalProjectNativeError,
-> {
-    // Bind the permissions supplied by retained compilation inputs to this
-    // root occurrence's consent before native production can consume them.
-    // This projects only supplied permission meaning, not package review or
-    // provider demand. A sibling package or Build occurrence cannot authorize
-    // this root's Product execution.
-    // With no lock there are no supplied permissions to compare. Do not turn
-    // a missing or invalid occurrence inside an existing lock into that case.
-    if let Some(accepted_target) = accepted_target {
-        let root = source_closure.graph().root();
-        let acceptance = accepted_target
-            .occurrences()
-            .iter()
-            .find(|occurrence| {
-                occurrence.acceptance().package() == root.identity()
-                    && occurrence.context().purpose().is_product()
-                    && occurrence.context().target() == target_profile
-            })
-            .ok_or_else(|| {
-                CompilePreparedLocalProjectNativeError::MissingAcceptance(root.clone())
-            })?;
-        let permissions = package_evidence::project_checked_terminal_permission_policy(
-            &checked,
-            target_profile,
-            root.identity(),
-        )
-        .map_err(CompilePreparedLocalProjectNativeError::Native)?;
-        acceptance
-            .acceptance()
-            .validate_terminal_permissions(&permissions)
-            .map_err(|error| CompilePreparedLocalProjectNativeError::Acceptance {
-                package: root.clone(),
-                error,
-            })?;
-    }
-    Ok((
-        checked,
-        entry_path.to_path_buf(),
-        compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
-            terminal_authority_policy,
-            terminal_authority_permission_policy: receiving_terminal_authority_permission_policy,
-            optimization_rollback: optimization_rollback.clone(),
-        }),
-    ))
 }
 
 fn product_failure(

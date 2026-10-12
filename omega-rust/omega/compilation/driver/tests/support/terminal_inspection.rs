@@ -46,12 +46,13 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<(), String> {
         let mut request = CheckedCompileRequest::new(&prepared.root_path, None);
         request.package_inputs = prepared.package_inputs;
         request.build_snapshot = snapshot;
-        let checked = compiler::CompilationSession::default()
-            .check(request)
-            .result
-            .map_err(|failure| failure.into_diagnostics())
-            .map_err(|errors| format!("inspection {machine} checking: {errors:?}"))?;
-        let artifact = compiler::inspection::inspect_terminal(checked, machine)
+        let artifact = compiler::CompilationSession::default()
+            .produce(
+                request,
+                compiler::CompilationProduct::Inspection(machine.to_owned()),
+            )
+            .and_then(compiler::CompilationOutput::into_inspection)
+            .map_err(compiler::CompilationProductError::into_diagnostics)
             .map_err(|errors| format!("inspection {machine} production: {errors:?}"))?;
         let mut transported = artifact.to_bytes();
         let decoded = CanonicalTerminalArtifact::from_bytes(&transported)

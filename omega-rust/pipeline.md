@@ -137,9 +137,11 @@ root selections share the pruning output. Package native requests complete as
 one roster through the same Terminal producer as standalone requests.
 Package-manager batches supply dependency-ordered custody/consent plans; the
 compiler owns generated-output joins, Build/Product continuations and independent
-component publication. Target plans still enter separately and return checked
-activations to their callers. Consolidating those plans into one source
-completion remains unfinished, not the intended route:
+component publication. Target plans enter together; matching post-Build root
+continuations share source completion. Package operations supply requested
+products and exact root permission consent, and receive reports or inspections,
+not checked activations to resume. Dependency Build preparation still repeats
+per target; the complete package closure does not yet have one source prefix:
 
 | Input → output | Owner |
 | --- | --- |
@@ -351,7 +353,9 @@ parse checkpoints, and exact generated-source/import joins. That preparation
 does not execute Build machines or perform resolution, typing or checking.
 Compilation and realization consume these input packages directly; none depends
 on the package-command application or compiler coordinator. Package operations
-and review evidence consume compiler services, never the reverse.
+consume compiler services, never the reverse. Independent review-evidence
+projections consume compilation products, not compiler orchestration; the
+compiler uses their exact permission-consent comparison before production.
 Shared process and filesystem utilities remain under `omega/foundation/`.
 
 `psi/interpreter/` contains the independent `checked-interpreter` and

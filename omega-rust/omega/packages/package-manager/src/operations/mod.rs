@@ -21,7 +21,7 @@ mod stage_build_edit;
 
 pub use check_project::{
     CheckPreparedLocalProjectError, PreparedLocalProjectCheckRequest,
-    check_prepared_local_project_for_inspection, check_prepared_local_project_for_targets,
+    check_prepared_local_project_for_targets, inspect_prepared_local_project,
 };
 pub use compile_project::{
     CompilePreparedLocalProjectNativeError, PreparedLocalProjectNativeRequest,

@@ -111,16 +111,15 @@ impl fmt::Display for CheckPreparedLocalProjectError {
 
 impl std::error::Error for CheckPreparedLocalProjectError {}
 
-/// Check the exact requested entry after its dependency builds, retaining
-/// generated source and checked semantics for an inspecting consumer. This is
-/// the same accepted-input pipeline used by check reporting, but stops before trust
-/// admission or product publication. Inspection may describe unresolved trust;
-/// it cannot use the returned program as evidence of accepted native authority.
-pub fn check_prepared_local_project_for_inspection(
+/// Produce a named machine's Terminal inspection through the accepted-input
+/// pipeline. Checked source stays inside the compiler. The returned description
+/// grants no native authority and may describe unresolved trust.
+pub fn inspect_prepared_local_project(
     prepared: PreparedLocalProject,
     build_dir: &Path,
     target_profile: TargetProfile,
-) -> Result<compiler::CheckedCompilation, CompileResolvedPackageReviewsError> {
+    machine: &str,
+) -> Result<terminal_codec::CanonicalTerminalArtifact, CompileResolvedPackageReviewsError> {
     let (entry_path, source_closure, targets) = prepared.into_target_review_parts();
     let failure = |message: String| CompileResolvedPackageReviewsError::Compilation {
         package: source_closure.graph().root().clone(),
@@ -144,11 +143,18 @@ pub fn check_prepared_local_project_for_inspection(
             snapshot: None,
             verify: true,
             timings: false,
-            optimization_rollback: Default::default(),
+            product: compiler::CompilationProduct::Inspection(machine.to_owned()),
         },
         &mut session,
     );
-    session.dispose(result)
+    session.dispose(result.and_then(|output| {
+        output
+            .into_inspection()
+            .map_err(|error| CompileResolvedPackageReviewsError::Compilation {
+                package: source_closure.graph().root().clone(),
+                diagnostics: error.into_diagnostics(),
+            })
+    }))
 }
 
 /// One target's check result inside a shared multi-target request. A failing
@@ -212,7 +218,7 @@ pub fn check_prepared_local_project_for_targets(
                 snapshot: build_snapshot.as_ref(),
                 verify,
                 timings,
-                optimization_rollback: Default::default(),
+                product: compiler::CompilationProduct::Check,
             })
         })
         .collect();
@@ -232,7 +238,7 @@ pub fn check_prepared_local_project_for_targets(
                         ))?
                         .map_err(CheckPreparedLocalProjectError::Review)
                 })
-                .and_then(|checked| finish_checked_target(checked, &entry_path));
+                .and_then(|product| product.into_report().map_err(product_failure));
             CheckedProjectTargetOutcome {
                 target: profile,
                 result,
@@ -246,22 +252,13 @@ pub fn check_prepared_local_project_for_targets(
     outcomes
 }
 
-fn finish_checked_target(
-    checked: compiler::CheckedCompilation,
-    entry_path: &Path,
-) -> Result<CompileReport, CheckPreparedLocalProjectError> {
-    compiler::finish_compilation(vec![(
-        checked,
-        entry_path.to_path_buf(),
-        compiler::CompilationProduct::Check,
-    )])
-    .into_single()
-    .map_err(|error| match error {
+fn product_failure(error: compiler::CompilationProductError) -> CheckPreparedLocalProjectError {
+    match error {
         compiler::CompilationProductError::TrustAdmission(diagnostics) => {
             CheckPreparedLocalProjectError::TrustAdmission(diagnostics)
         }
         compiler::CompilationProductError::Production(diagnostics) => {
             CheckPreparedLocalProjectError::ProofProduct(diagnostics)
         }
-    })
+    }
 }

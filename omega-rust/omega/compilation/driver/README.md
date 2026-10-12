@@ -47,7 +47,8 @@ reports belong to their product owners.
 
 Accepted package compilation supplies dependency-ordered
 `PackageCompilationRequest`s together to the session's
-[`check_packages`](src/checked/package_compilation.rs) entrance. That operation
+[`compile_packages`](src/checked/package_compilation.rs) entrance, with the
+requested product and root permission consent supplied up front. That operation
 joins generated dependency outputs, executes Builds and retains their pending
 Product continuations. It completes selected independent components before
 checking the root. Package code supplies custody, consent and staging, not
@@ -65,6 +66,14 @@ products, one source completion and one shared Terminal allocation through the
 package route. Dependency Builds and demanded independent components still
 prepare per target; this does not claim a single source/Build prefix throughout
 the package closure.
+
+Package operations receive reports or Terminal inspections, never a checked
+checkpoint to return for production. The compiler compares fresh supplied
+permissions with the exact root Product consent before native production,
+using the independent package-evidence projection owner. Inspection is an
+explicit product with no native authority. Standalone inspection and corpus
+production submit the same `CompilationProduct` through `CompilationSession::produce`;
+the checked-to-product continuation is private.
 
 Checked-only consumers supply `CheckedCompileRequest` to `CompilationSession::check`.
 Package inputs, build staging and session sponsors are request

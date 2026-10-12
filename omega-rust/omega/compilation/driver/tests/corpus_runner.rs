@@ -1282,24 +1282,22 @@ fn check_fail_fixture(
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
         Err(error) => return Err(vec![diagnostics::Diagnostic::error(error.to_string())]),
     }
-    let mut result = compiler::CompilationSession::default()
-        .check(request)
-        .result
-        .map_err(|failure| failure.into_diagnostics())
-        .and_then(|checked| {
-            if let Some(native_product) = native_product {
-                compiler::finish_compilation(vec![(
-                    checked,
-                    prepared.root_path,
-                    compiler::CompilationProduct::Native(native_product),
-                )])
-                .into_single()
-                .map(|_| ())
-                .map_err(compiler::CompilationProductError::into_diagnostics)
-            } else {
-                Ok(())
-            }
-        });
+    let mut session = compiler::CompilationSession::default();
+    let mut result = if let Some(native_product) = native_product {
+        session
+            .produce(
+                request,
+                compiler::CompilationProduct::Native(native_product),
+            )
+            .map(|_| ())
+            .map_err(compiler::CompilationProductError::into_diagnostics)
+    } else {
+        session
+            .check(request)
+            .result
+            .map(|_| ())
+            .map_err(|failure| failure.into_diagnostics())
+    };
     for output in absent_outputs {
         if build_dir.join(&output).try_exists().map_err(|error| {
             vec![diagnostics::Diagnostic::error(format!(
