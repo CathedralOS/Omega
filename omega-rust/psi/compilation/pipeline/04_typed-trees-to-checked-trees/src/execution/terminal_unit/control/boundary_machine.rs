@@ -293,7 +293,7 @@ pub(crate) fn build_static_boundary_requirements(
                         .symbol
                         == signature.symbol
                 });
-        let original_application = if let Some((_, header)) = headers.next() {
+        let has_applied_signature = if let Some((_, header)) = headers.next() {
             if headers.next().is_some() || header.declaring_trait != definition.symbol {
                 continue;
             }
@@ -320,25 +320,28 @@ pub(crate) fn build_static_boundary_requirements(
             {
                 continue;
             }
-            Some(application)
+            true
         } else if selected.application.is_valid() {
-            // The common public projection authenticates the finite-family
-            // signature against its original template and exact retained tuple.
-            let Ok(application) = typed_trees::static_applications::StaticApplicationView::new(
-                program.typed_program(),
-                selected.application,
-            ) else {
+            // A finite signature owns its complete outer trait scope separately
+            // from its local member tuple. Static-argument checking admitted
+            // that pair before planning. The local receipt is not a source
+            // invocation: demanding a whole-call view here loses outer binders
+            // and invents a need for caller loans on universal lifetimes.
+            let Some(family) = program.closed_requirement_application(signature.symbol) else {
                 continue;
             };
-            if application.declaration().symbol() != selected.declaration.symbol {
+            if family.declaring_trait != definition.symbol
+                || family.template != selected.declaration.symbol
+                || family.application != selected.application
+            {
                 continue;
             }
-            Some(application)
+            true
         } else {
             if !program.trait_type_parameters(definition).is_empty() {
                 continue;
             }
-            None
+            false
         };
         let type_parameters = program.state_signature_type_parameters(signature);
         // A `machine` binder without an ABI `native callback` entry takes
@@ -400,7 +403,7 @@ pub(crate) fn build_static_boundary_requirements(
         // `machine` binder's selected entry is already-admitted provider
         // evidence this pass replays rather than re-derives.
         let substitutions =
-            if original_application.is_some() || type_parameters.is_empty() || callback_telescope {
+            if has_applied_signature || type_parameters.is_empty() || callback_telescope {
                 Vec::new()
             } else {
                 let Some(substitutions) =
