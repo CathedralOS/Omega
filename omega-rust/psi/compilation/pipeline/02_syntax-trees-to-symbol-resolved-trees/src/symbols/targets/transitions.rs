@@ -194,7 +194,14 @@ fn reclassify_state_call_value_target(
     else {
         return None;
     };
-    if call.receiver.is_valid() {
+    // Named transitions carry runtime state arguments, not a callable's
+    // static tuple or operational envelope. Preserve that original call so
+    // ordinary resolution and application admission can judge it unchanged.
+    if call.receiver.is_valid()
+        || !call.machine_arguments.is_empty()
+        || call.operational_acknowledgement.acknowledges_suspend
+        || call.operational_acknowledgement.acknowledges_block
+    {
         return None;
     }
 
