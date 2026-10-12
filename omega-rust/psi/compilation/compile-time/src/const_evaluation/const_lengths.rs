@@ -105,7 +105,7 @@ pub(crate) fn evaluate_admitted_array_lengths(
     domain: &EvaluationDomain,
     admission: crate::BuildTimeCheckingAdmission<'_>,
 
-    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+    inputs: &mut Vec<crate::CheckedConstantInput>,
 ) -> Result<(), Vec<Diagnostic>> {
     LengthJobs::new(
         selection_authority,
@@ -124,7 +124,7 @@ pub(crate) fn evaluate_independent_lengths(
     typed: &mut TypedTrees,
     authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     domain: &EvaluationDomain,
-    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+    inputs: &mut Vec<crate::CheckedConstantInput>,
 ) -> Result<bool, Vec<Diagnostic>> {
     LengthJobs::new(authority, domain, LengthProviderSelection::Pending).evaluate(typed, inputs)
 }
@@ -135,7 +135,7 @@ pub(crate) fn evaluate_selected_array_lengths(
     selected: crate::SelectedBuildTimeOperators<'_>,
     domain: &EvaluationDomain,
 
-    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+    inputs: &mut Vec<crate::CheckedConstantInput>,
 ) -> Result<(), Vec<Diagnostic>> {
     let crate::SelectedBuildTimeOperators {
         operators,
@@ -234,7 +234,7 @@ impl<'selection> LengthJobs<'selection> {
     fn evaluate(
         &mut self,
         typed: &mut TypedTrees,
-        inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+        inputs: &mut Vec<crate::CheckedConstantInput>,
     ) -> Result<bool, Vec<Diagnostic>> {
         let pending = pending_array_lengths(typed, self.domain);
         if pending.is_empty() {
@@ -269,7 +269,7 @@ impl<'selection> LengthJobs<'selection> {
         typed: &mut TypedTrees,
         handle: TypeReferenceHandle,
 
-        inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+        inputs: &mut Vec<crate::CheckedConstantInput>,
     ) -> Result<Option<usize>, Vec<Diagnostic>> {
         let (machine, name, source) = match typed.type_reference_table.type_reference(handle) {
             TypeReferenceNode::FixedArray {
@@ -335,7 +335,7 @@ impl<'selection> LengthJobs<'selection> {
         machine: symbols::SymbolHandle,
         source: source::SourceSpan,
 
-        inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+        inputs: &mut Vec<crate::CheckedConstantInput>,
     ) -> Result<Option<usize>, Vec<Diagnostic>> {
         if std::env::var_os("OMEGA_SOURCE_CONSTANT_INPUT_TRACE").is_some() {
             let (phase, operator_rows) = match &self.providers {
@@ -453,7 +453,7 @@ impl<'selection> LengthJobs<'selection> {
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let (value, _, executed_input) = value.into_parts_with_checked_input();
         if let Some(executed_input) = executed_input {
-            inputs.push(executed_input);
+            inputs.push(crate::CheckedConstantInput::Executed(executed_input));
         }
         let execution = prepared.typed();
         let root = execution.machine_by_symbol(machine).ok_or_else(|| {

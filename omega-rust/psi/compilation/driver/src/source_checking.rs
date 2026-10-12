@@ -35,9 +35,11 @@ pub struct SourceAdmission<'request> {
 /// and target settlement. Build checking normally has no pending Product jobs.
 #[derive(Default)]
 pub struct SourceConstantRequest {
-    /// Already successful early source evaluations from this completion owner.
-    /// Retain their original checked inputs; never replay folded source calls.
-    pub executed_inputs: Vec<build_time_evaluation::ExecutedCheckedConstantInput>,
+    /// Already successful early source observations from this completion owner.
+    /// Executions and snapshot admissions remain distinct; never replay folds.
+    pub checked_inputs: Vec<build_time_evaluation::CheckedConstantInput>,
+    /// Observations from source preparation, before Build/Product selection.
+    pub source_preparation_inputs: Vec<build_time_evaluation::CheckedConstantInput>,
     pub pending: Vec<build_time_evaluation::PreCheckEvaluation>,
     pub selections: Vec<build_time_evaluation::SourceProviderSelection>,
 }
@@ -93,6 +95,8 @@ pub struct OriginalCheckedSourceInput {
     checked: Arc<checked_trees::CheckedTrees>,
     source_constants: Arc<[build_time_evaluation::SourceConstantSupply]>,
     executed_constant_inputs: Arc<[build_time_evaluation::ExecutedCheckedConstantInput]>,
+    snapshot_admissions: Arc<[build_time_evaluation::CheckedConstantSnapshotAdmission]>,
+    source_preparation_inputs: Arc<[build_time_evaluation::CheckedConstantInput]>,
     source_constant_coverage: SourceConstantInputCoverage,
 }
 impl OriginalCheckedSourceInput {
@@ -104,11 +108,23 @@ impl OriginalCheckedSourceInput {
     }
     /// Actual checked execution inputs from early source evaluation and pending
     /// continuation completion, independently of offered supplies. Build
-    /// projections and earlier typing evaluations remain outside this roster.
+    /// execution is retained through its actual projection; pre-resolution
+    /// observations remain separate in source_preparation_inputs.
     pub fn executed_constant_inputs(
         &self,
     ) -> &[build_time_evaluation::ExecutedCheckedConstantInput] {
         &self.executed_constant_inputs
+    }
+    /// Ordinary checked concrete-premise judgments, not interpreter executions.
+    pub fn snapshot_admissions(
+        &self,
+    ) -> &[build_time_evaluation::CheckedConstantSnapshotAdmission] {
+        &self.snapshot_admissions
+    }
+    /// Earlier source-preparation observations retain their own program owners;
+    /// they are not relabeled as this Build or Product execution.
+    pub fn source_preparation_inputs(&self) -> &[build_time_evaluation::CheckedConstantInput] {
+        &self.source_preparation_inputs
     }
     pub const fn source_constant_coverage(&self) -> SourceConstantInputCoverage {
         self.source_constant_coverage
@@ -216,9 +232,11 @@ impl CheckRequest<'_> {
         let checking = typed_trees_to_checked_trees::CheckingRequest::new()
             .with_declaration_authority(self.admission.declarations);
         let mut source_constants = Vec::new();
-        let mut executed_constant_inputs = self.constants.executed_inputs;
+        let mut checked_constant_inputs = self.constants.checked_inputs;
+        let mut source_preparation_inputs = self.constants.source_preparation_inputs;
         if let Some(projection) = &build_projection {
-            executed_constant_inputs.extend(projection.constant_inputs.iter().cloned());
+            checked_constant_inputs.extend(projection.constant_inputs.iter().cloned());
+            source_preparation_inputs.extend(projection.source_preparation_inputs.iter().cloned());
         }
         // Each continuation checks its demanded source dependencies before
         // evaluation. The finished input then owns one ordinary Product check;
@@ -234,10 +252,10 @@ impl CheckRequest<'_> {
             )? {
                 build_time_evaluation::SourceConstantOutcome::Completed {
                     supplies,
-                    executed_inputs,
+                    checked_inputs,
                 } => {
                     source_constants.extend(supplies);
-                    executed_constant_inputs.extend(executed_inputs);
+                    checked_constant_inputs.extend(checked_inputs);
                 }
                 build_time_evaluation::SourceConstantOutcome::Retained { reason, .. } => {
                     return Err(vec![Diagnostic::error(format!(
@@ -250,7 +268,9 @@ impl CheckRequest<'_> {
         // Completed source supplies do not yet retain a complete reusable
         // checked-closure/issuer identity. Equal folded values cannot donate
         // the prior judgment's source application or provider authority.
-        let reusable = source_constants.is_empty() && executed_constant_inputs.is_empty();
+        let reusable = source_constants.is_empty()
+            && checked_constant_inputs.is_empty()
+            && source_preparation_inputs.is_empty();
         let previous = if reusable { self.previous } else { &[] };
         let retain = self.retain && reusable;
         let matching = previous
@@ -272,10 +292,24 @@ impl CheckRequest<'_> {
                 retain,
             )?
         };
+        let mut executed_constant_inputs = Vec::new();
+        let mut snapshot_admissions = Vec::new();
+        for input in checked_constant_inputs {
+            match input {
+                build_time_evaluation::CheckedConstantInput::Executed(input) => {
+                    executed_constant_inputs.push(input)
+                }
+                build_time_evaluation::CheckedConstantInput::SnapshotAdmission(input) => {
+                    snapshot_admissions.push(input)
+                }
+            }
+        }
         let original_input = Arc::new(OriginalCheckedSourceInput {
             checked: Arc::clone(&outcome.checked),
             source_constants: source_constants.into(),
             executed_constant_inputs: executed_constant_inputs.into(),
+            snapshot_admissions: snapshot_admissions.into(),
+            source_preparation_inputs: source_preparation_inputs.into(),
             source_constant_coverage: SourceConstantInputCoverage::OriginalAssociations,
         });
         let prepared_build = build_projection
@@ -376,6 +410,11 @@ impl ProductSelections {
         // supply association would be moved onto another producer's handles.
         if !checked.original_input.source_constants().is_empty()
             || !checked.original_input.executed_constant_inputs().is_empty()
+            || !checked.original_input.snapshot_admissions().is_empty()
+            || !checked
+                .original_input
+                .source_preparation_inputs()
+                .is_empty()
         {
             return checked.select_product(roots);
         }

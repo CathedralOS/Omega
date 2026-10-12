@@ -11,6 +11,8 @@
 //! by subject: `const_evaluation/`, `layouts/`, and `machine_execution/`.
 //! `syntax_probes.rs` owns their temporary frontend work; `reflection/` owns
 //! semantic schema, selection, and visitation plans and their independent replay.
+//! `constant_inputs.rs` retains original checked executions and concrete
+//! snapshot admissions as separate observations through source preparation.
 //! `wire_demands.rs` decodes authored wire demands. Their compatibility
 //! judgment belongs to Psi's typed-to-checked stage, not Build execution.
 //! `provider_declarations.rs` decodes target defaults and executed Build choices
@@ -20,6 +22,11 @@
 // the integration targets; see its module documentation.
 
 mod build_time_evaluation;
+mod constant_inputs;
+pub use constant_inputs::{
+    CheckedConstantInput, CheckedConstantSnapshotAdmission, SnapshotOperand,
+};
+
 mod const_evaluation;
 mod fnv;
 mod layouts;

@@ -30,7 +30,8 @@ pub struct SourceContinuation {
     typing: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
     pending_bodies: syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
     pending_pre_checks: Vec<PreCheckEvaluation>,
-    build_constant_inputs: Vec<build_time_evaluation::ExecutedCheckedConstantInput>,
+    build_constant_inputs: Vec<build_time_evaluation::CheckedConstantInput>,
+    source_preparation_inputs: Vec<build_time_evaluation::CheckedConstantInput>,
 }
 
 /// The mutable inputs an independently admitted Build evaluator consumes.
@@ -38,8 +39,9 @@ pub struct SourceContinuation {
 pub struct BuildSourceInput<'source> {
     typed: &'source mut typed_trees::TypedTrees,
     pre_checks: &'source mut Vec<PreCheckEvaluation>,
-    constant_inputs: &'source mut Vec<build_time_evaluation::ExecutedCheckedConstantInput>,
+    constant_inputs: &'source mut Vec<build_time_evaluation::CheckedConstantInput>,
     identity: BuildSourceInputIdentity,
+    source_preparation_inputs: &'source [build_time_evaluation::CheckedConstantInput],
 }
 
 /// Association of one actual continuation borrow, not a cache namespace.
@@ -66,7 +68,8 @@ impl std::fmt::Debug for BuildSourceInputIdentity {
 pub struct BuildSourceProjection {
     pub(crate) projection: validation::execution_projection::BuildProgramProjection,
     pub(crate) identity: BuildSourceInputIdentity,
-    pub(crate) constant_inputs: Arc<[build_time_evaluation::ExecutedCheckedConstantInput]>,
+    pub(crate) constant_inputs: Arc<[build_time_evaluation::CheckedConstantInput]>,
+    pub(crate) source_preparation_inputs: Arc<[build_time_evaluation::CheckedConstantInput]>,
 }
 impl BuildSourceProjection {
     pub fn program(&self) -> &typed_trees::TypedTrees {
@@ -88,7 +91,7 @@ impl BuildSourceInput<'_> {
     ) -> (
         &mut typed_trees::TypedTrees,
         &mut Vec<PreCheckEvaluation>,
-        &mut Vec<build_time_evaluation::ExecutedCheckedConstantInput>,
+        &mut Vec<build_time_evaluation::CheckedConstantInput>,
     ) {
         (self.typed, self.pre_checks, self.constant_inputs)
     }
@@ -100,6 +103,7 @@ impl BuildSourceInput<'_> {
             projection: validation::execution_projection::project_build_program(self.typed, entry)?,
             identity: self.identity.clone(),
             constant_inputs: Arc::from(self.constant_inputs.as_slice()),
+            source_preparation_inputs: Arc::from(self.source_preparation_inputs),
         })
     }
 }
@@ -108,7 +112,8 @@ impl BuildSourceInput<'_> {
 pub struct CompletedSource {
     typing: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
     pending_pre_checks: Vec<PreCheckEvaluation>,
-    executed_constant_inputs: Vec<build_time_evaluation::ExecutedCheckedConstantInput>,
+    checked_constant_inputs: Vec<build_time_evaluation::CheckedConstantInput>,
+    source_preparation_inputs: Vec<build_time_evaluation::CheckedConstantInput>,
 }
 
 /// Package-admitted generated units and their combined source custody.
@@ -125,7 +130,8 @@ pub struct PreparedSource {
     pub pending_pre_checks: Vec<PreCheckEvaluation>,
     /// Successful early evaluations survive their destructive source folds.
     /// This observed roster does not cover Build projection or all earlier work.
-    pub executed_constant_inputs: Vec<build_time_evaluation::ExecutedCheckedConstantInput>,
+    pub checked_constant_inputs: Vec<build_time_evaluation::CheckedConstantInput>,
+    pub source_preparation_inputs: Vec<build_time_evaluation::CheckedConstantInput>,
 }
 
 impl SourceCompilationRequest {
@@ -144,7 +150,7 @@ impl SourceCompilationRequest {
                 }),
             },
         )?;
-        let (syntax, pre_check) = evaluated.into_syntax_and_pre_check();
+        let (syntax, pre_check, source_preparation_inputs) = evaluated.into_syntax_and_pre_check();
         let mut pending_bodies = observer.record_result(PsiCompilationStage::Resolution, || {
             syntax_trees_to_symbol_resolved_trees::resolve_deferred(
                 syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
@@ -193,6 +199,7 @@ impl SourceCompilationRequest {
             pending_bodies,
             pending_pre_checks: vec![pre_check],
             build_constant_inputs: Vec::new(),
+            source_preparation_inputs,
         })
     }
 }
@@ -205,6 +212,7 @@ impl SourceContinuation {
         self.typing == other.typing
             && self.pending_bodies == other.pending_bodies
             && self.build_constant_inputs == other.build_constant_inputs
+            && self.source_preparation_inputs == other.source_preparation_inputs
             && self.pending_pre_checks.len() == other.pending_pre_checks.len()
             && self
                 .pending_pre_checks
@@ -223,6 +231,7 @@ impl SourceContinuation {
             typed: self.typing.typed_mut(),
             pre_checks: &mut self.pending_pre_checks,
             constant_inputs: &mut self.build_constant_inputs,
+            source_preparation_inputs: &self.source_preparation_inputs,
             identity: BuildSourceInputIdentity(Arc::new(BuildSourceInputOwner { _private: 0 })),
         }
     }
@@ -239,6 +248,7 @@ impl SourceContinuation {
             // The completed Build retains its own original input and root.
             // Product observations cannot relabel that checked source owner.
             build_constant_inputs: _,
+            source_preparation_inputs,
         } = self;
         loop {
             // Build may append concrete declarations. Join their exact suffix
@@ -257,10 +267,10 @@ impl SourceContinuation {
                 })?;
         }
         let mut deferred = Vec::new();
-        let mut executed_constant_inputs = Vec::new();
+        let mut checked_constant_inputs = Vec::new();
         for pre_check in pending_pre_checks {
             if let Some(pending) =
-                pre_check.evaluate_or_defer(typing.typed_mut(), &mut executed_constant_inputs)?
+                pre_check.evaluate_or_defer(typing.typed_mut(), &mut checked_constant_inputs)?
             {
                 deferred.push(pending);
             }
@@ -268,7 +278,8 @@ impl SourceContinuation {
         Ok(CompletedSource {
             typing,
             pending_pre_checks: deferred,
-            executed_constant_inputs,
+            checked_constant_inputs,
+            source_preparation_inputs,
         })
     }
 }
@@ -278,7 +289,8 @@ impl CompletedSource {
         PreparedSource {
             typed: self.typing.into_typed(),
             pending_pre_checks: self.pending_pre_checks,
-            executed_constant_inputs: self.executed_constant_inputs,
+            checked_constant_inputs: self.checked_constant_inputs,
+            source_preparation_inputs: self.source_preparation_inputs,
         }
     }
 
@@ -292,7 +304,7 @@ impl CompletedSource {
     ) -> Result<PreparedSource, Vec<Diagnostic>> {
         let wire_schema_frontier = self.typing.typed().wire_schemas().len();
         let resolved_base = self.typing.resolved_base_for_extension()?;
-        let (syntax, pre_checks) =
+        let (syntax, pre_checks, source_preparation_inputs) =
             build_time_evaluation::PreResolutionEvaluation::evaluate_extension(
                 extension.units,
                 extension.first_source,
@@ -303,6 +315,8 @@ impl CompletedSource {
                     retained_base: Some(&resolved_base),
                 },
             )?;
+        self.source_preparation_inputs
+            .extend(source_preparation_inputs);
         let seeded = observer.record_result(PsiCompilationStage::Resolution, || {
             syntax_trees_to_symbol_resolved_trees::resolve_extension(
                 syntax_trees_to_symbol_resolved_trees::ExtensionRequest {
@@ -321,12 +335,13 @@ impl CompletedSource {
                 pre_checks,
                 wire_schema_frontier,
                 &mut typed,
-                &mut self.executed_constant_inputs,
+                &mut self.checked_constant_inputs,
             )?);
         Ok(PreparedSource {
             typed,
             pending_pre_checks: self.pending_pre_checks,
-            executed_constant_inputs: self.executed_constant_inputs,
+            checked_constant_inputs: self.checked_constant_inputs,
+            source_preparation_inputs: self.source_preparation_inputs,
         })
     }
 }

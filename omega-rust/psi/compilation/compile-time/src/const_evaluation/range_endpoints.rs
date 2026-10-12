@@ -381,7 +381,7 @@ pub(crate) fn evaluate_selected_range_endpoints(
     selected: crate::SelectedBuildTimeOperators<'_>,
     domain: &EvaluationDomain,
 
-    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+    inputs: &mut Vec<crate::CheckedConstantInput>,
 ) -> Result<(), Vec<Diagnostic>> {
     let crate::SelectedBuildTimeOperators {
         operators,
@@ -489,7 +489,7 @@ fn evaluate_round(
     warnings: &mut Vec<Diagnostic>,
     domain: &EvaluationDomain,
 
-    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+    inputs: &mut Vec<crate::CheckedConstantInput>,
 ) -> Result<Round, Vec<Diagnostic>> {
     // Bind exact authored provider occurrences before cloning specializations.
     // Rebinding only the template after preparation would leave its cloned
@@ -578,7 +578,7 @@ fn evaluate_endpoint(
     checking_admission: crate::BuildTimeCheckingAdmission<'_>,
     warnings: &mut Vec<Diagnostic>,
 
-    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+    inputs: &mut Vec<crate::CheckedConstantInput>,
 ) -> Result<ExpressionNode, String> {
     crate::machine_execution::admission::require_closed_expression_custody(
         execution,

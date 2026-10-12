@@ -41,7 +41,9 @@ use crate::const_evaluation::const_generic_expressions::{
 use crate::{BuildTimeAdmissionPlan, BuildTimeInvocationCustody, BuildTimeValue};
 
 pub(crate) struct CheckedInitializers<'request> {
-    typed: TypedTrees,
+    // Share the actual helper-checked/probe-assembled input once per batch.
+    // Reattached scalar probes are intentionally not a checked closure.
+    typed: Arc<TypedTrees>,
     admission: BuildTimeAdmissionPlan,
     authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
     crash_causes: Vec<(symbols::SymbolHandle, Vec<checked_trees::CrashCause>)>,
@@ -92,7 +94,7 @@ impl<'request> CheckedInitializers<'request> {
         }
         let admission = BuildTimeAdmissionPlan::infer(&typed, authority.clone());
         Ok(Self {
-            typed,
+            typed: Arc::new(typed),
             admission,
             authority,
             crash_causes,
@@ -174,7 +176,7 @@ impl Invocation<'_> {
         callee: String,
         return_type: typed_trees::types::TypeReferenceHandle,
         snapshots: Vec<ArgumentSnapshot>,
-    ) -> Result<(), String> {
+    ) -> Result<crate::CheckedConstantSnapshotAdmission, String> {
         let retained: Vec<symbols::SymbolHandle> = self
             .program
             .typed()
@@ -184,7 +186,9 @@ impl Invocation<'_> {
             .map(|machine| machine.symbol)
             .collect();
         crate::machine_execution::admission::snapshot_arguments_discharge(
-            self.program.typed(),
+            crate::constant_inputs::SnapshotSourceProgram::TypedProbe(Arc::clone(
+                &self.program.typed,
+            )),
             &retained,
             self.machine.symbol,
             "@const-invocation",
@@ -230,7 +234,7 @@ impl Invocation<'_> {
         expression: ExpressionHandle,
         destination: PrimitiveType,
 
-        inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+        inputs: &mut Vec<crate::CheckedConstantInput>,
     ) -> Result<(ScalarValue, Vec<Diagnostic>), String> {
         value::evaluate_scalar(
             self.program.typed(),
@@ -419,7 +423,7 @@ impl ConstantCalls for Invocation<'_> {
         &self,
         expression: ExpressionHandle,
 
-        inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+        inputs: &mut Vec<crate::CheckedConstantInput>,
     ) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String> {
         let (value, warnings) = self.evaluate_scalar_call(expression, inputs)?;
         Ok((value.into_index()?, warnings))
@@ -429,7 +433,7 @@ impl ConstantCalls for Invocation<'_> {
         &self,
         expression: ExpressionHandle,
 
-        inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+        inputs: &mut Vec<crate::CheckedConstantInput>,
     ) -> Result<(ScalarValue, Vec<Diagnostic>), String> {
         let typed = self.program.typed();
         let AdmittedCall {
@@ -484,7 +488,7 @@ impl ConstantCalls for Invocation<'_> {
         };
         let (result, _, executed_input) = measured.into_parts_with_checked_input();
         if let Some(executed_input) = executed_input {
-            inputs.push(executed_input);
+            inputs.push(crate::CheckedConstantInput::Executed(executed_input));
         }
         let destination = scalar_probe_destination(typed, target.return_type())
             .ok_or("constant result lost its exact carrier")?;
@@ -567,7 +571,7 @@ impl Invocation<'_> {
     fn admit_call(
         &self,
         expression: ExpressionHandle,
-        inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+        inputs: &mut Vec<crate::CheckedConstantInput>,
     ) -> Result<AdmittedCall<'_>, String> {
         let typed = self.program.typed();
         let target = self.selected(expression)?;
@@ -707,12 +711,13 @@ impl Invocation<'_> {
                     typed.symbols.display_path(operator.symbol, "::")
                 }
             };
-            self.require_concrete_failure_discharge(
+            let snapshot = self.require_concrete_failure_discharge(
                 expression,
                 callee,
                 target.return_type(),
                 snapshots,
             )?;
+            inputs.push(crate::CheckedConstantInput::SnapshotAdmission(snapshot));
         }
         Ok(AdmittedCall {
             target,
@@ -728,8 +733,9 @@ impl Invocation<'_> {
     pub(super) fn check_call(
         &self,
         expression: ExpressionHandle,
+        inputs: &mut Vec<crate::CheckedConstantInput>,
     ) -> Result<Vec<Diagnostic>, String> {
-        Ok(self.admit_call(expression, &mut Vec::new())?.warnings)
+        Ok(self.admit_call(expression, inputs)?.warnings)
     }
 
     /// Every expression root in this probe's single state: the return value
@@ -1027,6 +1033,7 @@ impl Invocation<'_> {
         expected_origins: &[syntax_trees::types::ConstArgumentOrigin],
         expected_calls: &[(source::SourceSpan, source::SourceSpan)],
         syntax: &syntax_trees::SyntaxTrees,
+        inputs: &mut Vec<crate::CheckedConstantInput>,
     ) -> Result<LeafEvaluation, String> {
         let typed = self.program.typed();
         let roots = self.probe_roots()?;
@@ -1064,7 +1071,7 @@ impl Invocation<'_> {
         for call in
             crate::const_evaluation::const_generic_expressions::call_expressions(typed, &roots)?
         {
-            for warning in self.check_call(call)? {
+            for warning in self.check_call(call, inputs)? {
                 if !warnings.contains(&warning) {
                     warnings.push(warning);
                 }
@@ -1162,7 +1169,7 @@ impl Invocation<'_> {
         for call in
             crate::const_evaluation::const_generic_expressions::call_expressions(typed, &roots)?
         {
-            self.check_call(call)?;
+            self.check_call(call, &mut Vec::new())?;
         }
         Ok((self.interpret(reference)?, self.state.return_type))
     }

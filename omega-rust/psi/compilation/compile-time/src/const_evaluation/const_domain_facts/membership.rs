@@ -15,7 +15,7 @@ pub(super) fn evaluate_membership(
     admission: &BuildTimeAdmissionPlan,
     pending: &PendingMembership,
 
-    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+    inputs: &mut Vec<crate::CheckedConstantInput>,
 ) -> Result<Option<bool>, String> {
     let Some(domain) = typed.domain_definition(pending.membership.domain_symbol) else {
         return Ok(None);
@@ -55,7 +55,7 @@ pub(in crate::const_evaluation) fn evaluate_closed_membership(
     domain_symbol: symbols::SymbolHandle,
     value: &numerics::bignum::BigInt,
 
-    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+    inputs: &mut Vec<crate::CheckedConstantInput>,
 ) -> Result<Option<bool>, String> {
     let Some(domain) = typed.domain_definition(domain_symbol) else {
         return Ok(None);
@@ -171,7 +171,7 @@ fn evaluate_machine_fact(
     expression: ExpressionHandle,
     subject_value: i64,
 
-    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+    inputs: &mut Vec<crate::CheckedConstantInput>,
 ) -> Result<Option<bool>, String> {
     let Some((machine, state)) = resolve_fact_machine(typed, domain, expression) else {
         return Ok(None);
@@ -214,7 +214,7 @@ fn evaluate_machine_fact(
     )?;
     let (result, _, executed_input) = measured.into_parts_with_checked_input();
     if let Some(executed_input) = executed_input {
-        inputs.push(executed_input);
+        inputs.push(crate::CheckedConstantInput::Executed(executed_input));
     }
     let fact_holds = match result {
         BuildTimeValue::Bool(holds) => holds,
@@ -234,7 +234,7 @@ fn evaluate_domain_facts(
     subject_value: i64,
     visiting: &mut Vec<symbols::SymbolHandle>,
 
-    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+    inputs: &mut Vec<crate::CheckedConstantInput>,
 ) -> Result<Option<bool>, String> {
     for fact in typed.proof_facts.span_or_empty(domain.facts) {
         match fact {
@@ -305,7 +305,7 @@ fn evaluate_nested_domain_membership(
     domain_symbol: symbols::SymbolHandle,
     subject_value: i64,
     visiting: &mut Vec<symbols::SymbolHandle>,
-    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+    inputs: &mut Vec<crate::CheckedConstantInput>,
 ) -> Result<Option<bool>, String> {
     if visiting.contains(&domain_symbol) {
         return Ok(None);
