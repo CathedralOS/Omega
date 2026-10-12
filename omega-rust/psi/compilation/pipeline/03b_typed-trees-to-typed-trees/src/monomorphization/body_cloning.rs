@@ -524,6 +524,7 @@ pub(super) fn clone_single_specialized_machine(
         call.call = copy_expression(source, program, call.call, &symbol_map);
         program.proof_output_calls.push(call);
     }
+    let mut completed_expression_copies = Vec::new();
     for state in program.machine_states(&cloned).to_vec() {
         for handle in statement_span_handles(state.statement_nodes) {
             let Some(call) = program.statement_table.statement(handle).as_call() else {
@@ -532,22 +533,14 @@ pub(super) fn clone_single_specialized_machine(
             let mut arguments = call.machine_arguments.clone();
             let application = call.authored_machine_application;
             if application.is_valid() {
-                let mut authored_arguments = program
-                    .expression_table
-                    .static_machine_application_arguments(application)
-                    .to_vec();
-                copy_static_argument_type_payloads(
+                copy_static_machine_application_payloads_in(
                     source,
                     program,
-                    &mut authored_arguments,
+                    application,
                     &symbol_map,
-                );
-                program
-                    .expression_table
-                    .static_machine_application_arguments_mut(application)
-                    .clone_from_slice(&authored_arguments);
-                copy_application_binding_type_payloads(source, program, application, &symbol_map)
-                    .map_err(|diagnostic| vec![diagnostic])?;
+                    &mut completed_expression_copies,
+                )
+                .map_err(|diagnostic| vec![diagnostic])?;
             }
             copy_static_argument_type_payloads(source, program, &mut arguments, &symbol_map);
             let StatementNode::Call(call) = program.statement_table.statement_mut(handle) else {
@@ -556,8 +549,14 @@ pub(super) fn clone_single_specialized_machine(
             call.machine_arguments = arguments;
         }
     }
-    copy_cloned_expression_type_payloads(source, program, expression_start, &symbol_map)
-        .map_err(|diagnostic| vec![diagnostic])?;
+    copy_cloned_expression_type_payloads_in(
+        source,
+        program,
+        expression_start,
+        &symbol_map,
+        completed_expression_copies,
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
     let cloned_expression_roots = cloned_expression_roots(program, &cloned);
     const_values::substitute(
         source,
@@ -766,6 +765,19 @@ pub(super) fn copy_cloned_expression_type_payloads(
     expression_start: usize,
     symbols: &[(SymbolHandle, SymbolHandle)],
 ) -> Result<(), Diagnostic> {
+    copy_cloned_expression_type_payloads_in(source, program, expression_start, symbols, Vec::new())
+}
+
+/// Nested captured-carrier imports complete under their own frozen source.
+/// These birth ranges are already destination-owned and must not be read again
+/// as payloads of the enclosing copy's different source namespace.
+fn copy_cloned_expression_type_payloads_in(
+    source: Option<&dyn ::validation::CheckingInput>,
+    program: &mut TypedTrees,
+    expression_start: usize,
+    symbols: &[(SymbolHandle, SymbolHandle)],
+    mut completed_expression_copies: Vec<std::ops::Range<usize>>,
+) -> Result<(), Diagnostic> {
     // The roster is append-only during copying. Each entry is completed once;
     // copying its types may append expression children with their own payloads.
     // Follow those births in the same work domain rather than snapshotting
@@ -781,7 +793,11 @@ pub(super) fn copy_cloned_expression_type_payloads(
                 break;
             };
             roster_offset += 1;
-            if (handle.arena_index() as usize) < expression_start {
+            if (handle.arena_index() as usize) < expression_start
+                || completed_expression_copies
+                    .iter()
+                    .any(|range| range.contains(&(handle.arena_index() as usize)))
+            {
                 continue;
             }
             (handle, expression.clone())
@@ -815,7 +831,13 @@ pub(super) fn copy_cloned_expression_type_payloads(
         }
         match expression {
             ExpressionNode::Call(call) => {
-                let call = copy_call_type_payloads(source, program, call, symbols)?;
+                let call = copy_call_type_payloads(
+                    source,
+                    program,
+                    call,
+                    symbols,
+                    &mut completed_expression_copies,
+                )?;
                 *program.expression_table.expression_mut(handle) = ExpressionNode::Call(call);
             }
             ExpressionNode::Cast(cast) => {
@@ -864,6 +886,7 @@ fn copy_call_type_payloads(
     program: &mut TypedTrees,
     mut call: typed_trees::expression::TableCallExpression,
     symbols: &[(SymbolHandle, SymbolHandle)],
+    completed_expression_copies: &mut Vec<std::ops::Range<usize>>,
 ) -> Result<typed_trees::expression::TableCallExpression, Diagnostic> {
     if call.source_call.is_valid() {
         let original = program
@@ -871,7 +894,13 @@ fn copy_call_type_payloads(
             .source_call(&call)
             .cloned()
             .ok_or_else(|| Diagnostic::error("copied call lost its original invocation"))?;
-        let original = copy_call_type_payloads(source, program, original, symbols)?;
+        let original = copy_call_type_payloads(
+            source,
+            program,
+            original,
+            symbols,
+            completed_expression_copies,
+        )?;
         *program
             .expression_table
             .source_call_mut(call.source_call)
@@ -914,7 +943,13 @@ fn copy_call_type_payloads(
     let mut arguments = call.machine_arguments;
     let application = call.authored_machine_application;
     if application.is_valid() {
-        copy_static_machine_application_payloads(source, program, application, symbols)?;
+        copy_static_machine_application_payloads_in(
+            source,
+            program,
+            application,
+            symbols,
+            completed_expression_copies,
+        )?;
     }
     copy_static_argument_type_payloads(source, program, &mut arguments, symbols);
     call.machine_arguments = arguments;
@@ -930,6 +965,33 @@ pub(super) fn copy_static_machine_application_payloads(
     application: typed_trees::static_applications::StaticMachineApplicationHandle,
     symbols: &[(SymbolHandle, SymbolHandle)],
 ) -> Result<(), Diagnostic> {
+    let expression_start = program.expression_table.expression_count() + 1;
+    let mut completed_expression_copies = Vec::new();
+    copy_static_machine_application_payloads_in(
+        source,
+        program,
+        application,
+        symbols,
+        &mut completed_expression_copies,
+    )?;
+    copy_cloned_expression_type_payloads_in(
+        source,
+        program,
+        expression_start,
+        symbols,
+        completed_expression_copies,
+    )
+}
+
+/// The enclosing complete-copy cursor owns raw births from this operation.
+/// Already completed captured imports are reported to that same cursor.
+fn copy_static_machine_application_payloads_in(
+    source: Option<&dyn ::validation::CheckingInput>,
+    program: &mut TypedTrees,
+    application: typed_trees::static_applications::StaticMachineApplicationHandle,
+    symbols: &[(SymbolHandle, SymbolHandle)],
+    completed_expression_copies: &mut Vec<std::ops::Range<usize>>,
+) -> Result<(), Diagnostic> {
     let mut arguments = program
         .expression_table
         .static_machine_application_arguments(application)
@@ -939,7 +1001,13 @@ pub(super) fn copy_static_machine_application_payloads(
         .expression_table
         .static_machine_application_arguments_mut(application)
         .clone_from_slice(&arguments);
-    copy_application_binding_type_payloads(source, program, application, symbols)
+    copy_application_binding_type_payloads(
+        source,
+        program,
+        application,
+        symbols,
+        completed_expression_copies,
+    )
 }
 
 fn copy_application_binding_type_payloads(
@@ -947,6 +1015,7 @@ fn copy_application_binding_type_payloads(
     program: &mut TypedTrees,
     application: typed_trees::static_applications::StaticMachineApplicationHandle,
     symbols: &[(SymbolHandle, SymbolHandle)],
+    completed_expression_copies: &mut Vec<std::ops::Range<usize>>,
 ) -> Result<(), Diagnostic> {
     if let Some(source) = source {
         let captured = program
@@ -961,7 +1030,12 @@ fn copy_application_binding_type_payloads(
                 .ok_or_else(|| {
                     Diagnostic::error("copied application lost its original lexical capture")
                 })?;
+            let first = program.expression_table.expression_count() + 1;
             let captured = super::captured_lexical_scopes::retain(program, scope)?;
+            let end = program.expression_table.expression_count() + 1;
+            if first != end {
+                completed_expression_copies.push(first..end);
+            }
             program
                 .expression_table
                 .static_machine_application_mut(application)
@@ -979,8 +1053,8 @@ fn copy_application_binding_type_payloads(
         .to_vec();
     let references = source_references
         .into_iter()
-        .map(|reference| copy_type_reference_payloads(source, program, reference, symbols))
-        .collect::<Result<Vec<_>, _>>()?;
+        .map(|reference| copy_type_reference(source, program, reference, symbols))
+        .collect::<Vec<_>>();
     let references = program
         .type_reference_table
         .insert_type_reference_handles(references);
