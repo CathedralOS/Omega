@@ -110,7 +110,7 @@ pub(in crate::symbols) fn assign_declaration_lexical_input_symbols(
                     declarations
                         .machine_owned_data
                         .span_or_empty(machine.owned_data),
-                    entry.map_or(&[], |state| {
+                    entry.map_or(&[][..], |state| {
                         declarations
                             .state_parameters
                             .span_or_empty(state.parameters)
