@@ -87,7 +87,16 @@ fn bounded_copy_rejects_growth_within_the_remaining_budget() {
 fn missing_file_identity_rejects_without_panicking() {
     let fixture = SourceFixture::new(b"bytes");
     let path = fixture.root.join("source.bin");
-    let incomplete = Metadata::from_just_metadata(std::fs::metadata(&path).expect("metadata"));
+    // Path metadata carries volume and file index on this toolchain, so the
+    // incomplete observation must come from directory enumeration — the same
+    // `DirEntry::metadata` source cap-std feeds `Metadata::from_just_metadata`
+    // when listing a directory.
+    let entry = std::fs::read_dir(&fixture.root)
+        .expect("list fixture root")
+        .next()
+        .expect("fixture holds a member")
+        .expect("read fixture entry");
+    let incomplete = Metadata::from_just_metadata(entry.metadata().expect("entry metadata"));
     assert!(matches!(
         super::require_unchanged_entry(&incomplete, &incomplete, &path),
         Err(SourceResolveError::LocalSourceChanged { .. })

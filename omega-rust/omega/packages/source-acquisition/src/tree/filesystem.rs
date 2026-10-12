@@ -205,8 +205,11 @@ pub(crate) fn require_unchanged_entry(
     observed: &cap_std::fs::Metadata,
     display_path: &Path,
 ) -> Result<(), SourceResolveError> {
-    // Missing Windows by-handle identity is not evidence of equality. In
-    // particular, from_just_metadata discards it even for std handle metadata.
+    // Missing Windows by-handle identity is not evidence of equality.
+    // `from_just_metadata` preserves the volume serial number and file index
+    // when the source metadata carries them, so a `None` on either side comes
+    // from the observation itself — directory-enumeration metadata — and must
+    // reject rather than pass silently.
     #[cfg(not(windows))]
     let same_identity = cap_fs_ext::MetadataExt::dev(initial)
         == cap_fs_ext::MetadataExt::dev(observed)
