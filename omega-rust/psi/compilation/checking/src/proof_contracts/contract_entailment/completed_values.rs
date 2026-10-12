@@ -43,11 +43,11 @@ pub(super) enum CompletedValueSource {
 /// ignores raw reference shells. A missing leaf does not become an anonymous
 /// atom: its source epoch and coordinate custody would have been lost.
 struct CompletedSources<'query, 'program> {
-    program: &'program dyn crate::CheckingInput,
+    program: &'query dyn crate::CheckingInput,
     judge: &'query StructuralJudge<'program>,
     candidates: &'query [(CompletedValueSource, StructuralTerm)],
     formals: &'query [(
-        &'program typed_trees::signature::StateParameter,
+        &'query typed_trees::signature::StateParameter,
         StructuralTerm,
     )],
 }
@@ -456,7 +456,7 @@ impl StructuralPrefixVisitor for CompletedProjectionVisitor<'_> {
         equations: &[(StructuralTerm, StructuralTerm)],
         guarantees: &CitationFacts,
     ) {
-        let mut judge = structural_arm_judge(program, judge, hypotheses, equations);
+        let mut judge = structural_arm_judge(judge, hypotheses, equations);
         if judge.hypotheses_contradictory {
             return;
         }

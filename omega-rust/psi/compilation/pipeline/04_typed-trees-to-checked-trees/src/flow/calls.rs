@@ -146,6 +146,7 @@ pub(super) fn build_call_flow_fact<'plans>(
         authored_expression: Default::default(),
         authored_site: Default::default(),
         authored_target: Default::default(),
+        authored_application: Default::default(),
         authored_arguments: HandleSpan::empty(),
         authored_receiver: Default::default(),
         authored_result: Default::default(),
@@ -585,19 +586,15 @@ fn collect_callable_contracts(
             }
         }
     }
-    for owner in program.traits() {
-        for signature in program.trait_machine_instances(owner) {
-            if signature.symbol == target {
-                contracts.extend(program.state_signature_contracts(signature));
-            }
-        }
+    if let Some((_, signature)) = program.trait_machine_signature(target) {
+        contracts.extend(program.state_signature_contracts(signature));
     }
     contracts
 }
 
-/// `collect_callable_contracts` through the context's symbol indexes: one
-/// map lookup each for the state and signature locations rather than the
-/// whole machines x states x trait-signatures walk.
+/// State contracts use the context's state index. Public signature contracts
+/// use their shared typed declaration owner, including produced headers;
+/// authored trait-span ordinals cannot identify those copied declarations.
 fn collect_callable_contracts_indexed<'plans>(
     program: &'plans dyn ::validation::CheckingInput,
     build: &mut FlowBuildContext<'plans>,

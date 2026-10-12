@@ -257,7 +257,9 @@ fn structural_boundary_settlement_identity_binds_the_complete_result_declaration
         hosted_builtin_settlement_identity(
             &projection.boundary_occurrences()[0],
             "Input::read",
-            NativeSelectedProviderPlanDigest::from_digest([7; 32]),
+            &super::hosted_builtins::HostedBuiltinOrigin::Selected(
+                NativeSelectedProviderPlanDigest::from_digest([7; 32]),
+            ),
             NativeTarget::linux_x64(),
             [3, 3],
             None,
@@ -948,7 +950,8 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
     )
     .expect("valid normalized Windows import");
     let mechanism = |locator: &target::NormalizedForeignLocator, admission: [u8; 32]| {
-        let commitment = task_plans::SameStackProviderPlanCommitment::from_digest(admission);
+        let commitment: task_plans::SameStackExecutionCommitment =
+            task_plans::SameStackProviderPlanCommitment::from_digest(admission).into();
         let identities = terminal_psi::TerminalIdentityTable::from(vec![
             String::new(),
             "Input::read".to_owned(),
@@ -1196,6 +1199,7 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
         assert_ne!(changed, expected, "binding input mutation {mutation}");
     }
     let kernel = target_operations::NormalizedSystemCallBinding {
+        direct_foreign_realization: None,
         target: target::TargetProfile::LinuxX64,
         number: 0,
         requirement_identity: "Input::read".to_owned(),

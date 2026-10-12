@@ -27,6 +27,9 @@ mod machine_execution;
 pub mod provider_declarations;
 mod reflection;
 mod syntax_probes;
+mod source_constants;
+
+pub use source_constants::{SourceProviderSelection, SourceProviderBinding, SourceConstantOutcome, SourceConstantSupply};
 mod wire_demands;
 
 pub use language_semantics::wire::WireCompatibilityDemand;
@@ -85,7 +88,7 @@ pub use machine_execution::build_machines::{
     evaluate_build_machine_measured,
 };
 pub use machine_execution::selected_operators::{
-    SelectedBuildTimeProviderBody, validate_selected_operators, validate_selected_provider_bodies,
+    BuildTimeProviderAuthority, SelectedBuildTimeProviderBody, validate_selected_operators, validate_selected_provider_bodies,
 };
 pub use reflection::{
     CaseDescription, DeclarationDescription, FieldDescription, FieldInfo, MemberKind,
@@ -98,6 +101,7 @@ pub use reflection::{
 };
 
 pub use build_time_evaluation::{
+    BuildTimeCheckingAdmission,
     AuthorizedSelection, BuildTimeEvaluationRequest, BuildTimeSourceContext, BuildTimeSources,
     PreCheckEvaluation, PreResolutionEvaluation, SelectedBuildTimeOperators,
     evaluate_pre_resolution,

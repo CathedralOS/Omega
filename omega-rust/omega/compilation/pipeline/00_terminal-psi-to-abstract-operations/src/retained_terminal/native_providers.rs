@@ -5,13 +5,16 @@
 //! and publication have consumed their borrowed execution records.
 //! One program owns all callback bodies and their nominal identities. Imports,
 //! selected plans and builtin evidence are prepared once for that program;
-//! native roots select demand from the same namespace.
+//! native roots select demand from the same namespace. Direct candidates retain
+//! their original issuer and use the shared program identity table and actual
+//! demand; selected import completeness remains an independent union judgment.
 
 use super::TerminalNativeRealizationProposal;
 use crate::provider_admission::{
-    NativeCompilerBuiltinSettlement, NativeProviderSettlement, PreparedSourceEvaluatedBindings,
+    NativeCompilerBuiltinSettlement, NativeProviderSettlement, PreparedDirectForeignBinding,
+    PreparedSourceEvaluatedBindings,
     ProviderAdmissionRequest, SourceEvaluatedImportSettlement, TerminalAuthorityPermissionPolicy,
-    TerminalAuthorityPolicy, prepare_source_evaluated_bindings,
+    TerminalAuthorityPolicy, prepare_direct_foreign_bindings, prepare_source_evaluated_bindings,
 };
 use diagnostics::Diagnostic;
 use std::collections::BTreeSet;
@@ -29,6 +32,7 @@ pub struct RetainedNativeProviderInputs<'input> {
 pub struct PreparedRetainedNativeProviders<'input> {
     proposal: &'input TerminalNativeRealizationProposal,
     bindings: PreparedSourceEvaluatedBindings<'input>,
+    program_direct_foreign: Vec<PreparedDirectForeignBinding<'input>>,
     program_demands: BTreeSet<String>,
     callbacks: &'input [crate::AdmittedNativeCallbackArgument],
     pub callback_thunks: Vec<backend_plan::NativeCallbackThunkSettlement<'input>>,
@@ -78,6 +82,7 @@ impl PreparedRetainedNativeProviders<'_> {
                 checked_adapters: &proposal.providers().checked_adapters,
                 external_binding_rows: proposal.providers().external_bindings.as_slice(),
                 settlements,
+                direct_foreign_settlements: &self.program_direct_foreign,
                 compiler_builtins: &self.compiler_builtins,
                 native_callbacks: self.callbacks,
                 terminal_authority_policy,
@@ -128,9 +133,17 @@ impl TerminalNativeRealizationProposal {
         // Execution records belong to selected provider rows. Calls keep their
         // original head identities, joined through the retained exact family
         // and specialization relations rather than renamed in Terminal Psi.
-        let program_demands = selected_demands(module, &self.providers().selection)?;
-        // Supplied evidence covers the program's complete demand union once.
-        // Per-root native admission projects it without minting missing rows.
+        let program_callables = crate::provider_admission::demanded_boundary_identities(module)?;
+        let program_demands = selected_demands(&program_callables, &self.providers().selection);
+        // Direct contributions retain their original issuer in the same shared
+        // artifact namespace as the application and its callback roots.
+        let program_direct_foreign = prepare_direct_foreign_bindings(
+            &self.providers().direct_foreign_realizations,
+            &program_callables,
+            &module.identities,
+        )?;
+        // Supplied evidence covers the complete program demand union once.
+        // Per-root admission cannot mint replacements for missing supplies.
         let bindings = prepare_source_evaluated_bindings(
             self.providers().selection.plans(),
             &program_demands,
@@ -146,6 +159,7 @@ impl TerminalNativeRealizationProposal {
         Ok(PreparedRetainedNativeProviders {
             proposal: self,
             bindings,
+            program_direct_foreign,
             program_demands,
             callbacks,
             callback_thunks,
@@ -155,13 +169,11 @@ impl TerminalNativeRealizationProposal {
 }
 
 fn selected_demands(
-    module: &terminal_psi::TerminalModule,
+    callables: &BTreeSet<String>,
     selection: &effects::SelectedProviderPlanFacts,
-) -> Result<BTreeSet<String>, Vec<Diagnostic>> {
-    Ok(
-        crate::provider_admission::demanded_boundary_identities(module)?
-            .iter()
-            .map(|identity| selection.selected_requirement_identity(identity).to_owned())
-            .collect(),
-    )
+) -> BTreeSet<String> {
+    callables
+        .iter()
+        .map(|identity| selection.selected_requirement_identity(identity).to_owned())
+        .collect()
 }

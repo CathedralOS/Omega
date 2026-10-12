@@ -224,7 +224,25 @@ pub(crate) fn evaluate_scalar(
     destination: PrimitiveType,
     calls: Option<&dyn ConstantCalls>,
 ) -> Result<(ScalarValue, Vec<Diagnostic>), String> {
-    evaluate_scalar_in(
+    evaluate_scalar_with_correspondence(program, machine, state, expression, destination, calls)
+        .map(|(value, _, warnings)| (value, warnings))
+}
+
+pub(crate) struct SelectedMatchResult {
+    pub(crate) expression: ExpressionHandle,
+    pub(crate) selected: ExpressionHandle,
+    pub(crate) integer_meaning: language_core::expression_origin::ConstMatchIntegerMeaning,
+}
+
+pub(crate) fn evaluate_scalar_with_correspondence(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    destination: PrimitiveType,
+    calls: Option<&dyn ConstantCalls>,
+) -> Result<(ScalarValue, Vec<SelectedMatchResult>, Vec<Diagnostic>), String> {
+    evaluate_scalar_with_correspondence_in(
         program,
         EvaluationContext::Machine(machine, state),
         expression,
@@ -242,16 +260,29 @@ fn evaluate_scalar_in(
     policy: ArithmeticDomain,
     calls: Option<&dyn ConstantCalls>,
 ) -> Result<(ScalarValue, Vec<Diagnostic>), String> {
-    let (value, selected_arms, mut warnings) = evaluate_expression(
-        program,
-        context,
-        expression,
-        Some(ScalarDestination {
-            primitive: destination,
-            policy,
-        }),
-        calls,
-    )?;
+    evaluate_scalar_with_correspondence_in(program, context, expression, destination, policy, calls)
+        .map(|(value, _, warnings)| (value, warnings))
+}
+
+fn evaluate_scalar_with_correspondence_in(
+    program: &TypedTrees,
+    context: EvaluationContext<'_>,
+    expression: ExpressionHandle,
+    destination: PrimitiveType,
+    policy: ArithmeticDomain,
+    calls: Option<&dyn ConstantCalls>,
+) -> Result<(ScalarValue, Vec<SelectedMatchResult>, Vec<Diagnostic>), String> {
+    let (value, selected_arms, selected_results, mut warnings) =
+        evaluate_expression_with_correspondence(
+            program,
+            context,
+            expression,
+            Some(ScalarDestination {
+                primitive: destination,
+                policy,
+            }),
+            calls,
+        )?;
     let value = match value {
         Value::Anonymous(expression)
             if matches!(destination, PrimitiveType::F32 | PrimitiveType::F64) =>
@@ -275,7 +306,7 @@ fn evaluate_scalar_in(
                     bits: exact.to_f64().to_bits(),
                 },
             };
-            return Ok((value, warnings));
+            return Ok((value, selected_results, warnings));
         }
         Value::Anonymous(expression) => land_anonymous(
             program,
@@ -288,14 +319,23 @@ fn evaluate_scalar_in(
         value => value,
     };
     if let Value::Float(format, bits) = value {
-        return Ok((ScalarValue::Float { format, bits }, warnings));
+        return Ok((
+            ScalarValue::Float { format, bits },
+            selected_results,
+            warnings,
+        ));
     }
     if let Value::UndeterminedNaN(format) = value {
-        return Ok((ScalarValue::UndeterminedNaN(format), warnings));
+        return Ok((
+            ScalarValue::UndeterminedNaN(format),
+            selected_results,
+            warnings,
+        ));
     }
     if let Value::Boolean(value) = value {
         return Ok((
             ScalarValue::Index(CanonicalConstValue::boolean(value)),
+            selected_results,
             warnings,
         ));
     }
@@ -314,6 +354,7 @@ fn evaluate_scalar_in(
             identity.encoding,
             value.to_string(),
         )),
+        selected_results,
         warnings,
     ))
 }
@@ -350,6 +391,25 @@ fn evaluate_expression(
     (
         Value,
         Vec<(ExpressionHandle, ExpressionHandle)>,
+        Vec<Diagnostic>,
+    ),
+    String,
+> {
+    evaluate_expression_with_correspondence(program, context, expression, destination, calls)
+        .map(|(value, selections, _, warnings)| (value, selections, warnings))
+}
+
+fn evaluate_expression_with_correspondence(
+    program: &TypedTrees,
+    context: EvaluationContext<'_>,
+    expression: ExpressionHandle,
+    destination: Option<ScalarDestination>,
+    calls: Option<&dyn ConstantCalls>,
+) -> Result<
+    (
+        Value,
+        Vec<(ExpressionHandle, ExpressionHandle)>,
+        Vec<SelectedMatchResult>,
         Vec<Diagnostic>,
     ),
     String,
@@ -801,9 +861,35 @@ fn evaluate_expression(
     if values.len() != 1 {
         return Err("constant expression did not produce one value".into());
     }
+    let selected_results = selected_arms
+        .iter()
+        .map(|(expression, selected)| {
+            let plan = matches
+                .iter()
+                .find(|plan| plan.expression == *expression)
+                .expect("evaluated Match retained its validated join");
+            use language_core::expression_origin::ConstMatchIntegerMeaning;
+            let integer_meaning = match plan.result {
+                Shape::Anonymous(_) => ConstMatchIntegerMeaning::Anonymous,
+                Shape::Integer(primitive, _, arithmetic_domain) => {
+                    ConstMatchIntegerMeaning::Typed {
+                        primitive,
+                        arithmetic_domain,
+                    }
+                }
+                Shape::Boolean | Shape::Float(_) => ConstMatchIntegerMeaning::Unavailable,
+            };
+            SelectedMatchResult {
+                expression: *expression,
+                selected: *selected,
+                integer_meaning,
+            }
+        })
+        .collect();
     Ok((
         values.pop().ok_or("missing constant expression value")?,
         selected_arms,
+        selected_results,
         warnings,
     ))
 }

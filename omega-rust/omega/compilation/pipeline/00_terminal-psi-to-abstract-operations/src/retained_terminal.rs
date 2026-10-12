@@ -29,6 +29,7 @@ pub struct TerminalNativeProviders {
     /// requirements and family aliases. This is policy, not installation.
     pub checked_adapters: Vec<crate::SelectedProviderAdapter>,
     pub external_bindings: Vec<calling_conventions::ExternalBindingRow>,
+    pub direct_foreign_realizations: Vec<std::sync::Arc<effects::DirectForeignRealization>>,
     pub compiler_builtins: Vec<TerminalCompilerBuiltinProposal>,
     /// Build-admitted AVX+FMA3 provider, joined to x86 FMA demand by planning.
     pub x86_scalar_fma: Option<target::AdmittedX86ScalarFmaProvider>,

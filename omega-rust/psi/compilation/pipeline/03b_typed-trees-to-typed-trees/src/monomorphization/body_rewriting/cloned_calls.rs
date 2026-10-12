@@ -1,18 +1,14 @@
 //! Rewriting cloned calls and static machine transition targets.
 
-use crate::monomorphization::body_rewriting::evidence_rewrites::{
-    evidence_argument_rewrites, evidence_requirement_rewrites, rewrite_index_algebra,
-};
-use crate::monomorphization::body_rewriting::machine_arguments::{
-    forwarded_static_argument_rewrites, substitute_forwarded_machine_arguments,
+use crate::monomorphization::application_arguments::substitute_forwarded_machine_arguments;
+use crate::monomorphization::application_calls::{
+    ApplicationCallRewrites, apply_evidence_dispatch_rewrite,
 };
 use crate::monomorphization::body_rewriting::{
-    cloned_runtime_call_subjects, insert_subject_name, insert_subject_names, runtime_value_subjects,
+    cloned_runtime_call_subjects, insert_subject_names, runtime_value_subjects,
 };
-use crate::monomorphization::selection::state_by_symbol;
 use crate::monomorphization::{
-    Candidate, ExpressionHandle, ExpressionNode, Handle, HandleSpan, StatementNode, SymbolHandle,
-    TypedTrees,
+    Candidate, ExpressionNode, Handle, HandleSpan, StatementNode, SymbolHandle, TypedTrees,
 };
 
 pub(crate) fn statement_span_handles(
@@ -29,66 +25,21 @@ pub(crate) fn rewrite_cloned_calls(
     state_transition_subjects: &[Vec<(typed_trees::name::Identifier, SymbolHandle)>],
     expression_start: usize,
     states: HandleSpan<typed_trees::state::State>,
-) {
-    let machine_rewrites: Vec<_> = candidate
-        .template
-        .machine_parameters
-        .iter()
-        .zip(candidate.machine_bindings.iter())
-        .map(|((parameter, _, _), binding)| {
-            let binding = binding.as_ref().expect("complete specialization");
-            let name = binding
-                .path
-                .last()
-                .cloned()
-                .or_else(|| {
-                    state_by_symbol(source.unwrap_or(program), binding.symbol)
-                        .map(|state| state.name.clone())
-                })
-                .expect("static machine entry name");
-            (*parameter, binding.symbol, name)
-        })
-        .collect();
-    // Selection changes declaration identity, not the explicit operand roster.
-    // An attached declaration retains its Data namespace so ordinary call
-    // validation cannot reinterpret the first operand as an implicit receiver.
-    let selected_carriers: Vec<_> = machine_rewrites
-        .iter()
-        .filter_map(|(parameter, target, _)| {
-            let declarations = source.unwrap_or(program);
-            let machine = declarations.machines().iter().find(|machine| {
-                typed_trees::state::state_by_symbol(declarations.machine_states(machine), *target)
-                    .is_some()
-            })?;
-            if !machine.attached_data_symbol.is_valid() {
-                return None;
-            }
-            Some((
-                *parameter,
-                machine.attached_data_symbol,
-                machine.attached_data.as_ref()?.clone(),
-            ))
-        })
-        .collect();
-    let evidence_target_rewrites =
-        evidence_requirement_rewrites(source.unwrap_or(program), candidate);
-    let mut target_rewrites = machine_rewrites.clone();
-    target_rewrites.extend(
-        evidence_target_rewrites
-            .iter()
-            .map(|rewrite| (rewrite.placeholder, rewrite.target, rewrite.name.clone())),
-    );
-    let mut argument_rewrites = machine_rewrites;
-    let evidence_rewrites = evidence_argument_rewrites(source.unwrap_or(program), candidate);
-    argument_rewrites.extend(evidence_rewrites.iter().map(|rewrite| {
-        (
-            rewrite.binder,
-            rewrite.argument.symbol,
-            rewrite.alias.clone(),
-        )
-    }));
-    let static_argument_rewrites =
-        forwarded_static_argument_rewrites(source.unwrap_or(program), candidate);
+) -> Result<(), diagnostics::Diagnostic> {
+    let application_bindings = crate::monomorphization::applications::candidate_bindings(candidate);
+    let rewrites = ApplicationCallRewrites::prepare(
+        source.unwrap_or(program),
+        &application_bindings,
+        &candidate.template.evidence_parameters,
+    )?;
+    let ApplicationCallRewrites {
+        target_rewrites,
+        selected_carriers,
+        evidence_target_rewrites,
+        argument_rewrites,
+        static_argument_rewrites,
+        ..
+    } = &rewrites;
     for (state_index, state) in program
         .machine_states
         .span_or_empty(states)
@@ -228,12 +179,6 @@ pub(crate) fn rewrite_cloned_calls(
         .map(|(handle, _)| handle)
         .collect();
     for handle in handles {
-        rewrite_index_algebra(
-            program,
-            handle,
-            &evidence_rewrites,
-            &static_argument_rewrites,
-        );
         let clone_state_arguments = match program.expression_table.expression(handle).clone() {
             ExpressionNode::Call(snapshot)
                 if state_symbols
@@ -261,82 +206,9 @@ pub(crate) fn rewrite_cloned_calls(
             }
             _ => None,
         };
-        let evidence_dispatch = match program.expression_table.expression(handle) {
-            ExpressionNode::Call(call) => evidence_target_rewrites
-                .iter()
-                .find(|rewrite| rewrite.placeholder == call.target_symbol),
-            _ => None,
-        };
-        let selected_carrier = match program.expression_table.expression(handle) {
-            ExpressionNode::Call(call) => selected_carriers
-                .iter()
-                .find(|(parameter, _, _)| *parameter == call.target_symbol)
-                .map(|(_, symbol, name)| (*symbol, name.clone())),
-            _ => None,
-        }
-        .map(|(symbol, name)| insert_subject_name(&mut program.expression_table, name, symbol));
-        let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
-            continue;
-        };
-        if candidate
-            .template
-            .machine_parameters
-            .iter()
-            .any(|(parameter, _, _)| *parameter == call.target_symbol)
-        {
-            call.static_machine_parameter = call.target_symbol;
-        }
-        if let Some((_, target, name)) = target_rewrites
-            .iter()
-            .find(|(parameter, _, _)| *parameter == call.target_symbol)
-        {
-            call.target_symbol = *target;
-            call.target = name.clone();
-        }
-        if let Some(receiver) = selected_carrier {
-            call.receiver = receiver;
-        }
-        let erased_application = apply_evidence_dispatch_rewrite(
-            call.target_symbol,
-            &mut call.static_requirement_dispatch,
-            &mut call.machine_arguments,
-            &mut call.arguments,
-            evidence_dispatch,
-            &static_argument_rewrites,
-            &argument_rewrites,
-            state_symbols,
-            clone_state_arguments,
-            || call.receiver = ExpressionHandle::invalid(),
-        );
-        let application = call.authored_machine_application;
-        let target = call.target.clone();
-        if application.is_valid() {
-            substitute_forwarded_machine_arguments(
-                program
-                    .expression_table
-                    .static_machine_application_arguments_mut(application),
-                &static_argument_rewrites,
-                &argument_rewrites,
-            );
-            substitute_forwarded_machine_arguments(
-                program
-                    .expression_table
-                    .static_machine_application_selected_machines_mut(application),
-                &static_argument_rewrites,
-                &argument_rewrites,
-            );
-        } else if let Some((registration_operation, arguments)) = erased_application {
-            let application = program.expression_table.retain_static_machine_application(
-                registration_operation,
-                target,
-                &arguments,
-            );
-            let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
-                unreachable!();
-            };
-            call.authored_machine_application = application;
-        }
+        rewrites.rewrite_expression(program, handle, state_symbols, clone_state_arguments);
     }
+    Ok(())
 }
 
 pub(crate) fn rewrite_static_machine_transition_targets(
@@ -432,49 +304,4 @@ pub(crate) fn rewrite_clone_transition_subjects(
         };
         *arguments = new_arguments;
     }
-}
-
-/// The shared tail of an evidence-dispatched call rewrite: `invalidate_receiver`
-/// clears the per-node receiver shape, the selected dispatch and its
-/// application arguments replace the placeholder's contract, forwarded statics
-/// substitute, and a call into the specialization's own states demotes its
-/// machine arguments in favor of cloned runtime arguments.
-#[allow(clippy::too_many_arguments)]
-fn apply_evidence_dispatch_rewrite(
-    target_symbol: SymbolHandle,
-    static_requirement_dispatch: &mut Option<typed_trees::typed_trees::StaticRequirementDispatch>,
-    machine_arguments: &mut Box<[typed_trees::expression::StaticMachineArgument]>,
-    arguments: &mut HandleSpan<ExpressionHandle>,
-    evidence_dispatch: Option<&super::evidence_rewrites::EvidenceRequirementRewrite>,
-    static_argument_rewrites: &[(SymbolHandle, typed_trees::expression::StaticMachineArgument)],
-    argument_rewrites: &[(SymbolHandle, SymbolHandle, typed_trees::name::Identifier)],
-    state_symbols: &[(SymbolHandle, SymbolHandle)],
-    clone_state_arguments: Option<HandleSpan<ExpressionHandle>>,
-    mut invalidate_receiver: impl FnMut(),
-) -> Option<(
-    SymbolHandle,
-    Box<[typed_trees::expression::StaticMachineArgument]>,
-)> {
-    if evidence_dispatch.is_some() {
-        invalidate_receiver();
-    }
-    if let Some(rewrite) = evidence_dispatch {
-        *static_requirement_dispatch = Some(rewrite.dispatch.clone());
-        *machine_arguments = rewrite.application_arguments.clone();
-    }
-    substitute_forwarded_machine_arguments(
-        machine_arguments,
-        static_argument_rewrites,
-        argument_rewrites,
-    );
-    if let Some((authored, _)) = state_symbols
-        .iter()
-        .find(|(_, concrete)| *concrete == target_symbol)
-    {
-        if let Some(cloned) = clone_state_arguments {
-            *arguments = cloned;
-        }
-        return Some((*authored, std::mem::take(machine_arguments)));
-    }
-    None
 }

@@ -14,16 +14,17 @@ use typed_trees::{
 };
 
 pub(crate) struct Invocation<'program> {
-    pub working: &'program TypedTrees,
     pub execution: &'program TypedTrees,
     pub admission: &'program BuildTimeAdmissionPlan,
     pub authority: Option<&'program dyn BuildTimeSelectionAuthority>,
+    pub authority_owner: Option<&'program std::sync::Arc<dyn BuildTimeSelectionAuthority>>,
+    pub checking_admission: crate::BuildTimeCheckingAdmission<'program>,
 }
 
 impl Invocation<'_> {
     fn callee(&self, expression: ExpressionHandle) -> Result<super::EndpointCallee, String> {
         let (machine, static_application) =
-            super::selected_endpoint_machine(self.working, expression)
+            super::selected_endpoint_machine(self.execution, expression)
                 .ok_or("range endpoint call needs an exact closed selected machine")?;
         let endpoint = super::PendingEndpoint {
             expression,
@@ -34,17 +35,12 @@ impl Invocation<'_> {
         super::resolve_endpoint_callee(self.execution, &endpoint)
     }
 
-    fn position(
-        &self,
-        callee: super::EndpointCallee,
-        reference: TypeReferenceHandle,
-    ) -> Result<ScalarPosition, String> {
-        let types = if callee.static_application {
-            self.execution
-        } else {
-            self.working
-        };
-        ScalarPosition::prepare(types, self.execution, reference, self.authority)
+    fn position(&self, reference: TypeReferenceHandle) -> Result<ScalarPosition, String> {
+        // The admitted execution owns both the rewritten callee and its
+        // signature. Authenticated provider binding and ordinary specialization
+        // happen before this immutable preparation; original caller handles
+        // cannot supply the resulting signature's carrier namespace.
+        ScalarPosition::prepare(self.execution, self.execution, reference, self.authority)
     }
 
     fn result_position(&self, callee: super::EndpointCallee) -> Result<ScalarPosition, String> {
@@ -57,7 +53,7 @@ impl Invocation<'_> {
             .machine_states(machine)
             .first()
             .ok_or("range endpoint lost entry")?;
-        self.position(callee, entry.return_type)
+        self.position(entry.return_type)
     }
 
     /// Evaluate the call's arguments and snapshot each to its literal
@@ -95,7 +91,7 @@ impl Invocation<'_> {
         let mut literals = Vec::new();
         let mut warnings = Vec::new();
         for (argument, parameter) in arguments.iter().zip(parameters) {
-            let position = self.position(callee, parameter.type_reference)?;
+            let position = self.position(parameter.type_reference)?;
             let (value, new_warnings) = value::evaluate_closed_scalar_with_policy(
                 self.execution,
                 *argument,
@@ -204,8 +200,9 @@ impl Invocation<'_> {
             &retained,
             machine.symbol,
             "@const-endpoint",
-            &typed_trees_to_typed_trees::PreparationRequest::preliminary(),
-            &typed_trees_to_checked_trees::CheckingRequest::new(),
+            &self.checking_admission.preparation,
+            &self.checking_admission.checking,
+            self.authority_owner.cloned(),
             expression,
             machine.name.as_str(),
             entry.return_type,
@@ -244,38 +241,10 @@ impl ConstantCalls for Invocation<'_> {
             .machine_states(machine)
             .first()
             .ok_or("range endpoint lost entry")?;
-        let custody = crate::BuildTimeInvocationCustody::Source(
-            self.execution.expression_table.source_span(expression),
-        );
-        // Validation does not evaluate arguments — a call nested in a skipped
-        // match arm owes only its carrier shape here. Argument values are
-        // evaluated for the snapshot probe solely when an authored non-domain
-        // `requires` premise makes the concrete discharge the deciding route.
-        let discharged = if !self
-            .admission
-            .closure_includes_authored_requires(self.execution, machine)
-        {
-            false
-        } else if self
-            .admission
-            .closure_requires_are_entry_parameter_domains(self.execution, machine)
-        {
-            true
-        } else {
-            let (_, literals, _) = self.arguments(expression, callee)?;
-            self.snapshot_requires_discharge(expression, machine, &literals)?
-        };
-        if discharged {
-            self.admission
-                .require_common_floor_for_concrete_premise_invocation(
-                    self.execution,
-                    machine,
-                    custody,
-                )?;
-        } else {
-            self.admission
-                .require_common_floor_for_invocation(self.execution, machine, custody)?;
-        }
+        // Shape validation visits every arm and logical operand. It checks
+        // declaration selection and carriers without invoking nested calls.
+        // The demanded call's execution path evaluates arguments once, then
+        // checks its concrete public invocation and physical closure floor.
         let Some(call) = self.execution.expression_table.call_node(expression) else {
             return Err("range endpoint lost its call".into());
         };
@@ -291,7 +260,7 @@ impl ConstantCalls for Invocation<'_> {
         }
         let mut warnings = Vec::new();
         for (argument, parameter) in arguments.iter().zip(parameters) {
-            let position = self.position(callee, parameter.type_reference)?;
+            let position = self.position(parameter.type_reference)?;
             append_warnings(
                 &mut warnings,
                 value::validate_closed_scalar_with_policy(
@@ -319,7 +288,17 @@ impl ConstantCalls for Invocation<'_> {
         let custody = crate::BuildTimeInvocationCustody::Source(
             self.execution.expression_table.source_span(expression),
         );
-        let discharged = if !self
+        let source_redirected = self
+            .execution
+            .expression_table
+            .call_node(expression)
+            .is_some_and(|call| call.source_call.is_valid());
+        let discharged = if source_redirected {
+            // Original public premises remain independent of the selected
+            // provider's entry. Discharge both at the demanded invocation's
+            // already-evaluated snapshots before provider interpretation.
+            self.snapshot_requires_discharge(expression, machine, &literals)?
+        } else if !self
             .admission
             .closure_includes_authored_requires(self.execution, machine)
         {

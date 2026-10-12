@@ -150,12 +150,11 @@ pub fn canonical_template_contract_bytes(
         .first()
         .map(|state| formal_parameter_binders(program.state_parameters(state), &binders))
         .unwrap_or_else(|| binders.clone());
-    let contracts = contract_structure::declared_contracts(
+    let contracts = contract_structure::declared_machine_contracts(
         program,
-        program.machine_contracts(machine),
+        machine,
         &contract_binders,
         &content_conservation,
-        true,
     );
     bytes.extend(checked_trees::contract_declarations_commitment(&contracts).as_bytes());
     let termination = contract_structure::declared_termination(
@@ -323,7 +322,24 @@ fn machine_specialization_identity(
         .machine_by_symbol(specialization.instance)
         .ok_or_else(|| Diagnostic::error("generic specialization lost its concrete instance"))?;
     let instance_identity = normalized_machine_identity(program, instance).ok_or_else(|| {
-        Diagnostic::error("generic specialization instance has no normalized callable identity")
+        // Retain the inner source-custody refusal instead of flattening it
+        // into a callable identity absence. This diagnostic grants no tuple.
+        let application_failure = if specialization.binding_application.is_valid() {
+            typed_trees::static_applications::StaticApplicationView::new(
+                program.typed_program(), specialization.binding_application,
+            ).err()
+        } else {
+            Some("specialization has no original binding application")
+        };
+        let diagnostic = Diagnostic::error(format!(
+            "generic specialization instance has no normalized callable identity: `{}`; original application: {}",
+            instance.name,
+            application_failure.unwrap_or("complete source view; callable tuple identity unavailable"),
+        ));
+        match program.symbols.symbol_source_span(instance.symbol) {
+            Some(source_span) => diagnostic.with_source_span(source_span),
+            None => diagnostic,
+        }
     })?;
 
     let mut machine_owner_identities = Vec::new();
@@ -642,6 +658,18 @@ pub fn canonical_state_signature_bytes(
     program: &dyn crate::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
 ) -> Vec<u8> {
+    let content_conservation = crate::content_conservation_plans(program);
+    canonical_state_signature_bytes_with_conservation(program, signature, &content_conservation)
+}
+
+/// Project a source signature using the conservation roster its checking
+/// operation already produced. Realization consumes retained bytes rather than
+/// invoking this producer or constructing source plans from typed trees.
+pub fn canonical_state_signature_bytes_with_conservation(
+    program: &dyn crate::CheckingInput,
+    signature: &typed_trees::signature::StateSignature,
+    content_conservation: &[crate::ContentConservationSourcePlan],
+) -> Vec<u8> {
     let binders = program
         .traits()
         .iter()
@@ -653,13 +681,12 @@ pub fn canonical_state_signature_bytes(
         })
         .map(|definition| type_parameter_binders(program.trait_type_parameters(definition), &[]))
         .unwrap_or_default();
-    let content_conservation = crate::content_conservation_plans(program);
     let mut bytes = Vec::new();
     encode_state_signature(
         program,
         signature,
         &binders,
-        &content_conservation,
+        content_conservation,
         &mut bytes,
     );
     bytes

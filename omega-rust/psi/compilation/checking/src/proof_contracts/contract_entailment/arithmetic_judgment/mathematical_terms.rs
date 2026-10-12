@@ -31,13 +31,13 @@ impl Engine<'_> {
                 view.arena.get(application.term),
                 view.applications
                     .captures
-                    .span_or_empty(application.captures)
+                    .span_or_empty(application.original.captures)
             );
         }
         let captures = view
             .applications
             .captures
-            .span_or_empty(application.captures)
+            .span_or_empty(application.original.captures)
             .iter()
             .map(|capture| Some(capture.expression))
             .collect::<Vec<_>>();
@@ -58,7 +58,7 @@ impl Engine<'_> {
         let captures = view
             .applications
             .captures
-            .span_or_empty(application.captures)
+            .span_or_empty(application.original.captures)
             .iter()
             .map(|capture| Some(capture.expression))
             .collect::<Vec<_>>();
@@ -74,7 +74,7 @@ impl Engine<'_> {
         let captures = view
             .applications
             .captures
-            .span_or_empty(application.captures)
+            .span_or_empty(application.original.captures)
             .iter()
             .map(|capture| Some(capture.expression))
             .collect::<Vec<_>>();
@@ -90,7 +90,7 @@ impl Engine<'_> {
         let captures = view
             .applications
             .captures
-            .span_or_empty(application.captures)
+            .span_or_empty(application.original.captures)
             .iter()
             .map(|capture| Some(capture.expression))
             .collect::<Vec<_>>();

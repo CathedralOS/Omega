@@ -128,35 +128,11 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                 .map(|candidate| &candidate.application),
         )
     {
-        match application {
-            terminal_psi::BoundaryApplication::Empty => {}
-            terminal_psi::BoundaryApplication::Exact(arguments) => {
-                if arguments.is_empty() {
-                    return Err(CodecError::MalformedStructuralFoundation(
-                        "nonempty boundary application has no arguments",
-                    ));
-                }
-                for (ordinal, argument) in arguments.iter().enumerate() {
-                    if usize::try_from(argument.binder_ordinal()).ok() != Some(ordinal) {
-                        return Err(CodecError::NonCanonicalOrder(
-                            "boundary application binders",
-                        ));
-                    }
-                    if let terminal_psi::BoundaryApplicationArgument::Const {
-                        value_type,
-                        value_encoding,
-                        ..
-                    } = argument
-                        && (value_type.is_empty() || value_encoding.is_empty())
-                    {
-                        return Err(CodecError::MalformedStructuralFoundation(
-                            "boundary const application has an empty canonical value identity",
-                        ));
-                    }
-                }
-            }
-        }
+        application
+            .validate_operator_application()
+            .map_err(CodecError::MalformedStructuralFoundation)?;
     }
+
     if !strictly_increasing(
         module
             .target_machine_families

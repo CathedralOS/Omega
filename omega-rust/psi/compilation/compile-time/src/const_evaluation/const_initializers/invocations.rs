@@ -40,19 +40,21 @@ use crate::const_evaluation::const_generic_expressions::{
 };
 use crate::{BuildTimeAdmissionPlan, BuildTimeInvocationCustody, BuildTimeValue};
 
-pub(crate) struct CheckedInitializers {
+pub(crate) struct CheckedInitializers<'request> {
     typed: TypedTrees,
     admission: BuildTimeAdmissionPlan,
     authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
     crash_causes: Vec<(symbols::SymbolHandle, Vec<checked_trees::CrashCause>)>,
     probe_symbols: Vec<symbols::SymbolHandle>,
+    checking_admission: crate::BuildTimeCheckingAdmission<'request>,
 }
 
-impl CheckedInitializers {
+impl<'request> CheckedInitializers<'request> {
     pub(crate) fn prepare(
         prepared: &crate::PreparedBuildMachineProgram,
         authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
         probe_symbols: &[symbols::SymbolHandle],
+        checking_admission: crate::BuildTimeCheckingAdmission<'request>,
     ) -> Result<Self, Vec<Diagnostic>> {
         let mut bodies = prepared.typed().clone();
         let (probes, machines): (Vec<_>, Vec<_>) = bodies
@@ -74,8 +76,8 @@ impl CheckedInitializers {
         for machine in machines {
             bodies.push_machine(machine);
         }
-        let preparation_request = typed_trees_to_typed_trees::PreparationRequest::settled();
-        let checking = typed_trees_to_checked_trees::CheckingRequest::new();
+        let preparation_request = checking_admission.preparation;
+        let checking = checking_admission.checking;
         let (bodies, preparation) =
             typed_trees_to_typed_trees::prepare_typed_trees(bodies, &preparation_request)?;
         let checked =
@@ -95,6 +97,7 @@ impl CheckedInitializers {
             authority,
             crash_causes,
             probe_symbols: probe_symbols.to_vec(),
+            checking_admission,
         })
     }
 
@@ -151,7 +154,7 @@ impl CheckedInitializers {
 }
 
 pub(crate) struct Invocation<'program> {
-    program: &'program CheckedInitializers,
+    program: &'program CheckedInitializers<'program>,
     machine: &'program Machine,
     state: &'program State,
 }
@@ -185,8 +188,9 @@ impl Invocation<'_> {
             &retained,
             self.machine.symbol,
             "@const-invocation",
-            &typed_trees_to_typed_trees::PreparationRequest::settled(),
-            &typed_trees_to_checked_trees::CheckingRequest::new(),
+            &self.program.checking_admission.preparation,
+            &self.program.checking_admission.checking,
+            self.program.authority.clone(),
             expression,
             &callee,
             return_type,
@@ -257,7 +261,7 @@ impl Invocation<'_> {
         };
         if !call.carries_only_positional_arguments()
             || call.static_machine_parameter.is_valid()
-            || !call.selects_only_nominal_route()
+            || !call.executes_nominal_route()
         {
             return Err(
                 "constant invocation needs its complete specialized application context".into(),
@@ -289,7 +293,7 @@ impl Invocation<'_> {
             .ok_or("constant call lost its entry")?;
         let custody =
             BuildTimeInvocationCustody::Source(typed.expression_table.source_span(expression));
-        if self
+        if call.source_call.is_valid() || self
             .program
             .admission
             .closure_includes_authored_requires(typed, machine)
@@ -1109,12 +1113,27 @@ impl Invocation<'_> {
                 public,
                 syntax,
             )?;
-        let (value, warnings) = self.evaluate(expression, destination)?;
+        let (value, selected_matches, warnings) = value::evaluate_scalar_with_correspondence(
+            typed,
+            self.machine,
+            self.state,
+            expression,
+            destination,
+            Some(self),
+        )?;
+        let value = value.into_index()?;
+        let selected_matches =
+            crate::const_evaluation::const_generic_expressions::retain_original_match_selections(
+                typed,
+                syntax,
+                selected_matches,
+            )?;
         Ok(ApplicationProbeEvaluation {
             value,
             origins,
             operators,
             calls,
+            selected_matches,
             warnings,
         })
     }
@@ -1204,6 +1223,7 @@ pub(crate) struct ApplicationProbeEvaluation {
     pub(crate) origins: Vec<syntax_trees::types::ConstArgumentOrigin>,
     pub(crate) operators: Vec<source::SourceSpan>,
     pub(crate) calls: Vec<(source::SourceSpan, source::SourceSpan)>,
+    pub(crate) selected_matches: Vec<syntax_trees::types::ConstArgumentMatchSelection>,
     pub(crate) warnings: Vec<Diagnostic>,
 }
 

@@ -33,12 +33,10 @@ pub(crate) fn finalize_execution(
     // happen to exist. Intern their complete target-neutral reach once before
     // immutable planning so whole-provider defaults retain unused methods.
     let boundary_signature_reaches = program
-        .traits()
-        .iter()
-        .filter(|owner| owner.is_boundary)
-        .flat_map(|owner| program.trait_machine_instances(owner))
-        .filter_map(|signature| {
-            validation::boundary_signature_service_reach(program, signature.symbol).map(
+        .public_trait_requirement_signatures()
+        .filter(|(owner, _)| owner.is_boundary)
+        .filter_map(|(owner, signature)| {
+            validation::boundary_signature_service_reach(program, owner, signature).map(
                 |services| {
                     (
                         signature.symbol,

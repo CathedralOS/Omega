@@ -110,14 +110,14 @@ fn lower_range_constraint(
     Ok(typed::types::TypeConstraintNode::Range {
         end_inclusive,
         minimum: lower_expression_handle_from_table_with_symbol_substitution(
-            Some(source_trees),
+            source_trees,
             &source_trees.tables.bodies.expressions,
             typed_trees,
             *minimum,
             None,
         )?,
         maximum: lower_expression_handle_from_table_with_symbol_substitution(
-            Some(source_trees),
+            source_trees,
             &source_trees.tables.bodies.expressions,
             typed_trees,
             *maximum,

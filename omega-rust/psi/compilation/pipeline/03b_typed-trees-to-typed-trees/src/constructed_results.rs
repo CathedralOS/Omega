@@ -20,13 +20,15 @@
 //! children alongside body expressions: a constructor in a postcondition needs
 //! its applied type before checking can establish its equality meaning. This
 //! supplies type vocabulary, not the truth of the contract or its premises.
+//! Branch joins consume those same occurrence-owned child results; no arena
+//! handle coincidence or destination type supplies their caller regions.
 
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::TypeReferenceHandle;
 use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
 
-mod call_results;
+use crate::monomorphization::call_results::{self, ResultDerivations};
 
 /// A value-type query is not source admission. Preserve its refusal for an
 /// inferred declaration that requires this result, without masking independent
@@ -139,10 +141,17 @@ fn retain_borrow_result_type(
     })
 }
 
+pub(crate) struct ConstructedResultPublication {
+    pub(crate) changed_owners: Vec<symbols::SymbolHandle>,
+    pub(crate) unavailable: Vec<UnavailableValueType>,
+}
+
 pub(crate) fn retain_constructed_result_types(
     program: &mut TypedTrees,
-) -> Vec<UnavailableValueType> {
+    derivations: &mut ResultDerivations,
+) -> ConstructedResultPublication {
     let mut unavailable = Vec::new();
+    let mut changed_owners = Vec::new();
     for (machine_symbol, state_symbol, expression) in occurrences(program, |node| {
         matches!(
             node,
@@ -150,10 +159,20 @@ pub(crate) fn retain_constructed_result_types(
                 | ExpressionNode::StructLiteral(_)
                 | ExpressionNode::Borrow(_)
                 | ExpressionNode::Call(_)
+                | ExpressionNode::Match(_)
         )
     }) {
         let reference = if program.expression_table.call_node(expression).is_some() {
-            match call_results::retain(program, machine_symbol, state_symbol, expression) {
+            match call_results::retain(
+                program,
+                machine_symbol,
+                state_symbol,
+                expression,
+                derivations,
+            ) {
+                // Generic selection owns an open call's forwarded result.
+                // This ordinary producer cannot clear or replace that output.
+                Ok(None) => continue,
                 Ok(reference) => reference,
                 Err(diagnostics) => {
                     unavailable.push(UnavailableValueType {
@@ -163,6 +182,15 @@ pub(crate) fn retain_constructed_result_types(
                     None
                 }
             }
+        } else if matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::Match(_)
+        ) {
+            (|| {
+                let machine = program.machine_by_symbol(machine_symbol)?;
+                let state = program.state_by_symbol(state_symbol)?;
+                validation::expression_result_type_reference(program, machine, state, expression)
+            })()
         } else if program
             .expression_table
             .borrow_expression(expression)
@@ -213,22 +241,21 @@ pub(crate) fn retain_constructed_result_types(
                 }
             })
         };
-        let Some(reference) = reference else {
-            // A private execution graph may be prepared again after call
-            // rebinding. Unresolved new children cannot retain the old type.
+        let reference = reference.unwrap_or_else(TypeReferenceHandle::invalid);
+        let previous = program
+            .expression_table
+            .constructed_value_type_reference(expression);
+        if previous != reference {
             program
                 .expression_table
-                .set_constructed_value_type_reference(
-                    expression,
-                    typed_trees::types::TypeReferenceHandle::invalid(),
-                );
-            continue;
-        };
-        program
-            .expression_table
-            .set_constructed_value_type_reference(expression, reference);
+                .set_constructed_value_type_reference(expression, reference);
+            changed_owners.push(machine_symbol);
+        }
     }
-    unavailable
+    ConstructedResultPublication {
+        changed_owners,
+        unavailable,
+    }
 }
 
 /// A constructor's selected declaration supplies its telescope; completed
@@ -357,14 +384,20 @@ fn retain_constructor_result_type(
             _ => return None,
         };
         let first = *proposals.first()?;
-        let identity =
-            typed_trees::type_identity::applied_type_identity(program, first, machine_symbol, &[])?;
+        let identity = typed_trees::type_identity::applied_type_identity(
+            program,
+            first,
+            typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(machine_symbol),
+            &[],
+            typed_trees::type_identity::TypeIdentityQualification::Ordinary,
+        )?;
         if proposals.iter().any(|reference| {
             typed_trees::type_identity::applied_type_identity(
                 program,
                 *reference,
-                machine_symbol,
+                typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(machine_symbol),
                 &[],
+                typed_trees::type_identity::TypeIdentityQualification::Ordinary,
             )
             .is_none_or(|candidate| candidate != identity)
         }) {

@@ -34,6 +34,7 @@ pub enum DeclaredContractKind {
     Ensures,
     EnsuresForResultCase { data: String, case: String },
     Crashes(super::CrashCause),
+    Where,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

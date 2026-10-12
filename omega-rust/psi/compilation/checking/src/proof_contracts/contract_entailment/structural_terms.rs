@@ -26,6 +26,23 @@ pub(super) use scalar_operands::{
     scalar_operand_is_observed, scalar_operand_meaning, term_is_unobserved_descriptor,
 };
 
+/// Applied public contracts can retain a caller's value binder outside the
+/// public runtime parameter frame. Its original declaration symbol identifies
+/// the value; spelling and the future selected value supply no proof authority.
+pub(super) fn value_parameter_symbol(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<symbols::SymbolHandle> {
+    let symbol = crate::expression_traversal::single_segment_name_symbol(program, expression)?;
+    let parameter = program.data_type_parameter_by_symbol(symbol)?;
+    matches!(
+        parameter.kind,
+        typed_trees::data::TypeParameterKind::Const { .. }
+            | typed_trees::data::TypeParameterKind::Value { .. }
+    )
+    .then_some(symbol)
+}
+
 /// Both anonymous peers compare as exact rationals after builtin selection,
 /// without choosing a fixed carrier for either intermediate computation.
 pub(super) fn builtin_anonymous_comparison_term(
@@ -323,7 +340,8 @@ pub(crate) fn source_operations_have_same_meaning(
                 && parameters
                     .iter()
                     .any(|parameter| parameter.symbol == path.symbol))
-                || program.symbols.get(path.symbol).kind == symbols::SymbolKind::Const)
+                || program.symbols.get(path.symbol).kind == symbols::SymbolKind::Const
+                || value_parameter_symbol(program, expression).is_some())
         {
             Some(StructuralTerm::BoundValue(path.symbol))
         } else {
@@ -375,6 +393,9 @@ pub(super) fn structural_term(
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
+            if let Some(symbol) = value_parameter_symbol(program, expression) {
+                return Some(StructuralTerm::BoundValue(symbol));
+            }
             let members = program.expression_table.name_path_members(path.members);
             match members {
                 [single] => {
@@ -587,10 +608,9 @@ pub(super) fn structural_term(
                     }),
                 Some(
                     subject @ (StructuralTerm::Variable(_) | StructuralTerm::Projection { .. }),
-                ) if is_length_member || declared_field => Some(StructuralTerm::Projection {
-                    subject: Box::new(subject),
-                    path: member.member.as_str().to_owned(),
-                }),
+                ) if is_length_member || declared_field => {
+                    super::observed_projections::project_field(subject, member.member.as_str())
+                }
                 _ => Some(StructuralTerm::Opaque(
                     program.expression_table.display_name(expression),
                 )),
@@ -640,9 +660,7 @@ fn static_call_receiver_for_target(
     if program.call_has_no_runtime_receiver_for_target(call) {
         return true;
     }
-    let mut selected = call.clone();
-    selected.target_symbol = target;
-    program.call_has_no_runtime_receiver_for_target(&selected)
+    program.call_has_no_runtime_receiver_for_selected_target(call, target)
 }
 
 fn structural_call_target_in_frame(

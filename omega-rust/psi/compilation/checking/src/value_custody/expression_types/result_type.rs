@@ -182,6 +182,12 @@ fn result_type(
             )
         }
         ExpressionNode::Call(call) => (|| {
+            let retained = program
+                .expression_table
+                .constructed_value_type_reference(expression);
+            if retained.is_valid() {
+                return Some(retained);
+            }
             if let Some(reference) =
                 crate::mathematical_applications::result_type_reference(program, call)
             {
@@ -1281,32 +1287,7 @@ pub(crate) fn cast_result_type_reference(
     program: &dyn crate::CheckingInput,
     cast: &typed_trees::expression::TableCastExpression,
 ) -> Option<TypeReferenceHandle> {
-    // Cast policy and semantic-domain suffixes live outside target_type.
-    // Returning that bare target would erase the result qualification
-    // before a surrounding operator selects its meaning.
-    if program
-        .type_reference_table
-        .contains_type_reference(cast.result_type)
-    {
-        Some(cast.result_type)
-    } else if !cast.semantic_domain.is_empty() {
-        None
-    } else if cast.domain == ArithmeticDomain::Exact {
-        Some(cast.target_type)
-    } else if let TypeReferenceNode::Named { symbol, .. } = program
-        .type_reference_table
-        .type_reference(cast.target_type)
-    {
-        program.symbols.builtin_type_atom(*symbol).and_then(|_| {
-            program
-                .type_reference_table
-                .find_arithmetic_result_type_reference(*symbol, cast.domain)
-        })
-    } else {
-        program
-            .type_reference_table
-            .find_policy_qualified_type_reference(cast.target_type, cast.domain)
-    }
+    program.typed_program().cast_result_type_reference(cast)
 }
 
 /// Exact operands contribute no policy. Distinct explicit policies have no

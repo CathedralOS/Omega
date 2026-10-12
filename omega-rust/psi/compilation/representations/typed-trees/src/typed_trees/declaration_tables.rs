@@ -43,16 +43,25 @@ impl TypedTrees {
         if let Some(application) = self.closed_requirement_application(owner) {
             owner = application.template;
         }
-        while let Some(application) = self
-            .machine_specializations
-            .iter()
-            .find(|application| application.instance == owner)
-        {
+        loop {
+            let template = self
+                .machine_by_symbol(owner)
+                .map(|machine| machine.generic_data_template)
+                .filter(|template| template.is_valid())
+                .or_else(|| {
+                    self.machine_specializations
+                        .iter()
+                        .find(|application| application.instance == owner)
+                        .map(|application| application.template)
+                });
+            let Some(template) = template else {
+                break;
+            };
             if visited.contains(&owner) {
                 return symbols::SymbolHandle::invalid();
             }
             visited.push(owner);
-            owner = application.template;
+            owner = template;
         }
         owner
     }
@@ -139,6 +148,8 @@ impl TypedTrees {
     }
 
     /// Read only a producer-retained view for this exact application occurrence.
+    /// A synthesized carrier use rejoins its own retained original application;
+    /// another use's first materialized tuple never supplies its member scope.
     pub fn data_application_definition(
         &self,
         application: crate::types::TypeReferenceHandle,
@@ -149,6 +160,14 @@ impl TypedTrees {
         {
             return None;
         }
+        let original = self
+            .type_reference_table
+            .data_application_origin(application);
+        let application = if original.is_valid() {
+            original
+        } else {
+            application
+        };
         let row = Handle::from_parts(application.arena_index(), application.generation());
         let definition = self.tables.data_application_definitions.get(row).definition;
         self.tables
@@ -163,6 +182,14 @@ impl TypedTrees {
         &self,
         application: crate::types::TypeReferenceHandle,
     ) -> bool {
+        let original = self
+            .type_reference_table
+            .data_application_origin(application);
+        let application = if original.is_valid() {
+            original
+        } else {
+            application
+        };
         let row = Handle::from_parts(application.arena_index(), application.generation());
         self.tables.data_application_definitions.get(row).is_closed
     }

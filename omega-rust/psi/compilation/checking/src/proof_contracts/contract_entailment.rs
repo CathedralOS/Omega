@@ -105,7 +105,8 @@ mod transparent_applications;
 
 pub use arithmetic_judgment::integer_embedding_sources_equal;
 pub use call_requirements::{
-    selected_value_call_requirement_entailed, structural_call_requirement_entailed,
+    applied_call_requirement_expression, selected_value_call_requirement_entailed,
+    structural_call_requirement_entailed,
 };
 pub(crate) use const_ranges::{
     const_range_bound_is_admitted, selected_const_call_result_bounds, symbolic_range_contains,
@@ -156,7 +157,6 @@ pub use ranking_range::{
 };
 pub use refuted_requires::instantiated_value_call_requires_proven;
 pub(crate) use refuted_requires::reject_refuted_value_call_requires;
-pub(crate) use scoped_arithmetic::scoped_arithmetic_implication_for_declaration;
 pub use scoped_arithmetic::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticComparison,
     ScopedArithmeticExpression, ScopedArithmeticHypothesis, ScopedArithmeticValue,
@@ -166,7 +166,9 @@ pub use scoped_arithmetic::{
 pub(crate) use specification_calls::{
     SelectedCallContract, selected_call_contract, validate_specification_call_requirements,
 };
-pub use static_applications::static_application_where_judgment;
+pub use static_applications::{
+    callable_where_judgment, callable_where_refinement_judgment, static_application_where_judgment,
+};
 pub use strict_arithmetic::{
     StrictArithmeticBindingValue, StrictArithmeticExpressionBinding,
     StrictArithmeticImplicationJudgment, StrictArithmeticSymbolBinding,
@@ -232,11 +234,48 @@ pub fn is_arm_pattern_marker(statement: &StatementNode) -> bool {
     )
 }
 
+/// The existing structural judgment also identifies the original observation
+/// window that proved a goal. Only completed effect-aware normal paths can
+/// publish a guarantee independently of machine-entry premise preservation.
+struct StructuralContractJudgment {
+    verdict: StructuralJudgment,
+    normal_return_paths: bool,
+}
+
+impl StructuralContractJudgment {
+    fn from_entry_premises(verdict: StructuralJudgment) -> Self {
+        Self {
+            verdict,
+            normal_return_paths: false,
+        }
+    }
+
+    fn from_normal_returns(verdict: StructuralJudgment, has_normal_paths: bool) -> Self {
+        Self {
+            verdict,
+            normal_return_paths: has_normal_paths,
+        }
+    }
+
+    fn retain_proven(
+        self,
+        fact: ExpressionHandle,
+        proven: &mut Vec<ExpressionHandle>,
+        normal_return_proven: &mut Vec<ExpressionHandle>,
+    ) {
+        proven.push(fact);
+        if self.normal_return_paths {
+            normal_return_proven.push(fact);
+        }
+    }
+}
+
 pub(crate) fn validate_machine_contract_entailment<'program>(
     program: &'program dyn crate::CheckingInput,
     machine: &'program Machine,
     diagnostics: &mut Vec<Diagnostic>,
     proven: &mut Vec<ExpressionHandle>,
+    normal_return_proven: &mut Vec<ExpressionHandle>,
 ) {
     // A top-level requirement publishes the contract that its selected
     // satisfier must refine. The declaration has no implementation body whose
@@ -253,6 +292,16 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
     // REJECT when any are present, since the unread fact could entail the
     // goal.
     let mut all_facts_are_expressions = true;
+    for fact in program.proof_facts.span_or_empty(machine.where_facts) {
+        match fact {
+            ProofFact::Expression(expression) => requires.push(*expression),
+            ProofFact::Proposition(application) => {
+                requires_propositions.push(application);
+                all_facts_are_expressions = false;
+            }
+            ProofFact::Membership(_) => all_facts_are_expressions = false,
+        }
+    }
     for contract in program.machine_contracts(machine) {
         let bucket = match &contract.kind {
             SignatureContractKind::Requires => &mut requires,
@@ -283,10 +332,11 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
     // Whether ANY requires fact exists (expression or membership) -- the
     // inductive-hypothesis guard: a requires-bearing machine's ensures is
     // CONDITIONAL, so it must not self-cite as an unconditional IH.
-    let machine_has_requires = program.machine_contracts(machine).iter().any(|contract| {
-        matches!(contract.kind, SignatureContractKind::Requires)
-            && !program.proof_facts.span_or_empty(contract.facts).is_empty()
-    });
+    let machine_has_requires = !machine.where_facts.is_empty()
+        || program.machine_contracts(machine).iter().any(|contract| {
+            matches!(contract.kind, SignatureContractKind::Requires)
+                && !program.proof_facts.span_or_empty(contract.facts).is_empty()
+        });
 
     // STRUCTURAL claims -- ensures conjuncts whose operands mention
     // PROOF-ONLY data (`result == Nat::Zero`, `add(a, b) == add(b, a)`) --
@@ -369,12 +419,27 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                 StatementNode::LocalData(local) => {
                     let mut next = Vec::new();
                     for (environment, judge) in frames {
+                        let environment_epoch = judge.effect_epoch();
                         for outcome in judge.normal_return_paths(
                             local.initial_value,
                             &environment,
                             (machine, root, local.type_reference),
                         )? {
-                            let mut environment = environment.clone();
+                            // The initializer can write storage read by an
+                            // earlier binding. Advance the outer environment
+                            // only after applying its actual effects; the next
+                            // expression must not treat an old value as fresh.
+                            let mut environment = environment
+                                .iter()
+                                .filter(|(name, value)| {
+                                    outcome.judge.binding_survives_effects(
+                                        name,
+                                        value,
+                                        environment_epoch,
+                                    )
+                                })
+                                .cloned()
+                                .collect::<Vec<_>>();
                             environment.push((local.name.as_str().to_owned(), outcome.value));
                             next.push((environment, outcome.judge));
                         }
@@ -497,7 +562,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                 .iter()
                 .any(|parameter| parameter.name.as_str() == RESULT_BINDER)
         });
-    let judge_structural = |fact: ExpressionHandle| -> StructuralJudgment {
+    let judge_structural = |fact: ExpressionHandle| -> StructuralContractJudgment {
         if structural_terms::is_case_observation(program, fact)
             && let Some(paths) = &sole_arm_case_result
             && let ExpressionNode::Binary(comparison) = program.expression_table.expression(fact)
@@ -508,7 +573,9 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
             if !crate::reserved_result_place(program, comparison.left)
                 .is_some_and(|place| place.machine_symbol == machine.symbol)
             {
-                return structural.judge(program, fact);
+                return StructuralContractJudgment::from_entry_premises(
+                    structural.judge(program, fact),
+                );
             }
             if paths.iter().all(|path| {
                 let mut bound = path.judge.clone();
@@ -519,7 +586,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                 );
                 matches!(bound.judge(program, fact), StructuralJudgment::Proven)
             }) {
-                return StructuralJudgment::Proven;
+                return StructuralContractJudgment::from_entry_premises(StructuralJudgment::Proven);
             }
         }
         if let Some(proven) = quotient_equality_from_requires(
@@ -529,11 +596,11 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
             &requires_propositions,
             fact,
         ) {
-            return if proven {
+            return StructuralContractJudgment::from_entry_premises(if proven {
                 StructuralJudgment::Proven
             } else {
                 StructuralJudgment::Unknown
-            };
+            });
         }
         if let Some(paths) = &sole_arm_result {
             let mut verdict = StructuralJudgment::Proven;
@@ -544,15 +611,22 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                         .insert(0, (RESULT_BINDER.to_owned(), path.value.clone()));
                 }
                 match bound.judge(program, fact) {
-                    StructuralJudgment::Refuted => return StructuralJudgment::Refuted,
+                    StructuralJudgment::Refuted => {
+                        return StructuralContractJudgment::from_normal_returns(
+                            StructuralJudgment::Refuted,
+                            !paths.is_empty(),
+                        );
+                    }
                     StructuralJudgment::Unknown => verdict = StructuralJudgment::Unknown,
                     StructuralJudgment::Proven => {}
                 }
             }
-            return verdict;
+            return StructuralContractJudgment::from_normal_returns(verdict, !paths.is_empty());
         }
         let Some(arms) = &case_arms else {
-            return structural.judge(program, fact);
+            return StructuralContractJudgment::from_entry_premises(
+                structural.judge(program, fact),
+            );
         };
         let mut verdict = StructuralJudgment::Proven;
         for arm in arms {
@@ -658,11 +732,15 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
             }
             match bound.judge(program, fact) {
                 StructuralJudgment::Proven => {}
-                StructuralJudgment::Refuted => return StructuralJudgment::Refuted,
+                StructuralJudgment::Refuted => {
+                    return StructuralContractJudgment::from_entry_premises(
+                        StructuralJudgment::Refuted,
+                    );
+                }
                 StructuralJudgment::Unknown => verdict = StructuralJudgment::Unknown,
             }
         }
-        verdict
+        StructuralContractJudgment::from_entry_premises(verdict)
     };
     let mut ensures: Vec<ExpressionHandle> = ensures
         .into_iter()
@@ -707,8 +785,9 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                 // carriers. A projection shape does not decide which facts
                 // may consume that evidence. Only a proved fact is discharged;
                 // other judgments retain the general engine's existing route.
-                if matches!(judge_structural(*fact), StructuralJudgment::Proven) {
-                    proven.push(*fact);
+                let judgment = judge_structural(*fact);
+                if matches!(judgment.verdict, StructuralJudgment::Proven) {
+                    judgment.retain_proven(*fact, proven, normal_return_proven);
                     return false;
                 }
                 return true;
@@ -726,7 +805,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
             if machine.supply_mode == language_semantics::MachineSupplyMode::AdmissionClaim
                 && zero_value_mention.is_none()
             {
-                if matches!(judge_structural(*fact), StructuralJudgment::Refuted) {
+                if matches!(judge_structural(*fact).verdict, StructuralJudgment::Refuted) {
                     diagnostics.push(Diagnostic::error(format!(
                         "accepted boundary machine `{}` claims `{}`, which the \
                          engine REFUTES structurally -- a refutable statement is a \
@@ -739,8 +818,11 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                 }
                 return false;
             }
-            match judge_structural(*fact) {
-                StructuralJudgment::Proven => proven.push(*fact),
+            let judgment = judge_structural(*fact);
+            match judgment.verdict {
+                StructuralJudgment::Proven => {
+                    judgment.retain_proven(*fact, proven, normal_return_proven);
+                }
                 StructuralJudgment::Refuted => {
                     diagnostics.push(Diagnostic::error(format!(
                         "machine `{}` ensures contract proof fact `{}` is disproved \

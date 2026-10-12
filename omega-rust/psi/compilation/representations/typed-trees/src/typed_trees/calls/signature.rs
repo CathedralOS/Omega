@@ -3,6 +3,8 @@ use crate::types::TypeReferenceHandle;
 use arena::HandleSpan;
 use symbols::SymbolHandle;
 
+mod fact_copies;
+
 /// One exact authored member of a service-reach ceiling.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AuthoredServiceReachTarget {
@@ -169,6 +171,18 @@ impl Default for StateParameter {
             relevance: language_core::BindingRelevance::Relevant,
         }
     }
+}
+
+/// Exact fact identity retained by the complete public-header copier. The
+/// declared and applied facts keep their own expression/formal graphs. This
+/// correspondence locates an obligation; it establishes no fact as true.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SignatureContractFactCopy {
+    pub declared_signature: SymbolHandle,
+    pub applied_signature: SymbolHandle,
+    pub kind: SignatureContractKind,
+    pub declared: arena::Handle<crate::domain::ProofFact>,
+    pub applied: arena::Handle<crate::domain::ProofFact>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

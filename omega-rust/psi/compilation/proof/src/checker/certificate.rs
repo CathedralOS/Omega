@@ -75,13 +75,13 @@ use typed_trees::statement::{StatementNode, TransitionGuardNode};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
 use crate::checker::AssignmentRangeContext;
+use crate::checker::decisions::ProofCheckRecorder;
 use crate::checker::derivation_cache::DerivationConsultation;
 use crate::checker::guards::{expressions_equivalent_for_proof, unwrap_true_guard_condition};
 use crate::checker::integer_ranges::{
     integer_literal_handle, integer_range_for_return_value, integer_range_from_constraints,
     type_constraints,
 };
-use crate::checker::measurement::ProofPlanMeasurements;
 use crate::checker::requires_conditions;
 use crate::obligations::{
     BoundedStateReturnObligation, BoundedTransitionArgumentObligation, IntegerRange,
@@ -140,10 +140,10 @@ pub(crate) fn bounded_integer_value_verdict(
     target: &IntegerRange,
     seed: u64,
     anonymous: bool,
-    measurements: &mut ProofPlanMeasurements,
+    checking: &mut ProofCheckRecorder,
     derivations: Option<&mut DerivationConsultation<'_>>,
 ) -> CertificateVerdict {
-    certificate_verdict_measured(measurements, derivations, || {
+    certificate_verdict_measured(checking, derivations, || {
         bounded_integer_value(
             proof_plan,
             value,
@@ -167,30 +167,36 @@ pub(crate) fn bounded_integer_value_verdict(
 /// a prior consultation's recheck short-circuits before the producer runs,
 /// and a verified certificate is retained back into it.
 fn certificate_verdict_measured(
-    measurements: &mut ProofPlanMeasurements,
+    checking: &mut ProofCheckRecorder,
     mut derivations: Option<&mut DerivationConsultation<'_>>,
     produce: impl FnOnce() -> Option<BoundedValueCertificate>,
 ) -> CertificateVerdict {
     if let Some(consultation) = derivations.as_deref_mut()
         && let Some(fact) = consultation.recheck()
     {
-        measurements.record_accepted_fact(&fact);
-        measurements.record_certificate_verdict(CertificateVerdict::Certified);
+        checking.retain_accepted_fact(fact);
+        checking
+            .measurements
+            .record_certificate_verdict(CertificateVerdict::Certified);
         return CertificateVerdict::Certified;
     }
     let Some(certificate) = produce() else {
-        measurements.record_certificate_verdict(CertificateVerdict::Uncovered);
+        checking
+            .measurements
+            .record_certificate_verdict(CertificateVerdict::Uncovered);
         return CertificateVerdict::Uncovered;
     };
-    measurements.record_emitted_certificate(&certificate.envelope.proof);
+    checking
+        .measurements
+        .record_emitted_certificate(&certificate.envelope.proof);
     let verdict = match certificate.verify() {
         Ok(fact) => {
-            measurements.record_accepted_fact(&fact);
+            checking.retain_accepted_fact(fact);
             CertificateVerdict::Certified
         }
         Err(_) => CertificateVerdict::Rejected,
     };
-    measurements.record_certificate_verdict(verdict);
+    checking.measurements.record_certificate_verdict(verdict);
     if verdict == CertificateVerdict::Certified
         && let Some(consultation) = derivations
     {
@@ -205,10 +211,10 @@ pub(crate) fn state_return_integer_verdict<'program>(
     context: &AssignmentRangeContext<'program>,
     target: &IntegerRange,
     seed: u64,
-    measurements: &mut ProofPlanMeasurements,
+    checking: &mut ProofCheckRecorder,
     derivations: Option<&mut DerivationConsultation<'_>>,
 ) -> CertificateVerdict {
-    certificate_verdict_measured(measurements, derivations, || {
+    certificate_verdict_measured(checking, derivations, || {
         state_return_certificate(proof_plan, obligation, context, target, seed)
     })
 }
@@ -436,10 +442,10 @@ pub(crate) fn guarded_transition_integer_verdict_measured(
     obligation: &BoundedTransitionArgumentObligation,
     target: &IntegerRange,
     seed: u64,
-    measurements: &mut ProofPlanMeasurements,
+    checking: &mut ProofCheckRecorder,
     derivations: Option<&mut DerivationConsultation<'_>>,
 ) -> CertificateVerdict {
-    certificate_verdict_measured(measurements, derivations, || {
+    certificate_verdict_measured(checking, derivations, || {
         guarded_transition_certificate(proof_plan, obligation, target, seed)
     })
 }

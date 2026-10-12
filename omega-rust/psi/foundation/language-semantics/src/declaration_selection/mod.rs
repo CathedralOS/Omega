@@ -257,6 +257,24 @@ pub fn is_unresolved_provider_selection_call(
 }
 
 impl BuildOperation {
+    /// Static product descriptions and value operands of one Build declaration.
+    /// Resolution retains these operands without invoking product code; checking
+    /// still authenticates the namespace and execution the original Build cell.
+    pub fn declaration_operand_counts(
+        self,
+    ) -> Option<(
+        std::ops::RangeInclusive<usize>,
+        std::ops::RangeInclusive<usize>,
+    )> {
+        match self {
+            Self::ProviderSelection => Some((2..=2, 1..=2)),
+            Self::AssumedBindingContract | Self::RepresentationSelection => Some((2..=2, 1..=1)),
+            Self::ServiceExclusion | Self::BoundaryAcceptance => Some((1..=1, 1..=1)),
+            Self::WireCompatibilityRequest => Some((5..=usize::MAX, 1..=1)),
+            _ => None,
+        }
+    }
+
     /// Every toolchain-owned build operation. Adding a variant without its
     /// spelling stops compiling here rather than silently dropping out of
     /// the map.
@@ -470,6 +488,7 @@ pub enum AuthoredDeclarationSelectionFinalizationError {
     LateBindingMismatch,
     InvalidSelectedSymbol,
     StaticArgumentPositionMismatch,
+    StaticArgumentCallMismatch,
 }
 
 /// Why a retained authored-selection prefix and one appended suffix could not
@@ -530,6 +549,16 @@ impl AuthoredDeclarationSelectionSuffixRebase {
     }
 }
 
+/// An operand coordinate in the original call. Descendants count every nested
+/// static operand in preorder, including literals which mint no selection row.
+/// Zero denotes the top-level operand itself. Folding and resolution never
+/// change this coordinate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StaticArgumentPosition {
+    pub argument_index: usize,
+    pub descendant_ordinal: usize,
+}
+
 /// One authored occurrence retained while its source location and exposure are
 /// still exact. Package ownership is intentionally absent and is joined by a
 /// later compiler integration.
@@ -541,7 +570,10 @@ pub struct AuthoredDeclarationSelection {
     kind: AuthoredDeclarationSelectionKind,
     compiler_partition: Option<CompilerDerivedSelectionPartition>,
     target: AuthoredDeclarationSelectionTarget,
-    top_level_static_argument_position: Option<usize>,
+    static_argument_position: Option<StaticArgumentPosition>,
+    /// Exact original call occurrence owning this static operand. The same
+    /// ledger association survives expression/statement lowering and copies.
+    static_argument_call: Option<AuthoredDeclarationSelectionOccurrenceId>,
 }
 
 impl AuthoredDeclarationSelection {
@@ -562,7 +594,8 @@ impl AuthoredDeclarationSelection {
             kind,
             compiler_partition,
             target: AuthoredDeclarationSelectionTarget::Resolved(selected),
-            top_level_static_argument_position: None,
+            static_argument_position: None,
+            static_argument_call: None,
         })
     }
 
@@ -581,7 +614,8 @@ impl AuthoredDeclarationSelection {
             kind,
             compiler_partition,
             target: AuthoredDeclarationSelectionTarget::LateBound(late_binding),
-            top_level_static_argument_position: None,
+            static_argument_position: None,
+            static_argument_call: None,
         }
     }
 
@@ -609,10 +643,19 @@ impl AuthoredDeclarationSelection {
         self.target
     }
 
-    /// The authored call's operand slot, retained before identifiers lose their
-    /// source coordinates. Nested application operands have no top-level slot.
+    pub fn static_argument_position(self) -> Option<StaticArgumentPosition> {
+        self.static_argument_position
+    }
+
+    pub fn static_argument_call(self) -> Option<AuthoredDeclarationSelectionOccurrenceId> {
+        self.static_argument_call
+    }
+
+    /// A projection for consumers which admit only entire call operands.
     pub fn top_level_static_argument_position(self) -> Option<usize> {
-        self.top_level_static_argument_position
+        self.static_argument_position
+            .filter(|position| position.descendant_ordinal == 0)
+            .map(|position| position.argument_index)
     }
 }
 
@@ -695,8 +738,8 @@ impl AuthoredDeclarationSelections {
                 || source.exposure != destination.exposure
                 || source.kind != destination.kind
                 || source.compiler_partition != destination.compiler_partition
-                || source.top_level_static_argument_position
-                    != destination.top_level_static_argument_position
+                || source.static_argument_position != destination.static_argument_position
+                || source.static_argument_call != destination.static_argument_call
             {
                 return Err(AuthoredDeclarationSelectionSuffixRebaseError::PrefixIdentityMismatch);
             }
@@ -737,6 +780,11 @@ impl AuthoredDeclarationSelections {
                 .ok_or(AuthoredDeclarationSelectionSuffixRebaseError::OccurrenceCapacityExceeded)?;
             let mut rebased = *source;
             rebased.occurrence_id = occurrence_id;
+            if let Some(call) = rebased.static_argument_call {
+                rebased.static_argument_call = Some(rebase.rebase_appended(call).ok_or(
+                    AuthoredDeclarationSelectionSuffixRebaseError::OccurrenceCapacityExceeded,
+                )?);
+            }
             rows.push(rebased);
         }
         let by_span = SpanIndex::of(&rows);
@@ -866,6 +914,20 @@ impl AuthoredDeclarationSelections {
         occurrence: AuthoredDeclarationSelectionOccurrenceId,
         position: usize,
     ) -> Result<(), AuthoredDeclarationSelectionFinalizationError> {
+        self.retain_static_argument_position(
+            occurrence,
+            StaticArgumentPosition {
+                argument_index: position,
+                descendant_ordinal: 0,
+            },
+        )
+    }
+
+    pub fn retain_static_argument_position(
+        &mut self,
+        occurrence: AuthoredDeclarationSelectionOccurrenceId,
+        position: StaticArgumentPosition,
+    ) -> Result<(), AuthoredDeclarationSelectionFinalizationError> {
         let row = usize::try_from(occurrence.0)
             .ok()
             .and_then(|index| self.rows.get_mut(index))
@@ -876,14 +938,44 @@ impl AuthoredDeclarationSelections {
             AuthoredDeclarationSelectionKind::StaticArgument
                 | AuthoredDeclarationSelectionKind::Conformance
         ) || row
-            .top_level_static_argument_position
+            .static_argument_position
             .is_some_and(|retained| retained != position)
         {
             return Err(
                 AuthoredDeclarationSelectionFinalizationError::StaticArgumentPositionMismatch,
             );
         }
-        row.top_level_static_argument_position = Some(position);
+        row.static_argument_position = Some(position);
+        Ok(())
+    }
+
+    /// Retain exact call custody after both occurrences have been minted.
+    /// No source-span scan or current payload graph may replace this owner.
+    pub fn retain_static_argument_call(
+        &mut self,
+        occurrence: AuthoredDeclarationSelectionOccurrenceId,
+        call: AuthoredDeclarationSelectionOccurrenceId,
+    ) -> Result<(), AuthoredDeclarationSelectionFinalizationError> {
+        let caller = self
+            .get(call)
+            .filter(|row| row.kind == AuthoredDeclarationSelectionKind::Call)
+            .copied()
+            .ok_or(AuthoredDeclarationSelectionFinalizationError::StaticArgumentCallMismatch)?;
+        let row = usize::try_from(occurrence.0)
+            .ok()
+            .and_then(|index| self.rows.get_mut(index))
+            .filter(|row| row.occurrence_id == occurrence)
+            .ok_or(AuthoredDeclarationSelectionFinalizationError::UnknownOccurrence)?;
+        if row.static_argument_position.is_none()
+            || row.exposure != caller.exposure
+            || row.compiler_partition != caller.compiler_partition
+            || row
+                .static_argument_call
+                .is_some_and(|retained| retained != call)
+        {
+            return Err(AuthoredDeclarationSelectionFinalizationError::StaticArgumentCallMismatch);
+        }
+        row.static_argument_call = Some(call);
         Ok(())
     }
 

@@ -293,7 +293,7 @@ pub(crate) fn require_call_expression_selection(
     expression: ExpressionHandle,
     authority: Option<&dyn BuildTimeSelectionAuthority>,
 ) -> Result<(), String> {
-    let Some(call) = program.expression_table.call_node(expression) else {
+    let Some(call) = program.expression_table.source_call_node(expression) else {
         return Err("range endpoint lost its original call selection".to_owned());
     };
     if let Some(violation) = expression_occurrence_violation(program, expression, authority) {
@@ -378,22 +378,16 @@ fn expression_occurrence_violation(
                 if selection.kind() == Kind::Call {
                     continue;
                 }
-                if selection.kind() == Kind::StaticArgument {
-                    let argument_index = occurrences[..occurrence_offset]
-                        .iter()
-                        .filter(|occurrence| {
-                            program
-                                .authored_declaration_selections()
-                                .get(**occurrence)
-                                .is_some_and(|earlier| earlier.kind() == Kind::StaticArgument)
-                        })
-                        .count();
+                if let Some(position) = selection.static_argument_position() {
+                    let call = program
+                        .expression_table
+                        .call_node(expression)
+                        .expect("classified Build selection retains its original call");
                     let selected =
-                        validation::compiler_operations::resolve_build_declaration_operand(
+                        validation::compiler_operations::resolve_static_argument_selection(
                             program,
-                            expression,
-                            argument_index,
-                            selection.source_span(),
+                            typed_trees::references::StaticArgumentCall::Expression(expression, call),
+                            position,
                         );
                     if selected.is_none() {
                         return Some(located("Build declaration operand does not resolve to one visible product declaration in this occurrence's package scope".to_owned()));

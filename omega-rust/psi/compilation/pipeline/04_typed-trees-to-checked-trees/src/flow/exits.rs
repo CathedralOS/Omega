@@ -123,11 +123,13 @@ pub(super) fn append_state_exit_facts(
             .expect("exit state");
         let (rebased_contexts, parameter_origins) = super::entry_origins::rebase_contexts(
             program,
+            proof,
             semantic,
             build,
             machine,
             state,
             ensures_contexts,
+            contract_exit.ensures,
             false,
         );
         ensures_contexts = rebased_contexts;

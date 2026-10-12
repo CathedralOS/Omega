@@ -30,6 +30,15 @@ pub(in crate::proof_contracts::contract_entailment) struct NormalReturnPath<'pro
 pub(in crate::proof_contracts::contract_entailment) struct NormalCallEntry<'program> {
     pub arguments: Vec<StructuralTerm>,
     pub judge: StructuralJudge<'program>,
+    pub environment: Vec<(String, StructuralTerm)>,
+}
+
+struct PreparedNormalCall<'program> {
+    owner: SelectedCallContract<'program>,
+    parameters: std::borrow::Cow<'program, [typed_trees::signature::StateParameter]>,
+    bindings: Vec<(SymbolHandle, StructuralTerm)>,
+    callable: SymbolHandle,
+    result_type: TypeReferenceHandle,
 }
 
 type ValueScope<'scope> = (
@@ -169,6 +178,18 @@ impl<'program> StructuralJudge<'program> {
         environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
     ) -> Option<Vec<NormalReturnPath<'program>>> {
+        self.normal_return_paths_since(expression, environment, scope, self.effect_epoch())
+    }
+
+    /// The environment was observed at this exact effect cursor. Child calls
+    /// advance the path; they cannot make its old storage bindings fresh again.
+    pub(in crate::proof_contracts::contract_entailment) fn normal_return_paths_since(
+        &self,
+        expression: ExpressionHandle,
+        environment: &[(String, StructuralTerm)],
+        scope: ValueScope<'_>,
+        environment_epoch: usize,
+    ) -> Option<Vec<NormalReturnPath<'program>>> {
         self.clone().evaluate_normal_paths(
             expression,
             environment,
@@ -176,6 +197,7 @@ impl<'program> StructuralJudge<'program> {
             0,
             ExpressionHandle::invalid(),
             &mut Vec::new(),
+            environment_epoch,
         )
     }
 
@@ -198,6 +220,7 @@ impl<'program> StructuralJudge<'program> {
             0,
             call,
             &mut entries,
+            self.effect_epoch(),
         )?;
         (!entries.is_empty()).then_some(entries)
     }
@@ -220,6 +243,7 @@ impl<'program> StructuralJudge<'program> {
             0,
             ExpressionHandle::invalid(),
             &mut Vec::new(),
+            self.effect_epoch(),
         )?;
         let paths = contexts
             .into_iter()
@@ -258,7 +282,7 @@ impl<'program> StructuralJudge<'program> {
                         scope.1,
                         root,
                     )
-                    .unwrap_or(scope.2);
+                    .unwrap_or_default();
                     (root, reference)
                 })
                 .collect(),
@@ -292,11 +316,22 @@ impl<'program> StructuralJudge<'program> {
                     0,
                     ExpressionHandle::invalid(),
                     &mut Vec::new(),
+                    self.effect_epoch(),
                 )?
                 .into_iter()
-                .map(|(judge, values)| NormalCallEntry {
-                    arguments: values.into_iter().map(|(_, value)| value).collect(),
-                    judge,
+                .map(|(judge, values)| {
+                    let environment = environment
+                        .iter()
+                        .filter(|(name, value)| {
+                            judge.binding_survives_effects(name, value, self.effect_epoch())
+                        })
+                        .cloned()
+                        .collect();
+                    NormalCallEntry {
+                        arguments: values.into_iter().map(|(_, value)| value).collect(),
+                        judge,
+                        environment,
+                    }
                 })
                 .collect(),
         )
@@ -310,6 +345,7 @@ impl<'program> StructuralJudge<'program> {
         depth: usize,
         requested_call: ExpressionHandle,
         entries: &mut Vec<NormalCallEntry<'program>>,
+        environment_epoch: usize,
     ) -> Option<Vec<(Self, Vec<(ExpressionHandle, StructuralTerm)>)>> {
         let mut contexts = vec![(self, Vec::new())];
         for &(child, reference) in operands {
@@ -322,6 +358,7 @@ impl<'program> StructuralJudge<'program> {
                     depth + 1,
                     requested_call,
                     entries,
+                    environment_epoch,
                 )? {
                     let mut inputs = inputs.clone();
                     inputs.push((child, path.value));
@@ -341,11 +378,18 @@ impl<'program> StructuralJudge<'program> {
         depth: usize,
         requested_call: ExpressionHandle,
         entries: &mut Vec<NormalCallEntry<'program>>,
+        environment_epoch: usize,
     ) -> Option<Vec<NormalReturnPath<'program>>> {
         if depth >= 64 || !program_expression_is_live(self.program, expression) {
             return None;
         }
         let program = self.program;
+        let environment = environment
+            .iter()
+            .filter(|(name, value)| self.binding_survives_effects(name, value, environment_epoch))
+            .cloned()
+            .collect::<Vec<_>>();
+        let environment = environment.as_slice();
         let node = program.expression_table.expression(expression);
         if let ExpressionNode::Binary(binary) = node
             && matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
@@ -365,6 +409,7 @@ impl<'program> StructuralJudge<'program> {
                 depth + 1,
                 requested_call,
                 entries,
+                environment_epoch,
             )? {
                 for truth in [false, true] {
                     let mut selected = left.judge.clone();
@@ -388,6 +433,7 @@ impl<'program> StructuralJudge<'program> {
                             depth + 1,
                             requested_call,
                             entries,
+                            environment_epoch,
                         )? {
                             outcomes.push(right.at_expression(expression));
                         }
@@ -413,6 +459,7 @@ impl<'program> StructuralJudge<'program> {
                 depth + 1,
                 requested_call,
                 entries,
+                environment_epoch,
             )?;
             for arm in program.expression_table.match_arms(dispatch.arms) {
                 let mut next_remaining = Vec::new();
@@ -427,6 +474,7 @@ impl<'program> StructuralJudge<'program> {
                             depth + 1,
                             requested_call,
                             entries,
+                            environment_epoch,
                         )? {
                             let primitive = crate::match_subject_primitive_type(program, dispatch);
                             let equation_meaning = primitive.is_some_and(|primitive| {
@@ -483,6 +531,7 @@ impl<'program> StructuralJudge<'program> {
                                 depth + 1,
                                 requested_call,
                                 entries,
+                                environment_epoch,
                             )? {
                                 outcomes.push(value.at_expression(expression));
                             }
@@ -495,6 +544,7 @@ impl<'program> StructuralJudge<'program> {
                             depth + 1,
                             requested_call,
                             entries,
+                            environment_epoch,
                         )? {
                             outcomes.push(value.at_expression(expression));
                         }
@@ -507,30 +557,6 @@ impl<'program> StructuralJudge<'program> {
             }
             return Some(outcomes);
         }
-        let writes = if let ExpressionNode::Call(call) = node
-            && !call_has_mathematical_denotation(program, call)
-        {
-            let machine = program.machine(scope.0.symbol)?;
-            let writes = self
-                .frame_resolver()?
-                .expression_may_write_paths(machine, expression);
-            if super::super::struct_trace() {
-                eprintln!(
-                    "STRUCT normal-write-frame caller={} expression={expression:?} writes={writes:?}",
-                    scope.0.name
-                );
-            }
-            let writes = writes?;
-            // Mathematical body substitution has no runtime storage epochs.
-            // It cannot unfold effectful calls as repeatable applications.
-            // Case-only paths separately establish tag preservation.
-            if !writes.is_empty() && !self.runtime_body_values && !self.case_facts_only {
-                return None;
-            }
-            writes
-        } else {
-            Vec::new()
-        };
         // Retire a prior evaluation of this static node. Repeated edges are
         // distinct invocations; saved earlier values already retain their own
         // capture sequence and equations in the caller environment.
@@ -539,7 +565,7 @@ impl<'program> StructuralJudge<'program> {
         let mut children_to_evaluate = Vec::new();
         let namespace_receiver = program
             .expression_table
-            .call_node(expression)
+            .source_call_node(expression)
             .filter(|call| super::super::structural_terms::static_call_receiver(program, call))
             .map(|call| call.receiver);
         children(program, node, |child| {
@@ -581,42 +607,88 @@ impl<'program> StructuralJudge<'program> {
             depth,
             requested_call,
             entries,
+            environment_epoch,
         )?;
         contexts
             .into_iter()
             .map(|(mut judge, inputs)| {
-                let call_inputs = if let Some(call) = program.expression_table.call_node(expression)
-                {
-                    let mut cursor = 0;
-                    Some(
-                        program
-                            .expression_table
-                            .expression_handles(call.arguments)
-                            .iter()
-                            .map(|source| {
-                                let offset = inputs[cursor..]
-                                    .iter()
-                                    .position(|(input, _)| input == source)?;
-                                cursor += offset + 1;
-                                Some(inputs[cursor - 1].1.clone())
-                            })
-                            .collect::<Option<Vec<_>>>()?,
-                    )
-                } else {
-                    None
-                };
+                let call_inputs =
+                    if let Some(call) = program.expression_table.source_call_node(expression) {
+                        let mut cursor = 0;
+                        Some(
+                            program
+                                .expression_table
+                                .expression_handles(call.arguments)
+                                .iter()
+                                .map(|source| {
+                                    let offset = inputs[cursor..]
+                                        .iter()
+                                        .position(|(input, _)| input == source)?;
+                                    cursor += offset + 1;
+                                    Some(inputs[cursor - 1].1.clone())
+                                })
+                                .collect::<Option<Vec<_>>>()?,
+                        )
+                    } else {
+                        None
+                    };
+                let mut live_environment = environment
+                    .iter()
+                    .filter(|(name, value)| {
+                        judge.binding_survives_effects(name, value, environment_epoch)
+                    })
+                    .cloned()
+                    .collect::<Vec<_>>();
                 if requested_call == expression {
                     entries.push(NormalCallEntry {
                         arguments: call_inputs.as_ref()?.clone(),
                         judge: judge.clone(),
+                        environment: live_environment.clone(),
                     });
                 }
-                judge.capture_normal_call(expression, call_inputs.as_deref(), environment, scope);
-                // Arguments have completed, so their copied values keep their
-                // identities. Only later storage observations see these writes.
-                // Selected contracts separately require preserved live subjects;
-                // mutation cannot turn pre-state arguments into post-state facts.
-                judge.observe_storage_writes(scope.1, &writes)?;
+                let frame = match node {
+                    ExpressionNode::Call(call)
+                        if !call_has_mathematical_denotation(program, call) =>
+                    {
+                        Some(
+                            judge
+                                .call_frames()
+                                .map_or_else(facts::NormalizedWriteFrame::opaque, |frames| {
+                                    frames.value_call_write_frame(scope.0, expression)
+                                }),
+                        )
+                    }
+                    _ => None,
+                };
+                // Mathematical substitution has no runtime storage epochs.
+                // Ordered operand traversal already owns nested call effects;
+                // this frame describes only the selected invocation itself.
+                if !judge.runtime_body_values
+                    && !judge.case_facts_only
+                    && frame.as_ref().is_some_and(|frame| {
+                        frame.complete_paths().is_none_or(|paths| !paths.is_empty())
+                    })
+                {
+                    return None;
+                }
+                let entry = frame.as_ref().and_then(|frame| {
+                    judge.prepare_normal_call(
+                        expression,
+                        call_inputs.as_deref(),
+                        &live_environment,
+                        scope,
+                        frame,
+                    )
+                });
+                if let Some(frame) = frame {
+                    judge.retire_call_effects(scope.1, frame);
+                    live_environment.retain(|(name, value)| {
+                        judge.binding_survives_effects(name, value, environment_epoch)
+                    });
+                }
+                if let Some(entry) = entry {
+                    judge.capture_normal_call(expression, entry);
+                }
                 let mut value = if matches!(node, ExpressionNode::Atomic(_)) {
                     // The atomic owner distinguishes an observed load from
                     // update carriers. Its value is a fresh event, not the
@@ -634,7 +706,7 @@ impl<'program> StructuralJudge<'program> {
                         )?,
                     }
                 } else if let Some(value) =
-                    judge.callee_term_in_scope(Some(scope), expression, environment, 0)
+                    judge.callee_term_in_scope(Some(scope), expression, &live_environment, 0)
                 {
                     value
                 } else if judge.runtime_body_values
@@ -700,6 +772,11 @@ impl<'program> StructuralJudge<'program> {
                         index.clone(),
                     )?;
                 }
+                if let Some(reference) =
+                    crate::expression_result_type_reference(program, scope.0, scope.1, expression)
+                {
+                    value = judge.capture_scalar_observation(expression, reference, value);
+                }
                 Some(NormalReturnPath { value, judge }.at_expression(expression))
             })
             .collect()
@@ -763,35 +840,45 @@ impl<'program> StructuralJudge<'program> {
         }
     }
 
-    fn capture_normal_call(
-        &mut self,
+    fn prepare_normal_call(
+        &self,
         expression: ExpressionHandle,
         actuals: Option<&[StructuralTerm]>,
         environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
-    ) {
+        writes: &facts::NormalizedWriteFrame,
+    ) -> Option<PreparedNormalCall<'program>> {
         let program = self.program;
         let node = program.expression_table.expression(expression);
         let ExpressionNode::Call(call) = node else {
-            return;
+            return None;
         };
+        let call = program.expression_table.source_call(call)?;
         let Some(owner) = selected_call_contract(program, call) else {
-            return;
+            return None;
         };
         // Computed proof machines are erased mathematical applications. Their
         // definitions and induction remain with the existing term owner;
         // replacing them with opaque runtime occurrences loses that denotation.
         if call_has_mathematical_denotation(program, call) {
-            return;
+            return None;
         }
-        if !call.machine_arguments.is_empty()
+        let public_application = program
+            .selected_public_requirement_application(
+                call.authored_machine_application,
+                call.static_requirement_dispatch
+                    .as_ref()
+                    .map_or(call.target_symbol, |dispatch| dispatch.requirement),
+            )
+            .is_some();
+        if (!call.machine_arguments.is_empty() && !public_application)
             || !call.evidence_arguments.is_empty()
             || call.quotient_operation.is_some()
         {
-            return;
+            return None;
         }
         let Some(parameter_scope) = owner_parameter_scope(program, &owner) else {
-            return;
+            return None;
         };
         let parameters = parameter_scope.as_ref();
         if super::super::struct_trace() {
@@ -800,28 +887,35 @@ impl<'program> StructuralJudge<'program> {
                 owner_symbol(&owner)
             );
         }
-        if parameters.iter().any(|parameter| parameter.is_mutable) {
-            return;
+        let mut selections = call.machine_arguments.to_vec();
+        if public_application {
+            // The complete application can infer a selection without spelling
+            // it at the call. Its callback dependencies still owe the same
+            // source/proof independence as explicitly selected operands.
+            for binding in program
+                .expression_table
+                .static_machine_application_bindings(call.authored_machine_application)
+            {
+                match &binding.value {
+                    typed_trees::static_applications::StaticMachineBindingValue::Machine(
+                        argument,
+                    )
+                    | typed_trees::static_applications::StaticMachineBindingValue::Conformance(
+                        argument,
+                    ) => {
+                        selections.push(argument.clone());
+                    }
+                    _ => {}
+                }
+            }
         }
-        // References are live subjects. Only the frame owner can publish their
-        // exact prefix origins and preservation through this normal return.
-        // A written subject or replaced formal binding needs post-state facts,
-        // not the detached child term captured during operand evaluation.
-        let Some(machine) = program.machine(scope.0.symbol) else {
-            return;
-        };
-        let Some(subjects) = self.frame_resolver().and_then(|frames| {
-            frames.expression_call_reference_subjects(machine, expression, parameters)
-        }) else {
-            return;
-        };
         if !independent_application(
             program,
             self.machine_symbol,
             owner_symbol(&owner),
-            &call.machine_arguments,
+            &selections,
         ) {
-            return;
+            return None;
         }
         let leading_operands = owner_leading_operands(&owner);
         let Some(arguments) = program
@@ -829,10 +923,10 @@ impl<'program> StructuralJudge<'program> {
             .expression_handles(call.arguments)
             .get(leading_operands..)
         else {
-            return;
+            return None;
         };
         if arguments.len() != parameters.len() {
-            return;
+            return None;
         }
         // The checked local-name gate rejects parameter/local collisions and
         // duplicate locals in each state; state forwarding creates a fresh
@@ -845,29 +939,39 @@ impl<'program> StructuralJudge<'program> {
             .and_then(|actuals| actuals.get(leading_operands..))
             .filter(|actuals| actuals.len() == arguments.len())
         else {
-            return;
+            return None;
         };
-        let Some(bindings) = parameters
+        let required_parameters = contract_parameter_dependencies(
+            program,
+            &owner,
+            SignatureContractKind::Requires,
+            parameters,
+        )?;
+        let machine = program.machine(scope.0.symbol)?;
+        let frames = self.call_frames()?;
+        let subjects = frames.expression_call_reference_subjects_for_parameters(
+            machine,
+            expression,
+            parameters,
+            &required_parameters,
+            writes,
+        )?;
+        let bindings = parameters
             .iter()
             .zip(actuals)
+            .filter(|(parameter, _)| required_parameters.contains(&parameter.symbol))
             .map(|(parameter, value)| {
                 let value = if crate::reference_shell(program, parameter.type_reference).is_some() {
                     let subject = subjects
                         .iter()
                         .find(|subject| subject.parameter == parameter.symbol)?;
-                    if !subject.preserved_on_return {
-                        return None;
-                    }
                     self.reference_subject_term(subject, environment, scope)?
                 } else {
                     value.clone()
                 };
                 Some((parameter.symbol, value))
             })
-            .collect::<Option<Vec<_>>>()
-        else {
-            return;
-        };
+            .collect::<Option<Vec<_>>>()?;
         let callable = match owner {
             SelectedCallContract::Concrete(machine, _) => machine.symbol,
             _ => owner_symbol(&owner),
@@ -876,7 +980,7 @@ impl<'program> StructuralJudge<'program> {
         let Some(observed_type) =
             crate::expression_result_type_reference(program, scope.0, scope.1, expression)
         else {
-            return;
+            return None;
         };
         // A selected policy adapter may change the returned denotation. A raw
         // declaration's equation cannot describe that adapted result.
@@ -884,7 +988,7 @@ impl<'program> StructuralJudge<'program> {
             || program.arithmetic_domain_for_type_reference(observed_type)
                 != program.arithmetic_domain_for_type_reference(result_type)
         {
-            return;
+            return None;
         }
         let contracts = owner_contracts(program, &owner).collect::<Vec<_>>();
         for contract in contracts
@@ -893,7 +997,7 @@ impl<'program> StructuralJudge<'program> {
         {
             for fact in program.proof_facts.span_or_empty(contract.facts) {
                 let ProofFact::Expression(required) = fact else {
-                    return;
+                    return None;
                 };
                 if super::super::struct_trace() {
                     eprintln!(
@@ -915,10 +1019,74 @@ impl<'program> StructuralJudge<'program> {
                     );
                 }
                 if !matches!(judgment, StructuralJudgment::Proven) {
-                    return;
+                    return None;
                 }
             }
         }
+        let guaranteed_parameters = contract_parameter_dependencies(
+            program,
+            &owner,
+            SignatureContractKind::Ensures,
+            parameters,
+        )?;
+        let reference_parameters = parameters
+            .iter()
+            .filter(|parameter| {
+                guaranteed_parameters.contains(&parameter.symbol)
+                    && crate::reference_shell(program, parameter.type_reference).is_some()
+            })
+            .map(|parameter| parameter.symbol)
+            .collect::<Vec<_>>();
+        let post_subjects = frames.expression_call_reference_subjects_for_parameters(
+            machine,
+            expression,
+            parameters,
+            &reference_parameters,
+            writes,
+        );
+        let mut post_bindings = Vec::new();
+        for (parameter, value) in parameters.iter().zip(actuals) {
+            if parameter.is_mutable || !guaranteed_parameters.contains(&parameter.symbol) {
+                continue;
+            }
+            if crate::reference_shell(program, parameter.type_reference).is_some() {
+                if let Some(subjects) = post_subjects.as_ref()
+                    && let Some(subject) = subjects
+                        .iter()
+                        .find(|subject| subject.parameter == parameter.symbol)
+                    && subject.preserved_on_return
+                    && let Some(value) = self.reference_subject_term(subject, environment, scope)
+                {
+                    post_bindings.push((parameter.symbol, value));
+                }
+            } else if frames.proof_value_is_caller_isolated(parameter.type_reference) {
+                post_bindings.push((parameter.symbol, self.resolve(value.clone())));
+            }
+        }
+        Some(PreparedNormalCall {
+            owner,
+            parameters: parameter_scope,
+            bindings: post_bindings,
+            callable,
+            result_type,
+        })
+    }
+
+    fn capture_normal_call(
+        &mut self,
+        expression: ExpressionHandle,
+        entry: PreparedNormalCall<'program>,
+    ) {
+        let program = self.program;
+        let PreparedNormalCall {
+            owner,
+            parameters: parameter_scope,
+            bindings,
+            callable,
+            result_type,
+        } = entry;
+        let parameters = parameter_scope.as_ref();
+        let contracts = owner_contracts(program, &owner).collect::<Vec<_>>();
         self.capture_sequence += 1;
         let captured = StructuralTerm::CapturedValue {
             expression,
@@ -934,15 +1102,19 @@ impl<'program> StructuralJudge<'program> {
             SelectedCallContract::Concrete(machine, _) => Some(machine),
             _ => None,
         };
-        let tag_map = parameters
+        let mut tag_map = parameters
             .iter()
-            .zip(&bindings)
-            .map(|(parameter, (_, value))| (parameter.name.as_str().to_owned(), value.clone()))
-            .chain(std::iter::once((
-                crate::proof_contracts::contract_entailment::RESULT_BINDER.to_owned(),
-                captured.clone(),
-            )))
+            .filter_map(|parameter| {
+                bindings
+                    .iter()
+                    .find(|(symbol, _)| *symbol == parameter.symbol)
+                    .map(|(_, value)| (parameter.name.as_str().to_owned(), value.clone()))
+            })
             .collect::<Vec<_>>();
+        tag_map.push((
+            crate::proof_contracts::contract_entailment::RESULT_BINDER.to_owned(),
+            captured.clone(),
+        ));
         let mut case_guarantees = Vec::new();
         for contract in contracts
             .iter()
@@ -963,7 +1135,15 @@ impl<'program> StructuralJudge<'program> {
                     &mut equations,
                     0,
                 );
-                if let Some(callee) = tag_callee {
+                if let Some(callee) = tag_callee
+                    && parameter_dependencies(program, [*guarantee], parameters).is_some_and(
+                        |required| {
+                            required.iter().all(|required| {
+                                bindings.iter().any(|(symbol, _)| symbol == required)
+                            })
+                        },
+                    )
+                {
                     self.instantiated_case_guarantees(
                         callee,
                         *guarantee,
@@ -1019,4 +1199,66 @@ fn program_expression_is_live(
     expression: ExpressionHandle,
 ) -> bool {
     expression.is_valid() && program.expression_table.expression_is_valid(expression)
+}
+
+/// Runtime formal dependencies of the exact selected contract graph. Static
+/// binders and the reserved result remain with their existing source owners.
+fn contract_parameter_dependencies(
+    program: &dyn crate::CheckingInput,
+    owner: &SelectedCallContract<'_>,
+    kind: SignatureContractKind,
+    parameters: &[typed_trees::signature::StateParameter],
+) -> Option<Vec<SymbolHandle>> {
+    let expressions = owner_contracts(program, owner)
+        .filter(|contract| contract.kind == kind)
+        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+        .map(|fact| match fact {
+            ProofFact::Expression(expression) => Some(*expression),
+            _ => None,
+        })
+        .collect::<Option<Vec<_>>>()?;
+    parameter_dependencies(program, expressions, parameters)
+}
+
+pub(in crate::proof_contracts::contract_entailment) fn parameter_dependencies(
+    program: &dyn crate::CheckingInput,
+    expressions: impl IntoIterator<Item = ExpressionHandle>,
+    parameters: &[typed_trees::signature::StateParameter],
+) -> Option<Vec<SymbolHandle>> {
+    let mut pending = expressions.into_iter().collect::<Vec<_>>();
+    let mut visited = Vec::new();
+    let mut dependencies = Vec::new();
+    while let Some(expression) = pending.pop() {
+        if !program_expression_is_live(program, expression) {
+            return None;
+        }
+        if visited.contains(&expression) {
+            continue;
+        }
+        visited.push(expression);
+        let node = program.expression_table.expression(expression);
+        if let ExpressionNode::Name(path) = node {
+            // A projected name keeps its supplying formal in head_symbol and
+            // its terminal member declaration in symbol. Both coordinates
+            // belong to the retained graph; neither spelling is a subject key.
+            for symbol in [path.head_symbol, path.symbol] {
+                if parameters
+                    .iter()
+                    .any(|parameter| parameter.symbol == symbol)
+                {
+                    if !dependencies.contains(&symbol) {
+                        dependencies.push(symbol);
+                    }
+                } else if program.symbols.get(symbol).kind == symbols::SymbolKind::Parameter {
+                    return None;
+                }
+            }
+        }
+        children(program, node, |child| {
+            if child.is_valid() {
+                pending.push(child);
+            }
+        });
+    }
+    Some(dependencies)
 }

@@ -242,9 +242,18 @@ pub struct ProviderSettlement {
     /// selected for this executable. Backend lowering reads only the imports
     /// installed in provider plans.
     pub evaluated_via_bindings: EvaluatedViaBindingTable,
+    pub direct_foreign_realizations: Vec<std::sync::Arc<effects::DirectForeignRealization>>,
     /// Selected normalized-import bindings and their evaluated calling plans,
     /// the only normalized foreign-locator custody in native realization.
     pub external_binding_rows: Vec<calling_conventions::ExternalBindingRow>,
+    /// Original/public correspondence produced once from this sealed source and
+    /// exact selected plans. Provider binding enriches execution evidence without
+    /// changing those source headers or original plan commitments; Terminal
+    /// publication transports this ledger instead of rebuilding its authority.
+    pub requirement_applications: Vec<effects::SelectedRequirementApplication>,
+    pub requirement_application_identities: terminal_psi::TerminalIdentityTable,
+    /// Applied native compatibility plans, without fabricated Calling source receipts.
+    pub compatibility_calling_applications: Vec<calling_conventions::BoundaryCallingApplication>,
     /// The attached component descriptions this settlement verified, in
     /// package-identity order, so a replay re-verifies the same admission
     /// instead of rediscovering unattached inputs.
@@ -272,11 +281,9 @@ pub fn settle_checked_providers(
     let provider_selection_target = planning_target
         .map(target::TargetProfile::native_target)
         .unwrap_or_else(target::NativeTarget::host);
-    let target_provider_defaults = settled_target_machines.provider_defaults;
     let context = crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
-    // PRV4 provider selection mirrors the native pipeline: candidates remain
-    // separate by provider type and only the uniquely covering candidate may
-    // rewrite adapter calls in the interpreter program.
+    // Candidate discovery is independent from explicit/default selection.
+    // Automatic primitive choices enter only through the sealed catalog issuer.
     let evaluated_via_bindings = crate::evaluated_via_bindings::evaluate_via_bindings(
         context,
         planning_target,
@@ -290,15 +297,17 @@ pub fn settle_checked_providers(
         &settled_target_machines.origins,
     ));
     let selected_provider_plans = crate::select_derived_provider_plans(
+        context,
         &derived_provider_plans,
-        provider_selection_target,
-        &target_provider_defaults,
+        selected_target_profile,
+        &settled_target_machines,
         build_provider_selections,
     )?;
     if package_inputs.is_some_and(PackageCompilationInputs::semantic_role_discovery) {
         semantic_roles::validate_proposed(typed, &selected_provider_plans)?;
     }
     let mut provider_plans = derived_provider_plans
+        .plans
         .iter()
         .map(|derived| derived.plan.clone())
         .collect::<Vec<_>>();
@@ -336,14 +345,14 @@ pub fn settle_checked_providers(
     if let Some(minted) = &toolchain_filesystem_plan {
         selected_semantic_plans.push(minted.plan.clone());
     }
-    let external_binding_rows = crate::extract_native_external_binding_rows(
-        target_name,
-        provider_selection_target,
-        &selected_semantic_plans,
-        &boundary_calling_plan_realizations,
-        typed,
-        opaque_representation_selections,
-    )?;
+    let direct_foreign_realizations =
+        crate::direct_foreign_realizations::retain_direct_foreign_realizations(
+            typed,
+            selected_target_profile,
+            &evaluated_via_bindings,
+            &boundary_calling_plan_realizations,
+            opaque_representation_selections,
+        );
     // Component-closure join. The verified components come only from the
     // descriptions attached to this compilation's package inputs, each
     // re-verified under the build's profile; every `Independent` selection
@@ -390,9 +399,10 @@ pub fn settle_checked_providers(
                         symbols::SymbolHandle::invalid();
                         minted.plan.rows.len()
                     ],
+                    row_receiver_scopes: vec![None; minted.plan.rows.len()],
                     row_target_machine_origins: vec![None; minted.plan.rows.len()],
                 },
-                selected_by: crate::ProviderSelectionProvenance::UniqueCoveringCandidate,
+                selected_by: crate::ProviderSelectionProvenance::ToolchainSettlement,
                 row_compiler_intrinsic_executions: Vec::new(),
             },
         );
@@ -401,12 +411,43 @@ pub fn settle_checked_providers(
         // candidate for the slot even though no package authored it.
         provider_plans.push(minted.plan);
     }
+    let (requirement_projections, requirement_application_identities) =
+        crate::selected_requirement_applications::project_selected_requirement_applications(
+            typed,
+            &selected_provider_provenance,
+            &selected_provider_plan_facts,
+        )?;
+    let compatibility_calling_applications =
+        crate::provider_planning::retain_compatibility_calling_applications(
+            typed,
+            provider_selection_target,
+            &selected_provider_plan_facts,
+            &requirement_projections,
+            &requirement_application_identities,
+            &boundary_calling_plan_realizations,
+            opaque_representation_selections,
+        )?;
+    let external_binding_rows = crate::extract_native_external_binding_rows(
+        target_name,
+        provider_selection_target,
+        &selected_semantic_plans,
+        &boundary_calling_plan_realizations,
+        typed,
+        opaque_representation_selections,
+    )?;
     Ok(CheckedProviderSelection {
         settlement: ProviderSettlement {
             boundary_calling_plan_realizations,
             provider_plans,
             evaluated_via_bindings,
+            direct_foreign_realizations,
             external_binding_rows,
+            compatibility_calling_applications,
+            requirement_applications: requirement_projections
+                .into_iter()
+                .map(|projection| projection.correspondence)
+                .collect(),
+            requirement_application_identities,
             independent_component_descriptions: package_inputs
                 .map(|inputs| {
                     inputs

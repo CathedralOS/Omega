@@ -588,9 +588,16 @@ impl<T: Default> Arena<T> {
 
     #[inline]
     pub fn iter(&self) -> ArenaIter<'_, T> {
+        self.iter_from_storage_offset(0)
+    }
+
+    /// Visit a storage suffix while retaining each occupied row's actual
+    /// generation. An append-only consumer can resume at its next storage
+    /// offset without rebuilding handles or rescanning the preceding rows.
+    pub fn iter_from_storage_offset(&self, storage_offset: usize) -> ArenaIter<'_, T> {
         ArenaIter {
             arena: self,
-            index: 0,
+            index: storage_offset,
             marker: PhantomData,
         }
     }

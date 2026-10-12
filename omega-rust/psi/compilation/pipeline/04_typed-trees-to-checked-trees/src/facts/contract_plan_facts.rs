@@ -4,7 +4,7 @@
 use crate::facts::crash_plan_facts::{build_crash_contract_capsules, build_published_crash_plan};
 use crate::facts::{crash_calls, operator_crashes};
 use validation::contract_structure::{
-    callable_binders, declared_callable, declared_contracts, declared_termination, generic_binders,
+    callable_binders, declared_callable, declared_termination, generic_binders,
 };
 
 /// Normalization scratch retained until every generated contract's envelope
@@ -192,12 +192,11 @@ pub(crate) fn build_contract_plans(
             .unwrap_or_else(|| generics.clone());
         let declaration = checked_trees::DeclaredContractStructure {
             callables,
-            clauses: declared_contracts(
+            clauses: ::validation::contract_structure::declared_machine_contracts(
                 program,
-                program.machine_contracts(machine),
+                machine,
                 &binders,
                 &content_conservation,
-                true,
             ),
         };
         let published_termination = declared_termination(program, &termination.interface, &binders);

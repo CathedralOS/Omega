@@ -2,6 +2,27 @@
 
 use diagnostics::Diagnostic;
 
+/// Compare completed result integrity independently of integer carrier claims.
+/// The original operand and selected slot still own type, policy and operation
+/// admission. A value-only integer normalization cannot supply those receipts;
+/// its consistency check establishes only the same exact integer result.
+pub(crate) fn normalized_const_result_matches(
+    value: &language_semantics::const_value::CanonicalConstValue,
+    normalization: &syntax_trees::types::ConstArgumentNormalization,
+) -> bool {
+    use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+    let encoded = CanonicalConstValue::new("", &normalization.canonical_result_encoding, "");
+    match (value.decode_encoding(), encoded.decode_encoding()) {
+        (
+            Some(DecodedCanonicalConstValue::Integer { value: actual, .. }),
+            Some(DecodedCanonicalConstValue::Integer {
+                value: expected, ..
+            }),
+        ) => actual == expected,
+        _ => value.encoding == normalization.canonical_result_encoding,
+    }
+}
+
 /// Named origins already retain their selected declaration's value. Direct
 /// structured atoms instead require the original constructor expression, even
 /// when a malformed input clears its handle.
@@ -54,8 +75,14 @@ pub(crate) fn validate_normalized_const_argument(
     let matches = match (argument, encoded.decode_encoding()) {
         (
             syntax_trees::types::TypeReferenceNode::Named(name),
-            Some(DecodedCanonicalConstValue::Integer { value, .. }),
-        ) => name.as_str() == value.to_string(),
+            Some(DecodedCanonicalConstValue::Integer { value, type_name }),
+        ) => {
+            name.as_str() == value.to_string()
+                || CanonicalConstValue::from_atom(name.as_str()).is_some_and(|atom| {
+                    atom.encoding == normalization.canonical_result_encoding
+                        && atom.type_name == type_name
+                })
+        }
         (syntax_trees::types::TypeReferenceNode::Named(name), Some(decoded)) => {
             CanonicalConstValue::from_atom(name.as_str()).is_some_and(|value| {
                 let carrier = match &decoded {

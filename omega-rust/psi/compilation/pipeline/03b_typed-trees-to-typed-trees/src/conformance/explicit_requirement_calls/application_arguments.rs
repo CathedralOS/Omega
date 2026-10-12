@@ -14,7 +14,7 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 pub(super) struct ApplicationScope {
     declaration: SymbolHandle,
     arguments: Vec<(SymbolHandle, TypeReferenceHandle, bool)>,
-    lifetimes: Vec<(String, String)>,
+    lifetimes: Vec<(String, Option<String>)>,
 }
 
 impl ApplicationScope {
@@ -40,7 +40,10 @@ impl ApplicationScope {
                     )
                 })
                 .collect(),
-            lifetimes,
+            lifetimes: lifetimes
+                .into_iter()
+                .map(|(parameter, argument)| (parameter, Some(argument)))
+                .collect(),
         })
     }
 }
@@ -161,6 +164,7 @@ fn argument_identities(
         .iter()
         .zip(&operands)
         .map(|(scope, arguments)| AppliedTypeIdentityScope {
+            region_role: typed_trees::type_identity::AppliedTypeIdentityRegionRole::Supplied,
             declaration: scope.declaration,
             arguments,
             lifetimes: &scope.lifetimes,
@@ -177,7 +181,13 @@ fn argument_identities(
                     symbol: parameter.symbol,
                     name: parameter.name.clone(),
                 });
-            applied_type_identity(program, reference, lexical_owner, &scopes)
+            applied_type_identity(
+                program,
+                reference,
+                typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(lexical_owner),
+                &scopes,
+                typed_trees::type_identity::TypeIdentityQualification::Ordinary,
+            )
         })
         .collect()
 }

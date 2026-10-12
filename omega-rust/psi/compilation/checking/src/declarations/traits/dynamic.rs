@@ -202,8 +202,7 @@ pub struct DynamicSlotDemand {
     pub requirement: symbols::SymbolHandle,
     /// Complete outer-to-inner applied telescopes. A declaring trait's
     /// composite argument can still name an outer trait's parameter.
-    pub type_substitutions: Vec<(symbols::SymbolHandle, TypeReferenceHandle)>,
-    pub substitution_scope_starts: Vec<usize>,
+    pub application: typed_trees::trait_definition::AppliedTraitScopePayload,
 }
 
 /// Every requirement the program's selections and selector calls reach.
@@ -259,8 +258,7 @@ pub fn collect_dynamic_slot_demands(
                 selector_type: selection.selector_type,
                 declaring_trait: row.declaring_trait,
                 requirement: row.requirement,
-                type_substitutions: application.substitutions,
-                substitution_scope_starts: application.substitution_scope_starts,
+                application: application.retain_payload(program.typed_program()),
             });
         }
     }
@@ -357,8 +355,7 @@ pub fn dynamic_call_demand(
         selector_type: call.selector_type,
         declaring_trait: call.application.declaration.symbol,
         requirement: call.signature.symbol,
-        type_substitutions: call.application.substitutions,
-        substitution_scope_starts: call.application.substitution_scope_starts,
+        application: call.application.retain_payload(program.typed_program()),
     })
 }
 

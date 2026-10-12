@@ -28,6 +28,28 @@ use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use typed_trees::types::PrimitiveType;
 
+/// A contextual constructor selects its original declaration; its fields are
+/// formed against the destination by the independent construction checks.
+/// Prepared carriers retain that declaration through their actual application.
+pub(crate) fn constructor_matches_type(
+    program: &dyn crate::CheckingInput,
+    literal: &TableStructLiteral,
+    expected_type: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    let Some(expected_type) =
+        crate::value_custody::places::unwrapped_type_reference(program, expected_type)
+    else {
+        return false;
+    };
+    literal.type_symbol.is_valid()
+        && (program
+            .closed_data_constructor_definition(expected_type, literal.type_symbol)
+            .is_some()
+            || matches!(program.type_reference_table.type_reference(expected_type),
+                typed_trees::types::TypeReferenceNode::Generic { base_symbol, .. }
+                    if *base_symbol == literal.type_symbol))
+}
+
 mod construction_bounds;
 mod field_obligations;
 mod window_elements;

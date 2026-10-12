@@ -11,6 +11,17 @@ use diagnostics::Diagnostic;
 use typed_trees::expression::StaticMachineArgument;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
+/// Construction scratch for one application under its exact source scope.
+/// Publication follows original kernel formation and reduction success.
+pub(super) struct SourceApplication {
+    pub expression: ExpressionHandle,
+    pub source_owner: SymbolHandle,
+    pub declaration: SymbolHandle,
+    pub term: TermHandle,
+    pub domains: Vec<TermHandle>,
+    pub captures: Vec<super::PreparedCapture>,
+}
+
 impl Elaborator<'_> {
     /// Form applications demanded outside mathematical declaration bodies.
     /// The same Pi spine, prefix application and capture-avoiding kernel
@@ -18,15 +29,7 @@ impl Elaborator<'_> {
     /// fixed integer widths and arithmetic policies distinct before embedding.
     pub(super) fn source_applications(
         &mut self,
-    ) -> Result<
-        Vec<(
-            ExpressionHandle,
-            proof_admission::TermHandle,
-            Vec<proof_admission::TermHandle>,
-            Vec<super::PreparedCapture>,
-        )>,
-        Vec<Diagnostic>,
-    > {
+    ) -> Result<Vec<SourceApplication>, Vec<Diagnostic>> {
         let owned = validation::mathematical_applications::expression_nodes(self.program);
         let calls = self
             .program
@@ -103,6 +106,7 @@ impl Elaborator<'_> {
                     captures.push(super::PreparedCapture {
                         expression: operand,
                         source_type: reference,
+                        domain,
                     });
                 } else {
                     validation::expression_traversal::children(self.program, node, |child| {
@@ -111,12 +115,14 @@ impl Elaborator<'_> {
                 }
             }
             let term = self.elaborate_expression(expression)?;
-            applications.push((
+            applications.push(SourceApplication {
                 expression,
+                source_owner: self.source_owner,
+                declaration: call.target_symbol,
                 term,
-                self.scope.iter().map(|entry| entry.domain).collect(),
+                domains: self.scope.iter().map(|entry| entry.domain).collect(),
                 captures,
-            ));
+            });
         }
         self.scope.clear();
         self.captured_expressions.clear();

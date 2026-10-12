@@ -1240,8 +1240,8 @@ fn exact_extension_machine_symbol(
                             contract,
                         ),
                         symbol_resolved_trees::data::MachineParameterContract::Nominal {
-                            ..
-                        } => exact_extension_nominal_machine_parameter(
+                        ..
+                    } => exact_extension_nominal_machine_parameter(
                             source,
                             data_frontier,
                             local_instances,
@@ -1252,8 +1252,8 @@ fn exact_extension_machine_symbol(
                         ),
                         symbol_resolved_trees::data::MachineParameterContract::RequirementIdentity
                         | symbol_resolved_trees::data::MachineParameterContract::AuthoredNominal {
-                            ..
-                        } => false,
+                        ..
+                    } => false,
                     }
                 }
                 symbol_resolved_trees::data::TypeParameterKind::Implementation

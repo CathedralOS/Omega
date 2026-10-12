@@ -513,38 +513,16 @@ pub(in crate::symbols) fn assign_runtime_subject_argument_symbol(
 /// which happens to be spelled `select_provider` resolves as an ordinary
 /// target and keeps ordinary operands. Service exclusion follows the same
 /// rule, as does representation selection. The remaining build operations carry no
-/// static operands and route nothing here. `assume_binding_contract` also
-/// routes `None` for now: its two operands name exact requirement identities
-/// (`Required::operation`, `Supplied::operation`), which no declaration-path
-/// resolver can name yet, so they fall through to ordinary static-machine
-/// argument resolution and reject there — fail-closed until the
-/// relationship's compatibility admission owns their resolution
-/// (wiki/spec/build/assumed_binding_contracts.md).
+/// static operands and route nothing here. Only unresolved toolchain operation
+/// proposals retain product-description custody. Checking later authenticates
+/// the exact namespace and operand kinds; ordinary declarations execute normally.
 pub(in crate::symbols) fn build_operand_route(
     target: &str,
     target_symbol: SymbolHandle,
 ) -> Option<BuildOperation> {
-    match BuildOperation::from_call_target(target)? {
-        BuildOperation::ProviderSelection
-        | BuildOperation::ServiceExclusion
-        | BuildOperation::BoundaryAcceptance
-        | BuildOperation::WireCompatibilityRequest
-        | BuildOperation::RepresentationSelection
-            if target_symbol.is_valid() =>
-        {
-            None
-        }
-        operation @ (BuildOperation::ProviderSelection
-        | BuildOperation::ServiceExclusion
-        | BuildOperation::BoundaryAcceptance
-        | BuildOperation::WireCompatibilityRequest
-        | BuildOperation::RepresentationSelection) => Some(operation),
-        BuildOperation::OptimizationSelection
-        | BuildOperation::OptimizationReportRequest
-        | BuildOperation::IncludedSourceHandoff
-        | BuildOperation::LogWriteLine
-        | BuildOperation::AssumedBindingContract => None,
-    }
+    let operation = BuildOperation::from_call_target(target)?;
+    (!target_symbol.is_valid() && operation.declaration_operand_counts().is_some())
+        .then_some(operation)
 }
 
 /// A bound selection argument (already carrying a type reference, evidence,

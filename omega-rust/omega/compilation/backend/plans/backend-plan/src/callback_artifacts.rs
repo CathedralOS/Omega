@@ -198,9 +198,11 @@ pub fn validate_callback_thunk_joins(
             caller.identity(),
             occurrence.placement_index(),
         );
-        // The selected body must be the declared callback, not merely a
-        // signature-compatible sibling in the shared program.
-        if !declaration.same_identity_as(&body.identities, &application.body, &module.identities)
+        // The selected body must retain the exact declared content, not
+        // merely a signature-compatible sibling in the shared program.
+        let declaration_matches =
+            declaration.content_matches(&body.identities, &application.body, &module.identities)?;
+        if !declaration_matches
             || application.registrar != occurrence.terminal_operation()
             || expected_function != Some(occurrence.callback_thunk_identity())
         {

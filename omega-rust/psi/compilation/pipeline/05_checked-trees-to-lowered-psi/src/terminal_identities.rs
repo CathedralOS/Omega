@@ -4,6 +4,9 @@
 //! rejoin checked sources to the lowered tables through the lookup functions.
 //! Both lookup failures and namespace exhaustion fail closed.
 
+mod static_applications;
+pub(crate) use static_applications::project_checked_static_application;
+
 use language_semantics::{Multiplicity, PermissionClaimIdentity, ServiceReachId};
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, ContractId, EdgeId, MachineId, ObligationId, OperationId,

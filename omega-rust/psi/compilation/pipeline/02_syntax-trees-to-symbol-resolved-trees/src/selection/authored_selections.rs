@@ -12,7 +12,7 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind as Kind,
     AuthoredDeclarationSelectionLateBinding as LateBinding,
     AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionRecordError,
-    BuildOperation, CompilerDerivedSelectionPartition,
+    BuildOperation, CompilerDerivedSelectionPartition, StaticArgumentPosition,
 };
 use source::SourceSpan;
 /// Handle-keyed maps take the integer hasher; none is iterated for output order.
@@ -46,7 +46,7 @@ struct CandidateGroup {
         Option<language_semantics::declaration_selection::CompilerDerivedSelectionPartition>,
     target: CandidateTarget,
     expressions: Vec<ExpressionHandle>,
-    top_level_static_argument_position: Option<usize>,
+    static_argument_position: Option<StaticArgumentPosition>,
 }
 
 fn reconcile_copy_targets(
@@ -633,6 +633,7 @@ pub(crate) fn finalize_conformance_reference_selections(
             .with_source_span(source_span));
         }
         let candidate = UnattachedCandidate {
+            static_argument_call: None,
             source_span,
             exposure: Exposure::PrivateImplementation,
             kind: Kind::StaticPathSegment,
@@ -645,6 +646,10 @@ pub(crate) fn finalize_conformance_reference_selections(
 
 #[derive(Debug, Clone, Copy)]
 struct UnattachedCandidate {
+    static_argument_call: Option<(
+        AuthoredDeclarationSelectionOccurrenceId,
+        StaticArgumentPosition,
+    )>,
     source_span: SourceSpan,
     exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
     kind: Kind,
@@ -655,52 +660,78 @@ fn record_unattached_candidate(
     program: &mut SymbolResolvedTrees,
     candidate: UnattachedCandidate,
 ) -> Result<(), Diagnostic> {
-    if selection_already_recorded(program, candidate) {
-        return Ok(());
+    let compiler_partition = candidate
+        .static_argument_call
+        .and_then(|(call, _)| program.authored_declaration_selections().get(call))
+        .and_then(|selection| selection.compiler_partition());
+    let occurrence = if let Some(occurrence) = existing_unattached_selection(program, candidate) {
+        occurrence
+    } else {
+        match candidate.target {
+            CandidateTarget::Resolved(symbol) => program
+                .record_resolved_authored_declaration_selection_in_partition(
+                    candidate.source_span,
+                    candidate.exposure,
+                    candidate.kind,
+                    compiler_partition,
+                    symbol,
+                ),
+            CandidateTarget::LateBound(binding) => program
+                .record_late_bound_authored_declaration_selection_in_partition(
+                    candidate.source_span,
+                    candidate.exposure,
+                    candidate.kind,
+                    compiler_partition,
+                    binding,
+                ),
+        }
+        .map_err(record_diagnostic)?
+    };
+    if let Some((call, position)) = candidate.static_argument_call {
+        program
+            .retain_static_argument_position(occurrence, position)
+            .and_then(|()| program.retain_static_argument_call(occurrence, call))
+            .map_err(|error| {
+                Diagnostic::error(format!(
+                    "failed to retain original statement static operand custody: {error:?}"
+                ))
+                .with_source_span(candidate.source_span)
+            })?;
     }
-    match candidate.target {
-        CandidateTarget::Resolved(symbol) => program
-            .record_resolved_authored_declaration_selection(
-                candidate.source_span,
-                candidate.exposure,
-                candidate.kind,
-                symbol,
-            ),
-        CandidateTarget::LateBound(binding) => program
-            .record_late_bound_authored_declaration_selection(
-                candidate.source_span,
-                candidate.exposure,
-                candidate.kind,
-                binding,
-            ),
-    }
-    .map(|_| ())
-    .map_err(record_diagnostic)
+    Ok(())
 }
 
-fn selection_already_recorded(
+fn existing_unattached_selection(
     program: &SymbolResolvedTrees,
     candidate: UnattachedCandidate,
-) -> bool {
+) -> Option<AuthoredDeclarationSelectionOccurrenceId> {
     use symbol_resolved_trees::AuthoredDeclarationSelectionTarget;
 
-    program.authored_declaration_selections().iter().any(|row| {
-        row.source_span() == candidate.source_span
-            && row.exposure() == candidate.exposure
-            && row.kind() == candidate.kind
-            && row.compiler_partition().is_none()
-            && match (row.target(), candidate.target) {
-                (
-                    AuthoredDeclarationSelectionTarget::Resolved(existing),
-                    CandidateTarget::Resolved(candidate),
-                ) => existing.selected_symbol() == candidate,
-                (
-                    AuthoredDeclarationSelectionTarget::LateBound(existing),
-                    CandidateTarget::LateBound(candidate),
-                ) => existing == candidate,
-                _ => false,
-            }
-    })
+    let compiler_partition = candidate
+        .static_argument_call
+        .and_then(|(call, _)| program.authored_declaration_selections().get(call))
+        .and_then(|selection| selection.compiler_partition());
+    program
+        .authored_declaration_selections()
+        .iter()
+        .find(|row| {
+            row.source_span() == candidate.source_span
+                && row.exposure() == candidate.exposure
+                && row.kind() == candidate.kind
+                && row.compiler_partition() == compiler_partition
+                && match (row.target(), candidate.target) {
+                    (
+                        AuthoredDeclarationSelectionTarget::Resolved(existing),
+                        CandidateTarget::Resolved(candidate),
+                    ) => existing.selected_symbol() == candidate,
+                    (
+                        AuthoredDeclarationSelectionTarget::LateBound(existing),
+                        CandidateTarget::LateBound(candidate),
+                    ) => existing == candidate,
+                    _ => false,
+                }
+        })
+        .map(|row| row.occurrence_id())
 }
 
 fn conformance_bound_candidates(program: &SymbolResolvedTrees) -> Vec<UnattachedCandidate> {
@@ -745,6 +776,7 @@ fn conformance_bound_candidates(program: &SymbolResolvedTrees) -> Vec<Unattached
         };
         if selection.conformance_name.is_source_backed() {
             candidates.push(UnattachedCandidate {
+                static_argument_call: None,
                 source_span: selection.conformance_name.source_span(),
                 // The selected proof implementation licenses formation but is
                 // not quotient API identity.
@@ -768,6 +800,7 @@ fn collect_conformance_bound_candidates(
     for bound in bounds {
         if bound.trait_name.is_source_backed() {
             candidates.push(UnattachedCandidate {
+                static_argument_call: None,
                 source_span: bound.trait_name.source_span(),
                 exposure,
                 kind: Kind::TypeReference,
@@ -791,12 +824,20 @@ fn statement_candidates(program: &SymbolResolvedTrees) -> Vec<UnattachedCandidat
                 let symbol_resolved_trees::statement::Statement::Call(call) = statement else {
                     continue;
                 };
-                collect_statement_static_argument_candidates(
-                    program,
-                    &call.machine_arguments,
-                    call.target.source_span(),
-                    &mut candidates,
-                );
+                let Some(occurrence) = call.authored_call_selection else {
+                    continue;
+                };
+                for (argument_index, argument) in call.machine_arguments.iter().enumerate() {
+                    collect_statement_static_argument_candidates(
+                        program,
+                        argument,
+                        occurrence,
+                        argument_index,
+                        &mut 0,
+                        call.target.source_span(),
+                        &mut candidates,
+                    );
+                }
             }
         }
     }
@@ -807,23 +848,35 @@ fn statement_candidates(program: &SymbolResolvedTrees) -> Vec<UnattachedCandidat
 
 fn collect_statement_static_argument_candidates(
     program: &SymbolResolvedTrees,
-    arguments: &[symbol_resolved_trees::expression::StaticMachineArgument],
+    argument: &symbol_resolved_trees::expression::StaticMachineArgument,
+    call: AuthoredDeclarationSelectionOccurrenceId,
+    argument_index: usize,
+    descendant_ordinal: &mut usize,
     fallback_span: SourceSpan,
     candidates: &mut Vec<UnattachedCandidate>,
 ) {
-    for argument in arguments {
-        if has_authored_static_declaration(program, argument) {
-            candidates.push(UnattachedCandidate {
-                source_span: path_span(&argument.path, fallback_span),
-                exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
-                kind: static_argument_kind(program, argument.symbol),
-                target: resolved_or_late(argument.symbol, LateBinding::CheckedStaticArgument),
-            });
-        }
-        if let Some(application) = &argument.application {
+    let ordinal = *descendant_ordinal;
+    *descendant_ordinal += 1;
+    if has_authored_static_declaration(program, argument) {
+        candidates.push(UnattachedCandidate {
+            static_argument_call: Some((call, StaticArgumentPosition {
+                argument_index,
+                descendant_ordinal: ordinal,
+            })),
+            source_span: path_span(&argument.path, fallback_span),
+            exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+            kind: static_argument_kind(program, argument.symbol),
+            target: resolved_or_late(argument.symbol, LateBinding::CheckedStaticArgument),
+        });
+    }
+    if let Some(application) = &argument.application {
+        for child in &application.arguments {
             collect_statement_static_argument_candidates(
                 program,
-                &application.arguments,
+                child,
+                call,
+                argument_index,
+                descendant_ordinal,
                 fallback_span,
                 candidates,
             );
@@ -1322,6 +1375,16 @@ fn finalize_expression_groups(
     )>,
 ) -> Result<(), Diagnostic> {
     let contract_clause_expressions = contract_clause_expression_handles(program);
+    let calls = authored_expressions
+        .iter()
+        .filter_map(|(expression, _)| {
+            matches!(
+                program.tables.bodies.expressions.expression(*expression),
+                ExpressionNode::Call(_),
+            )
+            .then_some(*expression)
+        })
+        .collect::<Vec<_>>();
     let mut groups: Vec<CandidateGroup> = Vec::new();
     // Groups stay in first-seen order; the index only replaces the linear
     // search for a candidate's group, which made this pass quadratic in the
@@ -1334,13 +1397,12 @@ fn finalize_expression_groups(
             .expressions
             .compiler_selection_partition(expression);
         for candidate in expression_candidates(program, expression, &contract_clause_expressions)? {
-            let top_level_static_argument_position =
+            let static_argument_position =
                 if matches!(candidate.kind, Kind::StaticArgument | Kind::Conformance) {
                     match program.tables.bodies.expressions.expression(expression) {
-                        ExpressionNode::Call(call) => top_level_static_argument_position(
-                            &call.machine_arguments,
-                            candidate.source_span,
-                        ),
+                        ExpressionNode::Call(call) => {
+                            static_argument_position(&call.machine_arguments, candidate.source_span)
+                        }
                         _ => None,
                     }
                 } else {
@@ -1353,7 +1415,7 @@ fn finalize_expression_groups(
                 compiler_partition,
             );
             if let Some(group) = group_index.get(&key).map(|&index| &mut groups[index]) {
-                if group.top_level_static_argument_position != top_level_static_argument_position {
+                if group.static_argument_position != static_argument_position {
                     return Err(Diagnostic::error("compiler-derived copies of a static operand disagree on its authored call position")
                         .with_source_span(candidate.source_span));
                 }
@@ -1376,7 +1438,7 @@ fn finalize_expression_groups(
                     compiler_partition,
                     target: candidate.target,
                     expressions: vec![candidate.expression],
-                    top_level_static_argument_position,
+                    static_argument_position,
                 });
             }
         }
@@ -1402,9 +1464,9 @@ fn finalize_expression_groups(
                 ),
         }
         .map_err(record_diagnostic)?;
-        if let Some(position) = group.top_level_static_argument_position {
+        if let Some(position) = group.static_argument_position {
             program
-                .retain_top_level_static_argument_position(occurrence, position)
+                .retain_static_argument_position(occurrence, position)
                 .map_err(|error| {
                     Diagnostic::error(format!(
                         "failed to retain static operand position: {error:?}"
@@ -1421,19 +1483,80 @@ fn finalize_expression_groups(
         }
     }
 
+    let source_program = &*program;
+    let call_edges = calls
+        .into_iter()
+        .flat_map(|expression| {
+            let occurrences = source_program
+                .tables
+                .bodies
+                .expressions
+                .authored_selection_occurrences(expression)
+                .collect::<Vec<_>>();
+            let call = occurrences.iter().find_map(|occurrence| {
+                source_program
+                    .authored_declaration_selections()
+                    .get(*occurrence)
+                    .filter(|selection| selection.kind() == Kind::Call)
+                    .map(|selection| selection.occurrence_id())
+            });
+            occurrences.into_iter().filter_map(move |occurrence| {
+                let call = call?;
+                let selection = source_program
+                    .authored_declaration_selections()
+                    .get(occurrence)?;
+                selection
+                    .static_argument_position()
+                    .map(|_| (occurrence, call))
+            })
+        })
+        .collect::<Vec<_>>();
+    for (occurrence, call) in call_edges {
+        program
+            .retain_static_argument_call(occurrence, call)
+            .map_err(|error| {
+                Diagnostic::error(format!(
+                    "failed to retain original expression static operand custody: {error:?}"
+                ))
+            })?;
+    }
     Ok(())
 }
 
-/// Match the authored operand token before typed lowering discards its source
-/// coordinates. Nested applications retain their own occurrences, not slots in
-/// the enclosing call; resolved declarations and omitted literal occurrences
-/// never change the positions of the call's remaining operands.
-fn top_level_static_argument_position(
+/// Retain the original operand coordinate before typed lowering discards token
+/// spans. Literals count as operands even though they mint no declaration row.
+fn static_argument_position(
     arguments: &[symbol_resolved_trees::expression::StaticMachineArgument],
     occurrence_span: SourceSpan,
-) -> Option<usize> {
-    arguments.iter().position(|argument| {
-        !argument.path.is_empty()
+) -> Option<StaticArgumentPosition> {
+    fn descendant(
+        argument: &symbol_resolved_trees::expression::StaticMachineArgument,
+        occurrence_span: SourceSpan,
+        ordinal: &mut usize,
+    ) -> Option<usize> {
+        let current = *ordinal;
+        *ordinal += 1;
+        if !argument.path.is_empty()
             && path_span(&argument.path, SourceSpan::default()) == occurrence_span
-    })
+        {
+            return Some(current);
+        }
+        argument.application.as_ref().and_then(|application| {
+            application
+                .arguments
+                .iter()
+                .find_map(|argument| descendant(argument, occurrence_span, ordinal))
+        })
+    }
+    arguments
+        .iter()
+        .enumerate()
+        .find_map(|(argument_index, argument)| {
+            descendant(argument, occurrence_span, &mut 0).map(|descendant_ordinal| {
+                StaticArgumentPosition {
+                    argument_index,
+                    descendant_ordinal,
+                }
+            })
+        })
 }

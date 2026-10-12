@@ -7,7 +7,7 @@ use super::{
 use crate::physical::{canonical_usize, hash_bytes};
 use effects::{TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity};
 
-const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v9\0";
+const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v10\0";
 
 pub(super) struct NativeArtifactIdentityFields<'a> {
     pub(super) terminal_artifact_identity: [u8; 32],
@@ -145,6 +145,25 @@ pub(super) fn derive_native_artifact_identity(
         for requirement in &plan.requirement_identities {
             hash_bytes(&mut digest, requirement.as_bytes());
         }
+        digest.raw(&canonical_usize(plan.requirement_applications.len()));
+        for row in &plan.requirement_applications {
+            digest.raw(&row.provider_plan_report_identity.to_le_bytes());
+            digest.raw(row.provider_plan_digest.as_bytes());
+            hash_bytes(
+                &mut digest,
+                plan.selection_identities
+                    .text(row.selected_requirement_identity)
+                    .unwrap_or_default()
+                    .as_bytes(),
+            );
+            hash_bytes(
+                &mut digest,
+                plan.selection_identities
+                    .text(row.requirement_identity)
+                    .unwrap_or_default()
+                    .as_bytes(),
+            );
+        }
         digest.raw(&canonical_usize(plan.family_realization_rows.len()));
         for row in &plan.family_realization_rows {
             digest.raw(&row.terminal.vocabulary_marker.get().to_le_bytes());
@@ -154,21 +173,21 @@ pub(super) fn derive_native_artifact_identity(
             digest.raw(&row.member.get().to_le_bytes());
             hash_bytes(
                 &mut digest,
-                plan.family_realization_identities
+                plan.selection_identities
                     .text(row.head_identity)
                     .unwrap_or_default()
                     .as_bytes(),
             );
             hash_bytes(
                 &mut digest,
-                plan.family_realization_identities
+                plan.selection_identities
                     .text(row.member_identity)
                     .unwrap_or_default()
                     .as_bytes(),
             );
             hash_bytes(
                 &mut digest,
-                plan.family_realization_identities
+                plan.selection_identities
                     .text(row.selected_requirement_identity)
                     .unwrap_or_default()
                     .as_bytes(),
@@ -308,6 +327,11 @@ pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeign
             hash_bytes(&mut digest, kernel.target.target_name().as_bytes());
             digest.raw(&kernel.number.to_le_bytes());
             digest.raw(&kernel.provider_plan_report_identity.to_le_bytes());
+            if let Some(commitment) = kernel.direct_foreign_realization {
+                digest.byte(0xff);
+                digest.byte(1);
+                digest.raw(&commitment);
+            }
             digest.raw(&kernel.provider_plan_commitment);
             hash_bytes(&mut digest, kernel.requirement_identity.as_bytes());
             continue;
@@ -325,6 +349,10 @@ pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeign
         );
         digest.raw(&contribution.commitment().as_bytes());
         digest.raw(&contribution.provider_plan_report_identity().to_le_bytes());
+        if contribution.provider_plan_commitment().origin_tag() != 0 {
+            digest.byte(0xff);
+            digest.byte(1);
+        }
         digest.raw(&contribution.provider_plan_commitment().as_bytes());
         digest.raw(&contribution.requirement_identity().0.to_le_bytes());
         digest.raw(&contribution.receipt().normalized_identity().to_le_bytes());

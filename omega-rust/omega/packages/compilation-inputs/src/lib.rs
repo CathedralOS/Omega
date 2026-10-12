@@ -14,6 +14,12 @@
 //! `compilation_reuse` owns exact source input comparisons, not admission
 //! or scheduling; the compiler consumes those keys without re-projecting them.
 //! `source_imports` resolves source frontiers through exact package scopes;
+//! `source_imports::UnmanagedSourceCapture` captures focused-file roots and
+//! the selected toolchain once under the existing local-source policy. Its
+//! original neutral filesystem follows the SourceMap into Build and source
+//! custody. Its source-only root inventory revision seals unmanaged declaration
+//! coordinates through the same consumed-unit projection as package inputs. It
+//! supplies neither a completed anonymous owner nor receiving acceptance.
 //! `source_assembly` loads and parses them through Psi 00/01, retaining one
 //! immutable checkpoint and assembling generated inputs without Build execution.
 //! `toolchain_library` locates and validates the compiler's bundled sources.

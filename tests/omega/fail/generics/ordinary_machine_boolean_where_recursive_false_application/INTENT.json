@@ -1,0 +1,9 @@
+{
+  "status": "authored unexecuted supplemental source refusal control",
+  "source_base": "729b7a75f713156e0dddbf39c9d6a2e9992231cf",
+  "case": "ordinary_machine_boolean_where_recursive_false_application",
+  "intent": "The original countdown<Flag> caller has immutable Flag==true, but its recursive same-declaration countdown<false> goal is false. Exact original caller hypothesis must not be rebound using the callee goal binding despite identical formal SymbolHandle. Initial countdown<true>(2) is valid; the tail call is reached under remaining>0 and has strict remaining-1 natural rank descent. Refusal must identify the false static where application rather than missing termination, parser, or initial call evidence.",
+  "expected_diagnostic": "not predicted; root must qualify intended where guard",
+  "termination_source": "tests/omega/pass/calls/runtime_measured_tail_recursion_exit/main.omg and tests/omega/pass/proofs/runtime_ranked_accumulator_guarantee_exit/main.omg; exact authored Nat::Descending tail-edge witness",
+  "runtime_oracle": "no passing oracle; invalid source must refuse"
+}

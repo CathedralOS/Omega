@@ -196,7 +196,7 @@ pub(in crate::preparation) fn canonicalize_selected_const_definition(
 /// Direct structural atoms and named constants share index admissibility and
 /// canonical representation. Only the named route additionally owns a const
 /// declaration's copy/cleanup eligibility and declared-carrier equality.
-pub(in crate::preparation::generic_data) fn canonicalize_selected_index_expression(
+pub(crate) fn canonicalize_selected_index_expression(
     syntax: &SyntaxTrees,
     value_type: TypeReferenceHandle,
     parameter_type: TypeReferenceHandle,
@@ -217,7 +217,13 @@ pub(in crate::preparation::generic_data) fn canonicalize_selected_index_expressi
         selection,
         &GenericApplicationSubstitution::new(),
     )?;
-    canonical_const_result(syntax, parameter_type, node, selection)
+    canonical_const_result(
+        syntax,
+        parameter_type,
+        node,
+        selection,
+        ConstValuePurpose::Index,
+    )
 }
 
 pub(in crate::preparation::generic_data) fn syntax_type_identity(
@@ -355,6 +361,7 @@ fn canonical_const_result(
     type_reference: TypeReferenceHandle,
     node: CanonicalConstNode,
     selection: Option<&ConstantSelection>,
+    purpose: ConstValuePurpose,
 ) -> Result<CanonicalConstValue, String> {
     let required = substituted_type_label(
         syntax,
@@ -362,7 +369,7 @@ fn canonical_const_result(
         &GenericApplicationSubstitution::new(),
         selection,
     )?;
-    if required == "Rat" {
+    if purpose == ConstValuePurpose::Index && required == "Rat" {
         validate_canonical_rat(&node)?;
     }
     Ok(CanonicalConstValue::new(
@@ -685,7 +692,13 @@ pub(in crate::preparation::generic_data) fn canonicalize_selected_declaration_va
         selection,
         &substitution,
     )?;
-    canonical_const_result(syntax, definition.type_reference, node, selection)
+    canonical_const_result(
+        syntax,
+        definition.type_reference,
+        node,
+        selection,
+        ConstValuePurpose::Declaration,
+    )
 }
 
 /// Close structural array geometry through the same selected declaration used

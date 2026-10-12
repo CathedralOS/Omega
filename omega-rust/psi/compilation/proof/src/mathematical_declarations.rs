@@ -46,10 +46,10 @@ impl CheckedMathematics {
         &self,
     ) -> Option<validation::mathematical_applications::PreparedMathematicalView<'_>> {
         Some(
-            validation::mathematical_applications::PreparedMathematicalView {
-                arena: &self.signature.as_ref()?.arena,
-                applications: &self.applications,
-            },
+            validation::mathematical_applications::PreparedMathematicalView::new(
+                &self.signature.as_ref()?.arena,
+                &self.applications,
+            ),
         )
     }
 }

@@ -138,9 +138,28 @@ impl VerifiedNativeArtifactInput {
         }
         self.optimization_input.target_family_realizations =
             selected.family_realization_rows().to_vec();
-        self.optimization_input.target_family_realization_identities =
-            selected.identities().clone();
+        self.optimization_input.selected_provider_identities = selected.identities().clone();
         Ok(self)
+    }
+
+    /// Transfer the already admitted execution cut, without another checker.
+    /// Only the scoped provider admission result can supply these receipts;
+    /// direct foreign and compiler-builtin settlements carry separate authority.
+    pub(crate) fn retain_admitted_provider_correspondences(
+        mut self,
+        providers: &crate::provider_admission::AdmittedNativeProviders<'_>,
+    ) -> Self {
+        self.optimization_input.admitted_provider_correspondences = providers
+            .settlements
+            .iter()
+            .filter_map(|settlement| match settlement.execution {
+                crate::AdmittedBoundaryExecution::Provider(execution) => {
+                    Some(execution.correspondence())
+                }
+                _ => None,
+            })
+            .collect();
+        self
     }
 
     /// Restrict physical work to this deployment's retained implementations.
@@ -296,9 +315,8 @@ pub(super) fn lower_decoded_native_module(
             target_machine_selections: selections,
             target_layout_selections: None,
             target_family_realizations: Vec::new(),
-            target_family_realization_identities: terminal_psi::TerminalIdentityTable::from(
-                Vec::new(),
-            ),
+            admitted_provider_correspondences: Vec::new(),
+            selected_provider_identities: terminal_psi::TerminalIdentityTable::from(Vec::new()),
         },
     })
 }

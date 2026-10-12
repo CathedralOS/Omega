@@ -30,6 +30,7 @@ pub(crate) fn prepare_checked_source(
     root_path: &Path,
     package_sources: Option<std::sync::Arc<package_compilation::PackageCompilationSourceInputs>>,
     collect_timings: bool,
+    build_directory: Option<&Path>,
 ) -> Result<PreparedCheckedSource, Vec<Diagnostic>> {
     let mut timings = if collect_timings {
         CompileTimings::enabled()
@@ -39,6 +40,7 @@ pub(crate) fn prepare_checked_source(
     let sources = ImmutableSourceParseCheckpoint::prepare_from_sources(
         root_path,
         package_sources,
+        build_directory,
         &mut timings,
     )?;
     Ok(PreparedCheckedSource::from_parsed(sources, timings))
@@ -50,18 +52,21 @@ fn prepare_typed_frontier(
     source: PreparedCheckedSource,
     child: &CheckedExecutionRequest<'_>,
 ) -> Result<(TypedCompilationFrontier, CompileTimings), Vec<Diagnostic>> {
-    let (sources, mut timings, retention) =
-        match source.into_frontier(child.package_inputs, child.build_execution_profile)? {
-            PreparedSourceFrontier::Retained(frontier, timings) => {
-                counters::record_typed_frontier_reuse();
-                return Ok((frontier, timings));
-            }
-            PreparedSourceFrontier::Pending {
-                sources,
-                timings,
-                retention,
-            } => (sources, timings, retention),
-        };
+    let (sources, mut timings, retention) = match source.into_frontier(
+        child.package_inputs,
+        child.build_execution_profile,
+        child.build_dir,
+    )? {
+        PreparedSourceFrontier::Retained(frontier, timings) => {
+            counters::record_typed_frontier_reuse();
+            return Ok((frontier, timings));
+        }
+        PreparedSourceFrontier::Pending {
+            sources,
+            timings,
+            retention,
+        } => (sources, timings, retention),
+    };
     counters::record_source_assembly();
     let assembly_started = std::time::Instant::now();
     let (source_file_count, syntax) = sources.assemble(child.package_inputs, &mut timings)?;

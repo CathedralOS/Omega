@@ -450,7 +450,7 @@ fn declared_initializer_origins(
     expression = program
         .expression_table
         .peeled_expression_handle(expression);
-    if let Some(_) = program.expression_table.call_node(expression) {
+    if let Some(_) = program.expression_table.source_call_node(expression) {
         let (state, _, index) = caller_aliases::caller_statement_owner(
             program,
             machine,

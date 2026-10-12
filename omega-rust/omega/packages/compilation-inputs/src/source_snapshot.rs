@@ -153,6 +153,40 @@ struct CapturedSourceMetadataRow {
     content_digest: Option<[u8; 32]>,
 }
 
+/// Shared path-free encoding of the original canonical source inventory.
+/// Content commitment and metadata retain acquisition's exact namespace; the
+/// caller supplies its own domain for cache or source-revision identity.
+pub(crate) fn hash_canonical_source_metadata(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    index: &CanonicalFilesystemMetadataIndex,
+) {
+    digest.u32(index.policy_version());
+    digest.raw(index.source_content_commitment());
+    digest.u64(index.rows().len() as u64);
+    for row in index.rows() {
+        digest.bytes(row.relative_path());
+        match row.kind() {
+            filesystem_authority::CanonicalFilesystemMetadataRowKind::Directory => {
+                digest.byte(0);
+            }
+            filesystem_authority::CanonicalFilesystemMetadataRowKind::File {
+                logical_byte_length,
+                executable,
+            } => {
+                digest.byte(1);
+                digest.u64(logical_byte_length);
+                digest.byte(executable as u8);
+            }
+            filesystem_authority::CanonicalFilesystemMetadataRowKind::Symlink {
+                target_spelling_logical_byte_length,
+            } => {
+                digest.byte(2);
+                digest.u64(target_spelling_logical_byte_length);
+            }
+        }
+    }
+}
+
 /// Derive Build's complete inventory from acquisition's immutable namespace.
 /// The implicit root becomes a canonical directory row. File allocations
 /// stay shared with the neutral source tree; link targets retain their raw

@@ -21,3 +21,5 @@ pub(crate) mod structural_case;
 
 pub(crate) use emission::emit;
 pub(super) use locals::bind_local;
+
+pub(crate) use emission::residual_complement::complement as projected_owned_complement;

@@ -25,15 +25,15 @@ pub(crate) fn check_product_source(
         mut timings,
         retained_build_check,
     } = source;
-    // A deferred application still needs selected runtime meaning. Its portable
-    // recipe must cross Psi before realization can close it; folding against one
-    // target here would make the shared source judgment target-dependent again.
-    if !pending_pre_checks.is_empty() {
-        return Err(vec![Diagnostic::error(
-            "unimplemented: portable provider-dependent constant recipes; target realization cannot fold selected values into checked source",
-        )]);
-    }
     let build = &computed_build_config.config;
+    let source_constants = psi_compiler::SourceConstantRequest {
+        pending: pending_pre_checks,
+        selections: build.provider_selections.iter().filter_map(|selection| {
+            selection.source_operands.clone().map(|operands| {
+                build_time_evaluation::SourceProviderSelection { operands }
+            })
+        }).collect(),
+    };
     let representations = representation_planning::rederive_opaque_representation_selections(
         &typed,
         computed_build_config.selected_build_machine_symbol,
@@ -48,6 +48,24 @@ pub(crate) fn check_product_source(
         .map(|selection| validation::OpaqueDataPropertyReceipt::copy(selection.opaque()))
         .collect::<Vec<_>>();
     let symbol_sources = typed.symbols.source_map();
+    let static_application_demands = build
+        .assumed_binding_registrations
+        .iter()
+        .flat_map(|registration| [&registration.required, &registration.supplied])
+        .map(|reference| reference.application_demand())
+        .collect::<Vec<_>>();
+    let assumed_binding_contract_demands = build
+        .assumed_binding_registrations
+        .iter()
+        .map(
+            |registration| typed_trees::static_applications::AssumedBindingContractDemand {
+                required: registration.required.application_demand(),
+                supplied: registration.supplied.application_demand(),
+                selecting_machine: registration.selecting_machine,
+                source_span: registration.source_span,
+            },
+        )
+        .collect::<Vec<_>>();
     let source_admission = psi_compiler::SourceAdmission {
         completion: match package_inputs.and_then(|inputs| {
             inputs.accepted_semantic_binding(
@@ -67,6 +85,8 @@ pub(crate) fn check_product_source(
             }
             None => validation::source_completion::SourceCompletionAdmission::None,
         },
+        static_application_demands: &static_application_demands,
+        assumed_binding_contract_demands: &assumed_binding_contract_demands,
         opaque_properties: &opaque_properties,
         opaque_representations: &representations,
         asm_authority: Some(
@@ -91,6 +111,7 @@ pub(crate) fn check_product_source(
             let started = std::time::Instant::now();
             let result = psi_compiler::CheckRequest {
                 program: typed,
+                constants: source_constants,
                 admission: source_admission,
                 previous: &previous,
                 retain: reuse.retain,
@@ -116,6 +137,7 @@ pub(crate) fn check_product_source(
     let psi_compiler::SelectedCheckedSource {
         program,
         provider_defaults,
+        source_constants,
         retained,
         selection: product_selection,
     } = selections.select(outcome, roots)?;
@@ -125,6 +147,7 @@ pub(crate) fn check_product_source(
     Ok(CheckedProductSource {
         program,
         provider_defaults: provider_defaults.into(),
+        source_constants: source_constants.into(),
         computed_build_config,
         admission,
         sources,

@@ -434,6 +434,7 @@ fn collect_expression_calls(
             );
         }
         ExpressionNode::Call(call) => {
+            let Some(call) = program.expression_table.source_call(call) else { return; };
             push_expression_call(
                 signature_effects,
                 program,
@@ -482,6 +483,11 @@ fn push_expression_call(
     call_ordinal: &mut usize,
     calls: &mut Vec<CallWork>,
 ) {
+    let Some(call) = program.expression_table.source_call(call) else {
+        // The common call validator rejects absent source custody. No
+        // provider-local operational envelope substitutes for that call.
+        return;
+    };
     if crate::proof_contracts::proof_embeddings::is_exact_embed_call(program, call) {
         // The proof-embedding owner validates this exact builtin's carrier
         // and proof-only occurrence. It forms a value term, not an unresolved

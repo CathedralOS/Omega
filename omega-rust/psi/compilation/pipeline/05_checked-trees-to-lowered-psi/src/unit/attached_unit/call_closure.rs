@@ -7,41 +7,6 @@ use super::{
     UnitBody, unsupported,
 };
 use checked_trees::{CheckedUnitCallResult, CheckedUnitCallRoute};
-use typed_trees::type_identity::CallableIdentityId;
-
-/// Installation requirements share an overload identity across target bodies.
-/// Foreign leaves instead name physical declarations: sibling leaves may have
-/// that same overload but remain distinct imports in the portable artifact.
-/// Keep both relationships as handles; text is only their exported spelling.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum BoundaryIdentity {
-    Requirement(CallableIdentityId),
-    ForeignLeaf(symbols::SymbolHandle),
-}
-
-impl BoundaryIdentity {
-    pub(super) fn order_key(self) -> (bool, CallableIdentityId, u32, u32) {
-        match self {
-            Self::Requirement(callable) => (false, callable, 0, 0),
-            Self::ForeignLeaf(declaration) => (
-                true,
-                CallableIdentityId::default(),
-                declaration.arena_index(),
-                declaration.generation(),
-            ),
-        }
-    }
-
-    pub(crate) fn render(self, checked: &CheckedTrees) -> Result<String, LoweringError> {
-        match self {
-            Self::Requirement(callable) => Ok(checked.typed.callable_identity_text(callable)),
-            Self::ForeignLeaf(declaration) => Ok(unique_terminal_selection(checked, declaration)?
-                .name
-                .clone()),
-        }
-    }
-}
-
 pub(crate) fn checked_unit_call_closure_including(
     checked: &CheckedTrees,
     plans: UnitPlans<'_>,
@@ -152,7 +117,7 @@ pub(super) fn checked_terminal_machine_name(
 /// The exact selection naming `symbol`, whatever its signature class. A
 /// bodyless boundary machine is never lowered as a Terminal root, so its
 /// `Unsupported` class does not bear on the identity its calls name.
-fn unique_terminal_selection(
+pub(super) fn unique_terminal_selection(
     checked: &CheckedTrees,
     symbol: symbols::SymbolHandle,
 ) -> Result<&checked_trees::CheckedTerminalMachineSelection, LoweringError> {
@@ -184,71 +149,6 @@ fn unique_terminal_selection(
         return unsupported("Unit-effect member has an invalid checked terminal selection");
     }
     Ok(selection)
-}
-
-pub(crate) fn checked_unit_boundary_identity(
-    checked: &CheckedTrees,
-    symbol: symbols::SymbolHandle,
-) -> Result<BoundaryIdentity, LoweringError> {
-    let requirements = checked
-        .typed
-        .traits()
-        .iter()
-        .filter(|definition| definition.is_boundary)
-        .flat_map(|definition| {
-            checked
-                .typed
-                .trait_machine_instances(definition)
-                .filter(move |signature| signature.symbol == symbol)
-                .map(move |signature| (definition, signature))
-        })
-        .collect::<Vec<_>>();
-    if let [(definition, signature)] = requirements.as_slice() {
-        let identity = checked
-            .typed
-            .trait_requirement_callable_identity(definition, signature);
-        if identity.is_valid() {
-            return Ok(BoundaryIdentity::Requirement(identity));
-        }
-    }
-    // Top-level installation dependencies are keyed by the normalized machine
-    // overload, not its display name. Boundary calls must use that same exact
-    // requirement identity or independent root replay sees an unused bound.
-    let mut requirements = checked.typed.machines().iter().filter(|machine| {
-        machine.symbol == symbol
-            && (machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
-                || (machine.supply_mode == language_semantics::MachineSupplyMode::Boundary
-                    && machine.service_reach_is_installation_bound))
-    });
-    if let Some(requirement) = requirements.next() {
-        if requirements.next().is_some() {
-            return unsupported("top-level boundary requirement identity is ambiguous");
-        }
-        let identity = checked.typed.machine_callable_identity(requirement);
-        if identity.is_valid() {
-            return Ok(BoundaryIdentity::Requirement(identity));
-        }
-        return unsupported("top-level boundary has no normalized machine overload identity");
-    }
-    if let Some(operator) = checked
-        .typed
-        .operators()
-        .iter()
-        .find(|operator| operator.is_boundary && operator.symbol == symbol)
-    {
-        let identity = checked
-            .typed
-            .boundary_operator_requirement_callable_identity(operator);
-        if !identity.is_valid() {
-            return unsupported("boundary operator has no normalized requirement identity");
-        }
-        return Ok(BoundaryIdentity::Requirement(identity));
-    }
-    // A foreign import names this physical declaration, not its portable
-    // overload. Its display spelling is an export payload, never a lookup
-    // into the canonical callable-identity table.
-    unique_terminal_selection(checked, symbol)
-        .map(|selection| BoundaryIdentity::ForeignLeaf(selection.machine))
 }
 
 /// The machine an ordinary call enters inside the Unit roster: every ordinary

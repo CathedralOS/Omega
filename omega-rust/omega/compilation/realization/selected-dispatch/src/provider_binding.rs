@@ -43,6 +43,7 @@ pub fn bind_checked_providers(
     }
     let callback_placements =
         provider_planning::calling_policy_plans::validate_nominal_callback_placement_bindings(
+            &program,
             &program.facts,
             settlement.boundary_calling_plan_realizations,
         )?;

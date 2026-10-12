@@ -9,5 +9,8 @@ pub use declarations::{
     CheckedMachineDeclaration, CheckedMachineSpecialization, NominalDeclarationIdentity,
 };
 pub use semantic::{SemanticFingerprint, TerminalPsiIdentity};
-pub use table::{TerminalIdentityIndex, TerminalIdentityTable, TerminalIdentityTableBuilder};
+pub use table::{
+    TerminalIdentityIndex, TerminalIdentityTable, TerminalIdentityTableBuilder,
+    TerminalLifetimeDeclaration, TerminalLifetimeFormalRole,
+};
 pub use vocabulary::VocabularyMarker;

@@ -15,31 +15,6 @@ use validation::{
 };
 
 impl CurrentScalarValues<'_> {
-    pub(crate) fn postcondition(
-        &mut self,
-        expression: ExpressionHandle,
-        returned: ExpressionHandle,
-    ) -> Option<ScopedArithmeticExpression> {
-        if let Some(value) = self.collection_length(returned, 0) {
-            let entry = self.program.machine_states(self.machine).first()?;
-            self.lengths.push(Length {
-                subject: LengthSubject::Result(self.machine.symbol),
-                name: String::new(),
-                stable: true,
-                type_reference: entry.return_type,
-                value: Some(value),
-            });
-        }
-        let mut goal = self.current(expression)?;
-        if let Some(returned) = self.current(returned) {
-            goal.bindings.push(ScopedArithmeticBinding {
-                binder: ScopedArithmeticBinder::Result,
-                value: ScopedArithmeticValue::Term(returned),
-            });
-        }
-        Some(goal)
-    }
-
     pub(super) fn capture_collection(
         &mut self,
         symbol: SymbolHandle,

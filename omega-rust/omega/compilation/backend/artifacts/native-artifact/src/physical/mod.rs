@@ -366,11 +366,36 @@ pub struct TargetFamilyInternalCall {
     identity: [u8; 32],
 }
 
+/// Physical parent for an exact foreign declaration, with its immutable
+/// evaluated origin rather than an invented selected provider plan.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DirectForeignSettlement {
+    occurrence: OptimizedBoundaryOccurrence,
+    original: std::sync::Arc<effects::DirectForeignRealization>,
+    target: NativeTarget,
+    execution: ProviderExecutionBinding,
+    realization: NormalizedForeignCallBinding,
+    identity: [u8; 32],
+}
+
+/// Physical parent supplied by the exact compiler catalog, distinct from
+/// both selected-provider custody and evaluated foreign calls.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DirectCompilerIntrinsicSettlement {
+    occurrence: OptimizedBoundaryOccurrence,
+    original: std::sync::Arc<effects::DirectForeignRealization>,
+    target: NativeTarget,
+    role: BoundaryTraitSettlementRole,
+    identity: [u8; 32],
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PhysicalChildParent {
     OperatorApplicationCoverage(OperatorApplicationCoverageRef),
     BoundaryTraitSettlement(BoundaryTraitSettlement),
     TargetFamilyInternalCall(TargetFamilyInternalCall),
+    DirectForeignSettlement(DirectForeignSettlement),
+    DirectCompilerIntrinsicSettlement(DirectCompilerIntrinsicSettlement),
 }
 
 impl PhysicalChildParent {
@@ -379,6 +404,8 @@ impl PhysicalChildParent {
             Self::OperatorApplicationCoverage(reference) => *reference.coverage().as_bytes(),
             Self::BoundaryTraitSettlement(settlement) => *settlement.identity(),
             Self::TargetFamilyInternalCall(call) => call.identity,
+            Self::DirectForeignSettlement(settlement) => settlement.identity,
+            Self::DirectCompilerIntrinsicSettlement(settlement) => settlement.identity,
         }
     }
 
@@ -387,6 +414,8 @@ impl PhysicalChildParent {
             Self::OperatorApplicationCoverage(_) => 1,
             Self::BoundaryTraitSettlement(_) => 2,
             Self::TargetFamilyInternalCall(_) => 3,
+            Self::DirectForeignSettlement(_) => 4,
+            Self::DirectCompilerIntrinsicSettlement(_) => 5,
         }
     }
 
@@ -396,7 +425,10 @@ impl PhysicalChildParent {
     pub(crate) const fn occurrence_role_tag(&self) -> u8 {
         match self {
             Self::OperatorApplicationCoverage(_) => 1,
-            Self::BoundaryTraitSettlement(_) | Self::TargetFamilyInternalCall(_) => 2,
+            Self::BoundaryTraitSettlement(_)
+            | Self::TargetFamilyInternalCall(_)
+            | Self::DirectForeignSettlement(_)
+            | Self::DirectCompilerIntrinsicSettlement(_) => 2,
         }
     }
 
@@ -410,6 +442,16 @@ impl PhysicalChildParent {
                 matches!(occurrence, NativePhysicalOccurrence::Operator(_))
             }
             Self::BoundaryTraitSettlement(settlement) => {
+                settlement.occurrence.terminal() == terminal
+                    && occurrence
+                        == NativePhysicalOccurrence::Boundary(settlement.occurrence.identity())
+            }
+            Self::DirectCompilerIntrinsicSettlement(settlement) => {
+                settlement.occurrence.terminal() == terminal
+                    && occurrence
+                        == NativePhysicalOccurrence::Boundary(settlement.occurrence.identity())
+            }
+            Self::DirectForeignSettlement(settlement) => {
                 settlement.occurrence.terminal() == terminal
                     && occurrence
                         == NativePhysicalOccurrence::Boundary(settlement.occurrence.identity())

@@ -490,18 +490,36 @@ fn argument_matches_type_reference_using(
                     | ExpressionNode::Name(_)
             ) || (element_is_u8 && matches!(argument_node, ExpressionNode::String(_)))
         }
-        TypeReferenceNode::Generic { .. } => matches!(
-            argument_node,
-            ExpressionNode::Binary(_)
-                | ExpressionNode::Call(_)
-                | ExpressionNode::Cast(_)
-                | ExpressionNode::Indexed(_)
-                | ExpressionNode::Integer(_)
-                | ExpressionNode::Member(_)
-                | ExpressionNode::Name(_)
-                | ExpressionNode::StructLiteral(_)
-                | ExpressionNode::Unary(_)
-        ),
+        TypeReferenceNode::Generic { .. } => {
+            // A produced value retains its full application. A same-named
+            // nominal head cannot change an explicit type or const operand;
+            // actual and required telescopes have independent substitutions.
+            let mut substitutions = Vec::new();
+            if let Some(actual) =
+                reference_values::declared_value_type(program, argument, &mut substitutions)
+            {
+                let actual = program
+                    .type_reference_table
+                    .unconstrained_type_reference(actual);
+                let actual_identity = program.type_identity(TypeIdentityRequest {
+                    substitutions: &substitutions,
+                    ..TypeIdentityRequest::ordinary(actual)
+                });
+                let required_identity =
+                    program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+                        substitutions: required_substitutions,
+                        ..TypeIdentityRequest::ordinary(type_reference)
+                    });
+                return actual_identity == required_identity;
+            }
+            // Anonymous construction has no declared value yet. Its original
+            // constructor must correspond; field formation, bounds and loans
+            // keep their existing checks against the contextual destination.
+            matches!(argument_node, ExpressionNode::StructLiteral(literal)
+            if crate::value_custody::struct_literals::constructor_matches_type(
+                program, literal, type_reference,
+            ))
+        }
         TypeReferenceNode::DynamicTrait { .. } => matches!(
             argument_node,
             ExpressionNode::Call(_)

@@ -437,12 +437,19 @@ pub(super) fn build(
         });
     }
     phase("call operation: boundary telescope");
-    if let BoundaryRequirement::Trait { definition, .. } = requirement
+    if let BoundaryRequirement::Trait {
+        definition,
+        signature,
+    } = requirement
         && !program.trait_type_parameters(definition).is_empty()
         && !program
-            .closed_requirement_application(target)
-            .is_some_and(|application| application.declaring_trait == definition.symbol)
+            .public_trait_requirement_signature(signature.symbol)
+            .is_some_and(|selected| {
+                selected.owner.symbol == definition.symbol && selected.application.is_valid()
+            })
     {
+        // An open authored owner needs its produced complete application.
+        // Selection above has already joined that signature to this call's tuple.
         return None;
     }
     if !signature_type_parameters.is_empty()
@@ -483,20 +490,19 @@ pub(super) fn build(
     if if let Some((_, qualifier)) = selected_realization {
         call.has_receiver && call.receiver_symbol != qualifier
     } else if matches!(requirement, BoundaryRequirement::Trait { .. }) {
-        !call.has_receiver
-            || boundary_trait_receiver_source(program, state, call, call_site, owner).is_none_or(
-                |receiver| match receiver {
-                    BoundaryTraitReceiver::Parameter(source) => {
-                        !caller_parameters.iter().any(|parameter| {
-                            program
-                                .state_parameters(state)
-                                .get(parameter.position as usize)
-                                .is_some_and(|parameter| parameter.symbol == source)
-                        })
-                    }
-                    BoundaryTraitReceiver::Namespace => false,
-                },
-            )
+        boundary_trait_receiver_source(program, state, call, call_site, owner).is_none_or(
+            |receiver| match receiver {
+                BoundaryTraitReceiver::Parameter(source) => {
+                    !caller_parameters.iter().any(|parameter| {
+                        program
+                            .state_parameters(state)
+                            .get(parameter.position as usize)
+                            .is_some_and(|parameter| parameter.symbol == source)
+                    })
+                }
+                BoundaryTraitReceiver::Namespace => false,
+            },
+        )
     } else {
         false
     } {

@@ -722,12 +722,9 @@ pub fn fixed_installation_boundary_service_reach(
     target: SymbolHandle,
 ) -> Option<Vec<ServiceReachId>> {
     let trait_requirements = program
-        .traits()
-        .iter()
-        .filter(|owner| owner.is_boundary)
-        .flat_map(|owner| program.trait_machine_instances(owner))
-        .filter(|signature| signature.symbol == target)
-        .map(|signature| signature.service_reach_is_installation_bound);
+        .public_trait_requirement_signatures()
+        .filter(|(owner, signature)| owner.is_boundary && signature.symbol == target)
+        .map(|(_, signature)| signature.service_reach_is_installation_bound);
     let machine_requirements = program
         .machines()
         .iter()
@@ -766,19 +763,15 @@ pub fn fixed_installation_boundary_service_reach(
 /// Publication needs the same contract for called and uncalled coordinates.
 pub fn boundary_signature_service_reach(
     program: &dyn crate::CheckingInput,
-    signature: SymbolHandle,
+    owner: &typed_trees::trait_definition::TraitDefinition,
+    signature: &typed_trees::signature::StateSignature,
 ) -> Option<Vec<ServiceReachId>> {
-    let mut declarations = program
-        .traits()
-        .iter()
-        .filter(|owner| owner.is_boundary)
-        .flat_map(|owner| program.trait_machine_instances(owner))
-        .filter(|declaration| declaration.symbol == signature);
-    declarations.next()?;
-    if declarations.next().is_some() {
-        return None;
-    }
-    Some(direct_service_reach_for_call(program, signature).services)
+    // The caller borrows this exact pair from the program's public signature
+    // roster. Project once per row instead of looking up every header again;
+    // authored declarations and prepared instances keep their own formals.
+    owner
+        .is_boundary
+        .then(|| trait_signature_service_reach(program, owner, signature).services)
 }
 
 fn direct_service_reach_for_call(
@@ -854,31 +847,8 @@ fn direct_service_reach_for_call(
         return reach;
     }
 
-    if let Some((trait_definition, signature)) = program.trait_machine_signature(target) {
-        {
-            extend_signature_service_rows(program, signature, &mut reach);
-            if trait_definition.is_boundary
-                && let Some(service) = program
-                    .service_reaches
-                    .id_for_symbol(trait_definition.symbol)
-            {
-                program
-                    .service_reaches
-                    .extend_closure(service, &mut reach.services);
-                program
-                    .service_reaches
-                    .extend_closure(service, &mut reach.concrete_services);
-                reach.services.sort_by_key(|service| service.0);
-                reach.services.dedup();
-                reach.concrete_services.sort_by_key(|service| service.0);
-                reach.concrete_services.dedup();
-            }
-            record_signature_reach(program, signature, &mut reach);
-            if trait_definition.is_boundary {
-                reach.boundary_services = reach.services.clone();
-            }
-            return reach;
-        }
+    if let Some((owner, signature)) = program.trait_machine_signature(target) {
+        return trait_signature_service_reach(program, owner, signature);
     }
     if let Some(machine) = with_call_target_index(program, |index| {
         index.boundary_machine_by_state.get(&target).copied()
@@ -897,6 +867,38 @@ fn direct_service_reach_for_call(
         } else {
             extend_machine_invoked_binding_services(program, machine, &mut reach.concrete_services);
         }
+        reach.boundary_services = reach.services.clone();
+    }
+    reach
+}
+
+/// Exact public signature content supplies both invocation propagation and
+/// declaration publication. A generated header belongs to its original
+/// declaring trait while its prepared formal graph retains the substitutions;
+/// neither calls nor a selected implementation donate its service ceiling.
+fn trait_signature_service_reach(
+    program: &dyn crate::CheckingInput,
+    owner: &typed_trees::trait_definition::TraitDefinition,
+    signature: &typed_trees::signature::StateSignature,
+) -> DirectServiceReach {
+    let mut reach = DirectServiceReach::default();
+    extend_signature_service_rows(program, signature, &mut reach);
+    if owner.is_boundary
+        && let Some(service) = program.service_reaches.id_for_symbol(owner.symbol)
+    {
+        program
+            .service_reaches
+            .extend_closure(service, &mut reach.services);
+        program
+            .service_reaches
+            .extend_closure(service, &mut reach.concrete_services);
+        reach.services.sort_by_key(|service| service.0);
+        reach.services.dedup();
+        reach.concrete_services.sort_by_key(|service| service.0);
+        reach.concrete_services.dedup();
+    }
+    record_signature_reach(program, signature, &mut reach);
+    if owner.is_boundary {
         reach.boundary_services = reach.services.clone();
     }
     reach

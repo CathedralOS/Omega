@@ -41,10 +41,10 @@ pub(super) fn retain_provider(
     invocation: StaticMachineApplicationHandle,
     lifetimes: &[typed_trees::static_applications::StaticMachineLifetimeBinding],
 ) -> StaticMachineApplicationHandle {
-    let owner = program
+    let original = program
         .expression_table
         .static_machine_application(invocation)
-        .lexical_owner;
+        .clone();
     let retained = program.expression_table.retain_static_machine_application(
         state.symbol,
         state.name.clone(),
@@ -53,7 +53,8 @@ pub(super) fn retain_provider(
     let record = program
         .expression_table
         .static_machine_application_mut(retained);
-    record.lexical_owner = owner;
+    record.lexical_owner = original.lexical_owner;
+    record.captured_lexical_scope = original.captured_lexical_scope;
     record.binding_declaration = provider.template.template_symbol;
     let bindings = super::super::applications::candidate_bindings(provider);
     program

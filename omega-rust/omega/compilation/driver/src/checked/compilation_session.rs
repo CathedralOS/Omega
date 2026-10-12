@@ -128,8 +128,12 @@ impl CompilationSession {
         {
             return Ok(prepared.source.clone());
         }
-        let source =
-            prepare_checked_source(&request.root_path, inputs.clone(), request.collect_timings)?;
+        let source = prepare_checked_source(
+            &request.root_path,
+            inputs.clone(),
+            request.collect_timings,
+            request.build_dir.as_deref(),
+        )?;
         self.sources.push(PreparedSource {
             root: request.root_path.clone(),
             inputs,

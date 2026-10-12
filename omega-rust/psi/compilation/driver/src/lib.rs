@@ -30,7 +30,7 @@ mod terminal_production;
 
 pub use source_checking::{
     CheckRequest, CheckedSource, CheckedTreeProductSelection, ProductSelections, RetainedCheck,
-    SelectedCheckedSource, SourceAdmission,
+    SelectedCheckedSource, SourceAdmission, SourceConstantRequest,
 };
 pub use source_parsing::{ParsedText, SourceInput, SourceParseError, parse_text};
 

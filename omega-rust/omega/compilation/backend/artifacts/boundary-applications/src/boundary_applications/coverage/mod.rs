@@ -14,7 +14,7 @@ use super::realization::{
 };
 use semantic_vocabulary::OperationId;
 
-const COVERAGE_IDENTITY_DOMAIN: &[u8] = b"omega.d29-operator-application-coverage.sha256.v1\0";
+const COVERAGE_IDENTITY_DOMAIN: &[u8] = b"omega.d29-operator-application-coverage.sha256.v2\0";
 
 /// Domain-separated strong identity reconstructed from one complete D29
 /// demand and its exact selected-plan/realization companion.
@@ -105,7 +105,10 @@ fn encode_application(
 ) {
     match application {
         BoundaryApplication::Empty => digest.byte(0),
-        BoundaryApplication::Exact(arguments) => {
+        BoundaryApplication::Exact {
+            arguments,
+            lifetimes,
+        } => {
             digest.byte(1);
             digest.u64(arguments.len() as u64);
             for argument in arguments {
@@ -114,7 +117,7 @@ fn encode_application(
                         binder_ordinal,
                         type_identity,
                     } => {
-                        digest.byte(0);
+                        digest.byte(1);
                         digest.raw(&binder_ordinal.to_le_bytes());
                         hash_bytes(digest, &type_identity.identity().0.to_le_bytes());
                     }
@@ -123,17 +126,69 @@ fn encode_application(
                         declared_carrier,
                         value_type,
                         value_encoding,
+                    }
+                    | BoundaryApplicationArgument::Value {
+                        binder_ordinal,
+                        declared_carrier,
+                        value_type,
+                        value_encoding,
                     } => {
-                        digest.byte(1);
+                        digest.byte(
+                            if matches!(argument, BoundaryApplicationArgument::Const { .. }) {
+                                2
+                            } else {
+                                3
+                            },
+                        );
                         digest.raw(&binder_ordinal.to_le_bytes());
                         hash_bytes(digest, &declared_carrier.identity().0.to_le_bytes());
                         hash_bytes(digest, value_type.as_bytes());
                         hash_bytes(digest, value_encoding.as_bytes());
                     }
+                    BoundaryApplicationArgument::Declaration {
+                        binder_ordinal,
+                        kind,
+                        declaration,
+                        application,
+                    } => {
+                        digest.byte(4);
+                        digest.raw(&binder_ordinal.to_le_bytes());
+                        digest.byte(match kind {
+                            terminal_psi::BoundaryDeclarationArgumentKind::Machine => 1,
+                            terminal_psi::BoundaryDeclarationArgumentKind::Conformance => 2,
+                            terminal_psi::BoundaryDeclarationArgumentKind::Proposition => 3,
+                        });
+                        hash_bytes(digest, &declaration.identity().0.to_le_bytes());
+                        encode_application(digest, application);
+                    }
+                }
+            }
+            digest.u64(lifetimes.len() as u64);
+            for binding in lifetimes {
+                digest.raw(&binding.binder_ordinal.to_le_bytes());
+                encode_lifetime_parameter(digest, &binding.parameter);
+                match &binding.argument {
+                    terminal_psi::BoundaryLifetimeArgument::Named(argument) => {
+                        encode_lifetime_parameter(digest, argument);
+                    }
+                    terminal_psi::BoundaryLifetimeArgument::AnonymousInvocation => {
+                        // Preserve named commitments and encode the explicit
+                        // anonymous variant with the reserved zero coordinate.
+                        hash_bytes(digest, &0u32.to_le_bytes());
+                        digest.raw(&0u32.to_le_bytes());
+                    }
                 }
             }
         }
     }
+}
+
+fn encode_lifetime_parameter(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    parameter: &terminal_psi::BoundaryLifetimeParameter,
+) {
+    hash_bytes(digest, &parameter.declaration.identity().0.to_le_bytes());
+    digest.raw(&parameter.parameter_ordinal.to_le_bytes());
 }
 
 fn encode_realization(

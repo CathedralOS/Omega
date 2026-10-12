@@ -11,6 +11,8 @@ use target::NativeTarget;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundaryCallingApplication {
     pub requirement_identity: String,
+    /// Exact public presentation; the original owner identity remains separate.
+    pub public_requirement_identity: String,
     pub target: NativeTarget,
     pub report_fingerprint: u64,
     pub commitment: [u8; 32],

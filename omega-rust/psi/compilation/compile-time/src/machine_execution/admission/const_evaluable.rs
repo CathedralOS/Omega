@@ -364,7 +364,7 @@ pub(crate) fn require_closed_generic_application(
 }
 
 /// One generic argument judged against its parameter kind. `const`/`value`
-/// parameters admit only a compile-known resolved integer literal; `type`
+/// parameters admit a retained closed integer, including its canonical atom; `type`
 /// parameters admit only a closed const-boundary type; machine parameters
 /// admit nothing at this boundary.
 fn require_closed_argument(
@@ -378,8 +378,8 @@ fn require_closed_argument(
         TypeParameterKind::Type => require_closed_type(program, argument, path, active_data),
         TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
             if program
-                .type_reference_table
-                .anonymous_numeric_literal_value(argument)
+                .static_const_literal_from_type_reference(argument)
+                .and_then(|literal| literal.value_bignum())
                 .is_some()
             {
                 Ok(())

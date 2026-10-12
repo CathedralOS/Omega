@@ -9,4 +9,5 @@ name = "language_core"
 path = "src/lib.rs"
 
 [dependencies]
+arena = { path = "../arena" }
 numerics = { path = "../numerics" }

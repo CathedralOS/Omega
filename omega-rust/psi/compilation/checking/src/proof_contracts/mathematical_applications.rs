@@ -6,10 +6,13 @@
 mod expressions;
 pub use expressions::{definition_roots, expression_nodes};
 mod prepared;
+mod uses;
 pub use prepared::{
-    PreparedApplication, PreparedCapture, PreparedConstant, PreparedConstantMeaning,
-    PreparedMathematicalApplications, PreparedMathematicalView, integer_embedding_meaning,
+    PreparedApplication, PreparedApplicationView, PreparedCapture, PreparedConstant,
+    PreparedConstantMeaning, PreparedMathematicalApplications, PreparedMathematicalView,
+    integer_embedding_meaning,
 };
+pub(crate) use uses::SourceContractJudgment;
 
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};

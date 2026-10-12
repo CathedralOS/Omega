@@ -115,7 +115,28 @@ fn authored_service_exclusion(
             "service exclusion must retain its checked static Build call",
         ));
     };
-    validation::compiler_operations::resolve_build_declaration_operand(typed, expression, 0, occurrence)
+    let call = typed
+        .expression_table
+        .call_node(expression)
+        .ok_or_else(|| {
+            Diagnostic::error("service exclusion lost its checked Build call")
+                .with_source_span(occurrence)
+        })?;
+    let call = typed_trees::references::StaticArgumentCall::Expression(expression, call);
+    if validation::compiler_operations::build_operation_for_call(typed, call)
+        != Some(language_semantics::declaration_selection::BuildOperation::ServiceExclusion)
+    {
+        return Err(
+            Diagnostic::error("service exclusion lost its exact Build operation")
+                .with_source_span(occurrence),
+        );
+    }
+    validation::compiler_operations::resolve_static_argument_selection(
+        typed, call, language_semantics::declaration_selection::StaticArgumentPosition {
+            argument_index: 0,
+            descendant_ordinal: 0,
+        },
+    )
         .and_then(|symbol| {
             typed.product_declarations().trait_definition_by_symbol(symbol)
                 .filter(|definition| definition.is_boundary)

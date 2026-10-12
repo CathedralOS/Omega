@@ -180,17 +180,30 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
                 accepted,
                 declaration_symbol: None,
             };
-            match crate::compiler_intrinsic::row_execution_identity(
-                checked,
-                plan,
-                retained.provider.schema,
-                row,
-                *requirement_symbol,
-                *realization_symbol,
-                selected_target,
-                accepted_console_binding.map(unresolved),
-                accepted_process_exit_binding.map(unresolved),
-            ) {
+            let execution = match &retained.selected_by {
+                provider_planning::ProviderSelectionProvenance::CompilerCatalog(choice) => choice
+                    .row_execution(
+                        plan,
+                        *requirement_symbol,
+                        *realization_symbol,
+                        selected_target,
+                    )
+                    .map(|identity| {
+                        Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(identity))
+                    }),
+                _ => crate::compiler_intrinsic::row_execution_identity(
+                    checked,
+                    plan,
+                    retained.provider.schema,
+                    row,
+                    *requirement_symbol,
+                    *realization_symbol,
+                    selected_target,
+                    accepted_console_binding.map(unresolved),
+                    accepted_process_exit_binding.map(unresolved),
+                ),
+            };
+            match execution {
                 Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(identity))) => {
                     if identity == effects::CompilerIntrinsicExecutionIdentity::HostedExitProcessI32
                     {

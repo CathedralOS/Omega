@@ -12,6 +12,8 @@ use package_evidence::record::{
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
 
+mod assumed_bindings;
+
 /// Independently retained consent for one exact checked package occurrence.
 /// The execution profile is recorded context, never inferred from this host.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -104,6 +104,7 @@ pub struct BuildTimeAdmissionPlan {
     call_edges: Vec<BuildTimeCallEdge>,
     selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     selected_operators: Vec<crate::SelectedBuildTimeBinaryOperator>,
+    checked_execution: Option<crate::CheckedBuildProgram>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -133,7 +134,7 @@ impl BuildTimeAdmissionPlan {
     ) -> Self {
         let operational = validation::infer_operational_may(program);
         let service_reaches = validation::infer_service_reaches(program, &operational);
-        let (suspension, blocking, call_edges) = project_operational_axes(&operational);
+        let (suspension, blocking, call_edges) = project_operational_axes(program, &operational);
         Self {
             service_reaches,
             suspension,
@@ -141,6 +142,42 @@ impl BuildTimeAdmissionPlan {
             call_edges,
             selection_authority,
             selected_operators: Vec::new(),
+            checked_execution: None,
+        }
+    }
+
+    /// Bind admission and interpretation to one immutable checked preparation.
+    /// The old early typed entrance remains distinct; it cannot impersonate
+    /// this checked dependency owner by sharing handle numbers or type labels.
+    pub(crate) fn infer_prepared(
+        prepared: &crate::PreparedBuildMachineProgram,
+        selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+    ) -> Result<Self, String> {
+        let checked = prepared
+            .checked_program()
+            .ok_or("constant dependency preparation has no ordinary checking judgment")?;
+        let mut admission = Self::infer(prepared.typed(), selection_authority);
+        // Public operational inference deliberately judges original calls.
+        // Execution closure custody instead consumes this exact checking
+        // judgment's actual endpoints, including selected providers/helpers.
+        admission.call_edges = project_checked_execution_edges(checked.checked());
+        admission.checked_execution = Some(checked);
+        Ok(admission)
+    }
+
+    fn interpreter_program<'program>(
+        &'program self,
+        program: &'program TypedTrees,
+    ) -> Result<checked_interpreter::BuildMachineProgram<'program>, String> {
+        if let Some(checked) = &self.checked_execution {
+            if !std::ptr::eq(checked.typed(), program) {
+                return Err(
+                    "constant invocation does not belong to its checked preparation".into(),
+                );
+            }
+            Ok(checked.interpreter_program())
+        } else {
+            Ok(checked_interpreter::BuildMachineProgram::Typed(program))
         }
     }
 
@@ -201,19 +238,34 @@ impl BuildTimeAdmissionPlan {
         Ok(self)
     }
 
-    pub(crate) fn closure_needs_operator_selection(
-        &self,
-        program: &TypedTrees,
-        root: SymbolHandle,
-        facts: &checked_trees::CheckedOperatorFacts,
-    ) -> bool {
-        let mut pending = vec![root];
+    /// Checked preparation supplies actual execution edges; early typed
+    /// inference projects its still-authored occurrences. Runtime offerings
+    /// cannot seed this semantic dependency roster.
+    pub(crate) fn reachable_machine_symbols(&self, roots: &[SymbolHandle]) -> Vec<SymbolHandle> {
+        let mut pending = roots.to_vec();
         let mut visited = Vec::new();
         while let Some(machine) = pending.pop() {
             if visited.contains(&machine) {
                 continue;
             }
             visited.push(machine);
+            pending.extend(
+                self.call_edges
+                    .iter()
+                    .filter(|edge| edge.source_machine_symbol == machine)
+                    .map(|edge| edge.target_machine_symbol),
+            );
+        }
+        visited
+    }
+
+    pub(crate) fn closure_needs_operator_selection(
+        &self,
+        program: &TypedTrees,
+        root: SymbolHandle,
+        facts: &checked_trees::CheckedOperatorFacts,
+    ) -> bool {
+        for machine in self.reachable_machine_symbols(&[root]) {
             // Named and normalized token requirements appear as ordinary
             // calls. Their bodies are supplied by selected providers, not by
             // the requirement declarations in this closure.
@@ -248,12 +300,6 @@ impl BuildTimeAdmissionPlan {
             {
                 return true;
             }
-            pending.extend(
-                self.call_edges
-                    .iter()
-                    .filter(|edge| edge.source_machine_symbol == machine)
-                    .map(|edge| edge.target_machine_symbol),
-            );
         }
         false
     }
@@ -358,51 +404,52 @@ impl BuildTimeAdmissionPlan {
         discharge_authored_requires: bool,
     ) -> Result<(), BuildTimeAdmissionRejection> {
         crate::validate_selected_operators(program, &self.selected_operators)?;
-        let service_summary = self
-            .service_reaches
-            .for_machine(machine.symbol)
-            .ok_or_else(|| {
-                format!(
-                    "machine `{}` has no inferred service-reach summary",
-                    machine.name
-                )
+        // Preserve the caller's public invocation envelope, then check each
+        // physically reached body's own envelope. A selected private body
+        // cannot inherit empty reach/suspension/blocking from its requirement.
+        let mut services = Vec::new();
+        let mut transitive_may_suspend = false;
+        let mut transitive_may_block = false;
+        for reached in self.reachable_machine_symbols(&[machine.symbol]) {
+            if !reached.is_valid() {
+                continue;
+            }
+            let service_summary = self.service_reaches.for_machine(reached).ok_or_else(|| {
+                format!("machine {reached:?} has no inferred service-reach summary")
             })?;
-        let transitive_may_suspend = self.machine_suspension(machine.symbol).ok_or_else(|| {
-            format!(
-                "machine `{}` has no inferred operational summary",
-                machine.name
-            )
-        })?;
-        let transitive_may_block = self.machine_blocking(machine.symbol).ok_or_else(|| {
-            format!(
-                "machine `{}` has no inferred operational summary",
-                machine.name
-            )
-        })?;
-
-        let services = self
-            .service_reaches
-            .services(service_summary.effective)
-            .iter()
-            .map(|service| {
-                program
+            transitive_may_suspend |= self.machine_suspension(reached).ok_or_else(|| {
+                format!("machine {reached:?} has no inferred operational summary")
+            })?;
+            transitive_may_block |= self.machine_blocking(reached).ok_or_else(|| {
+                format!("machine {reached:?} has no inferred operational summary")
+            })?;
+            for service in self.service_reaches.services(service_summary.effective) {
+                let name = program
                     .service_reaches
                     .definition(*service)
                     .map(|definition| definition.name.as_str())
                     .ok_or_else(|| {
-                        format!(
-                            "machine `{}` reaches an unknown canonical service identity",
-                            machine.name
-                        )
-                    })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+                        format!("machine {reached:?} reaches an unknown canonical service identity")
+                    })?;
+                if !services.iter().any(|existing| existing == name) {
+                    services.push(name.to_owned());
+                }
+            }
+        }
         self.require_closed_static_applications(program, machine.symbol)?;
         // Premises past an unconditional entry are proved at their own
         // source sites, whatever this invocation's arguments.
         let discharge_authored_requires = discharge_authored_requires
             || (self.closure_includes_authored_requires(program, machine)
-                && concrete_invocation::argument_independent_closure_discharges(program, machine));
+                && concrete_invocation::argument_independent_closure_discharges(program, machine)
+                    .map_err(|diagnostics| BuildTimeAdmissionRejection {
+                        reason: format!(
+                            "build-time premise closure of `{}` failed ordinary preparation/checking: {}",
+                            machine.name,
+                            diagnostics.iter().map(ToString::to_string).collect::<Vec<_>>().join("; "),
+                        ),
+                        source_span: diagnostics.iter().find_map(|diagnostic| diagnostic.source_span),
+                    })?);
         let closure_violation = checked_closure_violation(
             &self.call_edges,
             program,
@@ -471,8 +518,8 @@ impl BuildTimeAdmissionPlan {
             .realized_machine_named(machine_name)
             .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
         self.require_common_floor(program, machine)?;
-        checked_interpreter::evaluate_build_time_machine(
-            program,
+        checked_interpreter::evaluate_prepared_build_time_machine(
+            self.interpreter_program(program)?,
             BuildMachineEvaluationRequest::named(machine_name, arguments),
         )
         .map(BuildTimeOperationEvaluation::into_value)
@@ -490,8 +537,8 @@ impl BuildTimeAdmissionPlan {
             .realized_machine_named(machine_name)
             .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
         self.require_common_floor_for_invocation(program, machine, custody)?;
-        checked_interpreter::evaluate_build_time_machine(
-            program,
+        checked_interpreter::evaluate_prepared_build_time_machine(
+            self.interpreter_program(program)?,
             BuildMachineEvaluationRequest::named(machine_name, arguments),
         )
         .map(BuildTimeOperationEvaluation::into_value)
@@ -515,8 +562,8 @@ impl BuildTimeAdmissionPlan {
             )
         })?;
         self.require_common_floor_for_invocation(program, machine, custody)?;
-        checked_interpreter::evaluate_build_time_machine(
-            program,
+        checked_interpreter::evaluate_prepared_build_time_machine(
+            self.interpreter_program(program)?,
             BuildMachineEvaluationRequest::symbol(machine_symbol, arguments),
         )
         .map(BuildTimeOperationEvaluation::into_measured)
@@ -602,8 +649,8 @@ impl BuildTimeAdmissionPlan {
         let discharge =
             self.zero_argument_invocation_discharge(program, machine, &arguments, custody);
         self.require_floor(program, machine, custody, discharge)?;
-        let value = checked_interpreter::evaluate_build_time_machine(
-            program,
+        let value = checked_interpreter::evaluate_prepared_build_time_machine(
+            self.interpreter_program(program)?,
             BuildMachineEvaluationRequest {
                 product_entry_compatibility: None,
                 operators: &self.selected_operators,
@@ -714,8 +761,8 @@ impl BuildTimeAdmissionPlan {
             custody,
             discharge_authored_requires,
         )?;
-        let measured = checked_interpreter::evaluate_build_time_machine(
-            program,
+        let measured = checked_interpreter::evaluate_prepared_build_time_machine(
+            self.interpreter_program(program)?,
             BuildMachineEvaluationRequest {
                 product_entry_compatibility: None,
                 operators: &self.selected_operators,
@@ -764,6 +811,7 @@ impl BuildTimeAdmissionPlan {
 }
 
 fn project_operational_axes(
+    program: &TypedTrees,
     operational: &flow_effects::OperationalPlan,
 ) -> (
     Vec<BuildTimeSuspensionRow>,
@@ -784,14 +832,71 @@ fn project_operational_axes(
         });
         for state in operational.states.span_or_empty(machine.states) {
             for call in operational.calls.span_or_empty(state.calls) {
-                call_edges.push(BuildTimeCallEdge {
-                    source_machine_symbol: machine.symbol,
-                    target_machine_symbol: call.target_machine_symbol,
-                    target_state_symbol: call.target_state_symbol,
-                    target_operator_symbol: call.target_operator_symbol,
+                let executable = validation::find_call_site(
+                    program,
+                    machine.symbol,
+                    state.symbol,
+                    call.statement_index,
+                    call.call_ordinal,
+                )
+                .and_then(|site| match site {
+                    validation::CallSite::Expression { call, .. }
+                        if call.source_call.is_valid() =>
+                    {
+                        Some(call.target_symbol)
+                    }
+                    _ => None,
                 });
+                call_edges.push(executable.map_or(
+                    BuildTimeCallEdge {
+                        source_machine_symbol: machine.symbol,
+                        target_machine_symbol: call.target_machine_symbol,
+                        target_state_symbol: call.target_state_symbol,
+                        target_operator_symbol: call.target_operator_symbol,
+                    },
+                    |target| execution_edge(program, machine.symbol, target),
+                ));
             }
         }
     }
     (suspension, blocking, call_edges)
+}
+
+/// Project actual endpoints from the same immutable checked closure consumed
+/// by interpretation. Original public contracts and effects remain on its
+/// checked source payloads; they cannot replace this physical execution graph.
+fn project_checked_execution_edges(
+    checked: &checked_trees::CheckedTrees,
+) -> Vec<BuildTimeCallEdge> {
+    let control = &checked.facts.flow.control;
+    let mut edges = Vec::new();
+    for (_, state) in control.states.iter() {
+        for call in control.calls.span_or_empty(state.calls) {
+            if !control.is_retired(state.state_symbol, call) {
+                edges.push(execution_edge(
+                    &checked.typed,
+                    state.machine_symbol,
+                    call.target_symbol,
+                ));
+            }
+        }
+    }
+    edges
+}
+
+fn execution_edge(
+    program: &TypedTrees,
+    source_machine_symbol: SymbolHandle,
+    target: SymbolHandle,
+) -> BuildTimeCallEdge {
+    let machine = program
+        .machine_by_symbol(target)
+        .or_else(|| program.machine_holding_state(target));
+    BuildTimeCallEdge {
+        source_machine_symbol,
+        target_machine_symbol: machine.map_or(SymbolHandle::invalid(), |machine| machine.symbol),
+        target_state_symbol: target,
+        target_operator_symbol: typed_trees::operator::declaration_by_symbol(program, target)
+            .map_or(SymbolHandle::invalid(), |operator| operator.symbol),
+    }
 }

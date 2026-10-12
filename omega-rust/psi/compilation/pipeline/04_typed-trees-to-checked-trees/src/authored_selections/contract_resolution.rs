@@ -254,12 +254,9 @@ fn resultless_state_signature(
     state_symbol: SymbolHandle,
 ) -> bool {
     let return_type = program
-        .trait_definition_by_symbol(owner_symbol)
-        .and_then(|definition| {
-            program
-                .trait_machine_signature_by_symbol(definition, state_symbol)
-                .map(|signature| signature.return_type)
-        })
+        .trait_machine_signature(state_symbol)
+        .filter(|(definition, _)| definition.symbol == owner_symbol)
+        .map(|(_, signature)| signature.return_type)
         .or_else(|| {
             program
                 .machine_parameter_signature(state_symbol)

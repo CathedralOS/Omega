@@ -1,0 +1,1 @@
+Unexecuted missing-member control: identical named generic map and tuples, with only macos_arm64 First family member removed. Psi checks retained families; reached macos realization must refuse missing executable member. Other target members remain source-checkable.

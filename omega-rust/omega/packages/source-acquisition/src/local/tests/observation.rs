@@ -79,7 +79,7 @@ fn local_snapshot_issuance_rejects_a_mismatched_requested_root() {
     let captured = capture_local_source(
         &captured_root,
         LocalSourceLimits::default(),
-        SourceTreePolicy::LocalPackage,
+        SourceTreePolicy::LocalPackage(Default::default()),
     )
     .expect("capture source");
 

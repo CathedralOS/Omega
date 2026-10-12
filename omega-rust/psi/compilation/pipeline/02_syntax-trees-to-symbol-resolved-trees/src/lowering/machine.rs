@@ -220,8 +220,33 @@ pub(crate) fn lower_machine_into(
             authored: service_reaches,
         },
     );
+    let where_classification = crate::preparation::type_equations::classify_where_facts(
+        syntax_trees,
+        syntax_trees.items.type_parameters(machine.type_parameters),
+        syntax_trees.items.proof_facts(machine.where_facts),
+    );
+    let has_structural_type_equations = !where_classification.equations.is_empty();
+    let predicate_exposure = if machine.is_public
+        || matches!(
+            supply_mode,
+            language_semantics::MachineSupplyMode::Boundary
+                | language_semantics::MachineSupplyMode::AdmissionClaim
+                | language_semantics::MachineSupplyMode::TopLevelRequirement
+        ) {
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
+    } else {
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
+    };
+    let where_facts = lowerer.with_authored_expression_exposure(predicate_exposure, |lowerer| {
+        crate::lowering::domain::lower_proof_facts_excluding(
+            lowerer,
+            syntax_trees,
+            machine.where_facts,
+            &where_classification.equation_offsets(),
+        )
+    })?;
     if let Some(sources) = &mut lowerer.equation_sources
-        && !machine.where_facts.is_empty()
+        && has_structural_type_equations
     {
         sources.declarations.push((
             lowerer.symbol_resolved_trees.machines.len(),
@@ -255,8 +280,8 @@ pub(crate) fn lower_machine_into(
         target_family_interface: machine.target_family_interface,
         target_family_contracts_prepared: false,
         target_symbol_name,
-        has_structural_type_equations: !machine.where_facts.is_empty(),
-        structural_type_equations_pending: !machine.where_facts.is_empty()
+        has_structural_type_equations,
+        structural_type_equations_pending: has_structural_type_equations
             && lowerer.structural_type_equations_pending,
         // TPR2: the termination plan's ONE population site (see
         // build_termination_plan below).
@@ -285,6 +310,7 @@ pub(crate) fn lower_machine_into(
             suspends: machine.suspends,
             blocks: machine.blocks,
             contracts,
+            where_facts,
             states,
         },
     });

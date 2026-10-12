@@ -1,0 +1,14 @@
+machine inspect<'input, 'unresolved, Kind>(value: &'input Kind) -> bool {
+    true
+}
+
+machine main() crashes Trap {
+    let value: u64 = 42u64;
+    let result: bool = inspect<u64>(&value);
+    transition result {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

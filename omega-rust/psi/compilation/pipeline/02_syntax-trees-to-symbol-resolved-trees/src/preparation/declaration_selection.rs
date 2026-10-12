@@ -797,6 +797,32 @@ impl<'base> ConstantSelection<'base> {
     /// Return exact declaration custody, not a handle from the header table.
     /// No match includes unresolved or ambiguous selection; callers must defer
     /// it to ordinary validation, never fall back to a lexical constant map.
+    /// An argument's original lexical declaration association remains separate
+    /// from payload completion. Header selection may complete a concrete data
+    /// use, but cannot replace a retained original scope with another donor.
+    pub(crate) fn select_argument(
+        &self,
+        syntax: &SyntaxTrees,
+        argument: syntax_trees::types::TypeReferenceHandle,
+        name: &Identifier,
+    ) -> Result<Option<ConstDefinition>, Diagnostic> {
+        let selected = self.select(syntax, name)?;
+        if let Some(original) = syntax.type_references.const_argument_declaration(argument) {
+            let matches_original = selected.as_ref().is_some_and(|definition| {
+                original.reference == name.source_span()
+                    && original.declaration == definition.name.source_span()
+                    && original.initializer == syntax.expressions.source_span(definition.value)
+            });
+            if !matches_original {
+                return Err(Diagnostic::error(
+                    "constant argument differs from its original lexical declaration",
+                )
+                .with_source_span(original.reference));
+            }
+        }
+        Ok(selected)
+    }
+
     pub(crate) fn select(
         &self,
         syntax: &SyntaxTrees,
@@ -882,64 +908,19 @@ pub(crate) type GenericApplicationSubstitution =
     std::collections::HashMap<String, syntax_trees::types::TypeReferenceHandle>;
 
 /// Whether `type_reference` still spells one of the bound parameter names.
-/// Only structural positions are scanned; an expression-bearing position (a
-/// deferred const argument or a range bound) conservatively counts as open
-/// whenever any binding exists, because its expression may name a parameter.
+/// Dependency discovery is shared with application substitution. Fixed ranges
+/// and expression arguments remain independent when they read no supplied
+/// binder; array geometry and nested constructor heads retain real dependencies.
 pub(crate) fn type_mentions_parameters(
     syntax: &SyntaxTrees,
     type_reference: syntax_trees::types::TypeReferenceHandle,
     substitution: &GenericApplicationSubstitution,
 ) -> bool {
-    use syntax_trees::types::{FixedArrayLength, TypeConstraintNode, TypeReferenceNode};
-    if substitution.is_empty() {
-        return false;
-    }
-    match syntax.type_references.type_reference(type_reference) {
-        TypeReferenceNode::Named(name) => substitution.contains_key(name.as_str()),
-        TypeReferenceNode::Generic { arguments, .. } => syntax
-            .type_references
-            .type_reference_handles(*arguments)
-            .iter()
-            .any(|argument| type_mentions_parameters(syntax, *argument, substitution)),
-        TypeReferenceNode::FixedArray {
-            element_type,
-            length,
-        } => {
-            type_mentions_parameters(syntax, *element_type, substitution)
-                || matches!(length, FixedArrayLength::ConstParameter(name) if substitution.contains_key(name.as_str()))
-        }
-        TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } => {
-            type_mentions_parameters(syntax, *base_type, substitution)
-                || syntax
-                    .type_references
-                    .constraints(*constraints)
-                    .iter()
-                    .any(|constraint| match constraint {
-                        TypeConstraintNode::Domain(domain) => syntax
-                            .type_references
-                            .type_reference_handles(domain.arguments)
-                            .iter()
-                            .any(|argument| {
-                                type_mentions_parameters(syntax, *argument, substitution)
-                            }),
-                        TypeConstraintNode::Range { .. } => true,
-                        TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => {
-                            false
-                        }
-                    })
-        }
-        TypeReferenceNode::Reference { referee, .. } => {
-            type_mentions_parameters(syntax, *referee, substitution)
-        }
-        TypeReferenceNode::Slice { element_type } => {
-            type_mentions_parameters(syntax, *element_type, substitution)
-        }
-        TypeReferenceNode::ConstExpression(_) => true,
-        _ => false,
-    }
+    crate::preparation::generic_data::type_reference_mentions_parameter(
+        syntax,
+        type_reference,
+        substitution,
+    )
 }
 
 /// Resolve one generic argument spelling through the enclosing application's

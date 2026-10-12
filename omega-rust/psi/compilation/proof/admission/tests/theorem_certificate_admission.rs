@@ -118,15 +118,31 @@ fn the_symmetry_theorem_obligation_is_judged_by_the_kernel_at_admission() {
     // all of which the judgment's closure commits to; one bound premise;
     // 34 arena slots once the kernel has checked the judgment, the
     // elaborated terms plus the checker's own working terms.
+    let MathematicalCoreDecision::Judged(judgment) = decision else {
+        panic!("symmetry was judged by the kernel");
+    };
     assert_eq!(
-        decision,
-        MathematicalCoreDecision::Judged(MathematicalJudgmentReceipt {
+        judgment.receipt(),
+        MathematicalJudgmentReceipt {
             declarations: 3,
             assumption_closure: 3,
             context_depth: 1,
             arena_slots: 34,
-        })
+        }
     );
+    // The receipt's count is backed by original declaration coordinates and
+    // the arena in which the accepted certificate's term handles resolve.
+    assert_eq!(
+        judgment
+            .used_assumptions()
+            .iter()
+            .map(|(_, assumption)| { assumption.declaration_index })
+            .collect::<Vec<_>>(),
+        [0, 1, 2],
+    );
+    assert_eq!(judgment.certificate().signature.len(), 3);
+    assert_eq!(judgment.certificate().context.len(), 1);
+    assert_eq!(judgment.arena().len(), 34);
 }
 
 #[test]

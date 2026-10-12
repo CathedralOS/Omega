@@ -1,5 +1,5 @@
 use crate::input::token_cursor::{Input, ParseResult};
-use crate::type_syntax::parse_type::parse_type_reference_handle;
+use crate::type_syntax::parse_type::parse_static_argument_handle;
 use arena::{Handle, HandleSpan};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::SatisfiesClause;
@@ -123,7 +123,7 @@ pub(crate) fn parse_optional_satisfies_type_arguments<'tokens, 'source>(
     input = input.take_punctuation(PunctuationKind::Less, "<")?;
     let mut arguments = Vec::new();
     loop {
-        let (argument, rest) = parse_satisfies_type_argument(syntax_trees, input)?;
+        let (argument, rest) = parse_static_argument_handle(syntax_trees, input)?;
         arguments.push(argument);
         input = rest;
 
@@ -142,34 +142,6 @@ pub(crate) fn parse_optional_satisfies_type_arguments<'tokens, 'source>(
     }
 }
 
-pub(crate) fn parse_satisfies_type_argument<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
-    input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, syntax_trees::types::TypeReferenceHandle> {
-    if input
-        .tokens
-        .first()
-        .is_some_and(crate::input::token_cursor::is_identifier_token_for_parser)
-    {
-        let (first, mut rest) = input.take_identifier()?;
-        if rest.at_punctuation(PunctuationKind::ColonColon) {
-            let mut members = vec![first];
-            while rest.at_punctuation(PunctuationKind::ColonColon) {
-                rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
-                let (member, next) = rest.take_identifier()?;
-                members.push(member);
-                rest = next;
-            }
-            return Ok((
-                syntax_trees
-                    .type_references
-                    .insert_named(crate::input::paths::join_path_identifier(&members)),
-                rest,
-            ));
-        }
-    }
-    parse_type_reference_handle(syntax_trees, input)
-}
 pub(crate) fn parse_conformance_trait_application<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
@@ -201,11 +173,7 @@ pub(crate) fn parse_conformance_trait_application<'tokens, 'source>(
                 rest = next;
             } else {
                 saw_non_lifetime = true;
-                let (argument, next) =
-                    crate::contracts::conformance::parse_conformance::parse_satisfies_type_argument(
-                        syntax_trees,
-                        rest,
-                    )?;
+                let (argument, next) = parse_static_argument_handle(syntax_trees, rest)?;
                 arguments.push(argument);
                 rest = next;
             }

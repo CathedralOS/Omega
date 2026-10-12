@@ -206,6 +206,12 @@ pub fn resolve_state_call_target(
         if machine_parameter_signature_symbol(program, machine, target_symbol).is_valid() {
             return target_symbol;
         }
+        // Produced public headers are callable declarations too. Token calls
+        // have no storage receiver; their exact application is admitted by
+        // the selected-signature query, independently of this topology.
+        if trait_machine_signature_symbol(program, target_symbol).is_valid() {
+            return target_symbol;
+        }
         // A receiverless call to a FREE top-level machine: symbol resolution
         // points target_symbol at the free machine's entry state, which lives
         // outside the caller machine.
@@ -311,14 +317,14 @@ fn state_symbol_in_any_machine(
         .unwrap_or_else(SymbolHandle::invalid)
 }
 
-/// The exact trait signature coordinate, including a prepared closed instance.
-/// Looking only through authored declaration rosters drops those instances
-/// during borrow discovery, leaving their executable calls without flow facts.
+/// `target_symbol` when it is a machine signature of ANY trait in the program
+/// (including a produced public header), or invalid. This classifies the
+/// occurrence; selected signature admission separately checks its exact tuple.
 pub fn trait_machine_signature_symbol(
     program: &dyn crate::CheckingInput,
     target_symbol: SymbolHandle,
 ) -> SymbolHandle {
-    if program.trait_machine_signature(target_symbol).is_some() {
+    if target_symbol.is_valid() && program.trait_machine_signature(target_symbol).is_some() {
         return target_symbol;
     }
 

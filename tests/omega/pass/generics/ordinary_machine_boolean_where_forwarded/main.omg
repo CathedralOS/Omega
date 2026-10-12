@@ -1,0 +1,11 @@
+data Main { value: u64; }
+machine choose<const Actual: bool>(value: u64) -> u64
+where Actual == true { value }
+machine forward<const Flag: bool>(value: u64) -> u64
+where Flag == true { choose<Flag>(value) }
+machine Main::main(main: &mut Main) crashes Trap {
+    let result: u64 = forward<true>(4);
+    transition result == 4 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

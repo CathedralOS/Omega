@@ -1,0 +1,8 @@
+data Carrier<Payload> { value: Payload; }
+data Main { value: u64; }
+machine Carrier::choose<Payload, const Count: u64>(carrier: &Carrier<Payload>, witness: &[u8; Count]) -> u64
+where Count == 4 || Count == 8 { transition { _ -> Count } }
+machine Main::main(main: &mut Main) {
+    let sixteen: [u8; 16] = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+    let result: u64 = Carrier::choose(&Carrier { value: main.value }, &sixteen);
+}

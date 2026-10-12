@@ -120,7 +120,15 @@ pub(super) fn derive_selected_installation_reach_resolutions(
             // owning the machine that carries that edge.
             let named_realization =
                 crate::provider_identity::named_provider_row(provider_context, plan, row)
-                    .map(|entry| entry.realization_machine);
+                    .and_then(|entry| {
+                        crate::target_machines::named_row_realization(
+                            provider_context,
+                            entry,
+                            Some(&plan.target),
+                        )
+                        .ok()
+                    })
+                    .map(|machine| machine.symbol);
             let is_named_provider =
                 crate::provider_identity::named_provider(provider_context, plan).is_some();
             let realization_machines = typed

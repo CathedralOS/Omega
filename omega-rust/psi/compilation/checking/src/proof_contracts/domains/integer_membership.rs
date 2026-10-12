@@ -9,8 +9,7 @@
 use super::closed_integer_index_bindings;
 use crate::proof_contracts::contract_entailment::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
-    ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
-    scoped_arithmetic_implication_for_declaration,
+    ScopedArithmeticValue, StrictArithmeticImplicationJudgment, scoped_arithmetic_implication,
 };
 use language_semantics::SemanticDomainId;
 use symbols::SymbolHandle;
@@ -114,7 +113,7 @@ fn membership(
         });
         for fact in program.proof_facts.span_or_empty(definition.facts) {
             let judgment = match fact {
-                ProofFact::Expression(expression) => scoped_arithmetic_implication_for_declaration(
+                ProofFact::Expression(expression) => scoped_arithmetic_implication(
                     program,
                     definition.symbol,
                     &[],

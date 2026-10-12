@@ -128,6 +128,11 @@ fn apply_fact_pruning(
             checked_trees::NominalMachineUseSite::Expression(_) => true,
         });
 
+    // Proof obligations and their accepted-judgment arena retain their
+    // original handles, just like other referenced backing evidence. A
+    // relationship's pre-prune owner can still resolve every acceptance;
+    // the executable roster alone controls which bodies enter the product.
+
     // Contract evidence rows keyed by an owner machine.
     facts
         .proof

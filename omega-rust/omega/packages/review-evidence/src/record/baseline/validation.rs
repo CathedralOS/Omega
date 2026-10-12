@@ -23,6 +23,8 @@ impl PackagePolicyBaseline {
             || self.selected_providers.target != self.target
             || self.terminal_permissions.package != self.package
             || self.terminal_permissions.target != self.target
+            || self.assumed_binding_contracts.package() != self.package
+            || self.assumed_binding_contracts.target() != self.target
             || self.representation.package != self.package
             || representation_profile(self.representation.target.profile()) != self.target
         {
@@ -32,6 +34,8 @@ impl PackagePolicyBaseline {
         self.callables.validate_canonical_structure()?;
         self.selected_providers.validate_canonical_structure()?;
         self.terminal_permissions.validate_canonical_structure()?;
+        self.assumed_binding_contracts
+            .validate_canonical_structure()?;
         self.representation.validate_canonical_structure()?;
         self.boundary_applications.validate_canonical_structure(
             self.package,

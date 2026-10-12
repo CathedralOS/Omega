@@ -1,0 +1,6 @@
+{
+  "status": "authored unexecuted source composition control",
+  "base": "24427a389da434b6abd82b950558629a1912fc4e",
+  "intent": "Both direct scalar call results become positional actuals of another call.",
+  "oracles": "authored native0 and Terminal0; no execution observed; trap if source relationship false"
+}

@@ -130,6 +130,7 @@ impl DynamicElfNativeArtifact {
             &parts.selected_provider_plans,
             &parts.provider_executions,
             parts.boundary_application_coverage.as_ref(),
+            Some(&parts.terminal_authority_closure_review),
         )? {
             NativePhysicalEvidenceDerivation::Complete(evidence) => (Some(evidence), None),
             NativePhysicalEvidenceDerivation::Unavailable => (None, None),
@@ -177,6 +178,7 @@ impl DynamicElfNativeArtifact {
             &parts.selected_provider_plans,
             &parts.provider_executions,
             parts.boundary_application_coverage.as_ref(),
+            Some(&parts.terminal_authority_closure_review),
         )? {
             NativePhysicalEvidenceDerivation::Blocked(gap) => Some(gap),
             NativePhysicalEvidenceDerivation::Unavailable
@@ -273,6 +275,7 @@ impl DynamicElfNativeArtifact {
             self.object.foreign_calls(),
             &self.selected_provider_plans,
             &self.provider_executions,
+            &self.terminal_authority_closure_review,
         )
         .map_err(super::provider_execution::ProviderExecutionReplayError::dynamic_message)?;
         let final_image_symbol_digest =
@@ -288,6 +291,7 @@ impl DynamicElfNativeArtifact {
                 &self.selected_provider_plans,
                 &self.provider_executions,
                 self.boundary_application_coverage.as_ref(),
+                Some(&self.terminal_authority_closure_review),
             )? {
                 NativePhysicalEvidenceDerivation::Unavailable => (None, None),
                 NativePhysicalEvidenceDerivation::Complete(evidence) => (Some(evidence), None),

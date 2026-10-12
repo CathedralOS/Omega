@@ -16,7 +16,7 @@ pub use contracts::{
     derive_pre_flow_operator_selections,
 };
 pub use receiver::expression_type_reference_for_origin;
-pub use requirement_uses::{collect_named_requirement_uses, token_bound_machine_call_target};
+pub use requirement_uses::{collect_named_requirement_uses, token_bound_call_target};
 pub use selection::select_pending_domain_operator_meanings;
 pub use uses::{
     build_operator_uses, builtin_float_operator_selection, checked_operator_candidate,
@@ -115,7 +115,9 @@ fn validate_operator_types(
                 generic_depth: 0,
             },
             crate::value_custody::type_references::TypeParameterScope {
-                lexical_owner: operator.symbol,
+                lexical_owner: typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(
+                    operator.symbol,
+                ),
                 type_parameters,
                 lifetime_parameters: &operator.lifetime_parameters,
             },
@@ -132,7 +134,9 @@ fn validate_operator_types(
                 generic_depth: 0,
             },
             crate::value_custody::type_references::TypeParameterScope {
-                lexical_owner: operator.symbol,
+                lexical_owner: typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(
+                    operator.symbol,
+                ),
                 type_parameters,
                 lifetime_parameters: &operator.lifetime_parameters,
             },

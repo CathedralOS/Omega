@@ -1,0 +1,5 @@
+{
+  "status": "authored unexecuted source proposal",
+  "intent": "Provider admits onlytrue while public requirement admits bothtrue/false. Universal public contract refinement must reject, independently of runtime geometry.",
+  "diagnostic": "not predicted; root must inspect actual guard"
+}

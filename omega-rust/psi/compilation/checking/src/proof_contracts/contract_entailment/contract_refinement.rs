@@ -15,7 +15,9 @@
 //! conjunct by exact correspondence. A requirement conclusion must reappear
 //! among the member's own `ensures`, which its exits prove, and each member
 //! premise must reappear among the requirement's `requires`. Formals compare
-//! by position, so a member may rename them.
+//! by position, including the original invocation telescope, so a member may
+//! rename them. Applied outer arguments come from the prepared logical view,
+//! never from an executable provider body or a rendered binder name.
 //!
 //! Exact correspondence is deliberately weaker than entailment: a member that
 //! proves a stronger conclusion must still state the requirement's spelling.
@@ -36,6 +38,7 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::proposition::ProofSubstitutions;
 use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
+use typed_trees::trait_definition::AppliedTraitScope;
 
 /// Validate that `machine`, realizing `requirement` through a closed row,
 /// refines the requirement's contract.
@@ -43,16 +46,40 @@ pub(crate) fn check_contract_refinement(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     trait_definition: &TraitDefinition,
+    application: &AppliedTraitScope<'_>,
     requirement: &StateSignature,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(entry) = program.machine_states(machine).first() else {
         return;
     };
+    let correspondence = match crate::declarations::traits::requirement_callable_correspondence(
+        program,
+        machine,
+        entry,
+        application,
+        requirement,
+    ) {
+        Ok(correspondence) => correspondence,
+        Err(diagnostic) => {
+            diagnostics.push(diagnostic);
+            return;
+        }
+    };
+    let original_requirement = correspondence.requirement;
+    let requirement = correspondence.applied_requirement;
+    let machine = correspondence.machine;
+    let entry = correspondence.state;
     let required_parameters = program.state_signature_parameters(requirement);
     let member_parameters = program.state_parameters(entry);
-    // The signature check reports an arity mismatch; no position map exists.
-    if required_parameters.len() != member_parameters.len() {
+    let required_static_parameters = program.state_signature_type_parameters(requirement);
+    let member_static_parameters = &correspondence.invocation_parameters;
+    // Signature checking owns complete arity and category admission. Its
+    // indexed-law representative telescopes follow the requirement's locals;
+    // they have no local contract counterpart and must not receive aliases.
+    if required_parameters.len() != member_parameters.len()
+        || required_static_parameters.len() > member_static_parameters.len()
+    {
         return;
     }
     let required_contracts = program.state_signature_contracts(requirement);
@@ -60,13 +87,23 @@ pub(crate) fn check_contract_refinement(
         .machine_contracts(machine)
         .iter()
         .chain(program.state_contracts(entry));
-    let required = Conjuncts::collect(program, required_contracts.iter(), required_parameters);
-    let member = Conjuncts::collect(program, member_contracts, member_parameters);
+    let required = Conjuncts::collect(
+        program,
+        required_contracts.iter(),
+        required_parameters,
+        required_static_parameters,
+    );
+    let member = Conjuncts::collect(
+        program,
+        member_contracts,
+        member_parameters,
+        &member_static_parameters[..required_static_parameters.len()],
+    );
     let requirement_name = format!("{}::{}", trait_definition.name, requirement.name);
     let owes_through_edge = program
         .machine_trait_conformances(machine)
         .iter()
-        .any(|edge| edge.requirement_symbol == requirement.symbol);
+        .any(|edge| edge.requirement_symbol == original_requirement.symbol);
 
     for conclusion in &required.ensures {
         if owes_through_edge
@@ -128,17 +165,18 @@ impl Conjuncts {
         program: &dyn crate::CheckingInput,
         contracts: impl Iterator<Item = &'a SignatureContract>,
         parameters: &[StateParameter],
+        static_parameters: &[typed_trees::data::TypeParameter],
     ) -> Self {
         let placeholders = parameters
             .iter()
             .enumerate()
-            .map(|(position, parameter)| {
-                (
-                    parameter.symbol,
-                    parameter.name.as_str().to_owned(),
-                    format!("#{position}"),
-                )
-            })
+            .map(|(position, parameter)| (parameter.symbol, format!("#{position}")))
+            .chain(
+                static_parameters
+                    .iter()
+                    .enumerate()
+                    .map(|(position, parameter)| (parameter.symbol, format!("#static{position}"))),
+            )
             .collect::<Vec<_>>();
         let mut conjuncts = Self {
             requires: Vec::new(),
@@ -177,7 +215,7 @@ impl Conjuncts {
                             membership_domain: None,
                             key: program.render_proof_expression(
                                 expression,
-                                ProofSubstitutions::ByParameter(&placeholders),
+                                ProofSubstitutions::BySymbol(&placeholders),
                             ),
                             law_checked: is_law_conjunct(program, expression),
                         }));
@@ -189,7 +227,7 @@ impl Conjuncts {
                             "{} in {:?}",
                             program.render_proof_expression(
                                 membership.value,
-                                ProofSubstitutions::ByParameter(&placeholders),
+                                ProofSubstitutions::BySymbol(&placeholders),
                             ),
                             membership.semantic_domain,
                         ),

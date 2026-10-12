@@ -53,11 +53,8 @@ pub(crate) fn entry_covers_progress_premises(
                         let authored_entry = match (fact.origin, fact.payload) {
                             (
                                 facts::FactOrigin::MachineContract { machine_symbol },
-                                facts::FactPayload::ContractDomainMembership {
-                                    kind: facts::ContractFactKind::Requires,
-                                    ..
-                                },
-                            ) => machine_symbol == machine,
+                                facts::FactPayload::ContractDomainMembership { kind, .. },
+                            ) => kind.is_body_assumption() && machine_symbol == machine,
                             (
                                 facts::FactOrigin::StateContract {
                                     machine_symbol,

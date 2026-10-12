@@ -381,10 +381,22 @@ fn exact_invocation_service_name(
                     machine.name,
                 )));
             }
-            typed
-                .type_reference_table
-                .type_reference(parameter.type_reference)
-                .type_symbol(&typed.type_reference_table)
+            checked_trees::typed_trees::service::exact_parameter_boundary_requirement(
+                typed,
+                parameter.type_reference,
+            )
+            .map_err(|reason| {
+                diagnostics::Diagnostic::error(format!(
+                    "checked adapter `{}` synchronous-invocation parameter {index} has an invalid boundary carrier: {reason}",
+                    machine.name,
+                ))
+            })?
+            .ok_or_else(|| {
+                diagnostics::Diagnostic::error(format!(
+                    "checked adapter `{}` synchronous-invocation parameter {index} has no exact boundary requirement",
+                    machine.name,
+                ))
+            })?
         }
         flow_effects::InvocationTarget::Service(symbol) => symbol,
     };

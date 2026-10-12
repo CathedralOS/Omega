@@ -70,6 +70,12 @@ pub(super) fn const_or_name(
             reader.opaque("type", visitor)?;
             reader.expect(b',')?;
             reader.opaque("encoding", visitor)?;
+            // Typed const custody is separate from value bytes. Historical
+            // value-only identities remain readable, but have no policy receipt.
+            if reader.next(b',') {
+                reader.expect(b',')?;
+                reader.opaque("integer-meaning", visitor)?;
+            }
             reader.expect(b')')
         })
     } else {

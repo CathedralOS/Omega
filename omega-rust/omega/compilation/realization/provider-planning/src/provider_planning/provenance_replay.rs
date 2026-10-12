@@ -1,11 +1,14 @@
-//! Exact replay of derived and selected provider provenance.
+//! Source candidate derivation and selected provider provenance.
 //!
 //! This file owns the provenance carriers and the derivation entry points.
 //! `plan_derivation.rs` derives satisfies plans with provenance,
 //! `requirement_identities.rs` names satisfied requirements and their
-//! bindings, `adapter_conformance.rs` resolves checked adapters and their
-//! invocations, and `selection_replay.rs` replays selected provenance for
-//! package review. Derivation is the one producer of a plan and its
+//! bindings, and `adapter_conformance.rs` resolves checked adapters and their
+//! invocations. A candidate catalog keeps unavailable original maps beside
+//! complete executable plans, so target availability cannot erase source slot
+//! identity. Only complete plans can supply selected installation commitments.
+//! Package review consumes the resulting selected provenance. Derivation is
+//! the one producer of a plan and its
 //! provenance: the compile does not validate the candidates it just derived
 //! (pipeline.md, "Verification placement"), and adapter refinement of a
 //! requirement's service and invocation ceilings is Psi conformance checking.
@@ -50,6 +53,11 @@ pub struct ProviderPlanProvenance {
     pub provider_type: Option<symbols::SymbolHandle>,
     pub row_requirements: Vec<symbols::SymbolHandle>,
     pub row_realizations: Vec<symbols::SymbolHandle>,
+    /// The original producing scope of each public trait row, including its
+    /// enclosing applications and captured region issuer. Non-trait rows and
+    /// source-free toolchain settlements retain genuine absence.
+    pub row_receiver_scopes:
+        Vec<Option<checked_trees::typed_trees::trait_definition::AppliedTraitScopePayload>>,
     /// Exact pre-resolution target-scoped declaration custody for catalog-
     /// inferred rows. `None` is mandatory for ordinary checked, legacy
     /// external, and evaluated-payload rows.
@@ -66,6 +74,59 @@ pub struct SelectedTargetMachineOrigin {
 pub struct DerivedProviderPlan {
     pub plan: ProviderPlan,
     pub provenance: ProviderPlanProvenance,
+}
+
+/// Candidate discovery preserves source declarations whose complete maps cannot
+/// be realized. A refusal is diagnostic custody, never a partial executable
+/// plan or a selected-plan commitment. Only `plans` may enter installation.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ProviderPlanCatalog {
+    pub(crate) plans: Vec<DerivedProviderPlan>,
+    pub(crate) unavailable: Vec<UnavailableProviderCandidate>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct UnavailableProviderCandidate {
+    pub schema: super::ServiceSchema,
+    pub declaration: ProviderSchemaDeclaration,
+    pub provider_type: String,
+    pub provider_package: Option<semantic_vocabulary::PackageKeyIdentity>,
+    pub original_map: checked_trees::typed_trees::trait_definition::Conformance,
+    pub receiver_scope: checked_trees::typed_trees::trait_definition::AppliedTraitScopePayload,
+    pub target: String,
+    pub reason: String,
+}
+
+impl ProviderPlanCatalog {
+    /// Diagnostic-only candidates cannot require an execution profile when
+    /// Build has selected no provider. Defaults remain a separate obligation.
+    pub fn has_executable_candidates(&self) -> bool {
+        !self.plans.is_empty()
+    }
+
+    /// Terminal publication retains one demand domain for both successful and
+    /// unavailable source candidates. Selection then decides which failure is
+    /// relevant; an unselected missing body is never a product obligation.
+    pub(crate) fn retain_demanded(
+        self,
+        mut demanded: impl FnMut(
+            ProviderSchemaDeclaration,
+            &super::ServiceSchema,
+        ) -> Result<bool, Vec<diagnostics::Diagnostic>>,
+    ) -> Result<Self, Vec<diagnostics::Diagnostic>> {
+        let mut retained = Self::default();
+        for candidate in self.plans {
+            if demanded(candidate.provenance.schema, &candidate.plan.schema)? {
+                retained.plans.push(candidate);
+            }
+        }
+        for candidate in self.unavailable {
+            if demanded(candidate.declaration, &candidate.schema)? {
+                retained.unavailable.push(candidate);
+            }
+        }
+        Ok(retained)
+    }
 }
 
 /// One provider-plan derivation request: the selected target, and when the
@@ -121,7 +182,7 @@ impl<'a> ProviderPlanDerivation<'a> {
 
 /// Derive every provider plan the typed program's retained conformance
 /// satisfies, each with its provenance. This is the one derivation entry.
-pub fn derive_satisfies_plans(derivation: ProviderPlanDerivation<'_>) -> Vec<DerivedProviderPlan> {
+pub fn derive_satisfies_plans(derivation: ProviderPlanDerivation<'_>) -> ProviderPlanCatalog {
     derive_provider_plans(
         derivation.context,
         derivation.calling_plans,

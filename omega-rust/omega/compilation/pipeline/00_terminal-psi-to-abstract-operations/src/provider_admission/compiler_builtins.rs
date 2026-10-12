@@ -2,6 +2,8 @@
 //! boundary to its one selected intrinsic row, plan and Terminal boundary
 //! once; `retained` carries that binding to admission by plan index; this
 //! file admits it through the receiving policy and the local target catalog.
+//! Direct compiler declarations retain a separate source-issued origin and
+//! use the same receiving operation without becoming selected provider rows.
 //!
 //! Hosted builtins settle as call-shaped rows. Selected float arithmetic,
 //! minimum, maximum, negation, square root, NaN/infinity classification,
@@ -20,6 +22,7 @@ mod proposals;
 mod retained;
 
 pub use proposals::CompilerIntrinsicPlanProvenance;
+pub use proposals::compiler_builtin_execution;
 pub(crate) use proposals::{
     demanded_boundary_identities, derive_selected_intrinsic_settlement_proposals,
 };
@@ -67,82 +70,20 @@ pub(super) fn settle_compiler_builtins<'request>(
             ))]
         })?;
         if !boundary_contract_matches_selected_schema(boundary, proposal.provider_plan, requirement)
-            || boundary.completion != compiler_builtin_completion(proposal.execution)
         {
             return Err(vec![Diagnostic::error(format!(
                 "compiler-builtin completion for `{requirement}` disagrees with its exact requirement contract"
             ))]);
         }
+        let realization = admit_compiler_builtin_realization(
+            input,
+            request,
+            boundary,
+            proposal.execution,
+            requirement,
+            proposal.boundary_entry_plan,
+        )?;
         let mechanism = compiler_intrinsic_execution_identity(proposal.execution);
-        request
-            .terminal_authority_policy
-            .classify(mechanism)
-            .map_err(|unclassified| {
-                vec![Diagnostic::error(format!(
-                    "receiving terminal-authority policy version {} does not classify compiler intrinsic {:?} required by `{requirement}`",
-                    request.terminal_authority_policy.identity().version(),
-                    unclassified.mechanism(),
-                ))]
-            })?;
-        let realization = match proposal.execution {
-            CompilerBuiltinExecution::HostedExitProcessI32
-                if HostedExitProcessI32Realization::supports_target(request.target()) =>
-            {
-                HostedExitProcessI32Realization.into()
-            }
-            CompilerBuiltinExecution::HostedExitProcessI32 => {
-                return Err(vec![Diagnostic::error(format!(
-                    "local target catalog cannot realize hosted process exit for `{requirement}` on {:?}",
-                    request.target()
-                ))]);
-            }
-            CompilerBuiltinExecution::HostedWriteByteI32
-                if HostedWriteByteI32Realization::supports_target(request.target()) =>
-            {
-                HostedWriteByteI32Realization.into()
-            }
-            CompilerBuiltinExecution::HostedWriteByteI32 => {
-                return Err(vec![Diagnostic::error(format!(
-                    "local target catalog cannot realize hosted write-byte for `{requirement}` on {:?}",
-                    request.target()
-                ))]);
-            }
-            CompilerBuiltinExecution::HostedReadByte
-                if HostedReadByteRealization::supports_target(request.target()) =>
-            {
-                HostedReadByteRealization.into()
-            }
-            CompilerBuiltinExecution::HostedReadByte => {
-                return Err(vec![Diagnostic::error(format!(
-                    "local target catalog cannot realize hosted read-byte for `{requirement}` on {:?}",
-                    request.target()
-                ))]);
-            }
-            CompilerBuiltinExecution::NearestIeeeFloatArithmetic { operation, format } => {
-                // Only an x86 FMA carries the admitted feature custody; the
-                // catalog refuses it anywhere else.
-                let x86_scalar_fma = request.x86_scalar_fma_provider.filter(|_| {
-                    operation == target_operations::IeeeFloatArithmeticOperation::FusedMultiplyAdd
-                        && request.target().architecture == target::Architecture::X86_64
-                });
-                float_arithmetic_realization(
-                    NearestIeeeFloatArithmeticRealization {
-                        operation,
-                        format,
-                        x86_scalar_fma,
-                    },
-                    request.target(),
-                    boundary,
-                    &input.plan().structural_types,
-                )
-                .map_err(|reason| {
-                    vec![Diagnostic::error(format!(
-                        "compiler float arithmetic for `{requirement}` {reason}"
-                    ))]
-                })?
-                .into()
-            }
-        };
         admitted.push(AdmittedBoundarySettlement {
             boundary: boundary.id,
             execution: AdmittedBoundaryExecution::CompilerBuiltin(proposal.execution),
@@ -156,6 +97,121 @@ pub(super) fn settle_compiler_builtins<'request>(
     Ok((admitted, mechanisms))
 }
 
+/// Common receiving catalog admission for selected and direct intrinsic supply.
+/// Original custody chooses the semantic execution; this owner alone admits
+/// target realization, completion, receiving classification and native shape.
+pub(super) fn admit_compiler_builtin_realization(
+    input: &NativeRealizationInput,
+    request: &ProviderAdmissionRequest<'_, '_>,
+    boundary: &terminal_psi::BoundaryMachineDeclaration,
+    execution: CompilerBuiltinExecution,
+    requirement: &str,
+    entry: Option<&calling_conventions::BoundaryEntryPlan>,
+) -> Result<target_operations::BoundaryRealization, Vec<Diagnostic>> {
+    if boundary.completion != compiler_builtin_completion(execution) {
+        return Err(vec![Diagnostic::error(
+            "compiler intrinsic changed its completion contract",
+        )]);
+    }
+    // Source issuance retains the complete original Calling application.
+    // The independent catalog fixes the supported shapes and physical envelope;
+    // retained placements cannot redefine it. No authored policy is rerun.
+    if !matches!(
+        execution,
+        CompilerBuiltinExecution::NearestIeeeFloatArithmetic { .. }
+    ) {
+        let entry = entry.ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "hosted compiler intrinsic `{requirement}` has no original calling application"
+            ))]
+        })?;
+        let supported = effects::compiler_intrinsic_boundary_entry_plan(
+            compiler_intrinsic_execution_identity(execution),
+            request.target(),
+        ).map_err(|error| vec![Diagnostic::error(format!(
+            "hosted compiler intrinsic `{requirement}` has no supported native calling envelope: {error}"
+        ))])?.ok_or_else(|| vec![Diagnostic::error(
+            "hosted compiler intrinsic lost its native catalog entry",
+        )])?;
+        if &supported != entry {
+            return Err(vec![Diagnostic::error(format!(
+                "hosted compiler intrinsic `{requirement}` calling plan differs from its supported native catalog envelope"
+            ))]);
+        }
+    }
+    let mechanism = compiler_intrinsic_execution_identity(execution);
+    request
+        .terminal_authority_policy
+        .classify(mechanism)
+        .map_err(|unclassified| {
+            vec![Diagnostic::error(format!(
+                "receiving terminal-authority policy version {} does not classify compiler intrinsic {:?} required by `{requirement}`",
+                request.terminal_authority_policy.identity().version(),
+                unclassified.mechanism(),
+            ))]
+        })?;
+    let realization = match execution {
+        CompilerBuiltinExecution::HostedExitProcessI32
+            if HostedExitProcessI32Realization::supports_target(request.target()) =>
+        {
+            HostedExitProcessI32Realization.into()
+        }
+        CompilerBuiltinExecution::HostedExitProcessI32 => {
+            return Err(vec![Diagnostic::error(format!(
+                "local target catalog cannot realize hosted process exit for `{requirement}` on {:?}",
+                request.target()
+            ))]);
+        }
+        CompilerBuiltinExecution::HostedWriteByteI32
+            if HostedWriteByteI32Realization::supports_target(request.target()) =>
+        {
+            HostedWriteByteI32Realization.into()
+        }
+        CompilerBuiltinExecution::HostedWriteByteI32 => {
+            return Err(vec![Diagnostic::error(format!(
+                "local target catalog cannot realize hosted write-byte for `{requirement}` on {:?}",
+                request.target()
+            ))]);
+        }
+        CompilerBuiltinExecution::HostedReadByte
+            if HostedReadByteRealization::supports_target(request.target()) =>
+        {
+            HostedReadByteRealization.into()
+        }
+        CompilerBuiltinExecution::HostedReadByte => {
+            return Err(vec![Diagnostic::error(format!(
+                "local target catalog cannot realize hosted read-byte for `{requirement}` on {:?}",
+                request.target()
+            ))]);
+        }
+        CompilerBuiltinExecution::NearestIeeeFloatArithmetic { operation, format } => {
+            // Only an x86 FMA carries the admitted feature custody; the
+            // catalog refuses it anywhere else.
+            let x86_scalar_fma = request.x86_scalar_fma_provider.filter(|_| {
+                operation == target_operations::IeeeFloatArithmeticOperation::FusedMultiplyAdd
+                    && request.target().architecture == target::Architecture::X86_64
+            });
+            float_arithmetic_realization(
+                NearestIeeeFloatArithmeticRealization {
+                    operation,
+                    format,
+                    x86_scalar_fma,
+                },
+                request.target(),
+                boundary,
+                &input.plan().structural_types,
+            )
+            .map_err(|reason| {
+                vec![Diagnostic::error(format!(
+                    "compiler float arithmetic for `{requirement}` {reason}"
+                ))]
+            })?
+            .into()
+        }
+    };
+    Ok(realization)
+}
+
 /// Compare the retained requirement premise with the exact selected schema row.
 /// Opaque foreign code is admitted under this premise; a display name or service
 /// ceiling cannot supply it. Closed intrinsic executions additionally check their
@@ -165,9 +221,18 @@ pub(super) fn boundary_contract_matches_selected_schema(
     plan: &effects::provider_plan::ProviderPlan,
     requirement: &str,
 ) -> bool {
-    let mut matching = plan.schema.methods.iter().filter(|method| {
-        plan.schema.identities.id_at(requirement.as_ref()) == Some(method.requirement_identity)
-    });
+    boundary_contract_matches_schema(boundary, &plan.schema, requirement)
+}
+
+pub(super) fn boundary_contract_matches_schema(
+    boundary: &terminal_psi::BoundaryMachineDeclaration,
+    schema: &effects::provider_plan::ServiceSchema,
+    requirement: &str,
+) -> bool {
+    let mut matching = schema
+        .methods
+        .iter()
+        .filter(|method| schema.identities.id_at(requirement) == Some(method.requirement_identity));
     matching.next().is_some_and(|method| {
         method.completion == boundary.completion
             && boundary.unconditional_termination == method.terminates_guarantee
@@ -245,7 +310,7 @@ fn float_arithmetic_realization(
     Ok(realization)
 }
 
-fn compiler_intrinsic_execution_identity(
+pub(super) fn compiler_intrinsic_execution_identity(
     execution: CompilerBuiltinExecution,
 ) -> CompilerIntrinsicExecutionIdentity {
     match execution {

@@ -1,0 +1,12 @@
+data Token { value: u64; }
+data Main { choice: bool; }
+machine consume(token: Token) -> u64 { token.value }
+machine Main::main(main: &mut Main) crashes Trap {
+    let left: Token = Token { value: 11 };
+    let right: Token = Token { value: 22 };
+    let selected: Token = match main.choice { true -> left, _ -> right };
+    let actual: u64 = consume(selected);
+    transition actual == 22 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

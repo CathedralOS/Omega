@@ -20,8 +20,8 @@ use crate::provider_planning::provenance_replay::requirement_identities::{
     external_provider_binding, inferred_compiler_leaf_binding, realization_machine_identity,
 };
 use crate::provider_planning::provenance_replay::{
-    DerivedProviderPlan, ProviderPlanProvenance, ProviderSchemaDeclaration,
-    SelectedTargetMachineOrigin, satisfies_plan_name,
+    DerivedProviderPlan, ProviderPlanCatalog, ProviderPlanProvenance, ProviderSchemaDeclaration,
+    SelectedTargetMachineOrigin, UnavailableProviderCandidate, satisfies_plan_name,
 };
 use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
 use effects::provider_plan::{ProviderIdentityId, ProviderIdentityTable};
@@ -32,22 +32,23 @@ pub(crate) fn derive_provider_plans(
     selected_target: Option<&str>,
     evaluated_bindings: Option<&crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
     target_machine_origins: &[SelectedTargetMachineOrigin],
-) -> Vec<DerivedProviderPlan> {
+) -> ProviderPlanCatalog {
     let typed = context.typed;
     let mut plans: Vec<DerivedProviderPlan> = Vec::new();
+    // Source edges own rows; executable copies retain their outer application
+    // separately. Member specialization must not multiply universal rows, while
+    // different complete outer applications remain different provider schemas.
+    let mut source_applications: Vec<SourceProviderApplication<'_>> = Vec::new();
     // Typed trees retain every authored body and its conformances. This
     // transitional settlement derives only the requested realization's rows;
     // semantic declaration queries must never perform that selection for us.
     for machine in typed.machines() {
-        if !is_authored_provider_machine(typed, machine)
-            || !crate::target_machines::realizes_machine(context, machine, selected_target)
-        {
+        if !crate::target_machines::realizes_machine(context, machine, selected_target) {
             continue;
         }
-        let origin_package_identity = typed.symbols.symbol_package_identity(machine.symbol);
         let provider_type_package_identity = provider_type_package_identity(typed, machine);
         let provider_type_symbol = provider_type_symbol(typed, machine);
-        for clause in typed.machine_trait_conformances(machine) {
+        for (ordinal, clause) in typed.machine_trait_conformances(machine).iter().enumerate() {
             if clause.requirement.is_some()
                 && checked_trees::typed_trees::operator::resolve_satisfied_boundary_operator_for_conformance(
                     typed, machine, clause,
@@ -67,133 +68,156 @@ pub(crate) fn derive_provider_plans(
             let Some(requirement) = clause.requirement.as_ref() else {
                 continue;
             };
-            let (row_binding, target_machine_origin) =
-                match (machine.supply_mode, clause.external_binding) {
-                    (language_semantics::MachineSupplyMode::Boundary, None)
-                        if !machine.body_is_present
-                            && !clause.via_expression.is_valid()
-                            && clause.external_binding_source_span.is_none() =>
-                    {
-                        let Some((binding, origin)) = inferred_compiler_leaf_binding(
-                            typed,
-                            machine,
-                            clause,
-                            selected_target,
-                            target_machine_origins,
-                        ) else {
-                            continue;
-                        };
-                        (DraftRowBinding::Bound(binding), Some(origin))
-                    }
-                    (
-                        language_semantics::MachineSupplyMode::ExternalRealization { .. },
-                        Some(conformance_binding),
-                    ) if !clause.via_expression.is_valid() => {
-                        let Some(binding) = exact_installed_external_binding_identity(
-                            typed,
-                            machine,
-                            conformance_binding,
-                            clause.name.as_str(),
-                            requirement.as_str(),
-                        ) else {
-                            continue;
-                        };
-                        let binding = external_provider_binding(
-                            binding,
-                            &typed.attached_data_path(machine).unwrap_or_default(),
-                            &realization_machine_identity(typed, machine),
-                        );
-                        (DraftRowBinding::Bound(binding), None)
-                    }
-                    (
-                        language_semantics::MachineSupplyMode::ExternalRealization {
-                            binding: None,
-                            mechanism: None,
-                        },
-                        None,
-                    ) if !machine.body_is_present && clause.via_expression.is_valid() => {
-                        let Some(binding) = evaluated_via_binding(
-                            evaluated_bindings,
-                            machine,
-                            clause,
-                            selected_target,
-                        ) else {
-                            continue;
-                        };
-                        (DraftRowBinding::Bound(binding), None)
-                    }
-                    (language_semantics::MachineSupplyMode::CheckedBody, None)
-                        if machine.body_is_present && !clause.via_expression.is_valid() =>
-                    {
-                        // A CHECKED ADAPTER derives a plan row only over a
-                        // BOUNDARY trait (a service schema). A plain trait's
-                        // conformance -- including its service-reach ceiling -- is the
-                        // existing trait machinery's business (the decision-20
-                        // admission fixtures pin it) and derives nothing here.
-                        let is_boundary_trait = typed.traits().iter().any(|definition| {
-                            definition.is_boundary && definition.symbol == clause.symbol
-                        });
-                        if !is_boundary_trait {
-                            continue;
-                        }
-                        (checked_adapter_draft(typed, machine), None)
-                    }
-                    _ => continue, // refused elsewhere (via rungs)
-                };
-            let target = selected_target.unwrap_or_default().to_owned();
-            let provider_type = typed.attached_data_path(machine).unwrap_or_default();
-            let semantic_requirement_identity = exact_satisfied_requirement_identity(
-                typed,
-                clause.symbol,
-                clause.requirement_symbol,
-            );
-            let requirement_symbol = clause.requirement_symbol;
-            if let Some((schema_declaration, schema_trait, schema)) =
-                provider_plan_schema_target(context, calling_plans, clause.symbol)
+            for source in typed
+                .machine_conformance_sources(machine, machine.satisfies.handle_at(ordinal as u32))
             {
-                let plan_name = satisfies_plan_name(&target, &schema_trait, &provider_type);
-                let position = derived_plan_position(
-                    &mut plans,
-                    plan_name,
-                    provider_type.clone(),
-                    provider_type_package_identity,
-                    target.clone(),
-                    schema,
-                    schema_declaration,
-                    provider_type_symbol,
-                    origin_package_identity,
+                let family = source.family;
+                let origin_package_identity = typed.symbols.symbol_package_identity(family.symbol);
+                let original = source.edge;
+                if source_applications.iter().any(|application| {
+                    application.edge == source.source
+                        && application.provider == provider_type_symbol
+                        && application.scope.same_application(typed, &source.scope)
+                }) {
+                    continue;
+                }
+                let (row_binding, target_machine_origin) =
+                    match (family.supply_mode, original.external_binding) {
+                        (language_semantics::MachineSupplyMode::Boundary, None)
+                            if !family.body_is_present
+                                && !original.via_expression.is_valid()
+                                && original.external_binding_source_span.is_none() =>
+                        {
+                            let Some((binding, origin)) = inferred_compiler_leaf_binding(
+                                typed,
+                                family,
+                                original,
+                                selected_target,
+                                target_machine_origins,
+                            ) else {
+                                continue;
+                            };
+                            (DraftRowBinding::Bound(binding), Some(origin))
+                        }
+                        (
+                            language_semantics::MachineSupplyMode::ExternalRealization { .. },
+                            Some(conformance_binding),
+                        ) if !original.via_expression.is_valid() => {
+                            let Some(binding) = exact_installed_external_binding_identity(
+                                typed,
+                                family,
+                                conformance_binding,
+                                original.name.as_str(),
+                                requirement.as_str(),
+                            ) else {
+                                continue;
+                            };
+                            let binding = external_provider_binding(
+                                binding,
+                                &typed.attached_data_path(machine).unwrap_or_default(),
+                                &realization_machine_identity(typed, family),
+                            );
+                            (DraftRowBinding::Bound(binding), None)
+                        }
+                        (
+                            language_semantics::MachineSupplyMode::ExternalRealization {
+                                binding: None,
+                                mechanism: None,
+                            },
+                            None,
+                        ) if !family.body_is_present && original.via_expression.is_valid() => {
+                            let Some(binding) = evaluated_via_binding(
+                                evaluated_bindings,
+                                family,
+                                original,
+                                selected_target,
+                            ) else {
+                                continue;
+                            };
+                            (DraftRowBinding::Bound(binding), None)
+                        }
+                        (language_semantics::MachineSupplyMode::CheckedBody, None)
+                            if family.body_is_present && !original.via_expression.is_valid() =>
+                        {
+                            // A CHECKED ADAPTER derives a plan row only over a
+                            // BOUNDARY trait (a service schema). A plain trait's
+                            // conformance -- including its service-reach ceiling -- is the
+                            // existing trait machinery's business (the decision-20
+                            // admission fixtures pin it) and derives nothing here.
+                            let is_boundary_trait = typed.traits().iter().any(|definition| {
+                                definition.is_boundary && definition.symbol == original.symbol
+                            });
+                            if !is_boundary_trait {
+                                continue;
+                            }
+                            (checked_adapter_draft(typed, family), None)
+                        }
+                        _ => continue, // refused elsewhere (via rungs)
+                    };
+                let target = selected_target.unwrap_or_default().to_owned();
+                let provider_type = typed.attached_data_path(machine).unwrap_or_default();
+                let semantic_requirement_identity = exact_satisfied_requirement_identity(
+                    typed,
+                    original.symbol,
+                    original.requirement_symbol,
                 );
-                debug_assert_eq!(plans[position].provenance.schema, schema_declaration);
-                debug_assert_eq!(
-                    plans[position].provenance.provider_type,
-                    provider_type_symbol
-                );
-                let binding = row_binding.resolve(&mut plans[position].plan.identities);
-                let requirement_identity = mint_plan_row_identity(
-                    &mut plans[position].plan,
-                    &semantic_requirement_identity,
-                );
-                plans[position].plan.rows.push(ProviderPlanRow {
+                let requirement_symbol = original.requirement_symbol;
+                if let Some((schema_declaration, schema_trait, schema)) =
+                    provider_plan_schema_target(context, calling_plans, source.scope.clone())
+                {
+                    let plan_name = satisfies_plan_name(&target, &schema_trait, &provider_type);
+                    let position = derived_plan_position(
+                        &mut plans,
+                        plan_name,
+                        provider_type.clone(),
+                        provider_type_package_identity,
+                        target.clone(),
+                        schema,
+                        schema_declaration,
+                        provider_type_symbol,
+                        origin_package_identity,
+                    );
+                    debug_assert_eq!(plans[position].provenance.schema, schema_declaration);
+                    debug_assert_eq!(
+                        plans[position].provenance.provider_type,
+                        provider_type_symbol
+                    );
+                    let binding = row_binding.resolve(&mut plans[position].plan.identities);
+                    let requirement_identity = mint_plan_row_identity(
+                        &mut plans[position].plan,
+                        &semantic_requirement_identity,
+                    );
+                    plans[position].plan.rows.push(ProviderPlanRow {
                     method: requirement.as_str().to_owned(),
                     requirement_identity,
                     requirement_lifetime_partition:
                         language_semantics::type_identity::normalize_requirement_lifetime_partition(
-                            &clause.trait_lifetime_arguments,
+                            &original.trait_lifetime_arguments,
                         ),
                     binding,
                 });
-                plans[position]
-                    .provenance
-                    .row_requirements
-                    .push(requirement_symbol);
-                plans[position]
-                    .provenance
-                    .row_realizations
-                    .push(machine.symbol);
-                plans[position]
-                    .provenance
-                    .row_target_machine_origins
-                    .push(target_machine_origin.clone());
+                    plans[position]
+                        .provenance
+                        .row_requirements
+                        .push(requirement_symbol);
+                    plans[position]
+                        .provenance
+                        .row_realizations
+                        .push(family.symbol);
+                    plans[position]
+                        .provenance
+                        .row_receiver_scopes
+                        .push(Some(source.scope.retain_payload(typed)));
+                    plans[position]
+                        .provenance
+                        .row_target_machine_origins
+                        .push(target_machine_origin.clone());
+                    source_applications.push(SourceProviderApplication {
+                        edge: source.source,
+                        provider: provider_type_symbol,
+                        scope: source.scope,
+                    });
+                }
             }
         }
     }
@@ -208,8 +232,19 @@ pub(crate) fn derive_provider_plans(
         evaluated_bindings,
     ));
     let named = derive_named_provider_plans(context, calling_plans, selected_target, &plans);
-    plans.extend(named);
-    plans
+    plans.extend(named.plans);
+    ProviderPlanCatalog {
+        plans,
+        unavailable: named.unavailable,
+    }
+}
+
+/// Construction scratch for source-row grouping. Handles identify authored
+/// edges and providers; the retained scope distinguishes their outer tuple.
+struct SourceProviderApplication<'program> {
+    edge: arena::Handle<checked_trees::typed_trees::machine::TraitConformance>,
+    provider: Option<symbols::SymbolHandle>,
+    scope: checked_trees::typed_trees::trait_definition::AppliedTraitScope<'program>,
 }
 
 fn derive_named_provider_plans(
@@ -217,9 +252,10 @@ fn derive_named_provider_plans(
     calling_plans: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
     selected_target: Option<&str>,
     candidates: &[DerivedProviderPlan],
-) -> Vec<DerivedProviderPlan> {
+) -> ProviderPlanCatalog {
     let typed = context.typed;
-    typed
+    let mut unavailable = Vec::new();
+    let plans = typed
         .conformances()
         .iter()
         .filter_map(|implementation| {
@@ -228,22 +264,36 @@ fn derive_named_provider_plans(
             {
                 return None;
             }
-            let rows = &implementation.rows;
             let definition = typed.traits().iter().find(|definition| {
                 definition.symbol == implementation.trait_symbol
                     && definition.is_boundary
                     && context.contains(definition.symbol)
             })?;
+            let members =
+                checked_trees::typed_trees::static_applications::boundary_interface_members(
+                    typed,
+                    definition.symbol,
+                )?;
+            // The original map also owns ordinary parent contract evidence.
+            // Only declared boundary members contribute callable plan rows.
+            let rows = implementation
+                .rows
+                .iter()
+                .filter(|row| members.contains(&(row.declaring_trait, row.requirement)))
+                .collect::<Vec<_>>();
             let arguments = typed
                 .type_reference_table
                 .type_reference_handles(implementation.arguments);
-            let schema = crate::service_schema::from_typed_application(
-                context,
-                calling_plans,
+            let receiver_scope =
                 checked_trees::typed_trees::trait_definition::AppliedTraitScope::from_conformance(
                     typed,
                     implementation,
-                )?,
+                )?;
+            let receiver_payload = receiver_scope.retain_payload(typed);
+            let schema = crate::service_schema::from_typed_application(
+                context,
+                calling_plans,
+                receiver_scope.clone(),
                 arguments,
             )?;
             let provider_type = typed.symbols.display_path(implementation.symbol, "::");
@@ -252,128 +302,166 @@ fn derive_named_provider_plans(
                 .symbols
                 .symbol_package_identity(rows.first()?.realization_machine);
             let target = selected_target.unwrap_or_default().to_owned();
-            let mut plan = ProviderPlan {
-                name: satisfies_plan_name(
-                    &target,
-                    schema.identity_text(schema.trait_name),
-                    &provider_type,
-                ),
-                provider_type,
-                provider_type_package_identity: package,
-                target,
-                identities: ProviderIdentityTable::default(),
-                schema,
-                rows: Vec::new(),
-                origin_package_identity: origin_package,
-                origin_package: String::new(),
-                digest_memo: Default::default(),
-            };
-            let mut provenance = ProviderPlanProvenance {
-                schema: ProviderSchemaDeclaration::BoundaryTrait(definition.symbol),
-                provider_type: Some(implementation.symbol),
-                row_requirements: Vec::new(),
-                row_realizations: Vec::new(),
-                row_target_machine_origins: Vec::new(),
-            };
-            for row in rows {
-                let machine = typed.machines().iter().find(|machine| {
-                    machine.symbol == row.realization_machine
-                        && crate::target_machines::realizes_machine(
-                            context,
-                            machine,
-                            selected_target,
-                        )
-                        && typed.symbols.symbol_package_identity(machine.symbol) == origin_package
-                })?;
-                if typed.machine_states(machine).first()?.symbol != row.realization_state {
-                    return None;
-                }
-                let identity = exact_satisfied_requirement_identity(
-                    typed,
-                    row.declaring_trait,
-                    row.requirement,
-                );
-                let lifetime_arguments =
-                    crate::provider_identity::named_requirement_lifetime_arguments(
-                        typed,
-                        implementation,
-                        row.declaring_trait,
-                    )?;
-                let (binding, lifetime_partition, origin) = if machine.supply_mode.is_checked_body()
-                    && machine.body_is_present
-                {
-                    (
-                        ProviderBinding::CheckedAdapter {
-                            machine_identity: plan
-                                .identities
-                                .intern(&typed.machine_callable_identity_text(machine)?),
-                            machine_package_identity: typed
-                                .symbols
-                                .symbol_package_identity(machine.symbol),
-                        },
-                        language_semantics::type_identity::normalize_requirement_lifetime_partition(
-                            lifetime_arguments,
-                        ),
-                        None,
-                    )
-                } else {
-                    let mut matched = Vec::new();
-                    for candidate in candidates {
-                        for (index, binding) in candidate.plan.rows.iter().enumerate() {
-                            if candidate.provenance.row_requirements.get(index)
-                                == Some(&row.requirement)
-                                && candidate.provenance.row_realizations.get(index)
-                                    == Some(&row.realization_machine)
-                                && candidate.plan.identities.text(binding.requirement_identity)
-                                    == identity.as_str()
-                            {
-                                matched.push((
-                                    candidate,
-                                    binding,
-                                    candidate.provenance.row_target_machine_origins.get(index)?,
-                                ));
-                            }
-                        }
-                    }
-                    let (candidate, binding, origin) = *matched.first()?;
-                    if matched.iter().any(|(_, other, other_origin)| {
-                        *other != binding || *other_origin != origin
-                    }) {
+            let unavailable_schema = schema.clone();
+            let unavailable_provider_type = provider_type.clone();
+            let unavailable_target = target.clone();
+            let mut row_refusal = None;
+            let result = (|| {
+                let mut plan = ProviderPlan {
+                    name: satisfies_plan_name(
+                        &target,
+                        schema.identity_text(schema.trait_name),
+                        &provider_type,
+                    ),
+                    provider_type,
+                    provider_type_package_identity: package,
+                    target,
+                    identities: ProviderIdentityTable::default(),
+                    schema,
+                    rows: Vec::new(),
+                    origin_package_identity: origin_package,
+                    origin_package: String::new(),
+                    digest_memo: Default::default(),
+                };
+                let mut provenance = ProviderPlanProvenance {
+                    schema: ProviderSchemaDeclaration::BoundaryTrait(definition.symbol),
+                    provider_type: Some(implementation.symbol),
+                    row_requirements: Vec::new(),
+                    row_realizations: Vec::new(),
+                    row_receiver_scopes: Vec::new(),
+                    row_target_machine_origins: Vec::new(),
+                };
+                for row in rows {
+                    // The source row continues to name its portable family. Only
+                    // this Omega realization chooses the physical member whose
+                    // existing checked/evaluated binding can fill the map's slot.
+                    let machine = match crate::target_machines::named_row_realization(context, row, selected_target) {
+                        Ok(machine) => machine,
+                        Err(reason) => { row_refusal = Some(reason); return None; }
+                    };
+                    if typed.symbols.symbol_package_identity(machine.symbol) != origin_package {
                         return None;
                     }
-                    let origin = origin.clone();
-                    let bound = match &binding.binding {
-                        ProviderBinding::CheckedAdapter {
-                            machine_identity,
-                            machine_package_identity,
-                        } => ProviderBinding::CheckedAdapter {
-                            machine_identity: plan
-                                .identities
-                                .intern(candidate.plan.identity_text(*machine_identity)),
-                            machine_package_identity: *machine_package_identity,
-                        },
-                        bound => bound.clone(),
+                    let identity = exact_satisfied_requirement_identity(
+                        typed,
+                        row.declaring_trait,
+                        row.requirement,
+                    );
+                    let lifetime_arguments =
+                        crate::provider_identity::named_requirement_lifetime_arguments(
+                            typed,
+                            implementation,
+                            row.declaring_trait,
+                        )?;
+                    let (binding, lifetime_partition, origin) = if machine.supply_mode.is_checked_body()
+                        && machine.body_is_present
+                    {
+                        (
+                            ProviderBinding::CheckedAdapter {
+                                machine_identity: plan
+                                    .identities
+                                    .intern(&typed.machine_callable_identity_text(machine)?),
+                                machine_package_identity: typed
+                                    .symbols
+                                    .symbol_package_identity(machine.symbol),
+                            },
+                            language_semantics::type_identity::normalize_requirement_lifetime_partition(
+                                lifetime_arguments,
+                            ),
+                            None,
+                        )
+                    } else {
+                        let mut matched = Vec::new();
+                        for candidate in candidates {
+                            for (index, binding) in candidate.plan.rows.iter().enumerate() {
+                                if candidate.provenance.row_requirements.get(index)
+                                    == Some(&row.requirement)
+                                    && candidate.provenance.row_realizations.get(index)
+                                        == Some(&machine.symbol)
+                                    && candidate.plan.identities.text(binding.requirement_identity)
+                                        == identity.as_str()
+                                    && candidate
+                                        .provenance
+                                        .row_receiver_scopes
+                                        .get(index)
+                                        .and_then(|scope| scope.as_ref())
+                                        .and_then(|scope| scope.bind(typed))
+                                        .and_then(|scope| {
+                                            scope.declaring_scope(typed, row.declaring_trait)
+                                        })
+                                        .zip(receiver_scope.declaring_scope(typed, row.declaring_trait))
+                                        .is_some_and(|(candidate_scope, named_scope)| {
+                                            candidate_scope.same_application(typed, &named_scope)
+                                        })
+                                {
+                                    matched.push((
+                                        candidate,
+                                        binding,
+                                        candidate.provenance.row_target_machine_origins.get(index)?,
+                                    ));
+                                }
+                            }
+                        }
+                        let (candidate, binding, origin) = *matched.first()?;
+                        if matched.iter().any(|(_, other, other_origin)| {
+                            *other != binding || *other_origin != origin
+                        }) {
+                            return None;
+                        }
+                        let origin = origin.clone();
+                        let bound = match &binding.binding {
+                            ProviderBinding::CheckedAdapter {
+                                machine_identity,
+                                machine_package_identity,
+                            } => ProviderBinding::CheckedAdapter {
+                                machine_identity: plan
+                                    .identities
+                                    .intern(candidate.plan.identity_text(*machine_identity)),
+                                machine_package_identity: *machine_package_identity,
+                            },
+                            bound => bound.clone(),
+                        };
+                        (
+                            bound,
+                            binding.requirement_lifetime_partition.clone(),
+                            origin,
+                        )
                     };
-                    (
-                        bound,
-                        binding.requirement_lifetime_partition.clone(),
-                        origin,
-                    )
-                };
-                let requirement_identity = mint_plan_row_identity(&mut plan, &identity);
-                plan.rows.push(ProviderPlanRow {
-                    method: row.requirement_name.as_str().to_owned(),
-                    requirement_identity,
-                    requirement_lifetime_partition: lifetime_partition,
-                    binding,
+                    let requirement_identity = mint_plan_row_identity(&mut plan, &identity);
+                    plan.rows.push(ProviderPlanRow {
+                        method: row.requirement_name.as_str().to_owned(),
+                        requirement_identity,
+                        requirement_lifetime_partition: lifetime_partition,
+                        binding,
+                    });
+                    provenance.row_requirements.push(row.requirement);
+                    provenance.row_realizations.push(machine.symbol);
+                    provenance
+                        .row_receiver_scopes
+                        .push(Some(receiver_payload.clone()));
+                    provenance.row_target_machine_origins.push(origin);
+                }
+                Some(DerivedProviderPlan { plan, provenance })
+            })();
+            if result.is_none() {
+                unavailable.push(UnavailableProviderCandidate {
+                    reason: row_refusal.unwrap_or_else(|| format!(
+                        "the original complete provider map cannot derive every checked binding for target `{}`",
+                        unavailable_target,
+                    )),
+                    schema: unavailable_schema,
+                    declaration: ProviderSchemaDeclaration::BoundaryTrait(definition.symbol),
+                    provider_type: unavailable_provider_type,
+                    provider_package: package,
+                    original_map: implementation.clone(),
+                    receiver_scope: receiver_payload.clone(),
+                    target: unavailable_target
                 });
-                provenance.row_requirements.push(row.requirement);
-                provenance.row_realizations.push(machine.symbol);
-                provenance.row_target_machine_origins.push(origin);
             }
-            Some(DerivedProviderPlan { plan, provenance })
+            result
         })
-        .collect()
+        .collect();
+    ProviderPlanCatalog { plans, unavailable }
 }
 
 fn derive_top_level_requirement_plans(
@@ -519,6 +607,7 @@ fn derive_top_level_requirement_plans(
                 .provenance
                 .row_realizations
                 .push(machine.symbol);
+            plans[position].provenance.row_receiver_scopes.push(None);
             plans[position]
                 .provenance
                 .row_target_machine_origins
@@ -528,23 +617,25 @@ fn derive_top_level_requirement_plans(
     plans
 }
 
-/// The boundary schema under which an exact requirement edge is installed:
-/// the edge's own boundary trait, with no whole-trait application. A root that
-/// inherits the requirement and adds `Calling<C>` is installed through a named
-/// implementation of that root, whose plan `derive_named_provider_plans`
-/// derives from its explicit rows; an exact edge never claims a descendant
-/// schema on behalf of the data that owns its machine.
+/// The exact source edge's boundary application, including its full outer
+/// telescope. It never claims a descendant schema on behalf of its data owner.
 fn provider_plan_schema_target(
     context: ProviderPlanningContext<'_>,
     calling_plans: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
-    satisfied_trait_symbol: symbols::SymbolHandle,
+    scope: checked_trees::typed_trees::trait_definition::AppliedTraitScope<'_>,
 ) -> Option<(ProviderSchemaDeclaration, String, ServiceSchema)> {
-    let definition =
-        context.typed.traits().iter().find(|definition| {
-            definition.is_boundary && definition.symbol == satisfied_trait_symbol
-        })?;
+    let definition = scope.declaration;
+    if !definition.is_boundary {
+        return None;
+    }
+    let arguments = context
+        .typed
+        .trait_type_parameters(definition)
+        .iter()
+        .map(|parameter| scope.parameter_argument(context.typed, parameter.symbol))
+        .collect::<Vec<_>>();
     let schema =
-        crate::service_schema::from_typed_instance(context, calling_plans, definition, &[])?;
+        crate::service_schema::from_typed_application(context, calling_plans, scope, &arguments)?;
     Some((
         ProviderSchemaDeclaration::BoundaryTrait(definition.symbol),
         schema.identity_text(schema.trait_name).to_owned(),
@@ -676,6 +767,7 @@ fn derive_boundary_operator_plans(
                 .provenance
                 .row_realizations
                 .push(machine.symbol);
+            plans[position].provenance.row_receiver_scopes.push(None);
             plans[position]
                 .provenance
                 .row_target_machine_origins
@@ -793,6 +885,7 @@ fn derived_plan_position(
                 && derived.plan.provider_type_package_identity == provider_type_package_identity
                 && derived.plan.origin_package_identity == origin_package_identity
                 && derived.provenance.schema == schema_declaration
+                && derived.plan.schema == schema
                 && derived.provenance.provider_type == provider_type_symbol
         })
         .unwrap_or_else(|| {
@@ -814,6 +907,7 @@ fn derived_plan_position(
                     provider_type: provider_type_symbol,
                     row_requirements: Vec::new(),
                     row_realizations: Vec::new(),
+                    row_receiver_scopes: Vec::new(),
                     row_target_machine_origins: Vec::new(),
                 },
             });

@@ -53,6 +53,7 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
                     &shared.root_path,
                     shared.package_sources.clone(),
                     shared.timings,
+                    Some(&shared.build_directory),
                 )?;
                 prepare_product_source(
                     &shared.root_path,

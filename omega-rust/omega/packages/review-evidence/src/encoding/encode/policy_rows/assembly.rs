@@ -35,6 +35,7 @@ pub(super) fn count(policy: &PackagePolicyBaseline) -> Result<usize, PackageRevi
         policy.semantic_dependencies.len(),
         policy.boundary_applications.demands.len(),
         policy.restricted_build_requests.len(),
+        policy.assumed_binding_contracts.relationships().len(),
     ];
     counts
         .into_iter()
@@ -71,6 +72,7 @@ pub(super) fn acceptance_count(
         policy.external_supplies.len(),
         policy.dangerous_capabilities.len(),
         policy.restricted_build_requests.len(),
+        policy.assumed_binding_contracts.relationships().len(),
     ]
     .into_iter()
     .chain(
@@ -106,6 +108,7 @@ pub(super) fn project(
         semantic_dependencies,
         boundary_applications,
         restricted_build_requests,
+        assumed_binding_contracts,
     } = policy;
     builder.push(
         PackagePolicyRowKind::Header,
@@ -235,5 +238,5 @@ pub(super) fn project(
             |encoder| baseline::restricted_build::request(encoder, request),
         )?;
     }
-    Ok(())
+    super::assumed_bindings::project(builder, assumed_binding_contracts)
 }

@@ -35,6 +35,7 @@ fn kernel_call(profile: target::TargetProfile) -> image_emission::ObjectForeignC
             .clone(),
             mechanism: target_operations::NormalizedForeignCallMechanism::SystemCall(
                 target_operations::NormalizedSystemCallBinding {
+                    direct_foreign_realization: None,
                     target: profile,
                     number: 0,
                     requirement_identity: "Input::read".into(),
@@ -67,9 +68,8 @@ fn kernel_provider_custody_rejects_substituted_plans_and_user_control_records() 
         target::TargetProfile::LinuxArm64,
     ] {
         let call = kernel_call(profile);
-        let identities = terminal_psi::TerminalIdentityTable::default();
         let validate = |call: &image_emission::ObjectForeignCall| {
-            validate_foreign_provider_binding("Input::read", call, &plans, &identities)
+            validate_foreign_provider_binding("Input::read", call, &plans)
         };
         // Zero is a valid syscall number; no user-space stack receipt is invented.
         assert_eq!(validate(&call), Ok(()));

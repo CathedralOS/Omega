@@ -21,6 +21,9 @@ pub(super) struct CarriedLifetime {
 pub(super) enum RegionIdentity {
     Declared(String),
     Fresh(usize),
+    /// A supplied anonymous invocation formal keeps its relation between
+    /// source signature leaves; it is neither a quantified binder nor a loan.
+    AnonymousInvocation(SymbolHandle, usize),
     Captured(SymbolHandle, usize),
 }
 

@@ -4,6 +4,61 @@ use super::CallableApplication;
 use crate::{TypedTrees, data, domain, signature};
 use arena::{Handle, HandleSpan};
 
+impl TypedTrees {
+    /// Transport a freshly copied public contract's regions without replacing
+    /// its declaration or runtime formal identities. The ordinary callable
+    /// copier keeps caller-owned operand regions outside this telescope.
+    pub fn apply_public_contract_regions(
+        &mut self,
+        signature: &mut signature::StateSignature,
+        copies: HandleSpan<signature::SignatureContractFactCopy>,
+        lifetimes: &[(
+            crate::name::Identifier,
+            crate::static_applications::StaticMachineLifetimeArgument,
+        )],
+    ) -> Result<(), &'static str> {
+        if lifetimes.is_empty() {
+            return Ok(());
+        }
+        let mut application = CallableApplication {
+            region_scope: signature.symbol,
+            ..CallableApplication::default()
+        };
+        application.bind_lifetimes(
+            lifetimes
+                .iter()
+                .map(|(parameter, argument)| (parameter, argument.named())),
+        );
+        for handle in signature.parameters.handles() {
+            let original = self.state_parameters.get(handle).type_reference;
+            let applied = application.type_reference(self, original)?;
+            self.state_parameters.get_mut(handle).type_reference = applied;
+        }
+        signature.return_type = application.type_reference(self, signature.return_type)?;
+        let mut transported = Vec::new();
+        for handle in signature.contracts.handles() {
+            let original = self.signature_contracts.get(handle).facts;
+            let applied = application.facts(self, original)?;
+            transported.extend(original.handles().zip(applied.handles()));
+            self.signature_contracts.get_mut(handle).facts = applied;
+        }
+        signature.where_facts = application.facts(self, signature.where_facts)?;
+        for copy in self
+            .signature_contract_fact_copies
+            .span_mut_or_empty(copies)
+        {
+            let Some((_, applied)) = transported
+                .iter()
+                .find(|(original, _)| *original == copy.applied)
+            else {
+                return Err("public region transport lost its exact contract fact copy");
+            };
+            copy.applied = *applied;
+        }
+        Ok(())
+    }
+}
+
 impl CallableApplication {
     pub(super) fn signature(
         &mut self,

@@ -1,0 +1,10 @@
+data Main { value: u64; }
+machine typed_count<Payload, const Count: u64>(value: Payload, witness: &[u8; Count]) -> u64
+where Payload == u64, Count == 4 || Count == 8 { transition { _ -> Count } }
+machine Main::main(main: &mut Main) crashes Trap {
+    let four: [u8; 4] = [0,0,0,0];
+    let result: u64 = typed_count<u64, 4>(main.value, &four);
+    transition result == 4 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

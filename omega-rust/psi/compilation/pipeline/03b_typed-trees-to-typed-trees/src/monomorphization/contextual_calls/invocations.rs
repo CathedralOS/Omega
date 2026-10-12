@@ -3,7 +3,7 @@
 //! and ordinary checking still admits every carrier, bound and contract.
 
 use super::super::{
-    CallSite, ExpressionNode, StaticMachineArgument, SymbolHandle, TypeReferenceHandle, TypedTrees,
+    CallSite, StaticMachineArgument, SymbolHandle, TypeReferenceHandle, TypedTrees,
 };
 use symbols::SymbolKind;
 use typed_trees::data::{TypeParameter, TypeParameterKind};
@@ -84,9 +84,7 @@ pub(super) fn collect(program: &TypedTrees) -> Vec<Invocation> {
                     if invocations.iter().any(|invocation| invocation.site == site) {
                         continue;
                     }
-                    let ExpressionNode::Call(call) =
-                        program.expression_table.expression(expression)
-                    else {
+                    let Some(call) = program.expression_table.source_call_node(expression) else {
                         continue;
                     };
                     if let Some(invocation) = proposal(
@@ -124,7 +122,7 @@ fn proposal(
         CallSite::Expression(handle) => {
             program
                 .expression_table
-                .call_node(handle)?
+                .source_call_node(handle)?
                 .authored_machine_application
         }
         CallSite::Statement(handle) => {

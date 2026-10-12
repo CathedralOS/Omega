@@ -41,6 +41,38 @@ pub(crate) fn lower_expression_into_table(
         )?
     };
     expression_table(lowerer).set_source_span(lowered, source_span);
+    let original = syntax_trees.expressions.original_expression(expression);
+    expression_table(lowerer).retain_expression_source_origin(
+        lowered,
+        language_core::expression_origin::ExpressionSourceOrigin::from_parts(
+            original.arena_index(),
+            original.generation(),
+        ),
+    );
+    if let syntax::expression::ExpressionNode::Match(dispatch) =
+        syntax_trees.expressions.expression(expression)
+        && let Some(selection) = lowerer
+            .lowering_const_match_selections
+            .iter()
+            .rev()
+            .find(|selection| selection.expression == expression)
+    {
+        let meaning = selection.integer_meaning;
+        let ordinal = syntax_trees
+            .expressions
+            .match_arms(dispatch.arms)
+            .iter()
+            .position(|arm| arm.value == selection.selected)
+            .ok_or_else(|| Diagnostic::error("completed Match selection lost its original arm"))?;
+        let table = expression_table(lowerer);
+        let ExpressionNode::Match(lowered_dispatch) = table.expression(lowered) else {
+            return Err(Diagnostic::error(
+                "completed Match selection lost its lowered occurrence",
+            ));
+        };
+        let selected = table.match_arms(lowered_dispatch.arms)[ordinal].value;
+        table.retain_selected_const_match_result(lowered, selected, meaning);
+    }
     if let syntax::expression::ExpressionNode::Call(call) =
         syntax_trees.expressions.expression(expression)
         && call.target_is_static

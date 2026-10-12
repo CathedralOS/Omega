@@ -209,10 +209,54 @@ impl TypedTrees {
         &trait_definition::TraitDefinition,
         &signature::StateSignature,
     )> {
-        self.traits().iter().find_map(|trait_definition| {
-            self.trait_machine_signature_by_symbol(trait_definition, symbol)
-                .map(|signature| (trait_definition, signature))
-        })
+        self.public_trait_requirement_signatures()
+            .find(|(_, signature)| signature.symbol == symbol)
+    }
+
+    /// Public signature instances with their original declaring trait. Source
+    /// conformance and inherited requirement rosters continue to use the
+    /// authored `trait_machine_signatures` slice; checking public fact graphs
+    /// also visits generated instances through this entrance.
+    pub fn public_trait_requirement_signatures(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            &trait_definition::TraitDefinition,
+            &signature::StateSignature,
+        ),
+    > {
+        self.traits()
+            .iter()
+            .flat_map(|definition| {
+                self.trait_machine_signatures(definition)
+                    .iter()
+                    .map(move |signature| (definition, signature))
+            })
+            .chain(
+                self.closed_requirement_applications()
+                    .filter_map(|application| {
+                        Some((
+                            self.trait_definition_by_symbol(application.declaring_trait)?,
+                            application.signature,
+                        ))
+                    }),
+            )
+            .chain(self.dynamic_slots.iter().filter_map(|slot| {
+                Some((
+                    self.trait_definition_by_symbol(slot.declaring_trait)?,
+                    self.dynamic_slot_requirement(slot)?,
+                ))
+            }))
+            .chain(
+                self.instantiated_requirement_signatures
+                    .iter()
+                    .filter_map(|(_, row)| {
+                        Some((
+                            self.trait_definition_by_symbol(row.declaring_trait)?,
+                            self.trait_machine_signatures.get(row.signature),
+                        ))
+                    }),
+            )
     }
 
     /// The machine `symbol` declares, if any.
@@ -290,9 +334,7 @@ impl TypedTrees {
             }
             enclosing = self.declaration_scope_parent(enclosing);
         }
-        if let Some(attached_data) = &machine.attached_data
-            && let Some(definition) = self.data_definition_by_name(attached_data)
-        {
+        if let Some(definition) = self.attached_data_definition(machine) {
             for parameter in self.data_type_parameters(definition) {
                 if !type_parameters
                     .iter()

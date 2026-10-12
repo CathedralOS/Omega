@@ -52,12 +52,12 @@ use super::{
 };
 use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
 use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;
-use crate::unit::attached_unit::call_closure::BoundaryIdentity;
 
 // The closure `lower_unit_closure` assembles: body and callee discovery,
 // admission, providers, catalogs, boundaries, claims and signatures.
 mod admission;
 mod boundaries;
+mod boundary_identity;
 mod call_catalog;
 mod call_closure;
 pub(crate) mod call_parameters;
@@ -101,12 +101,11 @@ use bodies::{UnitBody, UnitPlans};
 pub(crate) use boundaries::{lower_boundary_result, retain_unit_boundary};
 pub(crate) use parameters::{lower_declared_service_reach, lower_fixed_boundary_service_reach};
 
+pub(crate) use boundary_identity::{CheckedBoundaryIdentity, checked_unit_boundary_identity};
+pub(crate) use call_closure::checked_unit_call_closure_including;
 use call_closure::{
     checked_scalar_call_closure_with_structural_roots, reject_recursive_unit_closure,
     unique_unit_boundary,
-};
-pub(crate) use call_closure::{
-    checked_unit_boundary_identity, checked_unit_call_closure_including,
 };
 pub(crate) use catalog::lower_root_service_reach;
 use catalog::require_valid_service_row;
@@ -234,25 +233,12 @@ pub(crate) fn lower_unit_closure(
 
     // Admission: retain every checked body and every boundary the closure
     // calls, then the catalog roots its callees and providers name.
-    let mut boundaries = Vec::<(&CheckedBoundaryMachinePlan, BoundaryIdentity)>::new();
+    let mut boundaries = Vec::<(&CheckedBoundaryMachinePlan, CheckedBoundaryIdentity)>::new();
     for symbol in call_catalog.boundaries {
         retain_unit_boundary(checked, plans, &mut boundaries, symbol)?;
     }
     let admitted_bodies = admission::admit(checked, plans, &closure, &mut boundaries)?;
-    boundaries.sort_by_key(|(_, identity)| identity.order_key());
-    if let Some(pair) = boundaries.windows(2).find(|pair| pair[0].1 == pair[1].1) {
-        return Err(LoweringError::InvalidUnitMachinePlan {
-            machine: format!(
-                "{} and {} ({:?}: {})",
-                checked.symbols.display_path(pair[0].0.machine, "::"),
-                checked.symbols.display_path(pair[1].0.machine, "::"),
-                pair[0].1,
-                pair[0].1.render(checked)?
-            ),
-            reason: "boundary Unit closure contains duplicate canonical identities",
-            gap: None,
-        });
-    }
+    boundary_identity::order_boundary_roster_for_publication(checked, &mut boundaries)?;
 
     // Shared namespaces: every emitted machine resolves types, domains, and
     // services against these one catalogs.
@@ -650,7 +636,7 @@ struct CheckedUnitProviderCandidate {
     provider: symbols::SymbolHandle,
     boundary: symbols::SymbolHandle,
     candidate: symbols::SymbolHandle,
-    requirement_identity: typed_trees::type_identity::CallableIdentityId,
+    requirement_identity: CheckedBoundaryIdentity,
     provider_identity: String,
     candidate_identity: typed_trees::type_identity::CallableIdentityId,
 }

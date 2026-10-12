@@ -109,33 +109,38 @@ pub(super) fn domain_facts_need_operator_selection(
     domain_symbol: symbols::SymbolHandle,
     visiting: &mut Vec<symbols::SymbolHandle>,
 ) -> bool {
+    let mut demands = crate::source_constants::SourceConstantDemands::default();
+    source_constant_demands(typed, domain_symbol, &mut demands, visiting);
+    demands.machines.iter().any(|machine| {
+        admission.closure_needs_operator_selection(typed, *machine, facts)
+    })
+}
+
+pub(super) fn source_constant_demands(
+    typed: &TypedTrees,
+    domain_symbol: symbols::SymbolHandle,
+    demands: &mut crate::source_constants::SourceConstantDemands,
+    visiting: &mut Vec<symbols::SymbolHandle>,
+) {
     if visiting.contains(&domain_symbol) {
-        return false;
+        return;
     }
-    let Some(domain) = typed.domain_definition(domain_symbol) else {
-        return false;
-    };
+    let Some(domain) = typed.domain_definition(domain_symbol) else { return; };
     visiting.push(domain_symbol);
-    let needed = typed
-        .proof_facts
-        .span_or_empty(domain.facts)
-        .iter()
-        .any(|fact| match fact {
-            ProofFact::Expression(expression) => resolve_fact_machine(typed, domain, *expression)
-                .is_some_and(|(machine, _)| {
-                    admission.closure_needs_operator_selection(typed, machine.symbol, facts)
-                }),
-            ProofFact::Membership(membership) => domain_facts_need_operator_selection(
-                typed,
-                admission,
-                facts,
-                membership.domain_symbol,
-                visiting,
+    for fact in typed.proof_facts.span_or_empty(domain.facts) {
+        match fact {
+            ProofFact::Expression(expression) => {
+                if let Some((machine, _)) = resolve_fact_machine(typed, domain, *expression) {
+                    demands.machine(machine.symbol);
+                }
+            }
+            ProofFact::Membership(membership) => source_constant_demands(
+                typed, membership.domain_symbol, demands, visiting,
             ),
-            ProofFact::Proposition(_) => false,
-        });
+            ProofFact::Proposition(_) => {}
+        }
+    }
     visiting.pop();
-    needed
 }
 
 fn evaluate_machine_fact(

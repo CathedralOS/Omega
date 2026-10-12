@@ -1,0 +1,27 @@
+// The required exit relates the invocation formals, including after a transition.
+pub boundary trait Addition {
+    machine combine(first: u32, second: u32) -> u32
+    terminates
+    requires (first <= 4) && (second <= 4)
+    ensures result == first + second;
+}
+
+machine combine_sum(left: u32, right: u32) -> u32
+satisfies Addition::combine
+terminates;
+requires (left <= 4) && (right <= 4);
+{
+    transition { _ -> finish(left, right) }
+
+    state finish(saved_left: u32, saved_right: u32)
+    requires (saved_left <= 4) && (saved_right <= 4);
+    { saved_left + saved_right }
+}
+
+machine main() crashes Trap {
+    let selected: u32 = combine_sum(2, 3);
+    transition selected == 5 { true -> done() _ -> wrong() }
+
+    state done() {}
+    state wrong() { crash Trap; }
+}

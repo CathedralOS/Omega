@@ -161,11 +161,19 @@ fn project_opaque_applications(
 ) -> Result<boundary_applications::BoundaryOpaqueRepresentationApplications, &'static str> {
     let rows = calling_applications
         .iter()
+        .filter(|application| {
+            // This inventory also contains presentations in other canonical
+            // bodies. Only an exact retained public boundary issues an edge.
+            module.boundary_machines.iter().any(|boundary| {
+                module.identities.text(boundary.identity)
+                    == Some(application.public_requirement_identity.as_str())
+            })
+        })
         .flat_map(|application| {
             application.opaque_applications.iter().map(|use_| {
                 module
                     .identities
-                    .index_of(&application.requirement_identity)
+                    .index_of(&application.public_requirement_identity)
                     .ok_or(
                         "boundary opaque application names a requirement absent from the module identity table",
                     )
@@ -182,4 +190,74 @@ fn project_opaque_applications(
         })
         .collect::<Result<_, _>>()?;
     boundary_applications::BoundaryOpaqueRepresentationApplications::new(rows)
+}
+
+/// Project original external bindings through exact public calling applications.
+/// The immutable selected row owns its locator or syscall number; each public
+/// invocation owns its validated physical plan. Import and kernel policies are
+/// produced independently and transported through this common correspondence.
+pub(crate) fn settle_calling_application_bindings(
+    module: &terminal_psi::TerminalModule,
+    selected: &effects::SelectedProviderPlanFacts,
+    calling_applications: &[calling_conventions::BoundaryCallingApplication],
+    external_binding_rows: &[calling_conventions::ExternalBindingRow],
+) -> Result<Vec<calling_conventions::ExternalBindingRow>, String> {
+    let mut rows = external_binding_rows.to_vec();
+    // The inventory also includes applications in other bodies. Only actual
+    // retained boundaries issue physical imports in this canonical artifact.
+    for application in calling_applications {
+        if !module.boundary_machines.iter().any(|boundary| {
+            module.identities.text(boundary.identity)
+                == Some(application.public_requirement_identity.as_str())
+        }) {
+            continue;
+        }
+        let Some(correspondence) =
+            selected.requirement_application(&application.public_requirement_identity)
+        else {
+            continue;
+        };
+        let original = selected
+            .identities()
+            .text(correspondence.selected_requirement_identity)
+            .ok_or("calling application lost its original selected row")?;
+        if application.requirement_identity != original || application.commitment == [0; 32] {
+            return Err(
+                "calling application changed its original selected row or commitment".into(),
+            );
+        }
+        let bindings = external_binding_rows
+            .iter()
+            .filter(|row| {
+                row.requirement_identity == original
+                    && matches!(
+                        row.binding,
+                        calling_conventions::ExternalBindingKind::Import { .. }
+                            | calling_conventions::ExternalBindingKind::Syscall { .. }
+                    )
+            })
+            .collect::<Vec<_>>();
+        let source_row = match bindings.as_slice() {
+            [] => continue,
+            [row] => *row,
+            _ => return Err("calling application has competing original external bindings".into()),
+        };
+        let mut projected = source_row.clone();
+        projected.requirement_identity = application.public_requirement_identity.clone();
+        projected.boundary_entry_plan = Some(application.plan.plan().clone());
+        let existing = rows
+            .iter()
+            .filter(|row| row.requirement_identity == application.public_requirement_identity)
+            .collect::<Vec<_>>();
+        match existing.as_slice() {
+            [] => rows.push(projected),
+            [row] if **row == projected => {}
+            _ => {
+                return Err(
+                    "calling application has conflicting projected external binding custody".into(),
+                );
+            }
+        }
+    }
+    Ok(rows)
 }

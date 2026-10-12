@@ -11,7 +11,7 @@ pub(super) struct ProvenExitExpressions<'program, 'frames> {
     classification: &'program typed_trees::proof_only::ProofOnlyClassification,
     resolver: Option<&'frames validation::CallFrameResolver<'program>>,
     /// Postconditions the one judgment proved on this program, by machine.
-    validated: &'frames [(SymbolHandle, Vec<ExpressionHandle>)],
+    validated: &'frames checked_trees::CheckedSourceContractEntailments,
     machines: Vec<MachineEntailmentOutcome>,
 }
 
@@ -29,7 +29,7 @@ impl<'program, 'frames> ProvenExitExpressions<'program, 'frames> {
         program: &'program dyn ::validation::CheckingInput,
         classification: &'program typed_trees::proof_only::ProofOnlyClassification,
         resolver: Option<&'frames validation::CallFrameResolver<'program>>,
-        validated: &'frames [(SymbolHandle, Vec<ExpressionHandle>)],
+        validated: &'frames checked_trees::CheckedSourceContractEntailments,
     ) -> Self {
         Self {
             program,
@@ -61,12 +61,15 @@ impl<'program, 'frames> ProvenExitExpressions<'program, 'frames> {
                 );
                 let mut expressions = if entry_premises_preserved {
                     self.validated
-                        .iter()
-                        .find(|(symbol, _)| *symbol == machine_symbol)
-                        .map(|(_, proven)| proven.clone())
-                        .unwrap_or_default()
+                        .guarantees_for_machine(machine_symbol)
+                        .to_vec()
                 } else {
-                    Vec::new()
+                    // These exact original guarantees were established after
+                    // each normal path's effects. Entry-only proofs still owe
+                    // the complete preservation guard above.
+                    self.validated
+                        .normal_return_guarantees_for_machine(machine_symbol)
+                        .to_vec()
                 };
                 if !expressions.is_empty() {
                     // A signature's op-slot expression has a different handle
@@ -234,6 +237,7 @@ pub(super) fn structural_call_requirement(
     facts: &checked_trees::CheckFacts,
     state_flow: &checked_trees::FlowStateFact,
     call_flow: &checked_trees::FlowCallFact,
+    original_fact: arena::Handle<typed_trees::domain::ProofFact>,
     expression: ExpressionHandle,
     resolver: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
@@ -264,6 +268,7 @@ pub(super) fn structural_call_requirement(
             state,
             call_flow.statement_index,
             call_site,
+            original_fact,
             expression,
         );
     }

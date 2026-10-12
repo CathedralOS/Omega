@@ -63,6 +63,7 @@ pub(crate) fn substitute_fixed_array_const_parameters(
 }
 
 pub(crate) fn substitute_const_index_expression_parameters(
+    source: Option<&dyn ::validation::CheckingInput>,
     program: &mut TypedTrees,
     candidate: &Candidate,
     type_start: Option<usize>,
@@ -78,7 +79,8 @@ pub(crate) fn substitute_const_index_expression_parameters(
                 if candidate.runtime_value_bindings[index].is_some() {
                     return None;
                 }
-                let TypeReferenceNode::Named { symbol, name } = program
+                let TypeReferenceNode::Named { symbol, name } = source
+                    .unwrap_or(program)
                     .type_reference_table
                     .type_reference(binding.expect("complete const specialization"))
                 else {
@@ -164,6 +166,17 @@ pub(crate) fn candidate_const_index_expressions(
                     );
                 }
             }
+        }
+    }
+    for fact in program.proof_facts.span_or_empty(machine.where_facts) {
+        if let Some(membership) = fact.as_membership() {
+            roots.extend(
+                program
+                    .type_reference_table
+                    .type_reference_handles(membership.domain_arguments)
+                    .iter()
+                    .copied(),
+            );
         }
     }
     let mut visited = Vec::new();

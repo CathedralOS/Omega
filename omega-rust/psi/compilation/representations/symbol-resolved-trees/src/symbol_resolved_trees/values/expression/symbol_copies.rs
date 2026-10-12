@@ -28,6 +28,7 @@ impl SymbolResolvedTrees {
             program: self,
             substitutions,
             types: Vec::new(),
+            application_origins: Vec::new(),
         }
         .expression(source)
     }
@@ -45,6 +46,7 @@ impl SymbolResolvedTrees {
             program: self,
             substitutions,
             types: Vec::new(),
+            application_origins: Vec::new(),
         }
         .proof_fact(source)
     }
@@ -54,9 +56,55 @@ struct SymbolCopy<'program, 'substitutions> {
     program: &'program mut SymbolResolvedTrees,
     substitutions: &'substitutions [(SymbolHandle, SymbolHandle)],
     types: Vec<(Handle<TypeReference>, Handle<TypeReference>)>,
+    application_origins: Vec<(
+        Handle<GenericApplicationOrigin>,
+        Handle<GenericApplicationOrigin>,
+    )>,
 }
 
 impl SymbolCopy<'_, '_> {
+    fn application_origin(
+        &mut self,
+        source: Handle<GenericApplicationOrigin>,
+    ) -> Handle<GenericApplicationOrigin> {
+        if !source.is_valid() {
+            return source;
+        }
+        if let Some((_, copied)) = self
+            .application_origins
+            .iter()
+            .find(|(original, _)| *original == source)
+        {
+            return *copied;
+        }
+        let origin = self
+            .program
+            .tables
+            .types
+            .generic_application_origins
+            .get(source)
+            .clone();
+        let copied = self
+            .program
+            .tables
+            .types
+            .generic_application_origins
+            .insert(GenericApplicationOrigin::default());
+        self.application_origins.push((source, copied));
+        let instance = self.type_reference(origin.instance);
+        let application = self.type_reference(origin.application);
+        *self
+            .program
+            .tables
+            .types
+            .generic_application_origins
+            .get_mut(copied) = GenericApplicationOrigin {
+            instance,
+            application,
+        };
+        copied
+    }
+
     fn proof_fact(&mut self, source: Handle<ProofFact>) -> Handle<ProofFact> {
         if !source.is_valid() {
             return source;
@@ -306,24 +354,21 @@ impl SymbolCopy<'_, '_> {
     }
 
     fn type_origins(&mut self, source: Handle<TypeReference>, copied: Handle<TypeReference>) {
-        let origins = self
+        let results = self
             .program
             .tables
             .types
-            .generic_application_origins
+            .normalized_const_arguments
             .iter()
-            .filter_map(|(_, origin)| (origin.instance == source).then_some(origin.clone()))
+            .filter_map(|(_, result)| (result.argument == source).then_some(result.clone()))
             .collect::<Vec<_>>();
-        for origin in origins {
-            let application = self.type_reference(origin.application);
+        for mut result in results {
+            result.argument = copied;
             self.program
                 .tables
                 .types
-                .generic_application_origins
-                .insert(GenericApplicationOrigin {
-                    instance: copied,
-                    application,
-                });
+                .normalized_const_arguments
+                .insert(result);
         }
     }
 
@@ -403,6 +448,8 @@ impl SymbolCopy<'_, '_> {
             TypeReference::Generic(application) => {
                 application.base_symbol = self.symbol(application.base_symbol);
                 application.arguments = self.type_span(application.arguments);
+                application.application_origin =
+                    self.application_origin(application.application_origin);
             }
             TypeReference::ConstExpression(expression) => {
                 *expression = self.expression(*expression)
@@ -413,7 +460,14 @@ impl SymbolCopy<'_, '_> {
                 *symbol = self.symbol(*symbol);
                 *arguments = self.type_span(*arguments);
             }
-            TypeReference::Named { symbol, .. } => *symbol = self.symbol(*symbol),
+            TypeReference::Named {
+                symbol,
+                application_origin,
+                ..
+            } => {
+                *symbol = self.symbol(*symbol);
+                *application_origin = self.application_origin(*application_origin);
+            }
             TypeReference::Unit => {}
         }
         reference
@@ -445,6 +499,7 @@ mod tests {
     fn generic(base: SymbolHandle, arguments: HandleSpan<TypeReference>) -> TypeReference {
         TypeReference::Generic(GenericTypeReference {
             storage: GenericTypeReferenceStorage {
+                application_origin: arena::Handle::invalid(),
                 base_symbol: base,
                 base_name: DiagnosticName::generated("Carrier"),
                 lifetime_arguments: Vec::new(),
@@ -471,6 +526,7 @@ mod tests {
             .declarations
             .child_type_references
             .insert_many([TypeReference::Named {
+                application_origin: arena::Handle::invalid(),
                 symbol: original,
                 name: DiagnosticName::generated("T"),
             }]);
@@ -554,19 +610,29 @@ mod tests {
             .declarations
             .child_type_references
             .insert(generic(original, HandleSpan::empty()));
-        program
-            .tables
-            .types
-            .generic_application_origins
-            .insert(GenericApplicationOrigin {
-                instance: arguments.handle_at(0),
-                application,
-            });
         let carrier = program
             .tables
             .declarations
             .child_type_references
             .insert(generic(original, arguments));
+        let origin =
+            program
+                .tables
+                .types
+                .generic_application_origins
+                .insert(GenericApplicationOrigin {
+                    instance: carrier,
+                    application,
+                });
+        let TypeReference::Generic(carrier_type) = program
+            .tables
+            .declarations
+            .child_type_references
+            .get_mut(carrier)
+        else {
+            unreachable!()
+        };
+        carrier_type.application_origin = origin;
         let source = program
             .tables
             .bodies
@@ -621,18 +687,18 @@ mod tests {
                 .name_path_member_symbols(copied_path.member_symbols),
             [replacement]
         );
-        let origin = program
+        assert_ne!(copied_type.application_origin, origin);
+        let copied_origin = program
             .tables
             .types
             .generic_application_origins
-            .iter()
-            .find_map(|(_, origin)| (origin.instance == copied_argument).then_some(origin))
-            .expect("copied span origin");
+            .get(copied_type.application_origin);
+        assert_eq!(copied_origin.instance, copied_carrier);
         let TypeReference::Generic(origin_application) = program
             .tables
             .declarations
             .child_type_references
-            .get(origin.application)
+            .get(copied_origin.application)
         else {
             panic!("copy must retain origin application");
         };

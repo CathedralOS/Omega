@@ -94,7 +94,9 @@ pub(crate) fn validate_conformances(
             &format!("conformance `{implementation_name} satisfies {trait_name}`"),
             symbols,
             crate::value_custody::type_references::TypeParameterScope {
-                lexical_owner: conformance.symbol,
+                lexical_owner: typed_trees::type_identity::AppliedTypeIdentityOwner::Declaration(
+                    conformance.symbol,
+                ),
                 type_parameters: program
                     .data_type_parameters
                     .span_or_empty(conformance.type_parameters),
@@ -184,6 +186,7 @@ fn validate_closed_rows(
             state,
             &application,
             requirement,
+            requirement,
             diagnostics,
         );
         crate::proof_contracts::contract_entailment::check_law_conformance(
@@ -205,6 +208,7 @@ fn validate_closed_rows(
                 program,
                 machine,
                 declaring_trait,
+                &application,
                 requirement,
                 diagnostics,
             );

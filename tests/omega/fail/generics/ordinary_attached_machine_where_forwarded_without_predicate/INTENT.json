@@ -1,0 +1,6 @@
+{
+  "status": "authored unexecuted source proposal",
+  "case": "fail/ordinary_attached_machine_where_forwarded_without_predicate",
+  "intent": "original generic caller lacks membership hypothesis and must be Unknown despite closed4 instance",
+  "expected_diagnostic": "not predicted; root must qualify exact intended guard"
+}

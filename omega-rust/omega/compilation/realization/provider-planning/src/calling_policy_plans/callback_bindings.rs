@@ -39,12 +39,24 @@ pub struct SelectedCallbackPlacement {
 /// consumes them.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundaryCallingPlanRealization {
+    pub(crate) application_identity: super::applications::BoundaryCallingApplicationIdentity,
+    /// Original declaring owner of the exact public member; independently
+    /// retained from the selected presentation and authored policy owner.
+    pub declaring_trait: symbols::SymbolHandle,
+    /// Original selected presentation. The sealed application identity retains
+    /// its distinct policy owner and complete selected tuple.
     pub boundary_trait: symbols::SymbolHandle,
     pub boundary_arguments: Vec<TypeReferenceHandle>,
     /// Supplying declaration for lifetime-bearing type operands. An argument
     /// handle alone does not place its regions in the boundary trait's scope.
     pub(crate) argument_owner: symbols::SymbolHandle,
+    /// Exact full tuple for an owned closed public header. Zero denotes an
+    /// authored signature materialized through `boundary_arguments` instead.
+    pub binding_application:
+        checked_trees::typed_trees::static_applications::StaticMachineApplicationHandle,
     pub requirement_machine: symbols::SymbolHandle,
+    /// Original or closed public presentation produced with this exact application.
+    pub public_requirement_identity: String,
     /// Compact compatibility/report coordinate for the complete target-closed
     /// application. Exact plan and materialized-signature custody below remain
     /// the authority for realization joins.
@@ -87,30 +99,14 @@ impl BoundaryCallingPlanRealization {
     /// The validated plan is retained at production and callback closure, not
     /// reconstructed by a downstream native stage.
     pub fn native_application(&self) -> calling_conventions::BoundaryCallingApplication {
-        let signature = &self.materialized_signature;
-        calling_conventions::BoundaryCallingApplication {
-            requirement_identity: signature.owner_requirement_identity().to_owned(),
-            target: signature.native_target(),
-            report_fingerprint: self.report_fingerprint,
-            commitment: self.commitment.as_bytes(),
-            plan: self.validated_boundary_entry_plan.clone(),
-            signature: calling_conventions::BoundarySignatureGeometry {
-                shapes: signature.shapes().to_vec(),
-                fields: signature.fields().to_vec(),
-                parameters: signature.parameters().to_vec(),
-                result: signature.result(),
-            },
-            opaque_applications: signature
-                .opaque_representation_uses()
-                .iter()
-                .map(|use_| calling_conventions::BoundaryOpaqueApplication {
-                    shape_root: use_.shape_root(),
-                    application_report_fingerprint: use_.application_report_fingerprint(),
-                    selected_application_commitment: use_.selected_application_commitment(),
-                })
-                .collect(),
-            callback_context_closed: self.callback_context_closed,
-        }
+        super::native_applications::publish_native_application(
+            &self.materialized_signature,
+            self.public_requirement_identity.clone(),
+            self.validated_boundary_entry_plan.clone(),
+            self.report_fingerprint,
+            self.commitment.as_bytes(),
+            self.callback_context_closed,
+        )
     }
 
     pub(crate) fn replayed_validated_plan(
@@ -289,16 +285,30 @@ pub(crate) fn validate_callback_requirement_report_collision(
 /// backend lowering so a missing, duplicated, or changed placement recipe
 /// cannot silently fall back to a convention oracle.
 pub fn validate_nominal_callback_placement_bindings(
+    typed: &TypedTrees,
     facts: &checked_trees::CheckFacts,
     realizations: &[BoundaryCallingPlanRealization],
 ) -> Result<Vec<SelectedCallbackPlacement>, Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let mut bound = Vec::new();
     for nominal_use in &facts.nominal_machine_uses.uses {
+        let selected_interface =
+            match checked_trees::typed_trees::static_applications::requirement_selected_interface(
+                typed,
+                nominal_use.satisfaction_trait,
+                nominal_use.satisfaction_requirement,
+            ) {
+                Ok(interface) => interface,
+                Err(reason) => {
+                    diagnostics.push(Diagnostic::error(reason));
+                    continue;
+                }
+            };
         let matching = realizations
             .iter()
             .filter(|realization| {
-                realization.boundary_trait == nominal_use.satisfaction_trait
+                realization.declaring_trait == nominal_use.satisfaction_trait
+                    && realization.boundary_trait == selected_interface
                     && realization.requirement_machine == nominal_use.satisfaction_requirement
                     && realization.boundary_arguments.is_empty()
             })

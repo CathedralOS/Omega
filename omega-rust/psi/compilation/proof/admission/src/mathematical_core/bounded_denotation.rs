@@ -229,19 +229,43 @@ impl BoundedDenotation {
         run_on_verification_stack(|| self.receipt_on_current_thread())
     }
 
+    /// Transfer the original accepted owner and exact used declaration indices.
+    /// This runs at the existing admission boundary, after kernel checking;
+    /// it does not denote or decide the certificate a second time.
+    pub(crate) fn into_accepted_judgment_on_current_thread(
+        self,
+    ) -> crate::proof::AcceptedMathematicalJudgment {
+        let closure =
+            certificate_assumption_closure_on_current_thread(&self.arena, &self.certificate);
+        let receipt = self.receipt_for_assumption_count(closure.len());
+        let mut assumptions = arena::Arena::with_capacity(closure.len());
+        assumptions.insert_many(closure.into_iter().map(|declaration_index| {
+            crate::proof::AcceptedMathematicalAssumption { declaration_index }
+        }));
+        crate::proof::AcceptedMathematicalJudgment::from_accepted_denotation(
+            receipt,
+            self.arena,
+            self.certificate,
+            assumptions,
+        )
+    }
+
     /// Collect the same receipt inside an already-reserved verification stack.
     /// Admission calls this after elaboration and kernel checking have returned:
     /// their recursive frames are gone, so assumption traversal can reuse the
     /// full reservation. Public receipt collection still reserves its own stack;
     /// certificate size and producer identity never decide stack safety.
     pub(crate) fn receipt_on_current_thread(&self) -> MathematicalJudgmentReceipt {
+        self.receipt_for_assumption_count(
+            certificate_assumption_closure_on_current_thread(&self.arena, &self.certificate).len(),
+        )
+    }
+
+    fn receipt_for_assumption_count(&self, assumptions: usize) -> MathematicalJudgmentReceipt {
         let saturating = |count: usize| u32::try_from(count).unwrap_or(u32::MAX);
         MathematicalJudgmentReceipt {
             declarations: saturating(self.certificate.signature.len()),
-            assumption_closure: saturating(
-                certificate_assumption_closure_on_current_thread(&self.arena, &self.certificate)
-                    .len(),
-            ),
+            assumption_closure: saturating(assumptions),
             context_depth: saturating(self.certificate.context.len()),
             arena_slots: saturating(self.arena.len()),
         }

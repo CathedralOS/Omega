@@ -13,11 +13,13 @@ use symbols::SymbolHandle;
 fn type_reference_table_stores_nested_typed_references_as_handles() {
     let mut source_arguments = Arena::<TypeReference>::new();
     let fixed_array_element = source_arguments.append(TypeReference::Named {
+        application_origin: arena::Handle::invalid(),
         symbol: SymbolHandle::invalid(),
         name: DiagnosticName::generated("u8"),
     });
     let arguments = source_arguments.insert_many([
         TypeReference::Named {
+            application_origin: arena::Handle::invalid(),
             symbol: SymbolHandle::invalid(),
             name: DiagnosticName::generated("usize"),
         },
@@ -30,6 +32,7 @@ fn type_reference_table_stores_nested_typed_references_as_handles() {
     ]);
     let type_reference = TypeReference::Generic(GenericTypeReference {
         storage: GenericTypeReferenceStorage {
+            application_origin: arena::Handle::invalid(),
             base_symbol: SymbolHandle::invalid(),
             base_name: DiagnosticName::generated("Result"),
             lifetime_arguments: Vec::new(),
@@ -69,6 +72,7 @@ fn check_range_tree_to_table(end_inclusive: bool) {
     let mut source_expressions = ExpressionTable::new();
     let mut source_arguments = Arena::<TypeReference>::new();
     let base_type = source_arguments.append(TypeReference::Named {
+        application_origin: arena::Handle::invalid(),
         symbol: SymbolHandle::invalid(),
         name: DiagnosticName::generated("i32"),
     });

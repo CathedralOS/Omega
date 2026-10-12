@@ -264,7 +264,17 @@ fn decode_call_binding(
             .map_err(|_| FixedViewCopyDecodeError::InvalidForeignTargetProfile)?;
         let number = cursor.i64()?;
         let provider_plan_report_identity = cursor.u64()?;
-        let provider_plan_commitment = cursor.array::<32>()?;
+        let commitment_bytes = cursor.array::<32>()?;
+        let direct_foreign_realization = if commitment_bytes == [0; 32] {
+            Some(cursor.array::<32>()?)
+        } else {
+            None
+        };
+        let provider_plan_commitment = if direct_foreign_realization.is_some() {
+            cursor.array::<32>()?
+        } else {
+            commitment_bytes
+        };
         let requirement_identity = decode_string(cursor)?;
         let call = decode_call_plan(cursor)?;
         let state = decode_state_plan(cursor)?;
@@ -284,6 +294,7 @@ fn decode_call_binding(
                     number,
                     provider_plan_report_identity,
                     provider_plan_commitment,
+                    direct_foreign_realization,
                     requirement_identity,
                 },
             ),
@@ -305,14 +316,15 @@ fn decode_call_binding(
     let report_identity = cursor.u64()?;
     let commitment = cursor.array::<32>()?;
     let provider_plan_report_identity = cursor.u64()?;
-    let provider_plan_commitment =
-        SameStackProviderPlanCommitment::from_digest(cursor.array::<32>()?);
-    let requirement_identity = terminal_psi::TerminalIdentityIndex(
-        cursor
-            .u64()?
-            .try_into()
-            .map_err(|_| FixedViewCopyDecodeError::InvalidSameStackContribution)?,
-    );
+    let commitment_bytes = cursor.array::<32>()?;
+    let provider_plan_commitment = if commitment_bytes == [0; 32] {
+        task_plans::SameStackExecutionCommitment::DirectForeign(cursor.array::<32>()?)
+    } else {
+        SameStackProviderPlanCommitment::from_digest(commitment_bytes).into()
+    };
+    // The encoder writes the module table's u32 index. Reading a stable-id
+    // width here also consumes the receipt's first four bytes.
+    let requirement_identity = terminal_psi::TerminalIdentityIndex(cursor.u32()?);
     let receipt = SameStackContributionAdmissionReceiptId::from_normalized_identity(cursor.u64()?)
         .map_err(|_| FixedViewCopyDecodeError::InvalidSameStackContribution)?;
     let candidate = SameStackContributionAdmissionCandidate {
@@ -672,7 +684,8 @@ mod tests {
         .plan()
         .clone();
         let provider_plan_report_identity = 0xA1;
-        let provider_plan_commitment = SameStackProviderPlanCommitment::from_digest([0x42; 32]);
+        let provider_plan_commitment =
+            SameStackProviderPlanCommitment::from_digest([0x42; 32]).into();
         let same_stack_contribution = admit_same_stack_contribution(
             SameStackContributionAdmissionCandidate {
                 provider_plan_report_identity,
@@ -772,6 +785,7 @@ mod tests {
                 .clone(),
                 mechanism: NormalizedForeignCallMechanism::SystemCall(
                     NormalizedSystemCallBinding {
+                        direct_foreign_realization: None,
                         target: profile,
                         number: 211,
                         requirement_identity: "Kernel::invoke".into(),

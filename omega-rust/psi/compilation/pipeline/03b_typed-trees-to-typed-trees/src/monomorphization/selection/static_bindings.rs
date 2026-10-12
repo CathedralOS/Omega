@@ -5,6 +5,22 @@ use crate::monomorphization::{
     range_arguments,
 };
 
+/// Repeated proposals must denote the same complete operand in their issuing
+/// program. The returned handle preserves the original graph for substitution.
+pub(crate) fn coherent_type_proposal(
+    program: &crate::monomorphization::TypedTrees,
+    proposals: &[TypeReferenceHandle],
+) -> Option<TypeReferenceHandle> {
+    let first = *proposals.first()?;
+    proposals
+        .iter()
+        .all(|actual| {
+            program.package_qualified_type_identity(*actual)
+                == program.package_qualified_type_identity(first)
+        })
+        .then_some(first)
+}
+
 pub(crate) fn infer_static_bindings(
     program: &dyn ::validation::CheckingInput,
     required: TypeReferenceHandle,
@@ -290,8 +306,11 @@ pub(crate) fn infer_fixed_array_length_binding(
             program
                 .type_reference_table
                 .named_references()
-                .find(|(_, candidate_symbol, candidate_name)| {
-                    !candidate_symbol.is_valid() && *candidate_name == value
+                .find(|(handle, candidate_symbol, candidate_name)| {
+                    !candidate_symbol.is_valid()
+                        && *candidate_name == value
+                        && program.type_reference_table.const_integer_meaning(*handle)
+                            == typed_trees::types::ConstIntegerMeaning::Anonymous
                 })
                 .map(|(handle, _, _)| handle)
         }

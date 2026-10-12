@@ -42,15 +42,15 @@ pub use satisfied_operators::{
 };
 pub use spellings::{
     OperandType, arithmetic_operator_spelling, binary_operator_spelling,
-    comparison_operator_spelling, declared_domain_constraints,
-    has_builtin_spelled_expression_meaning, resolve_spelling, resolve_spelling_for_operand_types,
-    resolve_spelling_for_operands, scalar_operand_read_type,
+    comparison_operator_spelling, declared_domain_constraints, declared_domain_constraints_match,
+    has_builtin_spelled_expression_meaning, operator_operand_types, resolve_spelling,
+    resolve_spelling_for_operand_types, resolve_spelling_for_operands, scalar_operand_read_type,
 };
 pub use trait_operators::{
     BoundTraitOperatorMeaning, SelectedTraitOperatorMeaning, bound_trait_operator_meanings,
-    selected_trait_operator_meaning_exists, selected_trait_operator_meanings,
-    trait_operator_matches_application, trait_operator_operand_signature,
-    trait_scope_operator_meaning_exists,
+    boundary_trait_operator_meanings, selected_trait_operator_meaning_exists,
+    selected_trait_operator_meanings, trait_operator_matches_application,
+    trait_operator_operand_signature, trait_scope_operator_meaning_exists,
 };
 
 use arena::HandleSpan;

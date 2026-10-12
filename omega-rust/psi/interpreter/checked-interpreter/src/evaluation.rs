@@ -377,15 +377,26 @@ pub struct ExecutedRootBinding {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutedProviderSelection {
     pub machine: symbols::SymbolHandle,
-    pub site: ExecutedProviderSelectionSite,
+    pub site: ExecutedBuildDeclarationSite,
     /// Zero means the omitted default; otherwise the evaluated toolchain case.
     pub composition_case: symbols::SymbolHandle,
 }
 
+/// Exact declaration coordinate in the evaluated program, shared by Build
+/// registrations. It carries no source-spelling or host-address identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ExecutedProviderSelectionSite {
+pub enum ExecutedBuildDeclarationSite {
     Statement(typed_trees::statement::StatementHandle),
     Expression(typed_trees::expression::ExpressionHandle),
+}
+
+/// Runtime relationship intent registered against the original Build cell.
+/// Its exact typed operands are rejoined by Omega; this receipt grants neither
+/// an executable binding nor proposition, provider, root or receiving authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExecutedAssumedBindingRegistration {
+    pub machine: symbols::SymbolHandle,
+    pub site: ExecutedBuildDeclarationSite,
 }
 
 /// One crash, physical-authority, or service exclusion selection that
@@ -702,6 +713,7 @@ pub struct MeasuredBuildMachineEvaluation<T> {
     pub(crate) executed_root_bindings: Vec<ExecutedRootBinding>,
     pub(crate) executed_behavior_exclusions: Vec<ExecutedBehaviorExclusion>,
     pub(crate) executed_provider_selections: Vec<ExecutedProviderSelection>,
+    pub(crate) executed_assumed_binding_registrations: Vec<ExecutedAssumedBindingRegistration>,
     pub(crate) executed_wire_demands: Vec<typed_trees::expression::ExpressionHandle>,
 }
 
@@ -713,6 +725,7 @@ impl<T> MeasuredBuildMachineEvaluation<T> {
         executed_root_bindings: Vec<ExecutedRootBinding>,
         executed_behavior_exclusions: Vec<ExecutedBehaviorExclusion>,
         executed_provider_selections: Vec<ExecutedProviderSelection>,
+        executed_assumed_binding_registrations: Vec<ExecutedAssumedBindingRegistration>,
         executed_wire_demands: Vec<typed_trees::expression::ExpressionHandle>,
     ) -> Self {
         Self {
@@ -721,6 +734,7 @@ impl<T> MeasuredBuildMachineEvaluation<T> {
             executed_root_bindings,
             executed_behavior_exclusions,
             executed_provider_selections,
+            executed_assumed_binding_registrations,
             executed_wire_demands,
         }
     }
@@ -734,6 +748,7 @@ impl<T> MeasuredBuildMachineEvaluation<T> {
             executed_root_bindings: Vec::new(),
             executed_behavior_exclusions: Vec::new(),
             executed_provider_selections: Vec::new(),
+            executed_assumed_binding_registrations: Vec::new(),
             executed_wire_demands: Vec::new(),
         }
     }
@@ -772,6 +787,11 @@ impl<T> MeasuredBuildMachineEvaluation<T> {
         &self.executed_provider_selections
     }
 
+    /// Executed registration intent, without installation or assumed facts.
+    pub fn executed_assumed_binding_registrations(&self) -> &[ExecutedAssumedBindingRegistration] {
+        &self.executed_assumed_binding_registrations
+    }
+
     /// Wire demand calls executed against this activation's original Build.
     /// Coordinates refer to the exact evaluated program, including helpers.
     pub fn executed_wire_demands(&self) -> &[typed_trees::expression::ExpressionHandle] {
@@ -796,6 +816,7 @@ impl<T> MeasuredBuildMachineEvaluation<T> {
         Vec<ExecutedRootBinding>,
         Vec<ExecutedBehaviorExclusion>,
         Vec<ExecutedProviderSelection>,
+        Vec<ExecutedAssumedBindingRegistration>,
         Vec<typed_trees::expression::ExpressionHandle>,
     ) {
         let (value, usage) = self.measured.into_parts();
@@ -806,6 +827,7 @@ impl<T> MeasuredBuildMachineEvaluation<T> {
             self.executed_root_bindings,
             self.executed_behavior_exclusions,
             self.executed_provider_selections,
+            self.executed_assumed_binding_registrations,
             self.executed_wire_demands,
         )
     }
