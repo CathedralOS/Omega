@@ -482,6 +482,26 @@ pub(super) fn retain_requirement_application(
     program
         .expression_table
         .set_static_machine_application_bindings(application, &bindings);
+    // Static operand proposals do not supply the receiver's captured regions.
+    // A public checking view can retain a universally quantified invocation
+    // tail, but its enclosing application must already have its complete
+    // captured correspondence. Leave unfinished source tuples to the ordinary
+    // application producer rather than publishing a partially scoped contract.
+    let declaration =
+        typed_trees::static_applications::StaticApplicationDeclaration::for_application(
+            program,
+            program
+                .expression_table
+                .static_machine_application(application),
+        )
+        .map_err(Diagnostic::error)?;
+    if declaration.bind_lifetimes(program, application).is_err()
+        && declaration
+            .bind_captured_lifetimes(program, application)
+            .is_err()
+    {
+        return Ok(Default::default());
+    }
     Ok(application)
 }
 
