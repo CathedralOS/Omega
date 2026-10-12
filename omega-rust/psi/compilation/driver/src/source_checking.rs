@@ -35,6 +35,9 @@ pub struct SourceAdmission<'request> {
 /// and target settlement. Build checking normally has no pending Product jobs.
 #[derive(Default)]
 pub struct SourceConstantRequest {
+    /// Already successful early source evaluations from this completion owner.
+    /// Retain their original checked inputs; never replay folded source calls.
+    pub executed_inputs: Vec<build_time_evaluation::ExecutedCheckedConstantInput>,
     pub pending: Vec<build_time_evaluation::PreCheckEvaluation>,
     pub selections: Vec<build_time_evaluation::SourceProviderSelection>,
 }
@@ -73,8 +76,9 @@ pub struct CheckRequest<'request> {
 
 /// Coverage actually retained for completed source constants. Original binding
 /// Associations and the separately observed checked execution inputs are not
-/// a complete consumed-use or invocation-judgment roster. Earlier folds remain
-/// uncovered; an empty roster cannot claim those dependencies were absent.
+/// a complete consumed-use or invocation-judgment roster. Earlier folds
+/// outside this source-completion route remain uncovered; an empty roster cannot
+/// claim those dependencies were absent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SourceConstantInputCoverage {
     OriginalAssociations,
@@ -98,8 +102,9 @@ impl OriginalCheckedSourceInput {
     pub fn source_constants(&self) -> &[build_time_evaluation::SourceConstantSupply] {
         &self.source_constants
     }
-    /// Actual checked execution inputs observed during continuation completion.
-    /// Earlier folds remain uncovered; this is independent of offered supplies.
+    /// Actual checked execution inputs from early source evaluation and pending
+    /// continuation completion, independently of offered supplies. Build
+    /// projections and earlier typing evaluations remain outside this roster.
     pub fn executed_constant_inputs(
         &self,
     ) -> &[build_time_evaluation::ExecutedCheckedConstantInput] {
@@ -203,7 +208,7 @@ impl CheckRequest<'_> {
         let checking = typed_trees_to_checked_trees::CheckingRequest::new()
             .with_declaration_authority(self.admission.declarations);
         let mut source_constants = Vec::new();
-        let mut executed_constant_inputs = Vec::new();
+        let mut executed_constant_inputs = self.constants.executed_inputs;
         // Each continuation checks its demanded source dependencies before
         // evaluation. The finished input then owns one ordinary Product check;
         // an earlier language judgment cannot stand in for its new constants.
