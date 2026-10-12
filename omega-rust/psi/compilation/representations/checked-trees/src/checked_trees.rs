@@ -62,6 +62,7 @@ pub use facts::{
 };
 
 pub use facts::{
+    CallExitPreservation, ErasedExitObservation,
     CheckedStoredIntegerWrite, ContextualCleanupApplication, ContextualCleanupDisposition,
     ContextualCleanupEntryRequirement, ContextualCleanupEntryRequirements, ContextualCleanupFacts,
     ContextualCleanupHookEffect, DecidedCallRequires, ProvenAssignmentIndex, ScalarIndexAdmission,
