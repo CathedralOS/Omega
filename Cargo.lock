@@ -2003,6 +2003,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "spectral-power-validation"
+version = "0.1.0"
+dependencies = [
+ "compiler",
+ "omega",
+ "package-manager",
+ "target",
+]
+
+[[package]]
 name = "symbol-resolved-trees"
 version = "0.1.0"
 dependencies = [
