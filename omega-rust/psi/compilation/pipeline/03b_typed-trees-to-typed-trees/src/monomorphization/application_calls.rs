@@ -1,8 +1,8 @@
 //! Call substitution from authentic retained static application rows.
 //!
 //! Public requirement facts and executable bodies select the same declaration
-//! and evidence rows. Runtime state subjects are computed by body elaboration
-//! and supplied separately; no candidate or private implementation is required
+//! and evidence rows. Ordinary application selection owns runtime subjects;
+//! no candidate or private implementation is required
 //! to apply the public header's exact static operands.
 
 use super::application_arguments::{
@@ -14,7 +14,6 @@ use super::application_evidence::{
 };
 use super::body_rewriting::insert_subject_name;
 use super::selection::state_by_symbol;
-use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -124,7 +123,6 @@ impl ApplicationCallRewrites {
         program: &mut TypedTrees,
         handle: ExpressionHandle,
         state_symbols: &[(SymbolHandle, SymbolHandle)],
-        clone_state_arguments: Option<HandleSpan<ExpressionHandle>>,
     ) {
         let Self {
             machine_parameters,
@@ -166,20 +164,17 @@ impl ApplicationCallRewrites {
         if let Some(receiver) = selected_carrier {
             call.receiver = receiver;
         }
-        let erased_application = apply_evidence_dispatch_rewrite(
-            call.target_symbol,
+        rewrite_application_target_and_arguments(
+            &mut call.target_symbol,
             &mut call.static_requirement_dispatch,
             &mut call.machine_arguments,
-            &mut call.arguments,
             evidence_dispatch,
             static_argument_rewrites,
             argument_rewrites,
             state_symbols,
-            clone_state_arguments,
             || call.receiver = ExpressionHandle::invalid(),
         );
         let application = call.authored_machine_application;
-        let target = call.target.clone();
         if application.is_valid() {
             substitute_forwarded_machine_arguments(
                 program
@@ -195,47 +190,31 @@ impl ApplicationCallRewrites {
                 static_argument_rewrites,
                 argument_rewrites,
             );
-        } else if let Some((registration_operation, arguments)) = erased_application {
-            let application = program.expression_table.retain_static_machine_application(
-                registration_operation,
-                target,
-                &arguments,
-            );
-            let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
-                unreachable!();
-            };
-            call.authored_machine_application = application;
         }
     }
 }
 
-/// The shared tail of an evidence-dispatched call rewrite: `invalidate_receiver`
-/// clears the per-node receiver shape, the selected dispatch and its
-/// application arguments replace the placeholder's contract, forwarded statics
-/// substitute, and a call into the specialization's own states demotes its
-/// machine arguments in favor of cloned runtime arguments.
+/// Substitute call operands while keeping application selection separate from
+/// cloning local control flow. A copied call to a sibling state must select its
+/// own complete tuple through the ordinary selection loop. Cloning it into the
+/// current instance and erasing its statics would silently equate, for example,
+/// a call of F<7> inside F<5> with a self call. Named state transitions retain
+/// their cloned destinations; they do not introduce another application.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn apply_evidence_dispatch_rewrite(
-    target_symbol: SymbolHandle,
+pub(crate) fn rewrite_application_target_and_arguments(
+    target_symbol: &mut SymbolHandle,
     static_requirement_dispatch: &mut Option<typed_trees::typed_trees::StaticRequirementDispatch>,
     machine_arguments: &mut Box<[typed_trees::expression::StaticMachineArgument]>,
-    arguments: &mut HandleSpan<ExpressionHandle>,
     evidence_dispatch: Option<
         &crate::monomorphization::application_evidence::EvidenceRequirementRewrite,
     >,
     static_argument_rewrites: &[(SymbolHandle, typed_trees::expression::StaticMachineArgument)],
     argument_rewrites: &[(SymbolHandle, SymbolHandle, typed_trees::name::Identifier)],
     state_symbols: &[(SymbolHandle, SymbolHandle)],
-    clone_state_arguments: Option<HandleSpan<ExpressionHandle>>,
     mut invalidate_receiver: impl FnMut(),
-) -> Option<(
-    SymbolHandle,
-    Box<[typed_trees::expression::StaticMachineArgument]>,
-)> {
-    if evidence_dispatch.is_some() {
-        invalidate_receiver();
-    }
+) {
     if let Some(rewrite) = evidence_dispatch {
+        invalidate_receiver();
         *static_requirement_dispatch = Some(rewrite.dispatch.clone());
         *machine_arguments = rewrite.application_arguments.clone();
     }
@@ -246,12 +225,8 @@ pub(crate) fn apply_evidence_dispatch_rewrite(
     );
     if let Some((authored, _)) = state_symbols
         .iter()
-        .find(|(_, concrete)| *concrete == target_symbol)
+        .find(|(_, concrete)| *concrete == *target_symbol)
     {
-        if let Some(cloned) = clone_state_arguments {
-            *arguments = cloned;
-        }
-        return Some((*authored, std::mem::take(machine_arguments)));
+        *target_symbol = *authored;
     }
-    None
 }
