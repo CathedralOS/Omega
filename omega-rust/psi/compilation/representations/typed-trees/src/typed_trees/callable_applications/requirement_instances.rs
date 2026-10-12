@@ -380,11 +380,6 @@ impl TypedTrees {
         requirement: SymbolHandle,
         scope: &crate::trait_definition::AppliedTraitScope<'_>,
     ) -> bool {
-        use crate::type_identity::{
-            AppliedTypeIdentityScope, IndexIdentityArgument, TypeIdentityQualification,
-            applied_lifetime_identity, applied_static_parameter_identity,
-            local_trait_application_identity,
-        };
         let mut headers = self
             .instantiated_requirement_signatures
             .iter()
@@ -443,12 +438,86 @@ impl TypedTrees {
         if rows.next().is_some() {
             return false;
         }
-        let Ok(application) =
-            static_applications::StaticApplicationView::new(self, row.binding_application)
+        self.requirement_interface_application_matches_scope(
+            original.symbol,
+            row.binding_application,
+            scope,
+        )
+    }
+
+    /// A caller-owned logical contract and a produced public header use the
+    /// same full original interface application comparison. This authenticates
+    /// identity only; it does not choose a provider or admit a body.
+    pub fn requirement_call_application_matches_scope(
+        &self,
+        requirement: SymbolHandle,
+        application: static_applications::StaticMachineApplicationHandle,
+        scope: &crate::trait_definition::AppliedTraitScope<'_>,
+    ) -> bool {
+        let Some(public) =
+            self.selected_public_trait_requirement_signature(requirement, application)
         else {
             return false;
         };
-        if application.declaration().symbol() != original.symbol {
+        if !application.is_valid() {
+            return public.signature.symbol == public.declaration.symbol
+                && static_applications::original_requirement_is_complete(
+                    self,
+                    scope.declaration.symbol,
+                    public.declaration.symbol,
+                )
+                && scope.declaring_scope(self, public.owner.symbol).is_some();
+        }
+        if public.signature.symbol != public.declaration.symbol {
+            // A produced executable header must retain its own complete
+            // interface roster. A logical call cannot repair a missing row.
+            return self.requirement_application_matches_scope(requirement, scope);
+        }
+        // A logical caller contract can precede an executable header. Its own
+        // complete selected-interface tuple is the input, never guessed values
+        // from the callee or an unrelated interface's application roster.
+        let original = self
+            .expression_table
+            .static_machine_application(application);
+        let interface = if original.selected_interface.is_valid() {
+            original.selected_interface
+        } else {
+            public.owner.symbol
+        };
+        interface == scope.declaration.symbol
+            && self.requirement_interface_application_matches_scope(
+                public.declaration.symbol,
+                application,
+                scope,
+            )
+    }
+
+    fn requirement_interface_application_matches_scope(
+        &self,
+        requirement_template: SymbolHandle,
+        application_handle: static_applications::StaticMachineApplicationHandle,
+        scope: &crate::trait_definition::AppliedTraitScope<'_>,
+    ) -> bool {
+        use crate::type_identity::{
+            AppliedTypeIdentityScope, IndexIdentityArgument, TypeIdentityQualification,
+            applied_lifetime_identity, applied_static_parameter_identity,
+            local_trait_application_identity,
+        };
+        let interface = scope.declaration;
+        if interface.conformance_bounds.iter().any(|bound| {
+            !self
+                .trait_type_parameters(interface)
+                .iter()
+                .any(|parameter| parameter.symbol == bound.binder)
+        }) {
+            return false;
+        }
+        let Ok(application) =
+            static_applications::StaticApplicationView::new(self, application_handle)
+        else {
+            return false;
+        };
+        if application.declaration().symbol() != requirement_template {
             return false;
         }
         let Some(owner) = application.application().type_identity_owner(self) else {
