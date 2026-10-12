@@ -1,0 +1,52 @@
+// With closed stdin the application rejects the missing record.
+// Expected exit: 64.
+// Expected output contains: INVALID: expected
+use omega_language_std::console;
+use omega::language::core::binding;
+use clearance::model;
+use clearance::search;
+use input::parse;
+use reporting::certificate;
+
+data Clearance {
+    console: Binding<Console>;
+    input: [u8; 11];
+    plan: Plan;
+    certificate: Certificate;
+}
+
+machine Clearance::main(clearance: &mut Clearance) reaches Console {
+    let read: LineReadResult = block clearance.console.read_line(&mut clearance.input);
+    transition read {
+        LineReadResult::LineComplete { count } -> newline(clearance, count)
+        LineReadResult::EndOfInput { count } -> eof(clearance, count)
+        _ -> invalid(clearance)
+    }
+    state newline(clearance: &mut Clearance, count: u64) {
+        transition count == 11 && clearance.input[10] == 10 {
+            true -> decode(clearance)
+            false -> invalid(clearance)
+        }
+    }
+    state eof(clearance: &mut Clearance, count: u64) {
+        transition count == 10 {
+            true -> decode(clearance)
+            false -> invalid(clearance)
+        }
+    }
+    state decode(clearance: &mut Clearance) {
+        let valid: bool = parse(&clearance.input, &mut clearance.plan);
+        transition valid {
+            true -> route(clearance)
+            false -> invalid(clearance)
+        }
+    }
+    state route(clearance: &mut Clearance) {
+        solve(&clearance.plan, &mut clearance.certificate);
+        report(&mut clearance.console, &clearance.certificate);
+    }
+    state invalid(clearance: &mut Clearance) {
+        clearance.console.write_line("INVALID: expected H0 HE F1 C1 F2 C2 F3 C3 F4 C4, ten digits; each floor<=ceiling");
+        clearance.console.exit_process(64);
+    }
+}

@@ -1,111 +1,77 @@
 # Clearance route planner (ADD11)
 
-A complete bounded hoist-clearance route planner in Omega. Inputs and the
-scientific model are synthetic: a hoist carries a load through four consecutive
-spans, each admitting an integer operating height (decimeters) inside
-`[floor, ceiling]`. The rigging adjusts at most four height units between
-adjacent spans, and the final span must deliver the required end height. This
-is a small exact planning demonstration, not a lifting-safety recommendation.
+This Omega application plans a swept-disk path through a fixed six-node
+two-dimensional roadmap. Two synthetic scenes contain rectangular walls and
+one or two circular obstacles. The input selects radius 0..5 and scene 0..1.
+Feasibility uses exact squared segment-to-center distance; tangency is allowed.
+Each edge costs `floor(1000 * Euclidean length)`. The planner minimizes that
+integer cost over the finite roadmap and emits coordinates and clearance.
 
-The private search enumerates all 10,000 four-span height words and admits each
-obeying the per-span clearance bounds, the four-unit step limit, and the end
-height. The objective minimizes total vertical travel; every profile tied on
-that objective is counted, and the lexicographically smallest optimal profile
-is emitted. The output includes the feasible count, optimal ties, minimum
-travel, and the chosen span heights.
+The program independently rechecks a selected path. If no path exists, it
+checks a separating cut containing the start and excluding the goal. Blocked
+endpoints produce a separate diagnostic. This establishes results for the
+declared roadmap; it does not search every curve in the plane.
 
-## Input and output
+## Input and frozen results
 
-Provide one ten-digit ASCII record, optionally followed by LF:
-`H0 HE F1 C1 F2 C2 F3 C3 F4 C4` with no spaces. `H0`/`HE` are start/required-end
-heights 0..9; each span's floor `F` and ceiling `C` are 0..9 and must satisfy
-floor <= ceiling. Invalid syntax or bounds exit 64; a valid but infeasible
-model exits 2; an optimum exits 0. The bounded reader consumes the first
-record; it accepts EOF after ten digits, preserves LF, and rejects CRLF, short
-lines and overlong first lines.
+Input is exactly `radius scene` followed by LF, for example `2 0\n`. A route
+exits 0; an infeasible roadmap or blocked endpoint exits 2. Malformed input,
+including EOF without LF, exits 64. Program stderr is empty.
 
-For `3309090909`, start/end 3 with all spans 0..9 gives 373 feasible profiles,
-one optimum at travel 000: profile 3,3,3,3. For `0209090909`, start 0 end 2
-over open spans gives 210 feasible profiles and 10 optimal ties at travel 002;
-the lexicographic optimum is 0,0,0,2. Every numeric output field is fixed-width
-decimal; [data/frozen_oracles.json](data/frozen_oracles.json) records exact
-expected bytes.
+All twelve radius/scene combinations and ten malformed inputs are frozen in
+`data/expected.json`. Its original SHA-256 is
+`f595b43edd2a90a959b0c90a23e84845711224faf0d3e9d551836970947d5897`.
+Input bytes, output bytes, exits, coordinates, costs and clearances are retained.
+Feasibility and quantized path costs have zero tolerance. Clearance truncation
+satisfies `0 <= exact clearance - reported/1000 < 0.001`.
 
-## Structure and independence
+The independent reference uses projection coordinates and exact Python
+fractions, enumerating all 65 simple start-to-goal paths. Omega uses a cross
+product distance formula and a six-node Dijkstra search. The reference checks
+the frozen file and refuses to overwrite it unless explicitly freezing a new,
+absent file. Validation never changes expected data or package decisions.
 
-`main.omg` owns input and the entrypoint; `build.omg` binds exact target entry
-slots. `input/parse.omg`, `clearance/{model,search}.omg`, and
-`reporting/certificate.omg` own the whole workflow. The only dependency is the
-stable repository std package and existing Console providers. There are no
-numerics-library or worker-candidate imports and no shared exports.
+## Recovered provenance
 
-Existing samples were searched for clearance, route, profile and hoist
-semantics. `sample_collection_routing` optimizes timed pickup/drop tours on a
-line; `transport_planner` solves a transportation network; neither plans
-height profiles under per-span clearance and step limits. This application
-adds exhaustive constrained profile planning and runtime input, rather than
-renamed constants or a constant-expression witness.
+The original source candidate was
+`cbecd3b1c30c9961dc195aa8a1104c7add668660`. These application, invalid-control and
+borrow-witness bodies were reconstructed from its retained authoring literals
+and later recorded text substitutions. Their derived hashes are recorded in
+`validation/recovery.json`. The complete original archive's final per-file
+manifest is unavailable, so full archive byte equivalence is not claimed.
+The original reference and scene literals reproduce the independently recorded
+frozen oracle hash exactly.
 
-## Provenance
+Historical review, lock, approval commands and holds supplied provenance only.
+Current admission and execution use the ordinary project workflow. The separate
+`bounded_hoist_planner` project preserves the later synthetic height-profile
+reconstruction and its distinct frozen suite.
 
-This is a reconstruction, not recovered source. The original ADD11
-candidate, its 22 oracles and its review archive are absent from every
-reachable Git ref and the Library download route returns HTTP 401; only the
-name, the oracle count, and the completion obligations survived in the
-handoff. The model above is authored fresh against repository contracts in
-the established independent-sample shape, marked here as new provenance; the
-22 fixtures below are a new frozen suite, not recovered bytes.
+## Normal qualification
 
-## Frozen validation
-
-The independent Python oracle searches the per-span allowed ranges by forward
-product scan, then takes the minimum travel cost, counts tied profiles, and
-selects their lexicographic minimum. This differs from Omega's 10,000-word
-filter. The oracle and 22 fixtures were frozen before any Omega
-run. Absolute/relative tolerances are both zero. Inputs cover flat corridors,
-forced dips and rises, step-limited ascents and descents, tied optima, narrow
-bounds, exact/infeasible ends, EOF, and malformed records.
-`validate.py` checks fixture hashes, exact stdout, stderr and exit codes and writes
-actual stdout/stderr under ignored `build/validation-{native,both,terminal}`.
-It never accepts packages or regenerates expected data. `--route terminal`
-uses the public Terminal runtime through the linked harness in `validation/`
-and compares real stdout/stderr/exit, not only termination.
-Program stderr must be empty. When executing through `omega run`, validation
-also requires the CLI's exact native exit report, plus its interpreter exit
-report for `--both`; unexpected stderr fails validation.
-
-The separate [intended-invalid source](controls/intended_invalid/main.omg)
-is a complete dependency-free package source that writes index four of a
-four-slot carrier. The documented rule is
-[collection bounds](../../../../wiki/spec/language/numeric_values.md#collection-bounds).
-Its expected rejection is `cannot prove index `4` is within length 4`.
-A package-review, parser, or other rejection is not an invalid-control pass.
-
-## Reproduce through ordinary facilities
-
-From the repository root, set `OMEGA_LIBRARY_ROOT` to that checkout's
-`source/library`, and use the compiler binary built from that revision. Build
-one Rust compiler and execute one Omega command at a time. Substitute the
-verified absolute binary path for `$omega_binary` below.
+Use the compiler built from the recorded source revision and set
+`OMEGA_LIBRARY_ROOT` to this checkout's `source/library`. From repository root:
 
 ```sh
 sample=samples/cli/independent/clearance_route_planner
-"$omega_binary" update --project "$sample" --target linux_x86_64
-# Inspect the generated review and its findings; edit each pending decision.
-# Resume only an accepted review, and never retry a denied acceptance.
+"$omega_binary" update --project "$sample" --target linux_x86_64 --offline
+# Inspect the current proposed dependency/source decisions and findings.
+# Resume the same proposal after its exact decisions are reviewed.
 "$omega_binary" update --resume --project "$sample"
-"$omega_binary" --check --target linux_x86_64 --build-dir "$sample/build/check" "$sample/main.omg"
-python3 "$sample/validate.py" --omega "$omega_binary" --route native
-# Or compile once and pass the exact artifact path from the compiler report:
-# python3 "$sample/validate.py" --executable "$reported_artifact" --route native
-python3 "$sample/validate.py" --omega "$omega_binary" --route both
-python3 "$sample/validation/build_terminal.py" --omega "$omega_binary" --output "$sample/build/terminal-harness"
-python3 "$sample/validate.py" --route terminal --terminal-harness "$sample/build/terminal-harness"
-"$omega_binary" --check --target linux_x86_64 --build-dir "$sample/build/invalid" "$sample/controls/intended_invalid/main.omg"
+"$omega_binary" --check --target linux_x86_64 "$sample/main.omg"
+python3 "$sample/reference.py"
+python3 "$sample/validation/build_runtime.py" --omega "$omega_binary" --output "$sample/build/runtime-validator"
+python3 "$sample/validate.py" --omega "$omega_binary" --runtime-harness "$sample/build/runtime-validator"
 ```
 
-The control has no external package review; a lock from another worktree is not
-acceptance for the valid application. macOS ARM64 and Windows x86-64 have
-declared entry bindings; their execution is not implied by Linux evidence.
-Generated output and local lock acceptance are excluded from the candidate;
-review on another executor must establish its own package acceptance.
+The private observer compiles through the normal prepared native report, runs
+the actual native executable and the retained public Terminal artifact with
+that report's runtime provisions, and checks all 22 stdout/stderr/exits.
+CLI `--both` is an additional check of both engines' termination reports.
+
+`invalid/main.omg` is the original complete control: an unguarded ordinal
+indexes six nodes and must reject with ``cannot prove index `ordinal` ``.
+An unrelated package, parser or provider refusal does not satisfy that oracle.
+`repro/main.omg` retains the original bounded-byte loan witness, whose authored
+exit is 70. Linux execution does not imply matching-host native qualification
+of the declared macOS ARM64 or Windows x86-64 entries.
