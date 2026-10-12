@@ -438,6 +438,7 @@ pass/float/runtime_format_conversion_result_bounds_exit built 9135ms exit:0 inte
 pass/float/runtime_named_policy_conversion_composition_exit built 9050ms exit:70 interpreter-exit:70 interpreter:agrees @cba4ef8c9ab1
 pass/float/runtime_named_policy_result_exit built 8979ms exit:70 interpreter-exit:70 interpreter:agrees @cba4ef8c9ab1
 pass/float/runtime_qualified_carrier_conversion_exit built 4391ms exit:0 interpreter-exit:0 interpreter:agrees @f66070cc72a5+wt
+pass/float/runtime_refined_conversion_target_exit built 8596ms exit:0 interpreter-exit:0 interpreter:agrees @9be27a3951a7
 pass/float/runtime_result_predicate_custody_exit built 9141ms exit:0 interpreter-exit:0 interpreter:agrees @e2eb2e0b9606
 pass/float/runtime_total_order_satisfiers_exit built 19626ms exit:70 interpreter-exit:70 interpreter:agrees @7e0a52664189
 pass/float/saturating_named_operations_retain_ordered_inputs built 8797ms exit:0 interpreter-exit:0 interpreter:agrees @cba4ef8c9ab1
