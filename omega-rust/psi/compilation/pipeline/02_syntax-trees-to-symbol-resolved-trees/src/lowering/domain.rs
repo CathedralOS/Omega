@@ -14,6 +14,19 @@ use symbols::JoinedPath;
 use symbols::SymbolHandle;
 use syntax_trees::{self as syntax, SyntaxTrees};
 
+/// The exact root produced while lowering a declaration, before indexing.
+/// These ordinals are construction custody, never a cross-program identity.
+#[derive(Clone, Copy)]
+pub(crate) enum DeclarationLexicalInputOwner {
+    Data(usize),
+    Machine(usize),
+}
+
+pub(crate) struct DeclarationLexicalInputs {
+    pub(crate) owner: DeclarationLexicalInputOwner,
+    pub(crate) types: Vec<symbol_resolved_trees::types::TypeReference>,
+}
+
 pub(crate) fn lower_domain_definition(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
@@ -212,7 +225,7 @@ pub(crate) fn lower_proof_facts(
     syntax_trees: &SyntaxTrees,
     facts: arena::HandleSpan<syntax::item::ProofFact>,
 ) -> Result<arena::HandleSpan<ProofFact>, Diagnostic> {
-    lower_proof_facts_excluding(lowerer, syntax_trees, facts, &[])
+    lower_proof_facts_excluding(lowerer, syntax_trees, facts, &[], None)
 }
 
 /// Lower runtime facts while leaving template instantiation obligations with
@@ -223,7 +236,40 @@ pub(crate) fn lower_proof_facts_excluding(
     syntax_trees: &SyntaxTrees,
     facts: arena::HandleSpan<syntax::item::ProofFact>,
     instantiation_obligation_offsets: &[usize],
+    lexical_owner: Option<DeclarationLexicalInputOwner>,
 ) -> Result<arena::HandleSpan<ProofFact>, Diagnostic> {
+    if matches!(
+        lowerer.const_resolution_mode,
+        crate::resolution::lowerer::ConstResolutionMode::ArgumentSelection
+    ) && let Some(owner) = lexical_owner
+    {
+        let mut references = Vec::new();
+        for (offset, fact) in syntax_trees.items.proof_facts(facts).iter().enumerate() {
+            if !instantiation_obligation_offsets.contains(&offset) {
+                continue;
+            }
+            for reference in
+                crate::preparation::generic_data::proof_fact_type_inputs(syntax_trees, fact)
+            {
+                if !references.contains(&reference) {
+                    references.push(reference);
+                }
+            }
+        }
+        let mut types = Vec::with_capacity(references.len());
+        for reference in references {
+            types.push(lower_type_reference_handle(
+                lowerer,
+                syntax_trees,
+                reference,
+            )?);
+        }
+        if !types.is_empty() {
+            lowerer
+                .pending_declaration_lexical_inputs
+                .push(DeclarationLexicalInputs { owner, types });
+        }
+    }
     let mut lowered = arena::HandleSpan::empty();
 
     for (offset, fact) in syntax_trees.items.proof_facts(facts).iter().enumerate() {

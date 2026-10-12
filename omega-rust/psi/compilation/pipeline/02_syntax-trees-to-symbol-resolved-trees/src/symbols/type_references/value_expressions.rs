@@ -12,6 +12,149 @@ use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use crate::symbols::{expressions::assign_statement_expression_symbols, scope::MachineScope};
 
+/// Resolve one-shot declaration inputs using the indexed owner that produced
+/// them. Equations remain solver obligations; no runtime fact or statement is
+/// installed, and no initializer/name correspondence supplies this telescope.
+pub(in crate::symbols) fn assign_declaration_lexical_input_symbols(
+    program: &mut symbol_resolved_trees::SymbolResolvedTrees,
+    symbols: &SymbolTable,
+    inputs: &mut [crate::lowering::domain::DeclarationLexicalInputs],
+) -> Result<(), diagnostics::Diagnostic> {
+    use crate::lowering::domain::DeclarationLexicalInputOwner;
+    let attached_machines = crate::symbols::scope::attached_machines(program);
+    let trait_scopes = crate::symbols::scope::TraitLexicalScopes::of(program);
+    let declarations = &mut program.tables.declarations;
+    let context = crate::symbols::scope::ContractScopeContext {
+        attached_machines: &attached_machines,
+        resolution_indexes: &program.resolution_indexes,
+        data_definitions: &program.roots.data_definitions,
+        data_members: &declarations.data_members,
+        data_payload_fields: &declarations.data_payload_fields,
+        type_constraints: &program.tables.types.constraints,
+    };
+    for input in inputs {
+        let (
+            owner,
+            requirements,
+            type_parameters,
+            attached_data,
+            attached_data_symbol,
+            inherited_members,
+            owned_data,
+            parameters,
+            state_symbol,
+        ) = match input.owner {
+            DeclarationLexicalInputOwner::Data(ordinal) => {
+                let definition = program
+                    .roots
+                    .data_definitions
+                    .iter()
+                    .nth(ordinal)
+                    .ok_or_else(|| {
+                        diagnostics::Diagnostic::error(
+                            "declaration lexical input lost its indexed data owner",
+                        )
+                    })?;
+                (
+                    definition.symbol,
+                    crate::symbols::scope::LexicalRequirements::none(),
+                    crate::symbols::scope::declaration_type_scope(
+                        declarations
+                            .data_type_parameters
+                            .span_or_empty(definition.type_parameters),
+                        &[],
+                    ),
+                    Some(&definition.name),
+                    definition.symbol,
+                    Some(declarations.data_members.span_or_empty(definition.members)),
+                    &[][..],
+                    &[][..],
+                    SymbolHandle::invalid(),
+                )
+            }
+            DeclarationLexicalInputOwner::Machine(ordinal) => {
+                let machine = program.roots.machines.iter().nth(ordinal).ok_or_else(|| {
+                    diagnostics::Diagnostic::error(
+                        "declaration lexical input lost its indexed machine owner",
+                    )
+                })?;
+                let attached = program
+                    .roots
+                    .data_definitions
+                    .iter()
+                    .find(|definition| definition.symbol == machine.attached_data_symbol);
+                let type_parameters = crate::symbols::scope::declaration_type_scope(
+                    declarations
+                        .data_type_parameters
+                        .span_or_empty(machine.type_parameters),
+                    attached.map_or(&[], |definition| {
+                        declarations
+                            .data_type_parameters
+                            .span_or_empty(definition.type_parameters)
+                    }),
+                );
+                let entry = declarations
+                    .machine_state_handles
+                    .span_or_empty(machine.states)
+                    .first()
+                    .map(|handle| declarations.machine_states.get(*handle));
+                (
+                    machine.symbol,
+                    trait_scopes.requirements_of(machine.trait_default_origin.declaring_trait),
+                    type_parameters,
+                    machine.attached_data.as_ref(),
+                    machine.attached_data_symbol,
+                    attached.map(|definition| {
+                        declarations.data_members.span_or_empty(definition.members)
+                    }),
+                    declarations
+                        .machine_owned_data
+                        .span_or_empty(machine.owned_data),
+                    entry.map_or(&[], |state| {
+                        declarations
+                            .state_parameters
+                            .span_or_empty(state.parameters)
+                    }),
+                    entry.map_or(SymbolHandle::invalid(), |state| state.symbol),
+                )
+            }
+        };
+        if !owner.is_valid() {
+            return Err(diagnostics::Diagnostic::error(
+                "declaration lexical input has an unbound owner",
+            ));
+        }
+        let scope = context.scope(
+            owner,
+            requirements,
+            &type_parameters,
+            attached_data,
+            attached_data_symbol,
+            inherited_members,
+            owned_data,
+        );
+        for reference in &mut input.types {
+            super::assign_type_reference_symbol_with_locals_and_constraints(
+                symbols,
+                &mut declarations.child_type_references,
+                &program.tables.types.constraints,
+                &type_parameters,
+                reference,
+            );
+            assign_type_value_expression_symbols(
+                symbols,
+                &scope,
+                parameters,
+                state_symbol,
+                &mut program.tables.bodies.expressions,
+                &mut declarations.child_type_references,
+                reference,
+            );
+        }
+    }
+    Ok(())
+}
+
 /// Declaration types and application tuples contain the same value expressions
 /// as parameter types. Resolve them after declaration and type identities exist,
 /// before typing can consume an unresolved cast or call in a constant position.

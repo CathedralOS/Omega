@@ -45,7 +45,7 @@ mod synthesis;
 mod uses;
 mod work_domain;
 
-pub(crate) use uses::statement_type_inputs;
+pub(crate) use uses::{proof_fact_type_inputs, statement_type_inputs};
 
 pub(crate) use arguments::{
     DomainCarrier, DomainHead, closed_argument_identity, domain_application_head,
