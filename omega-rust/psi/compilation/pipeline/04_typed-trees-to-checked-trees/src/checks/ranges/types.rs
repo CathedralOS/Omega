@@ -11,6 +11,25 @@ use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
+/// Same-carrier integer casts preserve positions, not domain or loan authority.
+pub(super) fn same_carrier_integer_cast_source(
+    program: &dyn ::validation::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    let ExpressionNode::Cast(cast) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if cast.form.is_recast() {
+        return None;
+    }
+    let target = program.primitive_type_reference(cast.target_type)?;
+    let source = validation::expression_result_type_reference(program, machine, state, cast.value)
+        .and_then(|reference| program.primitive_type_reference(reference))?;
+    (target.is_fixed_integer() && target == source).then_some(cast.value)
+}
+
 /// Whether `expression`'s type is provably an UNSIGNED integer primitive. An
 /// unsigned index is non-negative by construction, so it discharges the lower
 /// half of the index obligation (`0 <= i`) by type and never needs a separate
@@ -688,6 +707,9 @@ pub(in crate::checks::ranges) fn expression_type_reference(
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     match program.expression_table.expression(expression) {
+        ExpressionNode::Cast(_) => {
+            validation::expression_result_type_reference(program, machine, state, expression)
+        }
         ExpressionNode::ArrayLiteral(_) => {
             validation::declared_constant_array_type(program, expression)
         }

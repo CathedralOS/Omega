@@ -6410,3 +6410,16 @@ pass/recast/reference_view_helper_backing_write_exit checked 3343ms check-target
 pass/recast/reference_view_shared_call_backing_exit checked 3329ms check-target:macos_arm64 @2430f497a77c+wt
 pass/recast/reference_view_shared_primitive_neighbor_exit checked 3328ms check-target:macos_arm64 @2430f497a77c+wt
 pass/termination/runtime_rank_arrival_field_premise_disjoint_write_exit checked 4465ms check-target:macos_arm64 @5135246a13ab+wt
+# Same-carrier position regressions; new observations only.
+pass/slices/runtime_same_carrier_inline_cast_index_exit checked 8205ms check-target:macos_arm64 @2ab552549670+wt
+pass/slices/same_carrier_index_cast_alias_compile checked 2355ms @2ab552549670+wt
+fail/slices/same_carrier_cast_reassigned_index rejected 819ms expected @2ab552549670+wt
+	cannot prove index `position` is within unknown slice length of `items` in read::entry
+fail/slices/same_carrier_cast_wrong_collection_index rejected 755ms expected @2ab552549670+wt
+	cannot prove index `position` is within unknown slice length of `other` in read::entry
+fail/slices/same_carrier_inline_cast_after_index_write rejected 765ms expected @2ab552549670+wt
+	cannot prove index `position as u64` is within unknown slice length of `items` in read::entry
+fail/slices/same_carrier_inline_cast_wrong_collection rejected 765ms expected @2ab552549670+wt
+	cannot prove index `index as u64` is within unknown slice length of `other` in read::entry
+fail/slices/signed_to_unsigned_cast_does_not_inherit_position rejected 291ms expected @2ab552549670+wt
+	Exact integer cast in machine `read` state `entry` from `i64` to `u64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.

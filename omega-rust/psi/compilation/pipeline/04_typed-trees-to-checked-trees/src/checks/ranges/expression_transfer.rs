@@ -168,6 +168,12 @@ impl ExpressionTransfer<'_, '_> {
                 );
             }
             ExpressionNode::Cast(cast) => {
+                let source = super::types::same_carrier_integer_cast_source(
+                    self.program,
+                    self.machine,
+                    self.state,
+                    expression,
+                );
                 // A recast's direct indexed operand selects an address; the
                 // recast checker owns its footprint. Nested operand reads
                 // retain their ordinary element bounds obligations.
@@ -179,6 +185,20 @@ impl ExpressionTransfer<'_, '_> {
                     self.transfer(facts, indexed.index, sink);
                 } else {
                     self.transfer(facts, cast.value, sink);
+                    if let Some(source) = source {
+                        // Retain the operand's reads so later mutations retire
+                        // the cast's position facts, not just the source facts.
+                        facts.record_expression_dependencies(
+                            self.program,
+                            self.machine,
+                            self.state,
+                            expression,
+                        );
+                        facts.alias_index(
+                            &self.program.expression_table.display_name(source),
+                            &self.program.expression_table.display_name(expression),
+                        );
+                    }
                 }
             }
             ExpressionNode::Indexed(indexed) => {

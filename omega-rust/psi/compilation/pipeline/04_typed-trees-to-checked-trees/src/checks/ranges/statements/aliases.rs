@@ -50,12 +50,15 @@ pub(in crate::checks::ranges) fn seed_local_alias_facts(
         // arithmetic label denotes, so index-POSITION facts keyed on that
         // label (e.g. a `requires self.length - 1 < self.items.len` index
         // proof) transfer to the local. Collection facts do not transfer —
-        // arithmetic is not a place.
-        if matches!(
-            program.expression_table.expression(value),
-            ExpressionNode::Binary(_)
-        ) {
-            let source_label = program.expression_table.display_name(value);
+        // neither arithmetic nor a same-carrier value cast is a place.
+        let scalar_source = match program.expression_table.expression(value) {
+            ExpressionNode::Binary(_) => Some(value),
+            _ => super::super::types::same_carrier_integer_cast_source(
+                program, machine, state, value,
+            ),
+        };
+        if let Some(source) = scalar_source {
+            let source_label = program.expression_table.display_name(source);
             if !source_label.is_empty() && source_label != target_label {
                 facts.alias_index(&source_label, &target_label);
             }
