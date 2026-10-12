@@ -1,0 +1,29 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Pair { left: u64; right: u64; }
+
+machine supply(flag: bool) -> Pair {
+    transition flag {
+        true -> (Pair { left: 70, right: 0 })
+        _ -> (Pair { left: 0, right: 70 })
+    }
+}
+
+machine decide(flag: bool) -> Pair {
+    transition flag {
+        true -> (supply(flag))
+        _ -> (Pair { left: 9, right: 9 })
+    }
+}
+
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    let result: Pair = decide(true);
+    transition result.left | result.right == 70 {
+        true -> good(main)
+        _ -> bad2(main)
+    }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad2(main: &mut Main) { main.console.exit_process(71); }
+}

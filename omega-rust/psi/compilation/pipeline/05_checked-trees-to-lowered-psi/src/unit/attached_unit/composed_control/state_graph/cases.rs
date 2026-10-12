@@ -392,13 +392,13 @@ pub(super) fn validate(
                         return unsupported("Unit case completion lacks subject disposal custody");
                     }
                     checked_trees::CheckedConditionalReturnArm::Structural(operation) => {
-                        if !matches!(
-                            operation,
-                            CheckedUnitEffectOperationPlan::EstablishLocal(
-                                checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { .. }
-                            ) | CheckedUnitEffectOperationPlan::EstablishReference { .. }
-                                | checked_trees::byte_sequence_establishment_pattern!()
-                        ) {
+                        // The arm carries whichever operation produces the
+                        // returned structural: a local/reference/view
+                        // establishment or the call that binds the result.
+                        // Emission runs the operation and completes from its
+                        // published result binding, so admission asks the same
+                        // question the emitter does.
+                        if operation.structural_result_binding().is_none() {
                             return unsupported("Unit case return arm lost its producer");
                         }
                     }
