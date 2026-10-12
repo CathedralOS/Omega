@@ -1,0 +1,1 @@
+evaluates physical requirement `UefiPhysicalEntry::enter` with SystemVAMD64

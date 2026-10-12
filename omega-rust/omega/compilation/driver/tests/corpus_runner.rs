@@ -119,6 +119,14 @@
 //! projects a restricted request. Both the refusal and absence of authored
 //! effects are checked before the test directory is discarded.
 //!
+//! `accepted_entry_supplier.txt` supplies the consumer's explicit program-entry
+//! acceptance: one declared dependency's package name per line makes that
+//! package's `targets/<target>/entry.omg` schema the accepted `ProgramEntry`
+//! binding for the compile, replacing the bundled library's default. A fixture
+//! uses it to compile a different accepted contract than the bundled one —
+//! for example a supplier whose valid physical convention mismatches the
+//! selected slot.
+//!
 //! Record format, read by `tools/corpus_records.py`: one line per fixture,
 //! `<tier/group/name> <status> <milliseconds>ms`, followed by ` expected` or
 //! ` unexpected` when the fixture's `expected.txt` fragments were weighed

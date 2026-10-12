@@ -30,6 +30,16 @@
 //! Acceptance here is test policy, not evidence that an audit occurred and not
 //! production accepted-lock recovery; every admitted row is derived from and
 //! replayed against the exact preliminary checked graph.
+//!
+//! The bundled library supplies the default reviewed `ProgramEntry` candidate.
+//! When a fixture needs its consumer to accept a *different* package's entry
+//! contract — for example a vendored `targets/<target>/entry.omg` whose
+//! physical convention intentionally disagrees with the selected slot — it
+//! authors `accepted_entry_supplier.txt` at the fixture root with one declared
+//! dependency's package name per line. Each named package's contract source is
+//! compiled through the reviewed-candidate route and its binding replaces the
+//! bundled default for that compile's entry role, so an explicit supplier
+//! decision cannot create a duplicate accepted binding role.
 
 // Shared across test targets through `#[path]`; each target uses the subset
 // its fixtures need.
@@ -579,6 +589,31 @@ fn derive_program_entry_binding(
     standard_library_root: &Path,
     standard_library: PackageKeyIdentity,
 ) -> Result<Option<AcceptedSemanticBinding>, Vec<Diagnostic>> {
+    derive_supplier_program_entry_binding(
+        target_name,
+        standard_library,
+        standard_library_root,
+        vec![PackageSourceBinding::new(
+            standard_library,
+            "omega_language_std",
+            standard_library_root.to_path_buf(),
+        )],
+        Vec::new(),
+    )
+}
+
+/// The reviewed `ProgramEntry` candidate an explicit entry-contract supplier
+/// owns for `target_name`, derived exactly the way the bundled candidate is:
+/// the supplier's own `targets/<target>/entry.omg` is compiled as a package
+/// root with the supplier's authored dependency edges, and its exact
+/// schema declaration binding is replayed from that checked graph.
+fn derive_supplier_program_entry_binding(
+    target_name: &str,
+    supplier: PackageKeyIdentity,
+    supplier_root: &Path,
+    packages: Vec<PackageSourceBinding>,
+    dependencies: Vec<PackageDependencyBinding>,
+) -> Result<Option<AcceptedSemanticBinding>, Vec<Diagnostic>> {
     let profile = TargetProfile::from_canonical_target_name(target_name)
         .map_err(|diagnostic| vec![diagnostic])?;
     let (target_name, role, schema) = match profile {
@@ -618,25 +653,18 @@ fn derive_program_entry_binding(
     };
     // Check the package-owned target contract independently on every derivation;
     // application discovery alone cannot authorize the program-entry role.
-    let inputs = PackageCompilationInputs::new_package(
-        standard_library,
-        vec![PackageSourceBinding::new(
-            standard_library,
-            "omega_language_std",
-            standard_library_root.to_path_buf(),
-        )],
-        Vec::new(),
-    )
-    .map_err(|errors| {
-        vec![Diagnostic::error(format!(
-            "entry fixture inputs: {errors:?}"
-        ))]
-    })?;
+    let inputs = PackageCompilationInputs::new_package(supplier, packages, dependencies).map_err(
+        |errors| {
+            vec![Diagnostic::error(format!(
+                "entry fixture inputs: {errors:?}"
+            ))]
+        },
+    )?;
     let checked = compiler::CompilationSession::default()
         .check(CheckedCompileRequest {
             package_inputs: Some(inputs),
             ..CheckedCompileRequest::new(
-                &standard_library_root.join(format!("targets/{target_name}/entry.omg")),
+                &supplier_root.join(format!("targets/{target_name}/entry.omg")),
                 Some(target_name),
             )
         })
@@ -647,7 +675,7 @@ fn derive_program_entry_binding(
         .candidate_service_binding(
             &checked.providers().boundary_calling_plan_realizations,
             role,
-            standard_library,
+            supplier,
             schema,
         )
         .map(Some)
@@ -762,8 +790,30 @@ pub fn reviewed_repository_fixture_package_inputs(
         .any(|(identity, _)| identity == standard_library_identity);
     let standard_library_root = bundled_standard_library_root();
     let mut bindings = Vec::new();
+    // A fixture that authors `accepted_entry_supplier.txt` has decided which
+    // declared dependency's entry contract its consumer accepted for this
+    // compile's entry role; that binding replaces the bundled default (the
+    // role admits exactly one accepted binding).
+    let accepted_suppliers = accepted_entry_suppliers(authored_project_root);
+    for supplier_name in &accepted_suppliers {
+        let Some(target_name) = target_name else {
+            panic!(
+                "fixture {} authors accepted_entry_supplier.txt but is compiled for no target",
+                authored_project_root.display()
+            )
+        };
+        bindings.push(accepted_supplier_program_entry_binding(
+            authored_project_root,
+            target_name,
+            supplier_name,
+            &package_inputs,
+        )?);
+    }
     // Entry acceptance is decided by the target profile, not by spelling.
-    if declares_standard_library && let Some(target_name) = target_name {
+    if accepted_suppliers.is_empty()
+        && declares_standard_library
+        && let Some(target_name) = target_name
+    {
         bindings.extend(memoized_program_entry_binding(
             target_name,
             &standard_library_root,
@@ -814,6 +864,100 @@ pub fn reviewed_repository_fixture_package_inputs(
     Ok(ReviewedFixtureCompilation {
         root_path,
         package_inputs: Some(package_inputs),
+    })
+}
+
+/// The package names a fixture's `accepted_entry_supplier.txt` declares, one
+/// per line; blank lines and `//` comments are inert. The file is optional:
+/// absent means the bundled library's reviewed candidate is the accepted one.
+fn accepted_entry_suppliers(authored_project_root: &Path) -> Vec<String> {
+    let Ok(text) = fs::read_to_string(authored_project_root.join("accepted_entry_supplier.txt"))
+    else {
+        return Vec::new();
+    };
+    text.lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with("//"))
+        .map(str::to_owned)
+        .collect()
+}
+
+/// The reviewed `ProgramEntry` binding a fixture explicitly accepted from one
+/// declared dependency. The named package must be one of the fixture's
+/// declared dependencies, and the candidate is derived with the supplier's own
+/// authored edges so its contract source compiles exactly the way the
+/// consumer's package graph would compile it.
+fn accepted_supplier_program_entry_binding(
+    authored_project_root: &Path,
+    target_name: &str,
+    supplier_name: &str,
+    package_inputs: &PackageCompilationInputs,
+) -> Result<AcceptedSemanticBinding, Vec<Diagnostic>> {
+    let dependency = fixture_path_dependencies(authored_project_root)
+        .into_iter()
+        .find(|dependency| {
+            dependency.package_name == supplier_name || dependency.alias == supplier_name
+        })
+        .unwrap_or_else(|| {
+            panic!(
+                "fixture {} names `{supplier_name}` in accepted_entry_supplier.txt, which is not a declared dependency",
+                authored_project_root.display()
+            )
+        });
+    let (supplier, supplier_root) = package_inputs
+        .packages()
+        .find(|(identity, _)| {
+            package_inputs.package_name(*identity) == Some(dependency.package_name.as_str())
+        })
+        .unwrap_or_else(|| {
+            panic!(
+                "fixture {}: accepted entry supplier `{supplier_name}` is missing from the bound package graph",
+                authored_project_root.display()
+            )
+        });
+    let mut packages = vec![PackageSourceBinding::new(
+        supplier,
+        dependency.package_name.clone(),
+        supplier_root.to_path_buf(),
+    )];
+    let mut dependencies = Vec::new();
+    for sub_dependency in fixture_path_dependencies(&dependency.location) {
+        let (sub_identity, sub_root) = package_inputs
+            .packages()
+            .find(|(identity, _)| {
+                package_inputs.package_name(*identity)
+                    == Some(sub_dependency.package_name.as_str())
+            })
+            .unwrap_or_else(|| {
+                panic!(
+                    "fixture {}: accepted entry supplier `{supplier_name}` depends on `{}`, which is missing from the bound package graph",
+                    authored_project_root.display(),
+                    sub_dependency.package_name
+                )
+            });
+        packages.push(PackageSourceBinding::new(
+            sub_identity,
+            sub_dependency.package_name,
+            sub_root.to_path_buf(),
+        ));
+        dependencies.push(PackageDependencyBinding::for_purpose(
+            supplier,
+            sub_dependency.alias,
+            sub_identity,
+            sub_dependency.purpose,
+        ));
+    }
+    derive_supplier_program_entry_binding(
+        target_name,
+        supplier,
+        supplier_root,
+        packages,
+        dependencies,
+    )?
+    .ok_or_else(|| {
+        vec![Diagnostic::error(format!(
+            "accepted entry supplier `{supplier_name}` has no reviewed ProgramEntry candidate for {target_name}"
+        ))]
     })
 }
 

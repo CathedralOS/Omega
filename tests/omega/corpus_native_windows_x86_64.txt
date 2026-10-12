@@ -68,6 +68,7 @@ pass/borrows/transition_shared_borrow_result built 2942ms exit:181 interpreter-e
 pass/build/conditional_root_binding built 501ms @0484de104502
 pass/build/described_runner_entry_left_exit built 1196ms exit:11 @0484de104502
 pass/build/described_runner_entry_right_exit built 1180ms exit:37 @0484de104502
+pass/build/entry_schema_same_leaf_exit built 6232ms exit:0 @c46a502724a1+wt
 pass/build/runtime_depend_mapping_exit built 1112ms exit:70 @0484de104502
 pass/build/runtime_main_source_builder_is_ordinary_exit built 1135ms exit:70 @0484de104502
 pass/build/uefi_os_handoff_invocation rejected 1796ms @0484de104502
