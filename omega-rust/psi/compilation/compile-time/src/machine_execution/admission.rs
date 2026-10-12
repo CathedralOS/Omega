@@ -122,6 +122,9 @@ struct BuildTimeBlockingRow {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct BuildTimeCallEdge {
     source_machine_symbol: SymbolHandle,
+    source_state_symbol: SymbolHandle,
+    statement_index: usize,
+    authored_expression: typed_trees::expression::ExpressionHandle,
     target_machine_symbol: SymbolHandle,
     target_state_symbol: SymbolHandle,
     target_operator_symbol: SymbolHandle,
@@ -530,6 +533,7 @@ impl BuildTimeAdmissionPlan {
             program,
             machine,
             discharge_authored_requires,
+            &self.selected_operators,
         );
         let selection_violation = selection_authority_violation(
             &self.call_edges,
@@ -925,6 +929,9 @@ fn project_operational_axes(
                 call_edges.push(executable.map_or(
                     BuildTimeCallEdge {
                         source_machine_symbol: machine.symbol,
+                        source_state_symbol: SymbolHandle::invalid(),
+                        statement_index: usize::MAX,
+                        authored_expression: typed_trees::expression::ExpressionHandle::invalid(),
                         target_machine_symbol: call.target_machine_symbol,
                         target_state_symbol: call.target_state_symbol,
                         target_operator_symbol: call.target_operator_symbol,
@@ -948,11 +955,12 @@ fn project_checked_execution_edges(
     for (_, state) in control.states.iter() {
         for call in control.calls.span_or_empty(state.calls) {
             if !control.is_retired(state.state_symbol, call) {
-                edges.push(execution_edge(
-                    &checked.typed,
-                    state.machine_symbol,
-                    call.target_symbol,
-                ));
+                let mut edge =
+                    execution_edge(&checked.typed, state.machine_symbol, call.target_symbol);
+                edge.source_state_symbol = state.state_symbol;
+                edge.statement_index = call.statement_index;
+                edge.authored_expression = call.authored_expression;
+                edges.push(edge);
             }
         }
     }
@@ -969,6 +977,9 @@ fn execution_edge(
         .or_else(|| program.machine_holding_state(target));
     BuildTimeCallEdge {
         source_machine_symbol,
+        source_state_symbol: SymbolHandle::invalid(),
+        statement_index: usize::MAX,
+        authored_expression: typed_trees::expression::ExpressionHandle::invalid(),
         target_machine_symbol: machine.map_or(SymbolHandle::invalid(), |machine| machine.symbol),
         target_state_symbol: target,
         target_operator_symbol: typed_trees::operator::declaration_by_symbol(program, target)

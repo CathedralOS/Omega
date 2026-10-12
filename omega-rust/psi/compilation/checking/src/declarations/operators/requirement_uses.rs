@@ -24,13 +24,16 @@ use typed_trees::types::PrimitiveType;
 /// provider. An erased lifetime telescope is admitted; it contributes no
 /// static application arguments, so the retained use keys on the same
 /// canonical-empty demand a nongeneric requirement produces.
+/// A pending typed call may still name the exact machine declaration before
+/// ordinary callable preparation publishes its entry state. Both coordinates
+/// select the same declaration; neither spelling nor signature supplies a join.
 /// Lexical resolution owns visibility; a private same-package requirement
 /// uses the same selected-provider route as a public one.
 fn directly_callable_requirement(
     program: &dyn crate::CheckingInput,
-    entry_symbol: symbols::SymbolHandle,
+    target_symbol: symbols::SymbolHandle,
 ) -> Option<&typed_trees::machine::Machine> {
-    if !entry_symbol.is_valid() {
+    if !target_symbol.is_valid() {
         return None;
     }
     program.machines().iter().find(|machine| {
@@ -39,7 +42,7 @@ fn directly_callable_requirement(
             && program.machine_type_parameters(machine).is_empty()
             && matches!(
                 program.machine_states(machine),
-                [entry] if entry.symbol == entry_symbol
+                [entry] if machine.symbol == target_symbol || entry.symbol == target_symbol
             )
     })
 }
