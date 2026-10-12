@@ -3299,7 +3299,7 @@ fail/termination/rank_arrival_unrelated_field_step rejected 1744ms expected @a9a
 	terminating machine walk: cannot prove strict rank decrease on a recurrent arrival: the transition from `iterate` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 fail/termination/rank_range_call_component_prefix_write rejected 1599ms expected @a9ae30e1c334+wt
 	machine call cycle: `Main::scan_a`, `Main::scan_b` -- a write, call, or alias invalidates the entry-relative ranking; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
-fail/termination/rank_range_declared_step_unbounded rejected 1757ms unexpected @a9ae30e1c334+wt
+fail/termination/rank_range_declared_step_unbounded rejected 474ms expected @c1125926bef7
 	terminating machine walk: cannot prove strict rank decrease on a recurrent arrival: the transition from `pair` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 fail/termination/rank_range_endpoint_intervening_write rejected 1678ms expected @a9ae30e1c334+wt
 	terminating machine Main::walk: cannot prove rank range `0..=limit + 1` for the rank produced by the selected view
@@ -6001,7 +6001,7 @@ pass/termination/rank_arrival_fresh_nested_owner checked 1878ms @a9ae30e1c334+wt
 pass/termination/rank_arrival_same_carrier_fields_exit checked 10987ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/termination/rank_arrival_unobserved_array_extent_compile checked 1881ms @a9ae30e1c334+wt
 pass/termination/rank_endpoint_borrows_recovery checked 11205ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/termination/rank_range_call_component checked 1625ms @a9ae30e1c334+wt
+pass/termination/rank_range_call_component checked 4794ms check-target:macos_arm64 @c1125926bef7
 pass/termination/rank_range_call_declared_step_copy checked 1587ms @a9ae30e1c334+wt
 pass/termination/rank_range_declared_step_copies checked 1793ms @a9ae30e1c334+wt
 pass/termination/rank_range_mutable_bounded_endpoint checked 1667ms @a9ae30e1c334+wt
