@@ -504,17 +504,11 @@ pub(crate) fn lower_static_machine_argument(
     argument: &syntax::expression::StaticMachineArgument,
 ) -> Result<symbol_resolved_trees::expression::StaticMachineArgument, Diagnostic> {
     let type_reference = if argument.type_reference.is_valid() {
-        let reference = crate::lowering::type_reference::lower_type_reference_handle(
+        crate::lowering::type_reference::lower_type_reference_child(
             lowerer,
             syntax_trees,
             argument.type_reference,
-        )?;
-        lowerer
-            .symbol_resolved_trees
-            .tables
-            .declarations
-            .child_type_references
-            .append(reference)
+        )?
     } else {
         arena::Handle::invalid()
     };
