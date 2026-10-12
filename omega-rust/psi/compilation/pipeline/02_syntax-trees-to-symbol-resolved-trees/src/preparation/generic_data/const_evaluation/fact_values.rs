@@ -141,7 +141,7 @@ pub(crate) fn evaluate_const_fact_binary(
         (ConstFactValue::Anonymous(left), ConstFactValue::Anonymous(right)) => {
             if matches!(operator, Add | Subtract | Multiply | Divide) {
                 return left
-                    .binary(right, operator, expression)
+                    .binary(right, syntax, operator, expression)
                     .map(ConstFactValue::Anonymous);
             }
             let ordering = left.value.cmp_value(&right.value);

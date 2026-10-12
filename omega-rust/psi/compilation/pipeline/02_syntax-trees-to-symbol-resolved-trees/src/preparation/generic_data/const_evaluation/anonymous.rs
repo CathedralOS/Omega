@@ -14,6 +14,7 @@ use syntax_trees::operator_spelling::OperatorSpelling;
 pub(crate) struct AnonymousNumericValue {
     pub(super) value: BigRational,
     fractional: Option<(ExpressionHandle, BigRational)>,
+    pub(super) builtin_operators: Vec<(ExpressionHandle, source::SourceSpan)>,
 }
 
 /// Invocation-owned observation produced by exact anonymous evaluation.
@@ -21,6 +22,7 @@ pub(crate) struct AnonymousNumericValue {
 pub(super) struct AnonymousIntegerLanding {
     pub(super) integer: i128,
     fractional: Option<(ExpressionHandle, BigRational)>,
+    pub(super) builtin_operators: Vec<(ExpressionHandle, source::SourceSpan)>,
 }
 
 impl AnonymousIntegerLanding {
@@ -41,16 +43,6 @@ impl AnonymousIntegerLanding {
 /// Wholly anonymous arithmetic needs no declaration selection: it denotes an
 /// exact rational (wiki/spec/language/numeric_values.md), and operator
 /// spellings resolve by operand carrier, which anonymous operands lack.
-pub(super) fn evaluate_anonymous_integer_argument(
-    syntax: &SyntaxTrees,
-    expression: ExpressionHandle,
-    warnings: &mut Vec<Diagnostic>,
-) -> Result<Option<i128>, String> {
-    evaluate_anonymous_numeric_expression(syntax, expression)?
-        .map(|value| value.into_integer(syntax, warnings))
-        .transpose()
-}
-
 pub(super) fn evaluate_anonymous_numeric_expression(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
@@ -65,6 +57,7 @@ pub(super) fn evaluate_anonymous_numeric_expression(
     let mut pending = vec![Step::Enter(expression)];
     let mut values: Vec<BigRational> = Vec::new();
     let mut fractional = None;
+    let mut builtin_operators = Vec::new();
     while let Some(step) = pending.pop() {
         match step {
             Step::Enter(expression) => match syntax.expressions.expression(expression) {
@@ -94,6 +87,7 @@ pub(super) fn evaluate_anonymous_numeric_expression(
                 _ => return Err("anonymous const expression changed during evaluation".to_owned()),
             },
             Step::Binary(expression, operator) => {
+                builtin_operators.push((expression, syntax.expressions.source_span(expression)));
                 let right = values
                     .pop()
                     .ok_or_else(|| "missing right const operand".to_owned())?;
@@ -122,7 +116,11 @@ pub(super) fn evaluate_anonymous_numeric_expression(
     let value = values
         .pop()
         .ok_or_else(|| "missing anonymous const value".to_owned())?;
-    Ok(Some(AnonymousNumericValue { value, fractional }))
+    Ok(Some(AnonymousNumericValue {
+        value,
+        fractional,
+        builtin_operators,
+    }))
 }
 
 impl AnonymousNumericValue {
@@ -143,6 +141,7 @@ impl AnonymousNumericValue {
         Ok(AnonymousIntegerLanding {
             integer,
             fractional: self.fractional,
+            builtin_operators: self.builtin_operators,
         })
     }
 
@@ -166,6 +165,7 @@ impl AnonymousNumericValue {
     pub(super) fn binary(
         self,
         right: Self,
+        syntax: &SyntaxTrees,
         operator: BinaryOperator,
         expression: ExpressionHandle,
     ) -> Result<Self, String> {
@@ -185,7 +185,14 @@ impl AnonymousNumericValue {
                 .is_none()
                 .then(|| (expression, value.clone()))
         });
-        Ok(Self { value, fractional })
+        let mut builtin_operators = self.builtin_operators;
+        builtin_operators.extend(right.builtin_operators);
+        builtin_operators.push((expression, syntax.expressions.source_span(expression)));
+        Ok(Self {
+            value,
+            fractional,
+            builtin_operators,
+        })
     }
 }
 

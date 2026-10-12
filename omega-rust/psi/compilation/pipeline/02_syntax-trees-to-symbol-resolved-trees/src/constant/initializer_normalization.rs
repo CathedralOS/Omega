@@ -391,31 +391,61 @@ fn append_retained_custody(
     Ok(())
 }
 
-/// After ordinary authored selections have been recorded, close duplicate
-/// declaration-side operator obligations using the receipt's evaluated meaning.
-/// Instantiated partitions and unrelated source occurrences retain their own
-/// selection obligations.
+/// Close a produced operator occurrence only when every expression attached to
+/// that occurrence is covered by its own accepted normalization. Unattached or
+/// uncovered same-span copies keep their ordinary checked operator obligation.
 pub(crate) fn finalize_operator_obligations(
     program: &mut SymbolResolvedTrees,
     records: &[PendingInitializer],
+    normalized_operations: &[ExpressionHandle],
 ) -> Result<(), Diagnostic> {
+    let mut covered = normalized_operations.to_vec();
+    for record in records {
+        // The declaration receipt was accepted by finalize's exact original
+        // graph reconstruction. Join only within that owned graph, not globally.
+        for reference in &record.operators {
+            let expression = super::initializer_dependencies::expression_at_source(
+                program,
+                record.authored,
+                *reference,
+            )
+            .map_err(|reason| error(*reference, &reason))?;
+            if !covered.contains(&expression) {
+                covered.push(expression);
+            }
+        }
+    }
+    let expressions = &program.tables.bodies.expressions;
+    // Occurrence ordinals are the existing dense ledger coordinates. No row
+    // with no attached expression can receive authority from this publication.
+    let mut coverage = vec![None; program.authored_declaration_selections().iter().count()];
+    for (expression, _) in expressions.iter_expressions() {
+        let accepted = covered.contains(&expression);
+        for occurrence in expressions.authored_selection_occurrences(expression) {
+            let Ok(ordinal) = usize::try_from(occurrence.ordinal()) else {
+                continue;
+            };
+            if let Some(row) = coverage.get_mut(ordinal) {
+                *row = Some(row.unwrap_or(true) && accepted);
+            }
+        }
+    }
     let occurrences = program
         .authored_declaration_selections()
         .iter()
         .filter(|selection| {
             selection.kind() == Kind::Operator
-                && selection.exposure() == Exposure::PrivateImplementation
                 && selection.compiler_partition().is_none()
                 && matches!(
                     selection.target(),
                     Target::LateBound(LateBinding::CheckedOperator)
                 )
-                && records.iter().any(|record| {
-                    record
-                        .receipt
-                        .builtin_operators
-                        .contains(&selection.source_span())
-                })
+        })
+        .filter(|selection| {
+            usize::try_from(selection.occurrence_id().ordinal())
+                .ok()
+                .and_then(|ordinal| coverage.get(ordinal))
+                == Some(&Some(true))
         })
         .map(|selection| (selection.occurrence_id(), selection.source_span()))
         .collect::<Vec<_>>();

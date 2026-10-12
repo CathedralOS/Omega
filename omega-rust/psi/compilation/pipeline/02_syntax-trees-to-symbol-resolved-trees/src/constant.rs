@@ -210,6 +210,7 @@ pub(crate) fn finalize_operator_obligations(
     initializer_normalization::finalize_operator_obligations(
         &mut lowerer.symbol_resolved_trees,
         &lowerer.pending_const_initializers,
+        &lowerer.pending_const_operator_obligations,
     )
     .map_err(|diagnostic| vec![diagnostic])?;
     Ok(())

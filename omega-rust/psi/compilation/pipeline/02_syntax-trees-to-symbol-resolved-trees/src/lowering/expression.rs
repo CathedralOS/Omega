@@ -41,6 +41,12 @@ pub(crate) fn lower_expression_into_table(
         )?
     };
     expression_table(lowerer).set_source_span(lowered, source_span);
+    if lowerer
+        .lowering_const_operator_expressions
+        .contains(&expression)
+    {
+        lowerer.pending_const_operator_obligations.push(lowered);
+    }
     let original = syntax_trees.expressions.original_expression(expression);
     expression_table(lowerer).retain_expression_source_origin(
         lowered,
