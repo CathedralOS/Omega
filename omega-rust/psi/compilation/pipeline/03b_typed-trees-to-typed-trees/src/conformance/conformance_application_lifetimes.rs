@@ -132,35 +132,60 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
             else {
                 continue;
             };
-            // A formed borrow presents the declared place as its referent.
-            // Its new outer loan has no authored region operand, but nested
-            // reference and phantom operands still constrain the invocation.
-            // An existing reference value keeps its original shell below.
-            let required = if program
+            let formed_borrow = program
                 .expression_table
                 .borrow_expression(*argument)
-                .is_some()
-            {
-                match program
-                    .type_reference_table
-                    .type_reference(parameter.type_reference)
-                {
-                    TypeReferenceNode::Reference { referee, .. } => *referee,
-                    _ => parameter.type_reference,
-                }
-            } else {
-                parameter.type_reference
-            };
+                .is_some();
             let inferred = program.with_enclosing_data_identity_scopes(&applications, |frames| {
+                let scope = argument_scopes::Scope {
+                    owner: caller_machine.symbol,
+                    frames,
+                };
+                let Some((actual, scope)) = scope.resolve(program, actual) else {
+                    return;
+                };
+                let carrier = program
+                    .type_reference_table
+                    .unconstrained_type_reference(actual);
+                // Borrow formation preserves an existing reference's region;
+                // borrowing an owned place adds one anonymous outer loan.
+                // Follow the same carrier distinction as constructed-result
+                // typing, while nested operands keep their supplying scopes.
+                let required = if formed_borrow
+                    && !matches!(
+                        program.type_reference_table.type_reference(carrier),
+                        TypeReferenceNode::Reference { .. }
+                    ) {
+                    match program
+                        .type_reference_table
+                        .type_reference(parameter.type_reference)
+                    {
+                        TypeReferenceNode::Reference {
+                            referee, lifetime, ..
+                        } => {
+                            if let Some(lifetime) = lifetime
+                                && callee_machine.lifetime_parameters.contains(lifetime)
+                            {
+                                retain_lifetime_argument(
+                                    lifetime,
+                                    None,
+                                    &mut invocation_lifetimes,
+                                    &mut conflicting_call_lifetime,
+                                );
+                            }
+                            *referee
+                        }
+                        _ => parameter.type_reference,
+                    }
+                } else {
+                    parameter.type_reference
+                };
                 visit_lifetime_bindings_in_scope(
                     program,
                     required,
                     actual,
                     &callee_machine.lifetime_parameters,
-                    argument_scopes::Scope {
-                        owner: caller_machine.symbol,
-                        frames,
-                    },
+                    scope,
                     caller_machine.symbol,
                     &mut |required, actual| {
                         if let Some(actual) = actual {
@@ -468,73 +493,33 @@ fn collect_elision_calls(
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for handle in state.statement_nodes.handles() {
-                match program.statement_table.statement(handle) {
-                    StatementNode::Call(call) => {
-                        calls.push(ElisionCall {
-                            site: ElisionCallSite::Statement(handle),
-                            caller_machine: machine.symbol,
-                            caller_state: state.symbol,
-                            target: call.target_symbol,
-                            arguments: program
-                                .statement_table
-                                .expression_handles(call.arguments)
-                                .to_vec(),
-                            machine_arguments: call.machine_arguments.clone(),
-                        });
-                        for argument in program.statement_table.expression_handles(call.arguments) {
-                            collect_expression_elision_calls(
-                                program,
-                                machine.symbol,
-                                state.symbol,
-                                *argument,
-                                &mut calls,
-                                &mut diagnostics,
-                            );
-                        }
-                    }
-                    StatementNode::Expression(expression) => collect_expression_elision_calls(
+                let statement = program.statement_table.statement(handle);
+                if let StatementNode::Call(call) = statement {
+                    calls.push(ElisionCall {
+                        site: ElisionCallSite::Statement(handle),
+                        caller_machine: machine.symbol,
+                        caller_state: state.symbol,
+                        target: call.target_symbol,
+                        arguments: program
+                            .statement_table
+                            .expression_handles(call.arguments)
+                            .to_vec(),
+                        machine_arguments: call.machine_arguments.clone(),
+                    });
+                }
+                // Lifetime preparation follows the representation's complete
+                // operand roster. In particular, keeping a call at its authored
+                // transition/final-expression position must not skip the same
+                // source application inference performed for an initializer.
+                for (_, expression) in program.statement_table.expression_roots(statement) {
+                    collect_expression_elision_calls(
                         program,
                         machine.symbol,
                         state.symbol,
-                        *expression,
+                        expression,
                         &mut calls,
                         &mut diagnostics,
-                    ),
-                    StatementNode::LocalData(local) => collect_expression_elision_calls(
-                        program,
-                        machine.symbol,
-                        state.symbol,
-                        local.initial_value,
-                        &mut calls,
-                        &mut diagnostics,
-                    ),
-                    StatementNode::Assignment(assignment) => {
-                        collect_expression_elision_calls(
-                            program,
-                            machine.symbol,
-                            state.symbol,
-                            assignment.target,
-                            &mut calls,
-                            &mut diagnostics,
-                        );
-                        collect_expression_elision_calls(
-                            program,
-                            machine.symbol,
-                            state.symbol,
-                            assignment.value,
-                            &mut calls,
-                            &mut diagnostics,
-                        );
-                    }
-                    StatementNode::AssemblyFact(fact) => collect_expression_elision_calls(
-                        program,
-                        machine.symbol,
-                        state.symbol,
-                        fact.expression,
-                        &mut calls,
-                        &mut diagnostics,
-                    ),
-                    _ => {}
+                    );
                 }
             }
         }
