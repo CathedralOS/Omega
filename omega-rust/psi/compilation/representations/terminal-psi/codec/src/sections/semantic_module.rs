@@ -79,8 +79,9 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Marker149 predates occurrence-owned provider receiving regions.
 // Provider candidates retain checked receiving applications and ordered regions.
 // Descriptor cleanup admits exclusive pointers without disposal of their referees.
+// Executable family scalar values accompany their opaque identities.
 // Whole byte operands retain their exact descriptor projection and access.
-// Marker153 combines descriptor custody with original application/region grammar.
+// Marker153 combines both with original application and region custody.
 pub(crate) const FORMAT_MARKER: u16 = 153;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";

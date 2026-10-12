@@ -47,7 +47,7 @@ pub struct TerminalDynamicSlot {
     pub requirement_identity: TerminalIdentityIndex,
     /// Canonical value tuple of a finite-family row; empty for a
     /// nongeneric requirement.
-    pub family_tuple: Vec<String>,
+    pub family_tuple: Vec<TerminalDynamicFamilyMember>,
     /// Runtime scalar formal types in the requirement's authored order.
     pub scalar_parameters: Vec<ScalarType>,
     /// Runtime structural formals, separate from scalar values.
@@ -60,6 +60,21 @@ pub struct TerminalDynamicSlot {
     /// Canonical possible result claims, by typed relative path. Every row
     /// realizes this roster under its own private returning claim identities.
     pub result_claim_paths: Vec<Vec<StructuralPathSegment>>,
+}
+
+/// One checked family member retains both its complete application identity
+/// and its scalar value. Dispatch consumes the value; identity spelling is
+/// opaque and never an executable encoding.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TerminalDynamicFamilyMember {
+    pub identity: String,
+    pub value: TerminalDynamicFamilyValue,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum TerminalDynamicFamilyValue {
+    Integer(i128),
+    Boolean(bool),
 }
 
 impl TerminalDynamicSlot {
