@@ -154,9 +154,22 @@ helper that passes does not close an item.
   machines for the 10-line program, because every provider of a reached
   requirement stays live for every target. Acceptance: fixture median under
   2 s and a std probe check under 3 s, with `corpus_gate --compare` over the
-  touched groups losing nothing. Frontier: inventory which per-machine facts
-  the dependent check reads from callee bodies, against what the cached
-  review records already publish.
+  touched groups losing nothing. Frontier: the dependent check derives six
+  fact families from callee bodies: inferred crash summaries (`facts/crash_calls`),
+  operational suspension/blocking and service reach (`effect_inference`),
+  caller-visible write frames and mutation summaries (`write_frames`,
+  `flow/mutation`), termination/progress summaries
+  (`checks/termination/progress`), and denotational eligibility derived from
+  those. Generic std bodies are cloned per instantiation in 03b and need checked
+  templates instead. The review policy baseline is risk-acceptance evidence,
+  not checker facts, so the interface is its own Psi artifact keyed by
+  declaration identity. The seam is the existing bodyless-supply handling
+  (boundary/external ceilings and frames): a summarized dependency machine
+  presents its exact inferred summaries the same way. Stage 05 lowering reads
+  each body's checked flow facts, so skipping dependency checking serves
+  check-only work (review, `--check`, the corpus check leg) first; native runs
+  also need per-package Terminal Psi reuse. Next: produce the six summaries
+  per public machine from std's own check and serve `--check` from them.
 
 - **FLOAT-PAYLOAD-COMPILE-TIME.** (new-scope) Remove the ~28x source-checking
   slowdown on the float case-payload cohort.
