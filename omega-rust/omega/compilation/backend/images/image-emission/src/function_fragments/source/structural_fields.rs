@@ -1033,8 +1033,7 @@ pub(super) fn retained(
                 ) else {
                     return false;
                 };
-                let terminal_psi::StructuralTypeShape::Record { fields, .. } = &declaration.shape
-                else {
+                let Some(fields) = declaration.shape.direct_fields() else {
                     return false;
                 };
                 let Some(selected) = live_field_by_id(fields, *field) else {

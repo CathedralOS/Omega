@@ -562,11 +562,6 @@ defines the complete product bar.
     engines for recursive omitted common zeros, erased-member rosters, ordered
     constructor effects and indexed common reads; reject invalid zero domains
     and duplicate linear common/payload operands.
-    Independent native auditing still refuses unaccounted
-    `StructuralScalarFieldRead` operations in this fixture and
-    `runtime_case_constructor_child_memberships_exit`; ordinary native and
-    Terminal execution pass. Complete their source-operation accounting
-    without dropping authored reads or weakening custody validation.
     **CML4** owns remaining residual cleanup. Reference debt must
     follow ordinary disposal, not a trivial affine discard.
     Keep: `pass/expressions/runtime_temporary_record_field_call_exit` (a
