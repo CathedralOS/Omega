@@ -1,0 +1,34 @@
+use left::values;
+use right::values;
+
+data Counted {}
+boundary requirement Counted::size() -> u64;
+data SizeProvider {}
+machine SizeProvider::size_impl() -> u64
+satisfies Counted::size { 4 }
+
+data Box<Value [copy], const Count: u64> [copy] {
+    value: Value;
+    bytes: [u8; Count];
+}
+
+data Main {}
+machine Main::main() crashes Trap {
+    let literal: Box<left::values::Token, 4> = Box {
+        value: left::values::Token { number: 11 }, bytes: [1, 2, 3, 4]
+    };
+    let computed: Box<left::values::Token, Counted::size()> = Box {
+        value: left::values::Token { number: 23 }, bytes: [1, 2, 3, 4]
+    };
+    let copied: Box<left::values::Token, 4> = computed;
+    let independent: Box<right::values::Token, Counted::size()> = Box {
+        value: right::values::Token { flag: true }, bytes: [5, 6, 7, 8]
+    };
+    transition literal.value.number == 11 && copied.value.number == 23
+        && computed.value.number == 23 && independent.value.flag
+        && computed.bytes[3] == 4 && independent.bytes[3] == 8 {
+        true -> done() _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
