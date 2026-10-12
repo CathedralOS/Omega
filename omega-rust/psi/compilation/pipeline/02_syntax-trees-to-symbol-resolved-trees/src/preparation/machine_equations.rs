@@ -541,10 +541,11 @@ fn complete_arguments(
             TypeParameterKind::Type => argument.type_reference = reference,
             TypeParameterKind::Const { .. } => {
                 if integer_operands[position].is_valid() {
-                    completed.push(original_integer_argument(
-                        syntax,
-                        integer_operands[position],
-                    )?);
+                    // Const graph payloads retain their original owner through
+                    // typing; the shared operand projection reads their actual
+                    // completed meaning before ordinary const admission.
+                    argument.type_reference = integer_operands[position];
+                    completed.push(argument);
                     continue;
                 }
                 let Some(value) = syntax.type_references.type_reference(reference).as_named()
@@ -571,49 +572,6 @@ fn complete_arguments(
         completed.push(argument);
     }
     Ok(completed.into_boxed_slice())
-}
-
-/// Reuse the exact source operand lanes accepted by ordinary const admission.
-/// Unsupported issuing graphs cannot become anonymous decimal literals.
-fn original_integer_argument(
-    syntax: &SyntaxTrees,
-    reference: TypeReferenceHandle,
-) -> Result<StaticMachineArgument, Diagnostic> {
-    let original = syntax
-        .type_references
-        .const_argument_normalization(reference)
-        .map_or(reference, |normalization| normalization.original_operand);
-    let mut argument = StaticMachineArgument {
-        type_reference: TypeReferenceHandle::invalid(),
-        path: Box::default(),
-        application: None,
-        const_literal: None,
-        evidence_projection: None,
-    };
-    match syntax.type_references.type_reference(original) {
-        TypeReferenceNode::ConstExpression(expression) => {
-            let ExpressionNode::Integer(literal) = syntax.expressions.expression(*expression)
-            else {
-                return Err(Diagnostic::error(
-                    "machine equation recovered an original const graph without a retained scalar operand",
-                ));
-            };
-            argument.const_literal = Some(literal.clone());
-        }
-        TypeReferenceNode::Named(name) => {
-            argument.path = vec![syntax_trees::identifier::Identifier::new(
-                name.as_str(),
-                name.source_span(),
-            )]
-            .into_boxed_slice();
-        }
-        _ => {
-            return Err(Diagnostic::error(
-                "machine equation lost its original integer operand",
-            ));
-        }
-    }
-    Ok(argument)
 }
 
 /// Expose an authored scalar const's value to equation matching without
