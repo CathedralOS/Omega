@@ -1071,15 +1071,16 @@ impl StateGraphEmission<'_, '_> {
             // exact target telescope here, before projected transfer or cleanup.
             let mut scalar_slots = Vec::with_capacity(arguments.len());
             for (argument, formal) in arguments.iter().zip(&target_state.scalar_parameters) {
+                let declaration = edge_evaluation.completed_scalar_declaration(
+                    *argument,
+                    &edge_values,
+                    operations,
+                )?;
                 scalar_slots.push((
                     edge_values.len(),
                     terminal_scalar_type(formal.primitive_type)?,
                 ));
-                edge_values.push(ValueDeclaration {
-                    id: *argument,
-                    scalar_type: terminal_scalar_type(formal.primitive_type)?,
-                    qualifications: Default::default(),
-                });
+                edge_values.push(declaration);
             }
             let mut emitted = structural_arguments.iter();
             let structural_actuals = target_state
@@ -1198,6 +1199,57 @@ impl StateGraphEmission<'_, '_> {
         for (index, declaration) in capture_parameters.iter_mut().enumerate() {
             declaration.position = u32::try_from(index)
                 .map_err(|_| LoweringError::Unsupported("state capture roster exceeds u32"))?;
+        }
+        // The source-local roster is not the complete outgoing frame: computed
+        // actuals, rank observations and evaluated selectors have their own
+        // emitted declarations. Retain those exact results before any cleanup
+        // continuation remaps the frame. Erased source formals remain erased.
+        let mut completed = arguments.clone();
+        completed.extend(current_rank);
+        completed.extend(arriving_rank);
+        for renewal in &ingress_renewals {
+            for segment in &renewal.source.path {
+                if let terminal_psi::StructuralPathSegment::RuntimeIndex { index, .. } = segment {
+                    completed.push(*index);
+                }
+            }
+        }
+        let mut retain_term = |term: &semantic_vocabulary::ScalarTerm| {
+            term.visit_value_ids(|value| {
+                if !edge_evaluation
+                    .erased_scalar_formals
+                    .iter()
+                    .any(|formal| formal.id == value)
+                {
+                    completed.push(value);
+                }
+                true
+            });
+        };
+        for term in &erased_arguments {
+            retain_term(term);
+        }
+        let mut proof_terms = erased_proof_arguments.iter().collect::<Vec<_>>();
+        while let Some(term) = proof_terms.pop() {
+            match term {
+                semantic_vocabulary::ProofTerm::Scalar(term) => retain_term(term),
+                semantic_vocabulary::ProofTerm::Construction { fields, .. } => {
+                    proof_terms.extend(fields.iter().map(|field| &field.term));
+                }
+                semantic_vocabulary::ProofTerm::Formal { .. } => {}
+            }
+        }
+        for value in completed {
+            if !edge_values
+                .iter()
+                .any(|declaration| declaration.id == value)
+            {
+                edge_values.push(edge_evaluation.completed_scalar_declaration(
+                    value,
+                    &edge_values,
+                    operations,
+                )?);
+            }
         }
         // All operands and rank observations are already captured. Transfer
         // projected structural custody before selected cleanup can retire the

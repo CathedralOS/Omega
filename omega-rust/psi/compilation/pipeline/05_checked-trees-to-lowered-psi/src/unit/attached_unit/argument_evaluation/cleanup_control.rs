@@ -47,6 +47,38 @@ pub(crate) struct CapturedStructuralArgument {
 }
 
 impl Evaluation {
+    /// A completed operand may be an operation result rather than a source
+    /// local slot. Cleanup transports its actual qualified declaration; the
+    /// receiving signature cannot supply that declaration or its policy.
+    pub(crate) fn completed_scalar_declaration(
+        &self,
+        value: semantic_vocabulary::ValueId,
+        values: &[ValueDeclaration],
+        operations: &OperationBuffer,
+    ) -> Result<ValueDeclaration, LoweringError> {
+        let mut declarations = values
+            .iter()
+            .chain(&self.parameters)
+            .chain(self.blocks.iter().flat_map(|block| &block.parameters))
+            .copied()
+            .chain(
+                operations
+                    .iter()
+                    .chain(self.blocks.iter().flat_map(|block| &block.operations))
+                    .filter_map(|operation| operation.result.scalar()),
+            )
+            .filter(|declaration| declaration.id == value);
+        let declaration = declarations.next().ok_or(LoweringError::Unsupported(
+            "completed scalar has no emitted declaration",
+        ))?;
+        if declarations.any(|other| other.value_type() != declaration.value_type()) {
+            return Err(LoweringError::Unsupported(
+                "completed scalar has inconsistent emitted carriers",
+            ));
+        }
+        Ok(declaration)
+    }
+
     /// Every cleanup emission borrows the same working set from the
     /// evaluation context — build it once per call site. The erased-formal
     /// scratch vector arrives from the caller so the empty `Vec::new()`
