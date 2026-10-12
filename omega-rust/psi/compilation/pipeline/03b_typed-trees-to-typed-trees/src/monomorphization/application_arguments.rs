@@ -536,7 +536,7 @@ pub(super) fn static_application_is_closed(
             && !super::for_each_type_reference(
                 program,
                 &[reference],
-                |reference, node| match node {
+                |_, reference, node| match node {
                     TypeReferenceNode::Named { symbol, .. } => open_symbol(program, *symbol),
                     TypeReferenceNode::Generic { base_symbol, .. }
                     | TypeReferenceNode::DynamicTrait {

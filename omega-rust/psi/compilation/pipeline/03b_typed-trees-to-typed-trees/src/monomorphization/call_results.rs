@@ -554,7 +554,7 @@ fn range_endpoints_name_parameters(
     crate::monomorphization::for_each_type_reference(
         program,
         &[root],
-        |_, _| false,
+        |_, _, _| false,
         |program, minimum, maximum| {
             [minimum, maximum].into_iter().any(|endpoint| {
                 let mut tree = Vec::new();
