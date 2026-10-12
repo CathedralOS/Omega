@@ -73,6 +73,7 @@ pub(super) fn closed_generic_member_symbol(
     position: Option<MemberPosition>,
     member_name: &str,
     retained: SymbolHandle,
+    case_name: Option<&str>,
 ) -> Option<SymbolHandle> {
     let MemberPosition::Reference(reference) = position? else {
         return None;
@@ -85,7 +86,7 @@ pub(super) fn closed_generic_member_symbol(
     // Reopening that origin can select another prepared field namespace even
     // when the receiver already retains the exact closed member selection.
     let selected = program
-        .closed_data_member_field(reference, retained, member_name)
+        .closed_data_projected_field(reference, retained, member_name, case_name)
         .map(|field| field.symbol);
     Some(selected.unwrap_or_else(SymbolHandle::invalid))
 }
@@ -766,14 +767,13 @@ pub(super) fn effective_member_symbol_from_position(
     receiver_position: Option<MemberPosition>,
     member: &typed_trees::expression::TableMemberExpression,
 ) -> SymbolHandle {
-    if member.case_variant.is_none()
-        && let Some(symbol) = closed_generic_member_symbol(
-            program,
-            receiver_position,
-            member.member.as_str(),
-            member.member_symbol,
-        )
-    {
+    if let Some(symbol) = closed_generic_member_symbol(
+        program,
+        receiver_position,
+        member.member.as_str(),
+        member.member_symbol,
+        member.case_variant.as_ref().map(|name| name.as_str()),
+    ) {
         return symbol;
     }
     // A case-qualified projection must not select the first same-named field
