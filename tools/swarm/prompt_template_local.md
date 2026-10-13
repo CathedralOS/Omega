@@ -141,6 +141,12 @@ reservation. `landing.py` requires full lowercase 40-character SHAs for
 between `enqueue` and `claim` — rebase onto the reserved base, not the
 base you enqueued with); an expired head leaves your commit intact —
 re-enqueue it after the queue clears.
+When a rebase or merge conflicts, first ask which abstraction both sides are
+trying to express. If one general operation covers both, implement that and
+delete the superseded path in the same commit, as AGENTS.md requires for
+touched operations. If no single abstraction covers both, name in the commit
+body the two cases it cannot unify. A conflict-free merge can still break the
+build or a sibling outcome, so rebuild every commit you carry after resolving.
 Give `publish` the model that produced the change: `--provenance "agent=<tool> model=<name> effort=<level>"`
 (or export `OMEGA_PROVENANCE` once). Commit messages carry no attribution; this note is the only record.
 
