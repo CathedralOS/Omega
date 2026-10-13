@@ -189,7 +189,7 @@ pub use crate::machine_calls::call_cycles::{
 pub use crate::machine_calls::calls::{
     AssignmentWriteTarget, CallFrameResolver, CallWriteOrigins, LocalWriteOrigin, LocalWriteSource,
     RecastSource, ScalarStorageCoordinate, ValidatedSelfCallDescent, assignment_stored_value_type,
-    frame_coordinate_path, frame_paths_overlap, operand_call_plans,
+    frame_coordinate_path, frame_length_coordinate_path, frame_paths_overlap, operand_call_plans,
     state_reference_parameter_binding_is_stable,
 };
 pub use crate::machine_calls::denotational_calls::{
@@ -359,16 +359,17 @@ pub use proof_contracts::contract_entailment::transparent_proposition_applicatio
 pub use proof_contracts::contract_entailment::{
     ArithmeticCallObservation, RankArrivalCompatibility, RankArrivalCorrespondence,
     RankArrivalDemand, RankCoordinateBinding, RankCoordinateTransport, RankLocalCapture,
+    RankPremiseCoordinate, RankPremiseInput, RankPremiseObservation, RankProtectedPath,
     RankReceivingCoordinate, RankStateBindings, RankSubjectCoordinate, RankValueDerivation,
     RankingRangeEdgeProof, RankingRangeMeasure, RankingRangePremises, RankingRangeState,
     StateEntryCorrespondence, arithmetic_entry_requirement_is_covered,
-    discover_rank_arrival_correspondence, prove_arithmetic_call_requirement,
-    prove_captured_arithmetic_call_requirement, prove_ranking_range_edge,
-    prove_ranking_range_entry, prove_ranking_range_transition, ranking_coordinate_type,
-    ranking_range_arrival_preserves_roles, ranking_range_premise_symbols,
-    ranking_range_required_coordinates, ranking_range_required_symbols,
-    ranking_range_state_premise_coordinates, ranking_slice_length_observation,
-    select_rank_arrival_correspondence,
+    discover_rank_arrival_correspondence, frame_preserves_rank_premises, protect_rank_premise,
+    prove_arithmetic_call_requirement, prove_captured_arithmetic_call_requirement,
+    prove_ranking_range_edge, prove_ranking_range_entry, prove_ranking_range_transition,
+    rank_protected_path, ranking_coordinate_type, ranking_range_arrival_preserves_roles,
+    ranking_range_premise_symbols, ranking_range_required_coordinates,
+    ranking_range_required_symbols, ranking_range_state_premise_coordinates,
+    ranking_slice_length_observation, select_rank_arrival_correspondence,
 };
 pub use proof_contracts::contract_entailment::{
     ComputationBodyShape, DeclaredIdentityView, DeclaredScalarView, MeasureBodyShape,

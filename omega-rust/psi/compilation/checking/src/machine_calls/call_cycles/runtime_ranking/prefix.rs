@@ -2,22 +2,25 @@
 //! statement calls whose complete write frames stay disjoint. The shared
 //! write-frame owner closes aliases; an opaque frame is not evidence.
 
-use crate::machine_calls::calls::{CallFrameResolver, frame_paths_overlap};
+use crate::machine_calls::calls::CallFrameResolver;
+use crate::{
+    RankPremiseInput, RankPremiseObservation, frame_preserves_rank_premises, protect_rank_premise,
+    rank_protected_path,
+};
 use facts::NormalizedWriteFrame;
-use symbols::SymbolHandle;
 use typed_trees::machine::Machine;
 use typed_trees::statement::StatementNode;
 
-/// `premises` names the member's entry premise carriers (`None` conservatively
-/// protects all formals); `entry_parameters` is
-/// this state's source-admitted coordinate readings;
+/// `premises` names the member's entry premise carriers and how much of each
+/// the judgment reads (`None` conservatively protects all formals whole);
+/// `entry_parameters` is this state's source-admitted coordinate readings;
 /// `conserved_endpoints` says the component mixes ranged and unranged
 /// members, so every caller entry input may be read as a conserved endpoint.
 pub(super) fn preserves_rank(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &typed_trees::state::State,
-    premises: Option<&[SymbolHandle]>,
+    premises: Option<&[RankPremiseInput]>,
     entry_parameters: &crate::RankStateBindings,
     conserved_endpoints: bool,
     statement: &StatementNode,
@@ -32,33 +35,61 @@ pub(super) fn preserves_rank(
     // mutation, and an empty complete operand frame remains meaningful.
     if premises.is_none() {
         for parameter in program.state_parameters(state) {
-            let Some(path) = crate::frame_coordinate_path(program, parameter.symbol, &[]) else {
+            let Some(carrier) = rank_protected_path(
+                program,
+                parameter.symbol,
+                &[],
+                RankPremiseObservation::Value,
+            ) else {
                 return false;
             };
-            protected.push(path);
+            protect_rank_premise(&mut protected, carrier);
         }
     }
     for binding in &entry_parameters.coordinates {
-        if !conserved_endpoints
-            && premises.is_some_and(|premises| !premises.contains(&binding.entry.parameter))
-        {
-            continue;
-        }
+        // A conserved endpoint is read whole. An extent reading follows the
+        // binding only while the destination still denotes the entry's whole
+        // formal; a projected coordinate reads a value of its own.
+        let whole = || {
+            vec![(
+                binding.destination.path.clone(),
+                RankPremiseObservation::Value,
+            )]
+        };
+        let readings: Vec<(Vec<facts::PlaceSegment>, RankPremiseObservation)> =
+            match premises.filter(|_| !conserved_endpoints) {
+                None => whole(),
+                Some(premises) => {
+                    let inputs = premises
+                        .iter()
+                        .filter(|input| input.parameter == binding.entry.parameter)
+                        .collect::<Vec<_>>();
+                    if inputs.is_empty() {
+                        continue;
+                    }
+                    if binding.entry.path.is_empty() && binding.destination.path.is_empty() {
+                        inputs
+                            .into_iter()
+                            .map(|input| (input.path.clone(), input.observation))
+                            .collect()
+                    } else {
+                        whole()
+                    }
+                }
+            };
         if program
             .state_parameter_by_symbol(state, binding.destination.parameter)
             .is_none()
         {
             return false;
         }
-        let Some(path) = crate::frame_coordinate_path(
-            program,
-            binding.destination.parameter,
-            &binding.destination.path,
-        ) else {
-            return false;
-        };
-        if !protected.contains(&path) {
-            protected.push(path);
+        for (path, observation) in readings {
+            let Some(carrier) =
+                rank_protected_path(program, binding.destination.parameter, &path, observation)
+            else {
+                return false;
+            };
+            protect_rank_premise(&mut protected, carrier);
         }
     }
     // Named-state and call-component proofs consume the same exact arrival
@@ -68,22 +99,19 @@ pub(super) fn preserves_rank(
     else {
         return false;
     };
-    for coordinate in premises {
-        let Some(path) =
-            crate::frame_coordinate_path(program, coordinate.parameter, &coordinate.path)
-        else {
+    for premise in premises {
+        let Some(carrier) = rank_protected_path(
+            program,
+            premise.coordinate.parameter,
+            &premise.coordinate.path,
+            premise.observation,
+        ) else {
             return false;
         };
-        if !protected.contains(&path) {
-            protected.push(path);
-        }
+        protect_rank_premise(&mut protected, carrier);
     }
-    let disjoint = |frame: NormalizedWriteFrame| {
-        frame.into_complete_paths().is_some_and(|paths| {
-            protected
-                .iter()
-                .all(|input| paths.iter().all(|path| !frame_paths_overlap(path, input)))
-        })
+    let preserves = |frame: NormalizedWriteFrame, element_store: bool| {
+        frame_preserves_rank_premises(frame, element_store, &protected)
     };
     match statement {
         StatementNode::Assignment(assignment) => {
@@ -92,7 +120,12 @@ pub(super) fn preserves_rank(
             {
                 return false;
             }
-            frames.is_some_and(|frames| disjoint(frames.assignment_write_frame(machine, statement)))
+            frames.is_some_and(|frames| {
+                preserves(
+                    frames.assignment_write_frame(machine, statement),
+                    frames.assignment_stores_element(statement),
+                )
+            })
         }
         StatementNode::Call(call) => {
             // Selected call operands retain their own meaning; the complete
@@ -103,8 +136,11 @@ pub(super) fn preserves_rank(
                 .iter()
                 .all(|argument| operand_has_admitted_meaning(program, machine, state, *argument))
                 && frames.is_some_and(|frames| {
-                    disjoint(frames.may_write_frame(machine, call))
-                        && disjoint(frames.statement_value_write_frame(machine, statement))
+                    preserves(frames.may_write_frame(machine, call), false)
+                        && preserves(
+                            frames.statement_value_write_frame(machine, statement),
+                            false,
+                        )
                 })
         }
         StatementNode::LocalData(local) => {
@@ -122,15 +158,25 @@ pub(super) fn preserves_rank(
             // disjoint from every protected carrier.
             operand_has_admitted_meaning(program, machine, state, local.initial_value)
                 && frames.is_some_and(|frames| {
-                    disjoint(frames.expression_write_frame(machine, local.initial_value))
+                    preserves(
+                        frames.expression_write_frame(machine, local.initial_value),
+                        false,
+                    )
                 })
         }
-        StatementNode::Transition(_) => frames
-            .is_some_and(|frames| disjoint(frames.statement_value_write_frame(machine, statement))),
+        StatementNode::Transition(_) => frames.is_some_and(|frames| {
+            preserves(
+                frames.statement_value_write_frame(machine, statement),
+                false,
+            )
+        }),
         StatementNode::Expression(expression) => {
             operand_has_admitted_meaning(program, machine, state, *expression)
                 && frames.is_some_and(|frames| {
-                    disjoint(frames.statement_value_write_frame(machine, statement))
+                    preserves(
+                        frames.statement_value_write_frame(machine, statement),
+                        false,
+                    )
                 })
         }
         _ => false,

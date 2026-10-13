@@ -505,7 +505,7 @@ pub fn ranking_range_premise_symbols(
     machine: &Machine,
     range: ExpressionHandle,
     measure: RankingRangeMeasure,
-) -> Option<Vec<symbols::SymbolHandle>> {
+) -> Option<Vec<RankPremiseInput>> {
     let range = if range.is_valid() {
         let range = program.expression_table.range_node(range)?;
         Some(range)
@@ -513,6 +513,93 @@ pub fn ranking_range_premise_symbols(
         None
     };
     state_aliases::premise_symbols(program, machine, range, measure, true)
+}
+
+/// How a ranking judgment reads one carrier: its whole arrival value, or only
+/// a collection's extent through `.len`. A store into a collection's elements
+/// leaves its extent as it was, so the observation decides which prefix
+/// writes a premise survives.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RankPremiseObservation {
+    Value,
+    Length,
+}
+
+/// One root formal a ranking judgment reads, and how much of it: the whole
+/// formal, or the extent of the collection at `path` beneath it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RankPremiseInput {
+    pub parameter: symbols::SymbolHandle,
+    pub path: Vec<facts::PlaceSegment>,
+    pub observation: RankPremiseObservation,
+}
+
+/// One state coordinate a ranking judgment reads at arrival, and how much of it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RankPremiseCoordinate {
+    pub coordinate: RankSubjectCoordinate,
+    pub observation: RankPremiseObservation,
+}
+
+/// A premise carrier in the caller frame vocabulary: what a prefix write must
+/// leave unwritten before the judgment's site.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RankProtectedPath {
+    pub path: String,
+    pub observation: RankPremiseObservation,
+}
+
+/// Spell a premise carrier in the shared frame vocabulary. An extent reads
+/// `<path>.len`, the same spelling an authored `.len` store or read carries.
+pub fn rank_protected_path(
+    program: &dyn crate::CheckingInput,
+    parameter: symbols::SymbolHandle,
+    path: &[facts::PlaceSegment],
+    observation: RankPremiseObservation,
+) -> Option<RankProtectedPath> {
+    let path = match observation {
+        RankPremiseObservation::Value => crate::frame_coordinate_path(program, parameter, path)?,
+        RankPremiseObservation::Length => {
+            crate::frame_length_coordinate_path(program, parameter, path)?
+        }
+    };
+    Some(RankProtectedPath { path, observation })
+}
+
+/// Add a carrier to a protected roster. Two readings of one path keep the
+/// stronger: a whole-value reading already covers the extent.
+pub fn protect_rank_premise(protected: &mut Vec<RankProtectedPath>, carrier: RankProtectedPath) {
+    match protected
+        .iter_mut()
+        .find(|existing| existing.path == carrier.path)
+    {
+        Some(existing) => {
+            if carrier.observation == RankPremiseObservation::Value {
+                existing.observation = RankPremiseObservation::Value;
+            }
+        }
+        None => protected.push(carrier),
+    }
+}
+
+/// A complete frame preserves a premise carrier when nothing it may write
+/// overlaps the carrier. The frame algebra coarsens a store into a
+/// collection's elements to the whole collection, which overlaps the
+/// collection's extent by spelling alone; `element_store` says the frame is
+/// such a store, and an element store never writes an extent.
+pub fn frame_preserves_rank_premises(
+    frame: facts::NormalizedWriteFrame,
+    element_store: bool,
+    protected: &[RankProtectedPath],
+) -> bool {
+    frame.into_complete_paths().is_some_and(|paths| {
+        protected.iter().all(|carrier| {
+            (element_store && carrier.observation == RankPremiseObservation::Length)
+                || paths
+                    .iter()
+                    .all(|path| !crate::frame_paths_overlap(path, &carrier.path))
+        })
+    })
 }
 
 /// Arrival observations consumed from this state's requirements and constrained
@@ -524,7 +611,7 @@ pub fn ranking_range_state_premise_coordinates(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
-) -> Option<Vec<RankSubjectCoordinate>> {
+) -> Option<Vec<RankPremiseCoordinate>> {
     let mut expressions = Vec::new();
     let mut parameters = Vec::new();
     constrained_parameter_bound_expressions(
@@ -552,9 +639,12 @@ pub fn ranking_range_state_premise_coordinates(
     }
     let mut coordinates = parameters
         .into_iter()
-        .map(|parameter| RankSubjectCoordinate {
-            parameter,
-            path: Vec::new(),
+        .map(|parameter| RankPremiseCoordinate {
+            coordinate: RankSubjectCoordinate {
+                parameter,
+                path: Vec::new(),
+            },
+            observation: RankPremiseObservation::Value,
         })
         .collect::<Vec<_>>();
     let mut pending = expressions
@@ -565,13 +655,17 @@ pub fn ranking_range_state_premise_coordinates(
         let node = program
             .expression_table
             .expression_at_depth(expression, depth)?;
-        let observed = crate::value_custody::places::collection_length_receiver(
+        // `.len` on a collection reads its extent and nothing else; every
+        // other place reads its whole value.
+        let (observed, observation) = match crate::value_custody::places::collection_length_receiver(
             program,
             machine,
             Some(state),
             expression,
-        )
-        .unwrap_or(expression);
+        ) {
+            Some(receiver) => (receiver, RankPremiseObservation::Length),
+            None => (expression, RankPremiseObservation::Value),
+        };
         if matches!(
             node,
             ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
@@ -596,8 +690,19 @@ pub fn ranking_range_state_premise_coordinates(
                 parameter,
                 path: place.segments,
             };
-            if !coordinates.contains(&coordinate) {
-                coordinates.push(coordinate);
+            match coordinates
+                .iter_mut()
+                .find(|existing| existing.coordinate == coordinate)
+            {
+                Some(existing) => {
+                    if observation == RankPremiseObservation::Value {
+                        existing.observation = RankPremiseObservation::Value;
+                    }
+                }
+                None => coordinates.push(RankPremiseCoordinate {
+                    coordinate,
+                    observation,
+                }),
             }
             continue;
         }

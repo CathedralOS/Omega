@@ -538,6 +538,21 @@ impl<'program> CallFrameResolver<'program> {
         )
     }
 
+    /// Whether this assignment stores into a collection's elements rather
+    /// than replacing a whole place. The frame algebra coarsens such a store
+    /// to its collection, a spelling that overlaps the collection's extent
+    /// although the store leaves that extent as it was.
+    pub fn assignment_stores_element(&self, statement: &StatementNode) -> bool {
+        statement
+            .as_assignment()
+            .and_then(|assignment| {
+                super::place_paths::frame_place_path(self.program, assignment.target)
+            })
+            .is_some_and(|origin| {
+                origin.precision == super::place_paths::FramePathPrecision::CollectionCoarse
+            })
+    }
+
     /// Direct store only; operand calls have their own value-expression frame.
     pub fn assignment_write_frame(
         &self,

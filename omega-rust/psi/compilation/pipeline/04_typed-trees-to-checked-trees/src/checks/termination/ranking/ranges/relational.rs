@@ -10,7 +10,6 @@ use crate::checks::termination::graph;
 use crate::checks::termination::ranking::DecreaseMeasure;
 use crate::checks::termination::ranking::RankingOrder;
 use crate::checks::termination::ranking::patterns;
-use symbols::SymbolHandle;
 use typed_trees::state::State;
 use typed_trees::statement::TransitionGuardNode;
 
@@ -270,40 +269,73 @@ pub(super) fn protected_input_paths(
     machine: &typed_trees::machine::Machine,
     state: &State,
     entry_parameters: Option<&validation::RankStateBindings>,
-    premise_inputs: &[SymbolHandle],
-) -> Option<Vec<String>> {
+    premise_inputs: &[validation::RankPremiseInput],
+) -> Option<Vec<validation::RankProtectedPath>> {
     let mut protected = Vec::new();
     match entry_parameters {
         None => {
             for input in premise_inputs {
-                program.state_parameter_by_symbol(state, *input)?;
-                protected.push(validation::frame_coordinate_path(program, *input, &[])?);
+                program.state_parameter_by_symbol(state, input.parameter)?;
+                validation::protect_rank_premise(
+                    &mut protected,
+                    validation::rank_protected_path(
+                        program,
+                        input.parameter,
+                        &input.path,
+                        input.observation,
+                    )?,
+                );
             }
         }
         Some(selected) => {
             for binding in &selected.coordinates {
-                if !premise_inputs.contains(&binding.entry.parameter) {
+                let inputs = premise_inputs
+                    .iter()
+                    .filter(|input| input.parameter == binding.entry.parameter)
+                    .collect::<Vec<_>>();
+                if inputs.is_empty() {
                     continue;
                 }
                 program.state_parameter_by_symbol(state, binding.destination.parameter)?;
-                let path = validation::frame_coordinate_path(
-                    program,
-                    binding.destination.parameter,
-                    &binding.destination.path,
-                )?;
-                if !protected.contains(&path) {
-                    protected.push(path);
+                // An extent reading follows the binding only while the
+                // destination still denotes the entry's whole formal; a
+                // projected coordinate reads a value of its own.
+                let readings =
+                    if binding.entry.path.is_empty() && binding.destination.path.is_empty() {
+                        inputs
+                            .into_iter()
+                            .map(|input| (input.path.as_slice(), input.observation))
+                            .collect::<Vec<_>>()
+                    } else {
+                        vec![(
+                            binding.destination.path.as_slice(),
+                            validation::RankPremiseObservation::Value,
+                        )]
+                    };
+                for (path, observation) in readings {
+                    validation::protect_rank_premise(
+                        &mut protected,
+                        validation::rank_protected_path(
+                            program,
+                            binding.destination.parameter,
+                            path,
+                            observation,
+                        )?,
+                    );
                 }
             }
         }
     }
-    for coordinate in validation::ranking_range_state_premise_coordinates(program, machine, state)?
-    {
-        let path =
-            validation::frame_coordinate_path(program, coordinate.parameter, &coordinate.path)?;
-        if !protected.contains(&path) {
-            protected.push(path);
-        }
+    for premise in validation::ranking_range_state_premise_coordinates(program, machine, state)? {
+        validation::protect_rank_premise(
+            &mut protected,
+            validation::rank_protected_path(
+                program,
+                premise.coordinate.parameter,
+                &premise.coordinate.path,
+                premise.observation,
+            )?,
+        );
     }
     Some(protected)
 }
@@ -315,7 +347,7 @@ fn prove_edges<'program>(
     measure: validation::RankingRangeMeasure,
     frames: Option<&validation::CallFrameResolver<'program>>,
     premises: validation::RankingRangePremises,
-    premise_inputs: &[SymbolHandle],
+    premise_inputs: &[validation::RankPremiseInput],
     accept: &mut dyn FnMut(&RankArrivalAdmission) -> bool,
     failure: &mut RankArrivalFailure,
 ) -> Option<state_edges::SelectedCorrespondence> {
@@ -328,7 +360,6 @@ fn prove_edges<'program>(
         return None;
     }
     let protected = protected_input_paths(program, machine, root, None, premise_inputs)?;
-    let protected = protected.iter().map(String::as_str).collect::<Vec<_>>();
     let mut root_edges = Vec::new();
     for edge in edges {
         let Some(evaluated_prefix) = preserved_entry_prefix(
@@ -400,7 +431,7 @@ fn preserved_entry_prefix<'program>(
     state: &typed_trees::state::State,
     frames: Option<&validation::CallFrameResolver<'program>>,
     statement: usize,
-    protected: &[&str],
+    protected: &[validation::RankProtectedPath],
 ) -> Option<Vec<ExpressionHandle>> {
     let mut evaluated = Vec::new();
     for statement in program
@@ -416,12 +447,12 @@ fn preserved_entry_prefix<'program>(
         // and discarded expressions. The complete operand frame includes
         // nested calls, including calls evaluating an indexed store target.
         let frames = frames?;
-        if !protected.iter().all(|input| {
-            write_preservation::prefix_preserves_path(
+        if !protected.iter().all(|carrier| {
+            write_preservation::prefix_preserves_premise(
                 frames,
                 machine,
                 std::slice::from_ref(statement),
-                input,
+                carrier,
             )
         }) {
             return None;

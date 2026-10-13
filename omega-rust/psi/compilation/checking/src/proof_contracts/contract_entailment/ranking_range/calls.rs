@@ -727,7 +727,7 @@ pub(crate) fn prove_ranking_range_call(
 pub(crate) fn call_member_premise_symbols(
     program: &dyn crate::CheckingInput,
     member: &RankingRangeCallMember<'_>,
-) -> Option<Vec<SymbolHandle>> {
+) -> Option<Vec<super::RankPremiseInput>> {
     let (_, measure) = scalar_entry(program, member)?;
     super::ranking_range_premise_symbols(program, member.machine, member.range, measure)
 }

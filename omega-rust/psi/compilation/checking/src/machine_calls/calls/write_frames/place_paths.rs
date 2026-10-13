@@ -150,6 +150,24 @@ pub fn frame_coordinate_path(
     Some(coordinate_storage_path(program, program.symbols.name(root), segments).0)
 }
 
+/// The frame path of a collection's extent as `.len` observes it, spelled the
+/// way an authored `.len` member reaches the frame. A collection-coarse
+/// coordinate is absorbing and already covers every element and extent
+/// beneath it, so it keeps its coarse spelling.
+pub fn frame_length_coordinate_path(
+    program: &dyn crate::CheckingInput,
+    root: symbols::SymbolHandle,
+    segments: &[facts::PlaceSegment],
+) -> Option<String> {
+    root.is_valid().then_some(())?;
+    let (mut path, precision) =
+        coordinate_storage_path(program, program.symbols.name(root), segments);
+    if precision == FramePathPrecision::Exact {
+        path.push_str(".len");
+    }
+    Some(path)
+}
+
 pub(super) fn coordinate_storage_path(
     program: &dyn crate::CheckingInput,
     name: &str,

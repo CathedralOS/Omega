@@ -4,7 +4,6 @@
 
 use super::super::super::{graph, patterns};
 use super::{RankArrivalFailure, preserved_entry_prefix, protected_input_paths};
-use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 
@@ -21,7 +20,7 @@ pub(super) fn select<'program>(
     measure: validation::RankingRangeMeasure,
     frames: Option<&validation::CallFrameResolver<'program>>,
     premises: validation::RankingRangePremises,
-    premise_inputs: &[SymbolHandle],
+    premise_inputs: &[validation::RankPremiseInput],
     root_edges: &[checked_trees::CheckedRankArrivalEdge],
     accept: &mut dyn FnMut(&super::RankArrivalAdmission) -> bool,
     failure: &mut RankArrivalFailure,
@@ -83,7 +82,6 @@ pub(super) fn select<'program>(
                 ) else {
                     return validation::RankArrivalCompatibility::Refuted;
                 };
-                let protected = protected.iter().map(String::as_str).collect::<Vec<_>>();
                 for &target_position in &adjacency[source_position] {
                     if source_position == 0 && target_position == 0 {
                         continue;

@@ -1,7 +1,9 @@
 // A machine that stores through a borrowed byte array and then calls itself
 // in tail position. Runtime recursion is a backedge into the entry state, so
 // the store's write frame and its native block-parameter destination are the
-// loop's, for a fixed array loan and for a byte slice alike.
+// loop's, for a fixed array loan and for a byte slice alike. A ranking bounded
+// by the slice's `.len` reads only that extent: the element store before the
+// recursive call preserves it.
 use omega_language_std::console;
 use omega::language::core::binding;
 

@@ -7,32 +7,56 @@ use validation::CallFrameResolver;
 
 /// A write frame is preservation evidence only when it is complete -- an
 /// opaque frame admits nothing -- and every caller-relative path it may
-/// write is disjoint from `path`.
-pub(super) fn frame_preserves_path(frame: NormalizedWriteFrame, path: &str) -> bool {
-    frame.into_complete_paths().is_some_and(|paths| {
-        paths
-            .iter()
-            .all(|written| !validation::frame_paths_overlap(written, path))
+/// write leaves the carrier as it was.
+fn frame_preserves_premise(
+    frame: NormalizedWriteFrame,
+    element_store: bool,
+    carrier: &validation::RankProtectedPath,
+) -> bool {
+    validation::frame_preserves_rank_premises(frame, element_store, std::slice::from_ref(carrier))
+}
+
+pub(super) fn prefix_preserves_premise<'program>(
+    frames: &CallFrameResolver<'program>,
+    machine: &'program Machine,
+    statements: &[StatementNode],
+    carrier: &validation::RankProtectedPath,
+) -> bool {
+    statements.iter().all(|statement| {
+        let direct_writes_preserve = match statement {
+            StatementNode::Assignment(_) => frame_preserves_premise(
+                frames.assignment_write_frame(machine, statement),
+                frames.assignment_stores_element(statement),
+                carrier,
+            ),
+            StatementNode::Call(call) => {
+                frame_preserves_premise(frames.may_write_frame(machine, call), false, carrier)
+            }
+            _ => true,
+        };
+        direct_writes_preserve
+            && frame_preserves_premise(
+                frames.statement_value_write_frame(machine, statement),
+                false,
+                carrier,
+            )
     })
 }
 
+/// A whole-value carrier: every overlapping write invalidates it.
 pub(super) fn prefix_preserves_path<'program>(
     frames: &CallFrameResolver<'program>,
     machine: &'program Machine,
     statements: &[StatementNode],
     path: &str,
 ) -> bool {
-    statements.iter().all(|statement| {
-        let direct_writes_preserve = match statement {
-            StatementNode::Assignment(_) => {
-                frame_preserves_path(frames.assignment_write_frame(machine, statement), path)
-            }
-            StatementNode::Call(call) => {
-                frame_preserves_path(frames.may_write_frame(machine, call), path)
-            }
-            _ => true,
-        };
-        direct_writes_preserve
-            && frame_preserves_path(frames.statement_value_write_frame(machine, statement), path)
-    })
+    prefix_preserves_premise(
+        frames,
+        machine,
+        statements,
+        &validation::RankProtectedPath {
+            path: path.to_owned(),
+            observation: validation::RankPremiseObservation::Value,
+        },
+    )
 }
