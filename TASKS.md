@@ -3009,14 +3009,16 @@ crash and native exit behavior.
     rows, keeping source-semantic contracts and all authored candidates in
     Psi. Every family body and Build row is checked even when `--target`
     excludes it.
-  - Product constants requiring selected-provider evaluation now reject with
-    `unimplemented: portable provider-dependent constant recipes`. Retain exact
-    symbolic applications and their dependencies through the shared Psi program,
-    then close them under the target capsule as specified by
-    [evaluation](wiki/spec/language/evaluation.md#target-dependent-applications).
-    Do not restore per-target typed-tree folding or substitute host values.
-    Admitted Build evaluation remains a separate execution and still supports
-    its explicitly selected operators.
+  - Product constants requiring selected-provider evaluation now close under
+    each target: Psi rosters each deferred position as a retained constant
+    recipe, checks the shared program against the symbolic node and records
+    index, window and membership comparisons as obligations; after settlement
+    Omega resumes the continuation on the authored source under the selected
+    rows, discharges the obligations and hands a closed program copy to
+    Terminal production and installation (`f3dde6cf4b4`). Remaining: a
+    recipe-extent array whose element owes cleanup or qualification rows, a
+    const-generic argument other than a direct call, and the twins' ~250 s
+    closure re-check of the recipe closure.
   - Completion-role review now fixes a provisional exact source declaration
     before checking and rejoins every proposal to its selected external supply
     afterward. Ordinary compilation still requires the accepted schema/plan
