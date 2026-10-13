@@ -3,9 +3,11 @@
 
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use facts::{PlaceRoot, PlaceSegment};
-use typed_trees::expression::ExpressionNode;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
+use validation::{CanonicalPlace, canonical_place_from_expression_in_state};
 
+use super::super::assembly::expression_reads_overlapping_place;
 use crate::labels::symbol_name;
 
 /// state's statements ran. `caller_state_preserves_field` matches member names
@@ -25,6 +27,7 @@ pub(super) fn caller_state_preserves_predicate_premise(
     fact: &facts::Fact,
     predicate_expressions: &[typed_trees::expression::ExpressionHandle],
     required_labels: &[String],
+    reads: &[ExpressionHandle],
 ) -> bool {
     let mut fields: Vec<typed_trees::name::Identifier> = Vec::new();
     for expression in predicate_expressions {
@@ -54,6 +57,7 @@ pub(super) fn caller_state_preserves_predicate_premise(
                 call_flow,
                 state,
                 label,
+                reads,
             )
         })
         // The name gate cannot see a `self`-rooted write (`self` is skipped
@@ -91,6 +95,12 @@ pub(super) fn caller_state_preserves_predicate_premise(
 /// quote a stale premise, and this route must refuse; the remaining provers
 /// may still establish the fact from current evidence. Qualified `self.field`
 /// operands are covered by the field walk above, so `self` itself is skipped.
+///
+/// `reads` are the caller argument expressions the requirement instance
+/// reads. A prior call write under a spelled root stales the premise only
+/// when it may overlap one of those reads: popping `main.a` leaves a guard on
+/// `main.b.count` intact. A write whose root no read shares cannot be placed
+/// against the label and stays conservative.
 pub(super) fn caller_state_preserves_label_names(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
@@ -98,6 +108,7 @@ pub(super) fn caller_state_preserves_label_names(
     call_flow: &FlowCallFact,
     state: &typed_trees::state::State,
     required_label: &str,
+    reads: &[ExpressionHandle],
 ) -> bool {
     let names = super::labels::unqualified_label_identifiers(required_label);
     if names.is_empty() {
@@ -127,9 +138,42 @@ pub(super) fn caller_state_preserves_label_names(
             let Some(symbol) = invalidation.mutated_root.as_symbol() else {
                 return false;
             };
-            names
+            if !names
                 .iter()
                 .any(|name| name.as_str() == symbol_name(program, symbol))
+            {
+                return false;
+            }
+            let written = CanonicalPlace {
+                root: invalidation.mutated_root,
+                segments: facts
+                    .flow
+                    .invalidations
+                    .segments
+                    .span_or_empty(invalidation.mutated_segments)
+                    .to_vec(),
+            };
+            let read_places = reads
+                .iter()
+                .filter_map(|read| {
+                    canonical_place_from_expression_in_state(
+                        program,
+                        state_flow.state_symbol,
+                        call_flow.statement_index,
+                        *read,
+                    )
+                })
+                .collect::<Vec<_>>();
+            !read_places.iter().any(|place| place.root == written.root)
+                || reads.iter().any(|read| {
+                    expression_reads_overlapping_place(
+                        program,
+                        state_flow.state_symbol,
+                        call_flow.statement_index,
+                        *read,
+                        &written,
+                    )
+                })
         })
 }
 

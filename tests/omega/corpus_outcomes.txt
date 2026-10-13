@@ -7,6 +7,12 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
+fail/contracts/call_write_retires_overlapping_guard rejected 612ms expected @a036414cf2c9
+	cannot prove requires contract for call pop from Main::main: main.a.count >= 1 && main.a.count <= 4 (needs fact `stack.count >= 1 && stack.count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `twice`
+fail/contracts/state_write_retires_overlapping_guard_conjunct rejected 613ms expected @a036414cf2c9
+	cannot prove requires contract for call pop from Main::main: main.b.count >= 1 && main.b.count <= 4 (needs fact `stack.count >= 1 && stack.count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `second`
+pass/contracts/call_write_keeps_disjoint_guard_exit checked 5761ms check-target:macos_arm64 @a036414cf2c9
+pass/contracts/guard_conjunct_survives_disjoint_state_write_exit checked 5761ms check-target:macos_arm64 @a036414cf2c9
 pass/contracts/runtime_literal_view_extent_calls_exit checked 5692ms check-target:macos_arm64 @81a0434130f9bfb47b3bec8ac9b47181a4ae96d2+wt
 fail/contracts/literal_view_extent_not_invented rejected 545ms expected @81a0434130f9bfb47b3bec8ac9b47181a4ae96d2+wt
 	cannot prove requires contract for call nonempty from empty_is_not_nonempty: [].len > 0 (needs fact `bytes.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)

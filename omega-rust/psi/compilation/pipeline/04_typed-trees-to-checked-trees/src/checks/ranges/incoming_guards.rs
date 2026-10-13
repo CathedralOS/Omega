@@ -346,7 +346,14 @@ pub(in crate::checks) fn collect_incoming_guard_facts(
                 Some(compose_immutable_argument_symbols(&bindings, &replacements))
             });
             for &(guard, negated) in &edge.guards {
-                if guard_survives(program, guard, edge.source, &written, written_any) {
+                for guard in surviving_guard_parts(
+                    program,
+                    guard,
+                    negated,
+                    edge.source,
+                    &written,
+                    written_any,
+                ) {
                     result.push(IncomingGuard {
                         state: state.symbol,
                         evaluation_state: edge.source,
@@ -473,10 +480,21 @@ fn edge_carried_facts(
     let mut carried: Vec<CarriedGuard> = walk_facts
         .iter()
         .filter(|fact| fact.state == edge.source)
-        .filter(|fact| guard_survives(program, fact.guard, edge.source, &written, written_any))
-        .map(|fact| CarriedGuard {
+        .flat_map(|fact| {
+            surviving_guard_parts(
+                program,
+                fact.guard,
+                fact.negated,
+                edge.source,
+                &written,
+                written_any,
+            )
+            .into_iter()
+            .map(move |guard| (fact, guard))
+        })
+        .map(|(fact, guard)| CarriedGuard {
             evaluation_state: fact.evaluation_state,
-            guard: fact.guard,
+            guard,
             negated: fact.negated,
             parameter_argument_places: compose_carried_parameter_argument_places(
                 program, edge, fact,
@@ -795,6 +813,30 @@ fn state_field_writes(
         .iter()
         .find(|(symbol, _)| *symbol == source)
         .map(|(_, write)| write)
+}
+
+/// The parts of a guard that still hold after the rewrites recorded so far:
+/// the whole guard when it survives, otherwise each top-level `&&` conjunct
+/// that survives on its own, so writing `self.a.count` keeps a conjoined bound
+/// on `self.b.count`. A negated guard is a disjunction of negated conjuncts,
+/// so it survives only whole.
+fn surviving_guard_parts(
+    program: &dyn ::validation::CheckingInput,
+    guard: ExpressionHandle,
+    negated: bool,
+    guard_state: SymbolHandle,
+    written: &[String],
+    written_any: bool,
+) -> Vec<ExpressionHandle> {
+    let survives = |part| guard_survives(program, part, guard_state, written, written_any);
+    if negated {
+        return if survives(guard) {
+            vec![guard]
+        } else {
+            Vec::new()
+        };
+    }
+    qualifying_guard_conjuncts(program, guard, &survives)
 }
 
 /// Whether `guard` still holds after the rewrites recorded so far: it must name

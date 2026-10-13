@@ -675,11 +675,13 @@ pass/constraints/guarded_parameter_result_contract checked 173ms
 pass/constraints/proof_machine_order_fact checked 194ms
 pass/constraints/scalar_requires_satisfied_by_literal checked 207ms
 pass/constraints/selected_arithmetic_return_ensures checked 193ms
+pass/contracts/call_write_keeps_disjoint_guard_exit built 5953ms exit:24 @a036414cf2c9
 pass/contracts/ensures_borrowed_parameter_field_exit built 1452ms exit:70 @a5f40f5895bf+wt
 pass/contracts/ensures_fact_list_exit built 1562ms exit:70 @a5f40f5895bf+wt
 pass/contracts/ensures_named_parameter_arithmetic_exit built 445ms exit:0 @1fa864024c44+wt
 pass/contracts/ensures_saturating_field_arithmetic_exit built 3618ms exit:70 @9beb2be72f2d+wt
 pass/contracts/ensures_wrapping_field_arithmetic_exit built 1363ms exit:70 @a5f40f5895bf+wt
+pass/contracts/guard_conjunct_survives_disjoint_state_write_exit built 5952ms exit:24 @a036414cf2c9
 pass/contracts/named_tail_return_contract built 3616ms exit:70 @9beb2be72f2d+wt
 pass/contracts/proof_fact_indexed_domain_application checked 176ms
 pass/contracts/requires_narrow_ceiling_unproven built 2806ms exit:70 @527c7c316c6f+wt

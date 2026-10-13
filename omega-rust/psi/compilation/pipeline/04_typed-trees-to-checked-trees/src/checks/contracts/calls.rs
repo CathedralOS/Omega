@@ -231,13 +231,14 @@ pub(super) fn check_call_requires(
                     _ => None,
                 };
                 diagnostics.push(Diagnostic::error(format!(
-                    "cannot prove requires contract for call {} from {}: {}{}",
+                    "cannot prove requires contract for call {} from {}: {}{} in state `{}`",
                     call_target_label(program, call_flow.target_symbol),
                     machine_name(program, state_flow.machine_symbol),
                     semantic_fact_requirement_label(program, &facts.semantic, fact),
                     detail
                         .map(|message| format!(" ({message})"))
-                        .unwrap_or_default()
+                        .unwrap_or_default(),
+                    symbol_name(program, state_flow.state_symbol)
                 )));
             }
         }
@@ -729,6 +730,8 @@ fn proven_predicates_grant_domain(
                 proven
             }
         });
+    let arguments = validation::call_site_argument_expressions(program, &call_site);
+    let mentioned = super::guard_operands::fact_requirement_mentions(program, facts, fact);
     proven
         // Only the guard half needs caller-state gates: the walk-back has
         // already fenced intermediate-state writes, so what remains is this
@@ -743,6 +746,11 @@ fn proven_predicates_grant_domain(
                 fact,
                 &predicate_expressions,
                 &required_labels,
+                &super::guard_operands::requirement_argument_reads(
+                    arguments,
+                    target_parameters,
+                    &mentioned,
+                ),
             ))
         // The statement scans above stop where the statement begins; the
         // jump's own operands run after them and before the membership's read.
@@ -751,9 +759,9 @@ fn proven_predicates_grant_domain(
             facts,
             state_flow,
             call_flow,
-            validation::call_site_argument_expressions(program, &call_site),
+            arguments,
             target_parameters,
-            &super::guard_operands::fact_requirement_mentions(program, facts, fact),
+            &mentioned,
             call_frames,
         )
 }
@@ -914,6 +922,8 @@ fn incoming_guard_proves_requires(
     }
     let mut fields: Vec<typed_trees::name::Identifier> = Vec::new();
     collect_expression_self_fields(program, expression, &mut fields);
+    let arguments = validation::call_site_argument_expressions(program, &call_site);
+    let mentioned = super::guard_operands::boolean_requirement_mentions(program, expression);
     fields
         .iter()
         .all(|field| caller_state_preserves_field(program, state, field))
@@ -927,6 +937,11 @@ fn incoming_guard_proves_requires(
             call_flow,
             state,
             &required_label,
+            &super::guard_operands::requirement_argument_reads(
+                arguments,
+                target_parameters,
+                &mentioned,
+            ),
         )
         // The statement scans above stop at the call; the jump's own operands
         // run after them and before the requirement's read.
@@ -935,9 +950,9 @@ fn incoming_guard_proves_requires(
             facts,
             state_flow,
             call_flow,
-            validation::call_site_argument_expressions(program, &call_site),
+            arguments,
             target_parameters,
-            &super::guard_operands::boolean_requirement_mentions(program, expression),
+            &mentioned,
             call_frames,
         )
 }

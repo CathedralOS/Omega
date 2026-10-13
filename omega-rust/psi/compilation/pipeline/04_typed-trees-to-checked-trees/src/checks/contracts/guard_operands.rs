@@ -182,6 +182,20 @@ pub(super) fn fact_requirement_mentions(
     }
 }
 
+/// The caller argument expressions a requirement instance reads: one per
+/// mentioned target parameter. Symbols that name no target parameter are not
+/// supplied by the call and yield nothing.
+pub(super) fn requirement_argument_reads(
+    arguments: &[ExpressionHandle],
+    target_parameters: &[StateParameter],
+    mentioned: &[SymbolHandle],
+) -> Vec<ExpressionHandle> {
+    requirement_reads(arguments, target_parameters, mentioned)
+        .into_iter()
+        .map(|(_, RequirementRead::Argument(argument))| argument)
+        .collect()
+}
+
 /// Each mentioned target parameter paired with the operand position at which
 /// the jump reads it. Symbols that name no target parameter are not supplied
 /// by the operands and are left to the other provers.
