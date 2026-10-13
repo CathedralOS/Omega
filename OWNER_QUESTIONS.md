@@ -65,7 +65,7 @@ Proposed solutions below are recommendations, not owner rulings. Remove an
 entry when the contract answers it; retain any unfinished implementation on
 its owning task.
 
-### Q10 - Does a Build provider selection bind a boundary-trait token?
+### Q1 - Does a Build provider selection bind a boundary-trait token?
 
 Named decision: `boundary-trait-token-binder`.
 
