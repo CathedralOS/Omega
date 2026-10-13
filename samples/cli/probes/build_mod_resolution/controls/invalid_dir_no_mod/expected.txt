@@ -1,2 +1,3 @@
-cannot check prepared project: checked compilation failed for package `invalid_dir_no_mod` with 1 diagnostic(s)
-  error: failed to resolve .../source/util.omg: No such file or directory (os error 2)
+checked compilation failed for package `invalid_dir_no_mod`
+error: failed to resolve 
+util.omg: No such file or directory

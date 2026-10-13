@@ -1,2 +1,2 @@
-cannot check prepared project: checked compilation failed for package `invalid_missing_module` with 1 diagnostic(s)
-  error: failed to resolve .../dep.omg: captured entry is absent: dep.omg
+checked compilation failed for package `invalid_missing_module`
+dep.omg: captured entry is absent: dep.omg

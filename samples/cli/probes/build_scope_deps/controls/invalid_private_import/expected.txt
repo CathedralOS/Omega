@@ -1,3 +1,4 @@
-cannot check prepared project: checked compilation failed for package `invalid_private_import` with 1 diagnostic(s)
-  error: package `invalid_private_import` (...) selects private machine `hidden::entry`
-    source-unit 0, bytes 44..50
+checked compilation failed for package `invalid_private_import`
+error: package `invalid_private_import` (
+) selects private machine `hidden::entry`
+main.omg:3:5

@@ -1,2 +1,3 @@
-cannot check prepared project: checked compilation failed for package `invalid_declared_import` with 1 diagnostic(s)
-  error: import `custody_kernel::main` ... names package `custody_kernel` ... as `custody_kernel`, but package `invalid_declared_import` ... declares no product dependency under that alias -- declare `builder.depend(...)` or `builder.depend_as("custody_kernel", ...)` in its build.omg to add that dependency edge for the product scope
+checked compilation failed for package `invalid_declared_import`
+main.omg: import `custody_kernel::main` names package `custody_kernel`
+declares no product dependency under that alias -- declare `Build::depend(builder, ...)` or `Build::depend_as(builder, \"custody_kernel\", ...)` in its build.omg to add that dependency edge for the product scope

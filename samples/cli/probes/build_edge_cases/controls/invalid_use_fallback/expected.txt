@@ -1,2 +1,2 @@
-cannot check prepared project: checked compilation failed for package `invalid_use_fallback` with 1 diagnostic(s)
-  error: failed to resolve .../ghost/main.omg: captured entry is absent: ghost
+checked compilation failed for package `invalid_use_fallback`
+ghost/main.omg: captured entry is absent: ghost

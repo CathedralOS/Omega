@@ -1,2 +1,3 @@
-cannot check prepared project: checked compilation failed for package `invalid_ghost_member` with 1 diagnostic(s)
-  error: failed to resolve .../source/ghost.omg: No such file or directory (os error 2)
+checked compilation failed for package `invalid_ghost_member`
+error: failed to resolve 
+ghost.omg: No such file or directory

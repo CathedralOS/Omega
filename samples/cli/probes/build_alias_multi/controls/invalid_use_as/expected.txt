@@ -1,2 +1,2 @@
-cannot check prepared project: checked compilation failed for package `invalid_use_as` with 1 diagnostic(s)
-  error: .../main.omg:1:15: expected `;`, found keyword `as`
+checked compilation failed for package `invalid_use_as`
+main.omg:1:15: expected `;`, found keyword `as`
