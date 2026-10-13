@@ -176,7 +176,10 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
         // evidence available to its body. Use the same occurrence-bound
         // membership judgment as value construction: it proves literals,
         // completed calls and live places without minting routed membership.
-        let root_satisfied = !readable_reference
+        // A reference return with captured referents proves at that storage
+        // below; one without (a returned literal has no storage) keeps this
+        // value judgment, which is what grants a literal its domain.
+        let root_satisfied = returned_storage.is_none()
             && path.is_empty()
             && super::super::super::writes::value_proves_qualification_in_contexts(
                 program,
@@ -188,8 +191,8 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                 semantic_domain,
                 &entry_contexts,
             );
-        let satisfied = if readable_reference {
-            returned_storage.as_ref().is_some_and(|subjects| {
+        let satisfied = if let Some(subjects) = returned_storage.as_ref() {
+            {
                 subjects.iter().all(|storage| {
                     crate::flow::place_cases_are_selected(
                         program,
@@ -212,7 +215,7 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                             ) || proves(&subject)
                         })
                 })
-            })
+            }
         } else {
             root_satisfied
                 || crate::flow::literal_value_projections(

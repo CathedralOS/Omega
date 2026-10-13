@@ -3214,8 +3214,9 @@ crash and native exit behavior.
     **BORROWED-STORAGE-RESTORATION**; `interrupt_table_canary` and
     `secondary_processor_canary` select providers but lack an executable
     intrinsic, which **CHECKED-ASM-LABEL-CONTRACTS** owns;
-    `fail/calls/struct_constant_requires_argument_rejected` is
-    **STRUCT-CONSTANT-REQUIRES-REFUTATION-DRIFT**.
+    `fail/calls/struct_constant_requires_argument_rejected` rejects for its
+    authored reason again (the constant application unfolds through its
+    tail expression).
   - Unowned pairs: `pass/boundary/{later_state_requirement_scalar_result,
     static_foreign_scalar_result_locals}_exit` ("call selects no
     declaration"); `pass/calls/runtime_mutable_local_external_scalar_call_exit`
@@ -3353,39 +3354,6 @@ Each coherent repair deletes what it replaces and keeps every
 check-corpus verdict and diagnostic family unchanged unless the item says
 otherwise. Paths below are relative to the stage 04 `src/` (written `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/`) or
 the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unless spelled in full.
-
-- **BORROW-CERTIFICATES-DELETED.** Implemented — pending board verification.
-  The two certificate arenas are gone: `CheckedReborrowContainmentCertificate`,
-  `CheckedReborrowContainmentKind` and
-  `CheckedReborrowRestoredCallUseCertificate` are deleted with both producer
-  modules (`resource_reconstruction.rs`, `certificate_planning.rs`). The
-  restored-call join now lives on the kept
-  `CheckedReborrowResourceDispositionEvent` as three ZII handles
-  (`restored_call`, `restored_borrow_call`, `restored_call_access`), bound by
-  `bind_restored_call_uses` in `disposition_events.rs` only on
-  Reactivate/RestoreSharedCohort boundaries; resource reconstruction moved to
-  `loan_resources.rs` and `span_handle` to `lifecycle.rs`. Consumers read the
-  event join directly: stage 04 `receiver_aliases` and
-  `calls/structural_arguments.rs` and stage 05
-  `retention/reborrow_restored_call_use`. State-exit root handoffs remain
-  checked dispositions, not Terminal certificates. Acceptance:
-  `--filter borrows/,borrow/,references/` 325 fixtures, 0 status moves.
-
-- **CHECK-ONCE-ACROSS-TARGETS.** Implemented — pending board verification.
-  `compiler::compile` now chains `RetainedCompilationChecks` across its target
-  loop (`prior` = previous target's retained product check, `retain` = an
-  admitted successor exists), so an equal settled typed input takes the
-  retained judgment instead of rechecking; a target whose settlement diverges
-  the input (`attach_proposed` under semantic-role discovery, `evaluate_pending`
-  under pending pre-checks) checks afresh and chains its own judgment.
-  `artifacts::compile_timings::counters::settled_check_reuse_count` is the
-  acceptance counter (recorded at both `took_prior` sites); measured 3-target
-  `--check` = 1 executed check + 2 reuses. Single-target compiles keep
-  `retain: false` — the retained clone is the whole checked program, so the
-  corpus path stays clone-free. Native corpus leg env-blocked (program-entry
-  admission); equality-gated reuse is output-identical by construction, so
-  single-target/native paths are bit-identical. Coordination on
-  **PSI-TARGET-FAMILIES** via claims.py still unavailable.
 
 - **ONE-INTEGER-BOUNDS-ENGINE.** (new-scope) At least nine separate engines
   answer "what range can this integer take":
