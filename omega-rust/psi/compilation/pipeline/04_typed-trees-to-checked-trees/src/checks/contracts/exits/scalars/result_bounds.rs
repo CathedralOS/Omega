@@ -79,7 +79,7 @@ impl ExitScalars<'_, '_> {
                     operand,
                 )
                 .and_then(|reference| self.program.primitive_type_reference(reference))
-                .filter(|primitive| crate::values::bounds::primitive_range(*primitive).is_some())
+                .filter(|primitive| validation::carrier_integer_range(*primitive).is_some())
             })?;
         let lower = |operand| {
             crate::values::lower_unit_scalar_argument(
@@ -98,7 +98,7 @@ impl ExitScalars<'_, '_> {
             .filter(|parameter| crate::values::occupies_scalar_position(self.program, parameter))
             .map(|parameter| parameter.symbol)
             .collect::<Vec<_>>();
-        let mut values = crate::values::bounds::PlaceIntegerBounds {
+        let mut values = crate::values::LivePlaceIntervals {
             program: self.program,
             semantic: &self.facts.semantic,
             contexts: self.contexts,
@@ -106,8 +106,8 @@ impl ExitScalars<'_, '_> {
             symbols: &symbols,
             state: entry.symbol,
         };
-        let left = crate::values::bounds::evaluate(&left, &mut values)?;
-        let right = crate::values::bounds::evaluate(&right, &mut values)?;
+        let left = validation::selected_scalar_interval(&left, &mut values)?;
+        let right = validation::selected_scalar_interval(&right, &mut values)?;
         interval_comparison(binary.operator, &left, &right)
     }
 

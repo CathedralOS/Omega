@@ -219,9 +219,9 @@ impl CapturedValue for IntegerRange {
         live: &LiveValues<'_, '_>,
     ) -> Option<Self> {
         let contexts = crate::flow::active_context_handles(live.context, live.active);
-        crate::values::bounds::evaluate(
+        validation::selected_scalar_interval(
             expression,
-            &mut crate::values::bounds::PlaceIntegerBounds {
+            &mut crate::values::LivePlaceIntervals {
                 program: live.program,
                 semantic: live.semantic,
                 contexts: &contexts,
@@ -238,7 +238,7 @@ impl CapturedValue for IntegerRange {
         expression: &CheckedScalarExpression,
         values: &mut CallValues<Self>,
     ) -> Option<Self> {
-        crate::values::bounds::evaluate(expression, values)
+        validation::selected_scalar_interval(expression, values)
     }
 
     fn boolean(
@@ -248,7 +248,7 @@ impl CapturedValue for IntegerRange {
         let CheckedScalarExpression::Boolean(expression) = expression else {
             return None;
         };
-        crate::values::bounds::boolean(expression, values)
+        validation::selected_boolean_decision(expression, values)
     }
 
     fn join(self, other: Self) -> Option<Self> {
@@ -263,8 +263,8 @@ impl CapturedValue for IntegerRange {
         parameter: &typed_trees::signature::StateParameter,
     ) -> Option<Self> {
         let primitive = program.primitive_type_reference(parameter.type_reference)?;
-        crate::values::bounds::declared_bounds(program, parameter.type_reference, primitive)
-            .or_else(|| crate::values::bounds::primitive_range(primitive))
+        validation::frozen_declared_integer_range(program, parameter.type_reference, primitive)
+            .or_else(|| validation::carrier_integer_range(primitive))
     }
 
     fn operand(
@@ -290,7 +290,7 @@ impl CapturedValue for IntegerRange {
                 expression,
             )?)?;
         let contexts = crate::flow::active_context_handles(live.context, live.active);
-        crate::values::bounds::PlaceIntegerBounds {
+        crate::values::LivePlaceIntervals {
             program,
             semantic: live.semantic,
             contexts: &contexts,
@@ -298,11 +298,11 @@ impl CapturedValue for IntegerRange {
             symbols: &[],
             state: live.state,
         }
-        .bounds_at_place(&place, primitive)
+        .interval_at_place(&place, primitive)
     }
 
     fn convert(self, conversion: &SelectedConversion) -> Option<Self> {
-        let carrier = crate::values::bounds::primitive_range(conversion.target)?;
+        let carrier = validation::carrier_integer_range(conversion.target)?;
         // Widening preserves the captured bounds. A partial conversion keeps
         // the meet with its proved spelling range, independently of the
         // arithmetic policy attached to its result.
@@ -315,11 +315,11 @@ impl CapturedValue for IntegerRange {
         };
         // A meet that cannot denote a normal-return value, and any interval
         // escaping the target carrier, fails the capture outright.
-        crate::values::bounds::contains(&carrier, &bounds).then_some(bounds)
+        validation::integer_range_contains(&carrier, &bounds).then_some(bounds)
     }
 }
 
-impl crate::values::bounds::IntegerBoundsSource for CallValues<IntegerRange> {
+impl validation::SelectedScalarIntervalSource for CallValues<IntegerRange> {
     fn binding(
         &mut self,
         position: usize,

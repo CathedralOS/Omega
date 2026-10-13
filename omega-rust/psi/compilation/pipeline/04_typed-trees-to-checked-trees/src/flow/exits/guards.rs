@@ -254,7 +254,7 @@ pub(in crate::flow) fn append_comparison_bounds_context(
             operand,
         )
         .and_then(|reference| program.primitive_type_reference(reference))
-        .and_then(crate::values::bounds::primitive_range) else {
+        .and_then(validation::carrier_integer_range) else {
             continue;
         };
         // `append_place` allocates a fresh handle per call, so place identity

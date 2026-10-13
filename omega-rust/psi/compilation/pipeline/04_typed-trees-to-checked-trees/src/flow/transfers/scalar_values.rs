@@ -183,9 +183,9 @@ pub(super) fn capture_bounds(
     {
         let contexts = crate::flow::active_context_handles(context, active);
         let (machine_index, state_index) = located?;
-        return crate::values::bounds::evaluate(
+        return validation::selected_scalar_interval(
             expression,
-            &mut crate::values::bounds::PlaceIntegerBounds {
+            &mut crate::values::LivePlaceIntervals {
                 program,
                 semantic,
                 contexts: &contexts,

@@ -124,7 +124,7 @@ fn classify_cast_chain(
     mut source_type: PrimitiveType,
     exact_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<Vec<SelectedConversion>> {
-    crate::values::bounds::primitive_range(source_type)?;
+    validation::carrier_integer_range(source_type)?;
     let mut conversions = Vec::with_capacity(casts.len());
     for (cast_expression, cast) in casts.iter().rev() {
         let target_type = program.primitive_type_reference(cast.target_type)?;
@@ -214,7 +214,7 @@ fn classify(
 ) -> Option<SelectedConversion> {
     // Fixed-width integer carriers only: Addr and the non-integer primitives
     // are distinct carriers that this slice does not convert.
-    crate::values::bounds::primitive_range(target)?;
+    validation::carrier_integer_range(target)?;
     let kind = if source == target || validation::integer_widen_is_total(source, target) {
         ConversionKind::Widen
     } else {

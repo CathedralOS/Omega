@@ -55,7 +55,7 @@ impl ExitScalars<'_, '_> {
         if selected.primitive_type() != Some(primitive) {
             return None;
         }
-        let mut bounds = crate::values::bounds::primitive_range(primitive)?;
+        let mut bounds = validation::carrier_integer_range(primitive)?;
         if let CheckedScalarExpression::IntegerLiteral { literal } = selected {
             let value = literal.value_bignum()?;
             typed_trees::closed_numeric::land_integer(&value, primitive)?;

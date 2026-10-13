@@ -55,11 +55,16 @@ mod ordered_values;
 mod place_paths;
 mod range_constraints;
 mod return_ranges;
+mod selected_scalar_intervals;
 pub use bigint_interval::{
     BigIntInterval, bitwise_and_constants, bitwise_carrier_bounds, floor_shift_right,
 };
 pub use interval::{Interval, WideInterval};
 pub use return_ranges::normal_return_integer_bounds;
+pub use selected_scalar_intervals::{
+    SelectedScalarIntervalSource, carrier_integer_range, frozen_declared_integer_range,
+    integer_range_contains, selected_boolean_decision, selected_scalar_interval,
+};
 mod stored_integer_writes;
 pub(crate) use guard_narrowing::occurrence_value_environment;
 mod total_specification;

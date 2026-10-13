@@ -8,24 +8,26 @@
 //!
 //! `scalar` builds the checked scalar expression plans, which the check pass
 //! builds before flow, and the value computation plans, which it builds after
-//! flow. `evaluation` evaluates selected scalar operations, `bounds` computes
-//! integer bounds of selected scalar expressions, and `snapshots` reads the
-//! current assigned value, literal, or integer bounds at a place.
+//! flow. `evaluation` evaluates selected scalar operations, `snapshots` reads
+//! the current assigned value, literal, or integer bounds at a place, and
+//! `place_intervals` serves those live facts to validation's interval domain
+//! (`validation::selected_scalar_interval`), which owns the arithmetic.
 use checked_trees::{
     CheckedIntegerRange, CheckedValueFact, CheckedValueFacts, CheckedValueOrigin,
     CheckedValueStatementRole,
 };
 use proof::obligations::ProofPlan;
 
-pub(crate) mod bounds;
 mod evaluation;
 pub(crate) mod float_predicates;
+mod place_intervals;
 pub(crate) mod reference_sources;
 mod snapshots;
 pub(crate) use evaluation::evaluate as evaluate_checked_scalar;
 pub(crate) use evaluation::{
     BoundScalarValues, ScalarValueSource, admitted_integer, integer_magnitude, integer_type,
 };
+pub(crate) use place_intervals::LivePlaceIntervals;
 pub(crate) use snapshots::{
     AssignmentObservation, PlaceScalarValues, integer_bounds_at_place,
     integer_bounds_from_payloads, is_assignment_literal, literal_assignment_payload,

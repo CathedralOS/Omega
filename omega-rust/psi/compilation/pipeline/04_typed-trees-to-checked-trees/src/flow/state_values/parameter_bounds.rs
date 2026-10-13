@@ -74,7 +74,7 @@ impl ParameterBounds {
             let carrier = program
                 .state_parameter_by_symbol(destination, self.symbol)
                 .and_then(|parameter| program.primitive_type_reference(parameter.type_reference))
-                .and_then(crate::values::bounds::primitive_range);
+                .and_then(validation::carrier_integer_range);
             let Some(carrier) = carrier.filter(|carrier| {
                 carrier.minimum <= joined.minimum && joined.maximum <= carrier.maximum
             }) else {

@@ -1,16 +1,24 @@
-use super::{
-    BigInt, CheckedStructuralPredicatePathSegment, IntegerBoundsSource, IntegerRange,
-    PrimitiveType, SymbolHandle,
-};
-use crate::flow::canonical_place_from_symbol;
-use crate::values::bounds::declared_bounds;
-use crate::values::bounds::primitive_range;
-use crate::values::exclusive_reference;
-use facts::{FactContextHandle, FactPlan};
-use typed_trees::{signature::StateParameter, types::TypeReferenceHandle};
-use validation::CanonicalPlace;
+//! The live place facts a selected scalar plan reads during flow and at exits.
+//!
+//! This is the interval source behind `validation::selected_scalar_interval`:
+//! it answers each operand position from the live snapshot at its place, the
+//! standing invariants of its storage (declared ranges, an immutable formal's
+//! arrival contract) and completed byte literals. It computes no arithmetic;
+//! the interval domain is validation's.
 
-pub(crate) struct PlaceIntegerBounds<'a> {
+use crate::flow::canonical_place_from_symbol;
+use crate::values::exclusive_reference;
+use checked_trees::CheckedStructuralPredicatePathSegment;
+use facts::{FactContextHandle, FactPlan, IntegerRange};
+use numerics::bignum::BigInt;
+use symbols::SymbolHandle;
+use typed_trees::{
+    signature::StateParameter,
+    types::{PrimitiveType, TypeReferenceHandle},
+};
+use validation::{CanonicalPlace, SelectedScalarIntervalSource};
+
+pub(crate) struct LivePlaceIntervals<'a> {
     pub program: &'a dyn ::validation::CheckingInput,
     pub semantic: &'a FactPlan,
     pub contexts: &'a [FactContextHandle],
@@ -21,8 +29,8 @@ pub(crate) struct PlaceIntegerBounds<'a> {
     pub state: SymbolHandle,
 }
 
-impl PlaceIntegerBounds<'_> {
-    fn bounds(&self, place: &CanonicalPlace) -> Option<IntegerRange> {
+impl LivePlaceIntervals<'_> {
+    fn snapshot(&self, place: &CanonicalPlace) -> Option<IntegerRange> {
         crate::values::snapshots::integer_bounds_at_place(
             self.program,
             self.semantic,
@@ -35,18 +43,18 @@ impl PlaceIntegerBounds<'_> {
 
     /// Bounds for one resolved operand place. Live snapshots and standing
     /// invariants both hold at this read; neither replays an earlier initializer.
-    pub(crate) fn bounds_at_place(
+    pub(crate) fn interval_at_place(
         &self,
         place: &CanonicalPlace,
         primitive_type: PrimitiveType,
     ) -> Option<IntegerRange> {
         let standing = match place.root {
             facts::PlaceRoot::Symbol(symbol) if place.segments.is_empty() => {
-                self.standing_bounds(symbol, primitive_type)
+                self.standing_interval(symbol, primitive_type)
             }
-            _ => primitive_range(primitive_type),
+            _ => validation::carrier_integer_range(primitive_type),
         };
-        match (self.bounds(place), standing) {
+        match (self.snapshot(place), standing) {
             (Some(snapshot), Some(standing)) => {
                 let minimum = snapshot.minimum.max(standing.minimum);
                 let maximum = snapshot.maximum.min(standing.maximum);
@@ -56,15 +64,17 @@ impl PlaceIntegerBounds<'_> {
         }
     }
 
-    fn standing_bounds(
+    fn standing_interval(
         &self,
         symbol: SymbolHandle,
         primitive_type: PrimitiveType,
     ) -> Option<IntegerRange> {
         let mut bounds = self
             .declared_type(symbol)
-            .and_then(|reference| declared_bounds(self.program, reference, primitive_type))
-            .or_else(|| primitive_range(primitive_type))?;
+            .and_then(|reference| {
+                validation::frozen_declared_integer_range(self.program, reference, primitive_type)
+            })
+            .or_else(|| validation::carrier_integer_range(primitive_type))?;
         // An immutable owned formal retains its arrival contract throughout
         // this state. Mutable or borrowed storage must use live evidence, not
         // an assumption about the value that arrived before intervening writes.
@@ -132,7 +142,7 @@ impl PlaceIntegerBounds<'_> {
     }
 }
 
-impl IntegerBoundsSource for PlaceIntegerBounds<'_> {
+impl SelectedScalarIntervalSource for LivePlaceIntervals<'_> {
     fn binding(&mut self, position: usize, primitive_type: PrimitiveType) -> Option<IntegerRange> {
         self.storage(*self.symbols.get(position)?, primitive_type)
     }
@@ -143,7 +153,7 @@ impl IntegerBoundsSource for PlaceIntegerBounds<'_> {
         primitive_type: PrimitiveType,
     ) -> Option<IntegerRange> {
         let place = canonical_place_from_symbol(symbol)?;
-        self.bounds_at_place(&place, primitive_type)
+        self.interval_at_place(&place, primitive_type)
     }
 
     fn structural_field(
@@ -152,7 +162,7 @@ impl IntegerBoundsSource for PlaceIntegerBounds<'_> {
         path: &[CheckedStructuralPredicatePathSegment],
     ) -> Option<IntegerRange> {
         let (place, reference, frozen) = self.field(position, path)?;
-        self.bounds(&place).or_else(|| {
+        self.snapshot(&place).or_else(|| {
             // A constant index below a byte carrier is the same read the
             // dynamic indexed plan serves: when no snapshot sits at the
             // indexed place itself, a live whole-carrier literal supplies the
@@ -176,11 +186,11 @@ impl IntegerBoundsSource for PlaceIntegerBounds<'_> {
             // membership or initialization proof.
             let primitive_type = self.program.primitive_type_reference(reference)?;
             if frozen {
-                declared_bounds(self.program, reference, primitive_type)
+                validation::frozen_declared_integer_range(self.program, reference, primitive_type)
             } else {
                 None
             }
-            .or_else(|| primitive_range(primitive_type))
+            .or_else(|| validation::carrier_integer_range(primitive_type))
         })
     }
 
@@ -210,7 +220,7 @@ impl IntegerBoundsSource for PlaceIntegerBounds<'_> {
                 minimum: length.clone(),
                 maximum: length,
             })
-            .or_else(|| primitive_range(PrimitiveType::U64))
+            .or_else(|| validation::carrier_integer_range(PrimitiveType::U64))
     }
 
     fn indexed_field(
@@ -271,9 +281,14 @@ impl IntegerBoundsSource for PlaceIntegerBounds<'_> {
         // read; this proves nothing about the index or the access returning.
         literal_bounds
             .or_else(|| {
-                frozen
-                    .then(|| declared_bounds(self.program, element_reference, PrimitiveType::U8))?
+                frozen.then(|| {
+                    validation::frozen_declared_integer_range(
+                        self.program,
+                        element_reference,
+                        PrimitiveType::U8,
+                    )
+                })?
             })
-            .or_else(|| primitive_range(PrimitiveType::U8))
+            .or_else(|| validation::carrier_integer_range(PrimitiveType::U8))
     }
 }

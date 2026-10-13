@@ -69,6 +69,10 @@ pub use proof_contracts::arithmetic_domains::float_return_postcondition;
 pub use proof_contracts::arithmetic_domains::normal_return_float_predicates;
 pub use proof_contracts::arithmetic_domains::plain_exact_widening_cast;
 pub use proof_contracts::arithmetic_domains::{Interval, WideInterval};
+pub use proof_contracts::arithmetic_domains::{
+    SelectedScalarIntervalSource, carrier_integer_range, frozen_declared_integer_range,
+    integer_range_contains, selected_boolean_decision, selected_scalar_interval,
+};
 pub use proof_contracts::collection_predicates::{length_member, premises_prove_expression};
 pub use proof_contracts::contract_entailment::{
     captured_collection_length, captured_integer_value, closed_collection_length,

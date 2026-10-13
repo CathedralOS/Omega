@@ -1,17 +1,38 @@
-//! Materialized runtime bounds over selected operations, never source syntax.
+//! Closed integer intervals of selected scalar plans.
+//!
+//! Stage 04 selects each scalar expression into a `CheckedScalarExpression`
+//! plan and evaluates it against live place facts during flow and at exits.
+//! The interval arithmetic for those plans lives here, beside the arithmetic
+//! walk's own `Interval`, so one domain answers "what range can this integer
+//! take" for typed expressions and selected plans alike. Ends are closed
+//! `BigInt`s on `facts::IntegerRange`: a `u64` snapshot keeps its exact
+//! full-width ends, which the `i64` carrier cannot hold. The place facts
+//! themselves stay with the client, which implements
+//! `SelectedScalarIntervalSource` over its own snapshots, declared storage
+//! invariants and byte literals; nothing here reads source syntax.
+//!
+//! Remainder and quotient keep the walk's meaning: a divisor interval must
+//! exclude zero, its magnitude is exact at the signed minimum, the remainder
+//! hull is the dividend hull including zero clipped to that magnitude, and a
+//! truncated quotient takes its extrema at the endpoint pairs. The selected
+//! Exact shift and bitwise providers are the shared carrier kernels.
 
 use checked_trees::{
-    CheckedIntegerBinaryKind, CheckedScalarExpression, CheckedStructuralPredicatePathSegment,
+    CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
+    CheckedScalarExpression, CheckedStructuralPredicatePathSegment,
 };
 use facts::IntegerRange;
-use numerics::{arithmetic::ArithmeticDomain, bignum::BigInt};
+use numerics::bignum::BigInt;
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use symbols::SymbolHandle;
-use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{
+    PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
 
-mod sources;
-pub(crate) use sources::PlaceIntegerBounds;
-
-pub(crate) trait IntegerBoundsSource {
+/// The live facts a selected scalar plan reads. Every answer is the interval
+/// of the value at that operand position now; `None` is "no bound", never a
+/// refutation.
+pub trait SelectedScalarIntervalSource {
     fn binding(&mut self, position: usize, primitive_type: PrimitiveType) -> Option<IntegerRange>;
     fn storage(
         &mut self,
@@ -37,36 +58,44 @@ pub(crate) trait IntegerBoundsSource {
         _position: u32,
         _path: &[CheckedStructuralPredicatePathSegment],
     ) -> Option<IntegerRange> {
-        primitive_range(PrimitiveType::U64)
+        carrier_integer_range(PrimitiveType::U64)
     }
 }
 
-pub(crate) fn evaluate(
+/// The closed interval of one selected integer plan under `source`.
+pub fn selected_scalar_interval(
     expression: &CheckedScalarExpression,
-    source: &mut impl IntegerBoundsSource,
+    source: &mut impl SelectedScalarIntervalSource,
 ) -> Option<IntegerRange> {
     integer(expression, source).map(|(_, bounds)| bounds)
 }
 
 /// Decide only conditions that hold for every value in the captured ranges.
 /// An overlapping comparison remains unknown, so callers retain both paths.
-pub(crate) fn boolean(
-    expression: &checked_trees::CheckedBooleanExpression,
-    source: &mut impl IntegerBoundsSource,
+pub fn selected_boolean_decision(
+    expression: &CheckedBooleanExpression,
+    source: &mut impl SelectedScalarIntervalSource,
 ) -> Option<bool> {
-    use checked_trees::{
-        CheckedBooleanExpression as Boolean, CheckedIntegerComparisonKind as Comparison,
-    };
+    use CheckedBooleanExpression as Boolean;
+    use CheckedIntegerComparisonKind as Comparison;
     match expression {
         Boolean::Constant(value) => Some(*value),
-        Boolean::Not(operand) => boolean(operand, source).map(|value| !value),
-        Boolean::Equal { left, right } => Some(boolean(left, source)? == boolean(right, source)?),
-        Boolean::And { left, right } => match (boolean(left, source), boolean(right, source)) {
+        Boolean::Not(operand) => selected_boolean_decision(operand, source).map(|value| !value),
+        Boolean::Equal { left, right } => Some(
+            selected_boolean_decision(left, source)? == selected_boolean_decision(right, source)?,
+        ),
+        Boolean::And { left, right } => match (
+            selected_boolean_decision(left, source),
+            selected_boolean_decision(right, source),
+        ) {
             (Some(false), _) | (_, Some(false)) => Some(false),
             (Some(true), Some(true)) => Some(true),
             _ => None,
         },
-        Boolean::Or { left, right } => match (boolean(left, source), boolean(right, source)) {
+        Boolean::Or { left, right } => match (
+            selected_boolean_decision(left, source),
+            selected_boolean_decision(right, source),
+        ) {
             (Some(true), _) | (_, Some(true)) => Some(true),
             (Some(false), Some(false)) => Some(false),
             _ => None,
@@ -101,7 +130,7 @@ pub(crate) fn boolean(
 
 fn integer(
     expression: &CheckedScalarExpression,
-    source: &mut impl IntegerBoundsSource,
+    source: &mut impl SelectedScalarIntervalSource,
 ) -> Option<(PrimitiveType, IntegerRange)> {
     use CheckedScalarExpression as Expression;
     let (primitive, bounds) = match expression {
@@ -111,7 +140,7 @@ fn integer(
             PrimitiveType::U64,
             match root.parameter() {
                 Some(position) => source.byte_length(position, path)?,
-                None => primitive_range(PrimitiveType::U64)?,
+                None => carrier_integer_range(PrimitiveType::U64)?,
             },
         ),
         Expression::Parameter {
@@ -142,16 +171,16 @@ fn integer(
             element_path,
             primitive_type,
         } => {
-            let index = evaluate(&index.expression, source);
+            let index = selected_scalar_interval(&index.expression, source);
             (
                 *primitive_type,
                 match root.parameter() {
                     // A record element's leaf, or an element selected again
                     // inside a nested array, carries only its leaf type.
-                    Some(_) if !element_path.is_empty() => primitive_range(*primitive_type)?,
+                    Some(_) if !element_path.is_empty() => carrier_integer_range(*primitive_type)?,
                     Some(position) => source.indexed_field(position, path, index.as_ref())?,
                     // A view local's elements carry only their element type.
-                    None => primitive_range(*primitive_type)?,
+                    None => carrier_integer_range(*primitive_type)?,
                 },
             )
         }
@@ -201,9 +230,9 @@ fn integer(
             operand,
         } => {
             let (source_type, bounds) = integer(operand, source)?;
-            if !contains(
-                &primitive_range(*primitive_type)?,
-                &primitive_range(source_type)?,
+            if !integer_range_contains(
+                &carrier_integer_range(*primitive_type)?,
+                &carrier_integer_range(source_type)?,
             ) {
                 return None;
             }
@@ -235,11 +264,11 @@ fn integer(
             operand,
         } => {
             let (_, bounds) = integer(operand, source)?;
-            let carrier = primitive_range(*primitive_type)?;
+            let carrier = carrier_integer_range(*primitive_type)?;
             // Modular conversion is not monotone across a wrapping boundary.
             (
                 *primitive_type,
-                if contains(&carrier, &bounds) {
+                if integer_range_contains(&carrier, &bounds) {
                     bounds
                 } else {
                     carrier
@@ -251,14 +280,14 @@ fn integer(
             operand,
         } => {
             let (_, bounds) = integer(operand, source)?;
-            let carrier = crate::values::integer_type(*primitive_type)?;
-            let low = crate::values::admitted_integer(carrier, &bounds.minimum)?;
-            let high = crate::values::admitted_integer(carrier, &bounds.maximum)?;
+            let carrier = integer_type(*primitive_type)?;
+            let low = admitted_integer(carrier, &bounds.minimum)?;
+            let high = admitted_integer(carrier, &bounds.maximum)?;
             (
                 *primitive_type,
                 IntegerRange {
-                    minimum: crate::values::integer_magnitude(carrier.bitwise_not(high)?),
-                    maximum: crate::values::integer_magnitude(carrier.bitwise_not(low)?),
+                    minimum: integer_magnitude(carrier.bitwise_not(high)?),
+                    maximum: integer_magnitude(carrier.bitwise_not(low)?),
                 },
             )
         }
@@ -266,7 +295,8 @@ fn integer(
         | Expression::IeeeFloatLiteral { .. }
         | Expression::ImplementationSelection { .. } => return None,
     };
-    contains(&primitive_range(primitive)?, &bounds).then_some((primitive, bounds))
+    integer_range_contains(&carrier_integer_range(primitive)?, &bounds)
+        .then_some((primitive, bounds))
 }
 
 fn binary(
@@ -278,15 +308,15 @@ fn binary(
 ) -> Option<IntegerRange> {
     use CheckedIntegerBinaryKind as Kind;
     if matches!(kind, Kind::ExactShiftLeft | Kind::ExactShiftRight) {
-        let carrier = crate::values::integer_type(primitive)?;
-        let count_type = crate::values::integer_type(right_primitive)?;
+        let carrier = integer_type(primitive)?;
+        let count_type = integer_type(right_primitive)?;
         let value = (
-            crate::values::admitted_integer(carrier, &left.minimum)?,
-            crate::values::admitted_integer(carrier, &left.maximum)?,
+            admitted_integer(carrier, &left.minimum)?,
+            admitted_integer(carrier, &left.maximum)?,
         );
         let count = (
-            crate::values::admitted_integer(count_type, &right.minimum)?,
-            crate::values::admitted_integer(count_type, &right.maximum)?,
+            admitted_integer(count_type, &right.minimum)?,
+            admitted_integer(count_type, &right.maximum)?,
         );
         // Formation is separate from obtaining a finite hull. In particular,
         // exact left shifts reject an overflowing corner instead of clipping
@@ -297,19 +327,19 @@ fn binary(
             _ => None,
         }?;
         return Some(IntegerRange {
-            minimum: crate::values::integer_magnitude(low),
-            maximum: crate::values::integer_magnitude(high),
+            minimum: integer_magnitude(low),
+            maximum: integer_magnitude(high),
         });
     }
     if matches!(kind, Kind::BitwiseAnd | Kind::BitwiseOr | Kind::BitwiseXor) {
-        let carrier = crate::values::integer_type(primitive)?;
+        let carrier = integer_type(primitive)?;
         let left = (
-            crate::values::admitted_integer(carrier, &left.minimum)?,
-            crate::values::admitted_integer(carrier, &left.maximum)?,
+            admitted_integer(carrier, &left.minimum)?,
+            admitted_integer(carrier, &left.maximum)?,
         );
         let right = (
-            crate::values::admitted_integer(carrier, &right.minimum)?,
-            crate::values::admitted_integer(carrier, &right.maximum)?,
+            admitted_integer(carrier, &right.minimum)?,
+            admitted_integer(carrier, &right.maximum)?,
         );
         let (low, high) = match kind {
             Kind::BitwiseAnd => carrier.bitwise_and_bounds(left, right),
@@ -318,44 +348,21 @@ fn binary(
             _ => None,
         }?;
         return Some(IntegerRange {
-            minimum: crate::values::integer_magnitude(low),
-            maximum: crate::values::integer_magnitude(high),
+            minimum: integer_magnitude(low),
+            maximum: integer_magnitude(high),
         });
     }
     if matches!(
         kind,
         Kind::ExactRemainder | Kind::WrappingRemainder | Kind::SaturatingRemainder
     ) {
-        // For nonnegative dividends and positive divisors, the remainder is
-        // below the divisor and no greater than the dividend for every policy.
-        if left.minimum < BigInt::zero() || right.minimum <= BigInt::zero() {
-            return None;
-        }
-        return Some(IntegerRange {
-            minimum: BigInt::zero(),
-            maximum: left.maximum.min(right.maximum.sub(&BigInt::from_u64(1))),
-        });
+        return remainder(&left, &right);
     }
     if matches!(
         kind,
         Kind::ExactDivide | Kind::WrappingDivide | Kind::SaturatingDivide
     ) {
-        // Truncated division over a nonnegative dividend and a positive
-        // divisor is monotone and cannot leave the dividend's own span:
-        // the quotient sits between the extremes each endpoint pair produces.
-        if left.minimum < BigInt::zero() || right.minimum <= BigInt::zero() {
-            return None;
-        }
-        return Some(IntegerRange {
-            minimum: left
-                .minimum
-                .div_rem(&right.maximum)
-                .map(|(quotient, _)| quotient)?,
-            maximum: left
-                .maximum
-                .div_rem(&right.minimum)
-                .map(|(quotient, _)| quotient)?,
-        });
+        return quotient(&left, &right);
     }
     let mut bounds = match kind {
         Kind::ExactAdd | Kind::WrappingAdd | Kind::SaturatingAdd => IntegerRange {
@@ -363,8 +370,8 @@ fn binary(
             maximum: left.maximum.add(&right.maximum),
         },
         Kind::ExactSubtract | Kind::WrappingSubtract | Kind::SaturatingSubtract => IntegerRange {
-            minimum: left.minimum.add(&right.maximum.negate()),
-            maximum: left.maximum.add(&right.minimum.negate()),
+            minimum: left.minimum.sub(&right.maximum),
+            maximum: left.maximum.sub(&right.minimum),
         },
         Kind::ExactMultiply | Kind::WrappingMultiply | Kind::SaturatingMultiply => {
             let corners = [
@@ -380,15 +387,15 @@ fn binary(
         }
         _ => return None,
     };
-    let carrier = primitive_range(primitive)?;
+    let carrier = carrier_integer_range(primitive)?;
     match kind {
         Kind::ExactAdd | Kind::ExactSubtract | Kind::ExactMultiply => {
-            contains(&carrier, &bounds).then_some(bounds)
+            integer_range_contains(&carrier, &bounds).then_some(bounds)
         }
         Kind::WrappingAdd | Kind::WrappingSubtract | Kind::WrappingMultiply => {
             // Crossing a wrap boundary is not a monotone endpoint mapping.
             // Conservatively retain the full carrier instead of a false range.
-            Some(if contains(&carrier, &bounds) {
+            Some(if integer_range_contains(&carrier, &bounds) {
                 bounds
             } else {
                 carrier
@@ -406,92 +413,143 @@ fn binary(
     }
 }
 
+/// Whether every value of a divisor interval is nonzero.
+fn excludes_zero(divisor: &IntegerRange) -> bool {
+    divisor.minimum >= BigInt::from_u64(1) || divisor.maximum <= BigInt::from_i64(-1)
+}
+
+/// `dividend % divisor` under truncated division: the remainder takes the
+/// dividend's sign and its magnitude stays below the divisor's. The divisor
+/// magnitude is exact at the signed minimum because the ends are `BigInt`s,
+/// and the dividend hull includes zero because a remainder can be zero even
+/// when the dividend cannot. This bounds only the result; the division's own
+/// definedness obligation stays with the formation owner.
+fn remainder(dividend: &IntegerRange, divisor: &IntegerRange) -> Option<IntegerRange> {
+    if !excludes_zero(divisor) {
+        return None;
+    }
+    let one = BigInt::from_u64(1);
+    let bound = divisor.minimum.abs().max(divisor.maximum.abs()).sub(&one);
+    let minimum = dividend
+        .minimum
+        .clone()
+        .min(BigInt::zero())
+        .max(bound.negate());
+    let maximum = dividend.maximum.clone().max(BigInt::zero()).min(bound);
+    (minimum <= maximum).then_some(IntegerRange { minimum, maximum })
+}
+
+/// Truncated division is monotone in each operand within each sign region,
+/// so a divisor interval excluding zero has its quotient extrema at the
+/// endpoint pairs, including when the dividend crosses zero.
+fn quotient(dividend: &IntegerRange, divisor: &IntegerRange) -> Option<IntegerRange> {
+    if !excludes_zero(divisor) {
+        return None;
+    }
+    let corners = [
+        dividend.minimum.div_rem(&divisor.minimum)?.0,
+        dividend.minimum.div_rem(&divisor.maximum)?.0,
+        dividend.maximum.div_rem(&divisor.minimum)?.0,
+        dividend.maximum.div_rem(&divisor.maximum)?.0,
+    ];
+    Some(IntegerRange {
+        minimum: corners.iter().min()?.clone(),
+        maximum: corners.iter().max()?.clone(),
+    })
+}
+
 /// Read the declared `Range` constraints on an exact integer reference. Those
 /// constraints are storage invariants: construction and every write must
 /// satisfy them, so a read can use them even when no value snapshot is live.
 /// A non-Exact arithmetic domain does not range-check its stores, so such a
 /// reference supplies no declared bound and the caller keeps the raw carrier.
+/// An exclusive borrow can be reborrowed through a pointee type that drops
+/// declared constraints, so only a frozen reference chain keeps them.
 /// `None` also means "no tightening available"; it is never an error.
-pub(crate) fn declared_bounds(
-    program: &dyn ::validation::CheckingInput,
-    mut reference: TypeReferenceHandle,
+pub fn frozen_declared_integer_range(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
     primitive_type: PrimitiveType,
 ) -> Option<IntegerRange> {
-    let mut declared: Option<IntegerRange> = None;
+    let mut walked = reference;
     loop {
-        match program.type_reference_table.type_reference(reference) {
-            // An exclusive borrow can be reborrowed through a pointee type
-            // that drops declared constraints; a shared borrow keeps its
-            // referent frozen and preserves them.
+        match program.type_reference_table.type_reference(walked) {
             TypeReferenceNode::Reference {
                 referee, access, ..
             } => {
                 if access.is_exclusive() {
                     return None;
                 }
-                reference = *referee;
+                walked = *referee;
             }
-            TypeReferenceNode::Constrained {
-                base_type,
-                constraints,
-            } => {
-                for constraint in program.type_reference_table.constraints(*constraints) {
-                    match constraint {
-                        typed_trees::types::TypeConstraintNode::Range {
-                            minimum,
-                            maximum,
-                            end_inclusive,
-                        } => {
-                            // The same closed-endpoint evaluation as source
-                            // range validation; failure is no bound, never a
-                            // guessed one.
-                            let low = validation::closed_integer_range_bound(program, *minimum)?;
-                            let high = validation::closed_integer_range_maximum(
-                                program,
-                                *maximum,
-                                *end_inclusive,
-                            )?;
-                            declared = Some(match declared {
-                                Some(previous) => IntegerRange {
-                                    minimum: previous.minimum.max(low),
-                                    maximum: previous.maximum.min(high),
-                                },
-                                None => IntegerRange {
-                                    minimum: low,
-                                    maximum: high,
-                                },
-                            });
-                        }
-                        typed_trees::types::TypeConstraintNode::ArithmeticDomain(domain)
-                            if *domain != ArithmeticDomain::Exact =>
-                        {
-                            return None;
-                        }
-                        _ => {}
-                    }
-                }
-                reference = *base_type;
-            }
+            TypeReferenceNode::Constrained { base_type, .. } => walked = *base_type,
             _ => break,
         }
     }
-    let declared = declared?;
-    let carrier = primitive_range(primitive_type)?;
-    let minimum = declared.minimum.max(carrier.minimum.clone());
+    let shells = crate::value_custody::type_shapes::exact_constrained_shells(program, reference)?;
+    let declared = shells
+        .iter()
+        .flat_map(|constraints| constraints.iter())
+        .filter_map(|constraint| match constraint {
+            TypeConstraintNode::Range {
+                minimum,
+                maximum,
+                end_inclusive,
+            } => {
+                // The same closed-endpoint evaluation as source range
+                // validation; failure is no bound, never a guessed one.
+                let low = crate::closed_integer_range_bound(program, *minimum)?;
+                let high = crate::closed_integer_range_maximum(program, *maximum, *end_inclusive)?;
+                Some(IntegerRange {
+                    minimum: low,
+                    maximum: high,
+                })
+            }
+            _ => None,
+        })
+        .reduce(|previous, next| IntegerRange {
+            minimum: previous.minimum.max(next.minimum),
+            maximum: previous.maximum.min(next.maximum),
+        })?;
+    let carrier = carrier_integer_range(primitive_type)?;
+    let minimum = declared.minimum.max(carrier.minimum);
     let maximum = declared.maximum.min(carrier.maximum);
     (minimum <= maximum).then_some(IntegerRange { minimum, maximum })
 }
 
-pub(crate) fn contains(outer: &IntegerRange, inner: &IntegerRange) -> bool {
+/// Whether `inner` is a nonempty interval inside `outer`.
+pub fn integer_range_contains(outer: &IntegerRange, inner: &IntegerRange) -> bool {
     outer.minimum <= inner.minimum
         && inner.minimum <= inner.maximum
         && inner.maximum <= outer.maximum
 }
 
-pub(crate) fn primitive_range(primitive: PrimitiveType) -> Option<IntegerRange> {
+/// The complete representable range of a fixed-width integer primitive, with
+/// exact `u64` ends.
+pub fn carrier_integer_range(primitive: PrimitiveType) -> Option<IntegerRange> {
     let (minimum, maximum) = primitive.integer_bounds()?;
     Some(IntegerRange {
         minimum: BigInt::from_i128(minimum),
         maximum: BigInt::from_i128(maximum),
     })
+}
+
+fn integer_type(primitive: PrimitiveType) -> Option<IntegerType> {
+    let (sign, bits) = primitive.integer_sign_bits()?;
+    IntegerType::new(sign, bits).ok()
+}
+
+fn admitted_integer(scalar_type: IntegerType, value: &BigInt) -> Option<IntegerValue> {
+    let value = match scalar_type.sign() {
+        IntegerSign::Signed => IntegerValue::Signed(i128::from(value.to_i64()?)),
+        IntegerSign::Unsigned => IntegerValue::Unsigned(u128::from(value.to_u64()?)),
+    };
+    scalar_type.admits(value).then_some(value)
+}
+
+fn integer_magnitude(value: IntegerValue) -> BigInt {
+    match value {
+        IntegerValue::Signed(value) => BigInt::from_i128(value),
+        IntegerValue::Unsigned(value) => BigInt::from_u128(value),
+    }
 }

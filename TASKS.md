@@ -3363,11 +3363,11 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
   single-target/native paths are bit-identical. Coordination on
   **PSI-TARGET-FAMILIES** via claims.py still unavailable.
 
-- **ONE-INTEGER-BOUNDS-ENGINE.** (new-scope) At least ten separate engines
+- **ONE-INTEGER-BOUNDS-ENGINE.** (new-scope) At least nine separate engines
   answer "what range can this integer take":
   - stage 04: `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/ranges/facts` (`RangeFacts`),
     `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/intervals.rs`, `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/evaluator`,
-    `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/values/bounds` (`PlaceIntegerBounds`), `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/termination/ranking`
+    `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/termination/ranking`
     ranges (`Bounds`), `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/borrows/overlap/indexes.rs`
     (`NormalizedBound`), `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/ranges` `MergedBound` and the loop
     invariant `Bounds`;
@@ -3377,6 +3377,10 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
     `omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/integer_ranges.rs`,
     `omega-rust/psi/compilation/checking/src/value_custody/struct_literals/construction_bounds.rs`;
   - `omega-rust/psi/compilation/proof/src/checker/integer_ranges.rs`.
+  Selected scalar plans (`CheckedScalarExpression`) are already evaluated by
+  validation's `arithmetic_domains/selected_scalar_intervals.rs` over a
+  client-owned `SelectedScalarIntervalSource`; stage 04's
+  `values/place_intervals.rs` is that client and computes nothing.
 
   Keep one interval domain and one premise-chaining oracle in `validation`
   (`arithmetic_domains`), and make every listed site a client. Validation

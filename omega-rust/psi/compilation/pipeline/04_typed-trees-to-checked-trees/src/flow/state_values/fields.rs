@@ -241,7 +241,7 @@ fn carrier_integer_range(
         }
     }
     let primitive = program.primitive_type_reference(reference?)?;
-    crate::values::bounds::primitive_range(primitive)
+    validation::carrier_integer_range(primitive)
 }
 
 /// Integer literals the program compares against, sorted ascending. They are
@@ -877,7 +877,7 @@ pub(super) fn append(
             .as_ref()
             .filter(|bounds| {
                 carrier_integer_range(program, machine, state, field.root, &field.segments)
-                    .is_none_or(|carrier| !crate::values::bounds::contains(bounds, &carrier))
+                    .is_none_or(|carrier| !validation::integer_range_contains(bounds, &carrier))
             })
             .map(|bounds| FactPayload::AssignedIntegerBounds {
                 bounds: semantic.integer_ranges.append(bounds.clone()),
