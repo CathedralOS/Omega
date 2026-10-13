@@ -433,14 +433,12 @@ reading it move to a snapshot, a scalar to a fresh subject equal to the one it r
 record to a place holding the fields known of it
 ([`checking/snapshots.omg`](checking/snapshots.omg)). Scalar reads through
 references carry typing's `Read` adaptation; a reference passed as a
-reference keeps its live storage identity. Assignment currently evaluates
-its value before its target and captures that value before an effectful
-selector. This is an implementation gap against the settled
+reference keeps its live storage identity. An assignment follows the
 [destination-first schedule](../../wiki/spec/language/expressions.md#evaluation-schedule):
-checking and ownership must capture the destination before evaluating the
-value, retaining that location through replacement. The product-compiler
-checking item in [TASKS.md](../../TASKS.md) owns the repair and its
-selector-mutation controls.
+its target is evaluated first, proving its bounds and fixing its place with
+the selectors as they are, then its value, then the value is stored at that
+place; a selector the value changes neither redirects the store nor keeps
+its old fact, and ownership rejects a value that moves the captured backing.
 Subject evaluation that writes storage cannot grant facts by replaying its
 syntax over the changed storage; its case binders still start from their
 declared types.

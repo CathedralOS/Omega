@@ -6649,16 +6649,12 @@ construction stays on `TASKS_BOOTSTRAP.md`.
     than acquire independent storage facts. Track payload paths on held-loan
     rows so projected carriers retain only their own backing loans; the
     current root-based transfer conservatively retains sibling loans.
-    Implement [destination-first stores](wiki/spec/language/expressions.md#evaluation-schedule)
-    in checking and ownership: capture collections, selectors and bounds once
-    before RHS effects, then use that same place for displaced-value cleanup,
-    installation and fact replacement. The product currently walks RHS first;
-    preserve the Rust reference's place-first behavior. Acceptance: both
-    compilers execute `pass/ownership/runtime_captured_replacement_selector_exit`,
+    Checking and ownership follow
+    [destination-first stores](wiki/spec/language/expressions.md#evaluation-schedule);
+    executing `pass/ownership/runtime_captured_replacement_selector_exit`,
     `runtime_captured_construction_selector_exit` and
-    `runtime_selective_constructed_owner_custody_exit` with their authored
-    results; selector changes must not redirect stores or preserve stale
-    live-selector facts, and invalidating the captured backing must reject.
+    `runtime_selective_constructed_owner_custody_exit` with the product
+    waits on Terminal Psi production below.
   - Bundled-library and entry closure: remeasure the first actual refusal in
     each source set rather than retaining the old parse/resolve totals.
     **TOP-LEVEL-BOUNDARY-REQUIREMENTS** owns the remaining retired boundary

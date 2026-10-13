@@ -22,56 +22,6 @@ use psi::types::types;
 // keeps its place; a Read adaptation instead consumes a scalar snapshot.
 // Every exclusive operand the call writes through keeps its live place.
 
-// Assignments currently evaluate RHS then target. Preserve the completed
-// RHS before opening the target tree when one of its selected calls may
-// write storage. The target's snapshot walk cannot see the departed RHS
-// tree; a stored Value naming its mutable subject would become stale.
-// This follows the existing order, without specifying a different one.
-pub machine Checker::snapshot_before_target(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, value: u64 in Trapping, target: u64 in Trapping)
-crashes Trap
-{
-    let tree: Expression = SyntaxTrees::expression(syntax, target);
-    transition { _ -> node(checker, syntax, typing, value, target, tree.first_row) }
-
-    state node(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, value: u64 in Trapping, target: u64 in Trapping, handle: u64 in Trapping) {
-        transition handle <= target {
-            true -> inspected(checker, syntax, typing, value, target, handle)
-            _ -> done()
-        }
-    }
-
-    state inspected(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, value: u64 in Trapping, target: u64 in Trapping, handle: u64 in Trapping) {
-        let selection: Selection = Typing::selection(typing, handle);
-        let writes: bool = Checker::call_may_write(checker, syntax, selection);
-        transition writes {
-            true -> captured(checker, typing, value, target)
-            _ -> node(checker, syntax, typing, value, target, handle + 1)
-        }
-    }
-
-    state captured(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, target: u64 in Trapping) {
-        let value: Value = Checker::value_at(checker, handle);
-        let owner: u64 in Trapping = Checker::subject_place(checker, value.subject);
-        transition value.known && value.subject > 0 {
-            true -> scalar(checker, typing, handle, target, owner)
-            _ -> scalar(checker, typing, handle, target, value.place)
-        }
-    }
-
-    state scalar(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, target: u64 in Trapping, place: u64 in Trapping) {
-        transition place > 0 {
-            true -> placed(checker, typing, handle, target, place)
-            _ -> done()
-        }
-    }
-
-    state placed(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, target: u64 in Trapping, place: u64 in Trapping) {
-        Checker::snapshot_node(checker, typing, handle, target, place);
-    }
-
-    state done() {}
-}
-
 // Snapshot every operand evaluated before the call `expression` whose value
 // reads `place`, which the call's operand `lender` lends exclusively.
 pub machine Checker::snapshot_operands(

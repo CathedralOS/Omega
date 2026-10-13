@@ -1097,7 +1097,7 @@ crashes Trap
         let relation: PlaceRelation = Checker::place_relation(syntax, resolution, typing, handle, moved);
         let moved_depth: u64 in Trapping = Checker::place_depth(syntax, moved);
         transition relation {
-            PlaceRelation::Inside -> inside(checker, syntax, resolution, typing, handle, depth, index, moved_depth)
+            PlaceRelation::Inside -> inside(checker, syntax, resolution, typing, handle, depth, index, moved, moved_depth)
             _ -> next(checker, syntax, resolution, typing, handle, depth, index + 1, cover)
         }
     }
@@ -1110,9 +1110,31 @@ crashes Trap
         handle: u64 in Trapping,
         depth: u64 in Trapping,
         index: u64 in Trapping,
+        moved: u64 in Trapping,
         moved_depth: u64 in Trapping
     ) -> PlaceCover {
         transition depth > moved_depth {
+            true -> answer(PlaceCover::Within)
+            _ -> level(checker, syntax, resolution, typing, handle, depth, index, moved)
+        }
+    }
+
+    // At the moved place's own field path, a store through more index steps
+    // than the moved place has writes inside it: an element of a moved
+    // collection is not the whole value that re-establishes it.
+    state level(
+        checker: &Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        typing: &Typing,
+        handle: u64 in Trapping,
+        depth: u64 in Trapping,
+        index: u64 in Trapping,
+        moved: u64 in Trapping
+    ) -> PlaceCover {
+        let written_steps: u64 in Trapping = Checker::index_steps(syntax, handle);
+        let moved_steps: u64 in Trapping = Checker::index_steps(syntax, moved);
+        transition written_steps > moved_steps {
             true -> answer(PlaceCover::Within)
             _ -> next(checker, syntax, resolution, typing, handle, depth, index + 1, PlaceCover::Exact)
         }

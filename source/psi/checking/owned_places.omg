@@ -209,6 +209,32 @@ crashes Trap
     }
 }
 
+// How many index steps a place expression takes from its root.
+pub machine Checker::index_steps(syntax: &SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    transition { _ -> step(syntax, handle, 0, 0) }
+
+    state step(syntax: &SyntaxTrees, node: u64 in Trapping, steps: u64 in Trapping, walked: u64 in Trapping) -> u64 in Trapping {
+        let expression: Expression = SyntaxTrees::expression(syntax, node);
+        transition walked < 64 && (expression.kind == ExpressionKind::Field || expression.kind == ExpressionKind::Index) {
+            true -> inner(syntax, expression, steps, walked)
+            _ -> answer(steps)
+        }
+    }
+
+    state inner(syntax: &SyntaxTrees, expression: Expression, steps: u64 in Trapping, walked: u64 in Trapping) -> u64 in Trapping {
+        transition expression.kind == ExpressionKind::Index {
+            true -> step(syntax, expression.left, steps + 1, walked + 1)
+            _ -> step(syntax, expression.left, steps, walked + 1)
+        }
+    }
+
+    state answer(steps: u64 in Trapping) -> u64 in Trapping {
+        steps
+    }
+}
+
 // How many field steps lie between a place expression and its root; an
 // index is transparent.
 pub machine Checker::place_depth(syntax: &SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping

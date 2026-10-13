@@ -1147,48 +1147,6 @@ crashes Trap
     state done() {}
 }
 
-// Whether a selected invocation may change storage. This is also queried
-// before an assignment target is evaluated: its index expressions may call
-// writers after the RHS value has already been read.
-pub machine Checker::call_may_write(checker: &Checker, syntax: &SyntaxTrees, selection: Selection) -> bool
-crashes Trap
-{
-    transition selection {
-        Selection::Machine { handle } -> machine_frame(checker, syntax, handle)
-        Selection::Binder { parameter as _ } -> answer(true)
-        _ -> answer(false)
-    }
-
-    state machine_frame(checker: &Checker, syntax: &SyntaxTrees, handle: u64 in Trapping) -> bool {
-        let unknown: bool = Checker::writes_unknown(checker, handle);
-        let fields: bool = Checker::frame_changes(checker, syntax, handle, unknown);
-        let item: MachineItem = SyntaxTrees::machine_item(syntax, handle);
-        transition fields {
-            true -> answer(true)
-            _ -> parameter(checker, item, 0)
-        }
-    }
-
-    state parameter(checker: &Checker, item: MachineItem, offset: u64 in Trapping) -> bool {
-        transition offset < item.parameter_count {
-            true -> inspected(checker, item, offset)
-            _ -> answer(false)
-        }
-    }
-
-    state inspected(checker: &Checker, item: MachineItem, offset: u64 in Trapping) -> bool {
-        let whole: bool = Checker::writes_whole(checker, item.first_parameter + offset);
-        transition whole {
-            true -> answer(true)
-            _ -> parameter(checker, item, offset + 1)
-        }
-    }
-
-    state answer(writes: bool) -> bool {
-        writes
-    }
-}
-
 // An empty complete write frame changes no storage and must not prevent
 // replay. Unknown/whole writes always count; named field writes may be
 // pending and therefore need not have a place yet.

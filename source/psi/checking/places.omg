@@ -629,20 +629,36 @@ crashes Trap
         value
     }
 
-    // While a target's `requires` facts are decided, its parameters stand
-    // for the call's arguments.
+    // While a target's `requires` or `ensures` facts are decided, its
+    // parameters stand for the call's arguments.
     state parameter(checker: &mut Checker, typing: &Typing, parameter: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
         let substituted: bool = checker.substituting
             && parameter >= checker.argument_first
             && parameter - checker.argument_first < checker.argument_count;
         transition substituted {
-            true -> argument(checker, parameter - checker.argument_first)
+            true -> argument(checker, typing, parameter - checker.argument_first, type_handle)
             _ -> rooted(checker, typing, PlaceKind::Parameter, parameter, type_handle)
         }
     }
 
-    state argument(checker: &Checker, offset: u64 in Trapping) -> Value {
+    // The argument slot holds what was passed; a reference parameter stands
+    // for that argument's referent, as reading the parameter does, so a
+    // fact about `index` with `index: &mut u64` binds to the lent storage.
+    state argument(checker: &mut Checker, typing: &Typing, offset: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
         let value: Value = Checker::argument_value(checker, offset);
+        let row: TypeRow = TypeTable::row(&typing.types, type_handle);
+        transition row.kind == TypeKind::Reference && value.place > 0 {
+            true -> referent(checker, typing, value.place)
+            _ -> passed(value)
+        }
+    }
+
+    state referent(checker: &mut Checker, typing: &Typing, place: u64 in Trapping) -> Value {
+        let value: Value = Checker::reference_value(checker, typing, place);
+        value
+    }
+
+    state passed(value: Value) -> Value {
         value
     }
 

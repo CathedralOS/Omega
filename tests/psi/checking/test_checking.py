@@ -2575,24 +2575,26 @@ def main() -> None:
         b"alias + mutate(alias)",
     )
 
-    # Target selectors may mutate storage after the RHS has been read.
-    accepted(
+    # A store captures its destination before it evaluates the value
+    # (wiki/spec/language/expressions.md#evaluation-schedule): a selector's
+    # write is what the value then reads.
+    rejected(
         program,
-        'selector-keeps-earlier-rhs',
+        'selector-writes-before-the-value-reads',
         b'data Token { value: u64; }\n'
         b'machine mutate(token: &mut Token) -> u64 ensures result == 0 && token.value == 9 { token.value = 9; 0 }\n'
         b'domain u64::One(value) requires value == 1;\n'
         b'machine run() { let mut items: [u64 in One; 1] = [1]; let mut token: Token = Token { value: 1 }; items[mutate(&mut token)] = token.value; }',
+        "DomainUnproven",
+        b"items[mutate(&mut token)] = token.value;",
     )
-    rejected(
+    accepted(
         program,
-        'selector-cannot-substitute-later-write',
+        'value-reads-the-selector-write',
         b'data Token { value: u64; }\n'
         b'machine mutate(token: &mut Token) -> u64 ensures result == 0 && token.value == 9 { token.value = 9; 0 }\n'
         b'domain u64::Nine(value) requires value == 9;\n'
         b'machine run() { let mut items: [u64 in Nine; 1] = [9]; let mut token: Token = Token { value: 1 }; items[mutate(&mut token)] = token.value; }',
-        "DomainUnproven",
-        b"items[mutate(&mut token)] = token.value;",
     )
 
     # Borrowed locals keep the captured storage identity through reborrows
@@ -2801,6 +2803,72 @@ def main() -> None:
         b"{ items[i] = 1; items[j] = 2; }",
         "IndexOutOfBounds",
         b"items[j]",
+    )
+
+    # A store captures its destination before its value runs
+    # (wiki/spec/language/expressions.md#evaluation-schedule): bounds are
+    # proven and the place fixed with the selectors as they were, a
+    # selector the value changes neither redirects the store nor keeps its
+    # old fact, and a value that invalidates the captured backing rejects.
+    token = (b"data Token { value: u64; }\n"
+             b"machine Token::drop(token: &mut Token) { token.value = 0; }\n")
+    accepted(
+        program,
+        "store-captures-its-selector-before-the-value",
+        token + b"machine replacement_value(index: &mut u64) -> u64 { index = 3; 19 }\n"
+        b"machine run() {\n    let mut tokens: [Token; 2] = [Token { value: 11 }, Token { value: 7 }];\n"
+        b"    let mut index: u64 = 0;\n    tokens[index] = Token { value: replacement_value(&mut index) };\n}",
+    )
+    rejected(
+        program,
+        "store-proves-its-bounds-before-the-value",
+        token + b"machine fix(index: &mut u64) -> Token { index = 0; Token { value: 19 } }\n"
+        b"machine run() {\n    let mut tokens: [Token; 2] = [Token { value: 11 }, Token { value: 7 }];\n"
+        b"    let mut index: u64 = 5;\n    tokens[index] = fix(&mut index);\n}",
+        "IndexOutOfBounds",
+        b"tokens[index]",
+    )
+    replacing = (token + b"machine replacement(index: &mut u64) -> Token\nensures index == 1\n"
+                 b"{ index = 1; Token { value: 19 } }\n")
+    rejected(
+        program,
+        "store-keeps-no-stale-selector-fact",
+        replacing + b"machine zero(index: u64)\nrequires index == 0\n{}\n"
+        b"machine run() {\n    let mut tokens: [Token; 2] = [Token { value: 11 }, Token { value: 7 }];\n"
+        b"    let mut index: u64 = 0;\n    tokens[index] = replacement(&mut index);\n    zero(index);\n}",
+        "RequirementUnproven",
+        b"zero(index)",
+    )
+    accepted(
+        program,
+        "store-keeps-the-value's-selector-fact",
+        replacing + b"machine one(index: u64)\nrequires index == 1\n{}\n"
+        b"machine run() {\n    let mut tokens: [Token; 2] = [Token { value: 11 }, Token { value: 7 }];\n"
+        b"    let mut index: u64 = 0;\n    tokens[index] = replacement(&mut index);\n    one(index);\n}",
+    )
+    rejected(
+        program,
+        "value-may-not-move-the-captured-backing",
+        token + b"machine consume(tokens: [Token; 2]) -> Token { Token { value: 1 } }\n"
+        b"machine run() {\n    let mut tokens: [Token; 2] = [Token { value: 11 }, Token { value: 7 }];\n"
+        b"    let index: u64 = 0;\n    tokens[index] = consume(tokens);\n}",
+        "UseAfterMove",
+        b"tokens[index]",
+    )
+    accepted(
+        program,
+        "value-may-write-through-the-captured-place",
+        b"machine bump(x: &mut u64) -> u64 ensures result == 3 { x = 2; 3 }\nmachine three(x: u64)\nrequires x == 3\n{}\n"
+        b"machine run() {\n    let mut x: u64 = 1;\n    x = bump(&mut x);\n    three(x);\n}",
+    )
+    accepted(
+        program,
+        "field-store-survives-a-write-to-its-owner",
+        b"data Holder { count: u64; flag: u64; }\n"
+        b"machine touch(holder: &mut Holder) -> u64 ensures result == 4 { holder.flag = 9; 4 }\n"
+        b"machine four(x: u64)\nrequires x == 4\n{}\n"
+        b"machine run() {\n    let mut holder: Holder = Holder { count: 0, flag: 0 };\n"
+        b"    holder.count = touch(&mut holder);\n    four(holder.count);\n}",
     )
 
     # The product's own psi package, each module under source/psi as
