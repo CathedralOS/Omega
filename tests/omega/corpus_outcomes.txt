@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 5, "jobs": "2", "load1_end": 0.99, "load1_start": 0.47, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "3", "load1_end": 9.21, "load1_start": 6.82, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 835ms expected @a9ae30e1c334+wt
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -1959,6 +1959,15 @@ fail/float/mathematical_generic_ieee_equality_requires_non_nan rejected 849ms ex
 	cannot prove ensures contract for exit from invalid at statement 0: reflexive<f32>(value)
 fail/float/named_argument_format_rejected rejected 194ms expected @9c4d1c444502
 	argument `value` for state `entry` delivers a `f64` value to a `f32` parameter; a landed float retains its format, so changing format requires an explicit conversion
+fail/float/named_boundary_transition_shadowed_namespace rejected 1870ms expected @0755e2c06ec1
+	authored Call declaration selection occurrence 8331 (`from_i32` in tests/omega/fail/float/named_boundary_transition_shadowed_namespace/main.omg) remained unresolved after successful checking (CheckedCall)
+fail/float/named_boundary_transition_wrong_arity rejected 534ms expected @0755e2c06ec1
+	machine `main` state `entry`: value call `F64.from_i32(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+fail/float/named_boundary_transition_wrong_operand rejected 518ms expected @0755e2c06ec1
+	argument `value` for state `from_i32` expects `i32`, got `bool`
+fail/float/named_boundary_transition_wrong_result rejected 535ms expected @0755e2c06ec1
+	machine `main` state `entry` stores the `f64` result of named operator `from_i32` into a `i32` return value; numeric representation changes require an explicit named conversion
+	store in machine `main` state `entry` return value implicitly converts `f64` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
 fail/float/named_call_computed_policy_erasure rejected 498ms expected @9c4d1c444502
 	store in machine `invalid` state `combine` argument `left` implicitly converts `f32 in Saturating` to `f32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
 	store in machine `invalid` state `combine` argument `right` implicitly converts `f32 in Saturating` to `f32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
@@ -2519,6 +2528,8 @@ fail/operators/declared_open_range_shared_collection_cannot_mutate rejected 830m
 	mutable argument `main` for state `range` is not writable in this state; the source cannot lend the requested exclusive access
 fail/operators/domain_operator_return_only_overload rejected 794ms expected @a9ae30e1c334+wt
 	domain `Quantity::Additive` has duplicate operator `combine`
+fail/operators/named_boundary_transition_requires rejected 736ms expected @0755e2c06ec1
+	cannot prove `value > 0` — the `requires` of `probe` (called `probe(value)`)
 fail/operators/named_operator_result_overload_duplicate_dispatch rejected 884ms expected @a9ae30e1c334+wt
 	duplicate named requirement overload `Convert::value` with parameter signature `operands(named(name(i32)));flags(mutable=false;const=false)` and result dispatch set `arithmetic:Trapping`; predicate-only result refinements do not distinguish overloads
 fail/operators/operand_requires_invalidated rejected 1623ms expected @a9ae30e1c334+wt
@@ -3272,6 +3283,8 @@ fail/structs/affine_result_constructor_reuse rejected 1202ms expected @a9ae30e1c
 	cannot use `kind` in machine `Worker::wrap` state `wrap` (statement 1) after `kind` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `kind` first
 fail/structs/local_record_policy_erasure rejected 827ms expected @a9ae30e1c334+wt
 	store in machine `observe` state `entry` local `value` implicitly converts `u8 in Wrapping` to `u8` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u8`)
+fail/structural/affine_successor_duplicate_mutable_loan rejected 699ms expected @0755e2c06ec1
+	state `consume` receives `first` as mutable more than once
 fail/structural/foreign_case_record_member rejected 890ms expected @a9ae30e1c334+wt
 	machine `inspect` state `entry` reads a nested member `count`, but data `Scanned` has no field `count` (check the spelling of the field name)
 fail/structural/primitive_array_snapshot_index_out_of_bounds rejected 1778ms expected @a9ae30e1c334+wt
@@ -3912,8 +3925,7 @@ pass/blockexec/blocking_executor_custody_claims_compile rejected 10616ms check-t
 	terminal-artifact production failed: Lowering(Unsupported("attached Unit closure is missing a checked boundary machine plan"))
 pass/borrow/copyable_array_view_survives_owner_pass_compile checked 1576ms @a9ae30e1c334+wt
 pass/borrow/explicit_aggregate_lifetime_selects_source checked 1563ms @a9ae30e1c334+wt
-pass/borrow/runtime_boundary_receiver_disjoint_loan_exit incomplete 5617ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data: scalar local: pure initializer)
+pass/borrow/runtime_boundary_receiver_disjoint_loan_exit checked 6398ms check-target:macos_arm64 @9dd545defbc0
 pass/borrow/runtime_dispatch_call_payload_snapshot_exit checked 11203ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrow/runtime_exclusive_loan_local_write_exit checked 11011ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrow/runtime_indexed_write_only_local_receiver_exit checked 10278ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -3997,8 +4009,7 @@ pass/borrows/projected_reference_record_argument_exit checked 11150ms check-targ
 pass/borrows/projected_reference_record_residual_exit checked 11195ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/projected_scalar_member_loan checked 10878ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/qualified_byte_owner_exclusive_call_exit checked 10895ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/borrows/qualified_byte_owner_shared_call_exit rejected 11226ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	native artifact target lowering failed: UnsupportedOperationInScalarFunction(MachineId(10))
+pass/borrows/qualified_byte_owner_shared_call_exit checked 6413ms check-target:macos_arm64 @9dd545defbc0
 pass/borrows/qualified_record_view_call_exit checked 11199ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/reference_aggregate_disjoint_mutable_leaves_exit checked 10923ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/returned_owned_byte_field_snapshot_exit checked 10942ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -4344,8 +4355,7 @@ pass/calls/runtime_mut_ref_forward_exit checked 11028ms check-target:macos_arm64
 pass/calls/runtime_mutable_call_before_transition_args_exit checked 11129ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_mutable_call_empty_input_exit checked 11065ms check-target:macos_arm64 @da842c101400+wt
 pass/calls/runtime_mutable_call_short_input_exit checked 11576ms check-target:macos_arm64 @da842c101400+wt
-pass/calls/runtime_mutable_local_external_scalar_call_exit rejected 11423ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	native artifact fragment object publication failed: fragment import lacks selected call custody
+pass/calls/runtime_mutable_local_external_scalar_call_exit checked 6405ms check-target:macos_arm64 @9dd545defbc0
 pass/calls/runtime_mutable_local_parameter_write_exit checked 10932ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_nested_case_argument_exit checked 11245ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_nested_case_subject_operand_order_exit checked 10451ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -4430,18 +4440,15 @@ pass/calls/whole_byte_array_view_loans_exit checked 12920ms check-target:macos_a
 pass/capabilities/aarch64_hfa_import_compile checked 36714ms @a9ae30e1c334+wt
 pass/capabilities/acquires_through_helper_return checked 12148ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/capabilities/boundary_trait_multiple_effects checked 1768ms @a9ae30e1c334+wt
-pass/capabilities/callback_direct_install_compile rejected 9347ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @a9ae30e1c334+wt
-	native artifact callback entry ABI failed: native entry transport: native entry bridge failed: IncompatiblePlan
+pass/capabilities/callback_direct_install_compile checked 5900ms check-target:linux_x86_64 @9dd545defbc0
 pass/capabilities/derives_through_helper checked 11418ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/capabilities/external_leaf_binding_forms checked 11362ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/capabilities/runtime_qualified_record_return_exit checked 11741ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/capabilities/sysv_small_aggregate_import_compile incomplete 5558ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @a9ae30e1c334+wt
-	`Main::main` has no executable body: this compiler does not lower its declaration of it yet (statement sequence: borrowed windows closed)
+pass/capabilities/sysv_small_aggregate_import_compile checked 5123ms check-target:linux_x86_64 @9dd545defbc0
 pass/capabilities/transitive_effect_inference checked 1785ms @a9ae30e1c334+wt
 pass/capabilities/uses_caller_folder checked 1656ms @a9ae30e1c334+wt
 pass/capabilities/win64_large_aggregate_result_import_compile checked 11112ms check-target:windows_x86_64 @a9ae30e1c334+wt
-pass/capabilities/win64_pointer_length_vs_descriptor_compile incomplete 5690ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	`Main::main` has no executable body: this compiler does not lower its declaration of it yet (statement sequence: borrowed windows closed)
+pass/capabilities/win64_pointer_length_vs_descriptor_compile checked 5155ms check-target:macos_arm64 @9dd545defbc0
 pass/capabilities/windows_provides_import_exit rejected 1862ms check-target:windows_x86_64 regressed-from:checked+check-target:windows_x86_64 @a9ae30e1c334+wt
 	ordinary external `via` evaluation failed: machine `beeper_binding` is not build-time admissible: machine call path `beeper_binding` has no ordinary checked `Terminates` guarantee; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
 pass/cases/runtime_case_payload_policy_cast_exit checked 7965ms check-target:macos_arm64 @31988b31bfed+wt
@@ -4480,8 +4487,7 @@ pass/collections/owned_array_scalar_comparisons checked 1654ms @a9ae30e1c334+wt
 pass/collections/owned_state_array_leaf_store_exit checked 12041ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/policy_array_enum_element_dispatch_exit checked 11077ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/policy_array_literal_store_exit checked 11605ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/collections/record_array_field_access_exit rejected 5364ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	machine `result_code` stores a borrowed value without a complete normal-exit backing relation
+pass/collections/record_array_field_access_exit checked 4847ms check-target:macos_arm64 @9dd545defbc0
 pass/collections/record_array_literal_field_store_exit checked 11725ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_argmax_index_exit checked 12194ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_array_child_membership_transport_exit checked 11202ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -4942,8 +4948,7 @@ pass/domains/runtime_computed_qualification_exit checked 11223ms check-target:ma
 pass/domains/runtime_constructor_ensured_membership_exit checked 11216ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/runtime_nested_record_membership_transport_exit checked 11182ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/runtime_qualified_borrowed_gated_input_exit checked 11348ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/domains/runtime_qualified_view_field_parameter_store_exit incomplete 6825ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	`Main::main` calls `verify`; `verify` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment)
+pass/domains/runtime_qualified_view_field_parameter_store_exit checked 4811ms check-target:macos_arm64 @9dd545defbc0
 pass/domains/runtime_result_domain_machine_overload_exit checked 12750ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/runtime_scalar_alias_zero_and_qualification_exit checked 12996ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/runtime_selected_nested_field_domain_exit checked 2724ms check-target:macos_arm64 @1e469c9b15bb
@@ -5115,10 +5120,7 @@ pass/expressions/runtime_temporary_record_field_call_exit checked 10564ms check-
 pass/expressions/runtime_widened_comparison_exit checked 11140ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/expressions/scalar_match_boundary_composition_exit checked 12777ms check-target:macos_arm64 @9c4d1c444502
 pass/expressions/unit_case_return_call_product checked 5467ms check-target:macos_arm64 @589aedee8ebc+wt
-pass/filesystem/cross_linux_value_syscalls rejected 16883ms regressed-from:checked @a9ae30e1c334+wt
-	machine `Main::main` state `classify_missing`: value call `Filesystem.open_with(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `read_missing_directory`: value call `Filesystem.read_dir_nth(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `remove_missing_tree`: value call `Filesystem.remove_dir_all(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+pass/filesystem/cross_linux_value_syscalls checked 22314ms @9dd545defbc0
 pass/filesystem/dir_walk_wrappers_exit rejected 10968ms check-target:macos_arm64 @a9ae30e1c334+wt
 	machine `Main::main` state `count`: value call `Filesystem.read_dir_count(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
 	qualified call `remove_dir_all` has no resolved callable declaration
@@ -5140,8 +5142,7 @@ pass/filesystem/runtime_local_host_result_dispatch_exit checked 22832ms check-ta
 pass/filesystem/runtime_posix_borrowed_view_io_exit checked 16757ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/filesystem/windows_canonicalize_exit rejected 173ms check-target:windows_x86_64 @a9ae30e1c334+wt
 	machine `FailedOpen::main` declares unknown boundary service `FilesystemHost`
-pass/filesystem/windows_native_create_write_close_exit incomplete 14729ms check-target:windows_x86_64 regressed-from:checked+check-target:windows_x86_64 @a9ae30e1c334+wt
-	`windows_wide_copy::windows_x86_64` has no executable body: this compiler does not lower its declaration of it yet (state graph: natural ranks)
+pass/filesystem/windows_native_create_write_close_exit checked 8934ms check-target:windows_x86_64 @9dd545defbc0
 pass/filesystem/windows_raw_breadth_exit rejected 11437ms check-target:windows_x86_64 @a9ae30e1c334+wt
 	selected ProgramEntry Binding field `Main::raw` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/windows_set_file_time_exit rejected 11550ms check-target:windows_x86_64 @a9ae30e1c334+wt
@@ -5240,6 +5241,7 @@ pass/float/runtime_float_digit_separators_exit checked 25286ms check-target:maco
 pass/float/runtime_float_integer_conversion_boundaries_exit checked 25128ms check-target:macos_arm64 @9c4d1c444502
 pass/float/runtime_format_conversion_result_bounds_exit checked 24869ms check-target:macos_arm64 @9c4d1c444502
 pass/float/runtime_generic_constructor_literal_landing_exit checked 14705ms check-target:macos_arm64 @1b12798e27f4
+pass/float/runtime_named_boundary_transition_exit checked 11907ms check-target:macos_arm64 @0755e2c06ec1
 pass/float/runtime_named_float_to_integer_conversion_exit checked 24284ms check-target:macos_arm64 @9c4d1c444502
 pass/float/runtime_named_fma_sequence_exit checked 23441ms check-target:macos_arm64 @9c4d1c444502
 pass/float/runtime_named_format_conversion_exit checked 22605ms check-target:macos_arm64 @9c4d1c444502
@@ -5371,8 +5373,7 @@ pass/host/runtime_descriptor_output_streams_exit checked 11865ms check-target:ma
 pass/host/runtime_descriptor_padded_prefix_loans_exit checked 12429ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/host/runtime_descriptor_record_array_input_exit checked 10266ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/host/runtime_descriptor_record_loan_input_exit checked 13256ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/host/runtime_descriptor_reference_record_prefix_exit rejected 12270ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	native artifact fragment object publication failed: fragment import lacks selected call custody
+pass/host/runtime_descriptor_reference_record_prefix_exit checked 5524ms check-target:macos_arm64 @9dd545defbc0
 pass/host/runtime_descriptor_scalar_input_exit checked 11138ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/host/runtime_encoded_record_view_observation_exit checked 3867ms check-target:macos_arm64 @61ba1df9375e+wt
 pass/host/runtime_fixed_arithmetic_across_console_exit checked 11481ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5425,10 +5426,8 @@ pass/layouts/private_callback_slot_untaken_compile checked 2062ms @a9ae30e1c334+
 pass/layouts/runtime_callee_integer_at_fitting_write_exit checked 10870ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/layouts/runtime_callee_owned_local_origins_exit checked 10758ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/layouts/runtime_captured_encoded_reference_replacement_exit checked 10928ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/layouts/runtime_encoded_physical_view_exit rejected 3606ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	machine `update` state `entry` local `physical` requires mutable source access; shared or immutable storage cannot supply it
-pass/layouts/runtime_foreign_encoded_reference_exit rejected 3602ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	machine `clear` state `entry` local `physical` requires mutable source access; shared or immutable storage cannot supply it
+pass/layouts/runtime_encoded_physical_view_exit checked 5100ms check-target:macos_arm64 @9dd545defbc0
+pass/layouts/runtime_foreign_encoded_reference_exit checked 5210ms check-target:macos_arm64 @9dd545defbc0
 pass/layouts/runtime_indexed_restricted_field_read checked 11850ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/layouts/runtime_multi_origin_encoded_reference_exit checked 11104ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/layouts/runtime_nested_restricted_field_read checked 11370ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5588,6 +5587,7 @@ pass/operators/runtime_xorshift_prng_exit checked 12139ms check-target:macos_arm
 pass/operators/slice_index_bounds_from_operator_contract checked 1634ms @a9ae30e1c334+wt
 pass/operators/slice_range_bounds_from_operator_contract checked 1825ms @a9ae30e1c334+wt
 pass/operators/unary_negation_exit checked 12143ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/operators/unqualified_boundary_transition checked 1924ms @0755e2c06ec1
 pass/optimizer/address_offset_selection_exit checked 11176ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/optimizer/constant_branch_selection_compile checked 11188ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/optimizer/copied_call_operand_selection_exit checked 11318ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5656,8 +5656,7 @@ pass/ownership/linear_self_receiver_disposition checked 1988ms @a9ae30e1c334+wt
 pass/ownership/linear_state_graph_call_arguments_exit checked 11450ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/linear_state_graph_claim_transport_exit checked 11585ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/linear_transfer_and_consume checked 12463ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/ownership/linear_transparent_record_frontier rejected 12342ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(1), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
+pass/ownership/linear_transparent_record_frontier checked 4864ms check-target:macos_arm64 @9dd545defbc0
 pass/ownership/local_element_loan_compile checked 1646ms @a9ae30e1c334+wt
 pass/ownership/local_shared_view_compile checked 1624ms @a9ae30e1c334+wt
 pass/ownership/member_element_loan_compile checked 1571ms @a9ae30e1c334+wt
@@ -5711,8 +5710,7 @@ pass/ownership/runtime_projected_constructor_operands_exit checked 11655ms check
 pass/ownership/runtime_referent_replacement_fact_transport_exit checked 10812ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_repeated_linear_result_forwarding_exit checked 11003ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_replacement_call_child_snapshot_exit checked 11068ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/ownership/runtime_retained_alias_referent_transform_exit rejected 12047ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(11), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
+pass/ownership/runtime_retained_alias_referent_transform_exit checked 4935ms check-target:macos_arm64 @9dd545defbc0
 pass/ownership/runtime_selected_reference_local_exit checked 11154ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_selective_constructed_owner_custody_exit checked 3460ms check-target:macos_arm64 @1a353f2e117b+wt
 pass/ownership/runtime_unknown_affine_case_discard_exit checked 10704ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5987,8 +5985,7 @@ pass/recast/runtime_inline_slice_view_mutable_write_exit checked 12240ms check-t
 pass/recast/runtime_integer_bit_view_recast_exit checked 12237ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/runtime_interior_slice_congruent_offset_exit checked 12905ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/runtime_interior_slice_view_mutable_write_exit checked 14083ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/recast/runtime_mutable_equivalent_domain_recast_exit rejected 11610ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	terminal-artifact production failed: Lowering(Unsupported("Unit closure references a missing structural domain carrier"))
+pass/recast/runtime_mutable_equivalent_domain_recast_exit checked 4816ms check-target:macos_arm64 @9dd545defbc0
 pass/recast/runtime_mutable_equivalent_range_recast_exit checked 11394ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/runtime_mutable_equivalent_record_recast_exit checked 14981ms check-target:macos_arm64 @9c4d1c444502
 pass/recast/runtime_nested_record_byte_store_exit checked 11664ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6085,8 +6082,7 @@ pass/slices/runtime_mutable_slice_element_write_exit checked 12207ms check-targe
 pass/slices/runtime_mutable_slice_result_nested_reborrow_exit checked 12441ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_mutable_slice_result_reborrow_exit checked 11844ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_mutable_slice_result_shared_observation_exit checked 12206ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/slices/runtime_mutable_slice_result_whole_forward_exit incomplete 11940ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	`main` calls `forward`; `forward` has no executable body: this compiler does not lower a state of it yet (state graph: structural return value: retained expression root)
+pass/slices/runtime_mutable_slice_result_whole_forward_exit checked 5059ms check-target:macos_arm64 @9dd545defbc0
 pass/slices/runtime_mutable_subslice_state_forwarding_exit checked 12731ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_namespace_range_contract_exit checked 11527ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_nested_subslice_fixed_index_exit checked 11923ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6136,8 +6132,7 @@ pass/storage/large_zero_initialized_local_exit checked 11612ms check-target:maco
 pass/storage/runtime_alias_field_binary checked 1668ms @a9ae30e1c334+wt
 pass/storage/runtime_alias_integer_write checked 1632ms @a9ae30e1c334+wt
 pass/storage/runtime_bounded_effectful_initializer_exit checked 10573ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/storage/runtime_local_slice_forward_exit incomplete 5957ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data: structural call binding)
+pass/storage/runtime_local_slice_forward_exit checked 4853ms check-target:macos_arm64 @9dd545defbc0
 pass/storage/runtime_machine_owned_indexed_integer_write_exit checked 11156ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/storage/runtime_machine_owned_indexed_struct_copy_exit checked 11383ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/storage/runtime_parameter_slice_forward_exit checked 11158ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6167,8 +6162,7 @@ pass/structs/runtime_owned_float_selection_store_exit checked 13401ms check-targ
 pass/structs/runtime_qualified_record_call_composition_exit checked 11242ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/structs/runtime_state_record_array_element_read_exit checked 11384ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/structs/runtime_struct_array_literal_exit checked 11658ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/structs/runtime_view_array_elements_exit incomplete 5701ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data)
+pass/structs/runtime_view_array_elements_exit checked 4819ms check-target:macos_arm64 @9dd545defbc0
 pass/structs/uninit_record_local_exit checked 11596ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/structs/uninit_record_member_read checked 11512ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/structs/uninit_record_member_store checked 11422ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6187,6 +6181,7 @@ pass/structural/local_record_receivers checked 1763ms @a9ae30e1c334+wt
 pass/structural/primitive_array_snapshot_indexed_row_exit checked 6884ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/structural/primitive_array_snapshot_swap_exit checked 6780ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/structural/record_literal_moves_zeroed_local_array_exit checked 11170ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/structural/runtime_affine_local_successor_loans_exit checked 6623ms check-target:macos_arm64 @0755e2c06ec1
 pass/structural/runtime_enum_equality_exit checked 11583ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/structural/runtime_mutable_record_copy_exit checked 11191ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/structural/runtime_nested_constructor_payload_exit checked 10419ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6367,8 +6362,7 @@ pass/text/nested_owned_byte_record_literal_exit checked 11370ms check-target:mac
 pass/text/owned_arrival_view_descriptor_forwarded_exit checked 11790ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/owned_byte_call_result_field_exit checked 12166ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/owned_record_byte_field_read_exit checked 13252ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/text/plain_and_qualified_byte_arrays_exit rejected 11134ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	native artifact target lowering failed: UnsupportedOperationInScalarFunction(MachineId(1))
+pass/text/plain_and_qualified_byte_arrays_exit checked 4616ms check-target:macos_arm64 @9dd545defbc0
 pass/text/plain_byte_field_and_qualified_state_loan_exit checked 12041ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/qualified_byte_owner_state_loan_cycle_exit checked 11728ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/qualified_byte_state_snapshot_exit checked 12358ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6398,8 +6392,7 @@ pass/text/runtime_param_domain_literal_read_exit checked 12013ms check-target:ma
 pass/text/runtime_qualified_byte_array_storage_exit checked 4037ms check-target:macos_arm64 @c0d817d0e753+wt
 pass/text/runtime_qualified_owner_view_open_exit checked 3079ms check-target:macos_arm64 @b7075f98d14c+wt
 pass/text/runtime_slice_indexed_string_guard_exit checked 11632ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/text/runtime_stdin_command_branch_exit incomplete 5713ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	`Main::main` has no executable body: this compiler does not lower a state of it yet (state graph: result custody accounting)
+pass/text/runtime_stdin_command_branch_exit checked 4559ms check-target:macos_arm64 @9dd545defbc0
 pass/text/runtime_stdin_line_buffering_exit checked 11781ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/runtime_string_concat_two_fields_exit checked 5663ms check-target:macos_arm64 @4ebb8b7f818f+wt
 pass/text/runtime_text_builder checked 11906ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6557,20 +6550,3 @@ run/stores/runtime_float_indexed_call_result_exit checked 8854ms check-target:ma
 run/stores/runtime_float_store_selector_snapshot_exit checked 8082ms check-target:macos_arm64 @589aedee8ebc+wt
 run/variant_decimal_runtime_division checked 11419ms check-target:linux_x86_64 @a9ae30e1c334+wt
 run/variant_record_normalization_repeats checked 13906ms check-target:linux_x86_64 @a9ae30e1c334+wt
-# W2-14: newly qualified rows; existing records preserved verbatim.
-fail/float/named_boundary_transition_shadowed_namespace rejected 1870ms expected @0755e2c06ec1
-	authored Call declaration selection occurrence 8331 (`from_i32` in tests/omega/fail/float/named_boundary_transition_shadowed_namespace/main.omg) remained unresolved after successful checking (CheckedCall)
-fail/float/named_boundary_transition_wrong_arity rejected 534ms expected @0755e2c06ec1
-	machine `main` state `entry`: value call `F64.from_i32(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-fail/float/named_boundary_transition_wrong_operand rejected 518ms expected @0755e2c06ec1
-	argument `value` for state `from_i32` expects `i32`, got `bool`
-fail/float/named_boundary_transition_wrong_result rejected 535ms expected @0755e2c06ec1
-	machine `main` state `entry` stores the `f64` result of named operator `from_i32` into a `i32` return value; numeric representation changes require an explicit named conversion
-	store in machine `main` state `entry` return value implicitly converts `f64` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
-fail/operators/named_boundary_transition_requires rejected 736ms expected @0755e2c06ec1
-	cannot prove `value > 0` — the `requires` of `probe` (called `probe(value)`)
-fail/structural/affine_successor_duplicate_mutable_loan rejected 699ms expected @0755e2c06ec1
-	state `consume` receives `first` as mutable more than once
-pass/float/runtime_named_boundary_transition_exit checked 11907ms check-target:macos_arm64 @0755e2c06ec1
-pass/operators/unqualified_boundary_transition checked 1924ms @0755e2c06ec1
-pass/structural/runtime_affine_local_successor_loans_exit checked 6623ms check-target:macos_arm64 @0755e2c06ec1
