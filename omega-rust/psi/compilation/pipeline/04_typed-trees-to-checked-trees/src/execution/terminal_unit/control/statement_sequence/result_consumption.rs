@@ -25,6 +25,22 @@ fn latest_loan_release_boundary(
         })
 }
 
+/// Source groups identify named loan resources. A computed descriptor has no
+/// such group, so its exact result occurrence identifies its one release.
+pub(in crate::execution::terminal_unit) fn release_matches(
+    operation: &CheckedUnitEffectOperationPlan,
+    result: &CheckedUnitStructuralResultBindingPlan,
+    loans: arena::HandleSpan<checked_trees::BorrowLoanFact>,
+) -> bool {
+    matches!(operation, CheckedUnitEffectOperationPlan::ReleaseReference {
+        loans: released, source, path, ..
+    } if if loans.is_empty() {
+        *source == (CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            binding_ordinal: result.binding_ordinal,
+        }) && path.is_empty()
+    } else { *released == loans })
+}
+
 /// A prior constructor or call transfer already moved this descriptor's
 /// custody to another holder.
 fn custody_transferred(
@@ -93,7 +109,17 @@ pub(in crate::execution::terminal_unit) fn captured_reference_result<'operation>
         _ => operation.call().and_then(|call| {
             let custody = call.structural_custody()?;
             let result = call.structural_result()?;
-            (!custody.reference_loans.is_empty()).then_some((result, custody.reference_loans))
+            (!custody.reference_loans.is_empty()
+                || program
+                    .state_by_symbol(call.target.state)
+                    .is_some_and(|target| {
+                        validation::reference_result_custody::stored_loan_parts(
+                            program,
+                            target.return_type,
+                        )
+                        .is_some()
+                    }))
+            .then_some((result, custody.reference_loans))
         }),
     }
 }
@@ -184,7 +210,8 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                 super::super::super::reference_results::release_boundary(
                     program, facts, machine, state, loan,
                 )
-            })?;
+            })?
+            .max(result.statement_index.checked_add(1)?);
             let retirement = super::reference_retirement::Retirement {
                 program,
                 facts,
@@ -197,15 +224,25 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                 at_exit: false,
                 transported_loans: &transported_loans,
             };
-            if boundary <= statement_index && facts.borrow.loan_group(loans)?.all(|(loan, _)| retirement.children_retired(loan)) && !operations.iter().any(|operation| {
-                matches!(operation, CheckedUnitEffectOperationPlan::ReleaseReference { loans: released, .. } if *released == loans)
-            }) {
+            if boundary <= statement_index
+                && retirement.carrier_children_retired(result)
+                && facts
+                    .borrow
+                    .loan_group(loans)?
+                    .all(|(loan, _)| retirement.children_retired(loan))
+                && !operations
+                    .iter()
+                    .any(|operation| release_matches(operation, result, loans))
+            {
                 pending.push(CheckedUnitEffectOperationPlan::ReleaseReference {
                     statement_index,
                     source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                         binding_ordinal: result.binding_ordinal,
                     },
-                    path: Vec::new(), select_evaluated_storage: false, defer_to_exit: false, loans,
+                    path: Vec::new(),
+                    select_evaluated_storage: false,
+                    defer_to_exit: false,
+                    loans,
                     selection_complements: Vec::new(),
                 });
                 // Explicit retirement consumes the descriptor now. Its
@@ -469,28 +506,35 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                 super::super::super::reference_results::release_statement(
                     facts, machine, state, loan,
                 )
-            })?;
-            if !operations.iter().any(|operation| {
-                matches!(operation, CheckedUnitEffectOperationPlan::ReleaseReference { loans: released, .. } if *released == loans)
-            }) && !pending.iter().any(|operation: &(u32, CheckedUnitEffectOperationPlan)| {
-                matches!(operation, (_, CheckedUnitEffectOperationPlan::ReleaseReference { loans: released, .. }) if *released == loans)
-            }) {
-                pending.push((boundary, CheckedUnitEffectOperationPlan::ReleaseReference {
-                    statement_index: boundary,
-                    source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                        binding_ordinal: result.binding_ordinal,
+            })?
+            .max(result.statement_index.checked_add(1)?);
+            if !operations
+                .iter()
+                .any(|operation| release_matches(operation, result, loans))
+                && !pending
+                    .iter()
+                    .any(|(_, operation)| release_matches(operation, result, loans))
+            {
+                pending.push((
+                    boundary,
+                    CheckedUnitEffectOperationPlan::ReleaseReference {
+                        statement_index: boundary,
+                        source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                            binding_ordinal: result.binding_ordinal,
+                        },
+                        path: Vec::new(),
+                        select_evaluated_storage: false,
+                        defer_to_exit: matches!(
+                            program
+                                .statement_table
+                                .statements(program.state_by_symbol(state)?.statement_nodes,)
+                                .get(boundary.checked_sub(1)? as usize)?,
+                            StatementNode::Transition(_)
+                        ),
+                        loans,
+                        selection_complements: Vec::new(),
                     },
-                    path: Vec::new(),
-                    select_evaluated_storage: false,
-                    defer_to_exit: matches!(
-                        program.statement_table.statements(
-                            program.state_by_symbol(state)?.statement_nodes,
-                        ).get(boundary.checked_sub(1)? as usize)?,
-                        StatementNode::Transition(_)
-                    ),
-                    loans,
-                    selection_complements: Vec::new(),
-                }));
+                ));
             }
         }
     }
@@ -526,13 +570,23 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         };
         let mut next = None;
         for (index, (_, operation)) in pending.iter().enumerate() {
-            let CheckedUnitEffectOperationPlan::ReleaseReference { loans, .. } = operation else {
+            let CheckedUnitEffectOperationPlan::ReleaseReference { loans, source, .. } = operation
+            else {
                 return None;
             };
-            if facts
-                .borrow
-                .loan_group(*loans)?
-                .all(|(loan, _)| retirement.children_retired(loan))
+            let CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } =
+                source
+            else {
+                return None;
+            };
+            let (result, _) = results
+                .iter()
+                .find(|(result, _)| result.binding_ordinal == *binding_ordinal)?;
+            if retirement.carrier_children_retired(result)
+                && facts
+                    .borrow
+                    .loan_group(*loans)?
+                    .all(|(loan, _)| retirement.children_retired(loan))
             {
                 next = Some(index);
                 break;

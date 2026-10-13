@@ -55,6 +55,7 @@ pub(super) fn loans(
                     storage_owner: facts::PlaceRoot::Symbol(owner),
                     owner_name: program.symbols.name(owner).into(),
                     owner_path: owner_path.clone(),
+                    retained_operand: supplying.and_then(|source| source.retained_operand),
                     place: checked_trees::CapturedPlace {
                         incoming_reference: supplying
                             .map_or(Default::default(), |source| source.place.incoming_reference),

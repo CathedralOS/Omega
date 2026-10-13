@@ -2,7 +2,8 @@
 //! The nested schedule establishes each owner once; a projected argument names
 //! its subtree without establishing another owner. Borrowed owners retire whole,
 //! while partial transfers retire the maximal untouched complement, in reverse
-//! establishment order. Callee effects and result shape do not alter that debt.
+//! establishment order. Captured reference descriptors use the shared loan
+//! retirement schedule, which keeps them live through returned descendants.
 //! Partial transfers still require the captured permission partition; automatic
 //! affine disposal does not discharge a live linear obligation. This early
 //! geometry is completed against contextual hook dispositions once executable
@@ -192,8 +193,8 @@ pub(crate) fn projected_temporary_residuals(
 
 /// Dispose anonymous argument owners at the call's normal continuation.
 /// The argument's access determines whether the whole owner or its maximal
-/// complement dies. The callee's effects and return shape do not change that
-/// lifetime; its already admitted call owns those independent obligations.
+/// complement dies. Captured reference descriptors instead keep their one
+/// release in the loan schedule, including any returned descendant's lifetime.
 /// Results follow establishment order, so reverse traversal also orders mixed
 /// borrowed owners and partially transferred owners without regrouping them.
 #[allow(clippy::too_many_arguments)]
@@ -250,6 +251,23 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
             binding_ordinal: result.binding_ordinal,
         };
         if transfers.is_empty() {
+            // The reference scheduler owns this exact carrier's retirement.
+            // A call can return a descendant that still borrows its operand;
+            // immediate continuation cleanup would retire that operand twice
+            // and, before the child ends, destroy backing that remains live.
+            if operations.iter().any(|producer| {
+                super::super::control::statement_sequence::captured_reference_result(
+                    program,
+                    facts,
+                    machine.symbol,
+                    state.symbol,
+                    results,
+                    producer,
+                )
+                .is_some_and(|(captured, _)| captured == result)
+            }) {
+                continue;
+            }
             cleanup_actions.push(CheckedUnitPartialAffineDiscardPlan {
                 source,
                 path: Vec::new(),

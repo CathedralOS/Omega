@@ -1085,21 +1085,16 @@ impl OperationFrame<'_, '_> {
                 if let Some(captured) = captured {
                     return Ok(captured);
                 }
-                let (place, root_type) = self.evaluation.cleanup_storage(
+                let mut storage = self.evaluation.cleanup_storage(
                     source,
                     &self.parameters,
                     |binding_ordinal| {
-                        let place = self
-                            .results
-                            .continuation_place(binding_ordinal, self.operations)?;
-                        let value = self
-                            .results
-                            .repair_value(binding_ordinal, self.operations)?;
-                        Ok((place, value.structural_type))
+                        self.results
+                            .continuation_storage(binding_ordinal, self.operations)
                     },
                 )?;
-                let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(identities, selected_path, root_type, self.structural_types.declarations(), None, &mut std::iter::empty(), None)?;
-                Ok((place, path))
+                storage.path.extend(crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(identities, selected_path, storage.selected_type, self.structural_types.declarations(), None, &mut std::iter::empty(), None)?);
+                Ok((storage.place, storage.path))
             },
             |cleanup, place, structural_type, path| {
                 let mut action = crate::unit::unit_cleanup::lower_nominal_cleanup_action(

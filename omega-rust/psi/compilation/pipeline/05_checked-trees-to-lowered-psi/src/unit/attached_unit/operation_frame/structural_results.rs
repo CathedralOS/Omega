@@ -6,7 +6,7 @@
 //! `validate_completed_arrival` proves a completed binding rejoins the
 //! exact block parameter roster that owns it.
 
-use super::super::argument_evaluation::Evaluation;
+use super::super::argument_evaluation::{CleanupStorage, Evaluation};
 use crate::emission::borrowed_window::BorrowedWindowRepairValue;
 use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
 use crate::unit::{
@@ -25,8 +25,8 @@ pub(in crate::unit::attached_unit) enum StructuralResults<'f> {
     /// declares no place of its own and the composed alias lives in the
     /// operation buffer's `structural_values` registry instead. Keeping the
     /// ordinal slot preserves the density every later ordinal is checked
-    /// against, and makes every reader that needs a produced place refuse
-    /// the alias explicitly rather than silently drop its path.
+    /// against. Whole-value consumers refuse the alias; cleanup resolves its
+    /// captured path from the registry instead of discarding that path.
     Dense(&'f mut Vec<(Option<StructuralPlaceDeclaration>, bool)>),
     /// A composed state: each binding is registered in the operation buffer,
     /// and every result place joins the machine-wide place catalog.
@@ -106,6 +106,71 @@ impl StructuralResults<'_> {
                 Ok(binding.operation_result()?.place)
             }
         }
+    }
+
+    /// Cleanup consumes a selected carrier, so an alias retains its original
+    /// home and captured path. Whole-value repair keeps its separate fence.
+    pub(in crate::unit::attached_unit) fn cleanup_value(
+        &self,
+        binding_ordinal: u32,
+        operations: &OperationBuffer,
+    ) -> Result<CleanupStorage, LoweringError> {
+        match self {
+            Self::Dense(roster) => {
+                let (declaration, _) =
+                    roster
+                        .get(binding_ordinal as usize)
+                        .ok_or(LoweringError::Unsupported(
+                            "cleanup structural binding is absent",
+                        ))?;
+                if declaration.is_some() {
+                    let (place, selected_type) =
+                        self.completed_value(binding_ordinal, operations)?;
+                    return Ok(CleanupStorage {
+                        place,
+                        path: Vec::new(),
+                        selected_type,
+                    });
+                }
+                let mut bindings = operations
+                    .structural_values
+                    .iter()
+                    .filter(|(ordinal, _)| *ordinal == binding_ordinal);
+                let (_, binding) = bindings.next().ok_or(LoweringError::Unsupported(
+                    "cleanup alias has no registered binding",
+                ))?;
+                if bindings.next().is_some()
+                    || !matches!(binding, StructuralBinding::ProjectedAlias { .. })
+                {
+                    return unsupported("cleanup alias has no unique projected binding");
+                }
+                Ok(binding.into())
+            }
+            Self::StateGraph { state, .. } => {
+                Ok(super::super::composed_control::state_graph_result(
+                    state,
+                    binding_ordinal,
+                    operations,
+                )?
+                .as_ref()
+                .into())
+            }
+        }
+    }
+
+    pub(super) fn continuation_storage(
+        &self,
+        binding_ordinal: u32,
+        operations: &OperationBuffer,
+    ) -> Result<CleanupStorage, LoweringError> {
+        if let Self::Dense(roster) = self
+            && roster
+                .get(binding_ordinal as usize)
+                .is_some_and(|(_, discard)| *discard)
+        {
+            return unsupported("call continuation cleanup has conflicting custody");
+        }
+        self.cleanup_value(binding_ordinal, operations)
     }
 
     /// The completed whole value a borrowed-window repair stores back.

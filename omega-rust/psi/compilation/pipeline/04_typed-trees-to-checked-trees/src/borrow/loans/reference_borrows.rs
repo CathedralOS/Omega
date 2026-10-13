@@ -245,6 +245,7 @@ pub(super) fn reference_local_borrow_loans(
             owner_name: local_data.name.clone(),
             owner_path: Vec::new(),
             place: source.place.clone(),
+            retained_operand: source.retained_operand,
             source_owner_symbol: source.source_owner_symbol,
             supplying_loan: Default::default(),
             lineage: retained_reference_lineage(

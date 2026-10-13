@@ -36,6 +36,25 @@ mod straight_line;
 
 pub(crate) use scalar_control::ScalarReturnCleanup;
 
+/// A cleanup source retains its physical home and captured projection. The
+/// selected type interprets the authored suffix; it is not the home's type.
+/// Retiring this value consumes only that composed path, never its siblings.
+pub(crate) struct CleanupStorage {
+    pub(crate) place: PlaceId,
+    pub(crate) path: Vec<terminal_psi::StructuralPathSegment>,
+    pub(crate) selected_type: semantic_vocabulary::StructuralTypeId,
+}
+
+impl From<&StructuralBinding> for CleanupStorage {
+    fn from(binding: &StructuralBinding) -> Self {
+        Self {
+            place: binding.place(),
+            path: binding.path().to_vec(),
+            selected_type: binding.structural_type(),
+        }
+    }
+}
+
 pub(crate) struct Evaluation {
     /// The enclosing emission unit's scalar qualification namespace. A call
     /// result publishes the callee's qualified result in it, so argument
@@ -231,15 +250,10 @@ impl Evaluation {
         &self,
         source: &checked_trees::CheckedUnitStructuralArgumentSourcePlan,
         parameters: &[StructuralParameterDeclaration],
-        mut result: impl FnMut(
-            u32,
-        ) -> Result<
-            (PlaceId, semantic_vocabulary::StructuralTypeId),
-            LoweringError,
-        >,
-    ) -> Result<(PlaceId, semantic_vocabulary::StructuralTypeId), LoweringError> {
+        mut result: impl FnMut(u32) -> Result<CleanupStorage, LoweringError>,
+    ) -> Result<CleanupStorage, LoweringError> {
         use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
-        let (place, structural_type) = match *source {
+        let mut storage = match *source {
             CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
                 let parameter = self
                     .structural_parameters
@@ -247,7 +261,11 @@ impl Evaluation {
                     .map(|(_, parameter)| parameter)
                     .or_else(|| parameters.get(parameter_index as usize))
                     .ok_or(LoweringError::Unsupported("cleanup parameter is absent"))?;
-                (parameter.place, parameter.structural_type)
+                CleanupStorage {
+                    place: parameter.place,
+                    path: Vec::new(),
+                    selected_type: parameter.structural_type,
+                }
             }
             CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. } => {
@@ -267,17 +285,19 @@ impl Evaluation {
                 .ok_or(LoweringError::Unsupported(
                     "cleanup local is not established",
                 ))?;
-                if !local.argument.path.is_empty() {
-                    return unsupported("cleanup local is not its whole owner");
+                CleanupStorage {
+                    place: local.argument.place,
+                    path: local.argument.path.clone(),
+                    selected_type: local.structural_type,
                 }
-                (local.argument.place, local.structural_type)
             }
             CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
                 result(binding_ordinal)?
             }
             _ => return unsupported("cleanup source has no owned structural storage"),
         };
-        Ok((self.current_structural_place(place), structural_type))
+        storage.place = self.current_structural_place(storage.place);
+        Ok(storage)
     }
 
     /// Bind the emitted structural signature before evaluating any operands.

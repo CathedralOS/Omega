@@ -186,6 +186,9 @@ pub struct BorrowLoanFact {
     /// its statement. Zero denotes a statement-call completion. Source replay
     /// reconstructs this identity; equal storage does not imply equal timing.
     pub formation_expression: ExpressionHandle,
+    /// Input storage held by the originating call, distinct from this leaf's
+    /// exact referent. Transport keeps the occurrence and captured prefix.
+    pub retained_operand: Option<BorrowRetainedOperand>,
     pub last_use_statement_index: usize,
     pub owner_symbol: SymbolHandle,
     /// Storage holding the descriptor, distinct from the lexical binding that
@@ -209,6 +212,19 @@ pub struct BorrowLoanFact {
     pub root: facts::PlaceRoot,
     pub segments: HandleSpan<facts::PlaceSegment>,
     pub kind: BorrowAccessKind,
+}
+
+/// A returned view retains its originating call's supplied input region.
+/// The depth is a prefix of the loan's captured segments in the same root and
+/// incoming-reference namespace. Some(depth == segments.len()) still records
+/// an identity call's obligation; ordinary reborrows have no such obligation.
+/// The occurrence identifies sibling results of one invocation, which may
+/// use their distinct referents while external access keeps the whole input
+/// suspended. It never exempts overlapping referents from compatibility.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BorrowRetainedOperand {
+    pub formation_expression: ExpressionHandle,
+    pub depth: usize,
 }
 
 /// Checked-only formation lineage for one loan occurrence.

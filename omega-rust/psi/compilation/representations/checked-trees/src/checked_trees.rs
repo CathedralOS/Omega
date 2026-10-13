@@ -30,9 +30,9 @@ pub use admissibility::{
 };
 pub use borrow::{
     BorrowAccessKind, BorrowArgumentAccessFact, BorrowCallFact, BorrowFacts, BorrowLoanFact,
-    BorrowLoanLineage, BorrowLoanOwnerSegment, BorrowReturnedLoanFact, BorrowRootKind,
-    BorrowStateIndex, BorrowWritableRootFact, CapturedPlace, CapturedPlaceCompatibility,
-    CapturedPlaceContainment, CheckedBorrowResourceDispositionTarget,
+    BorrowLoanLineage, BorrowLoanOwnerSegment, BorrowRetainedOperand, BorrowReturnedLoanFact,
+    BorrowRootKind, BorrowStateIndex, BorrowWritableRootFact, CapturedPlace,
+    CapturedPlaceCompatibility, CapturedPlaceContainment, CheckedBorrowResourceDispositionTarget,
     CheckedBorrowResourceLifecyclePhase, CheckedCallBorrowLoanResource,
     CheckedCallBorrowLoanSource, CheckedDirectBorrowLoanResource,
     CheckedDirectBorrowParentLifetime, CheckedDirectBorrowRestorationObligation,

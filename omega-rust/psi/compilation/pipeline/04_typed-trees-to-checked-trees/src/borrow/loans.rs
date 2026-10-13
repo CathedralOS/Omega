@@ -80,6 +80,7 @@ pub(super) struct StatementBorrowLoan {
     pub(super) owner_name: Identifier,
     pub(super) owner_path: Vec<BorrowOwnerSegment>,
     pub(super) place: accesses::BorrowAccessPlace,
+    pub(super) retained_operand: Option<checked_trees::BorrowRetainedOperand>,
     pub(super) source_owner_symbol: SymbolHandle,
     pub(super) supplying_loan: Handle<checked_trees::BorrowLoanFact>,
     pub(super) lineage: checked_trees::BorrowLoanLineage,
@@ -94,6 +95,7 @@ pub(super) struct StatementBorrowLoan {
 #[derive(Clone)]
 struct RebasedBorrowPlace {
     place: accesses::BorrowAccessPlace,
+    retained_operand: Option<checked_trees::BorrowRetainedOperand>,
     source_owner_symbol: SymbolHandle,
     parent_loan: Handle<checked_trees::BorrowLoanFact>,
     parent_lineage_is_retained: bool,

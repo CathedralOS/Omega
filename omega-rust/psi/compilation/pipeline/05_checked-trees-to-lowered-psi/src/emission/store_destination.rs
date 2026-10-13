@@ -12,6 +12,8 @@ use semantic_vocabulary::{PlaceId, StructuralTypeId};
 pub(crate) struct LocalStoreRoot<'a> {
     pub(crate) argument: &'a terminal_psi::StructuralArgument,
     pub(crate) structural_type: StructuralTypeId,
+    /// Type at the local alias's captured path within that root.
+    pub(crate) selected_type: StructuralTypeId,
     pub(crate) qualifications: &'a [semantic_vocabulary::StructuralDomainId],
     pub(crate) projected_qualifications: &'a [terminal_psi::StructuralPathQualification],
 }
@@ -31,26 +33,28 @@ impl LocalStoreRoot<'_> {
 /// An owned home and an exclusive loan both permit mutation; neither grants
 /// permission to drop predicates or claims. The operation still checks the
 /// destination's shape and the current ownership frontier.
-pub(crate) fn local_store_root<'a>(
+pub(crate) fn local_store_place<'a>(
     symbol: symbols::SymbolHandle,
     locals: &'a [crate::expression_preparation::bindings::StructuralLocalBinding],
     parameters: impl Iterator<Item = &'a terminal_psi::StructuralParameterDeclaration>,
     operations: &'a crate::emission::operation_emission::buffer::OperationBuffer,
 ) -> Result<LocalStoreRoot<'a>, LoweringError> {
-    let crate::expression_preparation::bindings::StructuralLocalBinding { argument, .. } =
-        crate::expression_preparation::bindings::structural_local_by_root(
-            locals,
-            facts::PlaceRoot::Symbol(symbol),
-        )
-        .ok_or(LoweringError::Unsupported(
-            "store names an unknown structural local",
-        ))?;
+    let crate::expression_preparation::bindings::StructuralLocalBinding {
+        argument,
+        structural_type: selected_type,
+        ..
+    } = crate::expression_preparation::bindings::structural_local_by_root(
+        locals,
+        facts::PlaceRoot::Symbol(symbol),
+    )
+    .ok_or(LoweringError::Unsupported(
+        "store names an unknown structural local",
+    ))?;
     if !matches!(
         argument.access,
         terminal_psi::mutating_access_pair_pattern!()
-    ) || !argument.path.is_empty()
-    {
-        return unsupported("store local is not a whole exclusive storage root");
+    ) {
+        return unsupported("store local does not retain exclusive storage access");
     }
     let declaration = parameters
         .map(|parameter| {
@@ -78,9 +82,26 @@ pub(crate) fn local_store_root<'a>(
     Ok(LocalStoreRoot {
         argument,
         structural_type: declaration.1,
+        selected_type: *selected_type,
         qualifications: declaration.2,
         projected_qualifications: declaration.3,
     })
+}
+
+/// Operations on a whole descriptor or owner require its complete home.
+/// Field stores instead compose `local_store_place`'s captured alias prefix;
+/// dropping that prefix would write another element of the enclosing carrier.
+pub(crate) fn local_store_root<'a>(
+    symbol: symbols::SymbolHandle,
+    locals: &'a [crate::expression_preparation::bindings::StructuralLocalBinding],
+    parameters: impl Iterator<Item = &'a terminal_psi::StructuralParameterDeclaration>,
+    operations: &'a crate::emission::operation_emission::buffer::OperationBuffer,
+) -> Result<LocalStoreRoot<'a>, LoweringError> {
+    let root = local_store_place(symbol, locals, parameters, operations)?;
+    if !root.argument.path.is_empty() {
+        return unsupported("whole-home store names a projected local alias");
+    }
+    Ok(root)
 }
 
 /// Field replacement and restoration windows share the same root contract.

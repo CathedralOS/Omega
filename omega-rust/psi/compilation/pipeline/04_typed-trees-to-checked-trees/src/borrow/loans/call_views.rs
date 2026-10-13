@@ -389,6 +389,7 @@ fn rebase_borrow_places_following(
         .collect();
     if source_loans.is_empty() || place.incoming_reference.is_valid() || active.contains(&place) {
         return vec![RebasedBorrowPlace {
+            retained_operand: None,
             place,
             source_owner_symbol: SymbolHandle::invalid(),
             parent_loan: Handle::invalid(),
@@ -412,6 +413,10 @@ fn rebase_borrow_places_following(
             rebased_segments.extend(remainder.iter().copied());
 
             RebasedBorrowPlace {
+                // A projection can narrow an ordinary reborrow. It cannot
+                // release the input held by an earlier call result, including
+                // an identity result that named the entire input.
+                retained_operand: source_loan.retained_operand,
                 place: accesses::BorrowAccessPlace {
                     incoming_reference: source_loan.place.incoming_reference,
                     root: source_loan.place.root,

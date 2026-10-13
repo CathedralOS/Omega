@@ -184,6 +184,7 @@ fn append_carrier_loans(
                 incoming_reference: pending.place.incoming_reference,
                 statement_index,
                 formation_expression: pending.formation_expression,
+                retained_operand: pending.retained_operand,
                 last_use_statement_index: statement_index,
                 owner_symbol: pending.owner_symbol,
                 storage_owner: pending.storage_owner,
@@ -206,6 +207,7 @@ fn append_carrier_loans(
             call_result: pending.call_result,
             owner_path: pending.owner_path,
             place: pending.place,
+            retained_operand: pending.retained_operand,
         };
         current.push(tracker.clone());
         history.push(tracker);
@@ -264,6 +266,7 @@ fn grouped_carrier_loans(mut loans: Vec<StatementBorrowLoan>) -> Vec<StatementBo
                     && previous.source_owner_symbol == loan.source_owner_symbol
                     && previous.supplying_loan == loan.supplying_loan
                     && previous.place == loan.place
+                    && previous.retained_operand == loan.retained_operand
                     && previous.kind == loan.kind
                     && previous.lineage == loan.lineage
                     && previous.call_result == loan.call_result
@@ -431,6 +434,7 @@ fn append_incoming_reference_trackers(
                 lineage: checked_trees::BorrowLoanLineage::UnretainedDerived,
                 call_result: false,
                 owner_path,
+                retained_operand: None,
                 place: checked_trees::CapturedPlace {
                     incoming_reference,
                     root: facts::PlaceRoot::Symbol(parameter.symbol),

@@ -272,6 +272,18 @@ pub(super) fn plan(
             operation,
             result.clone(),
         )?;
+        // Captured descriptors share the loan schedule even when the source
+        // explicitly discards the result. An immediate owner cleanup would
+        // compete with that descriptor's exact reference release.
+        let reference_result = super::captured_reference_result(
+            program,
+            facts,
+            machine.symbol,
+            state.symbol,
+            structural_results,
+            &operation,
+        )
+        .is_some();
         // Any call with a structural result, ordinary or boundary.
         let call = operation.call_mut()?;
         let coordinate = call.coordinate;
@@ -279,7 +291,7 @@ pub(super) fn plan(
         *discard_result_on_return = false;
         consume_results(&mut *operations, &operation)?;
         operations.push(operation);
-        if result.multiplicity == Multiplicity::Affine {
+        if result.multiplicity == Multiplicity::Affine && !reference_result {
             operations.push(CheckedUnitEffectOperationPlan::ContinuationCleanup {
                 selected_regions: Vec::new(),
                 boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate),

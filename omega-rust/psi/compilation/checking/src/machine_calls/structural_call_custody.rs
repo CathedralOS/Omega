@@ -1302,8 +1302,62 @@ pub fn structural_call_custody(
         call,
         return_type,
     )?;
+    let mut retained_reference_inputs = Vec::new();
+    if crate::reference_result_custody::stored_loan_parts(program, return_type).is_some() {
+        // Return formation already captured the current descriptor origins,
+        // including copies and reassigned views. Consume that completed ledger
+        // instead of reconstructing a second relation from return syntax.
+        let borrowing = facts
+            .borrow
+            .states
+            .iter()
+            .find_map(|(_, row)| {
+                (row.machine_symbol == *target_machine && row.state_symbol == *target_state)
+                    .then_some(row)
+            })
+            .ok_or("reference result has no checked source state")?;
+        let sources = facts
+            .borrow
+            .returned_loans
+            .span(borrowing.returned_loans)
+            .ok_or("reference result has no captured input origins")?;
+        for source in sources {
+            let parameter_symbol = if source.incoming_reference.is_valid() {
+                facts
+                    .borrow
+                    .incoming_references
+                    .get(source.incoming_reference)
+                    .parameter_symbol
+            } else {
+                source
+                    .root
+                    .as_symbol()
+                    .ok_or("reference result origin is not a callee input")?
+            };
+            let parameter_index = parameters
+                .iter()
+                .filter(|parameter| {
+                    !parameter.is_const
+                        && program
+                            .primitive_type_reference(parameter.type_reference)
+                            .is_none()
+                })
+                .position(|parameter| parameter.symbol == parameter_symbol)
+                .and_then(|index| u32::try_from(index).ok())
+                .ok_or("reference result origin is not a structural callee input")?;
+            let actual = structural_arguments
+                .get(parameter_index as usize)
+                .ok_or("reference result input is absent")?;
+            if actual.access.borrow_access_kind().is_some()
+                && !retained_reference_inputs.contains(&parameter_index)
+            {
+                retained_reference_inputs.push(parameter_index);
+            }
+        }
+    }
     Ok(CheckedStructuralCallCustodyPlan {
         reference_loans,
+        retained_reference_inputs,
         forwarded_reference_sources,
         result_qualifications,
         claim_transfers,

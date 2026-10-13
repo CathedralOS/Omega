@@ -595,14 +595,14 @@ pub(super) fn account(
                 structural_results,
                 operation,
             )
-            .map_or(0, |(_, loans)| {
+            .map_or(0, |(captured_result, loans)| {
                 operations[producer_index + 1..]
                     .iter()
                     .filter(|operation| {
-                        matches!(
+                        control::statement_sequence::release_matches(
                             operation,
-                            CheckedUnitEffectOperationPlan::ReleaseReference { loans: released, .. }
-                                if *released == loans
+                            captured_result,
+                            loans,
                         )
                     })
                     .count()

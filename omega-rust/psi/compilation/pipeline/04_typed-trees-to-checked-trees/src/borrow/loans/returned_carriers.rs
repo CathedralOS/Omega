@@ -446,6 +446,11 @@ pub(super) fn relative_result_loans(
         // evaluated during invocation; it is not the returned value's ancestry.
         for loan in &mut loans {
             loan.formation_expression = expression;
+            if let Some(retained) = &mut loan.retained_operand
+                && !retained.formation_expression.is_valid()
+            {
+                retained.formation_expression = expression;
+            }
             loan.call_result = true;
             loan.lineage = if loan.source_owner_symbol.is_valid() {
                 checked_trees::BorrowLoanLineage::UnretainedDerived

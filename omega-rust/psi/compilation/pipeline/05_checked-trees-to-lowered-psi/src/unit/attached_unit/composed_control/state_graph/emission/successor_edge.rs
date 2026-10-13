@@ -274,10 +274,10 @@ impl StateGraphEmission<'_, '_> {
                             formation_expression,
                             carrier_type_identity,
                         } => {
-                            let (root, root_type) = edge_evaluation.cleanup_storage(
+                            let storage = edge_evaluation.cleanup_storage(
                                 &subject.source, state_parameters, |binding| {
                                     let produced = case_emission::result(state, binding, operations)?;
-                                    Ok((produced.place(), produced.structural_type()))
+                                    Ok(produced.as_ref().into())
                                 },
                             )?;
                             // Resolve the projection against its actual source
@@ -328,16 +328,19 @@ impl StateGraphEmission<'_, '_> {
                                     selectors.push(value.id);
                                 }
                             }
-                            let path =
+                            let suffix =
                                 crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
                                     identities,
                                     &subject.path,
-                                    root_type,
+                                    storage.selected_type,
                                     &self.catalogs.structural_types,
                                     Some(&edge_values),
                                     &mut selectors.into_iter(),
                                     Some(&mut calls),
                                 )?;
+                            let root = storage.place;
+                            let mut path = storage.path;
+                            path.extend(suffix);
                             self.catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
                             if carrier_type_identity.is_valid()
                                 && let Some(group) = self.captured_loans.group(target, target_index as u32)

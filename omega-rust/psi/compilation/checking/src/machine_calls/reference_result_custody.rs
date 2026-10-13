@@ -2547,10 +2547,12 @@ pub fn result_loans(
     call: &checked_trees::FlowCallFact,
     result: &CheckedUnitStructuralResultBindingPlan,
 ) -> Option<arena::HandleSpan<checked_trees::BorrowLoanFact>> {
-    // An anonymous slice descriptor is retained by its enclosing operand,
+    // An anonymous reference result is retained by its enclosing operand,
     // rather than installed in a named reference holder. Ordered call access
     // and descriptor origins own that temporary lifetime; there is no local
     // captured group for the reference-retirement scheduler to release.
+    // This lifetime is independent of whether the referent is a scalar,
+    // record or slice. Structural call custody still admits its exact origins.
     if !result.local.is_named()
         && call.authored_expression.is_valid()
         && call.statement_index == result.statement_index as usize
@@ -2562,10 +2564,13 @@ pub fn result_loans(
         && program
             .state_by_symbol(call.target_symbol)
             .is_some_and(|target| {
-                super::structural_call_custody::borrowed_slice_view_result(
-                    program,
-                    target.return_type,
-                )
+                crate::reference_shell(program, target.return_type).is_some_and(|shell| {
+                    matches!(
+                        shell.access,
+                        language_semantics::ReferenceAccess::Shared
+                            | language_semantics::ReferenceAccess::Mutable
+                    )
+                })
             })
     {
         return Some(arena::HandleSpan::empty());

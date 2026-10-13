@@ -880,17 +880,35 @@ impl OperationFrame<'_, '_> {
                 (destination.place, destination.structural_type, lowered)
             }
             checked_trees::CheckedStoreRoot::Local { symbol } => {
-                let (place, root_type) = self.local_home(symbol)?;
-                let lowered =
+                let root = crate::emission::store_destination::local_store_place(
+                    symbol,
+                    &self.evaluation.structural_locals,
+                    self.evaluation.structural_root_parameters(),
+                    self.operations,
+                )?;
+                root.require_unqualified()?;
+                let mut lowered =
                     crate::emission::structural_scalar_store::lower_structural_scalar_store_local(
                         identities,
                         primitive_type,
                         carrier_path,
                         field_identity,
-                        root_type,
+                        root.selected_type,
                         self.structural_types.declarations(),
                     )?;
-                (place, root_type, lowered)
+                // A projected local retains its original storage, including
+                // array selection and any descriptor crossing. Compose that
+                // captured prefix before the assignment's checked field path.
+                let mut steps = root
+                    .argument
+                    .path
+                    .iter()
+                    .cloned()
+                    .map(crate::emission::runtime_elements::ProjectionStep::Static)
+                    .collect::<Vec<_>>();
+                steps.append(&mut lowered.steps);
+                lowered.steps = steps;
+                (root.argument.place, root.structural_type, lowered)
             }
         };
         lowered.bind_range_decision(self.checked, primitive_type, range_decision)?;

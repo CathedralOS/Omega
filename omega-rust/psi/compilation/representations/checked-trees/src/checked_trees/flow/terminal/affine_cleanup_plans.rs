@@ -185,6 +185,10 @@ pub struct CheckedStructuralCallCustodyPlan {
     /// selection chooses the referent, but every possible source stays live.
     /// An empty span means no locally held reference-result resource.
     pub reference_loans: arena::HandleSpan<crate::BorrowLoanFact>,
+    /// Borrowed actuals whose descriptor homes supply this root reference
+    /// result. These are disposal dependencies, including anonymous operands;
+    /// owned descriptor transfers do not retain their former holder.
+    pub retained_reference_inputs: Vec<u32>,
     /// Exact ingress leaves forwarded by a terminal call with no local holder.
     /// Checking decides these from the authored call.
     pub forwarded_reference_sources: Vec<crate::CheckedReferenceResultSourcePlan>,

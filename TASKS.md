@@ -2536,7 +2536,7 @@ crash and native exit behavior.
   and restored mutation, with
   `fail/borrows/selected_primitive_reference_live_backing_write` rejected.
   Keep these controls at their oracles:
-  `pass/borrows/runtime_{projected_reference_call_return,replaced_reference_record_return,selected_reference_record_helper,selected_shared_reference_cohort}_exit` (0),
+  `pass/borrows/runtime_{projected_reference_call_return,replaced_reference_record_return,selected_reference_record_helper,selected_shared_reference_cohort,projected_call_loan_custody}_exit` (0),
   `pass/borrows/runtime_record_byte_region_loan_exit` (50),
   `run/borrows/{reference_local_binding_routes,reference_result_call_binding,shared_record_loan_member_read}` (0),
   `pass/borrows/shared_recast_loan_member_read` (0),
@@ -2551,8 +2551,10 @@ crash and native exit behavior.
   `control_flow/conditional_unit_completion_exit`, and
   `dependent/runtime_sibling_len_index_exit`. The four
   `fail/recast/{field_precondition,incoming_offset}*_invalidated_before_capture`
-  fixtures reject. Reject conflicting loans, source/path substitution and
-  invalid escapes. A `u8` field constrained to zero or one by an ordinary
+  fixtures reject, as do `fail/borrows/{forwarded_call_view,projected_identity_result}_retains_operand_extent`
+  and `fail/borrows/returned_operand_parent_cannot_bypass_child`.
+  Reject conflicting loans, source/path substitution and invalid escapes.
+  A `u8` field constrained to zero or one by an ordinary
   data/domain predicate keeps its storage obligation through `&mut u8`;
   do not restore retired range-type syntax. The original sample
   `samples/cli/systems/descriptor_walk/main.omg` runs through

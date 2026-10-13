@@ -127,30 +127,33 @@ fn argument_contract(
             target_identity,
         );
     }
-    // Anonymous value producers own their exact stored carrier as locals do.
-    // Rejoin the completed operation and value row, never infer a descriptor
-    // from the receiving formal or the source expression's backing place.
+    // Anonymous producers publish the same stored descriptor as named locals.
+    // Rejoin the unique completed result and its actual source type, whether
+    // a call or a value establishment produced it. The descriptor crossing
+    // and access judgment must not depend on that producer's syntax.
     if let Some(owner) = place.root.as_expression() {
-        let mut producers = operations.iter().filter_map(|operation| {
-            let checked_trees::CheckedUnitEffectOperationPlan::EstablishLocal(
-                checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
-                    result: produced,
-                    value,
-                    ..
-                },
-            ) = operation
-            else {
-                return None;
-            };
-            if produced != result {
-                return None;
-            }
-            let node = facts.values.structural_values.nodes.get(*value);
-            (node.expression == owner && reference::is_carrier(program, node.type_reference))
-                .then_some(node.type_reference)
-        });
-        if let Some(reference) = producers.next() {
-            if producers.next().is_some() {
+        let reference = facts
+            .values
+            .structural_values
+            .root_for_expression(state, result.statement_index, owner)
+            .map(|root| root.type_reference)
+            .or_else(|| {
+                validation::declared_place_type_raw(
+                    program,
+                    source_machine,
+                    Some(source_state),
+                    owner,
+                )
+            })?;
+        if reference::is_carrier(program, reference) {
+            if result.statement_index as usize != call.statement_index
+                || operations
+                    .iter()
+                    .filter_map(|operation| operation.structural_result_binding())
+                    .filter(|binding| *binding == result)
+                    .count()
+                    != 1
+            {
                 return None;
             }
             return reference::argument(

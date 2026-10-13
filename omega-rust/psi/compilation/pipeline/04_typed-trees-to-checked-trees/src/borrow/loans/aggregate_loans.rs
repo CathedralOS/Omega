@@ -1,4 +1,12 @@
-//! aggregate loans slice of loans.
+//! Capture and transport the loans contained in ordinary values.
+//!
+//! A call's returned leaf identifies exact storage for execution, while its
+//! lifetime retains the supplied input region. Capture that prefix before
+//! appending the callee's leaf projection. Keeping both judgments on one
+//! captured path preserves selector and incoming-reference identity; widening
+//! to the caller's root would incorrectly freeze unrelated sibling fields.
+//! Carried values transport this obligation with the descriptor, even after
+//! the original holder retires. Ordinary borrows have no call-input prefix.
 
 use super::super::accesses::{self, borrow_access_place};
 use super::super::tracker::{BorrowOwnerSegment, StateLoanTracker};
@@ -97,6 +105,7 @@ pub(in crate::borrow) fn borrowed_initializer_loans(
                     owner_name: local_data.name.clone(),
                     owner_path: initializer.owner_path.clone(),
                     place: source.place.clone(),
+                    retained_operand: source.retained_operand,
                     source_owner_symbol: source.source_owner_symbol,
                     supplying_loan: Default::default(),
                     lineage: retained_reference_lineage(
@@ -170,6 +179,7 @@ pub(super) fn aggregate_expression_borrow_loans(
                     owner_name: local_data.name.clone(),
                     owner_path: owner_path_prefix.to_vec(),
                     place: source.place.clone(),
+                    retained_operand: source.retained_operand,
                     source_owner_symbol: source.source_owner_symbol,
                     supplying_loan: Default::default(),
                     lineage: retained_reference_lineage(program, expression, source, &rebased),
@@ -299,6 +309,11 @@ pub(super) fn result_source_loans(
                 super::returned_carriers::attenuate(&mut loans, &field.kind);
                 for loan in &mut loans {
                     loan.owner_path = owner_path.clone();
+                    loan.retained_operand
+                        .get_or_insert(checked_trees::BorrowRetainedOperand {
+                            formation_expression: Default::default(),
+                            depth: loan.place.segments.len(),
+                        });
                     loan.place.segments.extend_from_slice(&projection);
                 }
                 return loans;
@@ -325,6 +340,12 @@ pub(super) fn result_source_loans(
                         owner_name: local_data.name.clone(),
                         owner_path: owner_path.clone(),
                         place,
+                        retained_operand: Some(source.retained_operand.unwrap_or(
+                            checked_trees::BorrowRetainedOperand {
+                                formation_expression: Default::default(),
+                                depth: source.place.segments.len(),
+                            },
+                        )),
                         source_owner_symbol: source.source_owner_symbol,
                         supplying_loan: Default::default(),
                         lineage: retained_reference_lineage(program, argument, source, &rebased),
@@ -373,6 +394,7 @@ pub(super) fn transferred_aggregate_loans(
                 owner_name: local_data.name.clone(),
                 owner_path: prefixed_owner_path,
                 place: loan.place.clone(),
+                retained_operand: loan.retained_operand,
                 source_owner_symbol: loan.owner_symbol,
                 supplying_loan: loan.handle,
                 lineage: checked_trees::BorrowLoanLineage::UnretainedDerived,

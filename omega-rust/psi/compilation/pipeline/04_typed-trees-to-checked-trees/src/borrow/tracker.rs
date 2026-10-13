@@ -23,4 +23,5 @@ pub(super) struct StateLoanTracker {
     /// still conservatively matches every ordinal.
     pub(super) owner_path: Vec<BorrowOwnerSegment>,
     pub(super) place: BorrowAccessPlace,
+    pub(super) retained_operand: Option<checked_trees::BorrowRetainedOperand>,
 }

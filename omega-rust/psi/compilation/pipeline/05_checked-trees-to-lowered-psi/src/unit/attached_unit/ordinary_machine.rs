@@ -642,15 +642,13 @@ pub(super) fn emit(
             structural_types,
             type_ids,
             |identities, source, path| {
-                let (place, root_type) =
-                    evaluation.cleanup_storage(source, parameters, |binding| {
-                        let value = results.repair_value(binding, &operations)?;
-                        Ok((value.place, value.structural_type))
-                    })?;
-                let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
-                    identities, path, root_type, structural_types, None, &mut std::iter::empty(), None,
-                )?;
-                Ok((place, path))
+                let mut storage = evaluation.cleanup_storage(source, parameters, |binding| {
+                    results.cleanup_value(binding, &operations)
+                })?;
+                storage.path.extend(crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
+                    identities, path, storage.selected_type, structural_types, None, &mut std::iter::empty(), None,
+                )?);
+                Ok((storage.place, storage.path))
             },
             |cleanup, place, structural_type, path| {
                 let mut action = crate::unit::unit_cleanup::lower_nominal_cleanup_action(

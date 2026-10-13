@@ -483,18 +483,24 @@ impl OperationFrame<'_, '_> {
         else {
             unreachable!("dispatched release_reference")
         };
-        let (source, root_type) =
-            self.evaluation
-                .cleanup_storage(source, &self.parameters, |binding| {
-                    let value = self.results.repair_value(binding, self.operations)?;
-                    Ok((value.place, value.structural_type))
-                })?;
-        let path = lower_structural_path(identities, path)?;
+        let storage = self
+            .evaluation
+            .cleanup_storage(source, &self.parameters, |binding| {
+                self.results.cleanup_value(binding, self.operations)
+            })?;
+        let suffix = lower_structural_path(identities, path)?;
         let types = self.structural_types.declarations();
-        let leaf = terminal_semantics::runtime_structural_path_tip(types.iter(), root_type, &path)
-            .ok_or(LoweringError::Unsupported(
-                "loan retirement lost its carrier",
-            ))?;
+        let leaf = terminal_semantics::runtime_structural_path_tip(
+            types.iter(),
+            storage.selected_type,
+            &suffix,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "loan retirement lost its carrier",
+        ))?;
+        let source = storage.place;
+        let mut path = storage.path;
+        path.extend(suffix);
         match &leaf.shape {
             terminal_psi::StructuralTypeShape::Reference { .. } => {
                 if *select_evaluated_storage {

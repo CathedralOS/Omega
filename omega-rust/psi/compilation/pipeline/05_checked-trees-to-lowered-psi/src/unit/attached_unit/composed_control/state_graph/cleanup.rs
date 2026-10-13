@@ -198,7 +198,7 @@ fn deferred_carrier_releases(
         else {
             continue;
         };
-        let (place, root_type) = evaluation.cleanup_storage(source, parameters, |binding| {
+        let storage = evaluation.cleanup_storage(source, parameters, |binding| {
             let (_, result) = operations
                 .structural_values
                 .iter()
@@ -206,19 +206,22 @@ fn deferred_carrier_releases(
                 .ok_or(LoweringError::Unsupported(
                     "deferred reference release has no established carrier",
                 ))?;
-            Ok((result.place(), result.structural_type()))
+            Ok(result.into())
         })?;
-        let path =
+        let suffix =
             crate::expression_preparation::bindings::structural_paths::lower_structural_path(
                 identities, path,
             )?;
+        let mut path = storage.path;
+        path.extend(suffix.clone());
+        let place = storage.place;
         let action = if path.is_empty() {
             evaluation.descriptor_retirement(place, operations)?
         } else {
             let leaf = terminal_semantics::runtime_structural_path_tip(
                 evaluation.structural_types.iter(),
-                root_type,
-                &path,
+                storage.selected_type,
+                &suffix,
             )
             .ok_or(LoweringError::Unsupported(
                 "deferred release lost its carrier path",
@@ -295,7 +298,7 @@ pub(super) fn for_exit_regions(
         &catalogs.structural_types,
         &catalogs.type_ids,
         |identities, source, path| {
-            let (place, root_type) =
+            let mut storage =
                 evaluation.cleanup_storage(source, parameters, |binding_ordinal| {
                     let (_, result) = operations
                         .structural_values
@@ -304,12 +307,12 @@ pub(super) fn for_exit_regions(
                         .ok_or(LoweringError::Unsupported(
                             "cleanup result is not established",
                         ))?;
-                    Ok((result.place(), result.structural_type()))
+                    Ok(result.into())
                 })?;
-            let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
-                identities, path, root_type, &catalogs.structural_types, None, &mut std::iter::empty(), None,
-            )?;
-            Ok((place, path))
+            storage.path.extend(crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
+                identities, path, storage.selected_type, &catalogs.structural_types, None, &mut std::iter::empty(), None,
+            )?);
+            Ok((storage.place, storage.path))
         },
         |cleanup, place, structural_type, path| {
             let mut action = crate::unit::unit_cleanup::lower_nominal_cleanup_action(
