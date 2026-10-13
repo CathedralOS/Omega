@@ -1,1 +1,1 @@
-pub machine c_generated() -> i32 { 30 }
+pub machine c_value() -> i32 { c_seed() }

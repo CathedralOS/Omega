@@ -386,7 +386,7 @@ fn append_dependency_generated_sources_to_storage(
             &contract_custody,
         )?;
         imports.enqueue(discovered)?;
-        source_storage.extend(parsed)?;
+        source_storage.extend_dependency_generated(parsed)?;
         retained.push((source_id, source.clone()));
     }
     Ok(retained)

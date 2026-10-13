@@ -150,6 +150,71 @@ fn unmoduled_exact_imports_select_their_checked_instance_independent_of_order() 
     }
 }
 
+/// An exact-source import of a package's root file exposes the units that
+/// package's build handed off, in the importer's checked instance only, while
+/// the package's own authored file still cannot select them.
+#[test]
+fn unmoduled_exact_import_exposes_the_dependency_generated_stratum() {
+    use source::DependencyScope::{Build, Product};
+    use source::SourceResolutionStratum::{Base, DependencyActivationExtension};
+    let consumer = PackageKeyIdentity::from_digest([1; 32]).unwrap();
+    let kit = PackageKeyIdentity::from_digest([2; 32]).unwrap();
+    let mut sources = SourceMap::default();
+    let rows = [
+        ("consumer", "main.omg", consumer, Product, Base),
+        ("kit", "main.omg", kit, Product, Base),
+        ("kit", ".omega/generated/generated.omg", kit, Product, DependencyActivationExtension),
+        ("kit", ".omega/generated/generated.omg", kit, Build, DependencyActivationExtension),
+    ];
+    for (root, file, identity, scope, stratum) in rows {
+        let root = PathBuf::from(root);
+        sources.add_checked_instance(
+            root.join(file),
+            String::from("Item"),
+            root,
+            Some(identity),
+            SourceOrigin::User,
+            stratum,
+            scope,
+        );
+    }
+    let mut builder = SymbolTableBuilder::with_sources_and_top_level_bindings(
+        Some(Arc::new(sources)),
+        vec![SourceScopedTopLevelBinding::module_import(
+            SourceId(0),
+            SourceId(1),
+            "kit::main",
+            1,
+        )],
+    );
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let declarations = SymbolTableBuilder::child_handles(builder.insert_children(
+        root,
+        [2, 3].into_iter().map(|source_ordinal| {
+            (
+                SymbolKind::Data,
+                SymbolNameRef::OwnedSource {
+                    value: "Item",
+                    source_span: reference(source_ordinal),
+                },
+            )
+        }),
+    ))
+    .collect::<Vec<_>>();
+    let symbols = builder.finish();
+    assert_eq!(data_reference(&symbols, 0, "Item"), Some(declarations[0]));
+    assert_eq!(
+        symbols.lookup_top_level_by_name_and_kinds_from_source_matching(
+            "Item",
+            &[SymbolKind::Data],
+            reference(0),
+            |_| true,
+        ),
+        crate::SymbolLookup::Unique(declarations[0])
+    );
+    assert_eq!(data_reference(&symbols, 1, "Item"), None);
+}
+
 #[test]
 fn unmoduled_local_owner_precedes_same_package_imported_spelling() {
     let bindings = [0, 1]

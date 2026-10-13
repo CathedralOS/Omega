@@ -11,8 +11,8 @@ machine build(builder: &mut Build) {
     state emit(builder: &mut Build) {
         let template: BuildPath = BuildSource::resolve(&builder.source, "template.txt");
         let reader: i32 = BuildSource::open(&builder.source, template, 0);
-        let mut bytes: [u8; 40];
-        _ = BuildSource::read(&builder.source, reader, &mut bytes, 40);
+        let mut bytes: [u8; 42];
+        _ = BuildSource::read(&builder.source, reader, &mut bytes, 42);
         let _closed_reader: i32 = BuildSource::close(&builder.source, reader);
         let obligation: RequiredOutput = BuildOutput::require(&mut builder.output, "generated.omg");
         let generated: BuildPath = BuildOutput::resolve(&builder.output, "generated.omg");

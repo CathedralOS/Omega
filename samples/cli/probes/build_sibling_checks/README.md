@@ -6,7 +6,9 @@ package through a nested build edge before staging its own generated
 product source through the required-output obligation flow. The shared
 build must evaluate once across the sibling batch and across every
 requested target, while each sibling still seals and settles its own
-obligation. The product sums the three generated constants:
+obligation. Each sibling's generated `*_value()` forwards to its authored `*_seed()`
+(authored source cannot select its own generated declarations). The product
+sums the three constants:
 
 ```text
 mbx run -p omega -- --check --target linux_x86_64 --target macos_arm64 \

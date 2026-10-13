@@ -1,3 +1,6 @@
-pub machine value() -> i32 {
-    generated_value()
+// Authored seed the generated `value` forwards to: authored source may
+// not select declarations its own build generates, so the public machine
+// consumers import lives in the generated stratum and calls back here.
+pub machine seed() -> i32 {
+    7
 }

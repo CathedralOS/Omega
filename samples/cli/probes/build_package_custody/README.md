@@ -9,8 +9,10 @@ generated product source through the required-output obligation flow —
 `require` → `create` → `write` → `close` → `include_source` → `complete`.
 
 The root's build calls `kit::value()` in build scope; `main.omg` calls the
-same machine through the product edge. Both routes must resolve to the
-generated constant `7`, and the dependency's build evaluates once for both
+same machine through the product edge. `value()` is generated and forwards
+to the authored `seed()`: authored source cannot select its own package's
+generated declarations, so the generated stratum owns the exported machine.
+Both routes must resolve to `7`, and the dependency's build evaluates once for both
 purposes and across every requested target:
 
 ```text

@@ -143,11 +143,7 @@ impl SourceMap {
 
     pub fn same_package(&self, left: SourceSpan, right: SourceSpan) -> bool {
         match (self.file_at(left), self.file_at(right)) {
-            (Some(left), Some(right)) => match (left.package_identity, right.package_identity) {
-                (Some(left), Some(right)) => left == right,
-                (None, None) => left.package_root == right.package_root,
-                _ => false,
-            },
+            (Some(left), Some(right)) => same_package_files(left, right),
             _ => false,
         }
     }
@@ -191,8 +187,21 @@ impl SourceMap {
         let Some(declaration) = self.file_at(declaration) else {
             return true;
         };
-        reference.resolution_stratum == SourceResolutionStratum::CurrentActivationExtension
-            || declaration.resolution_stratum == SourceResolutionStratum::Base
+        match declaration.resolution_stratum {
+            SourceResolutionStratum::Base => true,
+            SourceResolutionStratum::CurrentActivationExtension => {
+                reference.resolution_stratum
+                    == SourceResolutionStratum::CurrentActivationExtension
+            }
+            // A dependency's generated declarations are its handoff to every
+            // consumer, so a reference from another package selects them like
+            // any imported declaration. The dependency's own authored units
+            // were admitted before its activation ran and still cannot.
+            SourceResolutionStratum::DependencyActivationExtension => {
+                reference.resolution_stratum != SourceResolutionStratum::Base
+                    || !same_package_files(reference, declaration)
+            }
+        }
     }
 
     pub fn resolution_strata_separate(&self, left: SourceSpan, right: SourceSpan) -> bool {
@@ -221,6 +230,16 @@ impl SourceMap {
         self.get(source_span.source_id)
             .map(|file| file.text_at(source_span.span))
             .unwrap_or("")
+    }
+}
+
+/// Reconciled package identity decides membership; the package root is the
+/// fallback for sources no package graph has admitted yet.
+fn same_package_files(left: &SourceFile, right: &SourceFile) -> bool {
+    match (left.package_identity, right.package_identity) {
+        (Some(left), Some(right)) => left == right,
+        (None, None) => left.package_root == right.package_root,
+        _ => false,
     }
 }
 
@@ -258,6 +277,48 @@ mod tests {
 
         assert!(sources.reference_can_see_declaration(SourceSpan::default(), extension));
         assert!(sources.reference_can_see_declaration(source_free, extension));
+    }
+
+    #[test]
+    fn dependency_generated_declaration_hides_from_its_own_authored_units_only() {
+        let kit = PackageKeyIdentity::from_digest([3; 32]).expect("nonzero identity");
+        let consumer = PackageKeyIdentity::from_digest([4; 32]).expect("nonzero identity");
+        let mut sources = SourceMap::default();
+        let authored = sources
+            .add_with_metadata(
+                PathBuf::from("kit/main.omg"),
+                String::from("pub machine value() -> i32 { generated_value() }"),
+                PathBuf::from("kit"),
+                Some(kit),
+                SourceOrigin::User,
+            )
+            .source_span(Span::new(29, 44));
+        let generated = sources
+            .add_with_metadata_and_resolution_stratum(
+                PathBuf::from("kit/.omega/generated/generated.omg"),
+                String::from("pub machine generated_value() -> i32 { seed() }"),
+                PathBuf::from("kit"),
+                Some(kit),
+                SourceOrigin::User,
+                SourceResolutionStratum::DependencyActivationExtension,
+            )
+            .source_span(Span::new(12, 27));
+        let generated_reference = SourceSpan::new(generated.source_id, Span::new(39, 43));
+        let importer = sources
+            .add_with_metadata(
+                PathBuf::from("app/main.omg"),
+                String::from("use kit::main; machine entry() -> i32 { generated_value() }"),
+                PathBuf::from("app"),
+                Some(consumer),
+                SourceOrigin::User,
+            )
+            .source_span(Span::new(40, 55));
+
+        assert!(!sources.reference_can_see_declaration(authored, generated));
+        assert!(sources.reference_can_see_declaration(importer, generated));
+        assert!(sources.reference_can_see_declaration(generated_reference, authored));
+        assert!(sources.reference_can_see_declaration(generated_reference, generated));
+        assert!(sources.resolution_strata_separate(authored, generated));
     }
 
     #[test]

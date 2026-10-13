@@ -1,1 +1,1 @@
-pub machine b_generated() -> i32 { 20 }
+pub machine b_value() -> i32 { b_seed() }

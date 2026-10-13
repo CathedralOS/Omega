@@ -384,10 +384,43 @@ impl SymbolTable {
                 let Some(import) = &binding.module_import else {
                     return false;
                 };
-                binding.declaration_source == declaration.source_id
-                    && ((import.exact_source
-                        && !self.source_module(declaration.source_id).is_valid())
-                        || self.indexed_display_path(symbol) == logical_import_path(import))
+                (binding.declaration_source == declaration.source_id
+                    && self.indexed_display_path(symbol) == logical_import_path(import))
+                    || (import.exact_source
+                        && !self.source_module(declaration.source_id).is_valid()
+                        && self.exact_import_exposes_source(
+                            binding.declaration_source,
+                            declaration,
+                        ))
+            })
+    }
+
+    /// Whether an exact-source import of `imported_source` exposes a
+    /// declaration at `declaration`: it is authored in that file, or it is a
+    /// generated unit of the same checked package instance. A package's
+    /// module-less files form one logical module, and the units its build
+    /// handed off (`SourceResolutionStratum::DependencyActivationExtension`)
+    /// are that module's later stratum, so importing the package's root file
+    /// imports them too. Two checked instances of one package never expose
+    /// each other's units.
+    pub(super) fn exact_import_exposes_source(
+        &self,
+        imported_source: SourceId,
+        declaration: SourceSpan,
+    ) -> bool {
+        if declaration.source_id == imported_source {
+            return true;
+        }
+        !self.source_module(imported_source).is_valid()
+            && self.source_file(declaration).is_some_and(|file| {
+                file.resolution_stratum
+                    == source::SourceResolutionStratum::DependencyActivationExtension
+            })
+            && self.sources.as_deref().is_some_and(|sources| {
+                sources.same_checked_instance(
+                    declaration,
+                    SourceSpan::new(imported_source, declaration.span),
+                )
             })
     }
 
@@ -428,11 +461,14 @@ impl SymbolTable {
 
     pub(super) fn has_namespace_context(&self, reference: SourceSpan) -> bool {
         // Base user units retain file-local import authority even when no
-        // module was declared. A build extension is a separately assembled
-        // namespace; its complete retained stratum keeps the existing route.
+        // module was declared; a dependency's generated unit is assembled
+        // with the base and keeps that route. The current activation's build
+        // extension is a separately assembled namespace; its complete
+        // retained stratum keeps the existing route.
         self.source_file(reference).is_some_and(|file| {
             file.origin == source::SourceOrigin::User
-                && file.resolution_stratum == source::SourceResolutionStratum::Base
+                && file.resolution_stratum
+                    != source::SourceResolutionStratum::CurrentActivationExtension
         }) || !self.module_symbols.is_empty()
             || self.source_scoped_top_level_bindings.iter().any(|binding| {
                 binding.reference_source == reference.source_id
@@ -515,7 +551,12 @@ impl SymbolTable {
                             && !self.source_module(binding.declaration_source).is_valid()
                             && self
                                 .symbol_provenance_source_span(*candidate)
-                                .is_some_and(|span| span.source_id == binding.declaration_source))
+                                .is_some_and(|span| {
+                                    self.exact_import_exposes_source(
+                                        binding.declaration_source,
+                                        span,
+                                    )
+                                }))
                 })
             })
             .collect::<Vec<_>>();
@@ -571,7 +612,7 @@ impl SymbolTable {
                         SourceSpan::new(binding.declaration_source, span.span),
                     )
                 } else {
-                    span.source_id == binding.declaration_source
+                    self.exact_import_exposes_source(binding.declaration_source, span)
                 }
             })
     }

@@ -184,6 +184,27 @@ impl SourceStorage {
     }
 
     pub fn extend(&mut self, parsed: ParsedSources) -> Result<(), Vec<Diagnostic>> {
+        self.extend_in_stratum(parsed, source::SourceResolutionStratum::Base)
+    }
+
+    /// Join a dependency's generated-source bundle units: assembled with the
+    /// base like any loaded source, but marked so their own package's
+    /// authored units cannot select them (`SourceResolutionStratum`).
+    pub fn extend_dependency_generated(
+        &mut self,
+        parsed: ParsedSources,
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.extend_in_stratum(
+            parsed,
+            source::SourceResolutionStratum::DependencyActivationExtension,
+        )
+    }
+
+    fn extend_in_stratum(
+        &mut self,
+        parsed: ParsedSources,
+        resolution_stratum: source::SourceResolutionStratum,
+    ) -> Result<(), Vec<Diagnostic>> {
         for parsed_source in parsed.sources.span_or_empty(parsed.batch) {
             let (package_root, package_identity, origin) =
                 self.source_metadata(&parsed_source.path, parsed_source.origin);
@@ -193,7 +214,7 @@ impl SourceStorage {
                 package_root,
                 package_identity,
                 origin,
-                source::SourceResolutionStratum::Base,
+                resolution_stratum,
                 parsed_source.scope,
             );
 
