@@ -64,6 +64,12 @@ pub struct ContextualCleanupDisposition {
     /// subtrees below use this family's segment arena instead.
     pub path: HandleSpan<PlaceSegment>,
     pub exclusions: HandleSpan<Place>,
+    /// The death belongs to a root still under field-wise construction at
+    /// this edge, so the ownership producer already ordered this root's
+    /// deaths in reverse establishment order. Consumers keep that order; a
+    /// completed aggregate or an ordinary root dies in declared cleanup
+    /// order instead (ownership.md, construction and disposal order).
+    pub establishment_ordered: bool,
 }
 
 /// The same lexical death edge in a retained template and one exact instance.

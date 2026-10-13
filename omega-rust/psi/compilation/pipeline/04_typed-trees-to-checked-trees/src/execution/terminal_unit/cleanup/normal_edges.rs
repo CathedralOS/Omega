@@ -132,6 +132,7 @@ fn cleanup_rows(
         }
     }
     let mut retirements = Vec::new();
+    let mut establishment_ordered = Vec::new();
     for (disposition_handle, disposition) in
         facts
             .contextual_cleanup
@@ -149,6 +150,11 @@ fn cleanup_rows(
         let Some(source) = source_for_owner(disposition.root)? else {
             continue;
         };
+        if disposition.establishment_ordered
+            && !establishment_ordered.contains(&(disposition.exit, disposition.root))
+        {
+            establishment_ordered.push((disposition.exit, disposition.root));
+        }
         if !retirements.iter().any(
             |(exit, retirement, _): &(_, checked_trees::CheckedNormalCleanupAction, _)| {
                 *exit == disposition.exit && retirement.source() == &source
@@ -195,10 +201,14 @@ fn cleanup_rows(
     }
     for (exit, retirement, root) in retirements {
         let row = rows.iter_mut().find(|row| row.exit == exit)?;
-        if row
-            .selected_regions
-            .iter()
-            .any(|region| &region.source == retirement.source() && !region.path.is_empty())
+        // A root still under construction keeps the producer's reverse
+        // establishment order; the declared order below is for a completed
+        // aggregate whose candidate regions join its residual partition.
+        if !establishment_ordered.contains(&(exit, root))
+            && row
+                .selected_regions
+                .iter()
+                .any(|region| &region.source == retirement.source() && !region.path.is_empty())
         {
             super::order::merge(
                 program,

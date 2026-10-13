@@ -391,7 +391,7 @@ pub(crate) fn prepare_permission_events(
                             selection_diagnostics.push(diagnostic);
                             return;
                         }
-                        remaining.observe(
+                        remaining.observe_ordinary(
                             program,
                             &permission_events[event_start..],
                             &facts.flow.ownership.segments,

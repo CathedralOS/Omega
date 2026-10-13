@@ -185,8 +185,14 @@ impl SelectedCleanup {
             // surviving resource claim. A consumed linear child may leave an
             // affine sibling; its current presence is checked below against
             // the exact remaining region, without reviving the consumed child.
+            // A reserved root (a declared local its stores establish field
+            // by field) has no established whole place; its construction
+            // frontier, checked below for the exact region, is the authority.
+            let reserved = before_transfer
+                .as_ref()
+                .is_some_and(|remaining| remaining.is_reserved(event.root));
             if established.is_empty()
-                || !established.iter().any(|place| place.ever_established)
+                || !(established.iter().any(|place| place.ever_established) || reserved)
                 || if carrier {
                     // A transparent carrier has no aggregate claim lineage.
                     // Its saved receipts retain every contained live claim's
@@ -208,19 +214,10 @@ impl SelectedCleanup {
                     "selected owner region has no exact established occurrence custody",
                 ));
             }
-            if before_transfer.as_ref().is_some_and(|remaining| {
-                remaining
-                    .cleanup_paths(event.root)
-                    .is_some_and(|mut paths| !paths.any(<[PlaceSegment]>::is_empty))
-            }) {
-                // An incomplete construction dies in reverse establishment
-                // order, not the completed aggregate's declaration order.
-                return Err(unsupported(
-                    program,
-                    event,
-                    "selected cleanup of an incomplete construction requires retained establishment order",
-                ));
-            }
+            // A selected transfer out of an incomplete construction keeps
+            // the retained region's death in reverse establishment order
+            // beside the root's later establishments: `finish` orders every
+            // death of a reserved root by the merged establishment history.
             self.owners.push(Owner {
                 root: event.root,
                 path,
@@ -276,9 +273,63 @@ impl SelectedCleanup {
                         .map(|local| PlaceRoot::Symbol(local.symbol))
                 }),
         );
+        // Within a root under construction, deaths follow reverse
+        // establishment order. A retained selected region keeps its position
+        // from the owner's pre-transfer frontier; subtrees established after
+        // the transfer follow it in the current frontier. A completed
+        // aggregate or an ordinary root keeps its source order, where the
+        // whole-root death precedes the retained candidate regions.
+        let establishment_orders = roots
+            .iter()
+            .map(|root| {
+                let mut order = Vec::<Vec<PlaceSegment>>::new();
+                for owner in self.owners.iter().filter(|owner| owner.root == *root) {
+                    for path in owner.remaining.established_paths(*root) {
+                        if !order.contains(path) {
+                            order.push(path.clone());
+                        }
+                    }
+                }
+                for path in remaining.established_paths(*root) {
+                    if !order.contains(path) {
+                        order.push(path.clone());
+                    }
+                }
+                order
+            })
+            .collect::<Vec<_>>();
         deaths.sort_by_key(|(event, _)| {
-            std::cmp::Reverse(roots.iter().position(|root| *root == event.root))
+            let root_position = roots.iter().position(|root| *root == event.root);
+            let path = ownership.segments.span_or_empty(event.segments);
+            let establishment = root_position
+                .and_then(|position| {
+                    establishment_orders[position]
+                        .iter()
+                        .position(|established| path.starts_with(established))
+                })
+                .map_or(0, |position| position + 1);
+            (
+                std::cmp::Reverse(root_position),
+                std::cmp::Reverse(establishment),
+            )
         });
+        // A root whose retained path never completes the aggregate dies in
+        // reverse establishment order on every path; one that completes it
+        // folds into a whole value and dies in declared order.
+        let establishment_ordered_roots = roots
+            .iter()
+            .filter(|root| {
+                self.owners.iter().any(|owner| {
+                    owner.root == **root
+                        && !owner.remaining.completes_with(
+                            program,
+                            **root,
+                            remaining.established_paths(**root),
+                        )
+                })
+            })
+            .copied()
+            .collect::<Vec<_>>();
         let mut candidate_remaining = self
             .owners
             .iter()
@@ -294,6 +345,7 @@ impl SelectedCleanup {
                     exit,
                     &[],
                     true,
+                    &establishment_ordered_roots,
                 );
             } else {
                 remaining.observe(
@@ -304,6 +356,7 @@ impl SelectedCleanup {
                     exit,
                     &[],
                     false,
+                    &establishment_ordered_roots,
                 );
             }
         }
@@ -392,6 +445,7 @@ impl Owner {
             exit,
             &[],
             true,
+            &[],
         );
         Ok(())
     }

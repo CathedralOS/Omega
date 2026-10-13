@@ -842,14 +842,24 @@ defines the complete product bar.
   construction prefixes in
   [reverse establishment order](wiki/spec/language/ownership.md#construction-and-disposal-order).
   Crash/abort/process exit has no cleanup successor. Remaining work:
-  - Support child reconstruction after a selected transfer of its containing
-    owner, and selected cleanup of incomplete constructions with retained
-    reverse establishment order. Both currently refuse explicitly: a child
-    store cannot restore a conditionally absent containing occurrence, and
-    declaration order cannot replace an incomplete construction's history.
+  - Child reconstruction below a conditionally transferred owner is not a
+    capability gap: the checker rejects every store below a transferred
+    region ("assign a whole value to `pair` to re-establish it"), as
+    ownership.md licenses no value with a hole, so the stage-04 refusal
+    behind it is unreachable. A zero-valid declared local is established
+    with its zero value and owes its hooks (`fail/drops/{empty_array_owner,
+    zero_case_container_keeps}_cleanup_prerequisite`); only a zero-gated
+    type defers establishment to its stores.
     Preserve each occurrence's residual custody until its actual normal
     death; neither a selection join nor a later reread of the condition
     decides hook timing. Keep
+    `pass/drops/runtime_selected_transfer_fieldwise_construction_exit` as
+    the deferred-binding transfer control (a field consumed out of a
+    field-wise established local, hook order byte-exact) and
+    `pass/drops/runtime_selected_transfer_incomplete_construction_exit` as
+    the selected-transfer-during-construction control: a retained aggregate
+    that completes folds and dies in declared order, one that never
+    completes dies in reverse establishment order. Keep
     `pass/drops/runtime_selected_partial_owner_cleanup_exit` for generic
     record/fixed-array regions, interleaved residual hook order, field/whole
     replacement, optional mixed payloads and exact old/new linear claims. Keep

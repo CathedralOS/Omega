@@ -783,29 +783,7 @@ impl OpenWindows {
                     assignment.target,
                     &destination_place,
                 )?;
-                // The permission producer has already selected old-value death.
-                // An absent construction slot creates no displaced value. This
-                // query follows checked custody, not the initializer's spelling.
-                let occupied =
-                    facts
-                        .contextual_cleanup
-                        .dispositions
-                        .iter()
-                        .any(|(_, disposition)| {
-                            disposition.machine == machine.symbol
-                                && disposition.state == state.symbol
-                                && disposition.source
-                                    == language_semantics::PermissionEventSource::Statement {
-                                        statement_index: index,
-                                    }
-                                && disposition.root == destination_place.root
-                                && facts
-                                    .flow
-                                    .ownership
-                                    .segments
-                                    .span_or_empty(disposition.path)
-                                    .starts_with(&destination_place.segments)
-                        });
+                let occupied = slot_occupied(facts, machine, state, index, &destination_place);
                 let opening = self
                     .open
                     .iter()
@@ -995,4 +973,35 @@ impl FieldReplacement {
             .chain(self.cleanup)
             .chain(std::iter::once(self.store))
     }
+}
+
+/// Whether the permission producer selected an old-value death for the store
+/// at `statement_index` over `destination`: the slot holds a value the store
+/// replaces. An absent construction slot (a declared local's field before its
+/// first store) creates no displaced value and owes no disposal. This follows
+/// checked custody, not the initializer's spelling.
+fn slot_occupied(
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    destination: &CanonicalPlace,
+) -> bool {
+    facts
+        .contextual_cleanup
+        .dispositions
+        .iter()
+        .any(|(_, disposition)| {
+            disposition.machine == machine.symbol
+                && disposition.state == state.symbol
+                && disposition.source
+                    == language_semantics::PermissionEventSource::Statement { statement_index }
+                && disposition.root == destination.root
+                && facts
+                    .flow
+                    .ownership
+                    .segments
+                    .span_or_empty(disposition.path)
+                    .starts_with(&destination.segments)
+        })
 }

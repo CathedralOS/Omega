@@ -50,12 +50,15 @@ pub(super) fn append_transfer(
     // A carrier move is independent of its contained claim frontier. An
     // exact tracked endpoint already publishes its own transfer; otherwise
     // retain the storage path even when every payload claim is inactive.
+    // A reserved root (a declared local its stores establish field by
+    // field) has no established whole place; its construction frontier is
+    // the authority on whether the moved path holds a value.
     let owners = places
         .iter()
         .filter(|place| place.root == facts::PlaceRoot::Symbol(symbol))
         .collect::<Vec<_>>();
     if owners.iter().any(|owner| owner.path == path)
-        || !owners.iter().any(|owner| owner.ever_established)
+        || !(owners.iter().any(|owner| owner.ever_established) || remaining.is_reserved(event.root))
         || !remaining.is_present(event.root, path)
     {
         return;

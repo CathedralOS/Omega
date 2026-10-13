@@ -483,6 +483,7 @@ pass/calls/runtime_qualified_terminal_result_exit built 4526ms exit:0 @9beb2be72
 pass/calls/runtime_reference_returned_slice_element_write_exit built 3268ms exit:181 @693920652f41
 pass/calls/runtime_referenced_local_outlives_sibling_guard_call_exit built 1776ms exit:70 @48008365d839
 pass/calls/runtime_same_type_second_receiver_mutation_exit built 725ms exit:70
+pass/calls/runtime_selected_call_argument_from_fieldwise_local_exit built 12931ms exit:0 @212593d788a7
 pass/calls/runtime_selected_local_owner_exit built 4679ms exit:0 @9beb2be72f2d+wt
 pass/calls/runtime_selected_reference_field_result_exit built 5523ms exit:0 @9beb2be72f2d+wt
 pass/calls/runtime_selected_trivial_local_cleanup_exit built 4217ms exit:0 @9beb2be72f2d+wt
@@ -954,6 +955,8 @@ pass/drops/runtime_scalar_exit_nominal_cleanup_exit built 2350ms exit:0 stdout:m
 pass/drops/runtime_scalar_temporary_nominal_continuation_exit built 1702ms exit:0 @c8b4e81e49fe
 pass/drops/runtime_scalar_temporary_residual_partition_exit built 1782ms exit:0 @8611f9d5adf1+wt
 pass/drops/runtime_selected_nominal_owner_cleanup_exit built 2884ms exit:0 stdout:match @63328daf043b+wt
+pass/drops/runtime_selected_transfer_fieldwise_construction_exit built 13168ms exit:0 stdout:match @212593d788a7
+pass/drops/runtime_selected_transfer_incomplete_construction_exit built 5331ms exit:0 stdout:match @9bf00044985b
 pass/drops/runtime_temporary_integer_capture_cleanup_exit built 1685ms exit:0 @4cc11cbadf31+wt
 pass/drops/runtime_temporary_nominal_integer_contract_exit built 1682ms exit:0 @4cc11cbadf31+wt
 pass/drops/runtime_temporary_nominal_prerequisite_exit built 1701ms exit:0 @c8b4e81e49fe

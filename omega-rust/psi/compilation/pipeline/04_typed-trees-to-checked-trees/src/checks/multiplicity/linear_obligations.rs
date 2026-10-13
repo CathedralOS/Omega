@@ -552,6 +552,7 @@ pub(super) fn prepare_storage_deaths(
             .contextual_cleanup
             .dispositions
             .append(checked_trees::ContextualCleanupDisposition {
+                establishment_ordered: false,
                 machine,
                 state,
                 source: PermissionEventSource::Statement { statement_index },

@@ -62,6 +62,39 @@ impl RemainingCustody {
             .any(|(candidate, _)| *candidate == root)
     }
 
+    /// Whether the reserved root is a whole value once `later` establishments
+    /// join this custody's frontier: the retained path of a selected transfer
+    /// sees both the pre-transfer frontier and what was stored afterwards.
+    /// A root that is not under construction is already whole.
+    pub(super) fn completes_with(
+        &self,
+        program: &dyn ::validation::CheckingInput,
+        root: PlaceRoot,
+        later: &[Vec<PlaceSegment>],
+    ) -> bool {
+        let Some((_, frontier)) = self
+            .constructing
+            .iter()
+            .find(|(candidate, _)| *candidate == root)
+        else {
+            return true;
+        };
+        let mut merged = frontier.clone();
+        for path in later {
+            merged.establish(program, path);
+        }
+        merged.established.iter().any(Vec::is_empty)
+    }
+
+    /// The reserved root's established subtrees in establishment order, or
+    /// none for a root that is not under construction.
+    pub(super) fn established_paths(&self, root: PlaceRoot) -> &[Vec<PlaceSegment>] {
+        self.constructing
+            .iter()
+            .find(|(candidate, _)| *candidate == root)
+            .map_or(&[], |(_, frontier)| frontier.established.as_slice())
+    }
+
     pub(super) fn is_present(&self, root: PlaceRoot, path: &[PlaceSegment]) -> bool {
         !self
             .excluded
@@ -166,6 +199,32 @@ impl RemainingCustody {
             .collect()
     }
 
+    /// `observe` for an ordinary statement edge, where every root dies in
+    /// its declared order.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn observe_ordinary(
+        &mut self,
+        program: &dyn ::validation::CheckingInput,
+        events: &[FlowPermissionEventFact],
+        segments: &Arena<PlaceSegment>,
+        output: &mut ContextualCleanupFacts,
+        exit: FlowClaimJoinExit,
+        establishments: &[StorageEstablishment],
+        selected: bool,
+    ) {
+        self.observe(
+            program,
+            events,
+            segments,
+            output,
+            exit,
+            establishments,
+            selected,
+            &[],
+        );
+    }
+
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn observe(
         &mut self,
         program: &dyn ::validation::CheckingInput,
@@ -175,6 +234,7 @@ impl RemainingCustody {
         exit: FlowClaimJoinExit,
         establishments: &[StorageEstablishment],
         selected: bool,
+        establishment_ordered_roots: &[PlaceRoot],
     ) {
         for (event_ordinal, event) in events.iter().enumerate() {
             if event.access != PermissionAccess::Owned {
@@ -222,6 +282,10 @@ impl RemainingCustody {
                         segments: Default::default(),
                     });
                 }
+                // A root that stays under construction at this edge, on every
+                // path, has no folded whole value: the producer ordered its
+                // deaths by establishment (`SelectedCleanup::finish`).
+                let establishment_ordered = establishment_ordered_roots.contains(&event.root);
                 let disposition = output.dispositions.append(ContextualCleanupDisposition {
                     machine: event.machine_symbol,
                     state: event.state_symbol,
@@ -231,6 +295,7 @@ impl RemainingCustody {
                     disposed_type: typed_trees::types::TypeReferenceHandle::invalid(),
                     path: event.segments,
                     exclusions: output.exclusions.insert_many(exclusions),
+                    establishment_ordered,
                 });
                 if selected {
                     output.selected_dispositions.append(disposition);
