@@ -680,6 +680,12 @@ fail/borrows/replaced_carrier_keeps_new_backing_loan rejected 1705ms expected @a
 fail/borrows/returned_case_reference_live_source_write rejected 2145ms expected @a9ae30e1c334+wt
 	statement 1 mutates `second.value` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 2)
 	statement 1 mutates `second.value` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 2)
+fail/borrows/returned_review_cannot_escape_local_backing rejected 567ms expected @22286cb27fcc
+	machine `escape` returns a view borrowing the local `header`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/borrows/returned_review_cannot_substitute_other_input rejected 492ms expected @22286cb27fcc
+	machine `wrong` returns a view borrowing input `second`, which is not permitted by the declared result lifetime relation
+fail/borrows/returned_review_keeps_original_backing_loan rejected 417ms expected @22286cb27fcc
+	statement 1 mutates `main.source.second` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2)
 fail/borrows/returned_view_temporary_backing rejected 1767ms expected @a9ae30e1c334+wt
 	machine `escape` returns a view borrowing temporary storage, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/borrows/runtime_index_mut_borrow rejected 5619ms expected @a9ae30e1c334+wt
@@ -3138,6 +3144,8 @@ fail/recast/reference_let_pun_requires_recast rejected 871ms expected @a9ae30e1c
 	machine `Bits::implicit_pun` state `implicit_pun`: reference initializer type `i64` must match the stated `&f32`; re-viewing a place's bytes under another shape is spelled `&x as &f32` (§5b recast)
 fail/recast/restricted_field_mutable_call_cannot_erase_invariant rejected 1011ms expected @5b32c4eb36ff+wt
 	machine `main` cannot lend restricted field `value` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+fail/recast/returned_shared_view_cannot_lend_mutable rejected 163ms expected @22286cb27fcc
+	mutable argument `view` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 fail/recast/scalar_parameter_view_footprint_rejected rejected 836ms expected @a9ae30e1c334+wt
 	machine `inspect` state `entry`: a recast re-views the SAME bytes, so the shapes must agree on size (§5b rule 1) -- source `f32` is 4 bytes, target `u64` is 8 bytes
 fail/recast/shared_parameter_view_mutable_call_rejected rejected 870ms expected @a9ae30e1c334+wt
@@ -3987,6 +3995,7 @@ pass/borrows/borrowed_case_leaf_copy_exit checked 11053ms check-target:macos_arm
 pass/borrows/borrowed_record_stack_parameter_writeback_exit checked 11190ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/branch_selected_record_composed_receiver_exit checked 11336ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/branch_selected_record_receiver_exit checked 11241ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/callee_returned_shared_reborrow_chain_exit checked 6325ms check-target:macos_arm64 @22286cb27fcc
 pass/borrows/case_payload_shared_transition_exit checked 11172ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/case_payload_state_loan_exit checked 10970ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/constructor_reference_access checked 1653ms @a9ae30e1c334+wt
@@ -5955,6 +5964,10 @@ pass/ranges/sum_payload_range_arith_narrowed_exit checked 11383ms check-target:m
 pass/recast/bool_byte_view_compile checked 1567ms @a9ae30e1c334+wt
 pass/recast/boundary_postcondition_backing_scalar_exit checked 3377ms check-target:macos_arm64 @2430f497a77c+wt
 pass/recast/boundary_postcondition_disjoint_aliased_write_exit checked 3345ms check-target:macos_arm64 @2430f497a77c+wt
+pass/recast/callee_returned_aggregate_view_exit checked 6275ms check-target:macos_arm64 @22286cb27fcc
+pass/recast/callee_returned_interior_view_exit checked 6450ms check-target:macos_arm64 @22286cb27fcc
+pass/recast/callee_returned_mutable_view_exit checked 6274ms check-target:macos_arm64 @22286cb27fcc
+pass/recast/callee_returned_scalar_interpretation_exit checked 5356ms check-target:macos_arm64 @22286cb27fcc
 pass/recast/case_payload_member_view_compile checked 1795ms @a9ae30e1c334+wt
 pass/recast/element_bits_view_compile checked 1534ms @a9ae30e1c334+wt
 pass/recast/float32_bits_view_compile checked 1668ms @a9ae30e1c334+wt
@@ -5989,6 +6002,7 @@ pass/recast/recast_view_forward_compile checked 1559ms @a9ae30e1c334+wt
 pass/recast/reference_view_helper_backing_write_exit checked 3343ms check-target:macos_arm64 @2430f497a77c+wt
 pass/recast/reference_view_shared_call_backing_exit checked 3329ms check-target:macos_arm64 @2430f497a77c+wt
 pass/recast/reference_view_shared_primitive_neighbor_exit checked 3328ms check-target:macos_arm64 @2430f497a77c+wt
+pass/recast/returned_view_state_and_record_composition_exit checked 5242ms check-target:macos_arm64 @22286cb27fcc
 pass/recast/runtime_aggregate_slice_representation_recast_exit checked 12079ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/runtime_authored_toolchain_type_shadow_exit checked 10420ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/runtime_bool_representation_recast_exit checked 11336ms check-target:macos_arm64 @a9ae30e1c334+wt

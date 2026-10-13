@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 3.85, "load1_start": 3.45, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 4.52, "load1_start": 3.19, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/closed_call_transition_return_proves_exact_sum_exit built 2645ms exit:112 interpreter-exit:112 interpreter:agrees @1152c1496b39
 pass/arithmetic/full_width_integer_literals_compose_exit built 3129ms exit:0 interpreter-exit:0 interpreter:agrees @d0e40a213f35
 pass/arithmetic/qualified_cast_in_entry_body_exit built 1326ms exit:0 interpreter-exit:0 interpreter:agrees @2e29bd5fedcf
@@ -984,3 +984,9 @@ pass/recast/runtime_nested_scalar_view_loan_exit built 4046ms exit:0 interpreter
 pass/recast/runtime_nested_view_subregion_forwarding_exit built 3817ms exit:0 interpreter-exit:0 interpreter:agrees @61ba1df9375e+wt
 pass/recast/shared_nested_view_observation_exit built 3829ms exit:0 interpreter-exit:0 interpreter:agrees @61ba1df9375e+wt
 pass/targets/imported_target_family_heads_exit built 3816ms exit:0 interpreter-exit:0 interpreter:agrees @61ba1df9375e+wt
+pass/borrows/callee_returned_shared_reborrow_chain_exit built 7070ms exit:0 interpreter-exit:0 interpreter:agrees @22286cb27fcc
+pass/recast/callee_returned_aggregate_view_exit built 7158ms exit:0 interpreter-exit:0 interpreter:agrees @22286cb27fcc
+pass/recast/callee_returned_interior_view_exit built 6982ms exit:0 interpreter-exit:0 interpreter:agrees @22286cb27fcc
+pass/recast/callee_returned_mutable_view_exit built 6889ms exit:0 interpreter-exit:0 interpreter:agrees @22286cb27fcc
+pass/recast/callee_returned_scalar_interpretation_exit built 4266ms exit:0 interpreter-exit:0 interpreter:agrees @22286cb27fcc
+pass/recast/returned_view_state_and_record_composition_exit built 4420ms exit:0 interpreter-exit:0 interpreter:agrees @22286cb27fcc

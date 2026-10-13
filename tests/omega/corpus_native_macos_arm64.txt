@@ -131,6 +131,7 @@ pass/borrows/borrowed_case_leaf_copy_exit built 3233ms exit:70 @1deda7b27fe0+wt
 pass/borrows/borrowed_record_stack_parameter_writeback_exit built 1788ms exit:70 @4d7bbd96d2bf+wt
 pass/borrows/branch_selected_record_composed_receiver_exit built 3173ms exit:70 @53d5dde47ae5
 pass/borrows/branch_selected_record_receiver_exit built 1252ms exit:70 @011fd400e8c1+wt
+pass/borrows/callee_returned_shared_reborrow_chain_exit built 6999ms exit:0 @22286cb27fcc
 pass/borrows/case_payload_shared_transition_exit built 1109ms exit:70 @ecff27281052
 pass/borrows/case_payload_state_loan_exit built 1589ms exit:70 @b9ead894da43+wt
 pass/borrows/constructor_reference_access checked 780ms @9beb2be72f2d+wt
@@ -1559,7 +1560,12 @@ pass/ranges/subject_field_where_fact_index_bound checked 546ms @9beb2be72f2d+wt
 pass/ranges/subject_guard_compound_index_successor checked 567ms @9beb2be72f2d+wt
 pass/ranges/subject_unsigned_computed_index_lower_bound checked 647ms @9beb2be72f2d+wt
 pass/ranges/sum_payload_range_arith_narrowed_exit built 1581ms exit:70 @fb2178def922
+pass/recast/callee_returned_aggregate_view_exit built 7085ms exit:0 @22286cb27fcc
+pass/recast/callee_returned_interior_view_exit built 7178ms exit:0 @22286cb27fcc
+pass/recast/callee_returned_mutable_view_exit built 7255ms exit:0 @22286cb27fcc
+pass/recast/callee_returned_scalar_interpretation_exit built 4690ms exit:0 @22286cb27fcc
 pass/recast/nested_operand_view_compile checked 183ms
+pass/recast/returned_view_state_and_record_composition_exit built 4698ms exit:0 @22286cb27fcc
 pass/recast/runtime_aggregate_slice_representation_recast_exit built 3977ms exit:70 @5a7ed5b57d00+wt
 pass/recast/runtime_authored_toolchain_type_shadow_exit built 1664ms exit:0 @bf3bd23a63c0
 pass/recast/runtime_bool_representation_recast_exit built 874ms exit:70 @43d1481401ed+wt
