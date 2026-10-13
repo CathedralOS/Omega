@@ -25,8 +25,8 @@ pub(in crate::symbols) fn assign_transition_target_symbols(
             // The parser leaves a parenthesized lone call (`-> (count(n))`)
             // as a value expression -- only here, where the machine's states
             // are known, can it be told apart from a state transition. A call
-            // that names a sibling state (or the machine's own self-recursion
-            // entry) keeps its historical transition meaning; any other
+            // that names an unmarked sibling state keeps its transition
+            // meaning; a recursive machine invocation and any other
             // callee really is a value expression (`-> (burn(4, 12))`).
             if let Some(named) = reclassify_state_call_value_target(
                 machine,
@@ -176,15 +176,12 @@ pub(in crate::symbols) fn assign_transition_target_symbols(
     }
 }
 
-/// Re-classify a VALUE transition target that is a lone receiver-less call
-/// back into a NAMED state transition when the callee names a sibling state
-/// of the current machine, or the machine's own free-machine self-recursion
-/// (`-> (count(n))` inside top-level `machine count`). The parser cannot make
-/// this call -- arm bodies parse before later sibling states are seen -- so a
-/// parenthesized call arm reaches this stage as a value expression and only
-/// here keeps its historical transition meaning. Any other callee (a free
-/// machine, a method) stays a value expression, exactly like the same call
-/// wrapped in arithmetic.
+/// Recover only an unmarked sibling-state jump from a parenthesized call.
+/// Machine recursion must first resolve as an ordinary invocation: spelling a
+/// machine's leaf name does not establish a state target, and converting its
+/// call here would erase its operational acknowledgement. Identity-based tail
+/// normalization happens afterward in `statements::tail_calls`, independently
+/// of call admission (language/state_contracts.md and language/effects.md).
 fn reclassify_state_call_value_target(
     machine: &MachineScope<'_>,
     expression_table: &symbol_resolved_trees::expression::ExpressionTable,
@@ -197,7 +194,11 @@ fn reclassify_state_call_value_target(
     else {
         return None;
     };
-    if call.receiver.is_valid() {
+    if call.receiver.is_valid()
+        || !call.machine_arguments.is_empty()
+        || call.operational_acknowledgement.acknowledges_suspend
+        || call.operational_acknowledgement.acknowledges_block
+    {
         return None;
     }
 
@@ -207,32 +208,18 @@ fn reclassify_state_call_value_target(
         &[SymbolKind::State],
         call.target.as_str(),
     );
-    let machine_leaf_name = symbols
-        .name(machine.symbol)
-        .rsplit("::")
-        .next()
-        .unwrap_or_default();
-    let is_free_machine_self_recursion =
-        machine.attached_data.is_none() && machine_leaf_name == call.target.as_str();
-    if !state_symbol.is_valid() && !is_free_machine_self_recursion {
+    if !state_symbol.is_valid() {
         return None;
     }
-    let target_symbol = if state_symbol.is_valid() {
-        state_symbol
-    } else {
-        // The machine symbol is the canonical coordinate for a transition to
-        // a free machine's entry. Downstream ranking and call-selection
-        // reconstruction already normalize this coordinate to entry state 0.
-        machine.symbol
-    };
 
     let mut path = HandleSpan::empty();
     statement_path_members.append_to_span(&mut path, call.target.clone());
 
     Some(symbol_resolved_trees::statement::NamedTransitionTarget {
-        head_symbol: target_symbol,
-        symbol: target_symbol,
+        head_symbol: state_symbol,
+        symbol: state_symbol,
         storage: symbol_resolved_trees::statement::NamedTransitionTargetStorage {
+            operational_acknowledgement: Default::default(),
             path,
             arguments: call.arguments,
             evidence_arguments: call.evidence_arguments.clone(),

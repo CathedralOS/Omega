@@ -735,6 +735,7 @@ fn lower_transition_target_node(
                 head_symbol: SymbolHandle::invalid(),
                 symbol: SymbolHandle::invalid(),
                 storage: NamedTransitionTargetStorage {
+                    operational_acknowledgement: Default::default(),
                     path: lower_statement_path_members(lowerer, syntax_trees, *path),
                     arguments,
                     evidence_arguments: evidence_arguments

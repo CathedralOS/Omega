@@ -104,6 +104,7 @@ fn lower_transition_target(
             evidence_arguments,
             source_span,
             authored_call_selection,
+            operational_acknowledgement,
         } => {
             let lowered_arguments = lower_statement_argument_span(lowerer, *arguments)?;
 
@@ -122,6 +123,7 @@ fn lower_transition_target(
                     .into_boxed_slice(),
                 source_span: *source_span,
                 authored_call_selection: *authored_call_selection,
+                operational_acknowledgement: *operational_acknowledgement,
             }
         }
         resolved::statement::TransitionTargetNode::Value(expression) => {

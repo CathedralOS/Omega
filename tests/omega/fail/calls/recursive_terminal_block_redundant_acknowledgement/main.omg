@@ -1,0 +1,4 @@
+machine scan(remaining: i32 in Wrapping) -> bool {
+    transition remaining > 0 { true -> block scan(remaining - 1) _ -> true }
+}
+machine main() -> bool { scan(3) }

@@ -342,6 +342,7 @@ impl StatementTable {
                 evidence_arguments,
                 source_span,
                 authored_call_selection,
+                operational_acknowledgement,
             } => {
                 let members = self
                     .name_path_members
@@ -365,6 +366,7 @@ impl StatementTable {
                     evidence_arguments: evidence_arguments.clone(),
                     source_span: *source_span,
                     authored_call_selection: *authored_call_selection,
+                    operational_acknowledgement: *operational_acknowledgement,
                 }
             }
             TransitionTargetNode::Value(value) => TransitionTargetNode::Value(
@@ -910,6 +912,8 @@ pub enum TransitionGuardNode {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum TransitionTargetNode {
     Named {
+        /// Call admission metadata; target identity determines invocation versus jump.
+        operational_acknowledgement: language_semantics::CallOperationalAcknowledgement,
         path: TableNamePath,
         static_machine_parameter: SymbolHandle,
         arguments: HandleSpan<crate::expression::ExpressionHandle>,

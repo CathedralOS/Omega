@@ -364,7 +364,8 @@ pub(super) fn bind_call_evidence_arguments(
             continue;
         };
         let authored = call_site_evidence_arguments(&call_site);
-        let is_named_transition = matches!(call_site, validation::CallSite::TransitionNamed { .. });
+        let is_state_transfer =
+            call_site.is_internal_state_transfer(program, call.caller_machine_symbol);
         let mut parameters = facts
             .proof
             .contract_fact_refs
@@ -372,8 +373,7 @@ pub(super) fn bind_call_evidence_arguments(
             .iter()
             .filter_map(|fact_ref| {
                 let fact = facts.proof.contract_facts.get(fact_ref.fact);
-                if is_named_transition
-                    && matches!(fact.owner, ContractProofFactOwner::Machine { .. })
+                if is_state_transfer && matches!(fact.owner, ContractProofFactOwner::Machine { .. })
                 {
                     return None;
                 }

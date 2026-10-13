@@ -315,6 +315,7 @@ fn collect_transition_target_expression_calls(
             path,
             arguments,
             static_machine_parameter,
+            operational_acknowledgement,
             ..
         } => {
             let target = crate::declarations::transitions::named_transition_call_symbol(
@@ -335,7 +336,7 @@ fn collect_transition_target_expression_calls(
                     *static_machine_parameter,
                     &[],
                     SymbolHandle::invalid(),
-                    Default::default(),
+                    *operational_acknowledgement,
                     statement_index,
                     call_ordinal,
                     calls,

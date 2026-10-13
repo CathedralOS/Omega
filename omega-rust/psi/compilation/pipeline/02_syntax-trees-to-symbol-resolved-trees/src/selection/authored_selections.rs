@@ -357,6 +357,7 @@ fn finalize_authored_statement_call_selections(
                     }
                     Statement::Transition(transition) => {
                         collect_authored_transition_call_candidate(
+                            program,
                             state.statements,
                             offset,
                             false,
@@ -366,6 +367,7 @@ fn finalize_authored_statement_call_selections(
                         );
                         if let Some(continuation) = &transition.continuation {
                             collect_authored_transition_call_candidate(
+                                program,
                                 state.statements,
                                 offset,
                                 true,
@@ -523,6 +525,7 @@ fn existing_statement_call_occurrence(
 }
 
 fn collect_authored_transition_call_candidate(
+    program: &SymbolResolvedTrees,
     statements: arena::HandleSpan<symbol_resolved_trees::statement::Statement>,
     offset: usize,
     continuation: bool,
@@ -544,7 +547,19 @@ fn collect_authored_transition_call_candidate(
             },
             source_span: target.source_span,
             compiler_partition,
-            target: resolved_or_late(target.symbol, LateBinding::CheckedCall),
+            // Ordinary calls select the callable entry declaration. A normalized
+            // tail edge keeps its machine identity for invocation admission, but
+            // it is still a copy of that same authored declaration selection.
+            target: resolved_or_late(
+                program
+                    .machines
+                    .iter()
+                    .find(|machine| machine.symbol == target.symbol)
+                    .and_then(|machine| program.machine_state_handles(machine.states).first())
+                    .map(|state| program.machine_state(*state).symbol)
+                    .unwrap_or(target.symbol),
+                LateBinding::CheckedCall,
+            ),
         });
     }
 }

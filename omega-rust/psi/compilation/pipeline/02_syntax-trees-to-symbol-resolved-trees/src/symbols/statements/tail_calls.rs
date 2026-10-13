@@ -1,10 +1,12 @@
-//! Exact recursive tail calls become the same state backedge as an authored jump.
+//! Exact recursive tail calls retain invocation admission on a constant-stack edge.
 //!
 //! This runs after reference resolution: a namespace is not a runtime receiver,
 //! and a same-spelled machine is not the current entry. Ranking governs progress,
 //! independently of this constant-stack normalization. Arguments retain their
 //! existing order and handles; later arrival, ownership and ranking checks still
-//! validate the edge. Calls nested inside a computation remain ordinary calls.
+//! validate the edge. The machine target keeps recursive invocation contracts
+//! distinct from internal state arrivals; exact authored markers remain until
+//! operational checking. Calls nested in computations remain ordinary calls.
 
 use arena::{Arena, HandleSpan};
 use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
@@ -84,8 +86,6 @@ fn recursive_tail_target(
     if !entry_symbol.is_valid()
         || (call.target_symbol != entry_symbol && call.target_symbol != machine.symbol)
         || !call.machine_arguments.is_empty()
-        || call.operational_acknowledgement.acknowledges_suspend
-        || call.operational_acknowledgement.acknowledges_block
     {
         return None;
     }
@@ -123,9 +123,10 @@ fn recursive_tail_target(
     let mut path = HandleSpan::empty();
     path_members.append_to_span(&mut path, call.target.clone());
     Some(NamedTransitionTarget {
-        head_symbol: entry_symbol,
-        symbol: entry_symbol,
+        head_symbol: machine.symbol,
+        symbol: machine.symbol,
         storage: NamedTransitionTargetStorage {
+            operational_acknowledgement: call.operational_acknowledgement,
             path,
             arguments: call.arguments,
             evidence_arguments: call.evidence_arguments.clone(),

@@ -351,6 +351,8 @@ fail/borrow/opaque_write_only_boundary rejected 831ms expected @a9ae30e1c334+wt
 	machine `write` state `entry` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
 fail/borrow/persistent_borrow_storage_requires_outlives rejected 1580ms expected @a9ae30e1c334+wt
 	assignment stores a borrow-carrying value in persistent field `stored` of machine `Cell::set$specialized$dcbb8209abdb6016$0`; persistent loans must be propagated through graph-state transitions before this write can be admitted
+fail/borrow/recursive_terminal_exclusive_alias rejected 937ms expected @5acf32321f42+wt
+	state `scan` receives `first` as mutable more than once
 fail/borrow/scalar_field_declared_range_requires_handback rejected 162ms expected @5b32c4eb36ff+wt
 	machine `test` cannot lend restricted field `position` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 fail/borrow/scalar_field_local_loan_requires_handback rejected 162ms expected @5b32c4eb36ff+wt
@@ -1096,7 +1098,7 @@ fail/calls/immutable_local_requires_argument_rejected rejected 5198ms expected @
 	cannot prove requires contract for call scale from Main::main: d != 0 (needs fact `divisor != 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/calls/member_literal_requires_argument_rejected rejected 3009ms expected @a9ae30e1c334+wt
 	machine `Main::main` state `main` value call to `Main::take` violates required fact `d != 0`: the instantiated fact is structurally false
-fail/calls/mutual_cycle_decrease_unproven rejected 5422ms expected @a9ae30e1c334+wt
+fail/calls/mutual_cycle_decrease_unproven rejected 2770ms expected @5acf32321f42+wt
 	machine call cycle: `Main::ping`, `Main::pong` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/calls/nested_call_argument_constraints_unproven rejected 945ms expected @a9ae30e1c334+wt
 	cannot prove call argument `20.0` satisfies bounded parameter `value` for `admit` in `initialized.entry`; expected 0..=0.5
@@ -1124,6 +1126,18 @@ fail/calls/plain_let_reassign_rejected rejected 2932ms expected @a9ae30e1c334+wt
 fail/calls/qualified_nontail_self_call_rejected rejected 978ms expected @a9ae30e1c334+wt
 	`Walker::walk(..)` here is NON-TAIL self-recursion: the result feeds the surrounding computation, so the frame must survive the call. Runtime recursion is TAIL-ONLY (measured recursion amendment) -- recursion depth lives in explicit storage you size. Restructure so the recursive step is the transition arm `-> walk(..)` on a measured machine, or iterate with an explicit stack.
 	exact arithmetic in machine `Walker::walk` state `step` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `walk(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+fail/calls/recursive_terminal_block_missing_acknowledgement rejected 914ms expected @5acf32321f42+wt
+	call to `scan` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+fail/calls/recursive_terminal_block_redundant_acknowledgement rejected 884ms expected @5acf32321f42+wt
+	call to `scan` has operational envelope neither suspension nor blocking but acknowledges `block`; call acknowledgements must match exactly
+fail/calls/recursive_terminal_machine_precondition rejected 1104ms expected @5acf32321f42+wt
+	cannot prove requires contract for call scan from scan: remaining - 1 >= 0 (needs fact `remaining >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/calls/recursive_terminal_parenthesized_missing_acknowledgement rejected 884ms expected @5acf32321f42+wt
+	call to `scan` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+fail/calls/recursive_terminal_postcondition_not_established rejected 1158ms expected @5acf32321f42+wt
+	cannot prove ensures contract for exit from scan at statement 2: context.value == 0
+fail/calls/recursive_unit_zero_requires_rejected rejected 5111ms expected @5acf32321f42+wt
+	cannot prove requires contract for call recurse from main: 0 > 0 (needs fact `value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/calls/resultless_return_contract rejected 1349ms expected @a9ae30e1c334+wt
 	machine `WrongReturn::call` state `call` does not satisfy trait `Initializer` machine `call`: expected return `()`, got `u64`
 	machine `WrongReturn::call` state `call` does not satisfy trait `Initializer` machine `call`: conformance borrow contract: callable type does not preserve its region identity
@@ -3056,6 +3070,8 @@ fail/proofs/quotient_transport_roles_reversed_rejected rejected 1373ms expected 
 	`Quotient::lift` has compiler-derived direct-terminal relations RA=[0:equivalent] and RR=equivalent plus exact representative telescope `representative`(Representative)->Representative plus checked unconditional termination of `representative` plus checked pure representative effect summary plus exact theorem `representative_transports`(Representative, Representative)[static-bindings:0] plus expected exact theorem-schema=[parameters:2, relations:1, legality:2, applications:2, conclusion:1] (verification failed: the selected theorem's requires fact count does not exactly match all relation and representative-legality premises) plus checked theorem termination summary plus checked pure theorem effect summary plus checked crash-free theorem routes plus exact forward transport `representative_respects`(Representative, Representative)[static-bindings:0] plus transport-schema verification failed: the selected transport theorem's requires fact count does not exactly match the complete ordered public-Q roster for both representative sides plus checked forward-transport termination summary plus checked pure forward-transport effect summary plus checked crash-free forward-transport routes plus exact direct-lift-runtime=[0] plus exact Q=[dependent:1, fixed:0] plus exact P=[dependent:1, fixed:0] (canonical Terminal correspondence unavailable: the complete correspondence certificate is absent) and complete transition-free single-state normal-result coverage through the exact result root, but executable quotient operations are not admitted until complete operation/static correspondence, exact selected theorem schema verification, exact selected forward-transport schema verification, general precondition implication and adapted lift arguments, fixed representative call obligations, canonical Terminal correspondence are independently checked
 fail/proofs/ranked_accumulator_guarantee_wrong_step_twin rejected 2835ms expected @a9ae30e1c334+wt
 	machine `descend` cannot prove ensures contract proof fact `result <= previous` on the transition arm guarded by `n > 0 == true`
+fail/proofs/recursive_terminal_missing_erased_evidence rejected 1037ms expected @5acf32321f42+wt
+	call `scan` supplies 0 erased evidence arguments but its named requires lane has 1
 fail/proofs/remainder_range_false_twin rejected 809ms expected @a9ae30e1c334+wt
 	machine `false_remainder_bounded` cannot prove ensures contract proof fact `a % 2 >= 0 && a % 2 <= 0` from the requires contract
 fail/proofs/ring_law_unproven_rejected rejected 4397ms expected @a9ae30e1c334+wt
@@ -4436,13 +4452,13 @@ pass/calls/local_record_mutable_argument_exit checked 11439ms check-target:macos
 pass/calls/local_record_record_result_argument_exit checked 10869ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/local_record_shared_argument_exit checked 10983ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/local_records_mixed_record_result_arguments_exit checked 11152ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/calls/machine_self_call_recursion_compile checked 10420ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/machine_self_call_recursion_compile checked 10207ms check-target:macos_arm64 @5acf32321f42+wt
 pass/calls/mixed_projection_sources_in_one_call checked 11116ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/mixed_value_forwarding_exit checked 11001ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/mutable_output_host_call checked 10975ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/mutable_receiver_computation_exit checked 11134ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/mutable_receiver_scalar_destinations_exit checked 11254ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/calls/mutual_cycle_tail_admitted_exit checked 11092ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/mutual_cycle_tail_admitted_exit checked 12745ms check-target:macos_arm64 @5acf32321f42+wt
 pass/calls/named_target_payload_dispatch checked 11190ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/negated_edge_guard_requires_exit checked 11055ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/nested_call_init_transition checked 11161ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -4462,6 +4478,7 @@ pass/calls/owned_overaligned_local_call checked 5291ms check-target:macos_arm64 
 pass/calls/owned_state_parameter_call_exit checked 11166ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/private_callback_call_closure checked 11847ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/qualified_record_call_result_field_exit checked 11150ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/recursive_terminal_block_acknowledgement_exit checked 10144ms check-target:macos_arm64 @5acf32321f42+wt
 pass/calls/requires_carrier_ceiling_vacuous checked 11061ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/requires_operand_flip_discharge checked 11165ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/resultless_native_callback_compile checked 8098ms check-target:linux_x86_64 @a9ae30e1c334+wt
@@ -4542,7 +4559,7 @@ pass/calls/runtime_linear_terminal_owner_disposition_exit checked 11375ms check-
 pass/calls/runtime_local_case_terminal_payload_result_exit checked 11018ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_local_scalar_array_element_loan_exit checked 11214ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_loop_rotation_exit checked 11172ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/calls/runtime_measured_tail_recursion_exit checked 11159ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/runtime_measured_tail_recursion_exit checked 12812ms check-target:macos_arm64 @5acf32321f42+wt
 pass/calls/runtime_mut_ref_forward_exit checked 11028ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_mutable_call_before_transition_args_exit checked 11129ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_mutable_call_empty_input_exit checked 11065ms check-target:macos_arm64 @da842c101400+wt
@@ -4567,7 +4584,7 @@ pass/calls/runtime_owned_record_replacement_call_exit checked 10329ms check-targ
 pass/calls/runtime_owned_state_scalar_field_store_exit checked 13372ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_param_receiver_second_instance_exit checked 11063ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_qualified_owned_result_argument_exit checked 10790ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/calls/runtime_qualified_tail_recursion_exit checked 11159ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/runtime_qualified_tail_recursion_exit checked 9836ms check-target:macos_arm64 @5acf32321f42+wt
 pass/calls/runtime_qualified_terminal_result_exit checked 10804ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_reference_returned_slice_element_write_exit checked 11479ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_referenced_local_outlives_sibling_guard_call_exit checked 11631ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -4619,7 +4636,7 @@ pass/calls/subslice_argument_result_shapes_exit checked 12215ms check-target:mac
 pass/calls/terminal_call_acknowledgements checked 5834ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/calls/terminal_call_acknowledgements_declarations checked 1665ms @589aedee8ebc+wt
 pass/calls/transition_arg_local_from_embedded_call_exit checked 13114ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/calls/transition_tail_call_to_machine checked 13552ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/transition_tail_call_to_machine checked 9475ms check-target:macos_arm64 @5acf32321f42+wt
 pass/calls/unread_multistate_receiver_exit checked 12837ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/value_call_as_host_arg_exit checked 12598ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/value_call_element_view_arg_compile checked 12000ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -4627,7 +4644,7 @@ pass/calls/value_call_embedded_in_binary_exit checked 12664ms check-target:macos
 pass/calls/value_call_param_effect_arm checked 12817ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/value_call_subexpression checked 13674ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/value_call_transition_argument checked 13794ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/calls/value_tail_call_to_machine_exit checked 12925ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/value_tail_call_to_machine_exit checked 9948ms check-target:macos_arm64 @5acf32321f42+wt
 pass/calls/whole_byte_array_view_loans_exit checked 12920ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/capabilities/aarch64_hfa_import_compile checked 36714ms @a9ae30e1c334+wt
 pass/capabilities/acquires_through_helper_return checked 12148ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5998,7 +6015,7 @@ pass/proofs/kernel_integer_subtract_order checked 3381ms check-target:macos_arm6
 pass/proofs/kernel_theorem_equality_certificates checked 11389ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/machine_parameterized_data_compile checked 1671ms @a9ae30e1c334+wt
 pass/proofs/mathematical_predicate_contract_import_exit checked 10907ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/proofs/named_witness_static_trait_plural_compile checked 1738ms @a9ae30e1c334+wt
+pass/proofs/named_witness_static_trait_plural_compile checked 3010ms @5acf32321f42+wt
 pass/proofs/nat_exact_subtraction_compile checked 1656ms @a9ae30e1c334+wt
 pass/proofs/nat_metric_triangle_compile checked 2309ms @a9ae30e1c334+wt
 pass/proofs/negative_disjunction_post_mutation_bound checked 36258ms check-target:macos_arm64 @5b35eda9b8d6
@@ -6035,6 +6052,7 @@ pass/proofs/proposition_relation_hierarchy_compile rejected 1502ms regressed-fro
 pass/proofs/quotient_define_managed_compile checked 11130ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/proofs/quotient_equivalence_compile checked 1752ms @a9ae30e1c334+wt
 pass/proofs/quotient_lift_managed_compile checked 11287ms check-target:linux_x86_64 @a9ae30e1c334+wt
+pass/proofs/recursive_terminal_erased_evidence checked 2962ms @5acf32321f42+wt
 pass/proofs/ring_full_polynomial_compile checked 11899ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/ring_law_conformance checked 5521ms check-target:macos_arm64 @b7248b14be49
 pass/proofs/runtime_byte_predicate_state_contract_exit checked 11690ms check-target:macos_arm64 @a9ae30e1c334+wt

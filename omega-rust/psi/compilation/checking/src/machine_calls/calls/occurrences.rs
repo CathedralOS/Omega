@@ -29,6 +29,21 @@ pub enum CallSite<'program> {
 }
 
 impl CallSite<'_> {
+    /// A named edge is an internal arrival only when its exact target is a
+    /// state owned by this invocation. A machine target remains an invocation,
+    /// including a normalized recursive tail call; syntax and marker bits do
+    /// not remove its contract or erased evidence lane.
+    pub fn is_internal_state_transfer(
+        &self,
+        program: &dyn crate::CheckingInput,
+        caller_machine: SymbolHandle,
+    ) -> bool {
+        matches!(self, Self::TransitionNamed { path, .. }
+            if path.symbol.is_valid()
+                && program.symbols.get(path.symbol).kind == symbols::SymbolKind::State
+                && program.symbols.get(path.symbol).parent == caller_machine)
+    }
+
     pub fn static_requirement_dispatch(
         &self,
     ) -> Option<&typed_trees::typed_trees::StaticRequirementDispatch> {

@@ -84,11 +84,9 @@ pub(crate) fn build_contract_call_facts(
                     // Only an internal jump keeps the current invocation's
                     // machine contract package. A named tail call to another
                     // machine still owes that callee's entry requirements.
-                    is_state_transfer: target_machine_symbol == state.machine_symbol
-                        && matches!(
-                            call_site,
-                            Some(validation::CallSite::TransitionNamed { .. })
-                        ),
+                    is_state_transfer: call_site.as_ref().is_some_and(|site| {
+                        site.is_internal_state_transfer(program, state.machine_symbol)
+                    }),
                 },
             );
         }

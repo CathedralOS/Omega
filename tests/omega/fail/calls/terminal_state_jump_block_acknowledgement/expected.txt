@@ -1,0 +1,1 @@
+Internal states are transition destinations, not ordinary callees

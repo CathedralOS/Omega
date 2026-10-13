@@ -202,6 +202,8 @@ pub struct NamedTransitionTarget {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct NamedTransitionTargetStorage {
+    /// Authored call markers survive identity-based recursive tail normalization.
+    pub operational_acknowledgement: language_semantics::CallOperationalAcknowledgement,
     pub path: HandleSpan<DiagnosticName>,
     pub arguments: HandleSpan<crate::expression::ExpressionHandle>,
     pub evidence_arguments: Box<[DiagnosticName]>,
@@ -653,6 +655,7 @@ impl StatementTable {
     ) -> TransitionTargetHandle {
         let target = match target {
             TransitionTarget::Named(named) => TransitionTargetNode::Named {
+                operational_acknowledgement: named.operational_acknowledgement,
                 path: TableNamePath {
                     members: self.insert_name_path_members(
                         source_statement_path_members.span_or_empty(named.path),
@@ -810,6 +813,7 @@ pub enum TransitionGuardNode {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum TransitionTargetNode {
     Named {
+        operational_acknowledgement: language_semantics::CallOperationalAcknowledgement,
         path: TableNamePath,
         arguments: HandleSpan<crate::expression::ExpressionHandle>,
         evidence_arguments: Box<[DiagnosticName]>,
@@ -908,6 +912,7 @@ mod tests {
             .nodes
             .transition_targets
             .insert(TransitionTargetNode::Named {
+                operational_acknowledgement: Default::default(),
                 path: Default::default(),
                 arguments: Default::default(),
                 evidence_arguments: Default::default(),
@@ -954,6 +959,7 @@ mod tests {
                 head_symbol: target_symbol,
                 symbol: target_symbol,
                 storage: NamedTransitionTargetStorage {
+                    operational_acknowledgement: Default::default(),
                     path,
                     arguments,
                     evidence_arguments: Box::default(),

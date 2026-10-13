@@ -68,6 +68,7 @@ pub(super) fn normalize_boundary_transition_calls(program: &mut TypedTrees) {
             source_span,
             authored_call_selection,
             static_machine_parameter,
+            operational_acknowledgement,
         } = program.statement_table.transition_target(target).clone()
         else {
             unreachable!("collected boundary transition changed shape");
@@ -124,7 +125,7 @@ pub(super) fn normalize_boundary_transition_calls(program: &mut TypedTrees) {
                 layout_query: None,
                 arguments,
                 evidence_arguments,
-                operational_acknowledgement: Default::default(),
+                operational_acknowledgement,
             }));
         program.expression_table.set_source_span(call, source_span);
         if let Some(occurrence) = authored_call_selection {
