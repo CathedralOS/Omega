@@ -3170,46 +3170,51 @@ crash and native exit behavior.
 
 - **MACOS-NATIVE-LOST-SUCCESSES.** (new-scope)
   Restore the macOS ARM64 corpus rows that met their authored check, build or
-  runtime oracle and no longer do. Most goldens still claim these successes,
-  so `python3 tools/corpus_scoreboard.py` undercounts them: measure with
-  `python3 tools/corpus_gate.py` and `--native`, then route by cause, not by
-  the revision that recorded a row. Remaining losses from the full check leg
-  at 4abb00b7b65, each bisected over first-parent history:
+  runtime oracle and no longer do. Every such check row now carries a
+  `regressed-from:` token (the 99 budget-exhausted `timeout` rows and the
+  dirty-tree `unexpected` fail rows from `a9ae30e1c334+wt` are re-measured),
+  so `python3 tools/corpus_gate.py --list-pinned-regressions` is the roster:
+  45 check rows at `e43babaccd7`, 33 `rejected` and 12 `incomplete`, in
+  clusters of at most three. Measure with `python3 tools/corpus_gate.py` and
+  `--native`, then route by cause, not by the revision that recorded a row.
 
-  - 6ee6dbeacec loses 17 checked pass rows that read slice elements
-    (`pass/slices/*` 10, `pass/calls/` 3, `pass/collections/` 3 window and
-    view rows, 2 `pass/recast/` slice records,
-    `pass/termination/runtime_shrinking_slice_recursion_exit`). The `Slice`
-    arms of `fixed_index_element_type` and `runtime_index_element_type` turn
-    executable reads into `StructuralParameterField` observations through an
-    `ElementView`, which stage 05 rejects. Removing the arms restores all 17
-    but loses `runtime_narrowed_cleanup_receiver_exit`'s ensures proof;
-    admitting `ElementView` in stage 05 only moves them to "static payload
-    binding requires a captured selector". Executable view-element
-    observations need complete lowering, or executable reads keep the view
-    route. **BORROWED-STORAGE-RESTORATION** owns that code.
-  - ebf381240e2's read and store selector capture makes diagnostics name
-    `__hoist_N`, so
-    `fail/collections/non_integer_index_rejected`,
-    `indexed_domain_requires_invalidated_by_unknown_index_mutation` and
-    `qualified_byte_owner_state_loan_breaks_domain` lose fragments. Retain
-    captured selectors across statements: `runtime_mutable_selector_window_exit`
-    needs that snapshot for its borrowed window. Diagnostic presentation must
-    preserve the authored expression without changing the captured value.
-  - decd18d06d4 loses `pass/build/uefi_entry_schema_same_leaf` (composed Unit
-    control graph custody) and two `pass/capabilities/` rows,
-    `sysv_small_aggregate_import_compile` and
-    `win64_pointer_length_vs_descriptor_compile` (borrowed windows closed).
-  - `interrupt_table_canary` and `secondary_processor_canary` select providers
-    but lack an executable intrinsic: **CHECKED-ASM-LABEL-CONTRACTS** owns that
-    dependency.
+  - Owned elsewhere: the five `pass/calls/*membership_snapshot*` rows
+    ("Unit closure references an unlowered structural domain carrier") and
+    the `pass/ownership/{runtime_borrowed_case_result_restore,
+    runtime_generic_linear_case_restore}_exit` native `UnsupportedControlFlow`
+    losses have live lanes; `pass/proofs/{proof_inductive_gauss_sum,
+    runtime_inductive_gauss_sum_exit}` ("cannot prove the `terminates by`
+    ranking", a `u64 in Wrapping` subject) has a live lane under
+    **TERMINATION-RANKING-CHECKS**; `sysv_small_aggregate_import_compile` and
+    `win64_pointer_length_vs_descriptor_compile` (omitted at "statement
+    sequence: borrowed windows closed") belong to
+    **BORROWED-STORAGE-RESTORATION**; `interrupt_table_canary` and
+    `secondary_processor_canary` select providers but lack an executable
+    intrinsic, which **CHECKED-ASM-LABEL-CONTRACTS** owns;
+    `fail/calls/struct_constant_requires_argument_rejected` is
+    **STRUCT-CONSTANT-REQUIRES-REFUTATION-DRIFT**.
+  - Unowned, three rows: `pass/core/{carry_permission_provider_adapter,
+    extent_root_provider_adapter}` and `pass/memory/bump_allocator_canary`
+    refuse with `Lowering(Unsupported("provider structural result disagrees
+    with ..."))`.
+  - Unowned pairs: `pass/boundary/{later_state_requirement_scalar_result,
+    static_foreign_scalar_result_locals}_exit` ("call selects no
+    declaration"); `pass/calls/runtime_mutable_local_external_scalar_call_exit`
+    and `pass/host/runtime_descriptor_reference_record_prefix_exit` ("fragment
+    import lacks selected call custody"); `pass/collections/element_view_indexed_write`
+    and `pass/domains/slice_domain_validator` ("no closed native catalog
+    identity"); `pass/layouts/runtime_{encoded_physical_view,foreign_encoded_reference}_exit`
+    ("requires mutable source access"); `pass/layouts/runtime_plan_laid_{erased,value}_field_exit`
+    ("not build-time admissible"); `pass/proofs/{citation_requires_discharged,
+    proof_nat_structural_lemmas}` ("selects private machine");
+    `pass/proofs/ring_law_conformance` and `pass/traits/ring_requirement_satisfies_exit`
+    ("specification call is not denotational"). The remaining 17 are
+    singletons the roster names.
   - Cross-host control: Linux records still reject
     `pass/text/local_bounded_text_case_result_loan_exit` and mark
     `local_bounded_text_scalar_loan_exit` incomplete, while macOS recorded
     exit 70. A Linux host must remeasure them; never copy another host's
-    success. **NATIVE-GOLDEN-LINUX-BOUND-UNMEASURED** owns that recording. An
-    `Incomplete` proof-search diagnostic alone does not prove extra capacity
-    will solve the obligation; inspect the failed judgment.
+    success. **NATIVE-GOLDEN-LINUX-BOUND-UNMEASURED** owns that recording.
 
   Acceptance: every remaining loss reaches its authored check/build/runtime
   oracle and the corresponding host record is updated from that observation.
