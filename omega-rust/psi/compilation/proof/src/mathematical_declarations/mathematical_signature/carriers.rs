@@ -39,7 +39,9 @@ impl<'a> Elaborator<'a> {
                 FloatFormat::F64 => ScalarCarrier::Float64,
             }),
             ExpressionNode::Name(path) => self.name_carrier(path),
-            ExpressionNode::Call(call) => self.declaration_result_carrier(call.target_symbol),
+            ExpressionNode::Call(call) => {
+                self.declaration_result_carrier(validation::call_target_symbol(self.program, call))
+            }
             // An arithmetic expression's carrier is the operands' shared
             // carrier: `Int` for integers, the format carrier for floats,
             // and one operand's carrier when an anonymous literal defers.
@@ -231,12 +233,11 @@ impl<'a> Elaborator<'a> {
                 _ => None,
             };
         }
-        // `target_symbol` names the callee's entry `State`, not the
-        // machine itself.
-        let state = self.program.machines().iter().find_map(|machine| {
-            typed_trees::state::state_by_symbol(self.program.machine_states(machine), symbol)
-        })?;
-        self.scalar_carrier_of_type_reference(state.return_type)
+        // Ordinary calls retain their selected declaration: a state, operator
+        // requirement or other callable signature. Borrow the shared result
+        // query rather than excluding declarations without a machine body.
+        let result = validation::call_target_return_type(self.program, symbol)?;
+        self.scalar_carrier_of_type_reference(result)
     }
 
     /// The scalar carrier a type reference names, when it is one —

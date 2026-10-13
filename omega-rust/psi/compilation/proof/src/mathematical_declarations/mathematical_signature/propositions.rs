@@ -34,6 +34,13 @@ impl<'a> Elaborator<'a> {
             | ExpressionNode::Indexed(..) => self.subject_proposition(handle),
             ExpressionNode::Binary(binary) => {
                 let binary = *binary;
+                // A resolved ordinary call can introduce a data carrier only
+                // through its declared codomain. Prepare operand domains
+                // before classifying the relation, just as parameter domains
+                // are prepared before elaborating a definition's body. This
+                // retains source type obligations without giving calls a law.
+                self.source_expression_domain(binary.left)?;
+                self.source_expression_domain(binary.right)?;
                 match binary.operator {
                     BinaryOperator::Equal => self.equality_proposition(handle, binary).map(Some),
                     BinaryOperator::NotEqual => {

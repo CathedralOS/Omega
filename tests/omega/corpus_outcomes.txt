@@ -6949,3 +6949,12 @@ fail/arithmetic/collection_result_wrong_argument rejected 197ms expected @d840c6
 	exact arithmetic in machine `rejected` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `count(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 pass/arithmetic/collection_result_bound_exit checked 5786ms check-target:macos_arm64 @d840c6ae9019+wt
 pass/borrows/collection_element_loans_exit checked 5787ms check-target:macos_arm64 @d840c6ae9019+wt
+fail/proofs/mathematical_machine_result_mismatched_carriers rejected 715ms expected @3b72a3521c0e+wt
+	operand `other(value)` inhabits a different scalar carrier
+fail/proofs/mathematical_machine_result_no_denotation rejected 1945ms expected @3b72a3521c0e+wt
+	specification call `requirement` has no observation-free, reach-free, crash-free value denotation
+	specification call `requirement` has no observation-free, reach-free, crash-free value denotation
+fail/proofs/mathematical_machine_result_requires rejected 816ms expected @3b72a3521c0e+wt
+	cannot prove requires contract for specification call `packet` in mathematical definition `unproved_call`: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `packet` in mathematical definition `unproved_call`: establish its selected precondition in an independently formed prior requires fact
+pass/proofs/mathematical_machine_result_carrier checked 4228ms check-target:macos_arm64 @3b72a3521c0e+wt

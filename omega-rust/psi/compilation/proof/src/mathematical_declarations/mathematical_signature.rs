@@ -499,7 +499,7 @@ impl<'a> Elaborator<'a> {
             }
             ExpressionNode::Call(call) => {
                 let call = call.clone();
-                let target_symbol = call.target_symbol;
+                let target_symbol = validation::call_target_symbol(self.program, &call);
                 if target_symbol.is_valid()
                     && !self.authored_index.contains_key(&target_symbol)
                     && !self

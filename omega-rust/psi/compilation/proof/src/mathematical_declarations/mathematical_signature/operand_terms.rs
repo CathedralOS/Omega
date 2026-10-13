@@ -299,6 +299,14 @@ impl<'a> Elaborator<'a> {
         &mut self,
         handle: ExpressionHandle,
     ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
+        // An opaque operation's declared result can be the first occurrence
+        // of a data carrier. Elaborate that exact source domain before asking
+        // which carrier it denotes; signature occurrence is not authority.
+        let source_type =
+            validation::mathematical_applications::operand_type_reference(self.program, handle);
+        let source_domain = source_type
+            .map(|reference| self.elaborate_type_reference(reference))
+            .transpose()?;
         let Some(carrier) = self.operand_carrier(handle) else {
             return Err(self.unsupported_expression(handle));
         };
@@ -307,10 +315,8 @@ impl<'a> Elaborator<'a> {
         {
             return self.embedding_term(handle, meaning);
         }
-        let source_type =
-            validation::mathematical_applications::operand_type_reference(self.program, handle);
-        let result_type = match source_type {
-            Some(reference) => self.elaborate_type_reference(reference)?,
+        let result_type = match source_domain {
+            Some(domain) => domain,
             None => self.carrier_term(carrier),
         };
         let mut dependencies = Vec::new();
