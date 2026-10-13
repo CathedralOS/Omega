@@ -195,6 +195,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         changed_owners.extend(result_locals::refresh(program, &unavailable)?);
         changed_owners.extend(result_locals::materialize_reference_observations(program)?);
         materialize_static_argument_types(program);
+        crate::preparation::elaborate_projected_receivers(program)?;
         changed_owners.extend(contextual_calls::close(program)?);
         crate::constructed_results::retain_constructed_result_types(program);
         let candidates = candidate::collect(program);
@@ -239,22 +240,20 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
             // of the same template are independent tuples, never evidence with
             // which to consume the declaration or specialize another caller.
             //
-            // An incomplete selection that already holds const, machine, or
-            // conformance evidence rejects in every pass: partial static
-            // evidence can never complete to a single tuple.
+            // A conflicted selection that already holds const, machine, or
+            // conformance evidence rejects in every pass: two concrete
+            // proposals for one binder can never complete to a single tuple.
             //
-            // A zero-binding incomplete selection is NOT rejected here. The
+            // A merely incomplete selection is NOT rejected here. The
             // specialization loop is a fixed point: a later round may still
-            // land a receiver, provider, or endpoint binding that completes
-            // the tuple, so this pass must wait for `applied_any` to go quiet
-            // before calling a statement call underivable.
+            // specialize an argument's own generic call (`filter<keep>(
+            // map<step>(items))`), or land a receiver, provider, or endpoint
+            // binding that completes the tuple, so this pass must wait for
+            // `applied_any` to go quiet before calling the call underivable.
             if selections.iter().any(|selection| {
                 selection.candidate_index == candidate_index
-                    && !selection.caller_is_generic
-                    && !selection.is_complete()
-                    && (selection.const_bindings.iter().any(Option::is_some)
-                        || selection.machine_bindings.iter().any(Option::is_some)
-                        || selection.evidence_bindings.iter().any(Option::is_some))
+                    && selection.conflicted
+                    && holds_partial_static_evidence(selection)
             }) {
                 diagnostics.push(Diagnostic::error(format!(
                     "generic machine `{}` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived",
@@ -284,6 +283,22 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
             continue;
         }
         if !applied_any {
+            // Partial static evidence that no round completed is underivable
+            // at every call site, independently of the speculative fence.
+            for (candidate_index, candidate) in candidates.iter().enumerate() {
+                if selections.iter().any(|selection| {
+                    selection.candidate_index == candidate_index
+                        && holds_partial_static_evidence(selection)
+                }) {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "generic machine `{}` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived",
+                        candidate.template.template_name
+                    )));
+                }
+            }
+            if !diagnostics.is_empty() {
+                return Err(diagnostics);
+            }
             // Fixed point: no later specialization round can still land a
             // receiver, provider, or endpoint binding, so a concrete
             // selection still incomplete here is honestly underivable. The
@@ -483,6 +498,16 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
 mod operator_candidates;
 use crate::monomorphization::selection::{contract_expression_handles, unique_complete_selections};
 pub(crate) use operator_candidates::{OperatorCandidateTemplates, specialize_operator_candidates};
+
+/// A concrete caller's incomplete tuple that already names a const, machine
+/// or conformance operand: it can only complete or be underivable.
+fn holds_partial_static_evidence(selection: &CallSelection) -> bool {
+    !selection.caller_is_generic
+        && !selection.is_complete()
+        && (selection.const_bindings.iter().any(Option::is_some)
+            || selection.machine_bindings.iter().any(Option::is_some)
+            || selection.evidence_bindings.iter().any(Option::is_some))
+}
 
 fn apply_call_specializations(
     program: &mut TypedTrees,

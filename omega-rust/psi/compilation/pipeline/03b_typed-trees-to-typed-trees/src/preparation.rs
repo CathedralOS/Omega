@@ -10,6 +10,8 @@ mod deferred_constants;
 mod opaque_property_receipts;
 mod selections;
 
+pub(crate) use data_applications::elaborate_projected_receivers;
+
 use representation_selections::OpaqueRepresentationSelection;
 use typed_trees::TypedTrees;
 

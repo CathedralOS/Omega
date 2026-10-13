@@ -2643,6 +2643,9 @@ fail/generics/static_callable_local_type_argument_wrong_value rejected 828ms exp
 	argument `value` for state `Routine` expects `Context`, got `integer literal`
 fail/generics/static_callable_unused_local_type_argument_missing rejected 819ms expected @a9ae30e1c334+wt
 	call `Routine` has an invalid static type argument correspondence
+fail/generics/static_machine_borrowed_parameter_mismatch_after_substitution rejected 201ms expected @fcc053dc7014+wt
+	machine argument `small` for `filter` does not refine `Predicate`: parameter 0 expects `&i32`, got `&u8`
+	machine argument `small` for `filter` does not refine `Predicate`: parameter 0 expects `&i32`, got `&u8`
 fail/generics/static_requirement_record_blocking_ceiling rejected 1313ms expected @b338d531fce8
 	machine `wrap` omits `blocks;` from its published contract, but its body may block
 fail/generics/static_requirement_record_public_requires rejected 2291ms expected @b338d531fce8
@@ -5795,8 +5798,7 @@ pass/expressions/runtime_owned_match_call_result_exit checked 11438ms check-targ
 pass/expressions/runtime_temporary_record_field_call_exit checked 10564ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/expressions/runtime_widened_comparison_exit checked 11140ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/expressions/scalar_match_boundary_composition_exit checked 12777ms check-target:macos_arm64 @9c4d1c444502
-pass/expressions/seq_consuming_combinators rejected 1659ms @5041ef1af684+wt
-	machine argument `positive` for `filter` does not refine `Predicate`: parameter 0 expects `&T`, got `&i32`
+pass/expressions/seq_consuming_combinators checked 10030ms @fcc053dc7014+wt
 pass/expressions/unit_case_return_call_product checked 5467ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/filesystem/cross_linux_value_syscalls checked 22314ms @9dd545defbc0
 pass/filesystem/dir_walk_wrappers_exit rejected 10968ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5979,7 +5981,8 @@ pass/generics/foreign_case_membership_dispatch_exit checked 13819ms check-target
 pass/generics/foreign_case_payload_reads_exit checked 16573ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/generic_callback_schema checked 9793ms @5041ef1af684+wt
 pass/generics/generic_data_instantiation checked 1641ms @a9ae30e1c334+wt
-pass/generics/generic_seq_consuming_map_filter checked 1744ms @a9ae30e1c334+wt
+pass/generics/generic_seq_consuming_map_filter checked 2806ms @fcc053dc7014+wt
+pass/generics/generic_seq_map_filter checked 9967ms @fcc053dc7014+wt
 pass/generics/higher_order_schema checked 10059ms @5041ef1af684+wt
 pass/generics/machine_bound_satisfied_at_call checked 3528ms @a9ae30e1c334+wt
 pass/generics/machine_type_equations checked 1760ms @a9ae30e1c334+wt
@@ -6030,7 +6033,9 @@ pass/generics/runtime_selected_operator_body_exit checked 12237ms check-target:m
 pass/generics/runtime_static_requirement_complex_composition_exit checked 17350ms check-target:macos_arm64 @b338d531fce8
 pass/generics/runtime_symbolic_receiver_extent_exit checked 11324ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/runtime_value_generic_subject_exit checked 12414ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/generics/seq_map_filter checked 10288ms @fcc053dc7014+wt
 pass/generics/static_callable_local_type_argument_exit checked 11056ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/generics/static_machine_borrowed_parameter_refines_after_substitution checked 2884ms @fcc053dc7014+wt
 pass/host/console_exit_process_exit checked 11700ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/host/efi_vtable_entry checked 9644ms @5041ef1af684+wt
 pass/host/foreign_byte_recast checked 12749ms @5041ef1af684+wt

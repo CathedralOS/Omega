@@ -5,6 +5,53 @@ use crate::monomorphization::{
     range_arguments,
 };
 
+/// A concrete caller has no type binders in scope. An operand whose result
+/// still names one reports another declaration's universal schema, such as an
+/// unapplied generic callee's declared result, not this occurrence's
+/// application. It supplies no binding: proposing it would bind the callee's
+/// binder to a foreign free variable and conflict with real evidence.
+pub(crate) fn names_type_binder(
+    program: &dyn ::validation::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> bool {
+    let mut pending = vec![reference];
+    let mut visited = Vec::new();
+    while let Some(reference) = pending.pop() {
+        if !reference.is_valid() || visited.contains(&reference) {
+            continue;
+        }
+        visited.push(reference);
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => {
+                if program.symbols.get(*symbol).kind == symbols::SymbolKind::TypeParameter {
+                    return true;
+                }
+                // Normalization may name a data instance; its retained
+                // application still carries the exact arguments.
+                if let Some(application) = program
+                    .data_definition_by_symbol(*symbol)
+                    .and_then(|definition| definition.generic_instance)
+                {
+                    pending.push(application);
+                }
+            }
+            TypeReferenceNode::Generic { arguments, .. } => pending.extend(
+                program
+                    .type_reference_table
+                    .type_reference_handles(*arguments)
+                    .iter()
+                    .copied(),
+            ),
+            TypeReferenceNode::Reference { referee, .. } => pending.push(*referee),
+            TypeReferenceNode::Constrained { base_type, .. } => pending.push(*base_type),
+            TypeReferenceNode::FixedArray { element_type, .. }
+            | TypeReferenceNode::Slice { element_type } => pending.push(*element_type),
+            _ => {}
+        }
+    }
+    false
+}
+
 pub(crate) fn infer_static_bindings(
     program: &dyn ::validation::CheckingInput,
     required: TypeReferenceHandle,

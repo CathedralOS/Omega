@@ -72,6 +72,20 @@ pub(super) fn elaborate_new_types(
     finalize_produced_types(program, type_start)
 }
 
+/// Specialization reads member results while it derives call tuples. A
+/// specialized clone's `items.tail` must already denote its receiver's
+/// substituted field (`Seq<i32>`), not the declaration's unrelated `Seq<T>`
+/// binder, or argument inference binds a callee's `T` to a foreign variable.
+/// The same finite projection demand as the final elaboration, retained by
+/// the producer as each fixed-point round appends cloned bodies.
+pub(crate) fn elaborate_projected_receivers(
+    program: &mut TypedTrees,
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    let type_start = program.type_reference_table.type_reference_count();
+    elaborate_projected_fields(program);
+    finalize_produced_types(program, type_start)
+}
+
 fn finalize_produced_types(
     program: &mut TypedTrees,
     type_start: usize,

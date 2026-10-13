@@ -1198,8 +1198,7 @@ pass/expressions/runtime_owned_match_call_result_exit built 34546ms exit:70 @589
 pass/expressions/runtime_temporary_record_field_call_exit built 4110ms exit:0 @9beb2be72f2d+wt
 pass/expressions/runtime_widened_comparison_exit built 853ms exit:70
 pass/expressions/scalar_match_boundary_composition_exit built 1964ms exit:70 @de036fe72b0b
-pass/expressions/seq_consuming_combinators rejected 1775ms @5041ef1af684+wt
-	machine argument `positive` for `filter` does not refine `Predicate`: parameter 0 expects `&T`, got `&i32`
+pass/expressions/seq_consuming_combinators checked 9993ms @fcc053dc7014+wt
 pass/expressions/unit_case_return_call_product built 17056ms exit:70 @589aedee8ebc+wt
 pass/filesystem/cross_linux_value_syscalls checked 24317ms @e01f73c689de+wt
 pass/filesystem/dir_walk_wrappers_exit rejected 18899ms @e01f73c689de+wt
@@ -1320,7 +1319,8 @@ pass/generics/foreign_case_membership_dispatch_exit built 1066ms exit:70 @c49da6
 pass/generics/foreign_case_payload_reads_exit built 1056ms exit:70 @3119e8d23b09
 pass/generics/generic_callback_schema checked 9883ms @5041ef1af684+wt
 pass/generics/generic_data_instantiation checked 153ms
-pass/generics/generic_seq_consuming_map_filter checked 178ms
+pass/generics/generic_seq_consuming_map_filter checked 3001ms @fcc053dc7014+wt
+pass/generics/generic_seq_map_filter checked 9944ms @fcc053dc7014+wt
 pass/generics/higher_order_schema checked 9641ms @5041ef1af684+wt
 pass/generics/machine_bound_satisfied_at_call checked 224ms
 pass/generics/machine_type_equations checked 190ms
@@ -1359,6 +1359,8 @@ pass/generics/runtime_nested_generic_instantiations_exit built 628ms exit:30
 pass/generics/runtime_qualified_closed_equation_exit built 19642ms exit:0 @589aedee8ebc+wt
 pass/generics/runtime_selected_operator_body_exit built 10636ms exit:3 @b7c2d2975497
 pass/generics/runtime_value_generic_subject_exit built 636ms exit:17
+pass/generics/seq_map_filter checked 9988ms @fcc053dc7014+wt
+pass/generics/static_machine_borrowed_parameter_refines_after_substitution checked 2650ms @fcc053dc7014+wt
 pass/host/console_exit_process_exit built 2697ms exit:70 stdout:match @5c302dd6d305
 pass/host/efi_vtable_entry checked 9421ms @5041ef1af684+wt
 pass/host/foreign_byte_recast checked 13378ms @5041ef1af684+wt

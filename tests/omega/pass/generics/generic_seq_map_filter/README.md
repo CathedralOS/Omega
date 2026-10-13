@@ -15,5 +15,13 @@ items` proves the recursive calls descend.
   `Seq<T>` machines.
 - Payload arms rename with `as`, never `head: first`.
 
+- `filter<positive>` admits `positive(value: &i32)` against
+  `Predicate(value: &T)` once the call's tuple substitutes `T := i32`,
+  including inside the specialized recursive body, whose `tail` payload
+  denotes the receiver's substituted `Seq<i32>`.
+
 Compile-checked only: no standard-library dependency and no
-`Main::exit` — run a check target, not native.
+`Main::exit`. `Seq<T>` is recursive by value, so it has no finite runtime
+representation and stays proof-only ("Recursive mathematical data without a
+finite runtime representation remain proof-only",
+`wiki/spec/proofs/contracts.md`); `build.omg` binds no program entry.

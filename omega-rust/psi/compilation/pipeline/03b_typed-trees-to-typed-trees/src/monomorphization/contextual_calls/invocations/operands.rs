@@ -66,6 +66,8 @@ pub(super) fn derive(
     for (required, argument) in runtime.iter().zip(arguments) {
         if let Some(actual) =
             validation::expression_result_type_reference(program, caller, state, *argument)
+            && (caller.has_specialization_parameters()
+                || !super::super::super::selection::names_type_binder(program, actual))
         {
             super::super::super::infer_static_bindings(
                 program,

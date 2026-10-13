@@ -17,12 +17,18 @@ module's `reverse_snoc` ensures contract is rejected at admission
 sample therefore carries the corpus-spellable local `Seq`/`map`/`filter`
 definitions; swap to the core import once the module is admitted.
 
-Compile-checked only (no std dependency, no ProcessExit provider):
+`filter<keep_even>(map<triple>(input()))` derives `filter`'s `T` from the
+destination and, once `map<triple>` is specialized, from its applied
+`Seq<u64>` result; the unapplied call's declared `Seq<U>` schema supplies no
+binding.
+
+Compile-checked only (no std dependency, no ProcessExit provider). `Seq<T>`
+is recursive by value, so it has no finite runtime representation and stays
+proof-only ("Recursive mathematical data without a finite runtime
+representation remain proof-only", `wiki/spec/proofs/contracts.md`);
+`build.omg` binds no program entry, and the corpus gate checks it as a
+fixture:
 
 ```sh
-mbx run -p omega -- --check samples/cli/probes/seq_map_filter/main.omg
-mbx run -p omega -- update --project samples/cli/probes/seq_map_filter
+mbx run -p omega -- --check tests/omega/pass/generics/seq_map_filter/main.omg
 ```
-
-Both complete green on Linux x86-64; `omega.lock` publishes locally and is
-ignored like every sample lock.

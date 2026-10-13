@@ -19,7 +19,7 @@ pub(crate) use callee_proposals::{
 pub(crate) use selection_assembly::{
     selection_for_call, selection_from_proposals, unique_complete_selections, upsert_selection,
 };
-pub(crate) use static_bindings::infer_static_bindings;
+pub(crate) use static_bindings::{infer_static_bindings, names_type_binder};
 
 use super::{
     CallSite, ExpressionHandle, ExpressionNode, StatementNode, StaticMachineArgument, SymbolHandle,
@@ -104,6 +104,11 @@ pub(super) fn collect_call_proposals(
         ) else {
             continue;
         };
+        if !caller_machine.has_specialization_parameters()
+            && static_bindings::names_type_binder(program, actual)
+        {
+            continue;
+        }
         infer_static_bindings(
             program,
             *required,
