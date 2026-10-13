@@ -1,0 +1,1 @@
+mutates `matrix[2][0]` while local borrow `row` is still active

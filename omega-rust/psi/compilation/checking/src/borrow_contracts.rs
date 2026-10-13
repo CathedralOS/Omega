@@ -90,7 +90,9 @@ pub fn resolve_view_return_source(
 /// Map a declared return lifetime onto the reference inputs carrying it:
 /// no match is ambiguous, one match names the source parameter, several
 /// fold into the structural union; a lifetime-free return falls back to
-/// the unlabeled input count.
+/// the unlabeled input count. A single direct source must pass the same
+/// complete-frontier/access judgment as a union before retaining the compact
+/// Parameter relation; lifetime agreement alone cannot escalate source access.
 fn lifetime_return_source(
     ref_parameters: &[(usize, &str, Option<&str>)],
     output_lifetime: Option<&str>,
@@ -106,16 +108,22 @@ fn lifetime_return_source(
                 [] => ViewReturnSource::Ambiguous(ViewReturnAmbiguity::LifetimeMatchesNoInput {
                     lifetime: output_lifetime.to_owned(),
                 }),
-                [single] => ViewReturnSource::Parameter {
-                    parameter_index: single.0,
+                [single] => match union() {
+                    ViewReturnSource::Ambiguous(reason) => ViewReturnSource::Ambiguous(reason),
+                    _ => ViewReturnSource::Parameter {
+                        parameter_index: single.0,
+                    },
                 },
                 _ => union(),
             }
         }
         None => match ref_parameters {
             [] => ViewReturnSource::NotApplicable,
-            [single] => ViewReturnSource::Parameter {
-                parameter_index: single.0,
+            [single] => match union() {
+                ViewReturnSource::Ambiguous(reason) => ViewReturnSource::Ambiguous(reason),
+                _ => ViewReturnSource::Parameter {
+                    parameter_index: single.0,
+                },
             },
             _ => ViewReturnSource::Ambiguous(ViewReturnAmbiguity::ElidedMultipleInputs {
                 candidates: ref_parameters

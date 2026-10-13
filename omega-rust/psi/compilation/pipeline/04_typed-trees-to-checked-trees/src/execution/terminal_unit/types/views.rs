@@ -1,5 +1,5 @@
 //! Borrowed views and byte-sequence carriers: which borrow shells present as a
-//! slice or named view, and the carrier each byte view realizes as.
+//! slice or stored reference, and the carrier each byte view realizes as.
 
 use super::*;
 
@@ -66,8 +66,8 @@ pub(crate) fn slice_view_carrier(
         )
 }
 
-/// A `&'a V` declared result type: a shared borrow of a named record or sum —
-/// the named-carrier analog of `borrowed_slice_view`. The referent's storage
+/// A shared stored-reference result, independent of its referent family.
+/// The referent's storage
 /// lives in the caller's frame, so the owned-contents custody clause does not
 /// apply. `&mut`/`&write` named results stay with their own custody families.
 pub(crate) fn borrowed_named_view(
@@ -82,7 +82,7 @@ pub(crate) fn borrowed_named_view(
     .is_some()
 }
 
-/// A `&mut R`/`&mut [T]` exclusive structural view: the exclusive-loan
+/// A non-primitive exclusive stored reference or mutable slice view: the exclusive-loan
 /// sibling of `borrowed_named_view`/`borrowed_slice_view`. The referent's
 /// storage lives in the caller's frame the same way, but writes flow
 /// through the loan — `parts` keeps the primitive-referent case.
@@ -98,14 +98,12 @@ pub(crate) fn mutable_borrowed_view(
     .is_some()
 }
 
-/// The referee a structural view's reference shell lends under exactly
-/// `access`, with `Constrained` shells inspected on either side. Classification
-/// looks through qualifications but returns the original referee so its theory
-/// stays in the checked plan. The accesses admit different referees: a shared
-/// `&'a V` view lends
-/// a named or generic referent, primitives included; an exclusive view lends
-/// a non-primitive named referent or a `[T]` slice, while primitive
-/// referents stay with `parts`. Write-only shells lend no structural view.
+/// The referee lent under exactly `access`. Stored pointers use the shared
+/// storage judgment rather than a whitelist of source referent families.
+/// Constraints and the original reference shell remain in the checked plan;
+/// ShapeCollector separately demands the actual backing representation.
+/// Mutable slices retain their descriptor route, and primitive mutable loans
+/// retain `parts`. Write-only results keep their separate result contract.
 pub(crate) fn borrowed_view_referent(
     program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
@@ -113,21 +111,14 @@ pub(crate) fn borrowed_view_referent(
 ) -> Option<TypeReferenceHandle> {
     let shell = validation::reference_shell(program, type_reference)
         .filter(|shell| shell.access == access)?;
-    let carrier = validation::peel_declared_constraints(program, shell.referee);
-    let referee = program.type_reference_table.type_reference(carrier);
+    let stored =
+        validation::reference_result_custody::stored_loan_parts(program, type_reference).is_some();
     let lends_view = match access {
-        language_semantics::ReferenceAccess::Shared => matches!(
-            referee,
-            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
-        ),
+        language_semantics::ReferenceAccess::Shared => stored,
         language_semantics::ReferenceAccess::Mutable => {
+            let carrier = validation::peel_declared_constraints(program, shell.referee);
             program.primitive_type_reference(carrier).is_none()
-                && matches!(
-                    referee,
-                    TypeReferenceNode::Named { .. }
-                        | TypeReferenceNode::Generic { .. }
-                        | TypeReferenceNode::Slice { .. }
-                )
+                && (stored || borrowed_slice_result(program, type_reference))
         }
         language_semantics::ReferenceAccess::WriteOnly => false,
     };

@@ -298,3 +298,11 @@ pass/providers/linear_structural_provider_return_exit built 8564ms exit:0 stdout
 pass/providers/runtime_linear_provider_results_exit built 8890ms exit:0 interpreter-exit:0 interpreter:agrees @815ea0247677
 pass/traits/runtime_dyn_guarded_result_exit built 8165ms exit:0 interpreter-exit:0 interpreter:agrees @815ea0247677
 pass/ownership/linear_result_owners_residual_cleanup_exit built 9360ms exit:0 interpreter-exit:0 interpreter:agrees @b74df5e46260
+# Scoped returned-reference observations; incoming rows preserved.
+pass/borrows/callee_returned_shared_reborrow_chain_exit built 9950ms exit:0 interpreter-exit:0 interpreter:agrees @b7c17b88b59d
+pass/borrows/fixed_array_reference_results_exit built 12891ms exit:0 interpreter-exit:0 interpreter:agrees @b7c17b88b59d
+pass/borrows/runtime_returned_reference_constructor_leaf_retirement_exit built 14090ms exit:70 interpreter-exit:70 interpreter:agrees @b7c17b88b59d
+pass/recast/callee_returned_aggregate_view_exit built 9356ms exit:0 interpreter-exit:0 interpreter:agrees @b7c17b88b59d
+pass/recast/callee_returned_mutable_view_exit built 9353ms exit:0 interpreter-exit:0 interpreter:agrees @b7c17b88b59d
+pass/recast/returned_view_state_and_record_composition_exit built 9486ms exit:0 interpreter-exit:0 interpreter:agrees @b7c17b88b59d
+pass/slices/runtime_shared_whole_view_return_exit built 8857ms exit:70 interpreter-exit:70 interpreter:agrees @b7c17b88b59d

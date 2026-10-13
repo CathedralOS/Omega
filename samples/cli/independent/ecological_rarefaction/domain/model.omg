@@ -25,6 +25,13 @@ pub machine choose(total: u64 in Wrapping, depth: u64 in Wrapping) -> u64 in Wra
         transition { _ -> accumulate(total, depth, position+1, value*(total-position+1)/position) }
     }
 }
+// Loan the selected DP row; writes retain the matrix's original backing.
+machine select_row(matrix: &mut [[u64 in Wrapping; 13]; 33], depth: u64 in Wrapping)
+    -> &mut [u64 in Wrapping; 13]
+requires depth < 33 { &mut matrix[depth] }
+machine accumulate_row(row: &mut [u64 in Wrapping; 13], richness: u64 in Wrapping,
+                       weight: u64 in Wrapping)
+requires richness < 13 { row[richness] = row[richness]+weight; }
 pub machine analyze(community: &mut Community) {
     community.weights[0][0] = 1;
     transition { _ -> species(community, 0) }
@@ -98,7 +105,8 @@ pub machine analyze(community: &mut Community) {
                    target_richness: u64 in Wrapping)
     requires depth+taken < 33 && target_richness < 13 && species_index < 12 {
         let multiplier: u64 in Wrapping = choose(community.counts[species_index], taken);
-        community.next[depth+taken][target_richness] = community.next[depth+taken][target_richness]+weight*multiplier;
+        let row: &mut [u64 in Wrapping; 13] = select_row(&mut community.next, depth+taken);
+        accumulate_row(row, target_richness, weight*multiplier);
         transition { _ -> contribution(community, species_index, depth, richness, taken+1, weight) }
     }
     state advance(community: &mut Community, species_index: u64 in Wrapping,

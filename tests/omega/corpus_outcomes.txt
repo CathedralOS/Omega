@@ -6833,3 +6833,24 @@ pass/providers/linear_structural_provider_return_exit checked 10925ms check-targ
 fail/proofs/collection_predicate_deferred_disjunction_false_rejected rejected 418ms expected @1cb01af2f0bb
 	cannot prove ensures contract for exit from cell_is_set at statement 0: cells[index] >= 1
 pass/proofs/collection_predicate_deferred_disjunction_sixteen_cells checked 1240ms @1cb01af2f0bb
+# Scoped returned-reference observations; incoming rows preserved.
+fail/borrows/fixed_array_return_depth_bound rejected 964ms expected @b7c17b88b59d
+	cannot prove index `depth` is within length 33 in invalid::entry
+fail/borrows/fixed_array_return_live_parent_write rejected 1300ms expected @b7c17b88b59d
+	statement 1 mutates `matrix[2][0]` while local borrow `row` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
+fail/borrows/fixed_array_return_local rejected 1024ms expected @b7c17b88b59d
+	machine `invalid` returns a view borrowing the local `row`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/borrows/fixed_array_return_overlapping rejected 1119ms expected @b7c17b88b59d
+	state `select` receives `matrix` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 1 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 2 mutates `first[0]` while local borrow `second` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+fail/borrows/fixed_array_return_shared_escalation rejected 1352ms expected @b7c17b88b59d
+	machine `invalid` returns a view whose access cannot be supplied by matching input `matrix`
+	machine `explicit` returns a view whose access cannot be supplied by matching input `matrix`
+	machine `generic` returns a view whose access cannot be supplied by matching input `matrix`
+	machine `generic$specialized$fc8f4b55248111c1$0` returns a view whose access cannot be supplied by matching input `matrix`
+	statement 2 cannot resolve the complete borrowed destination of `row[0]`
+	statement 4 cannot resolve the complete borrowed destination of `generic_row[0]`
+fail/borrows/returned_operand_parent_cannot_bypass_child rejected 1040ms expected @b7c17b88b59d
+	statement 3 mutates `whole.second.value` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+pass/borrows/fixed_array_reference_results_exit checked 9558ms check-target:macos_arm64 @b7c17b88b59d

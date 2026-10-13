@@ -35,7 +35,11 @@ The private kernel multiplies bounded species generating polynomials. Counts
 never exceed `choose(32,16)=601080390`. Moment arithmetic centers at floor(E)
 before multiplying by the denominator: its worst-case bound is
 `37*choose(32,16)^2 < 2^64`. This avoids overflowing the uncentered squared
-moment intermediate while preserving the exact result. Working state is
+moment intermediate while preserving the exact result. The accumulation helper
+receives a fixed-array row reference returned by a selector; writes reach the
+original DP matrix. Compiler regression controls
+cover returned, forwarded, generic and shared row loans and reject access
+escalation, escaped local backing, overlap and unproved bounds. Working state is
 zero-initialized by the application entry, and the kernel runs once per record.
 
 From the repository root, using an optimized compiler of recorded provenance:
