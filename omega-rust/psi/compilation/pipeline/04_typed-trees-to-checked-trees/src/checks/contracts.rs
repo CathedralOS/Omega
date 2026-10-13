@@ -86,6 +86,7 @@ use typed_trees::expression::ExpressionHandle;
 use writes::check_domain_field_writes;
 
 pub(super) struct ContractDecisions {
+    pub(super) constant_obligations: Vec<checked_trees::ConstantPredicateObligation>,
     pub(super) call_requires: Vec<checked_trees::DecidedCallRequires>,
     pub(super) value_qualifications: arena::Arena<checked_trees::CheckedValueQualification>,
 }
@@ -101,6 +102,7 @@ pub(super) fn check_flow_call_contracts(
     let mut diagnostics =
         crate::facts::contextual_cleanup::check_cleanup_requirements(program, facts);
     let mut decided = Vec::new();
+    let mut constant_obligations = Vec::new();
     let mut value_qualifications = arena::Arena::default();
     let content_plans = validation::content_conservation_plans(program);
     let nominal_requirements = nominal_inputs::DeclaredFieldRequirements::new(&facts.semantic);
@@ -160,10 +162,11 @@ pub(super) fn check_flow_call_contracts(
                 incoming_guards.for_machine(state_flow.machine_symbol),
                 expression_intervals,
                 call_frames,
+                &mut constant_obligations,
                 &mut diagnostics,
             );
-            // Every unproved fact pushes a diagnostic, so a call that adds
-            // none had its whole contract discharged here.
+            // Every fact is proved here or retained as a constant obligation
+            // that target closure must discharge before Terminal production.
             if diagnostics.len() == before
                 && let Ok(statement_index) = u32::try_from(call_flow.statement_index)
             {
@@ -231,6 +234,7 @@ pub(super) fn check_flow_call_contracts(
 
     if diagnostics.is_empty() {
         Ok(ContractDecisions {
+            constant_obligations,
             call_requires: decided,
             value_qualifications,
         })

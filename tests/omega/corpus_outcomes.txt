@@ -6721,3 +6721,12 @@ run/stores/runtime_float_indexed_call_result_exit checked 8854ms check-target:ma
 run/stores/runtime_float_store_selector_snapshot_exit checked 8082ms check-target:macos_arm64 @589aedee8ebc+wt
 run/variant_decimal_runtime_division checked 11419ms check-target:linux_x86_64 @a9ae30e1c334+wt
 run/variant_record_normalization_repeats checked 13906ms check-target:linux_x86_64 @a9ae30e1c334+wt
+pass/layouts/runtime_constant_layout_contract_exit checked 5329ms check-target:macos_arm64 @e63c4b1e202d+wt
+fail/layouts/false_constant_layout_contract rejected 2683ms expected @e63c4b1e202d+wt
+	requires contract for call impossible from program: size_of() < align_of(): constant predicate is false under the selected target realization `macos_arm64`
+fail/layouts/layout_contract_selected_equality rejected 537ms expected @e63c4b1e202d+wt
+	cannot prove requires contract for call required$specialized$c027caf142dac46a$0 from program: size_of() == 16 (needs fact `size_of() == 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/layouts/runtime_value_is_not_layout_constant rejected 533ms expected @e63c4b1e202d+wt
+	cannot prove requires contract for call required from forward: value >= size_of() (needs fact `value >= size_of()` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/layouts/unselected_target_layout_contract rejected 3615ms expected @e63c4b1e202d+wt
+	requires contract for call impossible from scoped: size_of() == 0: constant predicate is false under the selected target realization `windows_x86_64`

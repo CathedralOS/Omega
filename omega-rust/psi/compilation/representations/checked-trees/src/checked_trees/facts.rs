@@ -11,8 +11,11 @@
 
 // `CheckFacts`, the root that holds every fact family.
 mod collection;
+mod constant_predicate_obligations;
 mod constant_recipe_obligations;
+pub use constant_predicate_obligations::ConstantPredicateObligation;
 mod contextual_cleanup;
+pub mod scalar_predicates;
 
 // Machine contract and interface axes: contract and crash plans with
 // operator crash sites, termination, blocking, suspension, synchronous

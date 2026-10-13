@@ -58,7 +58,16 @@ windows_x86_64 machine expected_size() -> u64 { 4 }
 const BYTES: u64 = size_of<Policy<Payload>>();
 data View { payload: Policy<Payload>; observed: u64; }
 machine query_size() -> u64 { size_of<Policy<Payload>>() }
+// The same portable helper contract has applications in different authored
+// target bodies. Every body is checked, even for a single-target product.
+machine demand_eight() requires size_of<Policy<Payload>>() == 8 {}
+machine demand_four() requires size_of<Policy<Payload>>() == 4 {}
+macos_arm64 machine demand_layout() { demand_eight(); }
+linux_arm64 machine demand_layout() { demand_eight(); }
+linux_x86_64 machine demand_layout() { demand_four(); }
+windows_x86_64 machine demand_layout() { demand_four(); }
 machine program() crashes Trap {
+    demand_layout();
     let mut view: View;
     view.observed = query_size();
     transition { _ -> inspect(&view, size_of<Policy<Payload>>()) }

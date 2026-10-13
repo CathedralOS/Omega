@@ -232,6 +232,17 @@ fn evaluate_value<const ALLOW_DECIMAL_LITERALS: bool>(
                         pending.push(Step::Cast(cast.result_type));
                         pending.push(Step::Enter(cast.value));
                     }
+                    ExpressionNode::Name(path) if typed_owner.is_some() => {
+                        // A retained constant may acquire its value only at
+                        // target closure. Follow its canonical initializer,
+                        // preserving each operation's carrier and selection;
+                        // ordinary names never become runtime-value lookups.
+                        let declaration = program.const_declaration_by_symbol(path.symbol)?;
+                        active.push(expression);
+                        pending.push(Step::Leave(expression));
+                        pending.push(Step::Cast(declaration.declared_type));
+                        pending.push(Step::Enter(declaration.materialized_initializer));
+                    }
                     ExpressionNode::Binary(binary)
                         if typed_owner.is_some() || builtin(expression) =>
                     {

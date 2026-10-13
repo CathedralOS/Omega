@@ -50,6 +50,19 @@ pub fn lower_machine(
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     program_roots: crate::TerminalProgramRoots<'_>,
 ) -> Result<LoweredPsi, LoweringError> {
+    // A shared source judgment may carry target-dependent proof conditions.
+    // Only target closure consumes those obligations; direct/package callers
+    // cannot publish conditional call evidence as unconditional Terminal code.
+    if checked
+        .facts
+        .constant_predicate_obligations
+        .iter()
+        .any(checked_trees::ConstantPredicateObligation::is_pending)
+    {
+        return unsupported(
+            "constant proof predicates require target closure before Terminal production",
+        );
+    }
     // One builder owns the complete closure's identities. Body construction
     // snapshots only a prefix: declaration, evidence and application retention
     // can intern more rows. Seal the complete table after those producers, so

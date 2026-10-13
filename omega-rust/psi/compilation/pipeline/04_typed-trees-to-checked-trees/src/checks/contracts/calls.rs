@@ -43,6 +43,7 @@ pub(super) fn check_call_requires(
     incoming_guards: &[crate::checks::ranges::incoming_guards::IncomingGuard],
     expression_intervals: &[validation::ExpressionInterval],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    constant_obligations: &mut Vec<checked_trees::ConstantPredicateObligation>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     // The state-parameter domain facts (origin StateParameterDomain, surfaced at
@@ -182,6 +183,33 @@ pub(super) fn check_call_requires(
                     fact,
                 );
             if !satisfied {
+                if let FactPayload::ContractBooleanExpression { expression, .. } = fact.payload
+                    && let Some((target_machine, target_state)) =
+                        validation::find_state(program, call_flow.target_symbol)
+                    && let Some(obligation) = checked_trees::ConstantPredicateObligation::retain(
+                        program,
+                        expression,
+                        target_machine.symbol,
+                        state_flow.machine_symbol,
+                        format!(
+                            "requires contract for call {} from {}: {}",
+                            call_target_label(program, call_flow.target_symbol),
+                            machine_name(program, state_flow.machine_symbol),
+                            semantic_fact_requirement_label(program, &facts.semantic, fact)
+                        ),
+                        &|expression| {
+                            validation::has_builtin_binary_expression_meaning(
+                                program,
+                                target_machine,
+                                Some(target_state),
+                                expression,
+                            )
+                        },
+                    )
+                {
+                    constant_obligations.push(obligation);
+                    continue;
+                }
                 let detail = match fact.payload {
                     FactPayload::ContractDomainMembership { domain_symbol, .. }
                     | FactPayload::DomainMembership { domain_symbol, .. } => {

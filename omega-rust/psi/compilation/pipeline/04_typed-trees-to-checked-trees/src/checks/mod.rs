@@ -127,6 +127,7 @@ pub(crate) fn check_checked_facts_recording(
         expression_intervals,
     ) {
         Ok(decided) => {
+            facts.constant_predicate_obligations = decided.constant_obligations;
             facts.decided_call_requires = decided.call_requires;
             facts.qualifications.value_formations = decided.value_qualifications;
         }

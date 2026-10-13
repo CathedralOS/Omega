@@ -46,10 +46,10 @@ pub struct CheckFacts {
     /// Lowering reads a runtime element's decision here instead of
     /// rejoining the authored assignment target.
     pub proven_assignment_indexes: Vec<ProvenAssignmentIndex>,
-    /// Calls whose every `requires` fact checking proved at the call site,
-    /// keyed by calling state, statement and resolved target. For a state
-    /// transfer this is the target state's arrival contract, so lowering
-    /// can publish the matching arrival obligation as decided.
+    /// Calls whose `requires` facts checking proved or retained as ground
+    /// constant obligations, keyed by calling state, statement and target.
+    /// Lowering requires all constant obligations discharged before consuming
+    /// these rows, including a state transfer's arrival contract.
     pub decided_call_requires: Vec<DecidedCallRequires>,
     /// Final source execution dependencies, including selected cleanup edges.
     /// The memo scope accelerates queries; it is not their semantic owner.
@@ -136,6 +136,8 @@ pub struct CheckFacts {
     /// Comparisons the judgment proved against retained constant recipes,
     /// discharged by each target closure against its closed values.
     pub constant_recipe_obligations: Vec<crate::ConstantRecipeObligation>,
+    /// Ground predicates whose target observations must close before execution.
+    pub constant_predicate_obligations: Vec<super::ConstantPredicateObligation>,
 }
 
 /// One `AssignmentIndex { depth }` selector of the assignment at
@@ -159,7 +161,8 @@ impl ProvenAssignmentIndex {
     }
 }
 
-/// One call site whose `requires` checking discharged in full.
+/// One call site's decision, conditional on its CheckFacts constant obligations
+/// until target closure discharges them before lowering.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DecidedCallRequires {
     pub state: symbols::SymbolHandle,

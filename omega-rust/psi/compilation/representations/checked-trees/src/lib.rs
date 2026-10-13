@@ -4,6 +4,7 @@
 //! replacing them with a second copy of the same source vocabulary.
 
 pub mod checked_trees;
+pub use checked_trees::facts::ConstantPredicateObligation;
 pub(crate) use optimization::digest_encoder;
 
 // Downstream realization reads typed vocabulary through checked custody:

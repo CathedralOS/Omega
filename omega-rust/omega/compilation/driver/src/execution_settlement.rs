@@ -115,6 +115,77 @@ fn select_checked_providers(
 > {
     let typed = &source.program.typed;
     let build_config = &source.computed_build_config.config;
+    let x86_scalar_fma_provider = build_config
+        .settings
+        .x86_deployment_claim
+        .admit_for(selected_target_profile)
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    let provider_planning::CheckedProviderSelection {
+        settlement: providers,
+        selected_provider_plan_facts,
+        selected_provider_provenance,
+    } = prepare_target_provider_selection(source, selected_target_profile, package_inputs)?;
+    let selected_program_entry = provider_planning::program_entry::select_compiler_program_entry(
+        typed,
+        &build_config.root_bindings,
+        selected_target_profile,
+        &providers.boundary_calling_plan_realizations,
+        package_inputs,
+        |program, definition| validation::data_requires_establishment(program, definition),
+    )?;
+    provider_planning::target_machines::reject_reached_inert_sibling_calls(
+        typed,
+        selected_target_profile.unwrap_or_else(target::TargetProfile::host),
+        selected_program_entry
+            .as_ref()
+            .map(|entry| entry.machine_symbol()),
+        &selected_provider_provenance,
+    )?;
+    // Target-scoped proof applications close under their authored capsule,
+    // including bodies outside the requested output target. They reuse the
+    // same provider preparation but need no executable entry or deployment.
+    let closed_program = constant_recipe_closure::close_constant_recipes(
+        source,
+        selected_target_profile.unwrap_or_else(target::TargetProfile::host),
+        &build_config.opaque_representation_selections,
+        &selected_provider_plan_facts,
+        |target| {
+            prepare_target_provider_selection(source, Some(target), package_inputs)
+                .map(|selected| selected.selected_provider_plan_facts)
+        },
+    )?;
+    let root_grants = build_config.root_grant_selectors();
+    let checked = bind_checked_providers(
+        closed_program,
+        source.accepted_template_classifications.clone(),
+        ProviderBindingRequest {
+            package_inputs,
+            boundary_calling_plan_realizations: &providers.boundary_calling_plan_realizations,
+            provider_plans: &providers.provider_plans,
+            selected_provider_plan_facts,
+            root_grants: &root_grants,
+            authored_root_grants: &build_config.grants,
+        },
+    )?;
+    Ok((
+        checked,
+        providers,
+        selected_provider_provenance,
+        selected_program_entry,
+        x86_scalar_fma_provider,
+    ))
+}
+
+/// Prepare the exact provider and ABI inputs for either a product or an
+/// authored-target proof application. Neither use bypasses provider admission;
+/// only executable products need a ProgramEntry and deployment claim.
+fn prepare_target_provider_selection(
+    source: &CheckedProductSource,
+    selected_target_profile: Option<target::TargetProfile>,
+    package_inputs: Option<&PackageCompilationInputs>,
+) -> Result<provider_planning::CheckedProviderSelection, Vec<Diagnostic>> {
+    let typed = &source.program.typed;
+    let build_config = &source.computed_build_config.config;
     let selected_native_target = selected_target_profile
         .map(target::TargetProfile::native_target)
         .unwrap_or_else(target::NativeTarget::host);
@@ -139,29 +210,12 @@ fn select_checked_providers(
             package_inputs,
         )?;
     }
-    let x86_scalar_fma_provider = build_config
-        .settings
-        .x86_deployment_claim
-        .admit_for(selected_target_profile)
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let selected_program_entry = provider_planning::program_entry::select_compiler_program_entry(
-        typed,
-        &build_config.root_bindings,
-        selected_target_profile,
-        &boundary_calling_plan_realizations,
-        package_inputs,
-        |program, definition| validation::data_requires_establishment(program, definition),
-    )?;
     let settled_target_machines = provider_planning::target_machines::settle_provider_defaults(
         provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
         &source.provider_defaults,
         selected_target_profile.unwrap_or_else(target::TargetProfile::host),
     );
-    let provider_planning::CheckedProviderSelection {
-        settlement: providers,
-        selected_provider_plan_facts,
-        selected_provider_provenance,
-    } = provider_planning::settle_checked_providers(
+    provider_planning::settle_checked_providers(
         typed,
         settled_target_machines,
         selected_target_profile,
@@ -171,44 +225,7 @@ fn select_checked_providers(
         boundary_calling_plan_realizations,
         &build_config.opaque_representation_selections,
         &source.program.facts.synchronous_invocations,
-    )?;
-    provider_planning::target_machines::reject_reached_inert_sibling_calls(
-        typed,
-        selected_target_profile.unwrap_or_else(target::TargetProfile::host),
-        selected_program_entry
-            .as_ref()
-            .map(|entry| entry.machine_symbol()),
-        &selected_provider_provenance,
-    )?;
-    // Every provider-dependent constant closes under this target's selected
-    // rows before installation reads the program; the shared judgment stays
-    // symbolic and untouched.
-    let closed_program = constant_recipe_closure::close_constant_recipes(
-        source,
-        selected_target_profile.unwrap_or_else(target::TargetProfile::host),
-        &build_config.opaque_representation_selections,
-        &selected_provider_plan_facts,
-    )?;
-    let root_grants = build_config.root_grant_selectors();
-    let checked = bind_checked_providers(
-        closed_program,
-        source.accepted_template_classifications.clone(),
-        ProviderBindingRequest {
-            package_inputs,
-            boundary_calling_plan_realizations: &providers.boundary_calling_plan_realizations,
-            provider_plans: &providers.provider_plans,
-            selected_provider_plan_facts,
-            root_grants: &root_grants,
-            authored_root_grants: &build_config.grants,
-        },
-    )?;
-    Ok((
-        checked,
-        providers,
-        selected_provider_provenance,
-        selected_program_entry,
-        x86_scalar_fma_provider,
-    ))
+    )
 }
 
 /// Select this target's provider custody without starting installation.

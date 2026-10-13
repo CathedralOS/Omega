@@ -83,11 +83,14 @@ These forms take data types. Executable machine entries and their late code
 regions instead use [address and code-layout queries](../language/counts_and_addresses.md#native-code-layout-queries).
 Neither `usize` nor a dedicated alignment carrier is introduced.
 
-The Rust reference currently rejects these queries as unimplemented while their
-portable Terminal operation is missing. Native layout must not be folded into
-typed source before checking: that would make the shared Psi program depend on
-one realization target or the compiler host. This implementation gap does not
-change the query contract above; **TARGET-SEMANTIC-APPLICATIONS** owns restoration.
+The Rust reference retains these queries during portable checking and closes
+them against validated layouts before Terminal production. A ground contract
+predicate can retain an obligation instead of guessing its query values. Each
+target-scoped caller's obligation closes under its authored target, including
+bodies outside the requested output target; an unscoped caller uses the product
+application's target. False or unresolved predicates refuse production.
+This does not yet supply symbolic interval bounds for general runtime arithmetic
+over query results; **TARGET-SEMANTIC-APPLICATIONS** tracks that remaining work.
 
 ## Placement vocabulary
 
