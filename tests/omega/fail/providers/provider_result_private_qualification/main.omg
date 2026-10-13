@@ -1,0 +1,43 @@
+// A checked provider's declared result may not carry a qualification its
+// boundary requirement does not authorize. The caller's call occurrence mints
+// exactly the public result roster, so a private `Token::Issued` the candidate
+// declares at its return has no caller-side binding to land in. Checking
+// rejects the satisfier at its declaration; the lowering and installation
+// joins downstream admit only a candidate roster the public one authorizes.
+use omega::language::core::binding;
+use omega::language::core::drop;
+use omega_language_std::console;
+
+pub data Token [linear] { value: u64; }
+machine Token::drop(token: &mut Token) {}
+pub domain Token::Issued;
+
+pub boundary trait TokenMint {
+    machine issue(value: u64) -> Token;
+}
+
+data TokenMintProvider {}
+
+machine TokenMintProvider::issue(value: u64) -> Token in Token::Issued
+satisfies TokenMint::issue
+{
+    let token: Token in Token::Issued = Token { value: value };
+    token
+}
+
+data Main {
+    console: Binding<Console>;
+    mint: Binding<TokenMint>;
+}
+
+machine Main::main(main: &mut Main) reaches Console, TokenMint {
+    let direct: Token = main.mint.issue(11);
+    let correct: bool = direct.value == 11;
+    drop(direct);
+    transition correct {
+        true -> good(main)
+        _ -> bad(main)
+    }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(72); }
+}

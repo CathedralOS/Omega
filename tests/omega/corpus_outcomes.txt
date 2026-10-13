@@ -3058,6 +3058,8 @@ fail/providers/occurrence_region_binding_conflicting_inputs rejected 42ms expect
 	call to `entry` has conflicting ordinary borrow constraints for an erased lifetime
 fail/providers/ordinary_exit_name_preserves_return_obligations rejected 1225ms expected @1e469c9b15bb
 	cannot prove ensures contract for exit from impossible at statement 1: false
+fail/providers/provider_result_private_qualification rejected 2181ms expected @20ad71d6e3a6+wt
+	machine `TokenMintProvider::issue` state `issue` does not satisfy trait `TokenMint` machine `issue`: expected return `Token`, got `Token[in Token::Issued]`
 fail/providers/provider_selection_fabricated_activation rejected 2725ms expected @a9ae30e1c334+wt
 	the compiler-owned Build activation cannot be copied into local `counterfeit`
 fail/providers/provider_type_slot_ambiguous rejected 127ms expected @a9ae30e1c334+wt
@@ -5976,6 +5978,7 @@ pass/providers/runtime_adapter_dispatch_exit checked 11788ms check-target:macos_
 pass/providers/runtime_boundary_array_construction_exit checked 11278ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/runtime_boundary_array_forwarding_exit checked 11348ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/runtime_boundary_array_result_exit checked 11091ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/providers/runtime_boundary_linear_result_exit checked 5080ms check-target:macos_arm64 @20ad71d6e3a6+wt
 pass/providers/runtime_boundary_owned_array_cycle_exit checked 11933ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/runtime_boundary_primitive_array_argument_exit checked 11479ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/runtime_foreign_leaf_borrowed_byte_argument_exit checked 11194ms check-target:macos_arm64 @a9ae30e1c334+wt
