@@ -26,7 +26,6 @@ pub(crate) fn record_state_locals(program: &dyn validation::CheckingInput) -> St
                     is_mutable: local.is_mutable,
                     // The locals `immutable_scalar_locals_before` counts.
                     is_scalar_value: !local.is_mutable
-                        && local.initial_value.is_valid()
                         && program
                             .primitive_type_reference(local.type_reference)
                             .is_some(),

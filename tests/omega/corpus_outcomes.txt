@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "3", "load1_end": 4.25, "load1_start": 4.19, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "3", "load1_end": 11.93, "load1_start": 7.22, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 835ms expected @a9ae30e1c334+wt
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -3645,6 +3645,9 @@ fail/termination/unproved_state_rank_arrival_rejected rejected 1590ms expected @
 fail/termination/wrapping_subject_unguarded_decrement rejected 548ms expected @3e63a17a5fea+wt
 	cannot prove the `terminates by` ranking for machine Main::drain
 	machine call cycle: `Main::drain` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+fail/termination/zero_local_does_not_decrease_rank rejected 1234ms expected @3d664be0c918+wt
+	terminating machine countdown: cannot prove strict rank decrease on a recurrent arrival: the transition from `countdown` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+	machine call cycle: `countdown` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/text/borrowed_bounded_byte_invariant_write rejected 3611ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call write from corrupt: bytes in [u8; N]::Ascii (invalidated by prior mutation of bytes[0]; bytes is part of [u8; N]::Ascii)
 	cannot prove default-domain field requirement for return from corrupt at statement 2: bytes requires [u8; N]::Ascii
@@ -5515,14 +5518,12 @@ pass/layouts/runtime_multi_origin_encoded_reference_exit checked 11104ms check-t
 pass/layouts/runtime_nested_restricted_field_read checked 11370ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/layouts/runtime_offset_encoded_reference_exit checked 11087ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/layouts/runtime_plan_laid_compact_bits_exit checked 11957ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/layouts/runtime_plan_laid_erased_field_exit rejected 5293ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	plan-laid value type `Spread16<Certified>`: error: machine `Spread16::plan` is not build-time admissible: machine `Spread16::evaluate` has an authored `requires` premise along `Spread16::plan -> Spread16::evaluate`; pre-check semantic evaluation has no checked invocation proof for that premise; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
+pass/layouts/runtime_plan_laid_erased_field_exit checked 22134ms check-target:macos_arm64 @3d664be0c918+wt
 pass/layouts/runtime_plan_laid_integer_at_proved_write_exit checked 11579ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/layouts/runtime_plan_laid_nested_fixed_array_mutable_write_exit checked 13100ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/layouts/runtime_plan_laid_record_array_mutable_write_exit checked 12767ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/layouts/runtime_plan_laid_tiled_record_nested_array_view_exit checked 13970ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/layouts/runtime_plan_laid_value_field_exit rejected 6015ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	plan-laid value type `Spread16<Gdtish>`: error: machine `Spread16::plan` is not build-time admissible: machine `Spread16::evaluate` has an authored `requires` premise along `Spread16::plan -> Spread16::evaluate`; pre-check semantic evaluation has no checked invocation proof for that premise; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
+pass/layouts/runtime_plan_laid_value_field_exit checked 22448ms check-target:macos_arm64 @3d664be0c918+wt
 pass/layouts/runtime_reborrow_preserves_store_origin_exit checked 12251ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/layouts/runtime_recast_reference_captures_index_exit checked 10988ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/layouts/runtime_recursive_encoded_reference_exit checked 11023ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6433,6 +6434,7 @@ pass/termination/runtime_selected_result_ranked_arrival_exit checked 12009ms che
 pass/termination/runtime_shift_result_rank_arrivals_exit checked 2943ms check-target:macos_arm64 @f70cef10b430
 pass/termination/runtime_shrinking_slice_recursion_exit checked 13890ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/termination/runtime_stored_exclusive_endpoint_exit checked 12132ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/termination/runtime_zero_local_rank_prefix_exit checked 18775ms check-target:macos_arm64 @3d664be0c918+wt
 pass/termination/slice_rank_unrelated_float_operator checked 1677ms @a9ae30e1c334+wt
 pass/termination/stored_reference_endpoint_arrivals checked 1967ms @a9ae30e1c334+wt
 pass/termination/symbolic_quotient_endpoints checked 2150ms @a9ae30e1c334+wt

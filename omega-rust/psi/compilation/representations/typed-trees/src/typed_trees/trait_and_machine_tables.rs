@@ -865,7 +865,8 @@ impl TypedTrees {
 
     /// The authored ordinal of the scalar local a `let` at `statement_index`
     /// declares: how many immutable primitive locals the state declares
-    /// before it. Source roles (`LocalInitializer`, `CallArgument`) key a
+    /// before it, including declarations established by zero initialization.
+    /// Source roles (`LocalInitializer`, `CallArgument`) key a
     /// `let` by this ordinal. It differs from the dense binding ordinal a
     /// plan assigns, which also counts the call results of preceding field
     /// stores; a consumer holding a plan's binding ordinal converts through
@@ -882,7 +883,6 @@ impl TypedTrees {
             .filter(|statement| {
                 matches!(statement, crate::statement::StatementNode::LocalData(local)
                     if !local.is_mutable
-                        && local.initial_value.is_valid()
                         && self.primitive_type_reference(local.type_reference).is_some())
             })
             .count()

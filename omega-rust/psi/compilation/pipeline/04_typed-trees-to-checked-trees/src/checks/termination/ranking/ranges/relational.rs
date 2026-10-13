@@ -495,7 +495,11 @@ fn preserved_entry_prefix<'program>(
                 && !program
                     .state_parameter_by_symbol(state, local.symbol)
                     .is_some();
-            let preserved = fresh_local && known_evaluation(local.initial_value);
+            // An omitted initializer has no operand evaluation. Ordinary local
+            // establishment still checks its zero value; this judgment only
+            // preserves earlier premises across the fresh storage declaration.
+            let preserved = fresh_local
+                && (!local.initial_value.is_valid() || known_evaluation(local.initial_value));
             if !preserved {
                 return None;
             }

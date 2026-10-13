@@ -92,7 +92,7 @@ pub(crate) fn scalar_expression_type(
     expression.primitive_type()
 }
 
-/// Plain mutable primitive declarations establish zero without an authored
+/// Plain primitive declarations establish zero without an authored
 /// initializer. Keep this tied to the declaration: a missing expression at
 /// another site or a reference has no such meaning. Arithmetic policy alone
 /// permits zero; other qualifications still need their establishment evidence.
@@ -101,8 +101,7 @@ pub(crate) fn zeroed_scalar_local_initializer(
     local: &typed_trees::statement::TableLocalData,
 ) -> Option<CheckedScalarExpression> {
     use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix};
-    if !local.is_mutable
-        || local.initial_value.is_valid()
+    if local.initial_value.is_valid()
         || !validation::is_plain_scalar_storage(program, local.type_reference)
     {
         return None;

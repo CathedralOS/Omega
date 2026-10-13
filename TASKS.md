@@ -3194,8 +3194,6 @@ crash and native exit behavior.
   - Owned elsewhere: `interrupt_table_canary` and `secondary_processor_canary`
     select providers but lack an executable intrinsic, which
     **CHECKED-ASM-LABEL-CONTRACTS** owns;
-    `pass/layouts/runtime_plan_laid_{erased,value}_field_exit` ("not
-    build-time admissible") belong to the plan-laid item that names them;
     `fail/calls/struct_constant_requires_argument_rejected` is
     **STRUCT-CONSTANT-REQUIRES-REFUTATION-DRIFT**; the three stage 04/05
     omissions `pass/concurrency/runtime_retained_reference_boundary_exit`,

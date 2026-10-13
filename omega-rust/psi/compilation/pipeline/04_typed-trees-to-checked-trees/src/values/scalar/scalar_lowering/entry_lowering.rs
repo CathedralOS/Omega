@@ -40,7 +40,10 @@ pub(crate) fn lower_state_scalar_expression(
     let mut locals = Vec::new();
     for statement in prefix {
         let local = statement.as_local_data()?;
-        if local.is_mutable || !local.initial_value.is_valid() {
+        if local.is_mutable
+            || (!local.initial_value.is_valid()
+                && crate::values::zeroed_scalar_local_initializer(program, local).is_none())
+        {
             return None;
         }
         let primitive_type = program.primitive_type_reference(local.type_reference)?;

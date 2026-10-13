@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "3", "load1_end": 4.31, "load1_start": 4.25, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "3", "load1_end": 13.04, "load1_start": 12.27, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -1259,12 +1259,12 @@ pass/layouts/runtime_encoded_physical_view_exit built 5106ms exit:0 @9dd545defbc
 pass/layouts/runtime_foreign_encoded_reference_exit built 5220ms exit:0 @9dd545defbc0
 pass/layouts/runtime_multi_origin_encoded_reference_exit built 1621ms exit:0 @89699170f158+wt
 pass/layouts/runtime_plan_laid_compact_bits_exit built 705ms exit:70
-pass/layouts/runtime_plan_laid_erased_field_exit built 906ms exit:70 @d9d22369cd7b+wt
+pass/layouts/runtime_plan_laid_erased_field_exit built 21150ms exit:70 @3d664be0c918+wt
 pass/layouts/runtime_plan_laid_integer_at_proved_write_exit built 1010ms exit:72 @2517a050d7b4+wt
 pass/layouts/runtime_plan_laid_nested_fixed_array_mutable_write_exit built 1642ms exit:70 @633757114264+wt
 pass/layouts/runtime_plan_laid_record_array_mutable_write_exit built 3323ms exit:70 @6bd4d1a87ff4+wt
 pass/layouts/runtime_plan_laid_tiled_record_nested_array_view_exit built 8278ms exit:70 @4ffed225fc45+wt
-pass/layouts/runtime_plan_laid_value_field_exit built 1062ms exit:70
+pass/layouts/runtime_plan_laid_value_field_exit built 21420ms exit:70 @3d664be0c918+wt
 pass/layouts/runtime_reborrow_preserves_store_origin_exit built 1686ms exit:70 @aab0810e5e06
 pass/layouts/runtime_recast_reference_captures_index_exit built 1689ms exit:0 @acdf102c21ea+wt
 pass/layouts/runtime_returned_encoded_reference_exit built 1712ms exit:0 @83cbaac892d6
@@ -1813,6 +1813,7 @@ pass/termination/runtime_saved_rank_cycle_exit built 1732ms exit:0 @68fba6a896c8
 pass/termination/runtime_selected_requirement_rank_prefix_exit built 3531ms exit:0 @05ef1dca14f6
 pass/termination/runtime_shrinking_slice_recursion_exit built 873ms exit:70 @2f8006be6cc9+wt
 pass/termination/runtime_stored_exclusive_endpoint_exit built 1525ms exit:0 @82ec69a91ceb+wt
+pass/termination/runtime_zero_local_rank_prefix_exit built 17150ms exit:0 @3d664be0c918+wt
 pass/termination/stored_reference_endpoint_arrivals checked 195ms
 pass/termination/symbolic_quotient_endpoints checked 224ms
 pass/termination/unsigned_identity_measure_rank_range checked 217ms
