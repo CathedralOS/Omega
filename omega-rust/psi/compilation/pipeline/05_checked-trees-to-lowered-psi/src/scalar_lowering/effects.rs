@@ -4,7 +4,7 @@ use super::{
     LoweringError, OperationKind, OperationResult, ValueDeclaration, emit_direct_expression,
     lookup_machine_id, unsupported, validate_direct_parameter_types,
 };
-use crate::direct_calls::{DirectCall, DirectCallResult};
+use crate::direct_calls::DirectCallResult;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
@@ -258,39 +258,23 @@ pub(crate) fn emit(
                         erased_proof_arguments,
                         crash_routes,
                     } => {
-                        let signature = crate::unit::attached_unit::signatures::find(
-                            calls.signatures,
-                            call.target_machine,
-                        )?;
-                        let requirement_obligations = crate::unit::attached_unit::ordinary_calls::prepare_requirement_obligations(
-                            &signature.call_target(), calls, operations,
-                        )?;
-                        let crash_continuations = crate::unit::attached_unit::ordinary_calls::prepare_crash_continuations(
-                            identities, signature.call_target(), crash_routes, &arguments,
-                            &structural_arguments, calls.structural_types,
-                            |argument, ordinal| {
-                                if argument.path.is_empty() { return Ok(Vec::new()); }
-                                let root_type = call.structural_arguments[ordinal].root_type.ok_or(
-                                    LoweringError::Unsupported("expression call crash argument lost its root carrier"),
-                                )?;
-                                crate::proofs::crash_routes::structural_crash_route_prefix_from_type(
-                                    argument, root_type, calls.structural_types,
-                                )
-                            },
-                        )?;
-                        let claim_transfers =
-                            crate::emission::claim_bindings::emit_prepared_claim_transfers(
+                        let prepared =
+                            crate::unit::attached_unit::ordinary_calls::prepare_computed_module_call(
+                                identities,
+                                checked,
+                                call.target_machine,
+                                &arguments,
+                                Vec::new(),
+                                erased_proof_arguments,
+                                &call.structural_arguments,
                                 &call.claim_transfers,
-                                calls.claims.bindings(),
+                                crash_routes,
+                                values,
+                                erased,
+                                calls,
+                                next_value,
+                                operations,
                             )?;
-                        let erased_proof_arguments = erased_proof_arguments
-                            .iter()
-                            .map(|term| {
-                                crate::scalar_lowering::contracts::lowered_proof_term(
-                                    checked, term, values, erased,
-                                )
-                            })
-                            .collect::<Result<Vec<_>, _>>()?;
                         let result = call
                             .result
                             .as_ref()
@@ -312,7 +296,7 @@ pub(crate) fn emit(
                                     multiplicity: result.multiplicity,
                                 }
                             });
-                        crate::direct_calls::emit_direct_call(
+                        prepared.emit(
                             operations,
                             call.source_coordinate,
                             call.source_site,
@@ -321,17 +305,8 @@ pub(crate) fn emit(
                             result
                                 .map(OperationResult::Structural)
                                 .unwrap_or(OperationResult::Unit),
-                            DirectCall::new(
-                                lookup_machine_id(calls.machine_ids, call.target_machine)?,
-                                arguments.iter().map(|argument| argument.id).collect(),
-                                Vec::new(),
-                                erased_proof_arguments,
-                                structural_arguments,
-                                claim_transfers,
-                                requirement_obligations,
-                                crash_continuations,
-                                result_kind,
-                            ),
+                            lookup_machine_id(calls.machine_ids, call.target_machine)?,
+                            result_kind,
                         )?;
                         crate::emission::loan_completions::emit(
                             &call.loan_completions,

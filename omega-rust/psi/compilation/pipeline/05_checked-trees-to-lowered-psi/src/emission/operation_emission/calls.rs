@@ -2,10 +2,10 @@
 
 use super::buffer::{OperationBuffer, SourceCallCoordinate};
 use super::expressions::{LoweredDirectExpression, emit_direct_expression};
-use crate::direct_calls::{DirectCall, DirectCallResult};
+use crate::direct_calls::DirectCallResult;
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
-use crate::proofs::crash_routes::{lower_checked_crash_route_buckets, lowered_direct_scalar_term};
+use crate::proofs::crash_routes::lowered_direct_scalar_term;
 use crate::terminal_identities::obligation_id;
 use crate::terminal_identities::value_id;
 use semantic_vocabulary::{MachineId, ObligationId, QualifiedScalarType, ValueId};
@@ -180,7 +180,6 @@ pub(super) fn emit_scalar_call_binding(
         // retained prefix or its erased formals. Source-refined buckets may
         // fold guards, but are not the callee's published runtime contract.
         &call.parameter_relative_crash_routes,
-        &arguments,
         parameters,
         caller_erased_formals,
         &arguments,
@@ -195,7 +194,6 @@ fn emit_direct_call_operation(
     checked: &checked_trees::CheckedTrees,
     call: &LoweredDirectCallBinding,
     crash_routes: &[checked_trees::CrashRouteBucket],
-    crash_values: &[ValueDeclaration],
     source_values_before_call: &[ValueDeclaration],
     caller_erased_formals: &[ValueDeclaration],
     arguments: &[ValueDeclaration],
@@ -208,30 +206,6 @@ fn emit_direct_call_operation(
         call.target_machine,
         "direct scalar call target is absent from the terminal closure",
     )?;
-    let signatures = call_emission.signatures;
-    let requirement_obligations = if let Some(signature) = signatures
-        .iter()
-        .find(|signature| signature.source == call.target_machine)
-    {
-        crate::unit::attached_unit::ordinary_calls::prepare_requirement_obligations(
-            &signature.call_target(),
-            call_emission,
-            operations,
-        )?
-    } else {
-        // Standalone scalar catalogs carry their own exact requirement count;
-        // attached closures additionally retain the allocated source provenance.
-        let requirement_count = call_emission
-            .requirement_counts
-            .iter()
-            .find_map(|(source, count)| (*source == call.target_machine).then_some(*count))
-            .ok_or(LoweringError::Unsupported(
-                "direct scalar call target has no prepared contract",
-            ))?;
-        (0..requirement_count)
-            .map(|_| call_emission.allocate_requirement())
-            .collect::<Result<Vec<_>, _>>()?
-    };
     let result = value_id(*next_value_identity);
     *next_value_identity = next_value_identity
         .checked_add(1)
@@ -243,66 +217,23 @@ fn emit_direct_call_operation(
             lowered_direct_scalar_term(argument, source_values_before_call, caller_erased_formals)
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    let erased_proof_arguments = call
-        .erased_proof_arguments
-        .iter()
-        .map(|term| {
-            crate::scalar_lowering::contracts::lowered_proof_term(
-                checked,
-                term,
-                source_values_before_call,
-                caller_erased_formals,
-            )
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
-    let structural_arguments = call
-        .structural_arguments
-        .iter()
-        .map(|argument| {
-            argument.emit(
-                source_values_before_call,
-                call_emission,
-                next_value_identity,
-                operations,
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let crash_continuations = if call.structural_arguments.is_empty() {
-        lower_checked_crash_route_buckets(identities, crash_routes, crash_values)?
-    } else {
-        let signature = crate::unit::attached_unit::signatures::find(
-            call_emission.signatures,
-            call.target_machine,
-        )?;
-        crate::unit::attached_unit::ordinary_calls::prepare_crash_continuations(
-            identities,
-            signature.call_target(),
-            crash_routes,
-            crash_values,
-            &structural_arguments,
-            call_emission.structural_types,
-            |argument, index| {
-                if argument.path.is_empty() {
-                    return Ok(Vec::new());
-                }
-                let root_type = call.structural_arguments[index].root_type.ok_or(
-                    LoweringError::Unsupported(
-                        "computed crash argument has no physical root carrier",
-                    ),
-                )?;
-                crate::proofs::crash_routes::structural_crash_route_prefix_from_type(
-                    argument,
-                    root_type,
-                    call_emission.structural_types,
-                )
-            },
-        )?
-    };
-    let claim_transfers = crate::emission::claim_bindings::emit_prepared_claim_transfers(
+    crate::unit::attached_unit::ordinary_calls::prepare_computed_module_call(
+        identities,
+        checked,
+        call.target_machine,
+        arguments,
+        erased_arguments,
+        &call.erased_proof_arguments,
+        &call.structural_arguments,
         &call.claim_transfers,
-        call_emission.claims.bindings(),
-    )?;
-    crate::direct_calls::emit_direct_call(
+        crash_routes,
+        source_values_before_call,
+        caller_erased_formals,
+        call_emission,
+        next_value_identity,
+        operations,
+    )?
+    .emit(
         operations,
         call.source_coordinate,
         None,
@@ -313,17 +244,8 @@ fn emit_direct_call_operation(
             id: result,
             scalar_type: call.result_type.scalar_type,
         }),
-        DirectCall::new(
-            callee,
-            arguments.iter().map(|argument| argument.id).collect(),
-            erased_arguments,
-            erased_proof_arguments,
-            structural_arguments,
-            claim_transfers,
-            requirement_obligations,
-            crash_continuations,
-            DirectCallResult::Scalar,
-        ),
+        callee,
+        DirectCallResult::Scalar,
     )?;
     Ok(result)
 }

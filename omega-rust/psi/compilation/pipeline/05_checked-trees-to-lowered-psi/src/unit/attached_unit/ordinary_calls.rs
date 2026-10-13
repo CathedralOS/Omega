@@ -31,7 +31,7 @@ pub(crate) struct Target<'a> {
     pub source_checked_requires: &'a [Proposition],
 }
 
-pub(super) struct PreparedCall {
+pub(crate) struct PreparedCall {
     pub arguments: Vec<ValueId>,
     /// Proof-only erased actuals in the callee's erased-formal order.
     pub erased_arguments: Vec<semantic_vocabulary::ScalarTerm>,
@@ -49,7 +49,7 @@ impl PreparedCall {
     /// Emit the prepared lanes as one direct call to `callee` through the
     /// single call emitter, for `result` to choose its Terminal operation.
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn emit(
+    pub(crate) fn emit(
         self,
         operations: &mut OperationBuffer,
         coordinate: SourceCallCoordinate,
@@ -234,6 +234,112 @@ pub(super) fn prepare(
         erased_arguments,
         erased_proof_arguments,
         structural_arguments: terminal_arguments,
+        claim_transfers,
+        requirement_obligations,
+        crash_continuations,
+    })
+}
+
+/// The lanes of a computed module call, prepared once for every route that
+/// completes one: an expression scalar binding
+/// (`emission/operation_emission/calls.rs`) and a branch-state effect
+/// (`scalar_lowering/effects.rs`) both evaluate their scalar actuals first
+/// and then owe the callee the same requirement obligations, erased proof
+/// terms, structural arguments, crash continuations and claim transfers
+/// before `PreparedCall::emit`. A target with a lowered signature takes the
+/// signature's contract; a standalone scalar catalog has no signature and
+/// keeps its exact requirement count with checked crash routes over the
+/// evaluated actuals, which is what a callee without structural formals
+/// receives from the signature route as well.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn prepare_computed_module_call(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
+    target_machine: symbols::SymbolHandle,
+    arguments: &[ValueDeclaration],
+    erased_arguments: Vec<semantic_vocabulary::ScalarTerm>,
+    erased_proof_arguments: &[crate::scalar_lowering::contracts::LoweredProofTerm],
+    structural_arguments: &[crate::emission::operation_emission::calls::PreparedStructuralArgument],
+    claim_transfers: &[crate::emission::claim_bindings::PreparedClaimTransfer],
+    crash_routes: &[checked_trees::CrashRouteBucket],
+    source_values: &[ValueDeclaration],
+    caller_erased_formals: &[ValueDeclaration],
+    calls: &mut CallEmissionContext<'_>,
+    next_value: &mut u64,
+    operations: &mut OperationBuffer,
+) -> Result<PreparedCall, LoweringError> {
+    let signature = calls
+        .signatures
+        .iter()
+        .find(|signature| signature.source == target_machine);
+    let requirement_obligations = if let Some(signature) = signature {
+        prepare_requirement_obligations(&signature.call_target(), calls, operations)?
+    } else {
+        let requirement_count = calls
+            .requirement_counts
+            .iter()
+            .find_map(|(source, count)| (*source == target_machine).then_some(*count))
+            .ok_or(LoweringError::Unsupported(
+                "computed call target has no prepared contract",
+            ))?;
+        (0..requirement_count)
+            .map(|_| calls.allocate_requirement())
+            .collect::<Result<Vec<_>, _>>()?
+    };
+    let erased_proof_arguments = erased_proof_arguments
+        .iter()
+        .map(|term| {
+            crate::scalar_lowering::contracts::lowered_proof_term(
+                checked,
+                term,
+                source_values,
+                caller_erased_formals,
+            )
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    let emitted_structural_arguments = structural_arguments
+        .iter()
+        .map(|argument| argument.emit(source_values, calls, next_value, operations))
+        .collect::<Result<Vec<_>, _>>()?;
+    let crash_continuations = match signature {
+        Some(signature) => prepare_crash_continuations(
+            identities,
+            signature.call_target(),
+            crash_routes,
+            arguments,
+            &emitted_structural_arguments,
+            calls.structural_types,
+            |argument, index| {
+                if argument.path.is_empty() {
+                    return Ok(Vec::new());
+                }
+                let root_type =
+                    structural_arguments[index]
+                        .root_type
+                        .ok_or(LoweringError::Unsupported(
+                            "computed call crash argument has no physical root carrier",
+                        ))?;
+                crate::proofs::crash_routes::structural_crash_route_prefix_from_type(
+                    argument,
+                    root_type,
+                    calls.structural_types,
+                )
+            },
+        )?,
+        None if structural_arguments.is_empty() => {
+            lower_checked_crash_route_buckets(identities, crash_routes, arguments)?
+        }
+        None => return unsupported("computed call with structural operands has no signature"),
+    };
+    let claim_transfers = crate::emission::claim_bindings::emit_prepared_claim_transfers(
+        claim_transfers,
+        calls.claims.bindings(),
+    )?;
+    Ok(PreparedCall {
+        arguments: arguments.iter().map(|argument| argument.id).collect(),
+        erased_arguments,
+        erased_proof_arguments,
+        structural_arguments: emitted_structural_arguments,
         claim_transfers,
         requirement_obligations,
         crash_continuations,
