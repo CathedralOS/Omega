@@ -984,9 +984,11 @@ pass/drops/structural_return_drops_unreturned_local_exit built 1373ms exit:70 st
 pass/drops/transfer_cleanup_into_state checked 368ms @9beb2be72f2d+wt
 pass/dungeon/runtime_ordered_room_dispatch_exit built 812ms exit:73
 pass/dungeon/runtime_threaded_mut_arg_interrupt_soak_exit built 1600ms exit:70 @48008365d839
+pass/effects/finite_requirement_block_acknowledged_exit built 4266ms exit:0 @c5a7c1ce1957+wt
 pass/effects/generic_callback_schema_reach checked 191ms
 pass/effects/nominal_callback_const_reach checked 242ms
 pass/effects/nominal_callback_dependency checked 179ms
+pass/effects/runtime_empty_boundary_reach_exit built 5222ms exit:70 @c5a7c1ce1957+wt
 pass/effects/structural_callback_reach checked 168ms
 pass/entry/nested_where_record_binding_field_exit built 2277ms exit:70 @a6c61016fcf2+wt
 pass/entry/service_borrowed_slice_call built 334ms

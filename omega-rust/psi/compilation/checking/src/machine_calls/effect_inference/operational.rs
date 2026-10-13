@@ -67,9 +67,9 @@ struct CallWork {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-struct DirectCallOperational {
-    may_suspend: bool,
-    may_block: bool,
+pub(crate) struct DirectCallOperational {
+    pub(crate) may_suspend: bool,
+    pub(crate) may_block: bool,
 }
 
 pub fn infer_operational_may(program: &dyn crate::CheckingInput) -> OperationalPlan {
@@ -123,14 +123,15 @@ fn build_machine_work(
             })
             .collect();
 
+        let published = machine_operational(program, machine);
         machines.push(MachineWork {
             symbol: machine.symbol,
             family_members,
             uses_published_contract,
-            published_may_suspend: machine.suspends,
-            published_may_block: machine.blocks,
-            transitive_may_suspend: uses_published_contract && machine.suspends,
-            transitive_may_block: uses_published_contract && machine.blocks,
+            published_may_suspend: published.may_suspend,
+            published_may_block: published.may_block,
+            transitive_may_suspend: uses_published_contract && published.may_suspend,
+            transitive_may_block: uses_published_contract && published.may_block,
             body_may_suspend: false,
             body_may_block: false,
             states,
@@ -584,6 +585,11 @@ impl DirectSignatureEffects {
                     .iter()
                     .map(|(_, signature)| signature.symbol),
             )
+            .chain(
+                program
+                    .closed_requirement_applications()
+                    .map(|application| application.signature.symbol),
+            )
             .filter(|symbol| symbol.is_valid())
             .collect();
         symbols.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
@@ -620,18 +626,14 @@ fn direct_operational_for_signature_symbol_uncached(
         return signature_operational(program, signature);
     }
 
-    for trait_definition in program.traits() {
-        for signature in program.trait_machine_signatures(trait_definition) {
-            if signature.symbol == symbol {
-                return signature_operational(program, signature);
-            }
-        }
+    if let Some((_, signature)) = program.trait_machine_signature(symbol) {
+        return signature_operational(program, signature);
     }
 
     DirectCallOperational::default()
 }
 
-fn signature_operational(
+pub(crate) fn signature_operational(
     program: &dyn crate::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
 ) -> DirectCallOperational {
@@ -639,26 +641,39 @@ fn signature_operational(
         may_suspend: signature.suspends,
         may_block: signature.blocks,
     };
-    let parameters = program
-        .state_signature_parameters(signature)
-        .iter()
-        .collect::<Vec<_>>();
-    for target in super::declared_signature_invocations(program, signature) {
-        let service = super::invocation_service_symbol(program, &parameters, &target);
-        let Some(service) = service else {
-            continue;
-        };
-        let Some(trait_definition) = program
-            .traits()
-            .iter()
-            .find(|definition| definition.is_boundary && definition.symbol == service)
-        else {
-            continue;
-        };
-        for invoked in program.trait_machine_signatures(trait_definition) {
+    super::callback_requirements::visit(
+        program,
+        program.state_signature_type_parameters(signature),
+        &super::declared_signature_invocations(program, signature),
+        |invoked| {
             operational.may_suspend |= invoked.suspends;
             operational.may_block |= invoked.blocks;
-        }
+        },
+    );
+    operational
+}
+
+/// Opaque top-level requirements publish the same exact callback envelope as
+/// trait requirements. Checked machines derive calls from their body instead;
+/// an invocation permission alone must not manufacture a body effect.
+pub(crate) fn machine_operational(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+) -> DirectCallOperational {
+    let mut operational = DirectCallOperational {
+        may_suspend: machine.suspends,
+        may_block: machine.blocks,
+    };
+    if machine.supply_mode.is_boundary_declaration() && machine.has_bodyless_signature() {
+        super::callback_requirements::visit(
+            program,
+            super::callback_requirements::opaque_machine_parameters(program, machine),
+            &super::declared_machine_invocations(program, machine),
+            |invoked| {
+                operational.may_suspend |= invoked.suspends;
+                operational.may_block |= invoked.blocks;
+            },
+        );
     }
     operational
 }

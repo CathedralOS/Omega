@@ -1,0 +1,31 @@
+use omega::language::core::binding;
+use blocking;
+
+pub boundary trait Read {}
+pub boundary trait Write {}
+pub boundary trait Handler {
+    machine read() -> u64 reaches Read;
+    machine unrelated_write() reaches Write blocks;
+}
+
+pub boundary trait Registrar {
+    machine execute<machine Callback>() -> u64
+    where machine Callback satisfies Handler::read;
+    invokes Handler;
+
+    // Merely retaining a callback does not synchronously enter it.
+    machine register<machine Callback>()
+    where machine Callback satisfies Handler::read;
+}
+
+machine read_callback() -> u64 satisfies Handler::read reaches Read { 7 }
+
+machine execute(registrar: &mut Binding<Registrar>) -> u64 reaches Read {
+    registrar.execute<read_callback>()
+}
+
+machine register(registrar: &mut Binding<Registrar>) {
+    registrar.register<read_callback>();
+}
+
+

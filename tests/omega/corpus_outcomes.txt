@@ -2070,8 +2070,23 @@ fail/drops/temporary_cleanup_unmet_prerequisite rejected 1587ms expected @a9ae30
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 0: missing Token.ready == true required by Token::drop clause `token.ready`
 fail/drops/zero_case_container_keeps_cleanup_prerequisite rejected 1530ms expected @a9ae30e1c334+wt
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing owner.ready == true required by OptionalReceipt::drop clause `owner.ready`
+fail/effects/boundary_empty_provider_hides_reach rejected 337ms expected @c5a7c1ce1957+wt
+	machine `Provider::evaluate` state `evaluate` does not satisfy trait `Pure` machine `evaluate`: service `Read` is not allowed by the trait requirement
+fail/effects/boundary_explicit_capability_required rejected 334ms expected @c5a7c1ce1957+wt
+	machine `missing_capability` publishes service reach `Host` but its checked body reaches undeclared service `Read`
+fail/effects/finite_requirement_block_required rejected 338ms expected @c5a7c1ce1957+wt
+	call to `echo` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+	call to `echo` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 fail/effects/nominal_callback_console_const_reach rejected 105ms expected @a9ae30e1c334+wt
 	fixed-array length `[u8; length()]`: const evaluation of `length` failed: machine `length` is not build-time admissible: service reach [Console]; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
+fail/effects/synchronous_callback_block_required rejected 337ms expected @c5a7c1ce1957+wt
+	call to `execute` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+fail/effects/synchronous_callback_reach_required rejected 338ms expected @c5a7c1ce1957+wt
+	machine `missing_capability` publishes service reach `<none>` but its checked body reaches undeclared service `Read`
+fail/effects/top_level_callback_block_required rejected 342ms expected @c5a7c1ce1957+wt
+	call to `execute` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+fail/effects/top_level_callback_reach_required rejected 337ms expected @c5a7c1ce1957+wt
+	machine `caller` publishes service reach `<none>` but its checked body reaches undeclared service `Read`
 fail/entry/service_foreign_domain_rejected rejected 917ms expected @a9ae30e1c334+wt
 	data `Main` field `service` uses an invalid routed service carrier: the core `Binding` carrier is closed; it admits no authored qualification
 	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
@@ -5516,10 +5531,17 @@ pass/drops/structural_return_drops_unreturned_local_exit checked 11208ms check-t
 pass/drops/transfer_cleanup_into_state checked 1708ms @a9ae30e1c334+wt
 pass/dungeon/runtime_ordered_room_dispatch_exit checked 11572ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/dungeon/runtime_threaded_mut_arg_interrupt_soak_exit checked 11392ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/effects/boundary_explicit_capability_rows checked 1238ms @c5a7c1ce1957+wt
+pass/effects/checked_boundary_unused_callback checked 1238ms @c5a7c1ce1957+wt
+pass/effects/checked_callback_provider_ceiling checked 1237ms @c5a7c1ce1957+wt
+pass/effects/exact_synchronous_callback_rows checked 1237ms @c5a7c1ce1957+wt
+pass/effects/finite_requirement_block_acknowledged_exit checked 4156ms check-target:macos_arm64 @c5a7c1ce1957+wt
 pass/effects/generic_callback_schema_reach checked 1651ms @a9ae30e1c334+wt
 pass/effects/nominal_callback_const_reach checked 1718ms @a9ae30e1c334+wt
 pass/effects/nominal_callback_dependency checked 1598ms @a9ae30e1c334+wt
+pass/effects/runtime_empty_boundary_reach_exit checked 5103ms check-target:macos_arm64 @c5a7c1ce1957+wt
 pass/effects/structural_callback_reach checked 1685ms @a9ae30e1c334+wt
+pass/effects/top_level_callback_provider_ceiling checked 1241ms @c5a7c1ce1957+wt
 pass/entry/nested_where_record_binding_field_exit checked 11332ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/entry/service_borrowed_slice_call checked 10859ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/errors/returned_case_payload_from_parameter_exit checked 11125ms check-target:macos_arm64 @a9ae30e1c334+wt

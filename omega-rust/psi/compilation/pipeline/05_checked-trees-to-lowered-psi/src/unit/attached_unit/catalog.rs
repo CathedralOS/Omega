@@ -1443,6 +1443,21 @@ pub(super) fn lower_unit_services_including(
         }
     }
     for (boundary, _) in boundaries {
+        // A callable keeps its owning interface even when its explicit reach
+        // is empty or names unrelated capability facets. This catalog supplies
+        // identities to boundary declarations, not an implicit effect row.
+        if boundary.kind == semantic_vocabulary::BoundaryRequirementKind::Trait {
+            let owner = checked
+                .typed
+                .service_reaches
+                .id_for_symbol(boundary.contract_owner)
+                .ok_or(LoweringError::Unsupported(
+                    "boundary trait has no service identity",
+                ))?;
+            if !selected.contains(&owner) {
+                selected.push(owner);
+            }
+        }
         collect_published_contract_services(
             &facts.rows,
             boundary.contract_service_reach,

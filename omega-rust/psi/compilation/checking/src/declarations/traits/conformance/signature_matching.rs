@@ -509,13 +509,17 @@ fn validate_trait_effect_ceiling(
     requirement: &StateSignature,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let allowed_services =
+        crate::machine_calls::effect_inference::signature_service_reach(program, requirement);
+    let operational =
+        crate::machine_calls::effect_inference::signature_operational(program, requirement);
     super::require_operational_ceiling(
         program,
         service_reaches,
         machine,
-        requirement.service_reach_row,
-        requirement.suspends,
-        requirement.blocks,
+        &allowed_services,
+        operational.may_suspend,
+        operational.may_block,
         |breach| match breach {
             super::OperationalCeilingBreach::ReachedService(service_name) => format!(
                 "machine `{}` state `{}` does not satisfy trait `{}` machine `{}`: service `{service_name}` is not allowed by the trait requirement",

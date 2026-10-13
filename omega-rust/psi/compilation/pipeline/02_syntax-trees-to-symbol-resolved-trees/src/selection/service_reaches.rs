@@ -4,6 +4,9 @@
 //! Names live in lowering-private sidecars until every declaration and
 //! trait-parent edge has a symbol; published rows cannot carry an invalid
 //! member or a parallel spelling contract.
+//! Invocation permissions are a separate axis. Do not insert provider-family
+//! names into these rows; checking derives actual calls and exact callback
+//! contributions after the callable contracts have been resolved.
 
 use diagnostics::Diagnostic;
 use language_semantics::{
@@ -111,23 +114,12 @@ pub(crate) fn normalize_service_reaches_with_retained_tables(
                 &pending.authored,
                 machine.service_reach_is_installation_bound,
             )?;
-            let mut direct = authored
+            let direct = authored
                 .as_ref()
                 .into_iter()
                 .flat_map(|row| &row.targets)
                 .filter_map(|target| services.id_for_symbol(target.service))
                 .collect::<Vec<_>>();
-            let parameters = program
-                .machine_state_handles(machine.states)
-                .first()
-                .map(|state| program.state_parameters(program.machine_state(*state).parameters))
-                .unwrap_or_default();
-            direct.extend(invoked_service_ids(
-                program,
-                &services,
-                program.machine_invokes(machine),
-                parameters,
-            ));
             Ok((
                 machine.symbol,
                 row_for_service_ids(&services, &mut rows, direct),
@@ -152,18 +144,12 @@ pub(crate) fn normalize_service_reaches_with_retained_tables(
                 &pending.authored,
                 signature.service_reach_is_installation_bound,
             )?;
-            let mut direct = authored
+            let direct = authored
                 .as_ref()
                 .into_iter()
                 .flat_map(|row| &row.targets)
                 .filter_map(|target| services.id_for_symbol(target.service))
                 .collect::<Vec<_>>();
-            direct.extend(invoked_service_ids(
-                program,
-                &services,
-                program.signature_invokes(signature.invokes),
-                program.state_parameters(signature.parameters),
-            ));
             Ok((
                 signature.symbol,
                 row_for_service_ids(&services, &mut rows, direct),
@@ -329,53 +315,6 @@ fn resolve_authored_service_reach(
     ))
 }
 
-fn invoked_service_ids(
-    program: &SymbolResolvedTrees,
-    services: &ServiceReachTable,
-    invokes: &[symbol_resolved_trees::name::DiagnosticName],
-    parameters: &[symbol_resolved_trees::signature::StateParameter],
-) -> Vec<ServiceReachId> {
-    let mut service_ids = Vec::new();
-    for invocation in invokes {
-        let service = parameters
-            .iter()
-            .find(|parameter| parameter.name.as_str() == invocation.as_str())
-            .and_then(|parameter| type_symbol(program, &parameter.type_reference))
-            .and_then(|symbol| services.id_for_symbol(symbol))
-            .and_then(|service| services.definition(service).map(|_| service))
-            .or_else(|| service_for_name(&program.symbols, services, invocation));
-        if let Some(service) = service
-            && !service_ids.contains(&service)
-        {
-            service_ids.push(service);
-        }
-    }
-    service_ids
-}
-
-fn type_symbol(
-    program: &SymbolResolvedTrees,
-    type_reference: &symbol_resolved_trees::types::TypeReference,
-) -> Option<symbols::SymbolHandle> {
-    use symbol_resolved_trees::types::TypeReference;
-    match type_reference {
-        TypeReference::Reference(reference) => {
-            type_symbol(program, program.child_type_reference(reference.referee))
-        }
-        TypeReference::Constrained(constrained) => {
-            type_symbol(program, program.child_type_reference(constrained.base_type))
-        }
-        TypeReference::Generic(generic) => Some(generic.base_symbol),
-        TypeReference::DynamicTrait { symbol, .. } | TypeReference::Named { symbol, .. } => {
-            Some(*symbol)
-        }
-        TypeReference::FixedArray(_)
-        | TypeReference::Slice(_)
-        | TypeReference::ConstExpression(_)
-        | TypeReference::Unit => None,
-    }
-}
-
 fn normalize_machine_parameter_rows(
     program: &mut SymbolResolvedTrees,
     services: &ServiceReachTable,
@@ -437,18 +376,12 @@ fn normalize_machine_parameter_rows(
             &pending.authored,
             contract.service_reach_is_installation_bound,
         )?;
-        let mut direct = authored
+        let direct = authored
             .as_ref()
             .into_iter()
             .flat_map(|row| &row.targets)
             .filter_map(|target| services.id_for_symbol(target.service))
             .collect::<Vec<_>>();
-        direct.extend(invoked_service_ids(
-            program,
-            services,
-            program.signature_invokes(contract.invokes),
-            program.state_parameters(contract.parameters),
-        ));
         resolved_rows.push((
             parameter.symbol,
             row_for_service_ids(services, rows, direct),

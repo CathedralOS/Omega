@@ -4,6 +4,7 @@
 //! through exported wrappers. Direct boundary uses still need declarations;
 //! opaque requirements and operational may-ceilings retain their fixed contracts.
 
+mod callback_requirements;
 mod invocations;
 pub(crate) use invocations::full_parameter_invocation;
 pub(crate) mod operational;
@@ -15,8 +16,10 @@ pub use invocations::{
     declared_machine_invocations, declared_signature_invocations,
     has_self_forwarded_boundary_parameter, infer_synchronous_invocations, invocation_target_label,
 };
+pub(crate) use operational::signature_operational;
 pub use operational::{infer_operational_may, infer_operational_may_for_cleanup_dependencies};
 pub(crate) use service_reach::required_boundary_services;
+pub(crate) use service_reach::signature_service_reach;
 pub use service_reach::{
     boundary_signature_service_reach, fixed_installation_boundary_service_reach,
     infer_service_reaches,
@@ -36,31 +39,4 @@ fn family_interface_members<'program>(
         .iter()
         .find(|family| family.canonical == machine.symbol)
         .map_or(&[], |family| family.members.as_slice())
-}
-
-/// The service a call-target roster entry names: a parameter's exact bound
-/// service requirement, falling back to its type's head symbol; a service
-/// target names itself.
-pub(super) fn invocation_service_symbol(
-    program: &dyn crate::CheckingInput,
-    parameters: &[&typed_trees::signature::StateParameter],
-    target: &flow_effects::InvocationTarget,
-) -> Option<symbols::SymbolHandle> {
-    match target {
-        flow_effects::InvocationTarget::Parameter(index) => {
-            parameters.get(*index as usize).map(|parameter| {
-                typed_trees::service::service_requirement_declaration(
-                    program,
-                    parameter.type_reference,
-                )
-                .unwrap_or_else(|| {
-                    program
-                        .type_reference_table
-                        .type_reference(parameter.type_reference)
-                        .type_symbol(&program.type_reference_table)
-                })
-            })
-        }
-        flow_effects::InvocationTarget::Service(symbol) => Some(*symbol),
-    }
 }

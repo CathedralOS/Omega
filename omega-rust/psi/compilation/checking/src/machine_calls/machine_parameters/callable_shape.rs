@@ -209,18 +209,18 @@ fn validate_callable_parts(
         binder_bindings,
         diagnostics,
     );
+    let actual_operational =
+        crate::machine_calls::effect_inference::signature_operational(program, actual_signature);
     validate_callable_effects(
         program,
         label,
         parameter,
         requirement,
         actual.parameters,
-        program
-            .service_reach_rows
-            .services(actual_signature.service_reach_row),
+        &crate::machine_calls::effect_inference::signature_service_reach(program, actual_signature),
         &crate::declared_signature_invocations(program, actual_signature),
-        actual_signature.suspends,
-        actual_signature.blocks,
+        actual_operational.may_suspend,
+        actual_operational.may_block,
         diagnostics,
     );
 }
@@ -633,9 +633,10 @@ fn validate_callable_effects(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let required_parameters = program.state_signature_parameters(requirement);
-    let allowed_services = program
-        .service_reach_rows
-        .services(requirement.service_reach_row);
+    let allowed_services =
+        crate::machine_calls::effect_inference::signature_service_reach(program, requirement);
+    let operational =
+        crate::machine_calls::effect_inference::signature_operational(program, requirement);
     for service in services {
         if allowed_services.contains(service) {
             continue;
@@ -677,13 +678,13 @@ fn validate_callable_effects(
         )));
     }
 
-    if may_suspend && !requirement.suspends {
+    if may_suspend && !operational.may_suspend {
         diagnostics.push(Diagnostic::error(format!(
             "{label} does not refine `{}`: it may suspend, but the requirement omits `suspends;`",
             parameter.name
         )));
     }
-    if may_block && !requirement.blocks {
+    if may_block && !operational.may_block {
         diagnostics.push(Diagnostic::error(format!(
             "{label} does not refine `{}`: it may block, but the requirement omits `blocks;`",
             parameter.name

@@ -165,15 +165,12 @@ pub(super) fn require_operational_ceiling(
     program: &dyn crate::CheckingInput,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
     machine: &typed_trees::machine::Machine,
-    requirement_service_reach_row: language_semantics::ServiceReachRowId,
+    allowed_services: &[language_semantics::ServiceReachId],
     requirement_suspends: bool,
     requirement_blocks: bool,
     describe: impl Fn(OperationalCeilingBreach<'_>) -> String,
     diagnostics: &mut Vec<diagnostics::Diagnostic>,
 ) {
-    let allowed_services = program
-        .service_reach_rows
-        .services(requirement_service_reach_row);
     // Checked providers contribute their whole call closure. Comparing only
     // authored clauses would let an annotation-free helper evade this bound.
     let Some(disallowed) = disallowed_reached_service_names(

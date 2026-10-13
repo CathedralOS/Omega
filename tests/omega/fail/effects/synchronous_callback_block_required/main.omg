@@ -1,0 +1,13 @@
+use omega::language::core::binding;
+
+pub boundary trait Handler { machine wait() -> u64 blocks; }
+pub boundary trait Registrar {
+    machine execute<machine Callback>() -> u64
+    where machine Callback satisfies Handler::wait;
+    invokes Handler;
+}
+machine wait_callback() -> u64 satisfies Handler::wait blocks; { 7 }
+
+machine missing_acknowledgement(registrar: &mut Binding<Registrar>) -> u64 {
+    registrar.execute<wait_callback>()
+}

@@ -474,13 +474,28 @@ fn validate_top_level_requirement_effect_ceiling(
     label: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    // Inference publishes the authored row plus exact synchronous callback
+    // dependencies for opaque requirements. Refinement consumes that same row,
+    // not the narrower authored fragment that omitted those callbacks.
+    let Some(required_reach) = service_reaches.for_machine(requirement.symbol) else {
+        diagnostics.push(Diagnostic::error(format!(
+            "top-level boundary requirement `{}` has no inferred service-reach summary",
+            requirement.name,
+        )));
+        return;
+    };
+    let required_operational =
+        crate::machine_calls::effect_inference::operational::machine_operational(
+            program,
+            requirement,
+        );
     super::require_operational_ceiling(
         program,
         service_reaches,
         machine,
-        requirement.service_reach_row,
-        requirement.suspends,
-        requirement.blocks,
+        service_reaches.services(required_reach.published),
+        required_operational.may_suspend,
+        required_operational.may_block,
         |breach| match breach {
             super::OperationalCeilingBreach::ReachedService(service_name) => {
                 format!("{label} reaches service `{service_name}` outside the requirement ceiling")

@@ -141,9 +141,11 @@ pub(crate) fn infer_service_reaches_uncached(
         // its abstract bound. Keep them in both the conservative declaration
         // and its concrete basis, not in inferred body calls: the declaration
         // has no body and the original row still bounds provider selection.
+        let mut invoked = DirectServiceReach::default();
         if machine.supply_mode.is_boundary_declaration() {
-            extend_machine_invoked_binding_services(program, machine, &mut published);
-            extend_machine_invoked_binding_services(program, machine, &mut concrete_declared);
+            extend_machine_invoked_binding_services(program, machine, &mut invoked);
+            extend_service_set(&mut published, &invoked.services);
+            extend_service_set(&mut concrete_declared, &invoked.concrete_services);
         }
         let mut calls = Vec::new();
         let mut direct = Vec::new();
@@ -231,6 +233,7 @@ pub(crate) fn infer_service_reaches_uncached(
                     upper_bound: machine.service_reach_row,
                 })
                 .into_iter()
+                .chain(invoked.unresolved_installation_reaches)
                 .chain(
                     calls.iter().flat_map(|call| {
                         call.direct.unresolved_installation_reaches.iter().copied()
@@ -774,11 +777,24 @@ pub fn boundary_signature_service_reach(
         .filter(|owner| owner.is_boundary)
         .flat_map(|owner| program.trait_machine_instances(owner))
         .filter(|declaration| declaration.symbol == signature);
-    declarations.next()?;
+    let signature = declarations.next()?;
     if declarations.next().is_some() {
         return None;
     }
-    Some(direct_service_reach_for_call(program, signature).services)
+    Some(signature_service_reach(program, signature))
+}
+
+/// The same requirement envelope bounds providers and contributes at calls.
+/// Invocation permission alone adds nothing; exact synchronous callback
+/// contracts remain part of the envelope, including applied requirements.
+pub(crate) fn signature_service_reach(
+    program: &dyn crate::CheckingInput,
+    signature: &typed_trees::signature::StateSignature,
+) -> Vec<ServiceReachId> {
+    let mut reach = DirectServiceReach::default();
+    extend_signature_service_rows(program, signature, &mut reach);
+    record_signature_reach(program, signature, &mut reach);
+    reach.services
 }
 
 fn direct_service_reach_for_call(
@@ -855,30 +871,15 @@ fn direct_service_reach_for_call(
     }
 
     if let Some((trait_definition, signature)) = program.trait_machine_signature(target) {
-        {
-            extend_signature_service_rows(program, signature, &mut reach);
-            if trait_definition.is_boundary
-                && let Some(service) = program
-                    .service_reaches
-                    .id_for_symbol(trait_definition.symbol)
-            {
-                program
-                    .service_reaches
-                    .extend_closure(service, &mut reach.services);
-                program
-                    .service_reaches
-                    .extend_closure(service, &mut reach.concrete_services);
-                reach.services.sort_by_key(|service| service.0);
-                reach.services.dedup();
-                reach.concrete_services.sort_by_key(|service| service.0);
-                reach.concrete_services.dedup();
-            }
-            record_signature_reach(program, signature, &mut reach);
-            if trait_definition.is_boundary {
-                reach.boundary_services = reach.services.clone();
-            }
-            return reach;
+        // The provider interface identifies the requirement, not an implicit
+        // effect. A raw OS interface can expose several portable capabilities,
+        // and an empty requirement row remains empty even when it has a provider.
+        extend_signature_service_rows(program, signature, &mut reach);
+        record_signature_reach(program, signature, &mut reach);
+        if trait_definition.is_boundary {
+            reach.boundary_services = reach.services.clone();
         }
+        return reach;
     }
     if let Some(machine) = with_call_target_index(program, |index| {
         index.boundary_machine_by_state.get(&target).copied()
@@ -891,12 +892,10 @@ fn direct_service_reach_for_call(
                 .service_reach_rows
                 .services(machine.service_reach_row),
         );
-        extend_machine_invoked_binding_services(program, machine, &mut reach.services);
         if !machine.service_reach_is_installation_bound {
             reach.concrete_services = reach.services.clone();
-        } else {
-            extend_machine_invoked_binding_services(program, machine, &mut reach.concrete_services);
         }
+        extend_machine_invoked_binding_services(program, machine, &mut reach);
         reach.boundary_services = reach.services.clone();
     }
     reach
@@ -933,8 +932,7 @@ fn record_signature_reach(
     reach: &mut DirectServiceReach,
 ) {
     record_installation_reach(signature, reach);
-    extend_invoked_binding_services(program, signature, &mut reach.services);
-    extend_invoked_binding_services(program, signature, &mut reach.concrete_services);
+    extend_invoked_binding_services(program, signature, reach);
 }
 
 fn record_installation_reach(
@@ -973,56 +971,48 @@ fn normalize_installation_reaches(rows: &mut Vec<InstallationReachRequirement>) 
 fn extend_invoked_binding_services(
     program: &dyn crate::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
-    services: &mut Vec<ServiceReachId>,
+    reach: &mut DirectServiceReach,
 ) {
-    let parameters = program
-        .state_signature_parameters(signature)
-        .iter()
-        .collect::<Vec<_>>();
-    extend_invocation_target_services(
+    extend_invoked_callback_services(
         program,
-        &parameters,
+        program.state_signature_type_parameters(signature),
         &super::declared_signature_invocations(program, signature),
-        services,
+        reach,
     );
 }
 
 fn extend_machine_invoked_binding_services(
     program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
-    services: &mut Vec<ServiceReachId>,
+    reach: &mut DirectServiceReach,
 ) {
-    let parameters = program
-        .machine_states(machine)
-        .first()
-        .map(|state| program.state_parameters(state))
-        .unwrap_or_default()
-        .iter()
-        .collect::<Vec<_>>();
-    extend_invocation_target_services(
+    if !machine.has_bodyless_signature() {
+        return;
+    }
+    extend_invoked_callback_services(
         program,
-        &parameters,
+        super::callback_requirements::opaque_machine_parameters(program, machine),
         &super::declared_machine_invocations(program, machine),
-        services,
+        reach,
     );
 }
 
-fn extend_invocation_target_services(
+/// An invocation ceiling permits entry into a binding, not every effect of
+/// every operation it offers. Internal provider families contribute nothing
+/// here: their exact called requirements carry their reach independently.
+/// An opaque registrar can, however, invoke a supplied nominal callback. Its
+/// telescope pins that callback's exact requirement, whose row must survive
+/// even though no checked registrar body exposes the call.
+fn extend_invoked_callback_services(
     program: &dyn crate::CheckingInput,
-    parameters: &[&typed_trees::signature::StateParameter],
+    parameters: &[typed_trees::data::TypeParameter],
     invocations: &[flow_effects::InvocationTarget],
-    services: &mut Vec<ServiceReachId>,
+    reach: &mut DirectServiceReach,
 ) {
-    for target in invocations {
-        let symbol = super::invocation_service_symbol(program, parameters, target)
-            .unwrap_or_else(SymbolHandle::invalid);
-        let Some(service) = program.service_reaches.id_for_symbol(symbol) else {
-            continue;
-        };
-        program.service_reaches.extend_closure(service, services);
-    }
-    services.sort_by_key(|service| service.0);
-    services.dedup();
+    super::callback_requirements::visit(program, parameters, invocations, |signature| {
+        extend_signature_service_rows(program, signature, reach);
+        record_installation_reach(signature, reach);
+    });
 }
 
 fn extend_service_set(destination: &mut Vec<ServiceReachId>, source: &[ServiceReachId]) {
