@@ -1983,3 +1983,4 @@ run/stores/runtime_float_indexed_call_result_exit built 9716ms exit:0 stdout:mat
 run/stores/runtime_float_store_selector_snapshot_exit built 9116ms exit:0 stdout:match stderr:match @589aedee8ebc+wt
 pass/layouts/runtime_constant_layout_contract_exit built 5371ms exit:0 @e63c4b1e202d+wt
 pass/termination/runtime_projected_extent_fill_exit built 5071ms exit:0 @0ab6a3e7fdb4+wt
+pass/proofs/collection_predicate_deferred_disjunction_sixteen_cells checked 1255ms @1cb01af2f0bb

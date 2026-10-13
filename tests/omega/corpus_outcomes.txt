@@ -6828,3 +6828,8 @@ fail/providers/linear_structural_provider_missing_disposition rejected 867ms exp
 	linear value `issued` reaches scope exit without being consumed or transferred
 pass/providers/linear_structural_provider_pure_exit checked 9369ms check-target:linux_x86_64 @3e583b96cb82
 pass/providers/linear_structural_provider_return_exit checked 10925ms check-target:linux_x86_64 @3e583b96cb82
+
+# game_of_life helper theorem at sixteen cells: deferred disjunction clauses.
+fail/proofs/collection_predicate_deferred_disjunction_false_rejected rejected 418ms expected @1cb01af2f0bb
+	cannot prove ensures contract for exit from cell_is_set at statement 0: cells[index] >= 1
+pass/proofs/collection_predicate_deferred_disjunction_sixteen_cells checked 1240ms @1cb01af2f0bb

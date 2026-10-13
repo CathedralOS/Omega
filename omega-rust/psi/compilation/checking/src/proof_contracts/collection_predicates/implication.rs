@@ -20,6 +20,12 @@
 //! necessary. Its recursive obligations use the same checked induction domain
 //! as readonly consequences, never an assumption that predicates are hereditary.
 //! Unsupported operations and exhausted work prove nothing.
+//!
+//! Setting `OMEGA_COLLECTION_PROOF_TRACE` to a file path appends one
+//! `theorem=<machine> goal=<fact> elapsed_micros=<n> spent=<n> proved=<bool>`
+//! line per judgment to that file -- the opt-in observation convention of
+//! `OMEGA_PROOF_MEASUREMENTS`, written to a file because a package review
+//! does not surface the checker's stderr. Normal runs pay one env-var check.
 
 use super::exploration::{ValueShape, admitted_predicate_machine, value_shape};
 use crate::proof_contracts::bound_expression_meaning::has_builtin_binary_expression_meaning;
@@ -71,9 +77,19 @@ struct Observation {
     value: Value,
 }
 
+/// One disjunction of comparisons; an empty clause is `false`.
+type Clause = Vec<Comparison>;
+
+/// What one symbolic path has assumed: a conjunction of comparisons, the
+/// disjunctions it has not yet split, and the element reads it has observed.
+/// A disjunction stays a clause until a decision touches one of its atoms;
+/// splitting it at assumption time would fork the path once per disjunct,
+/// and a predicate that guards every element in its own state would then
+/// cost one path per combination of elements the goal never reads.
 #[derive(Clone, Default)]
 struct Path {
     comparisons: Vec<Comparison>,
+    clauses: Vec<Clause>,
     observations: Vec<Observation>,
 }
 
@@ -89,6 +105,7 @@ struct Lemma {
     state: usize,
     arguments: Vec<Value>,
     premises: Vec<Comparison>,
+    premise_clauses: Vec<Clause>,
     /// Intersection of the measures justified by every recurrent arrival.
     measures: Vec<(usize, BinaryOperator)>,
     judgment: Judgment,
@@ -139,82 +156,117 @@ pub(super) fn proves(
     let mut proof = Implication {
         program,
         context: machine,
-        remaining: 8192,
+        remaining: WORK_BUDGET,
         next_identity: 0,
         lemmas: Vec::new(),
         updates: Vec::new(),
         antecedents: Vec::new(),
     };
-    let mut path = Path::default();
-    let mut bindings = Vec::new();
-    for parameter in program.state_parameters(entry) {
-        let Some(value) = proof.parameter(parameter.type_reference, &mut path) else {
-            return false;
-        };
-        bindings.push((parameter.symbol, value));
-    }
-    let frame = Frame {
-        machine: machine_position,
-        state: 0,
-        bindings,
-    };
-    let mut candidates = vec![(path, Vec::<Boolean>::new())];
-    for premise in program.contract_expressions(
-        program.machine_contracts(machine).iter(),
-        SignatureContractKind::Requires,
-    ) {
-        let mut next = Vec::new();
-        for (path, predicates) in candidates {
-            let Some(values) = proof.expression(&frame, path, premise, 0) else {
-                continue;
-            };
-            for (path, value) in values {
-                let Value::Boolean(value) = value else {
-                    continue;
-                };
-                let Some(branches) = proof.premise(path, &value, true) else {
-                    return false;
-                };
-                for (path, additional) in branches {
-                    let mut combined = predicates.clone();
-                    combined.extend(additional);
-                    next.push((path, combined));
-                }
-            }
-        }
-        // Dropping an unread premise weakens the theorem, never its conclusion.
-        if next.is_empty() {
-            return false;
-        }
-        candidates = next;
-    }
-    for (path, predicates) in candidates {
-        proof.antecedents = predicates;
-        let Some(exits) = proof.body_exits(frame.clone(), path) else {
-            return false;
-        };
-        for (mut frame, path) in exits {
-            // Ensures expressions are authored in entry scope even when a
-            // different state returns. Bindings retain exact symbol identity
-            // and current collection versions across the state transfer.
-            frame.state = 0;
-            let Some(goals) = proof.expression(&frame, path, goal, 0) else {
-                return false;
-            };
-            for (path, goal) in goals {
-                let Value::Boolean(goal) = goal else {
-                    return false;
-                };
-                if proof.establish(&path, &goal, 0) != Some(true) {
-                    return false;
-                }
-            }
+    let started = std::time::Instant::now();
+    let proved = proof.theorem(entry, machine_position, goal);
+    if let Some(trace) = std::env::var_os("OMEGA_COLLECTION_PROOF_TRACE") {
+        use std::io::Write as _;
+        if let Ok(mut file) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(trace)
+        {
+            let _ = writeln!(
+                file,
+                "theorem={} goal={} elapsed_micros={} spent={} proved={proved}",
+                machine.name,
+                program.expression_table.display_name(goal),
+                started.elapsed().as_micros(),
+                WORK_BUDGET - proof.remaining,
+            );
         }
     }
-    true
+    proved
 }
 
+/// Steps one theorem judgment may spend across its activations, reads,
+/// assumptions, expression evaluations and statement visits before it
+/// stands down.
+const WORK_BUDGET: usize = 8192;
+
 impl Implication<'_> {
+    fn theorem(
+        &mut self,
+        entry: &typed_trees::state::State,
+        machine_position: usize,
+        goal: ExpressionHandle,
+    ) -> bool {
+        let program = self.program;
+        let machine = self.context;
+        let mut path = Path::default();
+        let mut bindings = Vec::new();
+        for parameter in program.state_parameters(entry) {
+            let Some(value) = self.parameter(parameter.type_reference, &mut path) else {
+                return false;
+            };
+            bindings.push((parameter.symbol, value));
+        }
+        let frame = Frame {
+            machine: machine_position,
+            state: 0,
+            bindings,
+        };
+        let mut candidates = vec![(path, Vec::<Boolean>::new())];
+        for premise in program.contract_expressions(
+            program.machine_contracts(machine).iter(),
+            SignatureContractKind::Requires,
+        ) {
+            let mut next = Vec::new();
+            for (path, predicates) in candidates {
+                let Some(values) = self.expression(&frame, path, premise, 0) else {
+                    continue;
+                };
+                for (path, value) in values {
+                    let Value::Boolean(value) = value else {
+                        continue;
+                    };
+                    let Some(branches) = self.premise(path, &value, true) else {
+                        return false;
+                    };
+                    for (path, additional) in branches {
+                        let mut combined = predicates.clone();
+                        combined.extend(additional);
+                        next.push((path, combined));
+                    }
+                }
+            }
+            // Dropping an unread premise weakens the theorem, never its conclusion.
+            if next.is_empty() {
+                return false;
+            }
+            candidates = next;
+        }
+        for (path, predicates) in candidates {
+            self.antecedents = predicates;
+            let Some(exits) = self.body_exits(frame.clone(), path) else {
+                return false;
+            };
+            for (mut frame, path) in exits {
+                // Ensures expressions are authored in entry scope even when a
+                // different state returns. Bindings retain exact symbol identity
+                // and current collection versions across the state transfer.
+                frame.state = 0;
+                let Some(goals) = self.expression(&frame, path, goal, 0) else {
+                    return false;
+                };
+                for (path, goal) in goals {
+                    let Value::Boolean(goal) = goal else {
+                        return false;
+                    };
+                    if self.establish(&path, &goal, 0) != Some(true) {
+                        return false;
+                    }
+                }
+            }
+        }
+        true
+    }
+
     fn establish(&mut self, path: &Path, goal: &Boolean, depth: usize) -> Option<bool> {
         self.spend()?;
         if depth >= 64 {
@@ -329,10 +381,10 @@ impl Implication<'_> {
                         let Value::Boolean(guard) = guard else {
                             return None;
                         };
-                        for path in self.assume(path.clone(), &guard, false)? {
+                        if let Some(path) = self.assume(path.clone(), &guard, false)? {
                             pending.push((position + 1, frame.clone(), path, visited.clone()));
                         }
-                        for path in self.assume(path, &guard, true)? {
+                        if let Some(path) = self.assume(path, &guard, true)? {
                             match self
                                 .program
                                 .statement_table
@@ -547,22 +599,127 @@ impl Implication<'_> {
         }
     }
 
-    fn impossible(&self, comparisons: &[Comparison]) -> bool {
+    fn unsatisfiable(&self, comparisons: &[Comparison]) -> bool {
         scoped_arithmetic_comparisons_unsatisfiable(self.program, self.context, comparisons)
     }
 
-    fn implies(&self, path: &Path, comparison: &Comparison) -> bool {
+    /// Whether `comparisons` together with `clauses` admit no values. A
+    /// comparison over two literals decides itself. Everything else is
+    /// decided one atom-connected component at a time: a contradiction can
+    /// only combine comparisons that share atoms, so the solver never
+    /// closes bounds over the cells a decision does not mention, and its
+    /// superlinear cost follows the component rather than the path. A
+    /// clause is split case by case inside its component. With a `focus`,
+    /// only the components the focus touches are consulted, because every
+    /// other component was consistent when its clauses were assumed.
+    fn contradictory(
+        &self,
+        comparisons: &[Comparison],
+        clauses: &[Clause],
+        focus: Option<&[Comparison]>,
+    ) -> bool {
+        if comparisons
+            .iter()
+            .any(|comparison| constant_truth(comparison) == Some(false))
+        {
+            return true;
+        }
+        let focus_atoms = focus.map(|focus| {
+            let mut atoms = Vec::new();
+            for comparison in focus {
+                comparison_atoms(comparison, &mut atoms);
+            }
+            atoms
+        });
+        let mut consultations = SPLIT_CONSULTATIONS;
+        components(comparisons, clauses)
+            .iter()
+            .filter(|component| {
+                focus_atoms
+                    .as_ref()
+                    .is_none_or(|atoms| atoms.iter().any(|atom| component.atoms.contains(atom)))
+            })
+            .any(|component| {
+                self.split(
+                    component.comparisons.clone(),
+                    &component.clauses,
+                    &mut consultations,
+                )
+            })
+    }
+
+    /// Decide the conjunction, then case-split the first clause and decide
+    /// each case under the rest. Exhausting the consultation allowance
+    /// decides nothing.
+    fn split(
+        &self,
+        comparisons: Vec<Comparison>,
+        clauses: &[Clause],
+        consultations: &mut usize,
+    ) -> bool {
+        let Some(remaining) = consultations.checked_sub(1) else {
+            return false;
+        };
+        *consultations = remaining;
+        if self.unsatisfiable(&comparisons) {
+            return true;
+        }
+        let Some((clause, rest)) = clauses.split_first() else {
+            return false;
+        };
+        clause.iter().all(|literal| {
+            let mut comparisons = comparisons.clone();
+            comparisons.push(literal.clone());
+            self.split(comparisons, rest, consultations)
+        })
+    }
+
+    fn impossible(&self, path: &Path) -> bool {
+        self.contradictory(&path.comparisons, &path.clauses, None)
+    }
+
+    /// Whether `path` admits no values at which `clause` is false: every
+    /// literal's negation is added, so a one-literal clause is an implied
+    /// comparison and a lemma's disjunctive premise is an implied clause.
+    /// A literal the path already states, or one true on its face, needs
+    /// no solver. A literal false on its face, or one whose negation the
+    /// path already states, adds nothing to the contradiction; when no
+    /// literal remains, only a path with no values at all could imply the
+    /// clause, and a path is kept only while it has values.
+    fn implies_clause(&self, path: &Path, clause: &[Comparison]) -> bool {
+        let mut negated = Vec::new();
+        for literal in clause {
+            match constant_truth(literal) {
+                Some(true) => return true,
+                Some(false) => continue,
+                None => {}
+            }
+            if path.comparisons.contains(literal) {
+                return true;
+            }
+            let negation = compare(
+                negate(literal.operator),
+                literal.left.clone(),
+                literal.right.clone(),
+            );
+            if !path.comparisons.contains(&negation) {
+                negated.push(negation);
+            }
+        }
+        if negated.is_empty() {
+            return false;
+        }
         let mut comparisons = path.comparisons.clone();
-        comparisons.push(compare(
-            negate(comparison.operator),
-            comparison.left.clone(),
-            comparison.right.clone(),
-        ));
-        self.impossible(&comparisons)
+        comparisons.extend(negated.iter().cloned());
+        self.contradictory(&comparisons, &path.clauses, Some(&negated))
+    }
+
+    fn implies(&self, path: &Path, comparison: &Comparison) -> bool {
+        self.implies_clause(path, std::slice::from_ref(comparison))
     }
 
     fn entails(&self, path: &Path, goal: &Boolean) -> bool {
-        if self.impossible(&path.comparisons) {
+        if self.impossible(path) {
             return true;
         }
         match goal {
@@ -572,61 +729,32 @@ impl Implication<'_> {
             Boolean::Or(left, right) => self.entails(path, left) || self.entails(path, right),
             Boolean::Not(value) => self
                 .assume_readonly(path, value, true)
-                .is_some_and(|paths| paths.iter().all(|path| self.impossible(&path.comparisons))),
+                .is_some_and(|assumed| assumed.is_none_or(|path| self.impossible(&path))),
             Boolean::Call { .. } => false,
         }
     }
 
-    fn assume_readonly(&self, path: &Path, value: &Boolean, holds: bool) -> Option<Vec<Path>> {
-        match value {
-            Boolean::Constant(value) => Some(if *value == holds {
-                vec![path.clone()]
-            } else {
-                Vec::new()
-            }),
-            Boolean::Comparison(comparison) => {
-                let mut path = path.clone();
-                path.comparisons.push(compare(
-                    if holds {
-                        comparison.operator
-                    } else {
-                        negate(comparison.operator)
-                    },
-                    comparison.left.clone(),
-                    comparison.right.clone(),
-                ));
-                Some(vec![path])
+    /// `path` under `value == holds`: one path carrying the assumption's
+    /// unit clauses as comparisons and its wider clauses deferred. `Some(None)`
+    /// is an assumption that is false on its face; `None` is a value outside
+    /// the comparison language, such as a predicate call.
+    fn assume_readonly(&self, path: &Path, value: &Boolean, holds: bool) -> Option<Option<Path>> {
+        let mut path = path.clone();
+        for clause in clauses(value, holds)? {
+            match clause.as_slice() {
+                [] => return Some(None),
+                [comparison] => path.comparisons.push(comparison.clone()),
+                _ => path.clauses.push(clause),
             }
-            Boolean::Not(value) => self.assume_readonly(path, value, !holds),
-            Boolean::And(left, right) | Boolean::Or(left, right) => {
-                let conjunctive = matches!(value, Boolean::And(..)) == holds;
-                if conjunctive {
-                    let mut result = Vec::new();
-                    for path in self.assume_readonly(path, left, holds)? {
-                        result.extend(self.assume_readonly(&path, right, holds)?);
-                    }
-                    Some(result)
-                } else {
-                    let mut result = self.assume_readonly(path, left, holds)?;
-                    result.extend(self.assume_readonly(path, right, holds)?);
-                    Some(result)
-                }
-            }
-            Boolean::Call { .. } => None,
         }
+        Some(Some(path))
     }
 
-    fn assume(&mut self, path: Path, value: &Boolean, holds: bool) -> Option<Vec<Path>> {
+    fn assume(&mut self, path: Path, value: &Boolean, holds: bool) -> Option<Option<Path>> {
         self.spend()?;
-        let paths = self.assume_readonly(&path, value, holds)?;
-        if paths.len() > self.remaining {
-            return None;
-        }
         Some(
-            paths
-                .into_iter()
-                .filter(|path| !self.impossible(&path.comparisons))
-                .collect(),
+            self.assume_readonly(&path, value, holds)?
+                .filter(|path| !self.impossible(path)),
         )
     }
 
@@ -970,7 +1098,7 @@ impl Implication<'_> {
                 .into_iter()
                 .map(|path| Some((path, observed_carrier(stored_value.clone(), element)?)))
                 .collect::<Option<Vec<_>>>()?;
-            for path in self.assume(path, &equality, false)? {
+            if let Some(path) = self.assume(path, &equality, false)? {
                 result.extend(self.read(path, previous, selector.clone(), element, 0)?);
             }
             return Some(result);
@@ -1002,14 +1130,16 @@ impl Implication<'_> {
         if self.implies(&path, &equality) {
             return Some(vec![(path, observed_carrier(observation.value, element)?)]);
         }
-        if self.implies(
-            &path,
-            &compare(
-                BinaryOperator::NotEqual,
-                selector.clone(),
-                observation.selector.clone(),
-            ),
-        ) {
+        if constant_truth(&equality) == Some(false)
+            || self.implies(
+                &path,
+                &compare(
+                    BinaryOperator::NotEqual,
+                    selector.clone(),
+                    observation.selector.clone(),
+                ),
+            )
+        {
             return self.read(
                 path,
                 collection,
@@ -1081,6 +1211,9 @@ impl Implication<'_> {
                 .premises
                 .iter()
                 .all(|premise| self.implies(&path, &substitute_comparison(premise, &replacements)))
+                || !lemma.premise_clauses.iter().all(|premise| {
+                    self.implies_clause(&path, &substitute_clause(premise, &replacements))
+                })
             {
                 continue;
             }
@@ -1197,17 +1330,30 @@ impl Implication<'_> {
                         integer_atoms(&observation.selector, &mut support);
                     }
                 }
+                let mentions_support = |comparison: &Comparison| {
+                    support.iter().any(|atom| {
+                        contains(&comparison.left, atom) || contains(&comparison.right, atom)
+                    })
+                };
+                // A premise the substitution leaves unchanged is already on
+                // the path: a predicate with no integer formal would
+                // otherwise double its selector facts at every state.
                 let generalized_premises = path
                     .comparisons
                     .iter()
-                    .filter(|comparison| {
-                        support.iter().any(|atom| {
-                            contains(&comparison.left, atom) || contains(&comparison.right, atom)
-                        })
-                    })
+                    .filter(|comparison| mentions_support(comparison))
                     .map(|comparison| substitute_comparison(comparison, &replacements))
+                    .filter(|comparison| !path.comparisons.contains(comparison))
+                    .collect::<Vec<_>>();
+                let generalized_clauses = path
+                    .clauses
+                    .iter()
+                    .filter(|clause| clause.iter().any(mentions_support))
+                    .map(|clause| substitute_clause(clause, &replacements))
+                    .filter(|clause| !path.clauses.contains(clause))
                     .collect::<Vec<_>>();
                 path.comparisons.extend(generalized_premises);
+                path.clauses.extend(generalized_clauses);
             }
             path.comparisons.extend(formal_bounds);
         }
@@ -1262,6 +1408,7 @@ impl Implication<'_> {
                     state,
                     arguments: generalized.clone(),
                     premises: path.comparisons.clone(),
+                    premise_clauses: path.clauses.clone(),
                     measures,
                     judgment,
                     goal: goal.clone(),
@@ -1333,10 +1480,10 @@ impl Implication<'_> {
                         // owes a contradiction with the original predicate;
                         // eagerly proving every guard repeats whole induction
                         // searches even where both branches return true.
-                        for path in self.assume(path.clone(), &guard, false)? {
+                        if let Some(path) = self.assume(path.clone(), &guard, false)? {
                             pending.push((statement_position + 1, frame.clone(), path));
                         }
-                        for path in self.assume(path, &guard, true)? {
+                        if let Some(path) = self.assume(path, &guard, true)? {
                             match self
                                 .program
                                 .statement_table
@@ -1439,12 +1586,10 @@ impl Implication<'_> {
                 if !self.activation(machine, 0, arguments, path, goal, judgment, depth + 1)? {
                     return Some(false);
                 }
-            } else {
-                for path in self.assume(path, &value, true)? {
-                    if !self.entails(&path, goal) {
-                        return Some(false);
-                    }
-                }
+            } else if let Some(path) = self.assume(path, &value, true)?
+                && !self.entails(&path, goal)
+            {
+                return Some(false);
             }
         }
         Some(true)
@@ -1537,6 +1682,144 @@ fn substitute_comparison(
         substitute(&comparison.left, replacements),
         substitute(&comparison.right, replacements),
     )
+}
+
+fn substitute_clause(clause: &[Comparison], replacements: &[(Integer, Integer)]) -> Clause {
+    clause
+        .iter()
+        .map(|comparison| substitute_comparison(comparison, replacements))
+        .collect()
+}
+
+/// Solver consultations one contradiction decision may spend splitting
+/// clauses before it declines to decide.
+const SPLIT_CONSULTATIONS: usize = 256;
+/// Clauses one assumption may expand to; a wider distribution is declined.
+const MAXIMUM_CLAUSES: usize = 64;
+
+/// `value == holds` in conjunctive normal form over comparisons. No clause
+/// is `true`; an empty clause is `false`. A predicate call has no
+/// comparison form.
+fn clauses(value: &Boolean, holds: bool) -> Option<Vec<Clause>> {
+    match value {
+        Boolean::Constant(value) => Some(if *value == holds {
+            Vec::new()
+        } else {
+            vec![Vec::new()]
+        }),
+        Boolean::Comparison(comparison) => Some(vec![vec![compare(
+            if holds {
+                comparison.operator
+            } else {
+                negate(comparison.operator)
+            },
+            comparison.left.clone(),
+            comparison.right.clone(),
+        )]]),
+        Boolean::Not(value) => clauses(value, !holds),
+        Boolean::And(left, right) | Boolean::Or(left, right) => {
+            let mut left = clauses(left, holds)?;
+            let right = clauses(right, holds)?;
+            if matches!(value, Boolean::And(..)) == holds {
+                left.extend(right);
+                return Some(left);
+            }
+            if left.len().saturating_mul(right.len()) > MAXIMUM_CLAUSES {
+                return None;
+            }
+            Some(
+                left.iter()
+                    .flat_map(|first| {
+                        right.iter().map(|second| {
+                            let mut clause = first.clone();
+                            clause.extend(second.iter().cloned());
+                            clause
+                        })
+                    })
+                    .collect(),
+            )
+        }
+        Boolean::Call { .. } => None,
+    }
+}
+
+/// The truth of a comparison between two literal integers; `None` when a
+/// side is symbolic.
+fn constant_truth(comparison: &Comparison) -> Option<bool> {
+    let (Integer::Integer(left), Integer::Integer(right)) = (&comparison.left, &comparison.right)
+    else {
+        return None;
+    };
+    Some(match comparison.operator {
+        BinaryOperator::Equal => left == right,
+        BinaryOperator::NotEqual => left != right,
+        BinaryOperator::Less => left < right,
+        BinaryOperator::LessOrEqual => left <= right,
+        BinaryOperator::Greater => left > right,
+        BinaryOperator::GreaterOrEqual => left >= right,
+        _ => return None,
+    })
+}
+
+fn comparison_atoms(comparison: &Comparison, atoms: &mut Vec<Integer>) {
+    integer_atoms(&comparison.left, atoms);
+    integer_atoms(&comparison.right, atoms);
+}
+
+/// The comparisons and clauses sharing at least one atom, transitively.
+struct Component {
+    atoms: Vec<Integer>,
+    comparisons: Vec<Comparison>,
+    clauses: Vec<Clause>,
+}
+
+/// Partition `comparisons` and `clauses` by shared atoms. A comparison over
+/// constants alone joins no component; the whole conjunction decides it.
+fn components(comparisons: &[Comparison], clauses: &[Clause]) -> Vec<Component> {
+    let mut components: Vec<Component> = Vec::new();
+    let mut place =
+        |atoms: Vec<Integer>, comparison: Option<&Comparison>, clause: Option<&Clause>| {
+            let mut joined = Component {
+                atoms,
+                comparisons: comparison.cloned().into_iter().collect(),
+                clauses: clause.cloned().into_iter().collect(),
+            };
+            let mut position = 0;
+            while position < components.len() {
+                if components[position]
+                    .atoms
+                    .iter()
+                    .any(|atom| joined.atoms.contains(atom))
+                {
+                    let absorbed = components.swap_remove(position);
+                    for atom in absorbed.atoms {
+                        if !joined.atoms.contains(&atom) {
+                            joined.atoms.push(atom);
+                        }
+                    }
+                    joined.comparisons.extend(absorbed.comparisons);
+                    joined.clauses.extend(absorbed.clauses);
+                } else {
+                    position += 1;
+                }
+            }
+            components.push(joined);
+        };
+    for comparison in comparisons {
+        let mut atoms = Vec::new();
+        comparison_atoms(comparison, &mut atoms);
+        if !atoms.is_empty() {
+            place(atoms, Some(comparison), None);
+        }
+    }
+    for clause in clauses {
+        let mut atoms = Vec::new();
+        for comparison in clause {
+            comparison_atoms(comparison, &mut atoms);
+        }
+        place(atoms, None, Some(clause));
+    }
+    components
 }
 
 fn declared_value(
