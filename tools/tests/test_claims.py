@@ -147,7 +147,7 @@ class RegistrationBudgetTests(unittest.TestCase):
 
     def test_cache_write_obeys_the_existing_deadline(self):
         module = load_claims()
-        with mock.patch.object(module.coordination.subprocess, "run") as run:
+        with mock.patch.object(module.coordination.subprocess, "Popen") as run:
             with self.assertRaises(module.coordination.CoordinationTimeout):
                 module.coordination.remember_object(
                     ".", "test-remote", CLAIMS_REF, "b" * 40,
@@ -156,18 +156,22 @@ class RegistrationBudgetTests(unittest.TestCase):
 
     def test_git_timeout_is_an_uncertain_outcome_not_success(self):
         module = load_claims()
-        with mock.patch.object(module.coordination.subprocess, "run",
-                               side_effect=subprocess.TimeoutExpired("git", 0.1)) as run, \
+        process = mock.Mock(pid=12345, args=["git", "push"])
+        process.wait.side_effect = [subprocess.TimeoutExpired("git", 0.1), 0]
+        with mock.patch.object(module.coordination.subprocess, "Popen", return_value=process), \
+                mock.patch.object(module.coordination.os, "killpg", create=True), \
+                mock.patch.object(module.coordination.subprocess, "run"), \
                 mock.patch.object(module.coordination.time, "monotonic", return_value=0.0):
             with self.assertRaises(module.coordination.CoordinationTimeout):
                 module.coordination.git(".", "push", deadline=time.monotonic() + 0.1)
-        self.assertGreater(run.call_args.kwargs["timeout"], 0)
-        self.assertLessEqual(run.call_args.kwargs["timeout"], 0.1)
+        first_wait = process.wait.call_args_list[0]
+        self.assertGreater(first_wait.kwargs["timeout"], 0)
+        self.assertLessEqual(first_wait.kwargs["timeout"], 0.1)
 
     def test_deadline_applies_before_launch_and_sleep(self):
         module, registry = self.registry()
         registry.deadline = time.monotonic() - 1
-        with mock.patch.object(module.coordination.subprocess, "run") as run:
+        with mock.patch.object(module.coordination.subprocess, "Popen") as run:
             with self.assertRaises(module.coordination.CoordinationTimeout):
                 module.coordination.git(".", "status", deadline=registry.deadline)
         run.assert_not_called()
@@ -176,16 +180,16 @@ class RegistrationBudgetTests(unittest.TestCase):
 
     def test_transport_child_cannot_hold_timeout_output_open(self):
         module = load_claims()
-        run = subprocess.run
+        popen = subprocess.Popen
         script = ("import subprocess, sys, time; "
                   "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(3)']); "
                   "time.sleep(3)")
 
         def stalled_transport(arguments, **options):
-            return run([sys.executable, "-c", script], **options)
+            return popen([sys.executable, "-c", script], **options)
 
         started = time.monotonic()
-        with mock.patch.object(module.coordination.subprocess, "run", side_effect=stalled_transport):
+        with mock.patch.object(module.coordination.subprocess, "Popen", side_effect=stalled_transport):
             with self.assertRaises(module.coordination.CoordinationTimeout):
                 module.coordination.git(".", "status", deadline=started + 0.2)
         self.assertLess(time.monotonic() - started, 2)

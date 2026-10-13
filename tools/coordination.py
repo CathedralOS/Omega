@@ -15,6 +15,7 @@ import json
 import os
 from pathlib import Path
 import re
+import signal
 import subprocess
 import tempfile
 import time
@@ -66,11 +67,47 @@ def git(repository, *arguments, input_text="", allow_failure=False, deadline=Non
         with tempfile.TemporaryFile() as standard_input, tempfile.TemporaryFile() as output, tempfile.TemporaryFile() as error_output:
             standard_input.write(input_text.encode("utf-8"))
             standard_input.seek(0)
-            result = subprocess.run(
+            budget = remaining_seconds(deadline)
+            # A timed-out fetch can leave index-pack consuming CPU long after
+            # coordination returns. Own the transport tree as well as Git, so
+            # the deadline also settles its descendants before a retry/build.
+            process = subprocess.Popen(
                 ["git", "-C", str(repository), *arguments],
                 stdin=standard_input, stdout=output, stderr=error_output,
                 env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
-                timeout=remaining_seconds(deadline))
+                start_new_session=os.name != "nt")
+            try:
+                return_code = process.wait(timeout=budget)
+            except subprocess.TimeoutExpired as timeout:
+                try:
+                    if os.name == "nt":
+                        try:
+                            cleanup = subprocess.run(
+                                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL, timeout=5, check=False)
+                            if cleanup.returncode:
+                                timeout.cleanup_note = (
+                                    f" Transport descendant cleanup is unconfirmed: taskkill exited {cleanup.returncode}.")
+                        except (OSError, subprocess.TimeoutExpired):
+                            timeout.cleanup_note = " Transport descendant cleanup is unconfirmed: taskkill failed or timed out."
+                    else:
+                        try:
+                            os.killpg(process.pid, signal.SIGKILL)
+                        except ProcessLookupError:
+                            # The complete process group settled at the deadline.
+                            pass
+                finally:
+                    # Reap the leader even when the platform tree-kill command
+                    # fails. Report unconfirmed descendant settlement rather
+                    # than treating that fallback as a successful cleanup.
+                    try:
+                        process.kill()
+                    except ProcessLookupError:
+                        pass
+                    process.wait()
+                raise
+            result = subprocess.CompletedProcess(process.args, return_code)
             output.seek(0)
             error_output.seek(0)
             result.stdout = output.read().decode("utf-8", errors="replace")
@@ -78,7 +115,7 @@ def git(repository, *arguments, input_text="", allow_failure=False, deadline=Non
     except subprocess.TimeoutExpired as error:
         raise CoordinationTimeout(
             "Coordination deadline exceeded during Git; a remote mutation may have landed. "
-            "Inspect status before retrying.") from error
+            "Inspect status before retrying." + getattr(error, "cleanup_note", "")) from error
     result.stdout = result.stdout.rstrip()
     result.stderr = result.stderr.rstrip()
     if result.returncode and not allow_failure:
