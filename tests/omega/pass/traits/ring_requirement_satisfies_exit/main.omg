@@ -1,7 +1,9 @@
 // RUN CANARY (exit 70): SINGLE-REQUIREMENT trait conformance (rearrange
 // settle 2026-07-18, rung A). The settled CommutativeSemiring surface:
 // FREE-machine-shaped requirements over an explicit carrier
-// (`machine add(a: T, b: T) -> T;`), a LAW requirement carrying `ensures`, and
+// (`machine add(a: T, b: T) -> T terminates;` -- the law cites the bodyless
+// slot as a denotational term, and omission publishes no termination
+// guarantee), a LAW requirement carrying `ensures`, and
 // machine-by-machine conformance: `satisfies Trait<Carrier>::requirement`
 // binds THIS machine to that one slot of that carrier's application, and
 // `satisfies Trait<Carrier>::requirement as Alias` names the satisfier (plural
@@ -20,8 +22,8 @@ data Peano {
 }
 
 trait RingOps<T> {
-    machine add(a: T, b: T) -> T;
-    machine mul(a: T, b: T) -> T;
+    machine add(a: T, b: T) -> T terminates;
+    machine mul(a: T, b: T) -> T terminates;
     machine add_comm(a: T, b: T)
     ensures add(a, b) == add(b, a);
 }
