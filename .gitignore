@@ -3,7 +3,7 @@
 /omega-rust/omega/target/
 /dist/
 /build/
-/samples/*/build/
+/samples/**/build/
 /samples/*/build_win/
 /tests/omega/*/*/build/
 
