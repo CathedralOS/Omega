@@ -183,6 +183,8 @@ fail/arithmetic/narrowing_literal_wider_than_target rejected 2802ms expected @a9
 	anonymous integer value `3000000123` does not fit destination `i32` in machine `Main::main` state `main` assignment
 fail/arithmetic/narrowing_signedness_rejected rejected 2790ms expected @a9ae30e1c334+wt
 	store in machine `Main::main` state `main` assignment implicitly converts `u8` to `i8`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i8`)
+fail/arithmetic/nested_unsigned_sum_operand_overflow rejected 729ms expected @1b12798e27f4
+	exact arithmetic in machine `tally` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/arithmetic/numeric_operand_abs_unrepresentable rejected 839ms expected @a9ae30e1c334+wt
 	exact arithmetic in machine `main` state `entry` local `observed` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`). Here the operand `bottom(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> i32 in Wrapping`).
 fail/arithmetic/qualified_cast_decision_wrong_arm rejected 851ms expected @a9ae30e1c334+wt
@@ -259,6 +261,8 @@ fail/arithmetic/zero_dividend_quotient_requires_nonzero rejected 850ms expected 
 fail/arithmetic/zero_dividend_remainder_requires_nonzero rejected 838ms expected @a9ae30e1c334+wt
 	partial exact remainder in machine `invalid` state `entry` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
 	machine `invalid` state `entry` terminal expression returns a value not provably within its declared range: callers rely on the declared `[a..=b]` for exact arithmetic on the result, so the returned value must be proven to honor it (decision 17). Constrain the returned value, or widen/remove the return range constraint.
+fail/arithmetic/zero_increment_unproved_index rejected 2249ms expected @1b12798e27f4
+	cannot prove index `position` is within length 3 in select::entry
 fail/arithmetic/zero_product_operand_division_rejected rejected 827ms expected @a9ae30e1c334+wt
 	partial exact division in machine `product` state `entry` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
 fail/arithmetic/zero_product_operand_overflow_rejected rejected 882ms expected @a9ae30e1c334+wt
@@ -1144,6 +1148,8 @@ fail/collections/projected_range_call_shared_storage rejected 857ms expected @a9
 	mutable argument `matrix` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 fail/collections/range_call_later_endpoint_cannot_prove_nonempty rejected 1528ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call first from main: values[0..endpoint.end].len > 0 (needs fact `values.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/collections/runtime_three_indexed_float_read_missing_bound rejected 1706ms expected @9462eda24d9e+wt
+	cannot prove index `row` is within length 2 in read::entry
 fail/collections/vec_duplicate_cleanup rejected 4131ms expected @a9ae30e1c334+wt
 	cannot use `vec` in machine `Main::main` state `main` (statement 2) after `vec` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `vec` first
 fail/collections/vec_invalidated_loan_after_growth rejected 5189ms expected @a9ae30e1c334+wt
@@ -1933,6 +1939,8 @@ fail/float/format_conversion_requires_result_proof rejected 533ms expected @9c4d
 	cannot prove initializer `F32.from_f64(huge())` satisfies `finite` for the bounded value of machine `make` state `entry` constructor field `amount`
 	cannot prove call argument `F32.from_f64(huge())` satisfies `finite` for bounded parameter `value` for `consume` in `overflow.entry`
 	cannot prove return value `F32.from_f64(value)` satisfies `finite` for bounded return type in `unknown.entry`
+fail/float/generic_constructor_suffix_format_disagrees rejected 315ms expected @1b12798e27f4
+	literal `3.0` is suffixed `f64` but lands in a `f32` place -- a width suffix chooses the literal's format at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
 fail/float/integer_conversion_lookalike rejected 565ms expected @9c4d1c444502
 	machine `lookalike` state `entry` terminal expression returns a value not provably within its declared range: callers rely on the declared `[a..=b]` for exact arithmetic on the result, so the returned value must be proven to honor it (decision 17). Constrain the returned value, or widen/remove the return range constraint.
 fail/float/integer_to_float_coercion_requires_denotation rejected 511ms expected @9c4d1c444502
@@ -2904,6 +2912,9 @@ fail/proofs/runtime_case_guarantee_wrong_return rejected 1515ms expected @a9ae30
 fail/proofs/scalar_state_return_outside_byte_class rejected 1504ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call consume from Main::write_byte: main.bytes in [u8]::Utf8 (invalidated by prior mutation of main.bytes[0]; main.bytes is part of [u8]::Utf8)
 	cannot prove default-domain field requirement for return from Main::write_byte at statement 3: main.bytes requires [u8; N]::Utf8
+fail/proofs/self_call_without_witness_not_denotational rejected 686ms expected @b7aaf37278ea+wt
+	specification call `stalled` is not denotational: the selected machine is not unconditionally terminating
+	specification call `stalled` is not denotational: the selected machine is not unconditionally terminating
 fail/proofs/structural_ensures_unjudged_rejected rejected 2841ms expected @a9ae30e1c334+wt
 	machine `bogus` ensures contract proof fact `result == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
 fail/proofs/value_call_refuted_inequality_rejected rejected 802ms expected @a9ae30e1c334+wt
@@ -3615,8 +3626,14 @@ fail/traits/default_row_foreign_captured_operand rejected 115ms expected @619f89
 	machine `Mapped::Reader::read` state `read` return type uses undeclared lifetime argument `'same' in `Marker`; declare it in the owner's generic parameter list
 fail/traits/dyn_data_carrier_selector_retired rejected 0ms expected @a9ae30e1c334+wt
 	tests/omega/fail/traits/dyn_data_carrier_selector_retired/main.omg:13:33: `dyn Data::Implementation` is retired; name the trait application (`dyn Trait<Data>`) and select an implementation with `Implementation as dyn Trait<Data>`
+fail/traits/dyn_finite_family_narrowed_provider rejected 1435ms expected @b7aaf37278ea+wt
+	machine `Item::code` realizes `Shape::code` but requires `Width == 16 || Width == 32`, which the requirement does not require; callers of the requirement prove only its own `requires`
 fail/traits/dyn_finite_family_non_member rejected 263ms expected @e6088bf995e6
 	dynamic family call `Shape::code` requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
+fail/traits/dyn_finite_family_unproved_membership rejected 820ms expected @b7aaf37278ea+wt
+	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
+fail/traits/dyn_finite_family_wrong_tuple rejected 671ms expected @b7aaf37278ea+wt
+	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
 fail/traits/dyn_selector_from_data_place rejected 1279ms expected @a9ae30e1c334+wt
 	`item as dyn Shape<Item>` converts a value to `dyn Shape`; a selector is constructed from a named implementation (`Implementation as dyn Shape<...>`) and the data is passed to each call
 fail/traits/dyn_selector_receiver_call rejected 872ms expected @a9ae30e1c334+wt
@@ -3815,6 +3832,8 @@ pass/arithmetic/runtime_boolean_guarded_bit_value_exit checked 10537ms check-tar
 pass/arithmetic/runtime_boolean_guarded_product_exit checked 10744ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/arithmetic/runtime_boolean_state_shift_count_exit checked 10710ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/arithmetic/runtime_bounded_dividend_remainder_exit checked 10616ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/arithmetic/runtime_bounded_unsigned_sum_chain_exit checked 13816ms check-target:macos_arm64 @1b12798e27f4
+pass/arithmetic/runtime_bounded_unsigned_sum_field_and_call_exit checked 14708ms check-target:macos_arm64 @1b12798e27f4
 pass/arithmetic/runtime_call_live_remainder_recovery_exit checked 7304ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/arithmetic/runtime_comparison_signedness_exit checked 11182ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/arithmetic/runtime_cyclic_parameter_fixed_use_after_console_exit checked 10981ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -4121,11 +4140,9 @@ pass/borrows/view_field_record_exit_disposal checked 1549ms @a9ae30e1c334+wt
 pass/borrows/writeonly_record_field_store checked 5039ms check-target:macos_arm64 @af6b0f221559+wt
 pass/borrows/writeonly_record_field_store_variants checked 4946ms check-target:macos_arm64 @af6b0f221559+wt
 pass/boundary/interleaved_structural_crash_formal_exit checked 10426ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/boundary/later_state_requirement_scalar_result_exit rejected 86458ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	call `darwin_clock_ns` selects no declaration: `darwin_clock_ns` is not a declared machine, data, or proof definition
+pass/boundary/later_state_requirement_scalar_result_exit checked 33649ms check-target:macos_arm64 @b7aaf37278ea+wt
 pass/boundary/nested_projected_structural_crash_formal_exit checked 10388ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/boundary/static_foreign_scalar_result_locals_exit rejected 88455ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	call `darwin_clock_ns` selects no declaration: `darwin_clock_ns` is not a declared machine, data, or proof definition
+pass/boundary/static_foreign_scalar_result_locals_exit checked 33160ms check-target:macos_arm64 @b7aaf37278ea+wt
 pass/build/artifact_only_required_output_completion checked 20604ms published:files/manifest.txt @a9ae30e1c334+wt
 pass/build/build_log_line_written checked 10326ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/captured_named_input_required_output checked 20687ms published:files/named.txt @a9ae30e1c334+wt
@@ -4427,6 +4444,7 @@ pass/capabilities/win64_pointer_length_vs_descriptor_compile incomplete 5690ms c
 	`Main::main` has no executable body: this compiler does not lower its declaration of it yet (statement sequence: borrowed windows closed)
 pass/capabilities/windows_provides_import_exit rejected 1862ms check-target:windows_x86_64 regressed-from:checked+check-target:windows_x86_64 @a9ae30e1c334+wt
 	ordinary external `via` evaluation failed: machine `beeper_binding` is not build-time admissible: machine call path `beeper_binding` has no ordinary checked `Terminates` guarantee; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
+pass/cases/runtime_case_payload_policy_cast_exit checked 7965ms check-target:macos_arm64 @31988b31bfed+wt
 pass/collections/array_local_control checked 1729ms @a9ae30e1c334+wt
 pass/collections/borrowed_byte_array_state_reads_exit checked 12371ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/borrowed_byte_array_state_writes_exit checked 12066ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -4449,6 +4467,7 @@ pass/collections/element_view_runtime_loan_read checked 11757ms check-target:mac
 pass/collections/element_view_whole_write checked 11646ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/element_view_write_transition checked 11676ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/empty_record_array_borrow_exit checked 11199ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/collections/float_array_completed_call_store_exit checked 12682ms check-target:macos_arm64 @9462eda24d9e+wt
 pass/collections/indexed_row_array_literal_store checked 12195ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/integer_index_every_width checked 1618ms @a9ae30e1c334+wt
 pass/collections/local_byte_array_input_state_loan_exit checked 5767ms check-target:macos_arm64 @589aedee8ebc+wt
@@ -4542,6 +4561,7 @@ pass/collections/runtime_shared_array_polynomial_exit checked 13074ms check-targ
 pass/collections/runtime_shared_fixed_array_cycle_exit checked 11537ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_signed_element_offset_read_exit checked 11307ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_slice_record_copy_exit checked 11197ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/collections/runtime_three_indexed_record_float_read_exit checked 10892ms check-target:macos_arm64 @9462eda24d9e+wt
 pass/collections/runtime_vec_u32_growth_exit checked 14108ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_view_element_structural_replacement_exit checked 10470ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_whole_array_value_copy_exit checked 10910ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5218,6 +5238,7 @@ pass/float/runtime_float_call_same_carrier_cast_exit checked 25094ms check-targe
 pass/float/runtime_float_digit_separators_exit checked 25286ms check-target:macos_arm64 @9c4d1c444502
 pass/float/runtime_float_integer_conversion_boundaries_exit checked 25128ms check-target:macos_arm64 @9c4d1c444502
 pass/float/runtime_format_conversion_result_bounds_exit checked 24869ms check-target:macos_arm64 @9c4d1c444502
+pass/float/runtime_generic_constructor_literal_landing_exit checked 14705ms check-target:macos_arm64 @1b12798e27f4
 pass/float/runtime_named_float_to_integer_conversion_exit checked 24284ms check-target:macos_arm64 @9c4d1c444502
 pass/float/runtime_named_fma_sequence_exit checked 23441ms check-target:macos_arm64 @9c4d1c444502
 pass/float/runtime_named_format_conversion_exit checked 22605ms check-target:macos_arm64 @9c4d1c444502
@@ -6533,17 +6554,3 @@ run/stores/runtime_float_indexed_call_result_exit checked 8854ms check-target:ma
 run/stores/runtime_float_store_selector_snapshot_exit checked 8082ms check-target:macos_arm64 @589aedee8ebc+wt
 run/variant_decimal_runtime_division checked 11419ms check-target:linux_x86_64 @a9ae30e1c334+wt
 run/variant_record_normalization_repeats checked 13906ms check-target:linux_x86_64 @a9ae30e1c334+wt
-pass/cases/runtime_case_payload_policy_cast_exit checked 7965ms check-target:macos_arm64 @31988b31bfed+wt
-pass/collections/float_array_completed_call_store_exit checked 12682ms check-target:macos_arm64 @9462eda24d9e+wt
-pass/collections/runtime_three_indexed_record_float_read_exit checked 10892ms check-target:macos_arm64 @9462eda24d9e+wt
-fail/collections/runtime_three_indexed_float_read_missing_bound rejected 1706ms expected @9462eda24d9e+wt
-	cannot prove index `row` is within length 2 in read::entry
-fail/float/generic_constructor_suffix_format_disagrees rejected 315ms expected @1b12798e27f4
-	literal `3.0` is suffixed `f64` but lands in a `f32` place -- a width suffix chooses the literal's format at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
-pass/float/runtime_generic_constructor_literal_landing_exit checked 14705ms check-target:macos_arm64 @1b12798e27f4
-fail/arithmetic/nested_unsigned_sum_operand_overflow rejected 729ms expected @1b12798e27f4
-	exact arithmetic in machine `tally` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/arithmetic/zero_increment_unproved_index rejected 2249ms expected @1b12798e27f4
-	cannot prove index `position` is within length 3 in select::entry
-pass/arithmetic/runtime_bounded_unsigned_sum_chain_exit checked 13816ms check-target:macos_arm64 @1b12798e27f4
-pass/arithmetic/runtime_bounded_unsigned_sum_field_and_call_exit checked 14708ms check-target:macos_arm64 @1b12798e27f4

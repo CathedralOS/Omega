@@ -57,9 +57,9 @@ data Main {
 }
 
 machine Main::main(context: &mut Main) reaches Console + Clock + DarwinClock {
-    let before: u64 = darwin_clock_ns(6);
+    let before: u64 = macos_perf_counter();
     let ready: i32 = TimedWait::wait(20);
-    let after: u64 = darwin_clock_ns(6);
+    let after: u64 = macos_perf_counter();
     transition after >= before && ready == 0 {
         true -> measure(&mut context, after - before)
         false -> failed(&mut context)
