@@ -6891,3 +6891,39 @@ pass/comptime/runtime_const_array_product_specializations_exit checked 16810ms c
 pass/comptime/runtime_const_array_product_u32_exit checked 16836ms check-target:macos_arm64 @77cde1c51efd+wt
 pass/comptime/runtime_const_array_saturating_result_exit checked 9084ms check-target:macos_arm64 @77cde1c51efd+wt
 pass/comptime/runtime_const_array_wrapping_result_exit checked 8669ms check-target:macos_arm64 @77cde1c51efd+wt
+fail/generics/const_extent_guard_authored_comparison rejected 638ms expected @d80baff24c7e+wt
+	cannot prove index `0` is within const extent `Count` of `moments` in first::entry
+fail/generics/const_extent_guard_closed_alias_write rejected 1119ms expected @d80baff24c7e+wt
+	cannot prove index `0` is within length 0
+fail/generics/const_extent_guard_closed_authored_comparison rejected 897ms expected @d80baff24c7e+wt
+	cannot prove index `0` is within length 0
+fail/generics/const_extent_guard_closed_bad_index_type rejected 322ms expected @d80baff24c7e+wt
+	machine `main` state `entry` indexes `values` with `false` of type `bool`, but an index or range endpoint must be an integer
+fail/generics/const_extent_guard_closed_disjunction rejected 603ms expected @d80baff24c7e+wt
+	cannot prove index `0` is within length 0
+fail/generics/const_extent_guard_closed_join rejected 969ms expected @d80baff24c7e+wt
+	cannot prove index `0` is within length 0
+fail/generics/const_extent_guard_closed_satisfiable rejected 952ms expected @d80baff24c7e+wt
+	cannot prove index `0` is within length 0
+fail/generics/const_extent_guard_closed_wrong_arm rejected 581ms expected @d80baff24c7e+wt
+	cannot prove index `0` is within length 0
+fail/generics/const_extent_guard_closed_zero_divisor rejected 362ms expected @d80baff24c7e+wt
+	division by zero in machine `main` state `entry` return value: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.
+fail/generics/const_extent_guard_disjunction rejected 1127ms expected @d80baff24c7e+wt
+	cannot prove index `0` is within const extent `Count` of `moments` in first::entry
+fail/generics/const_extent_guard_negative_index rejected 1044ms expected @d80baff24c7e+wt
+	cannot prove index `-1` is non-negative
+	cannot prove index `-1` is within length 5
+fail/generics/const_extent_guard_one_past rejected 1115ms expected @d80baff24c7e+wt
+	cannot prove index `1` is within const extent `Count` of `moments` in first::entry
+fail/generics/const_extent_guard_other_binder rejected 589ms expected @d80baff24c7e+wt
+	cannot prove index `0` is within const extent `Count` of `moments` in first::entry
+fail/generics/const_extent_guard_shadowed_local rejected 700ms expected @d80baff24c7e+wt
+	cannot prove index `0` is within const extent `Count` of `moments` in first::entry
+fail/generics/const_extent_guard_unproved_predecessor rejected 959ms expected @d80baff24c7e+wt
+	cannot prove index `0` is within const extent `Count` of `moments` in first::read
+fail/generics/const_extent_guard_weak_floor rejected 623ms expected @d80baff24c7e+wt
+	cannot prove index `0` is within const extent `Count` of `moments` in first::entry
+fail/generics/const_extent_guard_wrong_arm rejected 1061ms expected @d80baff24c7e+wt
+	cannot prove index `0` is within const extent `Count` of `moments` in first::entry
+pass/generics/runtime_const_extent_guard_floors_exit checked 11328ms check-target:macos_arm64 @d80baff24c7e+wt

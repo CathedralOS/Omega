@@ -1,18 +1,18 @@
 {
-  "sample_revision": "ff2dec64d07f3e36eb5fad054d86462a84702ec8",
-  "integrated_main": "5acf32321f42c59b07d53df354052ca4ee214c75",
-  "producer_revision": "ff2dec64d07f3e36eb5fad054d86462a84702ec8",
-  "compiler_sha256": "e98b7c7460a56c81e246074f79a6c7dd63fa177e5c8d2d203e1424851eec428b",
+  "sample_revision": "90d9309f5511aa583af2f6ea54eb28186f240da3",
+  "integrated_main": "0af7c11c3c7634237d5be7a2e3e1e8daa2a0bf89",
+  "producer_revision": "90d9309f5511aa583af2f6ea54eb28186f240da3",
+  "compiler_sha256": "76bfa7d03ab6e37db26377cc1752cdb297c29b24c48c8cf7e486bfd48fa9cafa",
   "target": "linux_x86_64",
-  "incoming_input_review": "Full requalification against the freshly rebuilt current-main compiler and exact relinked 159-unit observer closure. Current-main wavelet validation workspace addition changed the produced compiler hash; all 46 actual native and captured Terminal streams and the exact source-invalid control were re-executed.",
+  "incoming_input_review": "Integrated current main0af reference-transfer/scalar-snapshot and selected-constructor proof changes, retaining preceding call/frame/view/entry and core/std changes; retained measured_results, const_binder_floors and closed_integer_arrivals. Fresh public CLI18 repair checks, five captured-length controls and seven borrowing-refusal controls; actual native/Terminal value assertions for both positives, five package-free runtime regressions and incoming scalar-snapshot witness; all46 native/raw-Terminal numerical cases. Independent final review covers source merge and actual observations.",
   "oracle_cases": 46,
   "actual_native_and_captured_terminal_cases": 46,
   "exact_selection_information_determinant": true,
   "exact_rational_covariance_prediction_variance": true,
   "absolute_relative_tolerance": 1e-08,
-  "native_executable_sha256": "abf661d4cf5070f3df55ba43691ad93350807e48cb32d92f0c48f9166d275c00",
+  "native_executable_sha256": "d348f5dd997807ee5ca945e387355431d8c9d042225c0fc27a72183d48624edf",
   "full_cli_seconds": 308.4188847750006,
-  "direct_native_seconds": 0.03911068700017495,
+  "direct_native_seconds": 0.04027259500435321,
   "source_invalid_control": {
     "exit": 1,
     "diagnostic": "cannot prove index `12` is within length 12",
@@ -390,7 +390,7 @@
   ],
   "qualification_time_source_sha256": {
     "main.omg": "2db332de34c666415313dd3a30be43356615b547696bb6a2d6cc57e129d5f37d",
-    "design/model.omg": "d1b9a4ad135b27d0ef117cf993c037b5bca7913502f36de522afd5c6963a5ae8",
+    "design/model.omg": "a867db14517bdfe6549c75fa113257b697a8671d9cd9b15c4e71151ef0eb7360",
     "build.omg": "5a53d49a4fef4fce4a69f89775d647a46e3a5da48bb81c1cd65916283ca51ed0",
     "reference.py": "89a6f21785a1dd4614de595d9ac8463566cd10c66280bfc23696f27e7eb55544",
     "validate.py": "adb91b3d5614b0c948f1839776cfb4abe7bf56f2cd3b069fc405ad6155b2788e",
@@ -400,93 +400,10 @@
   },
   "current_validator_sha256": "adb91b3d5614b0c948f1839776cfb4abe7bf56f2cd3b069fc405ad6155b2788e",
   "validator_evidence_applicability": "Current Omega source, frozen inputs/oracles, validator and exact-closure-linked SDK sponsor were executed. All46 actual native and Terminal values matched exactly; unsupported/fuel-exhausted/incomplete execution fails.",
-  "affected_regressions": [
-    {
-      "fixture": "calls/runtime_static_entry_context_exit",
-      "phase": "update",
-      "exit": 0,
-      "seconds": 5.202863221999905,
-      "command": [
-        "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/omega",
-        "update",
-        "--project",
-        "tests/omega/pass/calls/runtime_static_entry_context_exit",
-        "--target",
-        "linux_x86_64"
-      ]
-    },
-    {
-      "fixture": "calls/runtime_static_entry_context_exit",
-      "phase": "both",
-      "exit": 0,
-      "seconds": 5.253321801000311,
-      "command": [
-        "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/omega",
-        "run",
-        "--both",
-        "--keep",
-        "tests/omega/pass/calls/runtime_static_entry_context_exit/main.omg"
-      ]
-    },
-    {
-      "fixture": "arithmetic/runtime_transitive_product_exit",
-      "phase": "update",
-      "exit": 0,
-      "seconds": 2.791987863000031,
-      "command": [
-        "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/omega",
-        "update",
-        "--project",
-        "tests/omega/pass/arithmetic/runtime_transitive_product_exit",
-        "--target",
-        "linux_x86_64"
-      ]
-    },
-    {
-      "fixture": "arithmetic/runtime_transitive_product_exit",
-      "phase": "both",
-      "exit": 0,
-      "seconds": 2.983692135000183,
-      "command": [
-        "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/omega",
-        "run",
-        "--both",
-        "--keep",
-        "tests/omega/pass/arithmetic/runtime_transitive_product_exit/main.omg"
-      ]
-    },
-    {
-      "fixture": "arithmetic/runtime_reused_division_inputs_exit",
-      "phase": "update",
-      "exit": 0,
-      "seconds": 5.112504340000214,
-      "command": [
-        "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/omega",
-        "update",
-        "--project",
-        "tests/omega/pass/arithmetic/runtime_reused_division_inputs_exit",
-        "--target",
-        "linux_x86_64"
-      ]
-    },
-    {
-      "fixture": "arithmetic/runtime_reused_division_inputs_exit",
-      "phase": "both",
-      "exit": 0,
-      "seconds": 2.7979997279999225,
-      "command": [
-        "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/omega",
-        "run",
-        "--both",
-        "--keep",
-        "tests/omega/pass/arithmetic/runtime_reused_division_inputs_exit/main.omg"
-      ]
-    }
-  ],
-  "terminal_sponsor_seconds": 15.583651122000447,
-  "terminal_artifact_sha256": "a346157f0699021e138a46938d65b9dac450b4338087a39f297c7c7b5660fe0a",
+  "terminal_sponsor_seconds": 16.0839358719968,
+  "terminal_artifact_sha256": "a235e03de59ea7d7beb4452d3948dadee4e2af05be30536790b3e172e03bdc24",
   "sponsor_build_receipt": {
-    "compiler_binary_sha256": "e98b7c7460a56c81e246074f79a6c7dd63fa177e5c8d2d203e1424851eec428b",
+    "compiler_binary_sha256": "76bfa7d03ab6e37db26377cc1752cdb297c29b24c48c8cf7e486bfd48fa9cafa",
     "cli_unit_metadata": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/omega/105a6a9cf98f2f92/fingerprint/bin-omega.json",
     "command": [
       "rustc",
@@ -836,25 +753,25 @@
       "terminal_interpreter=/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/terminal-interpreter/897fa239ca221d5a/out/libterminal_interpreter-897fa239ca221d5a.rlib"
     ],
     "source_sha256": "493873c66e7f5413a374a33d5d40635b7b74329a4b4200f30b575524cb72ab1c",
-    "harness_sha256": "791bdc90b73def4c2f89b042432df30577828863efffe29d8b606b6f98fac283",
+    "harness_sha256": "70760dce20c16e62d3a8d65c0e32c9c9fac2911ebee3d531d3ddd6f64f48c337",
     "libraries": [
       {
         "name": "abstract_operations",
         "fingerprint": 11479755905767884208,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/abstract-operations/31944ab91a6da8a9/out/libabstract_operations-31944ab91a6da8a9.rlib",
-        "sha256": "79d65ff3ac3c17aa51ed126979b13d45852b4dc650a76df8013143cd29fe0ef0"
+        "sha256": "a52d6a7ee7adf1b58c8da2a02235617520479ff0ef41cfb2ff01380e02fa6697"
       },
       {
         "name": "abstract_operations_to_abstract_operations",
         "fingerprint": 14308535453711316077,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/abstract-operations-to-abstract-operations/aafd36497ef0b2c2/out/libabstract_operations_to_abstract_operations-aafd36497ef0b2c2.rlib",
-        "sha256": "0f84fc9167479c0f6a545bb52ace9c0537f1b463a8eb3bb45fdad97129464092"
+        "sha256": "6fa378f7c2a96fcdb7574ea8eab8e5f4cf7adabf80796213237398c6fc72a91a"
       },
       {
         "name": "abstract_operations_to_target_operations",
         "fingerprint": 1384351397817168309,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/abstract-operations-to-target-operations/6300f5a0e34422ac/out/libabstract_operations_to_target_operations-6300f5a0e34422ac.rlib",
-        "sha256": "dad1da361a633f5bf2d549f2e12ea55ee7a7c6dccf81e19a1a90d744e00b7302"
+        "sha256": "309a95e887cd59a051e74053f4b505451ea3c5ff2aaeebfab2b22e1f55bc73b1"
       },
       {
         "name": "access_plans",
@@ -890,7 +807,7 @@
         "name": "backend_plan",
         "fingerprint": 18303240896899554153,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/backend-plan/a8792e1a235a5e07/out/libbackend_plan-a8792e1a235a5e07.rlib",
-        "sha256": "14a03db8ed7b74d5bd91d5f8160b21ca33599e3be7a88b94cffc4ed521a728ee"
+        "sha256": "1144e3b805cf0940ce72411929c887880f15eb29e78b68738d693f9e0723d176"
       },
       {
         "name": "bitflags",
@@ -908,7 +825,7 @@
         "name": "boundary_applications",
         "fingerprint": 2215770366205551833,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/boundary-applications/8b4cf99103ea8625/out/libboundary_applications-8b4cf99103ea8625.rlib",
-        "sha256": "a723ce29dcdd8a4a4831af03558f9687d523e9d2870361ceff0b477660439917"
+        "sha256": "91c93ea7f2dae569d923ce572b35b60a07cfa4c82460a6ed9f1ad62cb25e0c96"
       },
       {
         "name": "bounded_process",
@@ -920,13 +837,13 @@
         "name": "build_declarations",
         "fingerprint": 11370070674768598133,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/build-declarations/5f61e21ed58b6e83/out/libbuild_declarations-5f61e21ed58b6e83.rlib",
-        "sha256": "56ab114db9f58507a777e5e10563b731b2a1044f953e8b1aa4adca5e1d9c134b"
+        "sha256": "4973298e50ba88922eee93cf1b40ba6cb89c6e8089a2cde97f2e025d34273619"
       },
       {
         "name": "build_evaluation",
         "fingerprint": 6851690637035576483,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/build-evaluation/90af27e2c2d73853/out/libbuild_evaluation-90af27e2c2d73853.rlib",
-        "sha256": "e18ac8b50f880dc3e3a3ce845997d8046ffedfd54aef079331ae32b1ea1d0cf8"
+        "sha256": "b371dadc067b65ee5889a695b84825f8f416501c8f42adc714a345c73f494b61"
       },
       {
         "name": "build_output",
@@ -938,7 +855,7 @@
         "name": "build_time_evaluation",
         "fingerprint": 14753553107832622687,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/build-time-evaluation/2cd977430a9fe6cd/out/libbuild_time_evaluation-2cd977430a9fe6cd.rlib",
-        "sha256": "c63920ea9792d604875e2f36d1098c79e0c4002a77172255f4b685a3990b3206"
+        "sha256": "abe8cf1ce5899fb452c0ab4d4b94f92a486f646366e6bfc4a618d65a72db649e"
       },
       {
         "name": "build_time_values",
@@ -980,19 +897,19 @@
         "name": "checked_interpreter",
         "fingerprint": 14025511449903489750,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/checked-interpreter/8de99db6d2a52b4e/out/libchecked_interpreter-8de99db6d2a52b4e.rlib",
-        "sha256": "3001e10850a110ce4eae3eed2a60cede076f4e90ac0684da3a841096b20a6c9f"
+        "sha256": "60d81486ef1acddfb663ce18ca45b07a1393132babf914a511059f1b01aca5c0"
       },
       {
         "name": "checked_trees",
         "fingerprint": 4664751277266648307,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/checked-trees/ded419a234a7d573/out/libchecked_trees-ded419a234a7d573.rlib",
-        "sha256": "2f5a3d6d6a368943774617d5b4bff23a23b82b8c45d34cfaa156feb9b459f2b7"
+        "sha256": "af3c753a6915bd4f34cc736b9ea8cdfdc810520cb41a3f4ed8a626d9883166cb"
       },
       {
         "name": "checked_trees_to_lowered_psi",
         "fingerprint": 13691876632900328914,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/checked-trees-to-lowered-psi/9e2b42d22a3d4588/out/libchecked_trees_to_lowered_psi-9e2b42d22a3d4588.rlib",
-        "sha256": "d6b7ba634717947d1108a75f8bf3dd86c7b68ac68bbeefd0ce293f37dc3756da"
+        "sha256": "164d4da965c7795d75485fa9d57e6e409ee471e6dcc18a0c8ca371a245f60b00"
       },
       {
         "name": "command_group",
@@ -1004,19 +921,19 @@
         "name": "compilation_products",
         "fingerprint": 10709027157967004442,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/compilation-products/76e4d5d6bd1b0956/out/libcompilation_products-76e4d5d6bd1b0956.rlib",
-        "sha256": "affcd8f1b3608ba74edf76f1a2fe286e424ea06639b955d0964e4efeb998b6d3"
+        "sha256": "e65e75b51ff81cf10155bf4759fffa4d06ac43742b5afae91cc5e91e8d7b764f"
       },
       {
         "name": "compiler",
-        "fingerprint": 4493064484951467925,
+        "fingerprint": 13313939972689371607,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/compiler/12899f01c2f9226a/out/libcompiler-12899f01c2f9226a.rlib",
-        "sha256": "554527f91b94baf5443f5ab85d25518f96c35ba5692cf4770b25fe3c6dc0c758"
+        "sha256": "c949339e22d99bff6937272a3963f41c96764873e7ab9bf8feb79a1e0c14ffa1"
       },
       {
         "name": "component_description",
         "fingerprint": 631453382314144089,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/component-description/65d122b697ca2e09/out/libcomponent_description-65d122b697ca2e09.rlib",
-        "sha256": "f8cb8be88d13e590955ff7ce2b5c6dbba21f061697eaf6880203b8c487a6b500"
+        "sha256": "796ba3718cc670700eb9047315d4a3a408cf6f8f5e9bccaf31ca74f504a56a77"
       },
       {
         "name": "cpufeatures",
@@ -1064,7 +981,7 @@
         "name": "effects",
         "fingerprint": 15099090046339553344,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/effects/a0730592bc45e027/out/libeffects-a0730592bc45e027.rlib",
-        "sha256": "6185e47db847aa0b42c5586724bbfc4a23783cfa27792105246ebf1b2babf345"
+        "sha256": "b33890a953bcac330d6c8922a5fdb589c473566b22788a9738177efd89958501"
       },
       {
         "name": "either",
@@ -1088,7 +1005,7 @@
         "name": "facts",
         "fingerprint": 3933915515760145619,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/facts/466d2f4fae0dc282/out/libfacts-466d2f4fae0dc282.rlib",
-        "sha256": "5f9a6961057f50de3fc0ff9d83796c5392893f8fd83461818b9bad6fe72f5ace"
+        "sha256": "34f8d3eaf8731639960a41c15d8ecd84aad73cdc5e4d26165f1ab61883cfb7cb"
       },
       {
         "name": "filesystem_authority",
@@ -1112,7 +1029,7 @@
         "name": "function_identity",
         "fingerprint": 4809960460124816102,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/function-identity/69c4ab74ff871114/out/libfunction_identity-69c4ab74ff871114.rlib",
-        "sha256": "32f376e0b3f3bb96850fdc7a79513f8cf6c74d486aec73e597ead86df2faca86"
+        "sha256": "c05bd0ed41398cb48d85e61a77beaf5ca71370d55aef59bc5dc74f8c8091a90e"
       },
       {
         "name": "generic_array",
@@ -1130,37 +1047,37 @@
         "name": "image",
         "fingerprint": 16653938544377962350,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/image/48e0ec5c3a53f16c/out/libimage-48e0ec5c3a53f16c.rlib",
-        "sha256": "e52746c9a5e4c69869e86c359f9dbcc1b164d23bd9e47cec229ed451c583cd2f"
+        "sha256": "87121d05fce3cfca49c1d9257d8364849862b4ef58e23bada473adfee330333c"
       },
       {
         "name": "image_elf",
         "fingerprint": 4678651171127101416,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/image-elf/af1f79312db3245c/out/libimage_elf-af1f79312db3245c.rlib",
-        "sha256": "671f9630f7709bfaf374d51141f0d42c96b763249fd6c7225fa4391c425b5c6f"
+        "sha256": "45ded63ef9439d107e64178ac5ab319ac59a0e7499dd0e692da23374fd149348"
       },
       {
         "name": "image_emission",
         "fingerprint": 4037972310623342263,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/image-emission/0f0d55818e9497cc/out/libimage_emission-0f0d55818e9497cc.rlib",
-        "sha256": "b9ac4fa37beb18a43c8d3f01b6d0b969762ac83d8126211799e05e2fcbd14d8f"
+        "sha256": "448806aff088ad6d1b5b8e4192d474950ef4653623c895b962be1d682f5acc09"
       },
       {
         "name": "image_macho",
         "fingerprint": 4890232734076650954,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/image-macho/74ccf1b849ed0b8c/out/libimage_macho-74ccf1b849ed0b8c.rlib",
-        "sha256": "bff6e36127169230aaaaa7d0e9754f9a1f04b10a40ede6a0e429ec95393d78af"
+        "sha256": "89f68f2edacb492c3f76639c4bf5e7fdf934447cc912490b9ae4a12e2d51b4b5"
       },
       {
         "name": "image_pe",
         "fingerprint": 27856546895924088,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/image-pe/3202201dda93f743/out/libimage_pe-3202201dda93f743.rlib",
-        "sha256": "a1eb97d97fde52d46d0aa943d7ce19ae344ee6f316d75e0b0f54df01a1493697"
+        "sha256": "de127ec863cb3d797455537e006c9e7d6f21cdd8fb81009d1cdf25104d06d0a2"
       },
       {
         "name": "installation_evidence",
         "fingerprint": 1642678244784750761,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/installation-evidence/ed003e5d312fdf5c/out/libinstallation_evidence-ed003e5d312fdf5c.rlib",
-        "sha256": "631860a5561386375789bf11ec89fce6107d0f0563baf1cb7d63aff943e096ff"
+        "sha256": "48bdd7312a3375a5c2e5b068191dfcf45b7fb35d39c4722c39e4490a45741385"
       },
       {
         "name": "io_extras",
@@ -1190,13 +1107,13 @@
         "name": "isa_aarch64",
         "fingerprint": 4465824142203666145,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/isa-aarch64/d33a3821433281f7/out/libisa_aarch64-d33a3821433281f7.rlib",
-        "sha256": "640d68b3faa7601e4e579f504dde8dd40f09a3ebe5c128b0788e79ab0f3865b9"
+        "sha256": "9baa09b5992a851d83b886024d1804fb614da1a794a3ab8ae3a78a0802617609"
       },
       {
         "name": "isa_x86_64",
         "fingerprint": 12600022492573212108,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/isa-x86_64/a9530fb326fc88c3/out/libisa_x86_64-a9530fb326fc88c3.rlib",
-        "sha256": "17a32403dd799cda2187fd3d5bd4261a1d72c970acf78e0e1c61fac6b914d2ea"
+        "sha256": "a03606a99db4d149aa8d789d8d2f6af831bc41cfa326e4461813b68bd3472b73"
       },
       {
         "name": "itoa",
@@ -1220,7 +1137,7 @@
         "name": "layout",
         "fingerprint": 1106852370805322828,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/layout/b8faec38700fb44d/out/liblayout-b8faec38700fb44d.rlib",
-        "sha256": "c20d1ae96798b5b4d0d3992aab2d8c4ae5468b9778a114e8d3d674d45b4e1d2a"
+        "sha256": "7bab7d13fc62a759465120a634781dd9573c8c6d0847fa385ed0773629948b22"
       },
       {
         "name": "layout_plans",
@@ -1238,7 +1155,7 @@
         "name": "legalized_operations",
         "fingerprint": 14941073260770893961,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/legalized-operations/3656e35d6c02c6e4/out/liblegalized_operations-3656e35d6c02c6e4.rlib",
-        "sha256": "9ce8789ff812ec72ef91c63a41dd17115d7adc6362ed6a666860739c652247d9"
+        "sha256": "437d7d5319bb17d5ba8ee4465e467c21ba4454ce31ddc1a431b24250b0647070"
       },
       {
         "name": "libc",
@@ -1256,31 +1173,31 @@
         "name": "lowered_psi",
         "fingerprint": 5282675680967267562,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/lowered-psi/32be694e713eae96/out/liblowered_psi-32be694e713eae96.rlib",
-        "sha256": "d2684956d952734b9cc2f5a37332784fb211b7384739b284aca5d467d7aac54a"
+        "sha256": "5f68eaf908a5b9ca7c32a6dff548b5ed3cf086100ad4ceb992ec6fd5a904885e"
       },
       {
         "name": "lowered_psi_to_lowered_psi",
         "fingerprint": 2115186756610366275,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/lowered-psi-to-lowered-psi/037521c3b2ea76cf/out/liblowered_psi_to_lowered_psi-037521c3b2ea76cf.rlib",
-        "sha256": "65018b40f43830572ac404ef2a3dc66608343c5ae607be9302942ce8c549064d"
+        "sha256": "e071864b0f2225009e82dd9f4b427b3d9b07b4776a4346bb9fb74b66977eb6e3"
       },
       {
         "name": "lowered_psi_to_terminal_psi",
         "fingerprint": 4626475048401718851,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/lowered-psi-to-terminal-psi/99ffd7c00974374f/out/liblowered_psi_to_terminal_psi-99ffd7c00974374f.rlib",
-        "sha256": "8b7054803d6eb86a9b7d56ef740b156378b68f83ace83f273b520a0dd96ee113"
+        "sha256": "2b9bee275b3cba4d58578733fe967c98492c36245e0d322a6f8d6790f5c7daa5"
       },
       {
         "name": "machine_code",
         "fingerprint": 4102007873719552504,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/machine-code/c0dc6c41c8ea3fcd/out/libmachine_code-c0dc6c41c8ea3fcd.rlib",
-        "sha256": "fbd2aeeb93824c163345927425162d81192f89b5700e4082327884e3a215b028"
+        "sha256": "18fd75a0dbcd6bc10f1348bff6f7e61242418fb313db7446badb1e3df54a9575"
       },
       {
         "name": "machine_emission",
         "fingerprint": 15028637762521017844,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/machine-emission/f7e6a7272941afd0/out/libmachine_emission-f7e6a7272941afd0.rlib",
-        "sha256": "242884d8a52a9e141971bd6f74bfc8103539b952c1fadaaee17694a1c6702355"
+        "sha256": "3079bbeea1771c82cb82428f4b49a99a79a5a8f2ae9721ada517013a6fbf120d"
       },
       {
         "name": "maybe_owned",
@@ -1298,13 +1215,13 @@
         "name": "native_artifact",
         "fingerprint": 635511585249609143,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/native-artifact/b70617c72f8a516b/out/libnative_artifact-b70617c72f8a516b.rlib",
-        "sha256": "8abc54adaa4cc9ccf042b86ef3b059212fc733e59033dc91167f03397f606833"
+        "sha256": "f707240efc58e032804170c6e2f53344986a750541b624c9fc20648bf7336a62"
       },
       {
         "name": "native_production",
         "fingerprint": 17078259969276346930,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/native-production/ccb8e6e15cb493c1/out/libnative_production-ccb8e6e15cb493c1.rlib",
-        "sha256": "f8f912032990c4722470f4d9544fd47c1e75908c92c3e52e6f578a5879c2378b"
+        "sha256": "66cba1c8213f04e80742a8df4cf7f986f1d8972b4181bfb52c276b1a60d9c610"
       },
       {
         "name": "nix",
@@ -1322,7 +1239,7 @@
         "name": "object_file",
         "fingerprint": 4570588389688886367,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/object-file/192e96c2276fa658/out/libobject_file-192e96c2276fa658.rlib",
-        "sha256": "f2722af693d9cbb3e7c04adf6b27fd4f91847e59288438259e825f69862beb17"
+        "sha256": "d221cc38396f637010c317f75bd3d8c1a55b5385fecf7eabac139e1b3bb6d191"
       },
       {
         "name": "once_cell",
@@ -1346,31 +1263,31 @@
         "name": "optimization_unit",
         "fingerprint": 5324337196424255083,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/optimization-unit/9e4657506f1cf723/out/liboptimization_unit-9e4657506f1cf723.rlib",
-        "sha256": "0ae0e9cca2c7d825698f6cf103214857bc25ada7ed9fe51cea331a8e1cd5fe24"
+        "sha256": "8d6c78bfe911c37145c0adb49fb821238289207fdf5594a89f1a5757cda1bb6e"
       },
       {
         "name": "optimization_unit_semantics",
         "fingerprint": 17778291774360658394,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/optimization-unit-semantics/ccb1e1d038586be3/out/liboptimization_unit_semantics-ccb1e1d038586be3.rlib",
-        "sha256": "21b276bff5f19f2a2817abbc7a2139717547d67c4414e4360e93bb763d6356cb"
+        "sha256": "6ff85175fbe706bb397f12207a1e045b7cf402d5e88a0012e427c37d65878149"
       },
       {
         "name": "package_compilation",
         "fingerprint": 18199102769461384718,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/package-compilation/19a97f3673f37b8b/out/libpackage_compilation-19a97f3673f37b8b.rlib",
-        "sha256": "756218d7faf7011835612d168abf40b4958e5eff58a69fc9e51bb9664134354f"
+        "sha256": "aa7c59ac8f6d02a2ea45d150b02242d27b1940aeada5a07ed1917ad227eb36e6"
       },
       {
         "name": "package_evidence",
         "fingerprint": 246707786325760934,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/package-evidence/bf8918c8c3d24e5e/out/libpackage_evidence-bf8918c8c3d24e5e.rlib",
-        "sha256": "4fb02f303001f9dac20edec07537beac52eb559179d3fe5e0134cae845f65556"
+        "sha256": "ff935b4efc9cef6036657e55a277daddc26f32d1ca9309f9ea702fb7a6bda47c"
       },
       {
         "name": "package_manager",
-        "fingerprint": 17562223154709609361,
+        "fingerprint": 13595883050469793011,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/package-manager/de671d29f2fd0463/out/libpackage_manager-de671d29f2fd0463.rlib",
-        "sha256": "41d83e6bd4a540e388a40536e6cb76506b0db623980bbbd36819e68711088539"
+        "sha256": "27739d57286996651c0831263f0b2d0491a023599a51e97272ce222afd394ac5"
       },
       {
         "name": "package_source",
@@ -1382,7 +1299,7 @@
         "name": "physical_instructions",
         "fingerprint": 14280159247919260061,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/physical-instructions/84f342de8d535193/out/libphysical_instructions-84f342de8d535193.rlib",
-        "sha256": "f270a799bc0627f1390fde54fa33da51f57a0c2d6680d7b78be42e2819620dc8"
+        "sha256": "389e328654d9f48bbe5416aa7bc4fda0fadde6ffd5e93e9002233fe73d4c7833"
       },
       {
         "name": "platform_custody",
@@ -1394,7 +1311,7 @@
         "name": "post_allocation_machine_to_selected_form_encoding",
         "fingerprint": 17599702963888916320,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/post-allocation-machine-to-selected-form-encoding/b50b36c6fe8fc02e/out/libpost_allocation_machine_to_selected_form_encoding-b50b36c6fe8fc02e.rlib",
-        "sha256": "be6f0a40bf5fb7b5c136571b6d73e8521fda423d45c4577e8a9cbbeceda4a3f4"
+        "sha256": "febd5e934013020f8569d168b61c01b6be11a0e5fa959e9bb88a57536dfafb81"
       },
       {
         "name": "post_handoff_writer_plan",
@@ -1412,31 +1329,31 @@
         "name": "program_entry_plan",
         "fingerprint": 17867530180718429187,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/program-entry-plan/9971106ea4051e90/out/libprogram_entry_plan-9971106ea4051e90.rlib",
-        "sha256": "8d63d2b96207e3461cf0c2afe8b28fcfe205bce2b9fa757f7ddf1bbaceb10d5f"
+        "sha256": "32ae2e41491fd84f761cef3e6268d19f8236698672ce96b91e566d6cf82bca39"
       },
       {
         "name": "proof",
         "fingerprint": 17597402540181456168,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/proof/41184cecc95757e9/out/libproof-41184cecc95757e9.rlib",
-        "sha256": "8677cbeb634494f14befc17ffb7a712dd056820d6f2bec0ab9ec806464b26043"
+        "sha256": "c4a76bf8e1e31ee0ba08b6586cad7888dd30c7a5f050cb335ac2ebf30f4a111a"
       },
       {
         "name": "proof_admission",
         "fingerprint": 3568772332475490704,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/proof-admission/7954d0362867f800/out/libproof_admission-7954d0362867f800.rlib",
-        "sha256": "1db80f386ffbd376c9c21168f389d20cf108391ede2c432191004e1a9308bbbb"
+        "sha256": "21160592a91fbeb5e758e6c4f49abf381c59bc70a260d96a72589d9235e11e00"
       },
       {
         "name": "provider_planning",
         "fingerprint": 7662418975588330965,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/provider-planning/0b10530113f0956d/out/libprovider_planning-0b10530113f0956d.rlib",
-        "sha256": "f50234810aea224af993cd4d01fe49251622f933460417f9506125711a6aaf78"
+        "sha256": "94743926fb2b5c31d43ace00ef29772fe750bf611b5d4d8e029bf08a4e51ddbb"
       },
       {
         "name": "psi_compiler",
         "fingerprint": 10251200517564272643,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/psi-compiler/91a0799eb233c52f/out/libpsi_compiler-91a0799eb233c52f.rlib",
-        "sha256": "100dcb80d0e7b8ab1106945bf574f9c8bf141d1f389b711e1823fbcd2599fc38"
+        "sha256": "cd8d7c7a4dab05c186b71bc1454bfe9c27dce191dd030ac081a8db7fb7cb2cd1"
       },
       {
         "name": "quote",
@@ -1460,19 +1377,19 @@
         "name": "register_environment",
         "fingerprint": 16866636679478595783,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/register-environment/ad41720d786cb874/out/libregister_environment-ad41720d786cb874.rlib",
-        "sha256": "8af886585c04bb2d9f6d0ea8e4073a639deeb855cfdb05af04616e246a4b8e66"
+        "sha256": "28c5d448ecf359151afd792572d7cab5dd874f81efa4deefa4ba151987339ce5"
       },
       {
         "name": "register_homes",
         "fingerprint": 1644934997130239767,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/register-homes/defe7db06cad73b9/out/libregister_homes-defe7db06cad73b9.rlib",
-        "sha256": "70e8a5c46f7b60623df282f653a002ef2d68b4238546f7258b1d6fd0b324e3de"
+        "sha256": "6a6cc0f4b01c88f651860b50b20e60eb77291d49bd274779c49ba3f2b39b1f1a"
       },
       {
         "name": "register_homes_to_post_allocation_machine",
         "fingerprint": 16881214442309553143,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/register-homes-to-post-allocation-machine/b5addc231fd23f38/out/libregister_homes_to_post_allocation_machine-b5addc231fd23f38.rlib",
-        "sha256": "2ebb88eba236b9b36a0e1f8526a5b65426a6ce07bd758a2168e463dd440c33d4"
+        "sha256": "37869dcba1218418366145b45befcf0f0bd103d75e64295548062bf43df02346"
       },
       {
         "name": "register_model",
@@ -1484,19 +1401,19 @@
         "name": "representation_planning",
         "fingerprint": 6582663321828127236,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/representation-planning/5e93d02c29934617/out/librepresentation_planning-5e93d02c29934617.rlib",
-        "sha256": "0937d13cdb7dd6d43c6dbd2348752cc01076b02bfef6e11364b12347e4ef7bcd"
+        "sha256": "7de512cc273b1c4357fd132d21f0a2644056f1701f49b66dd85fb0029c44ea19"
       },
       {
         "name": "representation_selections",
         "fingerprint": 3349397065560398668,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/representation-selections/db973b5dfdbce2f5/out/librepresentation_selections-db973b5dfdbce2f5.rlib",
-        "sha256": "168be1dab6add1755d415c165f8364d8e748c9d55428e0765793560edab4d6ae"
+        "sha256": "244508fc175cd4852c8a1aad2807d547a0b6950e47e8b52be8514c348047bcc0"
       },
       {
         "name": "resolved_layout_to_resolved_layout",
         "fingerprint": 9334836684322996694,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/resolved-layout-to-resolved-layout/ca34108258393955/out/libresolved_layout_to_resolved_layout-ca34108258393955.rlib",
-        "sha256": "5384167760cd04f1d53eedce8ed144ef73657d1e467e34615dfdf4e6f2563962"
+        "sha256": "f668d43c416a27b51db0475b33ac0d255a1e0573a82223a9422e8aee491e946a"
       },
       {
         "name": "resolver_execution",
@@ -1532,31 +1449,31 @@
         "name": "selected_dispatch",
         "fingerprint": 12064194840167150443,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/selected-dispatch/097ec8bdba78b0be/out/libselected_dispatch-097ec8bdba78b0be.rlib",
-        "sha256": "b2836930cd62db1b178b4b9ee64673157298644774b4df9e1418795d1c516100"
+        "sha256": "cbfdf218d27107cb8e593ef3cf6ce801fca68131fae874200fb2ac260aecffab"
       },
       {
         "name": "selected_form_encoding_to_resolved_layout",
         "fingerprint": 14954566023329860716,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/selected-form-encoding-to-resolved-layout/a5a4b35b9e4bba11/out/libselected_form_encoding_to_resolved_layout-a5a4b35b9e4bba11.rlib",
-        "sha256": "48d38629ebd446f32815de58f039867213a5954d2620178a8220322d5ec835a0"
+        "sha256": "c810e76508888f76ab8cbd101ba419005f117bcd979127a5ed4f5940b0082c0c"
       },
       {
         "name": "selected_instructions",
         "fingerprint": 9542932949631479423,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/selected-instructions/e93eb595d9b0bdf9/out/libselected_instructions-e93eb595d9b0bdf9.rlib",
-        "sha256": "bf66fa125b04330c5ecee60af942361a7a323a68df138a3ffac1b4831e4d01c2"
+        "sha256": "ac87b96cb554303857001bc0e25da5b55063dba4ea38c97242ba6fc33f9af524"
       },
       {
         "name": "selected_instructions_to_register_homes",
         "fingerprint": 1507076090353926652,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/selected-instructions-to-register-homes/5e63c14d1b0e2268/out/libselected_instructions_to_register_homes-5e63c14d1b0e2268.rlib",
-        "sha256": "b2f930eb991e21339d75f970f350494b8c2bcf642a51ac1022fb1dad5e8a99db"
+        "sha256": "52112e88de2a4ed921983c936949d2d78648155da7712180a88dd0d3dcdf26d3"
       },
       {
         "name": "selected_instructions_to_selected_instructions",
         "fingerprint": 7218347794854421229,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/selected-instructions-to-selected-instructions/d8b14a4a25fbfe35/out/libselected_instructions_to_selected_instructions-d8b14a4a25fbfe35.rlib",
-        "sha256": "11edef7ff6350d8daef4b3efb6790a122bd0001d5d73453461b84c4a1ae095ef"
+        "sha256": "ddd3626f6a37531259593a9cf6b6301387e476175a55783d709ecf376bc0435f"
       },
       {
         "name": "semantic_vocabulary",
@@ -1622,13 +1539,13 @@
         "name": "symbol_resolved_trees",
         "fingerprint": 5423794260760565369,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/symbol-resolved-trees/5e7f1acd1b841a87/out/libsymbol_resolved_trees-5e7f1acd1b841a87.rlib",
-        "sha256": "25fe4b2af57db8475243b76694e4d960bb7cfd709195dde4501f185c207a6b12"
+        "sha256": "4c391075750bf31babcddf9620221516700c70eca38254c74d284793316ff786"
       },
       {
         "name": "symbol_resolved_trees_to_typed_trees",
         "fingerprint": 15635608332213323437,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/symbol-resolved-trees-to-typed-trees/bb9e7a2f6a31e0c7/out/libsymbol_resolved_trees_to_typed_trees-bb9e7a2f6a31e0c7.rlib",
-        "sha256": "04571d3370cf70f363035306db639ad7742e7b2554c909f775fd875845d4b4e0"
+        "sha256": "44efc07169f7564e875ac1bcbdd6d521872c208cb47dc381ae2421b454a73268"
       },
       {
         "name": "symbols",
@@ -1646,13 +1563,13 @@
         "name": "syntax_trees",
         "fingerprint": 388963874222095306,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/syntax-trees/5355513860103238/out/libsyntax_trees-5355513860103238.rlib",
-        "sha256": "e5c9f8700c7104c3d40eb1ba53978b337ebf89cd7bcbd199d9735a8cac1019fc"
+        "sha256": "4c041ab927a46dcdaa082b3b78105c03ba00aa9f08d4c4014bcc4c120a11b749"
       },
       {
         "name": "syntax_trees_to_symbol_resolved_trees",
         "fingerprint": 11308735153841042515,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/syntax-trees-to-symbol-resolved-trees/20c8961a3166401f/out/libsyntax_trees_to_symbol_resolved_trees-20c8961a3166401f.rlib",
-        "sha256": "e7f9e90184497437f0e89b4a75f15f47769514fc989b5a7a287c11f886c2b0d7"
+        "sha256": "1908d1a5dfd63a081fbe05fd7ea815ba01537a34df378fd7b550fca26997ae75"
       },
       {
         "name": "target",
@@ -1664,67 +1581,67 @@
         "name": "target_operations",
         "fingerprint": 6016085927654426335,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/target-operations/19c98c1d90c79a33/out/libtarget_operations-19c98c1d90c79a33.rlib",
-        "sha256": "05932ff05a36f8dd89b0cb1799d30864a8801ee6eb225f1aae02536ef177f042"
+        "sha256": "c15d1d5dc1b0756be7fdea553fc357b5fad1ebdd0dad22c528b0de234751b66d"
       },
       {
         "name": "target_operations_to_selected_instructions",
         "fingerprint": 5305940196093832959,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/target-operations-to-selected-instructions/83b2f1b74c81235c/out/libtarget_operations_to_selected_instructions-83b2f1b74c81235c.rlib",
-        "sha256": "f0a4d9c0b65bed7a7ae140c74f1cef1618f5bb44b8b21cfca39597d8b58b989a"
+        "sha256": "baba3d86d4d3b5443b35cde4231a1a148880953a5e2b2fc162359bc45b64a406"
       },
       {
         "name": "task_plans",
         "fingerprint": 14354375930441955123,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/task-plans/85727d564641cc28/out/libtask_plans-85727d564641cc28.rlib",
-        "sha256": "65d1d51783949d7c40efd850c62fc1796c7b50ae251261782e063c9946632514"
+        "sha256": "490f45aa2d85c68c25ee5f90f7184d28d7ed4e6649d38fa977f8cad8c77e901e"
       },
       {
         "name": "terminal_codec",
         "fingerprint": 6069081139326090881,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/terminal-codec/9d7c75b878031470/out/libterminal_codec-9d7c75b878031470.rlib",
-        "sha256": "fff07b42f17144b585d9fae2373f97c29de462993aed5e668ce91910470c4864"
+        "sha256": "d9704a891152ed097079f3b41e159e8b3e02f51b8dd4bc936a4f7412bd2ebc35"
       },
       {
         "name": "terminal_fuel",
         "fingerprint": 7349740123636729696,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/terminal-fuel/8a66466e9fb1a1c9/out/libterminal_fuel-8a66466e9fb1a1c9.rlib",
-        "sha256": "2e7f40dcf09cfffa13930dac6184bb3ae25efb11a747cad68a37c29402fb21fa"
+        "sha256": "a1b18209c5c42fa21762e7590fb5d0ba89df1db30c54b4ff478ff2919403f96a"
       },
       {
         "name": "terminal_installation",
         "fingerprint": 16155638302467397511,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/terminal-installation/344587a1c568eba1/out/libterminal_installation-344587a1c568eba1.rlib",
-        "sha256": "c2d28abb3db768f2a54e6d267baa5884875f491d17b619b322bafde3c83e2a67"
+        "sha256": "30b2788f1fdcf44dcf11ab6d6a0586ac25ccea24637f2a7dc30e75ecd6665de7"
       },
       {
         "name": "terminal_interpreter",
         "fingerprint": 14860366747720717203,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/terminal-interpreter/897fa239ca221d5a/out/libterminal_interpreter-897fa239ca221d5a.rlib",
-        "sha256": "5f702cfebd1be9a66127d11751ae6d07650b3fc650fda066baa4b0a2de73b7ec"
+        "sha256": "bf018d56f361784fc91d9403cb91eff50ba73d6774b54741c653c0ffeb626fc4"
       },
       {
         "name": "terminal_production",
         "fingerprint": 13371120626839141802,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/terminal-production/9c811a6e8fe48406/out/libterminal_production-9c811a6e8fe48406.rlib",
-        "sha256": "0d90ced9ee9785eca9875e41eb071b445ad962b23a6b288c35c7f5226792845f"
+        "sha256": "d4189ad1b4c544ce208ac461ff757292bdc0ef06bb43dca27ddf6b0205198112"
       },
       {
         "name": "terminal_psi",
         "fingerprint": 4212528223827109604,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/terminal-psi/f16f7df1b7d923a5/out/libterminal_psi-f16f7df1b7d923a5.rlib",
-        "sha256": "3b0464dd5289afadcee86e7901c094c8dd3b17bab1375eeba5f60fa688d842a8"
+        "sha256": "f30e17a95d40b1d49de0b5e1671cdd9551a364b4f4d1cbda9b8bc8a122c7372c"
       },
       {
         "name": "terminal_psi_to_abstract_operations",
         "fingerprint": 16010863905571824547,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/terminal-psi-to-abstract-operations/44394f38f082db2f/out/libterminal_psi_to_abstract_operations-44394f38f082db2f.rlib",
-        "sha256": "4d1b97ea1d7426fe6bf8a84716089cdaa8f3bd4b6e90f8943a72c27c6f543d32"
+        "sha256": "03f3fb94c654ccacb3ea3ade8e3b61c790faabbfb2b6e1971eb2942bd8fcdf6b"
       },
       {
         "name": "terminal_semantics",
         "fingerprint": 8447527612912516762,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/terminal-semantics/f9b9389043583ebe/out/libterminal_semantics-f9b9389043583ebe.rlib",
-        "sha256": "425e73061753c64645ae8a22e9ec6f6782f5725a08050d2dc8f719e7c0a8ef8b"
+        "sha256": "df955f94aac60675c5fbca4d5917d43758920711d0898cc21b4d6b4a422c9adc"
       },
       {
         "name": "tokens",
@@ -1736,31 +1653,31 @@
         "name": "tokens_to_syntax_trees",
         "fingerprint": 5230495871079844641,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/tokens-to-syntax-trees/039db82790cc235c/out/libtokens_to_syntax_trees-039db82790cc235c.rlib",
-        "sha256": "483065b1ff6a73593a38569dd9170d8032110a50224cca84bb697614c030528c"
+        "sha256": "9259bbafaf8d9ef0efd01cecf35bcf7fde5b165076764fb6c64ee8f6e1323532"
       },
       {
         "name": "trust_model",
         "fingerprint": 15601071611099400182,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/trust-model/d13b6680cfbc23f1/out/libtrust_model-d13b6680cfbc23f1.rlib",
-        "sha256": "32f11b2410a06617f33d98082413dadf1a67b6ff0a5c51cb32d01b73713e05e4"
+        "sha256": "e33e00ae991b47ed99dd8f17b3432a9d2eb5a90a3f7053ec80ec3eb66d444c3a"
       },
       {
         "name": "typed_trees",
         "fingerprint": 14550332980154282399,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/typed-trees/46af255d2e15a0bd/out/libtyped_trees-46af255d2e15a0bd.rlib",
-        "sha256": "ed1b7071c6b0556fdc828e53da37f1f82b25b33932d6f7cf52c53cb0ed27269f"
+        "sha256": "7f77c0a50c271606cc5c060dbf611f1e138477193411d092ecefb42694989e1a"
       },
       {
         "name": "typed_trees_to_checked_trees",
         "fingerprint": 16930916479429699161,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/typed-trees-to-checked-trees/de7b26208913d49b/out/libtyped_trees_to_checked_trees-de7b26208913d49b.rlib",
-        "sha256": "138b355a923134f0cebb9efbfceeac841c6fd926cd13919f48710e2c654542fb"
+        "sha256": "74d25e097b23367ee923eea8c229a193d387a156a05f3873c6098c0b2f6d7662"
       },
       {
         "name": "typed_trees_to_typed_trees",
         "fingerprint": 1055701193774365054,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/typed-trees-to-typed-trees/54238c7c46d4c12a/out/libtyped_trees_to_typed_trees-54238c7c46d4c12a.rlib",
-        "sha256": "0abb90d26af33c350150fdf09abb7e7eba517a80175cb8c341fd06a6c3d89c4b"
+        "sha256": "6d615768c525ff5833a9ea61470e2065c875175d6de93f80855f6b1ab8f63c35"
       },
       {
         "name": "typenum",
@@ -1778,7 +1695,7 @@
         "name": "validation",
         "fingerprint": 5126678841637927692,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/validation/22984734ef655a2b/out/libvalidation-22984734ef655a2b.rlib",
-        "sha256": "4caf1c921504306452df1b8b7874df33e4136f815e5ff626eeb395cb3cd6ef45"
+        "sha256": "3761bc68b2d557aee8361511d3c8d67f84c720ed51b97baca7222095e20a09a9"
       },
       {
         "name": "x86_encoding",
@@ -1793,5 +1710,1188 @@
         "sha256": "0c2620abd459b4b756f75939f87329c64f640089b5922d1e11d59eb3be1a171e"
       }
     ]
+  },
+  "compiler_repair": {
+    "qualified_revision": "90d9309f5511aa583af2f6ea54eb28186f240da3",
+    "source_sha256": {
+      "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/structural_inputs/structural_reference_input.rs": "3026f4824ed255a1b1a87e18a213c9a38ba8db9821894fe1eac2c580964aa183",
+      "omega-rust/psi/compilation/checking/src/lib.rs": "ed5118eec18fb75d1f340368736d4e066ccbd2a7952421480ddb1e3f10f674ca",
+      "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/ranges/facts.rs": "93b10c3232ac4b8d26a544df5045e5b1e5e49133085252cb539fabd94b3210e6",
+      "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/ranges/facts/closed_arrivals.rs": "106daa27faef9dad0ab206a4860e588cad3d0f95c520ae870c0f6ff2e36bd30f",
+      "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/ranges/facts/proofs.rs": "265ae7650e6385963cc316fbe85fefe41eb30fa75b974c3697bf1e9f80fe443d",
+      "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/ranges/guards.rs": "2ee453a8d75bca0ab044be8c859b6cba7173937b7c3951b15f19b23829789b58",
+      "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/ranges/incoming_guards.rs": "ddaf60f42bb84c76b6bb6d303ade8b3ed2fc184b184bd5c393049e4018d4b362",
+      "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/ranges/indexes/validation.rs": "ca91049a0136cf3f7082f7bfa37b4e2ef3a3df205ba4df96b25e9713a21855e3",
+      "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/ranges/proofs.rs": "b475689514f79f04db74e4d85da00d7a542e4c7d34b3b56aca2d15fb56b16475",
+      "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/ranges/types.rs": "add1995434dface27c066b325cdc36562e852e1bd2cdc829683f8ea198a76ea4"
+    },
+    "generic_source_sha256": "d48381dd9f840a10b94089ac2b47b2dccd1ef4862bbe6430bd72f00192a7aa6d",
+    "clippy_exit": 0,
+    "removed_special_path": "const_extent_requires_floor precondition-only rescan",
+    "authority_checks_preserved": true,
+    "historical_canonical_check": {
+      "fixtures": 18,
+      "by_status": {
+        "checked": 1,
+        "rejected": 17
+      },
+      "wrong_reason": 0,
+      "wrong_reason_fixtures": [],
+      "fail_not_rejected": 0,
+      "fail_not_rejected_fixtures": [],
+      "lost_successes": 0,
+      "lost_success_fixtures": [],
+      "pinned_off_target": 0,
+      "pinned_off_target_fixtures": [],
+      "by_verdict": {}
+    },
+    "historical_canonical_both": [
+      {
+        "fixture": "pass/generics/runtime_const_extent_guard_floors_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 12744,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    ],
+    "integrated_public_checks": [
+      {
+        "source": "tests/omega/fail/generics/const_extent_guard_authored_comparison/main.omg",
+        "source_sha256": "59b84a6b501fb1bd9f104c5f91ebfd9a8736be6cd42a8a5eb7193cf783518dc2",
+        "expected": [
+          "cannot prove index `0` is within const extent `Count`"
+        ],
+        "expected_sha256": "c8e0729936666d0a45baf2d39633233d85300d9f61f4b8478cd80bbc2c8938be",
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/generics/const_extent_guard_authored_comparison/main.omg"
+        ],
+        "exit": 1,
+        "expected_satisfied": true,
+        "seconds": 1.0216479000009713,
+        "stderr_sha256": "fb89cbc9acd09959a7138120a814d00347bf7218db08dde2fa3e814376fdd7f4"
+      },
+      {
+        "source": "tests/omega/fail/generics/const_extent_guard_closed_alias_write/main.omg",
+        "source_sha256": "fd95d75b72dbc42a257cbf5a31513b5de196fc24c4c32305a8e4332c096282c2",
+        "expected": [
+          "cannot prove index `0` is within length 0"
+        ],
+        "expected_sha256": "51457efd2439dc376c1598b2f5f2b2ae3435fe52245e3c27bdcb561f6fd897d2",
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/generics/const_extent_guard_closed_alias_write/main.omg"
+        ],
+        "exit": 1,
+        "expected_satisfied": true,
+        "seconds": 0.59408667200114,
+        "stderr_sha256": "05f5f99ac9bf2fd974a5ed9c410a32eaa0691f047c35feba3fb47afd9df0daae"
+      },
+      {
+        "source": "tests/omega/fail/generics/const_extent_guard_closed_authored_comparison/main.omg",
+        "source_sha256": "541c8feacb23e4b938f6d92b976f7b6c639feb5f84c8025e28cfb7c4e4c82e09",
+        "expected": [
+          "cannot prove index `0` is within length 0"
+        ],
+        "expected_sha256": "51457efd2439dc376c1598b2f5f2b2ae3435fe52245e3c27bdcb561f6fd897d2",
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/generics/const_extent_guard_closed_authored_comparison/main.omg"
+        ],
+        "exit": 1,
+        "expected_satisfied": true,
+        "seconds": 0.6363827890018001,
+        "stderr_sha256": "05f5f99ac9bf2fd974a5ed9c410a32eaa0691f047c35feba3fb47afd9df0daae"
+      },
+      {
+        "source": "tests/omega/fail/generics/const_extent_guard_closed_bad_index_type/main.omg",
+        "source_sha256": "7bad2c14faae7dabcf891770ce82977a107dfece00eefedf5ca34cbaf7bd2acd",
+        "expected": [
+          "an index or range endpoint must be an integer"
+        ],
+        "expected_sha256": "4d018a7b751b193ef94bee140bdd44a23c48531b84db46d3aec5e1f3f841ca53",
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/generics/const_extent_guard_closed_bad_index_type/main.omg"
+        ],
+        "exit": 1,
+        "expected_satisfied": true,
+        "seconds": 0.3403281419996347,
+        "stderr_sha256": "ee6f9eb5de4486b56f89c2c2ce2dc55652f5abe4b586ca8eaa8636871fc51537"
+      },
+      {
+        "source": "tests/omega/fail/generics/const_extent_guard_closed_disjunction/main.omg",
+        "source_sha256": "1a408501172176ff4836a5a7d614c5214c577efc8492e390e101bf9e92bd12b4",
+        "expected": [
+          "cannot prove index `0` is within length 0"
+        ],
+        "expected_sha256": "51457efd2439dc376c1598b2f5f2b2ae3435fe52245e3c27bdcb561f6fd897d2",
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/generics/const_extent_guard_closed_disjunction/main.omg"
+        ],
+        "exit": 1,
+        "expected_satisfied": true,
+        "seconds": 0.7894567229996028,
+        "stderr_sha256": "05f5f99ac9bf2fd974a5ed9c410a32eaa0691f047c35feba3fb47afd9df0daae"
+      },
+      {
+        "source": "tests/omega/fail/generics/const_extent_guard_closed_join/main.omg",
+        "source_sha256": "6ecc20fb92de8b79329a15a7c08cfa0b6eab59786f89ae999c11f940a16db7fa",
+        "expected": [
+          "cannot prove index `0` is within length 0"
+        ],
+        "expected_sha256": "51457efd2439dc376c1598b2f5f2b2ae3435fe52245e3c27bdcb561f6fd897d2",
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/generics/const_extent_guard_closed_join/main.omg"
+        ],
+        "exit": 1,
+        "expected_satisfied": true,
+        "seconds": 0.7026620520009601,
+        "stderr_sha256": "05f5f99ac9bf2fd974a5ed9c410a32eaa0691f047c35feba3fb47afd9df0daae"
+      },
+      {
+        "source": "tests/omega/fail/generics/const_extent_guard_closed_satisfiable/main.omg",
+        "source_sha256": "1878c4a3f667a35e76c48e0ab4ac3f006fe47d2ccd40a8bb5e2bfe179c04bca3",
+        "expected": [
+          "cannot prove index `0` is within length 0"
+        ],
+        "expected_sha256": "51457efd2439dc376c1598b2f5f2b2ae3435fe52245e3c27bdcb561f6fd897d2",
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/generics/const_extent_guard_closed_satisfiable/main.omg"
+        ],
+        "exit": 1,
+        "expected_satisfied": true,
+        "seconds": 0.7040238569970825,
+        "stderr_sha256": "05f5f99ac9bf2fd974a5ed9c410a32eaa0691f047c35feba3fb47afd9df0daae"
+      },
+      {
+        "source": "tests/omega/fail/generics/const_extent_guard_closed_wrong_arm/main.omg",
+        "source_sha256": "54d96fd258c0bd4c70e18b07e1244a8f25277838e1973dacf071e85ad956e5b6",
+        "expected": [
+          "cannot prove index `0` is within length 0"
+        ],
+        "expected_sha256": "51457efd2439dc376c1598b2f5f2b2ae3435fe52245e3c27bdcb561f6fd897d2",
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/generics/const_extent_guard_closed_wrong_arm/main.omg"
+        ],
+        "exit": 1,
+        "expected_satisfied": true,
+        "seconds": 0.604053897997801,
+        "stderr_sha256": "05f5f99ac9bf2fd974a5ed9c410a32eaa0691f047c35feba3fb47afd9df0daae"
+      },
+      {
+        "source": "tests/omega/fail/generics/const_extent_guard_closed_zero_divisor/main.omg",
+        "source_sha256": "f58bb700bad3119fb5027229fe2b912ad7383d367c181e67d6362f6367633489",
+        "expected": [
+          "division by zero"
+        ],
+        "expected_sha256": "e844387ca523f33ef98536c85e424ceb96c4f13e5da640f57f09d44ca0121e80",
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/generics/const_extent_guard_closed_zero_divisor/main.omg"
+        ],
+        "exit": 1,
+        "expected_satisfied": true,
+        "seconds": 0.21786673899987363,
+        "stderr_sha256": "0f049231221a96c01dd16cb61330e1ea096efbaf08aa044cce1fa6f414eb8be0"
+      },
+      {
+        "source": "tests/omega/fail/generics/const_extent_guard_disjunction/main.omg",
+        "source_sha256": "9017731df199f8c989543fdaeb7dd1056b5f38f73ffa8047872e1dcc93cc5c02",
+        "expected": [
+          "cannot prove index `0` is within const extent `Count`"
+        ],
+        "expected_sha256": "c8e0729936666d0a45baf2d39633233d85300d9f61f4b8478cd80bbc2c8938be",
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/generics/const_extent_guard_disjunction/main.omg"
+        ],
+        "exit": 1,
+        "expected_satisfied": true,
+        "seconds": 0.599193074998766,
+        "stderr_sha256": "fb89cbc9acd09959a7138120a814d00347bf7218db08dde2fa3e814376fdd7f4"
+      },
+      {
+        "source": "tests/omega/fail/generics/const_extent_guard_negative_index/main.omg",
+        "source_sha256": "38801ac6266100aa3c8fdde6b3f07b6c5e75ec3b29272949cf4e642404d3e22f",
+        "expected": [
+          "cannot prove index `-1` is non-negative"
+        ],
+        "expected_sha256": "37e8fd43851153a638db7d6323ec9761fa671af11fd1b0ef122afa2081e55b73",
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/generics/const_extent_guard_negative_index/main.omg"
+        ],
+        "exit": 1,
+        "expected_satisfied": true,
+        "seconds": 0.6764827330007392,
+        "stderr_sha256": "0f7777903f81bb7c621ba8c902495549fbbb45bf70918d01dd8283eb54715113"
+      },
+      {
+        "source": "tests/omega/fail/generics/const_extent_guard_one_past/main.omg",
+        "source_sha256": "ea38c90e52b156d8f863e4fef3f4332ee45839ac6f349fc952d50e19fe7eb641",
+        "expected": [
+          "cannot prove index `1` is within const extent `Count`"
+        ],
+        "expected_sha256": "b8f121ece98244feb8b35cc484d5d1fb24d7b02a6f08189d490d0407595d33c2",
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/generics/const_extent_guard_one_past/main.omg"
+        ],
+        "exit": 1,
+        "expected_satisfied": true,
+        "seconds": 0.6396953529983875,
+        "stderr_sha256": "c2131796e53160e14d777fc30d7e84638cfd3745cc3d9005d9e4a757ef8b981c"
+      },
+      {
+        "source": "tests/omega/fail/generics/const_extent_guard_other_binder/main.omg",
+        "source_sha256": "c2664439b01f3a157829911b4afe13ae98539b54bc3c9ab461a1d4d56d4eef09",
+        "expected": [
+          "cannot prove index `0` is within const extent `Count`"
+        ],
+        "expected_sha256": "c8e0729936666d0a45baf2d39633233d85300d9f61f4b8478cd80bbc2c8938be",
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/generics/const_extent_guard_other_binder/main.omg"
+        ],
+        "exit": 1,
+        "expected_satisfied": true,
+        "seconds": 0.6029518030009058,
+        "stderr_sha256": "fb89cbc9acd09959a7138120a814d00347bf7218db08dde2fa3e814376fdd7f4"
+      },
+      {
+        "source": "tests/omega/fail/generics/const_extent_guard_shadowed_local/main.omg",
+        "source_sha256": "54a22b1539af877ebe26aedf2e938f9c2b5b67528a1f13d4e3c131b31cabbcb8",
+        "expected": [
+          "cannot prove index `0` is within const extent `Count`"
+        ],
+        "expected_sha256": "c8e0729936666d0a45baf2d39633233d85300d9f61f4b8478cd80bbc2c8938be",
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/generics/const_extent_guard_shadowed_local/main.omg"
+        ],
+        "exit": 1,
+        "expected_satisfied": true,
+        "seconds": 0.6190640489985526,
+        "stderr_sha256": "fb89cbc9acd09959a7138120a814d00347bf7218db08dde2fa3e814376fdd7f4"
+      },
+      {
+        "source": "tests/omega/fail/generics/const_extent_guard_unproved_predecessor/main.omg",
+        "source_sha256": "19b62849df5304d003f41d0f8ad39fa792739131c69524ae972306ca0d3a9f9f",
+        "expected": [
+          "cannot prove index `0` is within const extent `Count`"
+        ],
+        "expected_sha256": "c8e0729936666d0a45baf2d39633233d85300d9f61f4b8478cd80bbc2c8938be",
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/generics/const_extent_guard_unproved_predecessor/main.omg"
+        ],
+        "exit": 1,
+        "expected_satisfied": true,
+        "seconds": 0.6071299980030744,
+        "stderr_sha256": "eb34ae7b193287db7357f3ba151b0b3a6a252334b2c44e496180f25ecc0eff7b"
+      },
+      {
+        "source": "tests/omega/fail/generics/const_extent_guard_weak_floor/main.omg",
+        "source_sha256": "e2802ee3e903f1fdcbf88a9305e2718eaa61e2b8bfa3aa0284432909e7da6c2e",
+        "expected": [
+          "cannot prove index `0` is within const extent `Count`"
+        ],
+        "expected_sha256": "c8e0729936666d0a45baf2d39633233d85300d9f61f4b8478cd80bbc2c8938be",
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/generics/const_extent_guard_weak_floor/main.omg"
+        ],
+        "exit": 1,
+        "expected_satisfied": true,
+        "seconds": 0.6097456150018843,
+        "stderr_sha256": "fb89cbc9acd09959a7138120a814d00347bf7218db08dde2fa3e814376fdd7f4"
+      },
+      {
+        "source": "tests/omega/fail/generics/const_extent_guard_wrong_arm/main.omg",
+        "source_sha256": "23d3aabffe15eb91f2071a958c6afdb863fc655ae7e41947ff1b7eaf41650f2b",
+        "expected": [
+          "cannot prove index `0` is within const extent `Count`"
+        ],
+        "expected_sha256": "c8e0729936666d0a45baf2d39633233d85300d9f61f4b8478cd80bbc2c8938be",
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/generics/const_extent_guard_wrong_arm/main.omg"
+        ],
+        "exit": 1,
+        "expected_satisfied": true,
+        "seconds": 0.6096736479994433,
+        "stderr_sha256": "fb89cbc9acd09959a7138120a814d00347bf7218db08dde2fa3e814376fdd7f4"
+      },
+      {
+        "source": "tests/omega/pass/generics/runtime_const_extent_guard_floors_exit/main.omg",
+        "source_sha256": "d48381dd9f840a10b94089ac2b47b2dccd1ef4862bbe6430bd72f00192a7aa6d",
+        "expected": [],
+        "expected_sha256": null,
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/pass/generics/runtime_const_extent_guard_floors_exit/main.omg"
+        ],
+        "exit": 0,
+        "expected_satisfied": true,
+        "seconds": 3.079850295001961,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "source": "tests/omega/fail/collections/contract_length_replaced_descriptor/main.omg",
+        "source_sha256": "5f46bd583046a972a43cedfe722f368352f5494172496c5448c7ea43ffd852a5",
+        "expected": [
+          "cannot prove index"
+        ],
+        "expected_sha256": "34f213081b137d0376e1438a591414c0d6e65373e66f4dfcf52163ef79c2a3c5",
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/collections/contract_length_replaced_descriptor/main.omg"
+        ],
+        "exit": 1,
+        "expected_satisfied": true,
+        "seconds": 0.5998283209992223,
+        "stderr_sha256": "aaeab512ce99219412d404fc11c66928df96ade90680001da8834cd6eb84f0af"
+      },
+      {
+        "source": "tests/omega/fail/collections/contract_length_replaced_count/main.omg",
+        "source_sha256": "559985528f253b9e36a1da40b2f36a29490724f685a228d041628287a8a7dfb1",
+        "expected": [
+          "cannot prove index"
+        ],
+        "expected_sha256": "34f213081b137d0376e1438a591414c0d6e65373e66f4dfcf52163ef79c2a3c5",
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/collections/contract_length_replaced_count/main.omg"
+        ],
+        "exit": 1,
+        "expected_satisfied": true,
+        "seconds": 0.641531933000806,
+        "stderr_sha256": "ebdf660df73debd336eca87f170b40516d2e500cebd0e0b325c127d6861698b1"
+      },
+      {
+        "source": "tests/omega/fail/collections/contract_length_direct_selector_write/main.omg",
+        "source_sha256": "3c3911fa338f05c776a2e5928fae1609de3b834f486cc4c41355957421d0a694",
+        "expected": [
+          "cannot prove index `0` is within unknown slice length"
+        ],
+        "expected_sha256": "23ce590aeadb038b53fc193c68dd3aa9e78f1b37229c85a8de18bfa2e92fa741",
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/collections/contract_length_direct_selector_write/main.omg"
+        ],
+        "exit": 1,
+        "expected_satisfied": true,
+        "seconds": 1.0240463970003475,
+        "stderr_sha256": "33e15ba88f82a157de0010094e874a99c37c022bc869fadfebe9d93c746bc24d"
+      },
+      {
+        "source": "tests/omega/fail/collections/contract_length_sibling_selector_write/main.omg",
+        "source_sha256": "a429f93b250a35c73e31c9082ceda1115b2687c9d34976ebf2b7cd52e9e6a376",
+        "expected": [
+          "cannot prove index `0` is within unknown slice length"
+        ],
+        "expected_sha256": "23ce590aeadb038b53fc193c68dd3aa9e78f1b37229c85a8de18bfa2e92fa741",
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/collections/contract_length_sibling_selector_write/main.omg"
+        ],
+        "exit": 1,
+        "expected_satisfied": true,
+        "seconds": 0.6177097859981586,
+        "stderr_sha256": "33e15ba88f82a157de0010094e874a99c37c022bc869fadfebe9d93c746bc24d"
+      },
+      {
+        "source": "tests/omega/pass/collections/contract_length_results_exit/main.omg",
+        "source_sha256": "db9abc29534f661bb08b951d717d5840a396139f525b0a42ebf966b40a91b858",
+        "expected": [],
+        "expected_sha256": null,
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/pass/collections/contract_length_results_exit/main.omg"
+        ],
+        "exit": 0,
+        "expected_satisfied": true,
+        "seconds": 5.611568412001361,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "source": "tests/omega/fail/borrows/call_transfer_scalar_observation/main.omg",
+        "source_sha256": "63b6082d3e5499b81270bd87ec59e9959bc1f5d6c807586efcdd021a06dc2176",
+        "expected": [
+          "state `receive` receives `control` as both mutable and read-only"
+        ],
+        "expected_sha256": null,
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/borrows/call_transfer_scalar_observation/main.omg"
+        ],
+        "exit": 1,
+        "expected_satisfied": true,
+        "seconds": 0.5960176679982396,
+        "stderr_sha256": "e85367e793182e911e36046dfd8bf7c8e0250cfe9caf9b6c220fbf379f9fe6d9"
+      },
+      {
+        "source": "tests/omega/fail/borrows/state_transfer_retained_loan_overlap/main.omg",
+        "source_sha256": "0953145b5396c1078d5fd445e7d9e8e9addd63e7bf181e82d2c4d9724070ec28",
+        "expected": [
+          "state `done` receives `control` as mutable more than once"
+        ],
+        "expected_sha256": null,
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/borrows/state_transfer_retained_loan_overlap/main.omg"
+        ],
+        "exit": 1,
+        "expected_satisfied": true,
+        "seconds": 0.602759495999635,
+        "stderr_sha256": "08e1144ce5dcb0f7ed684add8fba73b2008a9403f9ac0a9cc468ab9e1c2e93cf"
+      },
+      {
+        "source": "tests/omega/fail/borrows/state_transfer_active_child_observation/main.omg",
+        "source_sha256": "f31bc9cdf108d2ad6aa814550d78817c3778b87fc2c87a321455f82c8658cae6",
+        "expected": [
+          "state `done` receives `control` while local borrow `child` is still active"
+        ],
+        "expected_sha256": null,
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/borrows/state_transfer_active_child_observation/main.omg"
+        ],
+        "exit": 1,
+        "expected_satisfied": true,
+        "seconds": 0.604112751003413,
+        "stderr_sha256": "d8d059e6a6b707c6d9f8dd9b8981771e4945bc4217571ff67d026eebf2321984"
+      },
+      {
+        "source": "tests/omega/fail/borrows/state_transfer_shared_carrier_mutable_leaf/main.omg",
+        "source_sha256": "d44772bbea25649c8db8ff088e615690f7857aa17ad7c3b34ea17e13f9dc5338",
+        "expected": [
+          "but the caller lends only immutable access"
+        ],
+        "expected_sha256": null,
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/borrows/state_transfer_shared_carrier_mutable_leaf/main.omg"
+        ],
+        "exit": 1,
+        "expected_satisfied": true,
+        "seconds": 0.22171120599887217,
+        "stderr_sha256": "9456925687ac8e97e95d848d89fe5965f5591ba6322e1ee6f00532ee74d7d368"
+      },
+      {
+        "source": "tests/omega/fail/borrows/state_transfer_new_loan_observation/main.omg",
+        "source_sha256": "5b369caea32c8d7dc316e3f836a79ef7996d5da76f4a81d26a194a71b3f4b196",
+        "expected": [
+          "state `done` receives `control` as both mutable and read-only"
+        ],
+        "expected_sha256": null,
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/borrows/state_transfer_new_loan_observation/main.omg"
+        ],
+        "exit": 1,
+        "expected_satisfied": true,
+        "seconds": 0.602859767001064,
+        "stderr_sha256": "59331de00e3557dc756367b9a06ed58c6a9ed4367bb852e62019f678c1c75468"
+      },
+      {
+        "source": "tests/omega/fail/borrows/state_transfer_reference_leaf_duplicate/main.omg",
+        "source_sha256": "27b59554fa920d930c966c470483b6673cd0e9a907e1786dfbf13515977f1d24",
+        "expected": [
+          "state `done` receives `carrier.body` as mutable more than once"
+        ],
+        "expected_sha256": null,
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/borrows/state_transfer_reference_leaf_duplicate/main.omg"
+        ],
+        "exit": 1,
+        "expected_satisfied": true,
+        "seconds": 0.593408726999769,
+        "stderr_sha256": "4aff5632879e5082a9eba4485c1a0f896b7cfca16c0913957a9aa8fccb6ffff0"
+      },
+      {
+        "source": "tests/omega/fail/borrows/state_transfer_write_only_carrier_pointer/main.omg",
+        "source_sha256": "b786a2672030d94aab3dcae8ddc09042a24ee526f89758e3ae71551d58f53650",
+        "expected": [
+          "reads field `body` from write-only parameter `carrier`"
+        ],
+        "expected_sha256": null,
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/borrows/state_transfer_write_only_carrier_pointer/main.omg"
+        ],
+        "exit": 1,
+        "expected_satisfied": true,
+        "seconds": 0.2315280939983495,
+        "stderr_sha256": "a33b4cb747600c6d68eda04b9656c18e4c34a465419fe33c10caf1b2dfa35ca4"
+      }
+    ],
+    "integrated_public_both": {
+      "name": "runtime_const_extent_guard_floors_exit",
+      "command": [
+        "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+        "run",
+        "--both",
+        "--keep",
+        "/workspace/Omega/.codex/worktrees/w212/tests/omega/pass/generics/runtime_const_extent_guard_floors_exit/main.omg"
+      ],
+      "exit": 0,
+      "terminal_exit": 0,
+      "kept_directory": "/tmp/omega-probe-184458-0",
+      "native_sha256": "a8bbc6d040d2fa6034662d6cea5bbc6e30a6d4cce1cfe32cc89381330e5b4fcb",
+      "source_sha256": "d48381dd9f840a10b94089ac2b47b2dccd1ef4862bbe6430bd72f00192a7aa6d",
+      "actual_native_rerun_exit": 0
+    }
+  },
+  "historical_qualification": {
+    "earlier": {
+      "earlier": {
+        "earlier": {
+          "producer_revision": "f46f5d8795754436eb2195f55b19587741467f1c",
+          "integrated_main": "8d452adcc494defbcff5738da67b453bae1210b2",
+          "compiler_sha256": "fc47ccf148ca88b00693ecbba0cd1acb000f6f0cf26b645e606227aa3a54ad85",
+          "terminal_sponsor_seconds": 31.30498934299976
+        },
+        "7ddd": {
+          "producer_revision": "7ddd45dc789b6f9d28ed6a1a3f0b6b8c72aa3702",
+          "compiler_sha256": "608d8f31594864c1f4dd5ce994fa488f1c58e38849189ae1d8bb8bef409ed56d",
+          "integrated_main": "9f28e49398a1dd6334d4aa881d39b888524ef6ee",
+          "terminal_sponsor_seconds": 25.034146026999224
+        },
+        "dd3a_generic": {
+          "sample_revision": "dd3a11a343b4654d2e8bf453ca3caae9b64facd6",
+          "producer_revision": "f38e8c811727ca3d70bb3feb98ec3b37af4c5d56",
+          "terminal_sponsor_seconds": 16.246504591999837,
+          "actual_cases": 46
+        }
+      },
+      "previous_integrated": {
+        "producer_revision": "a6833385ac22ca2dcc1c17a38a5407f455fd708e",
+        "compiler_sha256": "75ec2f47287a824c06fe3422c4c96016e97373066c4ffd7c23359528c0e501e5",
+        "integrated_main": "1877bf177f2e7d1099689a82008acff01a523a75",
+        "terminal_sponsor_seconds": 15.77249431999735,
+        "actual_cases": 46
+      }
+    },
+    "previous_integrated": {
+      "producer_revision": "dedac8779133670ff2cdcd3c9e9f008d1431ee21",
+      "compiler_sha256": "dc9ed031a0679f38c73126ac3744e41a93edf8bdb75c6ca3c0e37d0e950c9504",
+      "integrated_main": "335ac2a6ac1bb207fe780a1d17488bc83d1f1c3a",
+      "terminal_sponsor_seconds": 16.39798845799669,
+      "actual_cases": 46
+    }
+  },
+  "fresh_incoming_refusals": [
+    {
+      "source": "tests/omega/fail/collections/contract_length_replaced_descriptor/main.omg",
+      "source_sha256": "5f46bd583046a972a43cedfe722f368352f5494172496c5448c7ea43ffd852a5",
+      "expected": [
+        "cannot prove index"
+      ],
+      "expected_sha256": "34f213081b137d0376e1438a591414c0d6e65373e66f4dfcf52163ef79c2a3c5",
+      "command": [
+        "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+        "--check",
+        "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/collections/contract_length_replaced_descriptor/main.omg"
+      ],
+      "exit": 1,
+      "expected_satisfied": true,
+      "seconds": 0.5998283209992223,
+      "stderr_sha256": "aaeab512ce99219412d404fc11c66928df96ade90680001da8834cd6eb84f0af"
+    },
+    {
+      "source": "tests/omega/fail/collections/contract_length_replaced_count/main.omg",
+      "source_sha256": "559985528f253b9e36a1da40b2f36a29490724f685a228d041628287a8a7dfb1",
+      "expected": [
+        "cannot prove index"
+      ],
+      "expected_sha256": "34f213081b137d0376e1438a591414c0d6e65373e66f4dfcf52163ef79c2a3c5",
+      "command": [
+        "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+        "--check",
+        "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/collections/contract_length_replaced_count/main.omg"
+      ],
+      "exit": 1,
+      "expected_satisfied": true,
+      "seconds": 0.641531933000806,
+      "stderr_sha256": "ebdf660df73debd336eca87f170b40516d2e500cebd0e0b325c127d6861698b1"
+    },
+    {
+      "source": "tests/omega/fail/collections/contract_length_direct_selector_write/main.omg",
+      "source_sha256": "3c3911fa338f05c776a2e5928fae1609de3b834f486cc4c41355957421d0a694",
+      "expected": [
+        "cannot prove index `0` is within unknown slice length"
+      ],
+      "expected_sha256": "23ce590aeadb038b53fc193c68dd3aa9e78f1b37229c85a8de18bfa2e92fa741",
+      "command": [
+        "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+        "--check",
+        "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/collections/contract_length_direct_selector_write/main.omg"
+      ],
+      "exit": 1,
+      "expected_satisfied": true,
+      "seconds": 1.0240463970003475,
+      "stderr_sha256": "33e15ba88f82a157de0010094e874a99c37c022bc869fadfebe9d93c746bc24d"
+    },
+    {
+      "source": "tests/omega/fail/collections/contract_length_sibling_selector_write/main.omg",
+      "source_sha256": "a429f93b250a35c73e31c9082ceda1115b2687c9d34976ebf2b7cd52e9e6a376",
+      "expected": [
+        "cannot prove index `0` is within unknown slice length"
+      ],
+      "expected_sha256": "23ce590aeadb038b53fc193c68dd3aa9e78f1b37229c85a8de18bfa2e92fa741",
+      "command": [
+        "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+        "--check",
+        "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/collections/contract_length_sibling_selector_write/main.omg"
+      ],
+      "exit": 1,
+      "expected_satisfied": true,
+      "seconds": 0.6177097859981586,
+      "stderr_sha256": "33e15ba88f82a157de0010094e874a99c37c022bc869fadfebe9d93c746bc24d"
+    },
+    {
+      "source": "tests/omega/pass/collections/contract_length_results_exit/main.omg",
+      "source_sha256": "db9abc29534f661bb08b951d717d5840a396139f525b0a42ebf966b40a91b858",
+      "expected": [],
+      "expected_sha256": null,
+      "command": [
+        "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+        "--check",
+        "/workspace/Omega/.codex/worktrees/w212/tests/omega/pass/collections/contract_length_results_exit/main.omg"
+      ],
+      "exit": 0,
+      "expected_satisfied": true,
+      "seconds": 5.611568412001361,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "tests/omega/fail/borrows/call_transfer_scalar_observation/main.omg",
+      "source_sha256": "63b6082d3e5499b81270bd87ec59e9959bc1f5d6c807586efcdd021a06dc2176",
+      "expected": [
+        "state `receive` receives `control` as both mutable and read-only"
+      ],
+      "expected_sha256": null,
+      "command": [
+        "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+        "--check",
+        "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/borrows/call_transfer_scalar_observation/main.omg"
+      ],
+      "exit": 1,
+      "expected_satisfied": true,
+      "seconds": 0.5960176679982396,
+      "stderr_sha256": "e85367e793182e911e36046dfd8bf7c8e0250cfe9caf9b6c220fbf379f9fe6d9"
+    },
+    {
+      "source": "tests/omega/fail/borrows/state_transfer_retained_loan_overlap/main.omg",
+      "source_sha256": "0953145b5396c1078d5fd445e7d9e8e9addd63e7bf181e82d2c4d9724070ec28",
+      "expected": [
+        "state `done` receives `control` as mutable more than once"
+      ],
+      "expected_sha256": null,
+      "command": [
+        "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+        "--check",
+        "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/borrows/state_transfer_retained_loan_overlap/main.omg"
+      ],
+      "exit": 1,
+      "expected_satisfied": true,
+      "seconds": 0.602759495999635,
+      "stderr_sha256": "08e1144ce5dcb0f7ed684add8fba73b2008a9403f9ac0a9cc468ab9e1c2e93cf"
+    },
+    {
+      "source": "tests/omega/fail/borrows/state_transfer_active_child_observation/main.omg",
+      "source_sha256": "f31bc9cdf108d2ad6aa814550d78817c3778b87fc2c87a321455f82c8658cae6",
+      "expected": [
+        "state `done` receives `control` while local borrow `child` is still active"
+      ],
+      "expected_sha256": null,
+      "command": [
+        "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+        "--check",
+        "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/borrows/state_transfer_active_child_observation/main.omg"
+      ],
+      "exit": 1,
+      "expected_satisfied": true,
+      "seconds": 0.604112751003413,
+      "stderr_sha256": "d8d059e6a6b707c6d9f8dd9b8981771e4945bc4217571ff67d026eebf2321984"
+    },
+    {
+      "source": "tests/omega/fail/borrows/state_transfer_shared_carrier_mutable_leaf/main.omg",
+      "source_sha256": "d44772bbea25649c8db8ff088e615690f7857aa17ad7c3b34ea17e13f9dc5338",
+      "expected": [
+        "but the caller lends only immutable access"
+      ],
+      "expected_sha256": null,
+      "command": [
+        "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+        "--check",
+        "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/borrows/state_transfer_shared_carrier_mutable_leaf/main.omg"
+      ],
+      "exit": 1,
+      "expected_satisfied": true,
+      "seconds": 0.22171120599887217,
+      "stderr_sha256": "9456925687ac8e97e95d848d89fe5965f5591ba6322e1ee6f00532ee74d7d368"
+    },
+    {
+      "source": "tests/omega/fail/borrows/state_transfer_new_loan_observation/main.omg",
+      "source_sha256": "5b369caea32c8d7dc316e3f836a79ef7996d5da76f4a81d26a194a71b3f4b196",
+      "expected": [
+        "state `done` receives `control` as both mutable and read-only"
+      ],
+      "expected_sha256": null,
+      "command": [
+        "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+        "--check",
+        "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/borrows/state_transfer_new_loan_observation/main.omg"
+      ],
+      "exit": 1,
+      "expected_satisfied": true,
+      "seconds": 0.602859767001064,
+      "stderr_sha256": "59331de00e3557dc756367b9a06ed58c6a9ed4367bb852e62019f678c1c75468"
+    },
+    {
+      "source": "tests/omega/fail/borrows/state_transfer_reference_leaf_duplicate/main.omg",
+      "source_sha256": "27b59554fa920d930c966c470483b6673cd0e9a907e1786dfbf13515977f1d24",
+      "expected": [
+        "state `done` receives `carrier.body` as mutable more than once"
+      ],
+      "expected_sha256": null,
+      "command": [
+        "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+        "--check",
+        "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/borrows/state_transfer_reference_leaf_duplicate/main.omg"
+      ],
+      "exit": 1,
+      "expected_satisfied": true,
+      "seconds": 0.593408726999769,
+      "stderr_sha256": "4aff5632879e5082a9eba4485c1a0f896b7cfca16c0913957a9aa8fccb6ffff0"
+    },
+    {
+      "source": "tests/omega/fail/borrows/state_transfer_write_only_carrier_pointer/main.omg",
+      "source_sha256": "b786a2672030d94aab3dcae8ddc09042a24ee526f89758e3ae71551d58f53650",
+      "expected": [
+        "reads field `body` from write-only parameter `carrier`"
+      ],
+      "expected_sha256": null,
+      "command": [
+        "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+        "--check",
+        "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/borrows/state_transfer_write_only_carrier_pointer/main.omg"
+      ],
+      "exit": 1,
+      "expected_satisfied": true,
+      "seconds": 0.2315280939983495,
+      "stderr_sha256": "a33b4cb747600c6d68eda04b9656c18e4c34a465419fe33c10caf1b2dfa35ca4"
+    }
+  ],
+  "regression_comparison_applicability": "Fresh integrated producer executes five package-free authored runtime regressions using their unchanged source-value assertions and exact authored native/Terminal exit oracles. Historic canonical corpus rows and earlier absent-golden observation are retained, never rewritten as fresh measurements.",
+  "publication_integrated_main": "d8ee64cf16abec5b10b98ae216730b7439cd29b9",
+  "publication_evidence_applicability": "Independent0af..d8 review: shared OperationFrame scalar-array dense roster, operand/source_value schedule, scalar_arrays emission, tail cleanup and local binding are equivalent; composed-graph emission/derivations unchanged, removed rejection-only rechecks had accepted all qualified plans; discarded Build provider selection absent. Actual runtime remains90d930/76bfa. New pinned qualification records fresh custody revalidation of saved actual observations, not a d8-built producer or new runtime execution. Complete historical Git/build/library/artifact closure privately preserved. final:true actual independent review binds exact candidate/base/tree and canonical continuation packet; normal exact-SHA/root/crate and native/source-invalid gates remain.",
+  "fresh_regression_observations": [
+    {
+      "name": "callee_returned_shared_reborrow_chain_exit",
+      "command": [
+        "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+        "run",
+        "--both",
+        "--keep",
+        "/workspace/Omega/.codex/worktrees/w212/tests/omega/pass/borrows/callee_returned_shared_reborrow_chain_exit/main.omg"
+      ],
+      "exit": 0,
+      "terminal_exit": 0,
+      "kept_directory": "/tmp/omega-probe-184551-0",
+      "native_sha256": "a7ead4626f841cbe377b11dcc4ba33c6675cf5478f0f088061bcc9720449c5f6",
+      "source_sha256": "688d005a93c15ed0a942dcb1779df40ba210383f4ebf016f09f4004b7371a24c",
+      "actual_native_rerun_exit": 0
+    },
+    {
+      "name": "returned_view_state_and_record_composition_exit",
+      "command": [
+        "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+        "run",
+        "--both",
+        "--keep",
+        "/workspace/Omega/.codex/worktrees/w212/tests/omega/pass/recast/returned_view_state_and_record_composition_exit/main.omg"
+      ],
+      "exit": 0,
+      "terminal_exit": 0,
+      "kept_directory": "/tmp/omega-probe-184630-0",
+      "native_sha256": "a1c81b1b9e43796be5a3bf3401d421a7b3ef2f9479f976f4a5de0a3f81d6ff88",
+      "source_sha256": "12bc9b166f18e3b0fe8e2f9089670c5ab2177b87baf01930e35a8106b3241510",
+      "actual_native_rerun_exit": 0
+    },
+    {
+      "name": "runtime_reused_division_inputs_exit",
+      "command": [
+        "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+        "run",
+        "--both",
+        "--keep",
+        "/workspace/Omega/.codex/worktrees/w212/tests/omega/pass/arithmetic/runtime_reused_division_inputs_exit/main.omg"
+      ],
+      "exit": 0,
+      "terminal_exit": 0,
+      "kept_directory": "/tmp/omega-probe-184525-0",
+      "native_sha256": "11a47bf526f7dc9693e5a68ff342e7829943bc428750556c2364d9bbba33616d",
+      "source_sha256": "f0a1d79de35e7f0de525c736e341aca188dd069f2ba6c35035f125f2cf57c695",
+      "actual_native_rerun_exit": 0
+    },
+    {
+      "name": "runtime_static_entry_context_exit",
+      "command": [
+        "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+        "run",
+        "--both",
+        "--keep",
+        "/workspace/Omega/.codex/worktrees/w212/tests/omega/pass/calls/runtime_static_entry_context_exit/main.omg"
+      ],
+      "exit": 0,
+      "terminal_exit": 0,
+      "kept_directory": "/tmp/omega-probe-184578-0",
+      "native_sha256": "0016e77d7ac4d7cf9d1bdc9efebc7fe8872815fe57404683b2ab5a5992314b34",
+      "source_sha256": "53b375b44e7ec715309f808cbf66a7c170629b5f8710bb299d86864c24e81d48",
+      "actual_native_rerun_exit": 0
+    },
+    {
+      "name": "runtime_whole_view_collection_fact_exit",
+      "command": [
+        "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+        "run",
+        "--both",
+        "--keep",
+        "/workspace/Omega/.codex/worktrees/w212/tests/omega/pass/dependent/runtime_whole_view_collection_fact_exit/main.omg"
+      ],
+      "exit": 0,
+      "terminal_exit": 0,
+      "kept_directory": "/tmp/omega-probe-184604-0",
+      "native_sha256": "2db79eb6b5b6644c894214a79a52b69452e53759127976493937e03f6bf4553d",
+      "source_sha256": "c662db75c35553678d6c5959c86e84fdc5c048a306053910fcd7fa7c4134681a",
+      "actual_native_rerun_exit": 0
+    },
+    {
+      "name": "state_reference_scalar_snapshots",
+      "command": [
+        "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+        "run",
+        "--both",
+        "--keep",
+        "/workspace/Omega/.codex/worktrees/w212/tests/omega/pass/borrows/state_reference_scalar_snapshots/main.omg"
+      ],
+      "exit": 0,
+      "terminal_exit": 0,
+      "kept_directory": "/tmp/omega-probe-184656-0",
+      "native_sha256": "a4bc30f78e794c988c4a04987fc72761ab87d9965745cd938de5622f40bdcc4e",
+      "source_sha256": "fba71545ffd9d3a8fbaddce06c55e6c5da5fc54b500be44b10d0db4b12960e3a",
+      "actual_native_rerun_exit": 0
+    }
+  ],
+  "fresh_contracted_length_execution": {
+    "name": "contract_length_results_exit",
+    "command": [
+      "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+      "run",
+      "--both",
+      "--keep",
+      "/workspace/Omega/.codex/worktrees/w212/tests/omega/pass/collections/contract_length_results_exit/main.omg"
+    ],
+    "exit": 0,
+    "terminal_exit": 0,
+    "kept_directory": "/tmp/omega-probe-184499-0",
+    "native_sha256": "86b90c1e33a487cc5c7e7a704401464f8c5509eb65dbe7d8278fbb695da361c2",
+    "source_sha256": "db9abc29534f661bb08b951d717d5840a396139f525b0a42ebf966b40a91b858",
+    "actual_native_rerun_exit": 0
+  },
+  "optional_unqualified_runtime_observation": {
+    "producer_revision": "4ea44417f2f23c7e15ebb83549a57e2af3f35786",
+    "receipt": "guard-integration-observation-runtime.json",
+    "alias_refusal": "SourceCustodyMismatch",
+    "bound_execution_facts": false,
+    "attribution": "Independent source/dependency non-applicability; no claimed base execution comparison; not a runtime pass."
+  },
+  "environment": {
+    "toolchain": "nightly-2026-09-04",
+    "mbx": "1.21.0",
+    "nextest": "0.9.146",
+    "effective_cpu_cores": 4,
+    "memory_gib": 16,
+    "host": "linux_x86_64",
+    "single_rust_build": true,
+    "runtime_fuel": 10000000,
+    "runtime_timeout_seconds": 30,
+    "filesystem_runtime_authority_preserved": true,
+    "package_requires_review": false,
+    "accepted_policies_equal_to_fresh": 2
+  },
+  "generic_application_baseline": {
+    "previous_compiler_sha256": "25c59d8bdb5b6b908cbf93375347eb7bb4dc31b87a25c09b6464a6bd570e2a6c",
+    "receipt": "generic-application-baseline.stderr",
+    "guarded_generic_moment_accesses_rejected": true,
+    "independent_frozen_oracle_unchanged": true
+  },
+  "historical_regression_observations": [
+    {
+      "fixture": "pass/arithmetic/runtime_reused_division_inputs_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 14100,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "7ddd45dc789b"
+    },
+    {
+      "fixture": "pass/borrows/callee_returned_shared_reborrow_chain_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 12743,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "7ddd45dc789b"
+    },
+    {
+      "fixture": "pass/borrows/qualified_record_view_call_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 17044,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "70",
+        "interpreter-exit": "70",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "7ddd45dc789b"
+    },
+    {
+      "fixture": "pass/calls/runtime_static_entry_context_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 8032,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "7ddd45dc789b"
+    },
+    {
+      "fixture": "pass/dependent/runtime_whole_view_collection_fact_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 12995,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "7ddd45dc789b"
+    },
+    {
+      "fixture": "pass/generics/runtime_const_container_methods_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 9520,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "70",
+        "interpreter-exit": "70",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "7ddd45dc789b"
+    },
+    {
+      "fixture": "pass/recast/returned_view_state_and_record_composition_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 9620,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "7ddd45dc789b"
+    },
+    {
+      "fixture": "pass/structural/primitive_array_snapshot_indexed_row_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 8028,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "7ddd45dc789b"
+    }
+  ],
+  "prior_integrated_regression_observations": [
+    {
+      "name": "callee_returned_shared_reborrow_chain_exit",
+      "command": [
+        "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+        "run",
+        "--both",
+        "--keep",
+        "/workspace/Omega/.codex/worktrees/w212/tests/omega/pass/borrows/callee_returned_shared_reborrow_chain_exit/main.omg"
+      ],
+      "exit": 0,
+      "terminal_exit": 0,
+      "kept_directory": "/tmp/omega-probe-177999-0",
+      "native_sha256": "a7ead4626f841cbe377b11dcc4ba33c6675cf5478f0f088061bcc9720449c5f6",
+      "source_sha256": "688d005a93c15ed0a942dcb1779df40ba210383f4ebf016f09f4004b7371a24c",
+      "actual_native_rerun_exit": 0
+    },
+    {
+      "name": "returned_view_state_and_record_composition_exit",
+      "command": [
+        "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+        "run",
+        "--both",
+        "--keep",
+        "/workspace/Omega/.codex/worktrees/w212/tests/omega/pass/recast/returned_view_state_and_record_composition_exit/main.omg"
+      ],
+      "exit": 0,
+      "terminal_exit": 0,
+      "kept_directory": "/tmp/omega-probe-178186-0",
+      "native_sha256": "a1c81b1b9e43796be5a3bf3401d421a7b3ef2f9479f976f4a5de0a3f81d6ff88",
+      "source_sha256": "12bc9b166f18e3b0fe8e2f9089670c5ab2177b87baf01930e35a8106b3241510",
+      "actual_native_rerun_exit": 0
+    },
+    {
+      "name": "runtime_reused_division_inputs_exit",
+      "command": [
+        "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+        "run",
+        "--both",
+        "--keep",
+        "/workspace/Omega/.codex/worktrees/w212/tests/omega/pass/arithmetic/runtime_reused_division_inputs_exit/main.omg"
+      ],
+      "exit": 0,
+      "terminal_exit": 0,
+      "kept_directory": "/tmp/omega-probe-177973-0",
+      "native_sha256": "11a47bf526f7dc9693e5a68ff342e7829943bc428750556c2364d9bbba33616d",
+      "source_sha256": "f0a1d79de35e7f0de525c736e341aca188dd069f2ba6c35035f125f2cf57c695",
+      "actual_native_rerun_exit": 0
+    },
+    {
+      "name": "runtime_static_entry_context_exit",
+      "command": [
+        "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+        "run",
+        "--both",
+        "--keep",
+        "/workspace/Omega/.codex/worktrees/w212/tests/omega/pass/calls/runtime_static_entry_context_exit/main.omg"
+      ],
+      "exit": 0,
+      "terminal_exit": 0,
+      "kept_directory": "/tmp/omega-probe-178025-0",
+      "native_sha256": "0016e77d7ac4d7cf9d1bdc9efebc7fe8872815fe57404683b2ab5a5992314b34",
+      "source_sha256": "53b375b44e7ec715309f808cbf66a7c170629b5f8710bb299d86864c24e81d48",
+      "actual_native_rerun_exit": 0
+    },
+    {
+      "name": "runtime_whole_view_collection_fact_exit",
+      "command": [
+        "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+        "run",
+        "--both",
+        "--keep",
+        "/workspace/Omega/.codex/worktrees/w212/tests/omega/pass/dependent/runtime_whole_view_collection_fact_exit/main.omg"
+      ],
+      "exit": 0,
+      "terminal_exit": 0,
+      "kept_directory": "/tmp/omega-probe-178129-0",
+      "native_sha256": "2db79eb6b5b6644c894214a79a52b69452e53759127976493937e03f6bf4553d",
+      "source_sha256": "c662db75c35553678d6c5959c86e84fdc5c048a306053910fcd7fa7c4134681a",
+      "actual_native_rerun_exit": 0
+    }
+  ],
+  "historical_std_regression_applicability": "Earlier qualified_record_view_call_exit, runtime_const_container_methods_exit and primitive_array_snapshot_indexed_row_exit observations establish their recorded producers only. Incoming335 common call roster/recursive frames/placed-view lowering affect their routes; these are not claimed current-producer executions. Current authorized sample,23 controls and eight package-free value-asserting executions cover affected common operations without accepting or transplanting another package inventory.",
+  "normal_sample_native_gate": {
+    "producer_revision": "90d9309f5511aa583af2f6ea54eb28186f240da3",
+    "compiler_sha256": "76bfa7d03ab6e37db26377cc1752cdb297c29b24c48c8cf7e486bfd48fa9cafa",
+    "exit": 0,
+    "authored_samples_passed": 1,
+    "intended_invalid_controls_matched": 1,
+    "receipt": "reference-final-sample-native.json"
+  },
+  "pinned_qualification": {
+    "state": "build/w212-qualification/state.json",
+    "config": "build/w212-qualification/config.json",
+    "purpose": "fresh tests observation of historical execution/custody; actual runtime producer90 remains",
+    "context_capture_timing": "current continuation/review; original implementation predates qualification tool",
+    "complete_historical_source_bundle": "refs/qualification/w212-producer90",
+    "independent_final_review_required": true
   }
 }

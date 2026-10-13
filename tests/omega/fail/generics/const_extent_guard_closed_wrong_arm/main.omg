@@ -1,0 +1,1 @@
+machine main() -> i64 in Wrapping { let values: [i64 in Wrapping; 0]; transition 0u64 > 0u64 { true -> (0) _ -> (values[0]) } }

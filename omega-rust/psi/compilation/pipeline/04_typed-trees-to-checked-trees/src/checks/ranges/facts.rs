@@ -21,6 +21,7 @@ use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 
 mod call_writes;
+mod closed_arrivals;
 pub(super) use call_writes::RangeCallContext;
 mod dependencies;
 mod invalidation;
@@ -46,6 +47,17 @@ pub(super) struct RangeFacts<'field> {
     integer_locals: Vec<(SymbolHandle, String, i64)>,
     proven_indexes: Vec<(String, String)>,
     proven_index_upper_bounds: Vec<(String, i64)>,
+    /// Invocation-fixed const binder floors established by this branch.
+    /// Symbol identity prevents same-spelled locals or unrelated binders from
+    /// refining an array extent; immutable binders require no write retirement.
+    const_binder_floors: Vec<(SymbolHandle, i64)>,
+    /// Selected closed integer comparisons retain their exact source operands
+    /// and asserted/refuted ordering. They contain no mutable observation.
+    closed_integer_arrivals: Vec<(
+        ExpressionHandle,
+        ExpressionHandle,
+        typed_trees::expression::BinaryOperator,
+    )>,
     /// Names provably `>= 0`. A SIGNED index access needs `0 <= i < len`; the
     /// upper-bound facts only give `i < len`, so a signed (negative-capable)
     /// index also requires its name here (seeded from `i >= 0`-style guards).
@@ -104,6 +116,8 @@ impl<'field> RangeFacts<'field> {
             integer_locals: Vec::new(),
             proven_indexes: Vec::new(),
             proven_index_upper_bounds: Vec::new(),
+            const_binder_floors: Vec::new(),
+            closed_integer_arrivals: Vec::new(),
             proven_non_negatives: Vec::new(),
             proven_orderings: Vec::new(),
             proven_range_bounds: Vec::new(),

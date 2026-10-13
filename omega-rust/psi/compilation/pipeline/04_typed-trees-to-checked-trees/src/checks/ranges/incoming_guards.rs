@@ -1169,6 +1169,12 @@ fn expression_in_stable_scope(
         validation::canonical_place_from_expression(program, expression).is_some_and(|place| {
             match place.root {
                 facts::PlaceRoot::Symbol(symbol) if symbol == machine.symbol => true,
+                facts::PlaceRoot::Symbol(symbol)
+                    if place.segments.is_empty()
+                        && super::types::is_const_binder(program, machine, symbol) =>
+                {
+                    true
+                }
                 facts::PlaceRoot::Symbol(symbol) if symbol.is_valid() => {
                     parameter_bound_identically(
                         program,
@@ -1237,8 +1243,13 @@ fn guard_uses_machine_storage_only(
     expression: ExpressionHandle,
 ) -> bool {
     expression_tail_eligible(program, expression, &|expression| {
-        validation::canonical_place_from_expression(program, expression)
-            .is_some_and(|place| (place.root) == facts::PlaceRoot::Symbol(machine.symbol))
+        validation::canonical_place_from_expression(program, expression).is_some_and(|place| {
+            place.root == facts::PlaceRoot::Symbol(machine.symbol)
+                || place.segments.is_empty()
+                    && place.root.as_symbol().is_some_and(|symbol| {
+                        super::types::is_const_binder(program, machine, symbol)
+                    })
+        })
     })
 }
 

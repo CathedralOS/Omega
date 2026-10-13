@@ -400,6 +400,7 @@ pub(in crate::checks::ranges) fn collection_symbolic_extent_floor(
     state: &State,
     collection: ExpressionHandle,
     extent: &(SymbolHandle, typed_trees::name::Identifier),
+    facts: &super::facts::RangeFacts<'_>,
 ) -> Option<i64> {
     let actual = (|| {
         let member = program.expression_table.member_node(collection)?;
@@ -458,11 +459,11 @@ pub(in crate::checks::ranges) fn collection_symbolic_extent_floor(
             .copied()
     })();
     let Some(actual) = actual else {
-        return symbolic_extent_floor(program, machine, state, extent.0);
+        return symbolic_extent_floor(program, machine, state, extent.0, facts);
     };
     match program.type_reference_table.type_reference(actual) {
         TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => {
-            symbolic_extent_floor(program, machine, state, *symbol)
+            symbolic_extent_floor(program, machine, state, *symbol, facts)
         }
         // `validate_closed_const_argument` admits closed values as symbol-less
         // Named atoms; ShapeCollector's const-length reader uses this encoding.
@@ -471,7 +472,7 @@ pub(in crate::checks::ranges) fn collection_symbolic_extent_floor(
         TypeReferenceNode::ConstExpression(expression) => {
             match program.expression_table.expression(*expression) {
                 ExpressionNode::Name(path) if path.symbol.is_valid() => {
-                    symbolic_extent_floor(program, machine, state, path.symbol)
+                    symbolic_extent_floor(program, machine, state, path.symbol, facts)
                 }
                 ExpressionNode::Integer(literal) => literal.value_bignum()?.to_i64(),
                 _ => None,
@@ -481,11 +482,12 @@ pub(in crate::checks::ranges) fn collection_symbolic_extent_floor(
     }
 }
 
-/// The floor a const-parameter extent's declared type guarantees — the closed
+/// The floor established for this const-parameter extent: its closed
 /// declared range minimum of the binder (`const N: u64[1..=18446744073709551615]` contributes 1),
 /// else its unsigned carrier's zero. `None` means the binder contributes no
 /// usable floor: an unranged signed carrier could in principle specialize a
-/// negative "length", so nothing below it is provable. Checking admits a
+/// negative "length", so the declaration alone proves nothing. Selected branch
+/// and arrival-contract facts refine the same exact immutable binder. Checking admits a
 /// symbolic extent only when its symbol is an in-scope binder's, so the
 /// binder is found by identity alone.
 fn symbolic_extent_floor(
@@ -493,6 +495,7 @@ fn symbolic_extent_floor(
     machine: &Machine,
     state: &State,
     extent_symbol: SymbolHandle,
+    facts: &super::facts::RangeFacts<'_>,
 ) -> Option<i64> {
     let reference = type_reference_for_symbol(program, machine, state, extent_symbol)
         .or_else(|| attached_data_const_parameter_reference(program, machine, extent_symbol))?;
@@ -505,93 +508,34 @@ fn symbolic_extent_floor(
             .then_some(0)
         })
     });
-    let required = const_extent_requires_floor(program, machine, state, extent_symbol);
+    let required = facts.const_binder_floor(extent_symbol);
     match (declared, required) {
         (Some(declared), Some(required)) => Some(declared.max(required)),
         (declared, required) => declared.or(required),
     }
 }
 
-/// An immutable const binder can use its exact state's arrival contract.
-/// Selected builtin meaning, not comparison spelling, supplies the ordering;
-/// unrelated binders and disjunctive alternatives supply no bound.
-fn const_extent_requires_floor(
+/// Exact invocation-fixed binders alone may retain lower bounds across writes.
+/// Runtime values and same-spelled locals do not identify an extent binder.
+pub(in crate::checks::ranges) fn is_const_binder(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
-    state: &State,
-    extent: SymbolHandle,
-) -> Option<i64> {
-    use typed_trees::expression::BinaryOperator;
-
-    if !extent.is_valid()
-        || !program
-            .machine_type_parameters(machine)
-            .iter()
-            .any(|parameter| {
-                parameter.symbol == extent
-                    && matches!(
-                        parameter.kind,
-                        typed_trees::data::TypeParameterKind::Const { .. }
-                    )
-            })
-    {
-        return None;
+    symbol: SymbolHandle,
+) -> bool {
+    if !symbol.is_valid() {
+        return false;
     }
-    let mut floor = None;
-    for fact in super::requirements::state_requires_facts(program, machine, state) {
-        let Some(expression) = program.proof_facts.get(fact).as_expression() else {
-            continue;
-        };
-        let mut pending = vec![*expression];
-        while let Some(expression) = pending.pop() {
-            if !validation::has_builtin_decomposed_guard_meaning(
-                program,
-                machine,
-                Some(state),
-                expression,
-            ) {
-                continue;
-            }
-            let Some(binary) = program.expression_table.binary_node(expression) else {
-                continue;
-            };
-            if binary.operator == BinaryOperator::And {
-                pending.extend([binary.left, binary.right]);
-                continue;
-            }
-            for (subject, bound, left) in [
-                (binary.left, binary.right, true),
-                (binary.right, binary.left, false),
-            ] {
-                if !matches!(program.expression_table.expression(subject),
-                    ExpressionNode::Name(path) if path.symbol == extent
-                        && path.head_symbol == extent
-                        && program.expression_table.name_path_members(path.members).len() == 1)
-                {
-                    continue;
-                }
-                let Some(literal) = program.expression_table.integer_node(bound) else {
-                    continue;
-                };
-                let Some(bound) = literal.value_bignum().and_then(|value| value.to_i64()) else {
-                    continue;
-                };
-                let candidate = match (binary.operator, left) {
-                    (BinaryOperator::GreaterOrEqual, true)
-                    | (BinaryOperator::LessOrEqual, false)
-                    | (BinaryOperator::Equal, _) => Some(bound),
-                    (BinaryOperator::Greater, true) | (BinaryOperator::Less, false) => {
-                        bound.checked_add(1)
-                    }
-                    _ => None,
-                };
-                if let Some(candidate) = candidate {
-                    floor = Some(floor.map_or(candidate, |prior: i64| prior.max(candidate)));
-                }
-            }
-        }
-    }
-    floor
+    let matches = |parameter: &typed_trees::data::TypeParameter| {
+        parameter.symbol == symbol
+            && matches!(
+                parameter.kind,
+                typed_trees::data::TypeParameterKind::Const { .. }
+            )
+    };
+    program.machine_type_parameters(machine).iter().any(matches)
+        || program
+            .data_definition_by_symbol(machine.attached_data_symbol)
+            .is_some_and(|data| program.data_type_parameters(data).iter().any(matches))
 }
 
 /// The declared carrier of a const binder that lives on the machine's ATTACHED

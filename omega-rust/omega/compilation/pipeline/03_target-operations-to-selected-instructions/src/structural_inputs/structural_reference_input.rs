@@ -123,10 +123,43 @@ pub(crate) fn runtime_indices_match(
 /// static offset: each element's last in-extent position times its stride.
 /// This is layout geometry — every access the verified obligations admit
 /// stays inside the root — not a bound on any selector.
-fn runtime_reach(elements: &[RuntimeElement]) -> Option<u64> {
-    elements.iter().try_fold(0u64, |reach, element| {
-        reach.checked_add(u64::from(element.stride).checked_mul(element.extent?.checked_sub(1)?)?)
-    })
+enum RuntimeReach {
+    /// No selector tuple can satisfy the retained element obligations.
+    Empty,
+    Last(u64),
+}
+
+fn runtime_reach(elements: &[RuntimeElement]) -> Option<RuntimeReach> {
+    if elements.iter().any(|element| element.extent == Some(0)) {
+        return Some(RuntimeReach::Empty);
+    }
+    elements
+        .iter()
+        .try_fold(0u64, |reach, element| {
+            reach.checked_add(
+                u64::from(element.stride).checked_mul(element.extent?.checked_sub(1)?)?,
+            )
+        })
+        .map(RuntimeReach::Last)
+}
+
+/// The universal physical-span condition over admitted runtime selectors.
+/// An empty domain changes only this condition, not root/path/type formation
+/// or the selector certificates every caller independently joins.
+fn runtime_span_within_storage(
+    offset: u64,
+    bytes: u64,
+    elements: &[RuntimeElement],
+    storage_bytes: u64,
+) -> bool {
+    match runtime_reach(elements) {
+        Some(RuntimeReach::Empty) => true,
+        Some(RuntimeReach::Last(reach)) => offset
+            .checked_add(reach)
+            .and_then(|end| end.checked_add(bytes))
+            .is_some_and(|end| end <= storage_bytes),
+        None => false,
+    }
 }
 
 /// One pointer word selected within its own contiguous carrier region.
@@ -1231,11 +1264,12 @@ pub(crate) fn bounded_byte_view(
         != StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
             capacity,
         })
-        || u64::from(offset)
-            .checked_add(runtime_reach(&elements)?)?
-            .checked_add(8)?
-            .checked_add(capacity)?
-            > u64::from(shape(source.structural_type, declarations)?.byte_size)
+        || !runtime_span_within_storage(
+            u64::from(offset),
+            8u64.checked_add(capacity)?,
+            &elements,
+            u64::from(shape(source.structural_type, declarations)?.byte_size),
+        )
     {
         return None;
     }
@@ -2436,15 +2470,14 @@ fn scalar_access_within_storage(
         )
     );
     descriptor_frame
-        || (|| {
-            Some(
-                u64::from(offset)
-                    .checked_add(runtime_reach(elements)?)?
-                    .checked_add(u64::from(bytes))?
-                    <= u64::from(shape(root, declarations)?.byte_size),
+        || shape(root, declarations).is_some_and(|storage| {
+            runtime_span_within_storage(
+                u64::from(offset),
+                u64::from(bytes),
+                elements,
+                u64::from(storage.byte_size),
             )
-        })()
-        .unwrap_or(false)
+        })
 }
 
 /// Exact static carrier geometry: record fields and bounded fixed-array indices.

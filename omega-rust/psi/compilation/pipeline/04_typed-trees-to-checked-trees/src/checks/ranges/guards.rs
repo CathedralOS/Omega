@@ -207,6 +207,49 @@ fn negated_operand(
     }
 }
 
+/// Preserve the exact lower bound, not merely nonnegativity, of an immutable
+/// const binder. Requires and selected positive/refuted guards share this path;
+/// callers have already established builtin decomposed comparison meaning.
+fn seed_const_binder_floor(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    facts: &mut RangeFacts<'_>,
+    binary: &TableBinaryExpression,
+    operator: BinaryOperator,
+) {
+    for (subject, bound, left) in [
+        (binary.left, binary.right, true),
+        (binary.right, binary.left, false),
+    ] {
+        let Some(path) = program.expression_table.name_path_node(subject) else {
+            continue;
+        };
+        if path.head_symbol != path.symbol
+            || program
+                .expression_table
+                .name_path_members(path.members)
+                .len()
+                != 1
+            || !super::types::is_const_binder(program, machine, path.symbol)
+        {
+            continue;
+        }
+        let Some(bound) = expression_integer_value(program, facts, bound) else {
+            continue;
+        };
+        let floor = match (operator, left) {
+            (BinaryOperator::GreaterOrEqual, true)
+            | (BinaryOperator::LessOrEqual, false)
+            | (BinaryOperator::Equal, _) => Some(bound),
+            (BinaryOperator::Greater, true) | (BinaryOperator::Less, false) => bound.checked_add(1),
+            _ => None,
+        };
+        if let Some(floor) = floor {
+            facts.prove_const_binder_floor(path.symbol, floor);
+        }
+    }
+}
+
 fn seed_binary_guard_facts(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
@@ -215,6 +258,8 @@ fn seed_binary_guard_facts(
     binary: &TableBinaryExpression,
     operator: BinaryOperator,
 ) {
+    facts.retain_closed_integer_arrival(program, binary, operator);
+    seed_const_binder_floor(program, machine, facts, binary, operator);
     facts.record_expression_dependencies(program, machine, state, binary.left);
     facts.record_expression_dependencies(program, machine, state, binary.right);
     match operator {

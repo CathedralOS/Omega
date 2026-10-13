@@ -134,6 +134,16 @@ pub(super) fn check_indexed_access(
     // When the obligation is operator-sourced, every bounds failure below is
     // attributed to the governing operator contract (e.g. `Slice::range`).
     let attribution = attribution.as_deref();
+    // Source formation and selected operator custody were checked above.
+    // A closed impossible arrival discharges both bounds through the existing
+    // strict integer judgment, not a reachability flag or source-pruning rule.
+    if facts.closed_integer_arrival_is_impossible(program, machine) {
+        return if spelling == OperatorSpelling::Range {
+            BoundsCheckResult::ProvenRange
+        } else {
+            BoundsCheckResult::ProvenScalar
+        };
+    }
 
     let length = expression_indexable_length(program, machine, state, facts, indexed.collection)
         .or_else(|| {

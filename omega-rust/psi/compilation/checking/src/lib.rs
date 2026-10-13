@@ -387,10 +387,11 @@ pub use proof_contracts::contract_entailment::{
     MatchedLawGuarantee, matched_machine_law_guarantees,
 };
 pub use proof_contracts::contract_entailment::{
-    ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
-    ScopedArithmeticHypothesis, ScopedArithmeticValue, StrictArithmeticBindingValue,
-    StrictArithmeticExpressionBinding, StrictArithmeticImplicationJudgment,
-    StrictArithmeticSymbolBinding, scoped_arithmetic_implication,
+    ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticComparison,
+    ScopedArithmeticExpression, ScopedArithmeticHypothesis, ScopedArithmeticValue,
+    StrictArithmeticBindingValue, StrictArithmeticExpressionBinding,
+    StrictArithmeticImplicationJudgment, StrictArithmeticSymbolBinding,
+    scoped_arithmetic_comparisons_unsatisfiable, scoped_arithmetic_implication,
     scoped_arithmetic_values_relation, strict_arithmetic_expression_implication,
 };
 pub use proof_contracts::contract_entailment::{

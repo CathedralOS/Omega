@@ -3,6 +3,31 @@ use super::RangeFacts;
 mod aliases;
 
 impl RangeFacts<'_> {
+    pub(in crate::checks::ranges) fn prove_const_binder_floor(
+        &mut self,
+        symbol: symbols::SymbolHandle,
+        floor: i64,
+    ) {
+        if let Some((_, known)) = self
+            .const_binder_floors
+            .iter_mut()
+            .find(|(known, _)| *known == symbol)
+        {
+            *known = (*known).max(floor);
+        } else {
+            self.const_binder_floors.push((symbol, floor));
+        }
+    }
+
+    pub(in crate::checks::ranges) fn const_binder_floor(
+        &self,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<i64> {
+        self.const_binder_floors
+            .iter()
+            .find_map(|(known, floor)| (*known == symbol).then_some(*floor))
+    }
+
     pub(in crate::checks::ranges) fn prove_index(&mut self, collection: String, index: String) {
         if !self
             .proven_indexes

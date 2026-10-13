@@ -21,16 +21,28 @@ pub data Design {
     covariance: [i64 in Wrapping; 9];
     variances: [i64 in Wrapping; 3];
 }
-pub machine determinant(design: &Design) -> i64 in Wrapping {
-    let a: i64 in Wrapping = design.moments[0];
-    let b: i64 in Wrapping = design.moments[1];
-    let c: i64 in Wrapping = design.moments[2];
-    let d: i64 in Wrapping = design.moments[3];
-    let e: i64 in Wrapping = design.moments[4];
-    transition design.degree == 1 {
-        true -> (a*c-b*b)
-        _ -> (a*(c*e-d*d)-b*(b*e-c*d)+c*(b*d-c*c))
+// The same moment kernel admits linear and quadratic moment vectors through
+// selected const-extent guards. Generic bodies are checked before specialization.
+machine polynomial_determinant<const Count: u64>(degree: i64 in Wrapping,
+    moments: &[i64 in Wrapping; Count]) -> i64 in Wrapping {
+    transition degree == 1 { true -> linear(moments) _ -> quadratic(moments) }
+    state linear(moments: &[i64 in Wrapping; Count]) {
+        transition Count >= 3 {
+            true -> (moments[0]*moments[2]-moments[1]*moments[1])
+            _ -> (0)
+        }
     }
+    state quadratic(moments: &[i64 in Wrapping; Count]) {
+        transition Count >= 5 {
+            true -> (moments[0]*(moments[2]*moments[4]-moments[3]*moments[3])
+                -moments[1]*(moments[1]*moments[4]-moments[2]*moments[3])
+                +moments[2]*(moments[1]*moments[3]-moments[2]*moments[2]))
+            _ -> (0)
+        }
+    }
+}
+pub machine determinant(design: &Design) -> i64 in Wrapping {
+    polynomial_determinant<5>(design.degree, &design.moments)
 }
 // All masks are subsets without replacement. The reversed-bit key prefers
 // inclusion at the first differing input index, exactly lexicographic order
