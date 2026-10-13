@@ -196,7 +196,9 @@ their source revision/blob hashes and the behavior-to-contract mapping in the
 implementation and independent-review context (`qualification.py handoff`
 with `--role implementation` or `--role review`). Save the packet; on resume
 use `--role continuation --previous SAVED_PACKET_JSON` with the integrated
-base to verify focused fingerprints and reinject only changed context.
+base to verify focused fingerprints. Without retained-delivery proof, include
+the focused passages again. Repository-managed dispatch requires this context
+by default; genuine non-semantic work records its classification and reason.
 Distinguish missing implementation from an unapproved new rule; tests and a spec
 clause authored in the same patch do not supply language authority. Missing or
 stale context requires identifying the exact semantic gap before coding.

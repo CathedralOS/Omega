@@ -2,9 +2,11 @@
 """Deterministic cloud adapter faults; no cloud sessions or remote publication."""
 
 import copy
+import contextlib
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
+import io
 import re
 from pathlib import Path
 import subprocess
@@ -30,6 +32,7 @@ def requirements():
 
 def assignment(name, base='a' * 40):
     return dict(id=name, base=base, item='item-'+name, owner='owner-' + name, outcome='program-' + name,
+                work_classification=dict(kind='non_semantic',reason='Controller transport fixture without language changes'),
                 writes=['src/' + name + '.py'], reads=[], retry_budget=1, max_continuations=6,
                 dependency_review='producer/consumer, digest and golden closure reviewed', acceptance=requirements())
 
@@ -78,6 +81,8 @@ class ControllerTests(unittest.TestCase):
         completion.git(self.repo, 'config', 'user.email', '43973221+Smotto@users.noreply.github.com')
         (self.repo / 'src').mkdir()
         for name in ('0', '1'): (self.repo / ('src/' + name + '.py')).write_text('authored program')
+        (self.repo / 'wiki/spec').mkdir(parents=True)
+        (self.repo / 'wiki/spec/rule.md').write_text('The exact canonical rule.\nOther unrelated text.\n')
         completion.git(self.repo, 'add', '.')
         completion.git(self.repo, 'commit', '-m', 'tools: test fixture')
         self.base = completion.git(self.repo, 'rev-parse', 'HEAD')
@@ -88,6 +93,144 @@ class ControllerTests(unittest.TestCase):
 
     def update(self, change):
         return self.store.update(self.store.load()['revision'], change)
+
+    def semantic_context(self):
+        return dict(context_repository=str(self.repo), semantic_contracts=[dict(
+            implementation=['src/0.py'], contract='wiki/spec/rule.md', classification='missing_implementation',
+            reason='repair the existing behavior', passages=['The exact canonical rule.'])])
+
+    def configure_semantic(self):
+        self.update(lambda r:cloud.spec_context(r,dict(assignment='0',context=self.semantic_context())))
+
+    def command(self, command, value):
+        path=self.root/(command+'.json');path.write_text(json.dumps(value))
+        output=io.StringIO()
+        with contextlib.redirect_stdout(output):
+            exit_code=cloud.main(['--state',str(self.store.path),'--revision',str(self.store.load()['revision']),command,'--input',str(path)])
+        return exit_code,json.loads(output.getvalue())
+
+    def test_missing_mapping_blocks_preparation_but_status_and_reads_remain_usable(self):
+        create=self.request();self.ingest(self.reply(create))
+        self.update(lambda r:r['cloud']['assignments']['0'].pop('work_classification'))
+        self.read()
+        cloud.plan(self.store.load())
+        with self.assertRaisesRegex(RecoveryError,'requires focused'):
+            self.prepare_step(action='follow_up')
+
+    def test_cli_prepare_dispatch_includes_validated_packet_and_exact_prompt(self):
+        code,_=self.command('spec-context',dict(assignment='0',context=self.semantic_context()))
+        self.assertEqual(code,0)
+        intent=dict(assignment='0',step='semantic-create',operation='semantic-create',action='create',
+                    parameters=dict(model='gpt-6.1-sol',reasoning='medium',phase='preflight'))
+        code,_=self.command('prepare-step',intent);self.assertEqual(code,0)
+        code,result=self.command('dispatch-step',dict(assignment='0',step='semantic-create'));self.assertEqual(code,0)
+        request=result['request']['request']
+        self.assertIn('The exact canonical rule.',request['prompt'])
+        self.assertIn(self.base,request['prompt'])
+        self.assertIn(completion.git(self.repo,'rev-parse',self.base+':wiki/spec/rule.md'),request['prompt'])
+        self.assertIn(request['execution_id'],request['prompt'])
+        self.assertIn(request['operation'],request['prompt'])
+        self.assertEqual(request['work_context'],self.store.load()['cloud']['operations']['semantic-create']['request']['work_context'])
+        code,_=self.command('dispatch-step',dict(assignment='0',step='semantic-create'));self.assertEqual(code,1)
+
+    def test_stale_passages_and_dirty_context_refuse_dispatch_without_mutation(self):
+        bad=self.semantic_context();bad['semantic_contracts'][0]['passages']=['An invented rule.']
+        before=self.store.load()['revision']
+        with self.assertRaisesRegex(RecoveryError,'missing/stale'):
+            self.update(lambda r:cloud.spec_context(r,dict(assignment='0',context=bad)))
+        self.assertEqual(self.store.load()['revision'],before)
+        self.configure_semantic()
+        (self.repo/'wiki/spec/rule.md').write_text('Changed locally.\n')
+        with self.assertRaisesRegex(RecoveryError,'dirty'):
+            self.prepare_step()
+
+    def test_prepared_dispatch_rechecks_selected_spec_without_requalifying_tests(self):
+        self.configure_semantic();self.prepare_step()
+        (self.repo/'wiki/spec/rule.md').write_text('Changed locally.\n')
+        with self.assertRaisesRegex(RecoveryError,'dirty'):
+            self.update(lambda r:cloud.dispatch_step(r,'0','next-turn'))
+        entry=self.store.load()['cloud']['steps']['0']['next-turn']
+        self.assertNotIn('dispatched_utc',entry)
+
+    def test_resume_without_retained_context_reinjects_passages_and_review_is_read_only(self):
+        self.configure_semantic()
+        create=self.request();self.ingest(self.reply(create));self.read()
+        follow=self.request('follow_up','resume-without-context')
+        self.assertTrue(follow['work_context']['context_refresh'])
+        self.assertIn('The exact canonical rule.',follow['prompt'])
+        self.ingest(self.reply(follow));self.read()
+        requests=[]
+        self.update(lambda r:requests.append(cloud.intent(r,'0','follow_up','independent-review',dict(phase='implementation',role='review'))))
+        prompt=requests[0]['prompt']
+        self.assertIn('Independent read-only final review',prompt)
+        self.assertIn('Do not edit files, claim implementation ownership or publish',prompt)
+        self.assertIn('The exact canonical rule.',prompt)
+        self.assertNotIn('Retain implementation ownership',prompt)
+
+    def test_resume_omits_passages_only_with_exact_fresh_retention_receipt(self):
+        self.configure_semantic()
+        create=self.request();self.ingest(self.reply(create))
+        packet=create['work_context'];fingerprint=packet['context_fingerprint']
+        self.read(acknowledge=False,context_fingerprint=fingerprint,context_retained=True,
+            acknowledgments=[dict(operation=create['operation'],execution_id=create['execution_id'],
+                status='completed',evidence='exact child reports retaining delivered spec passages',
+                context_fingerprint=fingerprint,context_retained=True)])
+        follow=self.request('follow_up','retained-resume')
+        self.assertFalse(follow['work_context']['context_refresh'])
+        self.assertNotIn('The exact canonical rule.',follow['prompt'])
+        self.assertIn('verified unchanged',follow['prompt'])
+
+    def test_explicit_non_semantic_dispatch_does_not_require_spec_files(self):
+        create=self.request()
+        self.assertIn('Explicit non-semantic work',create['prompt'])
+        self.assertNotIn('canonical_context',create['work_context'])
+        self.assertFalse(create['work_context'].get('context_fingerprint'))
+
+    def test_status_follow_up_is_bounded_and_does_not_require_mappings(self):
+        create=self.request();self.ingest(self.reply(create));self.read()
+        self.update(lambda r:r['cloud']['assignments']['0'].pop('work_classification'))
+        requests=[]
+        self.update(lambda r:requests.append(cloud.intent(r,'0','follow_up','status-report',
+            dict(phase='preflight',purpose='status'))))
+        self.assertIn('status-only turn',requests[0]['prompt'])
+        self.assertNotIn('canonical passages',requests[0]['prompt'])
+        self.assertNotIn('context_fingerprint',requests[0]['work_context'])
+        with self.assertRaisesRegex(RecoveryError,'fixed bounded report'):
+            self.update(lambda r:cloud.intent(r,'0','follow_up','hidden-work',
+                dict(phase='preflight',purpose='status',message='implement a compiler repair')))
+
+    def test_bad_retention_receipt_is_rejected_and_mapping_changes_invalidate_scope(self):
+        self.configure_semantic();create=self.request();self.ingest(self.reply(create));self.read()
+        self.assertEqual(cloud.readiness_state(self.store.load(),'0'),'ready')
+        with self.assertRaisesRegex(RecoveryError,'exact delivered fingerprint'):
+            self.read(acknowledge=False,acknowledgments=[dict(operation=create['operation'],
+                execution_id=create['execution_id'],status='completed',evidence='child context receipt',
+                context_fingerprint='wrong',context_retained=True)])
+        changed=self.semantic_context();changed['semantic_contracts'][0]['reason']='Updated behavior-to-contract scope'
+        self.update(lambda r:cloud.spec_context(r,dict(assignment='0',context=changed)))
+        self.assertEqual(cloud.readiness_state(self.store.load(),'0'),'stale')
+
+    def test_candidate_spec_edits_cannot_become_authority_without_accepted_main(self):
+        remote=self.root/'accepted.git'
+        subprocess.run(['git','init','--bare',str(remote)],check=True,capture_output=True)
+        completion.git(self.repo,'remote','add','origin',str(remote))
+        completion.git(self.repo,'push','origin','HEAD:refs/heads/main')
+        (self.repo/'wiki/spec/rule.md').write_text('An invented new rule.\n')
+        completion.git(self.repo,'add','.')
+        completion.git(self.repo,'commit','-m','tools: candidate-only spec edit')
+        candidate=completion.git(self.repo,'rev-parse','HEAD')
+        self.update(lambda r:r['cloud']['assignments']['0'].update(source_revision=candidate))
+        context=self.semantic_context();context['canonical_revision']=candidate
+        context['semantic_contracts'][0]['passages']=['An invented new rule.']
+        before=self.store.load()['revision']
+        with self.assertRaisesRegex(RecoveryError,'not accepted main authority'):
+            self.update(lambda r:cloud.spec_context(r,dict(assignment='0',context=context)))
+        self.assertEqual(self.store.load()['revision'],before)
+        # A separate actual main integration is the authority transition.
+        completion.git(self.repo,'push','origin','HEAD:refs/heads/main')
+        self.update(lambda r:cloud.spec_context(r,dict(assignment='0',context=context)))
+        self.assertEqual(self.state()['canonical_authority']['base'],candidate)
+        self.assertIn('An invented new rule.',self.request()['prompt'])
 
     def request(self, action='create', name='dispatch-1', assignment='0'):
         result = []
@@ -133,7 +276,8 @@ class ControllerTests(unittest.TestCase):
                     source_revision=self.base, current_revision=completion.git(self.repo, 'rev-parse', 'HEAD'),
                     environment=row['environment'], started_utc=stamp, observed_utc=stamp,
                     cache='warm', complexity='small fixture', assumptions='reviewed input closure may omit undiscovered semantic dependencies',
-                    scope=cloud.readiness_contract(self.store.load(), assignment), inputs=['src'],
+                    scope=cloud.readiness_contract(self.store.load(), assignment),
+                    inputs=['src']+[mapping['contract'] for mapping in row.get('semantic_contracts',[])],
                     known_dependencies=[d['id'] for d in cloud.readiness_contract(self.store.load(), assignment)['dependencies']],
                     review_artifact=dict(path='scope.log', sha256=hashlib.sha256(text.encode()).hexdigest()),
                     before=dict(revision=self.base, environment=row['environment'], kind='native', command='fixture native',

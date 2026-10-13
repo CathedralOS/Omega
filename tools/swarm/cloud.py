@@ -14,6 +14,7 @@ import re
 from pathlib import Path
 import sys
 import subprocess
+import time
 import uuid
 
 from recovery_state import Store, RecoveryError, read_json
@@ -22,6 +23,8 @@ from completion import require, sha, validate, git, inputs, artifact, program_fa
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import claims
+import qualification
+import coordination
 
 
 def now():
@@ -196,7 +199,7 @@ def admit(record, manifest, snapshot, *, rolling_from=None):
     for row in rows.values():
         row.pop("binding", None)  # Session provenance enters only through a verified binding.
         row.pop("mode", None)  # Read-only provenance enters only through observe-existing.
-        for field in ("source_revision", "revisions", "preflight_history", "scouting", "readiness", "successor", "successor_receipt"):
+        for field in ("source_revision", "revisions", "preflight_history", "scouting", "readiness", "successor", "successor_receipt", "canonical_authority"):
             row.pop(field, None)
         identifier(row["id"])
         sha(row["base"])
@@ -340,11 +343,98 @@ def source_revision(row):
     return row.get("source_revision", row["base"])
 
 
+def spec_context(record, value):
+    """Configure focused context for an existing assignment, never dispatch."""
+    row = record["cloud"]["assignments"][value["assignment"]]
+    require(row.get("mode") not in {"observational-only", "preflight-only"} and not row.get("accepted"),
+            "only active managed work takes a spec context")
+    context = value["context"]
+    allowed = {"work_classification", "semantic_contracts", "context_repository", "canonical_revision"}
+    require(isinstance(context, dict) and not set(context) - allowed, "explicit supported work context fields required")
+    qualification.work_classification(context)
+    proposed = dict(row)
+    for key in allowed:
+        proposed.pop(key, None)
+    proposed.update(copy.deepcopy(context))
+    if qualification.work_classification(proposed)["kind"] == "semantic":
+        repository = proposed.get("context_repository")
+        require(repository and git(repository, "rev-parse", "HEAD") == source_revision(row),
+                "spec context checkout must match the recorded assignment source revision")
+        base = qualification.revision(repository, proposed.get("canonical_revision", row["base"]))
+        authority = row.get("canonical_authority", {}).get("base", row["base"])
+        if not canonical_ancestor(repository, base, authority):
+            # Advance canonical authority only after observing accepted main at
+            # the actual publication destination, never a caller's candidate.
+            deadline = time.monotonic() + 30
+            try:
+                url = coordination.push_url(repository, "origin", deadline=deadline)
+                accepted = coordination.remote_refs(repository, url, "refs/heads/main", deadline=deadline).get("refs/heads/main")
+                require(accepted, "accepted main authority is unavailable")
+                coordination.fetch_object(repository, url, accepted, reference="refs/heads/main", deadline=deadline)
+                require(canonical_ancestor(repository, base, accepted),
+                        "canonical revision is not accepted main authority; candidate spec edits are not authority")
+            except coordination.CoordinationError as error:
+                raise RecoveryError("cannot establish accepted main authority for canonical revision") from error
+            proposed["canonical_authority"] = dict(base=accepted, remote="origin", observed_utc=now(),
+                evidence="actual publication destination refs/heads/main read")
+    dispatch_context(record, proposed, "implementation")
+    for key in allowed:
+        row.pop(key, None)
+    row.update(copy.deepcopy(context))
+    if proposed.get("canonical_authority"):
+        row["canonical_authority"] = proposed["canonical_authority"]
+
+
+def canonical_ancestor(repository, revision, authority):
+    result = coordination.git(repository, "merge-base", "--is-ancestor", revision, authority, allow_failure=True)
+    require(result.returncode in {0, 1}, "canonical authority object is unavailable")
+    return result.returncode == 0
+
+
+def dispatch_context(record, row, role):
+    classification = qualification.work_classification(row)
+    if classification["kind"] == "non_semantic":
+        return dict(qualification.work_handoff(None, row, None, role),
+                    candidate=source_revision(row), source_revision=row["base"])
+    repository = row.get("context_repository")
+    require(isinstance(repository, str) and repository, "semantic dispatch requires context_repository pinned to the assignment source")
+    require(git(repository, "rev-parse", "HEAD") == source_revision(row),
+            "spec context checkout must match the recorded assignment source revision")
+    selected = [mapping["contract"] for mapping in row["semantic_contracts"]]
+    require(not git(repository, "status", "--porcelain", "--untracked-files=all", "--", *selected),
+            "selected canonical context files are dirty")
+    base = qualification.revision(repository, row.get("canonical_revision", row["base"]))
+    require(canonical_ancestor(repository, base, row.get("canonical_authority", {}).get("base", row["base"])),
+            "canonical revision must derive from accepted base authority; candidate spec edits are not authority")
+    git(repository, "merge-base", "--is-ancestor", base, source_revision(row))
+    # A normal dispatch acknowledgment proves task receipt, not retained spec
+    # context. Only an exact completed child receipt can justify omission.
+    previous, retained = None, False
+    for operation in reversed(list(record["cloud"]["operations"].values())):
+        request = operation["request"]
+        packet = request.get("work_context")
+        acknowledgment = operation.get("acknowledgment", {})
+        if (operation["assignment"] == row["id"] and operation["effect"] == "applied"
+                and packet and packet.get("context_fingerprint")):
+            previous = packet
+            observation = row.get("observation") or {}
+            retained = (acknowledgment.get("status") == "completed"
+                        and acknowledgment.get("context_fingerprint") == packet["context_fingerprint"]
+                        and acknowledgment.get("context_retained") is True
+                        and acknowledgment.get("evidence") is not None
+                        and fresh(observation)
+                        and observation.get("context_fingerprint") == packet["context_fingerprint"]
+                        and observation.get("context_retained") is True)
+            break
+    return qualification.work_handoff(repository, row, base, role, previous, retained)
+
+
 def readiness_contract(record, assignment):
     row = record["cloud"]["assignments"][assignment]
     return dict({key: row[key] for key in
                  ("base", "outcome", "writes", "reads", "acceptance", "dependency_review")},
                 source_revision=source_revision(row),
+                work_context={key: row[key] for key in ("work_classification", "semantic_contracts", "canonical_revision") if key in row},
                 dependencies=[d for d in record["cloud"]["batches"][row["batch"]]["manifest"]["dependencies"]
                               if assignment in {d["producer"], d["consumer"]}])
 
@@ -364,6 +454,7 @@ def implementation_started(record, assignment):
                and o["request"].get("readiness_contract") == contract
                and o["request"]["action"] == "follow_up"
                and o["request"]["parameters"].get("phase") == "implementation"
+               and o["request"]["parameters"].get("role") != "review"
                for o in record["cloud"]["operations"].values())
 
 
@@ -419,7 +510,8 @@ def readiness(record, assignment, value, repository, root):
     source = sha(value["source_revision"])
     current = sha(value["current_revision"])
     required_paths = set(row["writes"] + row["reads"] +
-                         [p for r in row["acceptance"] for p in r["inputs"]])
+                         [p for r in row["acceptance"] for p in r["inputs"]]
+                         + [mapping["contract"] for mapping in row.get("semantic_contracts", [])])
     reviewed_paths = paths(value["inputs"])
     require(all(any(p == r or p.startswith(r + "/") for r in reviewed_paths)
                 for p in required_paths), "readiness input closure misses declared scope")
@@ -531,7 +623,7 @@ def checkpoint(record, assignment, value):
     row.pop("cleanup_review", None)
 
 
-def intent(record, assignment, action, operation, parameters):
+def intent(record, assignment, action, operation, parameters, *, execution_id=None):
     cloud = record["cloud"]
     row = cloud["assignments"][assignment]
     identifier(operation)
@@ -555,8 +647,14 @@ def intent(record, assignment, action, operation, parameters):
             readiness_contract=None, readiness_gate=None, dependencies=[], reporting=cloud["capabilities"]["reporting"], created_utc=now())
         cloud["operations"][operation] = dict(request=request, assignment=assignment, effect="unknown", result=None)
         return request
-    require(isinstance(parameters, dict) and not set(parameters) - {"model", "reasoning", "phase", "message", "environment", "lifecycle_action"},
+    require(isinstance(parameters, dict) and not set(parameters) - {"model", "reasoning", "phase", "message", "environment", "lifecycle_action", "role", "purpose"},
             "only normalized adapter parameters are accepted; no credentials or permission bypass fields")
+    require(parameters.get("purpose", "work") in {"work", "status"}, "supported work/status purpose required")
+    status_only = parameters.get("purpose") == "status"
+    if status_only:
+        require(action == "follow_up" and parameters.get("phase") == "preflight"
+                and not parameters.get("message") and not parameters.get("role"),
+                "status-only follow-up is a fixed bounded report, without work instructions or review role")
     require(action != "follow_up" or parameters.get("phase") in {"preflight", "implementation"},
             "continuation needs explicit preflight/implementation phase")
     require(operation not in cloud["operations"], "operation already recorded; reconcile, never redispatch")
@@ -605,7 +703,26 @@ def intent(record, assignment, action, operation, parameters):
                 recovery_clear(record, row, row["observation"],
                                allow_prior=parameters["phase"] == "preflight" and not row.get("preflight"))
         row["attempts"][action] = attempts + 1
-    request = dict(schema=1, operation=operation, execution_id=uuid.uuid4().hex, assignment=assignment,
+    work_context = None
+    prompt = None
+    if action in {"create", "follow_up"}:
+        if status_only:
+            work_context = dict(schema="qualification-work-context-1", role="continuation",
+                work_classification=dict(kind="non_semantic", reason="Fixed bounded status report only"))
+            prompt = ("Return a bounded status report for existing assignment " + assignment
+                      + ". Report current progress, active processes, checkpoint and actual blockers. "
+                        "Do not edit source, start builds, implement new work or publish. This is a status-only turn.\n")
+        else:
+            role = parameters.get("role", "continuation" if action == "follow_up" else "implementation")
+            work_context = dispatch_context(record, row, role)
+            prompt = qualification.work_context_prompt(work_context) + "\nAssignment contract:\n" + json.dumps(
+                {key: row[key] for key in ("id", "outcome", "acceptance", "writes", "reads")}, indent=2)
+            if parameters.get("phase") == "preflight":
+                prompt += "\nThis turn is bounded preflight inspection only; do not begin implementation.\n"
+            if parameters.get("message"):
+                require(isinstance(parameters["message"], str), "dispatch message must be text")
+                prompt += "\nRequested task details:\n" + parameters["message"]
+    request = dict(schema=1, operation=operation, execution_id=execution_id or uuid.uuid4().hex, assignment=assignment,
                    action=action, tool=cloud["capabilities"]["tools"][action], thread=row["thread"],
                    environment=row["environment"], generation=row["generation"], parameters=parameters,
                    contract=dict({key: row[key] for key in ("id", "base", "owner", "item", "outcome", "writes", "reads", "acceptance", "dependency_review")},
@@ -616,6 +733,10 @@ def intent(record, assignment, action, operation, parameters):
                        and parameters.get("phase") == "implementation" else None,
                    dependencies=dependencies(record, assignment),
                    reporting=cloud["capabilities"]["reporting"], created_utc=now())
+    if work_context is not None:
+        prompt += "\nAcknowledge this exact dispatch identity in the bounded turn result:\n" + json.dumps(
+            {key: request[key] for key in ("operation", "execution_id", "assignment", "reporting")}, indent=2)
+        request.update(work_context=work_context, prompt=prompt)
     cloud["operations"][operation] = dict(request=request, assignment=assignment, effect="unknown", result=None)
     return request
 
@@ -674,9 +795,13 @@ def dispatch_step(record, assignment, step):
     # this prepared intent in a scratch record. Nothing dispatches from scratch.
     scratch = copy.deepcopy(record)
     del scratch["cloud"]["operations"][entry["operation"]]
-    checked = intent(scratch, assignment, request["action"], entry["operation"], request["parameters"])
+    checked = intent(scratch, assignment, request["action"], entry["operation"], request["parameters"],
+                     execution_id=request["execution_id"])
     for field in ("tool", "thread", "environment", "generation", "contract", "readiness_contract", "readiness_gate", "dependencies", "reporting"):
         require(checked[field] == request[field], "prepared dispatch contract changed; reconcile")
+    require(checked.get("work_context") == request.get("work_context")
+            and checked.get("prompt") == request.get("prompt"),
+            "prepared spec context/prompt changed; prepare a fresh reviewed turn")
     if "runtime_arguments" in request:
         if record["cloud"]["assignments"][assignment].get("mode") == "preflight-only" and request["action"] == "follow_up":
             checked["runtime_arguments"]["prompt"] = preflight_prompt(entry["operation"], request["execution_id"])
@@ -805,6 +930,11 @@ def ingest(record, envelope):
                     and acknowledged["effect"] == "applied"
                     and acknowledgment.get("status") in {"started", "completed"}
                     and acknowledgment.get("evidence"), "exact child dispatch acknowledgment required")
+            if acknowledgment.get("context_retained") is True:
+                packet = acknowledged["request"].get("work_context") or {}
+                require(packet.get("context_fingerprint")
+                        and acknowledgment.get("context_fingerprint") == packet["context_fingerprint"],
+                        "retained context acknowledgment must name the exact delivered fingerprint")
             acknowledged["acknowledgment"] = acknowledgment
         if "preflight" in result:
             preflight(record, row["id"], result["preflight"])
@@ -884,7 +1014,8 @@ def review_revision(record, assignment, value, repository, root):
     require(previous == source_revision(row) and previous != target
             and git(repository, "rev-parse", "HEAD") == target, "revision source/head mismatch")
     git(repository, "merge-base", "--is-ancestor", previous, target)
-    required = row["writes"] + row["reads"] + [p for r in row["acceptance"] for p in r["inputs"]]
+    required = (row["writes"] + row["reads"] + [p for r in row["acceptance"] for p in r["inputs"]]
+                + [mapping["contract"] for mapping in row.get("semantic_contracts", [])])
     reviewed = paths(value["inputs"])
     require(reviewed and all(any(p == r or p.startswith(r + "/") for r in reviewed) for p in required),
             "revision review misses input closure")
@@ -1081,6 +1212,7 @@ def managed_audit(record, row, repository):
         request = operation["request"]
         gate = request.get("readiness_gate")
         if (request["action"] != "follow_up" or request.get("parameters", {}).get("phase") != "implementation"
+                or request.get("parameters", {}).get("role") == "review"
                 or operation.get("acknowledgment", {}).get("status") != "completed"
                 or not isinstance(gate, dict) or gate.get("status") != "ready"
                 or request.get("readiness_contract") != digest or gate.get("contract") != digest
@@ -1230,7 +1362,7 @@ def main(argv=None):
     parser.add_argument("--revision", type=int)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("status")
-    for name in ("init", "observe-existing", "admit-preflight", "admit", "handoff", "checkpoint", "ownership", "preflight", "readiness", "bind-existing", "review-revision", "import-completion", "approval", "intent", "prepare-step", "dispatch-step", "save-step-result", "complete-step", "successor", "ingest", "cleanup-review", "accept"):
+    for name in ("init", "observe-existing", "admit-preflight", "admit", "spec-context", "handoff", "checkpoint", "ownership", "preflight", "readiness", "bind-existing", "review-revision", "import-completion", "approval", "intent", "prepare-step", "dispatch-step", "save-step-result", "complete-step", "successor", "ingest", "cleanup-review", "accept"):
         command = commands.add_parser(name)
         command.add_argument("--input", type=Path, required=True)
     args = parser.parse_args(argv)
@@ -1248,6 +1380,7 @@ def main(argv=None):
                 elif args.command == "observe-existing": observe_existing(record, value)
                 elif args.command == "admit-preflight": admit_preflight(record, value)
                 elif args.command == "admit": admit(record, value["manifest"], value["claims"])
+                elif args.command == "spec-context": spec_context(record, value)
                 elif args.command == "successor": successor(record, value)
                 elif args.command == "prepare-step": request.append(prepare_step(record, value))
                 elif args.command == "dispatch-step": request.append(dispatch_step(record, value["assignment"], value["step"]))

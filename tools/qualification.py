@@ -285,6 +285,56 @@ def handoff(repository, config, base, role, previous=None, evidence=None):
                 "Inspect the candidate diff and check evidence; passage identity alone is not semantic compliance.")
 
 
+def work_classification(config):
+    classification = config.get("work_classification", {"kind": "semantic"})
+    require(isinstance(classification, dict) and classification.get("kind") in {"semantic", "non_semantic"},
+            "work classification must be semantic or explicit non_semantic")
+    if classification["kind"] == "non_semantic":
+        require(isinstance(classification.get("reason"), str) and classification["reason"].strip()
+                and not config.get("semantic_contracts"),
+                "non_semantic work needs a concrete reason and cannot also declare semantic contracts")
+    else:
+        require(config.get("semantic_contracts"),
+                "compiler work requires focused semantic_contracts; classify genuine non-semantic work explicitly")
+        validate_contracts(config["semantic_contracts"])
+    return classification
+
+
+def work_handoff(repository, config, base, role, previous=None, retained=False):
+    """Default semantic dispatch; uncertain prior delivery reinjects passages."""
+    classification = work_classification(config)
+    require(role in {"implementation", "review", "continuation"}, "explicit dispatch role required")
+    if classification["kind"] == "non_semantic":
+        packet = dict(schema="qualification-work-context-1", role=role, work_classification=classification)
+        if repository is not None:
+            packet.update(candidate=git(repository, "rev-parse", "HEAD"), source_revision=base)
+        return packet
+    packet = handoff(repository, config, base, role, previous if retained else None)
+    if not retained:
+        packet["context_refresh"] = True
+        packet["reinject_context"] = packet["canonical_context"]
+    packet["prior_context_retained"] = bool(retained and previous is not None)
+    return packet
+
+
+def work_context_prompt(packet):
+    role = packet["role"]
+    if role == "review":
+        instructions = ("Independent read-only final review. Read AGENTS.md. Inspect the exact candidate diff, "
+                        "canonical passages and captured check evidence. Report exact-candidate approval or concrete blockers. "
+                        "Do not edit files, claim implementation ownership or publish. The implementation owner retains landing.")
+    else:
+        instructions = ("Retain implementation ownership through validation, independent final review and normal verified landing. "
+                        "Map behavior to the canonical passages; uncovered semantics require an explicit owner decision.")
+    if packet.get("work_classification", {}).get("kind") == "non_semantic":
+        return instructions + "\nExplicit non-semantic work context:\n" + json.dumps(packet, indent=2) + "\n"
+    visible = {key: value for key, value in packet.items() if key != "canonical_context"}
+    return instructions + "\nValidated focused work context:\n" + json.dumps(visible, indent=2) + (
+        "\nPassage identity does not prove semantic compliance.\n" if packet["context_refresh"] else
+        "\nFocused canonical continuation context verified unchanged; reuse the retained passages. "
+        "Semantic compliance still requires independent judgment.\n")
+
+
 def load(path):
     record = read_json(path)
     require(record.get("schema") == SCHEMA and type(record.get("revision")) is int,
@@ -541,8 +591,10 @@ def main(arguments=None):
                 base, config = options.base, definition(read_json(options.config))
             if options.command == "handoff":
                 require(options.role, "handoff needs --role")
-                packet = handoff(repository, config, base, options.role,
-                                 read_json(options.previous) if options.previous else None, record)
+                packet = work_handoff(repository, config, base, options.role,
+                                      read_json(options.previous) if options.previous else None)
+                if record and packet.get("canonical_context") is not None:
+                    packet["assessments"] = record.get("assessments", [])
                 print(json.dumps(packet, indent=2))
                 return 0
             context = contract_mapping(repository, config, base, git(repository, "rev-parse", "HEAD"))

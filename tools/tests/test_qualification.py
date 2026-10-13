@@ -328,14 +328,20 @@ class QualificationTests(unittest.TestCase):
 
     def test_assignment_renderer_carries_passages_and_rejects_unretrieved_context(self):
         launch = kit.load_module(TOOLS / "swarm" / "launch.py", "qualification_launch_under_test")
-        session = dict(semantic_contracts=[{}])
+        (self.repository / "wiki/spec").mkdir(parents=True)
+        base = self.commit("wiki/spec/contract.md", "The actual rule.\n")
+        session = dict(semantic_contracts=[dict(implementation=["src/program"], contract="wiki/spec/contract.md",
+            classification="missing_implementation", reason="existing rule", passages=["The actual rule."])])
         with self.assertRaisesRegex(launch.SwarmError, "verify canonical passages"):
             launch.canonical_context_block(session)
         session["canonical_context"] = [dict(contract="wiki/spec/contract.md", revision=self.base,
             blob="source-blob", classification="missing_implementation", passages=["The actual rule."])]
+        with self.assertRaisesRegex(launch.SwarmError, "verify canonical passages"):
+            launch.canonical_context_block(session)
+        session["semantic_handoff"] = qualification.work_handoff(self.repository, session, base, "implementation")
         text = launch.canonical_context_block(session)
         self.assertIn("The actual rule.", text)
-        self.assertIn(self.base, text)
+        self.assertIn(base, text)
         self.assertIn("independent final review", text)
 
     def test_handoff_and_continuation_refresh_only_focused_changed_context(self):
@@ -366,6 +372,25 @@ class QualificationTests(unittest.TestCase):
         initial["canonical_context"][0]["passages"] = ["forged context"]
         with self.assertRaisesRegex(qualification.RecoveryError, "corrupt prior"):
             qualification.handoff(self.repository, config, changed, "continuation", initial)
+
+    def test_work_dispatch_defaults_semantic_and_uncertain_retention_reinjects(self):
+        with self.assertRaisesRegex(qualification.RecoveryError, "requires focused"):
+            qualification.work_handoff(self.repository, self.config, self.base, "implementation")
+        (self.repository / "wiki/spec").mkdir(parents=True)
+        base=self.commit("wiki/spec/contract.md", "The actual rule.\n")
+        config=copy.deepcopy(self.config)
+        config['semantic_contracts']=[dict(implementation=['src/program'],contract='wiki/spec/contract.md',
+            classification='missing_implementation',reason='existing rule',passages=['The actual rule.'])]
+        prior=qualification.work_handoff(self.repository,config,base,'implementation')
+        resumed=qualification.work_handoff(self.repository,config,base,'continuation',prior)
+        self.assertTrue(resumed['context_refresh'])
+        self.assertIn('The actual rule.',qualification.work_context_prompt(resumed))
+        retained=qualification.work_handoff(self.repository,config,base,'continuation',prior,retained=True)
+        self.assertFalse(retained['context_refresh'])
+        self.assertNotIn('The actual rule.',qualification.work_context_prompt(retained))
+        config['work_classification']=dict(kind='non_semantic',reason='Transport only')
+        with self.assertRaisesRegex(qualification.RecoveryError,'cannot also declare'):
+            qualification.work_handoff(self.repository,config,base,'implementation')
 
     @unittest.skipIf(os.name == "nt", "symlink creation requires host-specific privileges on Windows")
     def test_artifact_symlink_retarget_and_restore_is_not_accepted(self):

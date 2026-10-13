@@ -23,6 +23,17 @@ and keeps receipts only under the ignored `build/swarm/<wave>/` directory.
 Partitioning lives in the manifest, checked against the claims registry's live
 assignments.
 
+Work dispatch defaults to semantic: each session supplies an exact
+`source_revision` and focused `semantic_contracts` as described in
+[qualification](../qualification.md). Genuine non-semantic work supplies
+`work_classification:{"kind":"non_semantic","reason":"concrete scope"}`.
+Old archived wave manifests need this context added before reuse; they are
+historical assignments, not ready-to-launch templates. `plan`, `local` and
+`launch` validate and deliver the passages. Continuation repeats focused
+passages when retained delivery cannot be established. `status`/`report` do
+not need these declarations. Managed cloud prepare/dispatch generates its own
+prompt through [required work context](cloud.md#required-work-context).
+
 ## Prerequisites
 
 - Python 3.9+ and Git, run from the repository root (or pass `--repository`).

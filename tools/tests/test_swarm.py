@@ -54,6 +54,9 @@ def manifest(session_overrides=None, **overrides):
               "tags": ["omega-swarm", "w9"], "owner_label_prefix": "Tester / w9",
               "exclusions": ["ITEM-EXCLUDED"], "sessions": [session]}
     record.update(overrides)
+    for row in record['sessions']:
+        if not row.get('semantic_contracts'):
+            row.setdefault('work_classification', dict(kind='non_semantic', reason='Launcher transport test fixture without language changes'))
     return record
 
 
@@ -194,14 +197,13 @@ class SwarmTests(unittest.TestCase):
             self.assertNotIn('advance', prompt)
         self.assertIn('Independent read-only final review', delivered_prompt())
         session['semantic_handoff_role'] = 'continuation'
-        with self.assertRaisesRegex(self.module.SwarmError, 'prior delivered'):
-            self.validate(record)
+        self.validate(record)
+        self.assertIn('The selected canonical rule.', delivered_prompt())
         session['previous_semantic_handoff'] = prior
         self.validate(record)
         resumed = self.module.render_local_prompt(local, record, session, self.repository, state)
-        self.assertIn('context verified unchanged', resumed)
-        self.assertNotIn('The selected canonical rule.', resumed)
-        self.assertIn('context verified unchanged', delivered_prompt())
+        self.assertIn('The selected canonical rule.', resumed)
+        self.assertIn('The selected canonical rule.', delivered_prompt())
         spec.write_text('The revised canonical rule.\n', encoding='utf-8')
         self.git(self.repository, 'add', '.')
         self.git(self.repository, 'commit', '-m', 'revise canonical rule')
@@ -213,6 +215,24 @@ class SwarmTests(unittest.TestCase):
         refreshed = self.module.render_local_prompt(local, record, session, self.repository, state)
         self.assertIn('The revised canonical rule.', refreshed)
         self.assertIn('The revised canonical rule.', delivered_prompt())
+
+    def test_default_compiler_launch_requires_mapping_and_non_semantic_needs_reason(self):
+        record=manifest({'host':'local'})
+        record['sessions'][0].pop('work_classification')
+        path=self.root/'missing-context.json';path.write_text(json.dumps(record))
+        with contextlib.redirect_stderr(io.StringIO()),mock.patch.object(self.module,'emit'):
+            self.assertEqual(self.module.main(['--repository',str(self.repository),'local',
+                '--manifest',str(path),'--skip-host-gates','--skip-route-check','--skip-claims-check']),1)
+        self.assertFalse((self.module.build_directory(self.repository,'w9')/'prompts/alpha.md').exists())
+        record['sessions'][0]['host']='linux';path.write_text(json.dumps(record))
+        with contextlib.redirect_stderr(io.StringIO()),mock.patch.object(self.module,'emit'):
+            self.assertEqual(self.module.main(['--repository',str(self.repository),'launch',
+                '--manifest',str(path),'--dry-run']),1)
+        record['sessions'][0]['work_classification']=dict(kind='non_semantic',reason=' ')
+        with self.assertRaisesRegex(self.module.SwarmError,'concrete reason'):
+            self.validate(record)
+        record['sessions'][0]['work_classification']['reason']='Only launcher transport changes'
+        self.validate(record)
 
     def test_manifest_rejects_excluded_item(self):
         record = manifest({"item": "ITEM-EXCLUDED"})
@@ -832,9 +852,7 @@ class SwarmTests(unittest.TestCase):
 class OwnershipPathTests(unittest.TestCase):
     def setUp(self):
         self.module = load_launch()
-        self.temporary = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temporary.cleanup)
-        self.repository = Path(self.temporary.name)
+        self.root, self.repository = kit.seed_repository(self, 'omega ownership test ')
         (self.repository / 'TASKS.md').write_text('- **ITEM-ONE.** One\n- **ITEM-TWO.** Two\n', encoding='utf-8')
 
     def test_live_registry_paths_are_advisory_but_item_ownership_rejects(self):

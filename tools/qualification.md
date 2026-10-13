@@ -99,20 +99,24 @@ to retrieve a linked spec is insufficient. The tool rejects missing/stale or
 invented excerpts and records the focused context in normal evidence. Review
 still judges whether those passages actually authorize the behavior: their
 presence proves retrieval and identity, never semantic compliance.
-Existing `swarm/launch.py` manifests may supply the same `semantic_contracts`
-and exact `source_revision` on a session. Validation reads the canonical blobs,
+Repository-managed work dispatch defaults to semantic work: `swarm/launch.py`
+sessions require `semantic_contracts` and an exact `source_revision`.
+Genuine non-semantic work instead declares
+`work_classification:{"kind":"non_semantic","reason":"concrete scope"}`;
+it cannot also declare semantic contracts. Classification truth and completeness
+of the selected passages remain review responsibilities. Validation reads the canonical blobs,
 rejects stale/missing excerpts, and both local/cloud prompt renderers include the
 actual focused passages and identities automatically. Do not substitute a
 caller-authored `canonical_context` for that verification.
 Set session `semantic_handoff_role` to `review` to render the independent-review
 packet, or `continuation` with `previous_semantic_handoff` containing the saved
-previous packet. Manifest validation rejects a missing prior continuation
-packet and verifies current focused fingerprints before the local/cloud prompt
-renderers run. Unchanged continuation prompts reference the retained fingerprint;
-changed mappings deliver refreshed passages. Save `semantic_handoff` from the
-validated manifest as the next previous packet. The generic cloud-controller
-follow-up message adapter does not automatically invoke this manifest path:
-its dispatcher must supply the validated rendered prompt or CLI handoff packet.
+previous packet when available. Manifest validation verifies current focused
+fingerprints before the local/cloud prompt renderers run. A supplied packet
+alone cannot prove retained delivery, so launcher continuation prompts include
+the focused passages again. Save `semantic_handoff` from the validated manifest
+as the next previous packet. The managed cloud adapter generates its own
+validated packet and prompt during `intent`/`prepare-step` and rechecks both at
+`dispatch-step`; see [cloud work context](swarm/cloud.md#required-work-context).
 
 Use `handoff --base FULL_MAIN_SHA --config CONFIG_JSON --role implementation`
 before coding, and `handoff --state STATE_JSON --role review` for independent
@@ -122,13 +126,17 @@ behavior mapping, source identities, exact candidate, changed paths, check
 definitions and recorded assessments. For continuation use
 `handoff --state STATE_JSON --base INTEGRATED_BASE --role continuation
 --previous SAVED_PACKET_JSON`. It checks the selected contract fingerprints:
-an unchanged mapping needs no reinjection (`reinject_context` is empty);
-changed selected contracts emit refreshed focused context. Stale excerpts fail
+the standalone CLI has no retained-delivery proof, so it reinjects focused
+passages even when unchanged. Only the managed adapter can omit unchanged
+passages with an exact child acknowledgment and fresh retention observation.
+Changed selected contracts emit refreshed focused context. Stale excerpts fail
 and require explicitly updating the mapping after reading the new contract.
-An unrelated main advance alone does not trigger reinjection or qualification.
+An unrelated main advance alone does not trigger qualification.
 The full canonical context stays in the saved packet for subsequent resumes.
-The CLI does not deliver packets to agents or prove that an agent follows them;
-the dispatcher must include the packet and the independent reviewer must judge
+The standalone CLI does not deliver packets to agents or prove that an agent follows them;
+the supported managed dispatcher carries the generated `request.prompt` into the
+runtime's prompt field. External direct `send_message` calls cannot be controlled
+by repository tooling. The independent reviewer must judge
 coverage, semantic authority and the completeness of the test closure.
 
 ## Run once, then integrate

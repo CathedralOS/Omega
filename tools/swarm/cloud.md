@@ -197,13 +197,71 @@ new credentials or package authority blanket approvals.
 `create-intent.json` is `{"assignment":"A","operation":"create-A-1",
 "action":"create","parameters":{"model":"gpt-6.1-sol",
 "reasoning":"medium","phase":"preflight"}}`. Normalized parameters accept only `model`, `reasoning`, `phase`, `message`,
-`environment` and `lifecycle_action`; credentials and permission bypass fields
+`environment`, `lifecycle_action`, `role` and `purpose`; credentials and permission bypass fields
 are rejected. The emitted `request` carries the immutable contract,
 dependencies, reporting bound, tool name and execution ID. **Only after intent
-is durable**, execute the actual tool once. Construct its prompt from the
-contract plus governing repository links and existing owned walls. Translate
+is durable**, execute the actual tool once. For managed create/follow-up work,
+use the generated `request.prompt` verbatim as the runtime prompt; it already
+contains the assignment and validated focused spec packet. Translate
 parameters to supported tool fields; never forward this envelope as an invented
 API schema. Save the sanitized result file before attempting ledger ingestion.
+
+### Required work context
+
+Managed work defaults to semantic. Assignments carry `semantic_contracts`,
+`context_repository` (a local checkout at the exact recorded assignment source),
+and optionally `canonical_revision` (defaults to the admitted base). Contract
+files must exist unchanged between that canonical revision and the source;
+the canonical revision must derive from the admitted base or a recorded accepted
+main authority. Advancing beyond that authority through `spec-context` performs
+one bounded read/fetch of main at the checkout's actual publication destination
+and verifies ancestry. Dispatch reuses that accepted snapshot; it does not
+poll main or requalify unrelated work. Candidate spec edits cannot nominate
+themselves as authority. Select focused passages
+using the [qualification mapping](../qualification.md). Genuine non-semantic
+work instead records `work_classification:{"kind":"non_semantic","reason":"concrete scope"}`.
+No language/task classifier can prove that declaration true; independent review
+judges scope and semantic compliance.
+
+For an already admitted assignment, supply `spec-context` with
+`{"assignment":"A","context":{"context_repository":"ABSOLUTE_CHECKOUT",
+"semantic_contracts":[MAPPINGS],"canonical_revision":"FULL_CANONICAL_SHA"}}`.
+This records definitions, not a dispatch. It can also record the explicit
+non-semantic classification. Existing journals without either declaration
+remain readable, but work preparation refuses until context is configured.
+
+```text
+python tools/swarm/cloud.py --state CONTROLLER_JSON --revision CURRENT_REVISION spec-context --input CONTEXT_JSON
+python tools/swarm/cloud.py --state CONTROLLER_JSON --revision CURRENT_REVISION prepare-step --input NEXT_TURN_JSON
+python tools/swarm/cloud.py --state CONTROLLER_JSON --revision CURRENT_REVISION dispatch-step --input STEP_JSON
+```
+
+`NEXT_TURN_JSON` uses the ordinary stable assignment/step/operation/action and
+parameters. `role` defaults to implementation for create and continuation for
+follow-up; `role:"review"` produces read-only independent-review instructions.
+Dispatch returns the exact saved request at `request.request`, including
+`work_context` and **`prompt`**. The adapter's runtime caller forwards this
+generated prompt to the exposed tool's prompt field rather than reconstructing
+or manually pasting a spec packet. Prepare and dispatch both validate source
+identity and focused contracts; a changed context refuses dispatch before its
+reservation. These steps run no builds or test suites.
+
+Mappings/classification enter the readiness contract; selected contract files
+enter its reviewed input closure. Changing a mapping invalidates the relevant
+readiness scope. Unrelated main movement does not change pinned observations.
+Resume includes the actual passages unless an exact completed acknowledgment
+names `context_fingerprint` and `context_retained:true`, and the fresh runtime
+read also reports that same fingerprint and retention. A generic task receipt
+is insufficient. Missing retention proof reinjects passages; changed excerpts
+still fail until the focused mapping is refreshed.
+
+Ordinary reads, observational/preflight-only inspection and status do not need
+spec packaging. A settled managed session can receive a fixed status-only turn
+using follow-up parameters `{"phase":"preflight","purpose":"status"}`.
+It permits no custom `message` or `role`, requests only status, and forbids edits,
+builds and publication. Existing lifecycle/recovery gates still apply.
+Repository tooling cannot intercept the external direct `send_message` API;
+calls that bypass this adapter are outside its enforcement coverage.
 
 ### Durable adapter steps
 

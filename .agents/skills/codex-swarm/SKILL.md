@@ -16,6 +16,16 @@ publication outside the queue; assess actual changed dependencies, reuse only
 justified unchanged observations and rerun affected/final-candidate checks.
 Preserve exact producer artifacts and final review/build/publication gates.
 
+Compiler work dispatch requires the focused canonical passages by default.
+Configure `semantic_contracts` and a checkout at the recorded source through
+the controller's `spec-context` command before `prepare-step`. Dispatch returns
+the validated packet inside `request.request.prompt`; forward that generated
+prompt to the actual runtime. Resume reinjects passages unless an exact child
+receipt and fresh read establish retained context. Genuine non-semantic work
+requires an explicit classification and reason; status reads remain usable.
+Follow [required work context](../../../tools/swarm/cloud.md#required-work-context).
+External direct message APIs are outside repository enforcement.
+
 Apply the [law of completion](../../../AGENTS.md#law-of-completion).
 Each implementation owner retains context through full acceptance, required
 review and authorized verified main landing, including its necessary compiler,

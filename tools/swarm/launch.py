@@ -226,20 +226,20 @@ def validate_manifest(manifest, repository):
         if marker not in board_text_path.read_text(encoding="utf-8", errors="replace"):
             raise SwarmError(f"{session['name']}: item {session['item']} not found "
                              f"in {session['board']} (no {marker!r} marker).")
-        if session.get("semantic_contracts"):
-            try:
+        try:
+            classification = qualification.work_classification(session)
+            if classification["kind"] == "semantic":
                 base = qualification.revision(repository, session.get("source_revision"))
-                session["canonical_context"] = qualification.contract_mapping(
-                    repository, session, base, git(repository, "rev-parse", "HEAD"))
-                role = session.get("semantic_handoff_role", "implementation")
-                previous = session.get("previous_semantic_handoff")
-                if role == "continuation" and previous is None:
-                    raise qualification.RecoveryError("continuation needs the prior delivered semantic handoff")
-                session["semantic_handoff"] = qualification.handoff(repository, session, base, role, previous)
-            except (qualification.RecoveryError, KeyError, ValueError) as error:
-                raise SwarmError(f"{session['name']}: missing/stale semantic context: {error}") from error
-        elif session.get("canonical_context"):
-            raise SwarmError(f"{session['name']}: canonical context needs verified semantic mappings")
+            else:
+                base = None
+                if session.get("canonical_context"):
+                    raise qualification.RecoveryError("non-semantic work cannot supply unverified canonical context")
+            session["semantic_handoff"] = qualification.work_handoff(repository, session, base,
+                session.get("semantic_handoff_role", "implementation"), session.get("previous_semantic_handoff"))
+            if classification["kind"] == "semantic":
+                session["canonical_context"] = session["semantic_handoff"]["canonical_context"]
+        except (qualification.RecoveryError, KeyError, TypeError, ValueError) as error:
+            raise SwarmError(f"{session['name']}: missing/stale work context: {error}") from error
     return sessions
 
 
@@ -713,29 +713,20 @@ def render_semantic_review(session):
     packet = session.get("semantic_handoff")
     if not packet or packet.get("role") != "review":
         raise SwarmError("verify the final semantic review handoff before rendering")
-    return ("Independent read-only final review. Read AGENTS.md. Review candidate "
-            + packet["candidate"] + " against base " + packet["source_revision"]
-            + ". Inspect that exact diff, the focused canonical passages below and captured check evidence. "
-              "Report approval of the exact candidate or concrete blocking defects. "
-              "Do not edit files, claim implementation ownership or publish. The implementation owner retains landing.\n"
-            + canonical_context_block(session))
+    return qualification.work_context_prompt(packet)
 
 
 def canonical_context_block(session):
-    if not session.get("semantic_contracts"):
-        return ""
-    if not session.get("canonical_context"):
-        raise SwarmError("verify canonical passages before rendering a semantic assignment")
-    packet = session.get("semantic_handoff")
-    if packet and not packet["context_refresh"]:
-        return ("\nFocused canonical continuation context verified unchanged: "
-                + packet["context_fingerprint"] + ". Reuse the previously delivered passages. "
-                "Semantic compliance still requires independent judgment.\n")
-    return ("\nCanonical behavior-to-contract context (actual tracked passages and identities):\n"
-            + json.dumps(packet or session["canonical_context"], indent=2)
-            + "\nCarry this same focused context into independent final review. Distinguish missing "
-              "implementation from an invented feature; passage presence and passing tests do not "
-              "prove compliance. Missing authority needs an explicit owner decision.\n")
+    if session.get("semantic_handoff"):
+        return "\n" + qualification.work_context_prompt(session["semantic_handoff"])
+    try:
+        classification = qualification.work_classification(session)
+        if classification["kind"] == "non_semantic":
+            return "\n" + qualification.work_context_prompt(qualification.work_handoff(
+                None, session, None, session.get("semantic_handoff_role", "implementation")))
+    except qualification.RecoveryError as error:
+        raise SwarmError(str(error)) from error
+    raise SwarmError("verify canonical passages before rendering a semantic assignment")
 
 
 def local_host_block():
