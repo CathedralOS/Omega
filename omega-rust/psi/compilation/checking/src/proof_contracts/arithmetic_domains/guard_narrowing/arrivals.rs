@@ -178,6 +178,7 @@ fn expression_observation(
         return None;
     }
     walk.observation = Some(ExpressionObservation {
+        recipe: None,
         expression,
         interval: None,
         environment: None,
@@ -442,7 +443,14 @@ pub(super) fn incoming_environments(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     frames: Option<&CallFrameResolver>,
-    invocation: Option<(&State, &[(SymbolHandle, Interval)])>,
+    invocation: Option<(
+        &State,
+        &[(
+            SymbolHandle,
+            Interval,
+            Option<checked_trees::IntegerRangeRecipe>,
+        )],
+    )>,
 ) -> Vec<(SymbolHandle, ValueEnvironment)> {
     let states = program.machine_states(machine);
     let mut current = states
@@ -486,14 +494,26 @@ pub(super) fn incoming_environments(
                     if let Some(carrier) = program
                         .primitive_type_reference(parameter.type_reference)
                         .and_then(super::super::primitive_range)
-                        && let Some((_, actual)) = actuals
+                        && let Some((_, actual, recipe)) = actuals
                             .iter()
-                            .find(|(symbol, _)| *symbol == parameter.symbol)
+                            .find(|(symbol, _, _)| *symbol == parameter.symbol)
                     {
                         external.narrow(
                             parameter.name.as_str().to_owned(),
                             carrier.intersect(*actual),
                         );
+                        if let Some(recipe) = recipe {
+                            external.integer_ranges.push(
+                                super::super::value_environment::StoredIntegerRange {
+                                    place: crate::value_custody::places::CanonicalPlace {
+                                        root: facts::PlaceRoot::Symbol(parameter.symbol),
+                                        segments: Vec::new(),
+                                    },
+                                    path: parameter.name.as_str().to_owned(),
+                                    recipe: recipe.clone(),
+                                },
+                            );
+                        }
                     }
                 }
             }
@@ -567,8 +587,12 @@ pub(crate) fn inferred_normal_return_interval(
     machine: &Machine,
     entry: &State,
     target_primitive: Option<typed_trees::types::PrimitiveType>,
-    actuals: &[(SymbolHandle, Interval)],
-) -> Option<Interval> {
+    actuals: &[(
+        SymbolHandle,
+        Interval,
+        Option<checked_trees::IntegerRangeRecipe>,
+    )],
+) -> Option<(Interval, Option<checked_trees::IntegerRangeRecipe>)> {
     // This judgment publishes integer intervals. Other result carriers have
     // their own evidence owners and cannot benefit from this body traversal.
     target_primitive.and_then(super::super::primitive_range)?;
@@ -582,6 +606,7 @@ pub(crate) fn inferred_normal_return_interval(
     let frames = CallFrameResolver::new(program);
     let incoming = incoming_environments(program, machine, frames.as_ref(), Some((entry, actuals)));
     let mut combined: Option<Interval> = None;
+    let mut combined_recipe: Option<checked_trees::IntegerRangeRecipe> = None;
     for state in program.machine_states(machine) {
         let statements = program.statement_table.statements(state.statement_nodes);
         if program.primitive_type_reference(state.return_type) != target_primitive {
@@ -642,6 +667,7 @@ pub(crate) fn inferred_normal_return_interval(
                 frames: frames.as_ref(),
                 arrivals: Vec::new(),
                 observation: Some(ExpressionObservation {
+                    recipe: None,
                     expression,
                     interval: None,
                     environment: None,
@@ -649,15 +675,25 @@ pub(crate) fn inferred_normal_return_interval(
                 infer_call_bodies: false,
             };
             walk.statements(state, statements, &mut environment);
-            let interval = walk.observation?.interval?;
+            let observed = walk.observation?;
+            let interval = observed.interval?;
+            combined_recipe = if combined.is_none() {
+                observed.recipe
+            } else {
+                combined_recipe
+                    .zip(observed.recipe)
+                    .map(|(left, right)| left.union(&right))
+            };
             combined = Some(combined.map_or(interval, |previous| previous.union(interval)));
         }
     }
     let combined = combined?;
-    (combined.low.is_some() && combined.high.is_some()).then_some(combined)
+    (combined_recipe.is_some() || (combined.low.is_some() && combined.high.is_some()))
+        .then_some((combined, combined_recipe))
 }
 
 struct ExpressionObservation {
+    recipe: Option<checked_trees::IntegerRangeRecipe>,
     expression: ExpressionHandle,
     interval: Option<Interval>,
     environment: Option<ValueEnvironment>,
@@ -686,16 +722,6 @@ impl ArrivalWalk<'_, '_> {
         self.arrivals.push((index, environment));
     }
 
-    fn interval(
-        &self,
-        source: &State,
-        expression: ExpressionHandle,
-        environment: &ValueEnvironment,
-    ) -> Interval {
-        self.checked_value(source, expression, environment)
-            .map_or(Interval::UNBOUNDED, |analysis| analysis.value.interval)
-    }
-
     fn evaluated_value(
         &self,
         source: &State,
@@ -709,7 +735,7 @@ impl ArrivalWalk<'_, '_> {
                     self.program,
                     expression,
                     environment,
-                    &analysis.decisions.expression_intervals,
+                    &analysis.decisions.expression_values,
                 ),
             },
             None => EvaluatedValue {
@@ -800,7 +826,7 @@ impl ArrivalWalk<'_, '_> {
             return;
         };
         let parameters = self.program.state_parameters(target);
-        if parameters.iter().count() != arguments.len() {
+        if parameters.len() != arguments.len() {
             self.join(symbol, ValueEnvironment::new());
             return;
         }
@@ -848,9 +874,14 @@ impl ArrivalWalk<'_, '_> {
                     None => value.interval,
                 };
                 rebound.set(parameter.name.as_str().to_owned(), interval);
-                value
-                    .copied
-                    .record(&mut rebound, Some(parameter.name.as_str().to_owned()));
+                value.copied.record(
+                    &mut rebound,
+                    Some(parameter.name.as_str().to_owned()),
+                    Some(crate::value_custody::places::CanonicalPlace {
+                        root: facts::PlaceRoot::Symbol(parameter.symbol),
+                        segments: Vec::new(),
+                    }),
+                );
             }
         }
         self.join(symbol, rebound);
@@ -964,7 +995,14 @@ impl ArrivalWalk<'_, '_> {
                     );
                     environment.invalidate_written_paths(std::slice::from_ref(&path));
                     environment.set(path.clone(), value.interval);
-                    value.copied.record(environment, Some(path.clone()));
+                    value.copied.record(
+                        environment,
+                        Some(path.clone()),
+                        Some(crate::value_custody::places::CanonicalPlace {
+                            root: facts::PlaceRoot::Symbol(local.symbol),
+                            segments: Vec::new(),
+                        }),
+                    );
                     super::super::record_float_assignment(
                         environment,
                         Some(path.clone()),
@@ -1055,7 +1093,14 @@ impl ArrivalWalk<'_, '_> {
                                 enforced_declared_range(self.program, reference)
                             }),
                         );
-                        value.copied.record(environment, path.clone());
+                        value.copied.record(
+                            environment,
+                            path.clone(),
+                            crate::value_custody::places::canonical_place_from_expression(
+                                self.program,
+                                assignment.target,
+                            ),
+                        );
                         super::super::record_float_assignment(
                             environment,
                             path.clone(),
@@ -1261,8 +1306,28 @@ impl ArrivalWalk<'_, '_> {
         {
             let mut observed = environment.clone();
             self.expression_effects(source, expression, &mut observed);
-            let interval = self.interval(source, expression, &observed);
+            let analyzed = self.checked_value(source, expression, &observed);
+            let interval = analyzed
+                .as_ref()
+                .map_or(Interval::UNBOUNDED, |value| value.value.interval);
+            // Concrete and deferred returns participate in the same union.
+            // Dropping a literal arm's bounds here would erase a sibling's
+            // layout observation when the machine returns through states.
+            let recipe = analyzed.and_then(|value| {
+                value
+                    .value
+                    .range_recipe(self.program, self.machine.symbol, expression)
+            });
             let observation = self.observation.as_mut().expect("matched observation");
+            observation.recipe = if observation.interval.is_none() {
+                recipe
+            } else {
+                observation
+                    .recipe
+                    .take()
+                    .zip(recipe)
+                    .map(|(left, right)| left.union(&right))
+            };
             observation.environment = Some(match observation.environment.take() {
                 Some(prior) => prior.join(&observed),
                 None => observed,

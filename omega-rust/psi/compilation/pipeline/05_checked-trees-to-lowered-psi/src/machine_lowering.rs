@@ -50,6 +50,16 @@ pub fn lower_machine(
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     program_roots: crate::TerminalProgramRoots<'_>,
 ) -> Result<LoweredPsi, LoweringError> {
+    if checked
+        .facts
+        .integer_range_obligations
+        .iter()
+        .any(checked_trees::IntegerRangeObligation::is_pending)
+    {
+        return unsupported(
+            "integer range obligations require target closure before Terminal production",
+        );
+    }
     // A shared source judgment may carry target-dependent proof conditions.
     // Only target closure consumes those obligations; direct/package callers
     // cannot publish conditional call evidence as unconditional Terminal code.

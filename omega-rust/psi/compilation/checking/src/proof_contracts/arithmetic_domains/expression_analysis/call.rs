@@ -43,12 +43,20 @@ pub(super) fn analyze(
             .into_iter()
             .flatten()
             .reduce(|accepted, additional| Analysis {
+                recipe: accepted.recipe.or(additional.recipe),
                 interval: accepted.interval.intersect(additional.interval),
                 ..accepted
             })
             .unwrap_or(NEUTRAL)
         });
-    with_result_carrier(walk, expression, analysis)
+    let mut analysis = with_result_carrier(walk, expression, analysis);
+    if call.layout_query.is_some() {
+        analysis.recipe = Some(checked_trees::IntegerRangeRecipe::observation(
+            expression,
+            walk.machine.symbol,
+        ));
+    }
+    analysis
 }
 
 /// Observing a readable scalar-reference result reads the returned storage.
@@ -125,6 +133,7 @@ fn returned_referent_range(
         }));
     }
     Some(Analysis {
+        recipe: None,
         interval: interval?,
         primitive: Some(primitive),
         domain: Some(program.arithmetic_domain_for_type_reference(result.referee)),
@@ -177,6 +186,7 @@ fn with_result_carrier(
         .primitive
         .or_else(|| program.primitive_type_reference(return_type));
     Analysis {
+        recipe: analysis.recipe,
         domain: Some(analysis.domain.unwrap_or(domain)),
         primitive,
         interval: primitive
@@ -234,6 +244,7 @@ fn named_operator_result(walk: &ExpressionWalk, call: &TableCallExpression) -> O
     })();
     let declared = range_constraint_interval(program, operator.return_type).unwrap_or(range);
     Some(Analysis {
+        recipe: None,
         domain: Some(program.arithmetic_domain_for_type_reference(operator.return_type)),
         interval: converted
             .map_or(declared, |converted| converted.intersect(declared))
@@ -257,6 +268,7 @@ fn selected_const_call_result(
     let primitive = program.primitive_type_reference(return_type)?;
     let carrier = primitive_range(primitive)?;
     Some(Analysis {
+        recipe: None,
         domain: Some(program.arithmetic_domain_for_type_reference(return_type)),
         interval: Interval {
             low: Some(minimum),
@@ -310,6 +322,7 @@ fn bounding_builtin_result(walk: &ExpressionWalk, call: &TableCallExpression) ->
         _ => None,
     };
     Some(Analysis {
+        recipe: None,
         domain,
         interval,
         primitive: left.primitive.or(right.primitive),
@@ -329,7 +342,11 @@ fn declared_return_range(walk: &ExpressionWalk, call: &TableCallExpression) -> O
     let primitive = program.primitive_type_reference(return_type);
     let declared = range_constraint_interval(program, return_type);
     let actuals = exact_ordinary_actual_intervals(walk, call).unwrap_or_default();
-    let ensured = ensured_call_result_interval(program, call, &actuals).map(|ensured| {
+    let concrete: Vec<_> = actuals
+        .iter()
+        .map(|(symbol, interval, _)| (*symbol, *interval))
+        .collect();
+    let ensured = ensured_call_result_interval(program, call, &concrete).map(|ensured| {
         primitive
             .and_then(primitive_range)
             .map_or(ensured, |carrier| ensured.intersect(carrier))
@@ -339,6 +356,7 @@ fn declared_return_range(walk: &ExpressionWalk, call: &TableCallExpression) -> O
         (declared, ensured) => declared.or(ensured),
     }?;
     Some(Analysis {
+        recipe: None,
         domain: None,
         interval,
         primitive,
@@ -354,7 +372,13 @@ fn declared_return_range(walk: &ExpressionWalk, call: &TableCallExpression) -> O
 fn exact_ordinary_actual_intervals(
     walk: &ExpressionWalk,
     call: &TableCallExpression,
-) -> Option<Vec<(symbols::SymbolHandle, Interval)>> {
+) -> Option<
+    Vec<(
+        symbols::SymbolHandle,
+        Interval,
+        Option<checked_trees::IntegerRangeRecipe>,
+    )>,
+> {
     if !call.selects_only_nominal_route() {
         return None;
     }
@@ -390,9 +414,11 @@ fn exact_ordinary_actual_intervals(
                 &mut diagnostics,
                 &mut super::ArithmeticDecisions::default(),
             );
-            diagnostics
-                .is_empty()
-                .then_some(Some((parameter.symbol, analysis.interval)))
+            diagnostics.is_empty().then_some(Some((
+                parameter.symbol,
+                analysis.interval,
+                analysis.recipe,
+            )))
         })
         .collect::<Option<Vec<_>>>()?;
     Some(intervals.into_iter().flatten().collect())
@@ -415,8 +441,9 @@ fn inferred_return_range(walk: &ExpressionWalk, call: &TableCallExpression) -> O
     }
     let primitive = program.primitive_type_reference(state.return_type);
     let actuals = exact_ordinary_actual_intervals(walk, call).unwrap_or_default();
-    let interval = infer_return_interval(program, callee, state, primitive, &actuals)?;
+    let (interval, recipe) = infer_return_interval(program, callee, state, primitive, &actuals)?;
     Some(Analysis {
+        recipe,
         domain: None,
         interval,
         primitive,

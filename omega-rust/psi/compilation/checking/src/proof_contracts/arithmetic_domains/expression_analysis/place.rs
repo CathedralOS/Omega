@@ -104,6 +104,7 @@ pub(super) fn analyze(walk: &ExpressionWalk, expression: ExpressionHandle) -> An
     // policy at every collection hop. Field projections keep their own type;
     // arithmetic does not reconstruct a policy from the source arrangement.
     Analysis {
+        recipe: walk.environment.range_recipe(program, expression).cloned(),
         domain: Some(domain),
         interval,
         primitive,

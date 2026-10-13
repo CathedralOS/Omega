@@ -262,6 +262,8 @@ fn check_program(
     // arithmetic walk established; nothing after checking reads them.
     let expression_intervals = std::mem::take(&mut validated.validation_facts.expression_intervals);
     let proof_recipe_obligations = std::mem::take(&mut validated.constant_recipe_obligations);
+    let integer_range_obligations =
+        std::mem::take(&mut validated.validation_facts.integer_range_obligations);
     let (mut facts, prepared_effects) = build_check_facts(
         &program,
         &validated.proof_plan,
@@ -272,6 +274,7 @@ fn check_program(
         &mutation_summaries,
     )?;
     let program = program.with_prepared_effect_plans(&prepared_effects);
+    facts.integer_range_obligations = integer_range_obligations;
     // Sealed quotient requests were deferred by validation until termination
     // was proved: judge them now against the checked termination facts. The
     // batch is all-or-nothing and grants no executable operation.

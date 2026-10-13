@@ -72,6 +72,7 @@ pub(super) fn analyze(
         // enclosing arithmetic op -- e.g. the match desugar
         // `d + (s == p) * (v - d)` stays bounded. No arithmetic domain.
         return Analysis {
+            recipe: None,
             domain: None,
             interval: BOOLEAN_INTERVAL,
             primitive: None,
@@ -128,6 +129,20 @@ pub(super) fn analyze(
     let policy_bridge = integer_policy_primitive(operator)
         .map(|primitive| integer_policy_bridge(primitive, effective_domain));
     let mut result_representable = false;
+    let recipe = if effective_domain == ArithmeticDomain::Exact {
+        operation
+            .left
+            .range_recipe(walk.program, walk.machine.symbol, binary.left)
+            .zip(
+                operation
+                    .right
+                    .range_recipe(walk.program, walk.machine.symbol, binary.right),
+            )
+            .and_then(|(left, right)| left.binary(operator, &right))
+            .filter(checked_trees::IntegerRangeRecipe::is_target_dependent)
+    } else {
+        None
+    };
     if let Some(bridge) = policy_bridge
         && let Some(primitive) = primitive
     {
@@ -137,6 +152,8 @@ pub(super) fn analyze(
             primitive,
             interval,
             exact_result_proven,
+            recipe.as_ref(),
+            decisions,
             diagnostics,
         );
         result_representable = representable;
@@ -188,6 +205,7 @@ pub(super) fn analyze(
         );
     }
     Analysis {
+        recipe,
         domain,
         interval: operation.policy_result_interval(effective_domain, primitive, interval),
         primitive,
@@ -352,6 +370,8 @@ impl Operation<'_, '_> {
             primitive,
             interval,
             self.relationally_fits_carrier(Some(primitive)),
+            None,
+            &mut super::ArithmeticDecisions::default(),
             &mut unproven,
         );
         if self.is_shift() {
@@ -414,6 +434,7 @@ impl Operation<'_, '_> {
         });
         let primitive = result.and_then(|result| program.primitive_type_reference(result));
         Analysis {
+            recipe: None,
             domain: result.map(|result| program.arithmetic_domain_for_type_reference(result)),
             interval: primitive
                 .and_then(primitive_range)
@@ -582,6 +603,7 @@ impl Operation<'_, '_> {
             .flatten()
         });
         Analysis {
+            recipe: None,
             domain,
             interval: primitive
                 .map(|primitive| {
@@ -813,6 +835,8 @@ impl Operation<'_, '_> {
         primitive: PrimitiveType,
         interval: Interval,
         exact_result_proven: bool,
+        recipe: Option<&checked_trees::IntegerRangeRecipe>,
+        decisions: &mut super::ArithmeticDecisions,
         diagnostics: &mut Vec<Diagnostic>,
     ) -> bool {
         if matches!(
@@ -829,6 +853,29 @@ impl Operation<'_, '_> {
         };
         if self.result_fits(primitive, range, interval, exact_result_proven) {
             return true;
+        }
+        if let Some(recipe) = recipe {
+            use numerics::bignum::BigInt;
+            if let Some(minimum) = range.low {
+                let maximum = range.high.map(BigInt::from_i64).or_else(|| {
+                    (primitive == PrimitiveType::U64).then(|| BigInt::from_u64(u64::MAX))
+                });
+                if let Some(maximum) = maximum {
+                    decisions.integer_range_obligations.push(
+                        checked_trees::IntegerRangeObligation::retain(
+                            self.expression,
+                            self.walk.machine.symbol,
+                            recipe.clone(),
+                            BigInt::from_i64(minimum),
+                            maximum,
+                            self.walk.owner.to_owned(),
+                        ),
+                    );
+                    // This is conditional, not a decided formation. Target
+                    // closure alone can publish the successful occurrence.
+                    return false;
+                }
+            }
         }
         self.report_unrepresentable(primitive, diagnostics);
         false

@@ -33,6 +33,7 @@ pub(super) fn analyze(
         domain.unwrap_or(walk.target_domain),
     );
     let mut interval: Option<Interval> = None;
+    let mut recipe: Option<checked_trees::IntegerRangeRecipe> = None;
 
     let environments = dispatch_arm_environments(
         program,
@@ -56,11 +57,20 @@ pub(super) fn analyze(
             ..result_walk
         };
         let arm_value = arm_walk.analyze(arm.value, diagnostics, decisions);
+        let arm_recipe = arm_value.range_recipe(program, walk.machine.symbol, arm.value);
+        recipe = if interval.is_none() {
+            arm_recipe
+        } else {
+            recipe
+                .zip(arm_recipe)
+                .map(|(left, right)| left.union(&right))
+        };
         interval = Some(interval.map_or(arm_value.interval, |previous| {
             previous.union(arm_value.interval)
         }));
     }
     Analysis {
+        recipe: recipe.filter(checked_trees::IntegerRangeRecipe::is_target_dependent),
         domain,
         primitive,
         interval: interval.unwrap_or(NEUTRAL.interval),

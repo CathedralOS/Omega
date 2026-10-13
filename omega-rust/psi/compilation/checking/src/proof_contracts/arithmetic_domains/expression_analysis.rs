@@ -31,6 +31,7 @@ use super::{
 
 /// The result of analysing an expression for the domain + overflow rules.
 pub(super) struct Analysis {
+    pub(super) recipe: Option<checked_trees::IntegerRangeRecipe>,
     /// The arithmetic domain (`None` = neutral: a literal or `bool` result).
     pub(super) domain: Option<ArithmeticDomain>,
     /// The value range, for the overflow proof obligation.
@@ -38,6 +39,35 @@ pub(super) struct Analysis {
     /// The integer primitive type, for the overflow range bound (`None` when it
     /// cannot be determined, e.g. a bare literal).
     pub(super) primitive: Option<PrimitiveType>,
+}
+
+impl Analysis {
+    /// Preserve a target-dependent snapshot, or materialize the concrete
+    /// mathematical bounds already known at this evaluation position.
+    pub(super) fn range_recipe(
+        &self,
+        program: &dyn crate::CheckingInput,
+        owner: symbols::SymbolHandle,
+        expression: ExpressionHandle,
+    ) -> Option<checked_trees::IntegerRangeRecipe> {
+        use numerics::bignum::BigInt;
+        if let Some(recipe) = &self.recipe {
+            return Some(recipe.clone());
+        }
+        if let Some(value) = program.closed_integer_expression_value_in(expression, owner) {
+            return Some(checked_trees::IntegerRangeRecipe::bounds(
+                value.clone(),
+                value,
+            ));
+        }
+        let low = self.interval.low.map(BigInt::from_i64)?;
+        let high = match self.interval.high {
+            Some(high) => BigInt::from_i64(high),
+            None if self.primitive == Some(PrimitiveType::U64) => BigInt::from_u64(u64::MAX),
+            None => return None,
+        };
+        Some(checked_trees::IntegerRangeRecipe::bounds(low, high))
+    }
 }
 
 /// The value judgment and the occurrence decisions made while establishing it.
@@ -52,6 +82,7 @@ pub(super) struct CheckedAnalysis {
 /// an arm's cast or a guarded divisor.
 #[derive(Debug, Default)]
 pub(crate) struct ArithmeticDecisions {
+    pub(crate) integer_range_obligations: Vec<checked_trees::IntegerRangeObligation>,
     pub(crate) exact_integer_casts: Vec<crate::ExactIntegerCastFact>,
     /// Immediate receiving ranges proved for exact assignment occurrences.
     /// A deferred invariant window never contributes a successful row.
@@ -69,25 +100,39 @@ pub(crate) struct ArithmeticDecisions {
     /// checker bounds `values[position - 1]` behind `position > 0 &&` with it,
     /// and the call-requires check proves `index + 1 <= 4` after a refuted
     /// `index >= 4 ->` arm.
-    pub(crate) expression_intervals: Vec<(ExpressionHandle, Interval)>,
+    pub(crate) expression_values: Vec<CheckedIntegerValue>,
+}
+
+#[derive(Debug)]
+pub(crate) struct CheckedIntegerValue {
+    pub(crate) expression: ExpressionHandle,
+    pub(crate) interval: Interval,
+    pub(crate) recipe: Option<checked_trees::IntegerRangeRecipe>,
 }
 
 impl ArithmeticDecisions {
     pub(super) fn record_interval(&mut self, expression: ExpressionHandle, interval: Interval) {
         // An unconstrained occurrence participates in the join too. Omitting
         // it would let a bounded visit stand for every visit of the expression.
-        self.expression_intervals.push((expression, interval));
+        self.expression_values.push(CheckedIntegerValue {
+            expression,
+            interval,
+            recipe: None,
+        });
     }
 
     pub(crate) fn extend(&mut self, other: Self) {
+        self.integer_range_obligations
+            .extend(other.integer_range_obligations);
         self.exact_integer_casts.extend(other.exact_integer_casts);
         self.integer_assignments.extend(other.integer_assignments);
         self.decided_formations.extend(other.decided_formations);
-        self.expression_intervals.extend(other.expression_intervals);
+        self.expression_values.extend(other.expression_values);
     }
 }
 
 const NEUTRAL: Analysis = Analysis {
+    recipe: None,
     domain: None,
     interval: Interval::UNBOUNDED,
     primitive: None,
@@ -214,7 +259,11 @@ impl ExpressionWalk<'_> {
             }
         }
         let analysis = self.analyze_value(expression, node, diagnostics, decisions);
-        decisions.record_interval(expression, analysis.interval);
+        decisions.expression_values.push(CheckedIntegerValue {
+            expression,
+            interval: analysis.interval,
+            recipe: analysis.recipe.clone(),
+        });
         analysis
     }
 
@@ -242,6 +291,7 @@ impl ExpressionWalk<'_> {
                 dispatch::analyze(self, expression, dispatch, diagnostics, decisions)
             }
             ExpressionNode::Integer(value) => Analysis {
+                recipe: None,
                 domain: None,
                 interval: literal_interval(value),
                 primitive: unsigned_constants::integer_literal_primitive(self.program, expression),

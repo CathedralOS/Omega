@@ -207,7 +207,7 @@ pub(super) fn validate<'a, 'p>(
         }
     }
     let before = diagnostics.len();
-    let first_checked_interval = arithmetic_decisions.expression_intervals.len();
+    let first_checked_interval = arithmetic_decisions.expression_values.len();
     let assignment_target_domain = assignment_target_type
         .map(|handle| program.arithmetic_domain_for_type_reference(handle))
         .unwrap_or(numerics::arithmetic::ArithmeticDomain::Exact);
@@ -340,7 +340,7 @@ pub(super) fn validate<'a, 'p>(
         program,
         assignment.value,
         value_environment,
-        &arithmetic_decisions.expression_intervals[first_checked_interval..],
+        &arithmetic_decisions.expression_values[first_checked_interval..],
     );
     // Analyze the RHS against pre-store facts, then invalidate every
     // spelling of the storage before recording the new target value.
@@ -375,6 +375,7 @@ pub(super) fn validate<'a, 'p>(
             value_environment,
             arithmetic_domains::place_path(program, assignment.target)
                 .or_else(|| arithmetic_domains::element_place_path(program, assignment.target)),
+            places::canonical_place_from_expression(program, assignment.target),
         );
         arithmetic_domains::record_boolean_assignment(
             program,

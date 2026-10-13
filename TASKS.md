@@ -6093,11 +6093,6 @@ wait for Cathedral's instruction coverage. The interpreter is
   [target-semantic capsule](wiki/spec/language/evaluation.md#target-semantic-capsule)
   of the selected target, and close package review over
   [operator applications](wiki/spec/terminal-psi/boundary_calls.md#operator-applications-and-physical-children).
-  - Retain sufficient symbolic bounds for exact runtime arithmetic over layout
-    queries. `array_member_layout_queries_compile`,
-    `empty_record_layout_queries_compile`, `mixed_alignment_layout_queries_compile`
-    and `sum_layout_queries_compile` still lose their operand bounds before
-    target closure.
   - Package review has no supplied symbolic boundary-application closure
     (the unused one was deleted); a reviewed customer needs one that covers
     the complete reachable specialization closure including const

@@ -23,9 +23,13 @@ pub(super) fn close_constant_recipes(
     selected_target_profile: target::TargetProfile,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
     selected_provider_plan_facts: &effects::SelectedProviderPlanFacts,
+    selected_provider_provenance: &[provider_planning::SelectedProviderReviewProvenance],
     mut proof_providers: impl FnMut(
         target::TargetProfile,
-    ) -> Result<effects::SelectedProviderPlanFacts, Vec<Diagnostic>>,
+    ) -> Result<
+        provider_planning::CheckedProviderSelection,
+        Vec<Diagnostic>,
+    >,
 ) -> Result<Arc<CheckedTrees>, Vec<Diagnostic>> {
     let shared = &source.program;
     let typed = &shared.typed;
@@ -56,61 +60,121 @@ pub(super) fn close_constant_recipes(
         &closed_typed,
     )?;
     let mut closed_facts = shared.facts.clone();
-    let obligation_targets: Vec<_> = closed_facts
-        .constant_predicate_obligations
-        .iter()
-        .map(|obligation| {
-            let authored = typed
-                .authored_machine_target(obligation.caller())
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
-            match authored {
-                None => Ok(selected_target_profile),
-                Some(name) => target::TargetProfile::from_canonical_target_name(name)
-                    .map_err(|reason| vec![reason]),
-            }
-        })
-        .collect::<Result<_, _>>()?;
     let mut proof_targets = vec![selected_target_profile];
-    for target in &obligation_targets {
-        if !proof_targets.contains(target) {
-            proof_targets.push(*target);
+    let predicate_rows = &shared.facts.constant_predicate_obligations;
+    let range_rows = &shared.facts.integer_range_obligations;
+    if !predicate_rows.is_empty() || !range_rows.is_empty() {
+        for machine in typed.machines() {
+            if let Some(name) = typed.machine_authored_target(machine) {
+                let target = target::TargetProfile::from_canonical_target_name(name)
+                    .map_err(|reason| vec![reason])?;
+                if !proof_targets.contains(&target) {
+                    proof_targets.push(target);
+                }
+            }
         }
     }
-    // Each authored body keeps its own proof application even when it is not
-    // an output target. Never discharge a sibling's predicate against this
-    // product's sizes, and never reuse its provider rows for another capsule.
+    closed_facts.constant_predicate_obligations.clear();
+    closed_facts.integer_range_obligations.clear();
+    let mut predicate_closed = vec![false; predicate_rows.len()];
+    let mut range_closed = vec![false; range_rows.len()];
+    let proof_owners: Vec<_> = predicate_rows
+        .iter()
+        .map(|row| row.caller())
+        .chain(range_rows.iter().map(|row| row.owner()))
+        .collect();
     for target in proof_targets {
-        let proof_program = if target == selected_target_profile {
+        if target != selected_target_profile
+            && !provider_planning::target_machines::target_has_proof_demand(
+                shared,
+                target,
+                &proof_owners,
+            )
+        {
+            continue;
+        }
+        let supplemental = if target == selected_target_profile {
             None
         } else {
-            let providers = proof_providers(target)?;
-            Some(close_constant_values(
+            Some(proof_providers(target)?)
+        };
+        let provenance = supplemental
+            .as_ref()
+            .map_or(selected_provider_provenance, |selected| {
+                selected.selected_provider_provenance.as_slice()
+            });
+        let applications = provider_planning::target_machines::proof_application_machines(
+            shared,
+            target,
+            target == selected_target_profile,
+            provenance,
+        );
+        let predicate_applications: Vec<_> = predicate_rows
+            .iter()
+            .enumerate()
+            .filter(|(_, obligation)| applications.contains(&obligation.caller()))
+            .collect();
+        let range_applications: Vec<_> = range_rows
+            .iter()
+            .enumerate()
+            .filter(|(_, obligation)| applications.contains(&obligation.owner()))
+            .collect();
+        if predicate_applications.is_empty() && range_applications.is_empty() {
+            continue;
+        }
+        let proof_program = match &supplemental {
+            None => None,
+            Some(selected) => Some(close_constant_values(
                 source,
                 target,
                 opaque_representation_selections,
-                &providers,
+                &selected.selected_provider_plan_facts,
                 &layout_queries,
-            )?)
+            )?),
         };
-        checked_trees::ConstantPredicateObligation::discharge_all(
+        let program = proof_program.as_ref().unwrap_or(&closed_typed);
+        for (position, obligation) in predicate_applications {
+            let mut application = obligation.clone();
+            checked_trees::ConstantPredicateObligation::discharge_all(
+                std::iter::once(&mut application),
+                program,
+                target.target_name(),
+            )?;
             closed_facts
                 .constant_predicate_obligations
-                .iter_mut()
-                .zip(&obligation_targets)
-                .filter_map(|(obligation, required)| (*required == target).then_some(obligation)),
-            proof_program.as_ref().unwrap_or(&closed_typed),
-            target.target_name(),
-        )?;
+                .push(application);
+            predicate_closed[position] = true;
+        }
+        for (position, obligation) in range_applications {
+            let mut application = obligation.clone();
+            application
+                .discharge(program, target.target_name())
+                .map_err(|reason| vec![reason])?;
+            closed_facts
+                .operators
+                .decided_formations
+                .push(application.expression());
+            closed_facts.integer_range_obligations.push(application);
+            range_closed[position] = true;
+        }
         if let Some(proof_program) = proof_program {
-            // Proof dependencies participate in compatibility even when the
-            // executable product never invokes that target's provider.
             closed_typed
                 .constant_recipe_closure
                 .receipts
                 .extend(proof_program.constant_recipe_closure.receipts);
         }
     }
+    if predicate_closed.contains(&false) || range_closed.contains(&false) {
+        return Err(vec![Diagnostic::error(
+            "retained proof obligation has no target application",
+        )]);
+    }
     let receipts = &mut closed_typed.constant_recipe_closure.receipts;
+    closed_facts
+        .operators
+        .decided_formations
+        .sort_by_key(|expression| checked_trees::operators::handle_position(*expression));
+    closed_facts.operators.decided_formations.dedup();
     receipts.sort_by_key(|receipt| (receipt.requirement.arena_index(), receipt.plan_identity));
     receipts.dedup();
     Ok(Arc::new(CheckedTrees::with_roots(

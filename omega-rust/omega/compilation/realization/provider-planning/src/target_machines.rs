@@ -12,7 +12,9 @@ use checked_trees::typed_trees::typed_trees::inspection::callees::ExplicitStateC
 use diagnostics::Diagnostic;
 use target::TargetProfile;
 
+mod proof_applications;
 mod provider_publication;
+pub use proof_applications::{proof_application_machines, target_has_proof_demand};
 pub use provider_publication::{TargetProviderPublicationRequest, provider_selection_roots};
 
 /// Project retained declarations onto one realization using their exact handles.

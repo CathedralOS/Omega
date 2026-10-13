@@ -212,7 +212,7 @@ pub(super) fn validate(
         diagnostics,
     );
     let before = diagnostics.len();
-    let first_checked_interval = arithmetic_decisions.expression_intervals.len();
+    let first_checked_interval = arithmetic_decisions.expression_values.len();
     let local_target_domain =
         program.arithmetic_domain_for_type_reference(local_data.type_reference);
     let (interval, source_primitive, source_domain) =
@@ -304,7 +304,7 @@ pub(super) fn validate(
             program,
             local_data.initial_value,
             value_environment,
-            &arithmetic_decisions.expression_intervals[first_checked_interval..],
+            &arithmetic_decisions.expression_values[first_checked_interval..],
         );
         copied_value.capture_local_relations(
             program,
@@ -334,7 +334,14 @@ pub(super) fn validate(
                 .flatten(),
         );
         if diagnostics.len() == before {
-            copied_value.record(value_environment, Some(local_data.name.as_str().to_owned()));
+            copied_value.record(
+                value_environment,
+                Some(local_data.name.as_str().to_owned()),
+                Some(crate::value_custody::places::CanonicalPlace {
+                    root: facts::PlaceRoot::Symbol(local_data.symbol),
+                    segments: Vec::new(),
+                }),
+            );
             arithmetic_domains::record_boolean_local(
                 program,
                 machine,

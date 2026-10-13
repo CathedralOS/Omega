@@ -149,10 +149,8 @@ fn select_checked_providers(
         selected_target_profile.unwrap_or_else(target::TargetProfile::host),
         &build_config.opaque_representation_selections,
         &selected_provider_plan_facts,
-        |target| {
-            prepare_target_provider_selection(source, Some(target), package_inputs)
-                .map(|selected| selected.selected_provider_plan_facts)
-        },
+        &selected_provider_provenance,
+        |target| prepare_target_provider_selection(source, Some(target), package_inputs),
     )?;
     let root_grants = build_config.root_grant_selectors();
     let checked = bind_checked_providers(

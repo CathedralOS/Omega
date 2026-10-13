@@ -103,8 +103,12 @@ pub(crate) fn infer_return_interval(
     callee_machine: &Machine,
     callee_state: &State,
     target_primitive: Option<PrimitiveType>,
-    actuals: &[(symbols::SymbolHandle, Interval)],
-) -> Option<Interval> {
+    actuals: &[(
+        symbols::SymbolHandle,
+        Interval,
+        Option<checked_trees::IntegerRangeRecipe>,
+    )],
+) -> Option<(Interval, Option<checked_trees::IntegerRangeRecipe>)> {
     super::guard_narrowing::inferred_normal_return_interval(
         program,
         callee_machine,

@@ -9,6 +9,13 @@ use crate::proof_contracts::arithmetic_domains::place_paths::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
+#[derive(Debug, Clone, PartialEq)]
+pub(super) struct StoredIntegerRange {
+    pub place: crate::value_custody::places::CanonicalPlace,
+    pub path: String,
+    pub recipe: checked_trees::IntegerRangeRecipe,
+}
+
 /// S4 flow-sensitive value environment: the proven interval of each place
 /// (`self.field`, local) along the straight-line prefix of a state body. Lets the
 /// overflow proof discharge `self.v = 10; self.v += 5` (v is known to be 10, so
@@ -54,6 +61,7 @@ impl FloatInterval {
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub(crate) struct ValueEnvironment {
+    pub(super) integer_ranges: Vec<StoredIntegerRange>,
     pub(super) boolean_values: Vec<super::guard_narrowing::BooleanValue>,
     pub(super) ordered_values: Vec<ordered_values::Relation>,
     pub(super) intervals: BTreeMap<String, Interval>,
@@ -72,6 +80,18 @@ pub(crate) struct ValueEnvironment {
 }
 
 impl ValueEnvironment {
+    pub(super) fn range_recipe(
+        &self,
+        program: &dyn crate::CheckingInput,
+        expression: ExpressionHandle,
+    ) -> Option<&checked_trees::IntegerRangeRecipe> {
+        let place =
+            crate::value_custody::places::canonical_place_from_expression(program, expression)?;
+        self.integer_ranges
+            .iter()
+            .find(|value| value.place == place)
+            .map(|value| &value.recipe)
+    }
     /// Current scalar-place relations, identified by resolved symbols. Fields
     /// and computed operands cannot become a scalar atom merely by sharing a
     /// display path. Existing joins, edge rebinding and writes own fact lifetime.
@@ -162,6 +182,7 @@ impl ValueEnvironment {
     /// Drop all tracked values when no incoming environment can be retained.
     /// Unknown mutation instead preserves existing immutable scalar snapshots.
     pub(crate) fn clear(&mut self) {
+        self.integer_ranges.clear();
         self.boolean_values.clear();
         self.intervals.clear();
         self.known_u64_values.clear();
@@ -221,6 +242,30 @@ impl ValueEnvironment {
             }
         }
         let retained = |path: &str| frozen.get(path) == Some(&true);
+        self.integer_ranges.retain(|value| {
+            if !value.place.segments.is_empty() {
+                return false;
+            }
+            let facts::PlaceRoot::Symbol(symbol) = value.place.root else {
+                return false;
+            };
+            program
+                .state_parameter_by_symbol(state, symbol)
+                .is_some_and(|parameter| {
+                    !parameter.is_mutable
+                        && program
+                            .primitive_type_reference(parameter.type_reference)
+                            .is_some()
+                })
+                || program
+                    .state_local_declaration(state, symbol)
+                    .is_some_and(|(_, local)| {
+                        !local.is_mutable
+                            && program
+                                .primitive_type_reference(local.type_reference)
+                                .is_some()
+                    })
+        });
         self.intervals.retain(|path, _| retained(path));
         self.known_u64_values.retain(|path, _| retained(path));
         self.float_intervals.retain(|path, _| retained(path));
@@ -265,6 +310,7 @@ impl ValueEnvironment {
                 .any(|written| place_paths_overlap(path, written))
         };
         let keep_pair = |(left, right): &(String, String)| !overlaps(left) && !overlaps(right);
+        self.integer_ranges.retain(|value| !overlaps(&value.path));
         self.intervals.retain(|path, _| !overlaps(path));
         self.known_u64_values.retain(|path, _| !overlaps(path));
         self.float_intervals.retain(|path, _| !overlaps(path));
@@ -513,6 +559,19 @@ impl ValueEnvironment {
     /// state from its incoming edge guards.
     pub(crate) fn join(&self, other: &ValueEnvironment) -> ValueEnvironment {
         let mut joined = ValueEnvironment::new();
+        // Unequal incoming snapshots are forgotten. In particular cyclic
+        // arrivals must not grow a fresh symbolic expression every round.
+        joined.integer_ranges.extend(
+            self.integer_ranges
+                .iter()
+                .filter(|value| {
+                    other
+                        .integer_ranges
+                        .iter()
+                        .any(|other| other.place == value.place && other.recipe == value.recipe)
+                })
+                .cloned(),
+        );
         for value in &self.boolean_values {
             if let Some(other) = other
                 .boolean_values

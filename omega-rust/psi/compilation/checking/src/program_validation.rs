@@ -80,6 +80,7 @@ pub fn expression_interval(
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProgramValidationFacts {
+    pub integer_range_obligations: Vec<checked_trees::IntegerRangeObligation>,
     pub static_machine_selections: machine_parameters::ValidatedStaticMachineSelections,
     formed_static_machine_selections: machine_parameters::FormedStaticMachineSelections,
     pub stored_integer_writes: Vec<checked_trees::CheckedStoredIntegerWrite>,
@@ -681,16 +682,19 @@ fn validate(
     }
 
     let arithmetic_domains::ArithmeticDecisions {
+        integer_range_obligations,
         mut exact_integer_casts,
         mut integer_assignments,
         mut decided_formations,
-        expression_intervals: walked_intervals,
+        expression_values: walked_intervals,
     } = arithmetic_decisions;
     let mut expression_intervals = Vec::<ExpressionInterval>::new();
     let mut walked_intervals = walked_intervals;
     walked_intervals
-        .sort_by_key(|(expression, _)| checked_trees::operators::handle_position(*expression));
-    for (expression, interval) in walked_intervals {
+        .sort_by_key(|value| checked_trees::operators::handle_position(value.expression));
+    for value in walked_intervals {
+        let expression = value.expression;
+        let interval = value.interval;
         // Each walk bounds the evaluations it saw; their hull bounds them all.
         match expression_intervals.last_mut() {
             Some(previous) if previous.expression == expression => {
@@ -753,6 +757,7 @@ fn validate(
         operational: conformance_operational,
         service_reaches: conformance_service_reaches,
         facts: ProgramValidationFacts {
+            integer_range_obligations,
             static_machine_selections,
             formed_static_machine_selections,
             stored_integer_writes,

@@ -26,6 +26,7 @@ pub(super) fn analyze(
         && let Some(literal) = literals::land_integer_value(&value.value, primitive)
     {
         return Some(Analysis {
+            recipe: None,
             domain: Some(ArithmeticDomain::Exact),
             interval: literal_interval(&literal),
             primitive: Some(primitive),
@@ -35,6 +36,7 @@ pub(super) fn analyze(
         collection_length_interval(walk.program, walk.machine, walk.state, expression)
     {
         return Some(Analysis {
+            recipe: None,
             // Counts keep their declared carrier even when their value is known.
             // They do not select an arithmetic policy for enclosing operations.
             interval: super::super::place_path(walk.program, expression)
@@ -139,6 +141,7 @@ fn anonymous_value(
             high: Some(value),
         });
     Some(Analysis {
+        recipe: None,
         domain: None,
         interval,
         primitive: None,

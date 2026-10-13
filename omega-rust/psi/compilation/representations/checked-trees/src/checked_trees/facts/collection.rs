@@ -138,6 +138,7 @@ pub struct CheckFacts {
     pub constant_recipe_obligations: Vec<crate::ConstantRecipeObligation>,
     /// Ground predicates whose target observations must close before execution.
     pub constant_predicate_obligations: Vec<super::ConstantPredicateObligation>,
+    pub integer_range_obligations: Vec<super::IntegerRangeObligation>,
 }
 
 /// One `AssignmentIndex { depth }` selector of the assignment at

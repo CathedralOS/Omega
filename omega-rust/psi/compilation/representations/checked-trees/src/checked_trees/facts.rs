@@ -13,7 +13,9 @@
 mod collection;
 mod constant_predicate_obligations;
 mod constant_recipe_obligations;
+mod integer_range_obligations;
 pub use constant_predicate_obligations::ConstantPredicateObligation;
+pub use integer_range_obligations::{IntegerRangeObligation, IntegerRangeRecipe};
 mod contextual_cleanup;
 pub mod scalar_predicates;
 

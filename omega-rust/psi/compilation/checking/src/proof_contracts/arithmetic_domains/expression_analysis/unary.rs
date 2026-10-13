@@ -21,6 +21,7 @@ pub(super) fn analyze(
                     .flatten()
             });
             Analysis {
+                recipe: None,
                 domain: operand.domain,
                 interval: primitive
                     .map(|primitive| {
@@ -41,6 +42,7 @@ pub(super) fn analyze(
             }
         }
         UnaryOperator::LogicalNot => Analysis {
+            recipe: None,
             domain: None,
             interval: BOOLEAN_INTERVAL,
             primitive: Some(PrimitiveType::Bool),

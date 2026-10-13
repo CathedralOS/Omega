@@ -7,12 +7,19 @@
 //! The supplying environment has already crossed value-evaluation effects;
 //! this owner never replays an initializer or independently summarizes calls.
 
+use super::value_environment::StoredIntegerRange;
 use super::{Interval, ValueEnvironment, ordered_values, place_path};
+use crate::value_custody::places::{CanonicalPlace, canonical_place_from_expression};
 use std::collections::BTreeMap;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 #[derive(Default)]
 pub(crate) struct CopiedIntegerValue {
+    recipes: Vec<(
+        Vec<facts::PlaceSegment>,
+        String,
+        checked_trees::IntegerRangeRecipe,
+    )>,
     intervals: Vec<(String, Interval)>,
     unsigned_values: Vec<(String, u64)>,
     ordered_relations: Vec<ordered_values::Relation>,
@@ -23,10 +30,10 @@ impl CopiedIntegerValue {
         program: &dyn crate::CheckingInput,
         expression: ExpressionHandle,
         environment: &ValueEnvironment,
-        checked_intervals: &[(ExpressionHandle, Interval)],
+        checked_values: &[super::expression_analysis::CheckedIntegerValue],
     ) -> Self {
         let mut value = Self::default();
-        value.capture_at(program, expression, "", environment, checked_intervals);
+        value.capture_at(program, expression, "", &[], environment, checked_values);
         value
     }
 
@@ -75,18 +82,24 @@ impl CopiedIntegerValue {
         program: &dyn crate::CheckingInput,
         expression: ExpressionHandle,
         suffix: &str,
+        segments: &[facts::PlaceSegment],
         environment: &ValueEnvironment,
-        checked_intervals: &[(ExpressionHandle, Interval)],
+        checked_values: &[super::expression_analysis::CheckedIntegerValue],
     ) {
         match program.expression_table.expression(expression) {
             ExpressionNode::StructLiteral(literal) => {
                 for field in program.expression_table.struct_fields(literal.fields) {
+                    let mut field_segments = segments.to_vec();
+                    field_segments.push(facts::PlaceSegment::Field {
+                        symbol: field.field_symbol,
+                    });
                     self.capture_at(
                         program,
                         field.value,
                         &format!("{suffix}.{}", field.name),
+                        &field_segments,
                         environment,
-                        checked_intervals,
+                        checked_values,
                     );
                 }
             }
@@ -97,16 +110,51 @@ impl CopiedIntegerValue {
                     .iter()
                     .enumerate()
                 {
+                    let mut element_segments = segments.to_vec();
+                    element_segments.push(facts::PlaceSegment::FixedIndex { index });
                     self.capture_at(
                         program,
                         *element,
                         &format!("{suffix}[{index}]"),
+                        &element_segments,
                         environment,
-                        checked_intervals,
+                        checked_values,
                     );
                 }
             }
             _ => {
+                if let Some(source) = canonical_place_from_expression(program, expression) {
+                    for stored in &environment.integer_ranges {
+                        if stored.place.root == source.root
+                            && stored.place.segments.starts_with(&source.segments)
+                        {
+                            let mut destination = segments.to_vec();
+                            destination
+                                .extend_from_slice(&stored.place.segments[source.segments.len()..]);
+                            let source_label = source.label(program);
+                            if let Some(tail) = stored.path.strip_prefix(&source_label) {
+                                self.recipes.push((
+                                    destination,
+                                    format!("{suffix}{tail}"),
+                                    stored.recipe.clone(),
+                                ));
+                            }
+                        }
+                    }
+                }
+                // Every checked visit participates. A missing snapshot cannot
+                // be replaced by a stronger visit of the same expression.
+                let mut visits = checked_values
+                    .iter()
+                    .filter(|value| value.expression == expression)
+                    .map(|value| &value.recipe);
+                if let Some(Some(first)) = visits.next()
+                    && visits.all(|recipe| recipe.as_ref() == Some(first))
+                {
+                    self.recipes.retain(|(existing, _, _)| existing != segments);
+                    self.recipes
+                        .push((segments.to_vec(), suffix.to_owned(), first.clone()));
+                }
                 if let Some(source) = place_path(program, expression)
                     .or_else(|| super::element_place_path(program, expression))
                 {
@@ -119,10 +167,10 @@ impl CopiedIntegerValue {
                     );
                 }
                 if !suffix.is_empty()
-                    && let Some(interval) = checked_intervals
+                    && let Some(interval) = checked_values
                         .iter()
-                        .filter_map(|(checked, interval)| {
-                            (*checked == expression).then_some(*interval)
+                        .filter_map(|value| {
+                            (value.expression == expression).then_some(value.interval)
                         })
                         .reduce(Interval::union)
                 {
@@ -138,8 +186,35 @@ impl CopiedIntegerValue {
     /// The destination's old facts must already have been retired by the
     /// ordinary store owner. A copied root interval is recorded there with its
     /// enforced declared range; this owner supplies the composite descendants.
-    pub(crate) fn record(&self, environment: &mut ValueEnvironment, path: Option<String>) {
+    pub(crate) fn record(
+        &self,
+        environment: &mut ValueEnvironment,
+        path: Option<String>,
+        destination: Option<CanonicalPlace>,
+    ) {
         let Some(path) = path else { return };
+        if let Some(destination) = destination
+            && matches!(destination.root, facts::PlaceRoot::Symbol(_))
+        {
+            for (segments, suffix, recipe) in &self.recipes {
+                let mut place = destination.clone();
+                place.extend_segments(segments);
+                if place.segments.iter().any(|segment| {
+                    !matches!(segment, facts::PlaceSegment::Field { symbol } if symbol.is_valid())
+                        && !matches!(segment, facts::PlaceSegment::FixedIndex { .. })
+                }) {
+                    continue;
+                }
+                environment
+                    .integer_ranges
+                    .retain(|stored| stored.place != place);
+                environment.integer_ranges.push(StoredIntegerRange {
+                    place,
+                    path: format!("{path}{suffix}"),
+                    recipe: recipe.clone(),
+                });
+            }
+        }
         for relation in &self.ordered_relations {
             if !environment.ordered_values.contains(relation) {
                 environment.ordered_values.push(relation.clone());

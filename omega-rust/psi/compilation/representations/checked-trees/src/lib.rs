@@ -5,6 +5,7 @@
 
 pub mod checked_trees;
 pub use checked_trees::facts::ConstantPredicateObligation;
+pub use checked_trees::facts::{IntegerRangeObligation, IntegerRangeRecipe};
 pub(crate) use optimization::digest_encoder;
 
 // Downstream realization reads typed vocabulary through checked custody:

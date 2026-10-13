@@ -36,6 +36,7 @@ pub(super) fn analyze(
         walk.with_destination(None, ArithmeticDomain::Exact)
             .analyze(cast.value, diagnostics, decisions);
         return Analysis {
+            recipe: None,
             domain: Some(ArithmeticDomain::Exact),
             interval: primitive
                 .and_then(primitive_range)
@@ -94,6 +95,11 @@ pub(super) fn analyze(
     Analysis {
         domain: Some(cast.domain),
         interval: result_interval(&source, primitive),
+        recipe: source
+            .primitive
+            .filter(|source| source.is_fixed_integer())
+            .zip(primitive.filter(|target| target.is_fixed_integer()))
+            .and(source.recipe),
         primitive,
     }
 }
@@ -148,6 +154,7 @@ fn source_value(
             // qualification must not need another evaluator or target premise.
             decisions.record_interval(cast.value, interval);
             Analysis {
+                recipe: None,
                 domain: None,
                 interval,
                 primitive: Some(primitive),
