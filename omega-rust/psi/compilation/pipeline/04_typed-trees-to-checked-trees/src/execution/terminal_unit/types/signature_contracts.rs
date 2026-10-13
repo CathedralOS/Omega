@@ -375,6 +375,61 @@ pub(in crate::execution::terminal_unit) fn fold_authorized_result_domains(
     })
 }
 
+/// Register the carrier an authored `ensures result in <domain>` clause
+/// qualifies on an ordinary or state-graph machine. The result declaration
+/// and every receiving call publish that membership as a qualification of
+/// the returned carrier, and the structural domain catalog can only lower a
+/// domain whose declaration this collector holds. A boundary requirement
+/// registers through `fold_authorized_result_domains`, which also replays
+/// its authorization; a checked body proved its own clause. A membership
+/// over another value names a different carrier and is skipped, and a scalar,
+/// unit or reference result carries no structural qualification.
+pub(in crate::execution::terminal_unit) fn register_authored_result_domains(
+    program: &dyn ::validation::CheckingInput,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    binders: &[(SymbolHandle, String)],
+) -> Option<()> {
+    let return_type = state.return_type;
+    if is_unit(program, return_type)
+        || program.primitive_type_reference(return_type).is_some()
+        || crate::execution::terminal_unit::is_reference(program, return_type)
+    {
+        return Some(());
+    }
+    for contract in program
+        .machine_contracts(machine)
+        .iter()
+        .chain(program.state_contracts(state))
+    {
+        if contract.kind != SignatureContractKind::Ensures {
+            continue;
+        }
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            let Some(membership) = fact.as_membership() else {
+                continue;
+            };
+            if !program
+                .expression_table
+                .names_reserved_result(membership.value)
+            {
+                continue;
+            }
+            let Some(definition) = program.domain_definition(membership.domain_symbol) else {
+                continue;
+            };
+            shapes.add_selected_domain(
+                definition.semantic_id,
+                definition.symbol,
+                return_type,
+                binders,
+            )?;
+        }
+    }
+    Some(())
+}
+
 /// Body commitments whose theory belongs to structural carriers. Classify
 /// normalized domain instances by their carrier, not by their predicates or
 /// the arrangement of an authored cast. Scalar computations retain scalar

@@ -58,10 +58,14 @@ pub(super) fn result_plan(
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
 ) -> Option<checked_trees::CheckedControlResultPlan> {
-    let result = returns::signature(
+    let entry = program.machine_states(machine).first()?;
+    let result = returns::signature(program, shapes, entry.return_type)?;
+    crate::execution::terminal_unit::types::register_authored_result_domains(
         program,
         shapes,
-        program.machine_states(machine).first()?.return_type,
+        machine,
+        entry,
+        &crate::execution::terminal_unit::types::machine_binders(program, machine),
     )?;
     // Parameter qualifications are transported exactly. Additional authored
     // contracts on a linear result still need their own retained proof

@@ -333,6 +333,7 @@ pass/calls/cyclic_mutable_borrow_block_parameter_call built 2512ms exit:0 @bed5f
 pass/calls/cyclic_projected_borrow_call_exit built 1360ms exit:70 @1da616075c39+wt
 pass/calls/cyclic_scalar_query_reborrow_exit built 4289ms exit:70 @48d34a64a938+wt
 pass/calls/declared_range_delivery_proven checked 1974ms @9ef088fc5f88+wt
+pass/calls/ensures_result_membership_state_graph_issuer_exit built 9430ms exit:0 @faebfb62fb37
 pass/calls/field_path_byte_subslice_exit built 4019ms exit:70 @48d34a64a938+wt
 pass/calls/generic_reference_forwarding_exit built 1697ms exit:2 @9782e38b64ab+wt
 pass/calls/guard_call_scalar_argument_exit built 1262ms exit:70 @3a0c3ba44cd8+wt
@@ -413,11 +414,11 @@ pass/calls/runtime_constructor_byte_predicate_snapshot_exit built 1340ms exit:0 
 pass/calls/runtime_constructor_child_declared_membership_exit built 1655ms exit:0 @7b3ac815c2b7
 pass/calls/runtime_constructor_child_equal_captures_exit built 1370ms exit:0 @8093eb34a6ed+wt
 pass/calls/runtime_constructor_child_inherited_captures_exit built 1328ms exit:0 @8093eb34a6ed+wt
-pass/calls/runtime_constructor_child_membership_snapshot_exit built 1306ms exit:0 @8093eb34a6ed+wt
+pass/calls/runtime_constructor_child_membership_snapshot_exit built 9288ms exit:0 @faebfb62fb37
 pass/calls/runtime_constructor_child_named_state_captures_exit built 1358ms exit:0 @8093eb34a6ed+wt
 pass/calls/runtime_constructor_child_pure_calls_exit built 1592ms exit:0 @84e17b0cc1bf+wt
 pass/calls/runtime_constructor_computed_field_exit built 530ms exit:1
-pass/calls/runtime_constructor_projected_membership_snapshot_exit built 2048ms exit:0 @cfbb6c8709b4+wt
+pass/calls/runtime_constructor_projected_membership_snapshot_exit built 9365ms exit:0 @faebfb62fb37
 pass/calls/runtime_copied_argument_live_mutable_ensures_exit built 1988ms exit:0 @cfbb6c8709b4+wt
 pass/calls/runtime_cross_machine_substate_name_exit built 771ms exit:70
 pass/calls/runtime_cyclic_state_reference_result_exit built 4599ms exit:0 @9beb2be72f2d+wt
@@ -445,7 +446,7 @@ pass/calls/runtime_guarded_terminal_reference_write_exit built 4317ms exit:0 @9b
 pass/calls/runtime_guarded_terminal_structural_result_exit built 4355ms exit:0 @9beb2be72f2d+wt
 pass/calls/runtime_heterogeneous_case_argument_exit built 11452ms exit:0 @b0e82acb332e+wt
 pass/calls/runtime_indexed_scalar_calls_exit built 1627ms exit:70 @63377f7122bb+wt
-pass/calls/runtime_inherited_membership_argument_snapshot_exit built 2072ms exit:0 @cfbb6c8709b4+wt
+pass/calls/runtime_inherited_membership_argument_snapshot_exit built 7451ms exit:0 @faebfb62fb37
 pass/calls/runtime_large_frame_foreign_call_floating_control_exit built 1339ms exit:70 @3ce19b649c88+wt
 pass/calls/runtime_large_structural_frame_exit built 2593ms exit:70 @48547351f382+wt
 pass/calls/runtime_let_mut_reassign_exit built 591ms exit:2
@@ -465,7 +466,7 @@ pass/calls/runtime_mutable_local_parameter_write_exit built 756ms exit:171 @6c1f
 pass/calls/runtime_nested_case_argument_exit built 2633ms exit:70 @b6846d69ce88+wt
 pass/calls/runtime_nested_case_subject_operand_order_exit built 4439ms exit:0 @9beb2be72f2d+wt
 pass/calls/runtime_nested_completed_operands_then_shared_borrow_exit built 9277ms exit:0 @589aedee8ebc+wt
-pass/calls/runtime_nested_constructor_child_snapshots_exit built 1325ms exit:0 @8093eb34a6ed+wt
+pass/calls/runtime_nested_constructor_child_snapshots_exit built 7417ms exit:0 @faebfb62fb37
 pass/calls/runtime_nested_local_field_store_exit built 1817ms exit:42 @1da616075c39+wt
 pass/calls/runtime_nested_receiver_guard_exit built 1030ms exit:42 @ac942fdbba24+wt
 pass/calls/runtime_nested_value_call_guard_exit built 4993ms exit:70

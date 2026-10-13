@@ -969,18 +969,6 @@ pub(super) fn lower_unit_structural_domains(
                 )
             })
             .chain(body.qualifications())
-            // A call's completed value carries the callee's checked domains.
-            // They are catalog dependencies even when no parameter or local
-            // declaration in this body names them (for example, a copied
-            // field returned directly). Selection follows custody metadata,
-            // not the operation that originally established those bytes.
-            .chain(body.operations().flat_map(|operation| {
-                operation
-                    .call()
-                    .and_then(|call| call.structural_custody())
-                    .into_iter()
-                    .flat_map(|custody| custody.result_qualifications.iter())
-            }))
             .chain(body.operations().flat_map(|operation| match operation {
                 CheckedUnitEffectOperationPlan::EstablishLocal(
                     checked_trees::CheckedUnitLocalBindingPlan::ByteSequence {
@@ -997,6 +985,28 @@ pub(super) fn lower_unit_structural_domains(
         {
             if !selected.contains(domain) {
                 selected.push(*domain);
+            }
+        }
+        // A call's completed value carries the roster its receiving result
+        // publishes: the callee's checked custody domains and its authored
+        // `ensures result in Domain` clauses. They are catalog dependencies
+        // even when no parameter or local declaration in this body names
+        // them (for example, a copied field returned directly). Selection
+        // follows the same roster the emitted result spells, not the
+        // operation that originally established those bytes. The body's own
+        // result declaration spells its authored clauses the same way.
+        let received = body
+            .operations()
+            .filter_map(|operation| operation.call())
+            .flat_map(|call| {
+                super::call_results::module_result_qualification_domains(checked, call)
+            })
+            .chain(super::parameters::authored_result_qualification_domains(
+                checked, *symbol,
+            ));
+        for domain in received {
+            if !selected.contains(&domain) {
+                selected.push(domain);
             }
         }
     }

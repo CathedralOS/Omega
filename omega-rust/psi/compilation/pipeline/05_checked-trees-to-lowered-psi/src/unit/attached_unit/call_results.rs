@@ -22,6 +22,33 @@ pub(crate) struct Prepared {
     issuer: symbols::SymbolHandle,
 }
 
+/// Every semantic domain a module-route call's receiving result carries:
+/// the checked custody roster beside the callee's authored `ensures result
+/// in Domain` clauses. The structural domain catalog selects from this same
+/// roster, so a receiving result can never name a domain the closure did
+/// not lower. A boundary or dynamic call receives its public result roster
+/// instead, which the catalog selects from the published requirement.
+pub(crate) fn module_result_qualification_domains(
+    checked: &CheckedTrees,
+    call: &CheckedUnitCallPlan,
+) -> Vec<language_semantics::SemanticDomainId> {
+    let mut domains = call
+        .structural_custody()
+        .map(|custody| custody.result_qualifications.clone())
+        .unwrap_or_default();
+    if let checked_trees::CheckedUnitCallRoute::Module { .. } = call.route() {
+        domains.append(
+            &mut super::parameters::authored_result_qualification_domains(
+                checked,
+                call.target.machine,
+            ),
+        );
+    }
+    domains.sort_by_key(|domain| domain.0);
+    domains.dedup();
+    domains
+}
+
 pub(crate) fn prepare(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
@@ -77,19 +104,8 @@ pub(crate) fn prepare(
         )
     } else {
         let (_, state) = crate::declarations::state_declaration(checked, call.target.state)?;
-        // The callee's authored `ensures result in Domain` clauses publish on
-        // its result declaration; the call's receiving result spells the same
-        // roster beside the checked custody qualifications.
-        let mut authored = super::parameters::authored_result_qualification_domains(
-            checked,
-            call.target.machine,
-        );
-        let mut domains = custody.result_qualifications.clone();
-        domains.append(&mut authored);
-        domains.sort_by_key(|domain| domain.0);
-        domains.dedup();
         (
-            domains,
+            module_result_qualification_domains(checked, call),
             validation::structural_result_projected_qualifications(
                 &checked.typed,
                 state.return_type,

@@ -147,6 +147,10 @@ pub(crate) fn build_checked_machine_residual_parts(
     let binders = machine_binders(program, machine);
     let (mut structural_parameters, scalar_parameters) =
         free_structural_scalar_signature_traced(program, shapes, state, &binders, trace)?;
+    trace.phase("signature: authored result domains");
+    super::super::types::register_authored_result_domains(
+        program, shapes, machine, state, &binders,
+    )?;
     trace.phase("signature: parameter storage");
     let parameter_storage =
         parameter_storage_plans(program, shapes, state, &binders, &scalar_parameters)?;

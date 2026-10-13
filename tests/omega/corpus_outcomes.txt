@@ -4190,6 +4190,7 @@ pass/calls/cyclic_mutable_borrow_block_parameter_call checked 13621ms check-targ
 pass/calls/cyclic_projected_borrow_call_exit checked 14024ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/cyclic_scalar_query_reborrow_exit checked 14055ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/declared_range_delivery_proven checked 1955ms @a9ae30e1c334+wt
+pass/calls/ensures_result_membership_state_graph_issuer_exit checked 12418ms check-target:macos_arm64 @faebfb62fb37
 pass/calls/field_path_byte_subslice_exit checked 11714ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/generic_operator_guard_result checked 3794ms @cd5a3c1ae981+wt
 pass/calls/generic_reference_forwarding_exit checked 12092ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -4274,11 +4275,11 @@ pass/calls/runtime_constructor_byte_predicate_snapshot_exit checked 10374ms chec
 pass/calls/runtime_constructor_child_declared_membership_exit checked 10402ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_constructor_child_equal_captures_exit checked 10222ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_constructor_child_inherited_captures_exit checked 10185ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/calls/runtime_constructor_child_membership_snapshot_exit checked 10394ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/runtime_constructor_child_membership_snapshot_exit checked 12184ms check-target:macos_arm64 @faebfb62fb37
 pass/calls/runtime_constructor_child_named_state_captures_exit checked 10519ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_constructor_child_pure_calls_exit checked 10366ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_constructor_computed_field_exit checked 11153ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/calls/runtime_constructor_projected_membership_snapshot_exit checked 10267ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/runtime_constructor_projected_membership_snapshot_exit checked 12120ms check-target:macos_arm64 @faebfb62fb37
 pass/calls/runtime_copied_argument_live_mutable_ensures_exit checked 10282ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_cross_machine_substate_name_exit checked 11069ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_cyclic_state_reference_result_exit checked 11399ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -4308,7 +4309,7 @@ pass/calls/runtime_guarded_terminal_reference_write_exit checked 10384ms check-t
 pass/calls/runtime_guarded_terminal_structural_result_exit checked 10209ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_heterogeneous_case_argument_exit checked 10426ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_indexed_scalar_calls_exit checked 11100ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/calls/runtime_inherited_membership_argument_snapshot_exit checked 10313ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/runtime_inherited_membership_argument_snapshot_exit checked 10967ms check-target:macos_arm64 @faebfb62fb37
 pass/calls/runtime_large_frame_foreign_call_floating_control_exit checked 10968ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_large_structural_frame_exit checked 11661ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_let_mut_reassign_exit checked 11285ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -4331,7 +4332,7 @@ pass/calls/runtime_mutable_local_parameter_write_exit checked 10932ms check-targ
 pass/calls/runtime_nested_case_argument_exit checked 11245ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_nested_case_subject_operand_order_exit checked 10451ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_nested_completed_operands_then_shared_borrow_exit checked 5872ms check-target:macos_arm64 @589aedee8ebc+wt
-pass/calls/runtime_nested_constructor_child_snapshots_exit checked 10370ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/runtime_nested_constructor_child_snapshots_exit checked 10856ms check-target:macos_arm64 @faebfb62fb37
 pass/calls/runtime_nested_local_field_store_exit checked 11358ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_nested_receiver_guard_exit checked 11324ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_nested_value_call_guard_exit checked 14471ms check-target:macos_arm64 @a9ae30e1c334+wt
