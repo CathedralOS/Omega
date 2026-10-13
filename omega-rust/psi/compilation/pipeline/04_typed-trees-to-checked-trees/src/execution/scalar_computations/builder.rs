@@ -422,6 +422,27 @@ impl Builder<'_, '_> {
         if let Some((constant, primitive)) = self.retained_constant(expression) {
             return (primitive == expected_type).then_some(constant);
         }
+        // A Boolean result rooted at an integer destination is the implicit
+        // `{0, 1}` coercion checking admits for a raw comparison or logical
+        // result (`value_classification`): `hits = value == 70`. It takes the
+        // node the explicit `(value == 70) as i32` cast takes
+        // (`integers.rs`), with the comparison itself as the source
+        // occurrence, so locals, fields and arguments share one lowering.
+        if is_integer(expected_type)
+            && expected_type != PrimitiveType::Addr
+            && semantic_casts::result_type(self.program, self.state, expression)
+                .and_then(|reference| self.program.primitive_type_reference(reference))
+                == Some(PrimitiveType::Bool)
+        {
+            let operand = self.expression(expression, PrimitiveType::Bool)?;
+            return Some(self.insert(
+                expected_type,
+                CheckedScalarComputationKind::BooleanToInteger {
+                    source_expression: expression,
+                    operand,
+                },
+            ));
+        }
 
         if let ExpressionNode::Name(name) = self.program.expression_table.expression(expression)
             && name.symbol == name.head_symbol

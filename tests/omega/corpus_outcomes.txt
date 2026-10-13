@@ -5836,6 +5836,7 @@ pass/expressions/owned_match_projected_field checked 1648ms @a9ae30e1c334+wt
 pass/expressions/owned_match_record_values checked 1568ms @a9ae30e1c334+wt
 pass/expressions/owned_match_values checked 1568ms @a9ae30e1c334+wt
 pass/expressions/qualified_call_result_argument checked 1625ms @a9ae30e1c334+wt
+pass/expressions/runtime_comparison_store_integer_exit checked 6018ms check-target:macos_arm64 @798538de5915+wt
 pass/expressions/runtime_flat_boolean_logic_exit checked 11198ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/expressions/runtime_float_record_field_reads_exit checked 11200ms check-target:macos_arm64 @9c4d1c444502
 pass/expressions/runtime_indexed_float_record_fields_exit checked 11087ms check-target:macos_arm64 @9c4d1c444502

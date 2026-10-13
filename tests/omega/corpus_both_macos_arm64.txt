@@ -425,6 +425,7 @@ pass/expressions/borrow_carrying_data_field_exit built 1274ms exit:70 interprete
 pass/expressions/declared_operator_match_result built 3170ms exit:70 interpreter-exit:70 interpreter:agrees @dfece6e7f6a1+wt
 pass/expressions/mixed_integer_comparison_places built 2717ms exit:70 interpreter-exit:70 interpreter:agrees @cba4ef8c9ab1
 pass/expressions/mixed_integer_comparison_widths built 2661ms exit:2 interpreter-exit:2 interpreter:agrees @cba4ef8c9ab1
+pass/expressions/runtime_comparison_store_integer_exit built 6188ms exit:70 interpreter-exit:70 interpreter:agrees @798538de5915+wt
 pass/expressions/runtime_float_record_field_reads_exit built 5654ms exit:70 interpreter-exit:70 interpreter:agrees @ffe8db2ea9e9
 pass/expressions/runtime_nested_record_field_call_exit built 1043ms exit:0 interpreter-exit:0 interpreter:agrees @91c11fd524d0
 pass/expressions/runtime_nested_record_field_reads_exit built 1814ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @ffe8db2ea9e9
