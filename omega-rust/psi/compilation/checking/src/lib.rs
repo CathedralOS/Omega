@@ -38,10 +38,10 @@ pub use declarations::standard_declarations::{
 use declarations::state_signatures::StateSignatureOwner;
 pub use machine_calls::boundary_calls::validate_boundary_calls;
 pub use machine_calls::calls::{
-    call_type_arguments, named_conformance_target_requirement,
-    nested_boundary_applications_compose, result_initializer_call_is_admitted,
-    unit_result_initializer_call_is_admitted, unit_return_call_is_admitted,
-    unit_statement_call_is_admitted,
+    call_type_arguments, closed_requirement_dispatch_is_valid,
+    named_conformance_target_requirement, nested_boundary_applications_compose,
+    result_initializer_call_is_admitted, unit_result_initializer_call_is_admitted,
+    unit_return_call_is_admitted, unit_statement_call_is_admitted,
 };
 pub use machine_calls::fact_only_citations::{
     fact_only_theorem, is_fact_only_citation, is_fact_only_citation_call,

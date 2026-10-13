@@ -257,3 +257,6 @@ pass/calls/runtime_guarded_reference_return_crash built 11964ms exit:signal sign
 pass/float/runtime_named_boundary_transition_exit built 11726ms exit:0 interpreter-exit:0 interpreter:agrees @0755e2c06ec1
 pass/operators/unqualified_boundary_transition checked 1909ms @0755e2c06ec1
 pass/structural/runtime_affine_local_successor_loans_exit built 6473ms exit:0 interpreter-exit:0 interpreter:agrees @0755e2c06ec1
+
+# W2-13: scoped closed scalar requirement composition qualification.
+pass/generics/runtime_static_requirement_complex_composition_exit built 17284ms exit:0 interpreter-exit:0 interpreter:agrees @b338d531fce8

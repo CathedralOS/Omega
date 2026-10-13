@@ -2,6 +2,8 @@
 // Numerical output oracle: fixtures.json and validate.py (both engines).
 use domain::input;
 use domain::report;
+use domain::complex;
+use numerics::complex::complex_carrier_ops::Complex;
 use omega::language::core::float_operations;
 use omega_language_std::math;
 use omega_language_std::console;
@@ -101,13 +103,17 @@ machine Application::main(application: &mut Application) reaches Console crashes
         let denominator_imaginary: f64 = application.ambient * application.substrate * application.b + application.c;
         let numerator_real: f64 = application.ambient * application.a - application.substrate * application.d;
         let numerator_imaginary: f64 = application.ambient * application.substrate * application.b - application.c;
-        let norm: f64 = denominator_real * denominator_real + denominator_imaginary * denominator_imaginary;
-        let reflection_real: f64 = (numerator_real * denominator_real + numerator_imaginary * denominator_imaginary) / norm;
-        let reflection_imaginary: f64 = (numerator_imaginary * denominator_real - numerator_real * denominator_imaginary) / norm;
-        let transmission_real: f64 = 2.0 * application.ambient * denominator_real / norm;
-        let transmission_imaginary: f64 = -2.0 * application.ambient * denominator_imaginary / norm;
-        let reflectance: f64 = reflection_real * reflection_real + reflection_imaginary * reflection_imaginary;
-        let transmittance: f64 = application.substrate / application.ambient * (transmission_real * transmission_real + transmission_imaginary * transmission_imaginary);
+        let denominator: Complex<f64> = Complex { real: denominator_real, imaginary: denominator_imaginary };
+        let reflection: Complex<f64> = quotient<f64, Double>(
+            Complex { real: numerator_real, imaginary: numerator_imaginary }, denominator);
+        let transmission: Complex<f64> = quotient<f64, Double>(
+            Complex { real: 2.0 * application.ambient, imaginary: 0.0 }, denominator);
+        let reflection_real: f64 = reflection.real;
+        let reflection_imaginary: f64 = reflection.imaginary;
+        let transmission_real: f64 = transmission.real;
+        let transmission_imaginary: f64 = transmission.imaginary;
+        let reflectance: f64 = norm<f64, Double>(reflection);
+        let transmittance: f64 = application.substrate / application.ambient * norm<f64, Double>(transmission);
         field(&mut application.reader, "wavelength_pico_nm=", application.wavelengths[application.index] * 1000000000000.0);
         field(&mut application.reader, "r_real_pico=", reflection_real * 1000000000000.0);
         field(&mut application.reader, "r_imaginary_pico=", reflection_imaginary * 1000000000000.0);

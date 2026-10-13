@@ -627,17 +627,71 @@ impl Builder<'_, '_> {
                 {
                     return self.dynamic_call(expression, &call, expected_type);
                 }
-                if !call.carries_only_positional_arguments() || !call.selects_only_nominal_route() {
+                let static_requirement_dispatch =
+                    if let Some(dispatch) = &call.static_requirement_dispatch {
+                        if !validation::closed_requirement_dispatch_is_valid(
+                            self.program,
+                            self.machine,
+                            call.target_symbol,
+                            dispatch,
+                        ) {
+                            return None;
+                        }
+                        let requirement = self
+                            .program
+                            .trait_machine_signatures(
+                                self.program
+                                    .trait_definition_by_symbol(dispatch.declaring_trait)?,
+                            )
+                            .iter()
+                            .find(|requirement| requirement.symbol == dispatch.requirement)?;
+                        // Source checking already admits the public telescope and
+                        // contracts under the closed application. Its return type
+                        // can still name a trait binder here; the selected checked
+                        // realization below supplies the closed result carrier.
+                        // Named witnesses need their dedicated output-binding route.
+                        if self
+                            .program
+                            .state_signature_contracts(requirement)
+                            .iter()
+                            .any(|contract| contract.binding.is_some())
+                        {
+                            return None;
+                        }
+                        Some(checked_trees::StaticRequirementDispatchFact {
+                            application_report_fingerprint: dispatch.application_report_fingerprint,
+                            application_commitment: dispatch.application_commitment,
+                            declaring_trait: dispatch.declaring_trait,
+                            requirement: dispatch.requirement,
+                            realization_machine: dispatch.realization_machine,
+                            realization_state: dispatch.realization_state,
+                        })
+                    } else {
+                        None
+                    };
+                if !call.carries_only_positional_arguments()
+                    || call.quotient_operation.is_some()
+                    || call.private_layout_operation.is_some()
+                    || call.layout_query.is_some()
+                {
                     return None;
                 }
-                if let Some(target) = boundary_calls::bodyless_boundary_target(
-                    self.program,
-                    self.selected_call_target(expression, &call),
-                ) {
+                if static_requirement_dispatch.is_none()
+                    && let Some(target) = boundary_calls::bodyless_boundary_target(
+                        self.program,
+                        self.selected_call_target(expression, &call),
+                    )
+                {
                     return self.boundary_call(expression, &call, target, expected_type);
                 }
                 let (target_machine, target_state) =
                     validation::find_machine_by_entry_state(self.program, call.target_symbol)?;
+                if static_requirement_dispatch.is_some()
+                    && target_machine.supply_mode
+                        != language_semantics::MachineSupplyMode::CheckedBody
+                {
+                    return None;
+                }
                 let has_runtime_receiver =
                     !self
                         .program
@@ -687,6 +741,7 @@ impl Builder<'_, '_> {
                 Some(self.insert(
                     expected_type,
                     CheckedScalarComputationKind::Call {
+                        static_requirement_dispatch,
                         callee: checked_trees::CheckedScalarCallee::Body {
                             machine: target_machine.symbol,
                             state: target_state.symbol,

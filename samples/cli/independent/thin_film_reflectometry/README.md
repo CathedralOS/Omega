@@ -28,7 +28,10 @@ omega update --project samples/cli/independent/thin_film_reflectometry --target 
 omega run samples/cli/independent/thin_film_reflectometry/main.omg < samples/cli/independent/thin_film_reflectometry/input.txt
 ```
 
-The application multiplies characteristic matrices. Fields use exp(-i omega t),
+The application multiplies characteristic matrices. Its amplitude quotient and
+power norm compose nested calls through an explicitly selected scalar arithmetic
+implementation, returning and consuming the canonical `numerics::Complex<T>`
+carrier. Fields use exp(-i omega t),
 with forward waves exp(+i k z). Reflection is referenced to the incident face;
 transmission to the substrate face. Each wavelength emits its wavelength,
 complex electric-field reflection and transmission amplitudes, and powers

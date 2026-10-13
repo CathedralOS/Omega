@@ -173,6 +173,8 @@ impl Expansion<'_> {
     pub(super) fn call(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        static_requirement_dispatch: Option<checked_trees::StaticRequirementDispatchFact>,
+        authored_expression: typed_trees::expression::ExpressionHandle,
         source_call: Handle<checked_trees::FlowCallFact>,
         callee: &checked_trees::CheckedScalarCallee,
         call_ordinal: u32,
@@ -191,6 +193,39 @@ impl Expansion<'_> {
             return unsupported("scalar computation lost its exact checked invocation");
         }
         let source = control.calls.get(source_call);
+        let expressions = &self.checked.typed.expression_table;
+        let source_dispatch = expressions
+            .expression_is_valid(source.authored_expression)
+            .then(|| expressions.call_node(source.authored_expression))
+            .flatten()
+            .and_then(|call| call.static_requirement_dispatch.as_ref());
+        match (static_requirement_dispatch, source_dispatch) {
+            (None, None) => {}
+            (Some(fact), Some(dispatch))
+                if source.authored_expression == authored_expression
+                    && fact.application_commitment == dispatch.application_commitment
+                    && fact.application_report_fingerprint
+                        == dispatch.application_report_fingerprint
+                    && fact.declaring_trait == dispatch.declaring_trait
+                    && fact.requirement == dispatch.requirement
+                    && fact.realization_machine == dispatch.realization_machine
+                    && fact.realization_state == dispatch.realization_state
+                    && callee.static_target()
+                        == Some((fact.realization_machine, fact.realization_state))
+                    && matches!(callee, checked_trees::CheckedScalarCallee::Body { .. })
+                    && validation::closed_requirement_dispatch_is_valid(
+                        &self.checked.typed,
+                        self.machine,
+                        source.target_symbol,
+                        dispatch,
+                    ) => {}
+            _ => {
+                return unsupported(
+                    "scalar computation lost its exact closed requirement selection",
+                );
+            }
+        }
+
         // A static callee names its machine and entry; a selector call names
         // its instantiated slot for both coordinates.
         let (target_machine, target_state) = callee

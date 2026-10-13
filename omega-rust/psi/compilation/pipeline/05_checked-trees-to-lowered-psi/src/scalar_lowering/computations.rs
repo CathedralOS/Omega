@@ -856,6 +856,7 @@ impl<'a> Expansion<'a> {
                 self.argument(identities, &operand, input_types, dispatch, site, active)?
             }
             CheckedScalarComputationKind::Call {
+                static_requirement_dispatch,
                 source_call,
                 callee,
                 call_ordinal,
@@ -865,6 +866,8 @@ impl<'a> Expansion<'a> {
                 claim_transfers,
             } => self.call(
                 identities,
+                static_requirement_dispatch,
+                node.authored_root,
                 source_call,
                 &callee,
                 call_ordinal,

@@ -302,6 +302,9 @@ pub enum CheckedScalarComputationKind {
     /// executable runs and, for a boundary, retains its separate contract and
     /// provider identity.
     Call {
+        /// Checked ordinary static selection. Named proof outputs and portable
+        /// boundary calls retain their separate execution and evidence routes.
+        static_requirement_dispatch: Option<crate::StaticRequirementDispatchFact>,
         source_call: Handle<crate::FlowCallFact>,
         callee: CheckedScalarCallee,
         /// Authored occurrence identity, not its position in execution order.

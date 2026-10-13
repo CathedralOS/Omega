@@ -50,6 +50,7 @@ impl Builder<'_, '_> {
         Some(self.insert(
             expected_type,
             CheckedScalarComputationKind::Call {
+                static_requirement_dispatch: None,
                 source_call,
                 callee: checked_trees::CheckedScalarCallee::Dynamic {
                     selector,
