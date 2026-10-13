@@ -344,7 +344,7 @@ crashes Trap
     }
 
     state append(parser: &mut Parser, parent: u64 in Trapping) {
-        parser.output.trait_parents[parser.output.trait_parent_count] = parent as u64;
+        parser.output.trait_parents[parser.output.trait_parent_count] = parent as u64 in Trapping;
         parser.output.trait_parent_count = parser.output.trait_parent_count + 1;
     }
 

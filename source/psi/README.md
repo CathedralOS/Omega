@@ -299,10 +299,9 @@ call's unit, whose parameters admit its arguments
 ([`typing/admission.omg`](typing/admission.omg)) is equal types, a landing, a
 value of type `Never`, a shared-reference parameter implicitly lending its
 referent or accepting an exclusive loan, a range slice lent as a view at any
-shared-reference destination, a range slice reached through an exclusive
-reference lent exclusively (an implementation gap against the settled
-[explicit mutable range rule](../../wiki/spec/language/expressions.md#borrowed-range-access),
-not permission for a bare range to acquire mutable access from its destination),
+shared-reference destination (a mutable subrange is written
+`&mut items[start..end]`; an expected `&mut [T]` never inserts the borrow,
+per the [explicit mutable range rule](../../wiki/spec/language/expressions.md#borrowed-range-access)),
 a reference to a whole array viewing it as a
 slice, a reference to a builtin scalar read as its referent, a quoted literal copied into an unqualified
 byte array of its exact length, or a payload-free case of generic data

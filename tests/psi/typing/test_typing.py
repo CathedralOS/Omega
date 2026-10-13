@@ -36,7 +36,7 @@ DIAGNOSTICS = (
     "UncoveredDispatch", "ImmutablePlace",
 )
 SELECTIONS = ("none", "machine", "state", "field", "length", "binder")
-ADAPTATIONS = ("", "landed", "lent", "qualified", "read", "lent exclusively")
+ADAPTATIONS = ("", "landed", "lent", "qualified", "read")
 
 
 @dataclass(frozen=True)
@@ -1423,21 +1423,36 @@ def main() -> None:
         "MismatchedTypes",
         b"token!2",
     )
-    # A reference to a whole array views it as a slice of its elements, and
-    # a range slice reached through an exclusive reference lends exclusively.
+    # A reference to a whole array views it as a slice of its elements. A
+    # mutable subrange is written `&mut items[start..end]`; an expected
+    # `&mut [T]` never inserts the borrow
+    # (wiki/spec/language/expressions.md#borrowed-range-access).
     accepted(
         program,
         "array-references-view-as-slices",
         b"machine see(v: &[u8]) {}\nmachine fill(v: &mut [u8]) {}\n"
         b"machine f(a: [u8; 4], b: &mut [u8; 4]) {\n"
-        b"    see(&a);\n    fill(b);\n    see(b);\n    let held: &mut [u8] = b[1..3];\n}",
-        ((b"&a", "&[u8; 4]"), (b"b[1..3]", "[u8]")),
-        adaptations=((b"b[1..3]", "lent exclusively"),),
+        b"    see(&a);\n    fill(b);\n    see(b);\n    let held: &mut [u8] = &mut b[1..3];\n    fill(held);\n}",
+        ((b"&a", "&[u8; 4]"), (b"b[1..3]", "[u8]"), (b"&mut b[1..3]", "&mut [u8]")),
+    )
+    rejected(
+        program,
+        "a-bare-range-never-lends-exclusively",
+        b"machine f(b: &mut [u8; 4]) { let held: &mut [u8] = b[1..3]; }",
+        "MismatchedTypes",
+        b"b[1..3]",
+    )
+    rejected(
+        program,
+        "a-bare-range-argument-never-lends-exclusively",
+        b"machine fill(v: &mut [u8]) {}\nmachine f(b: &mut [u8; 4]) { fill(b[1..3]); }",
+        "MismatchedTypes",
+        b"b[1..3]",
     )
     rejected(
         program,
         "an-exclusive-slice-needs-an-exclusive-reference",
-        b"machine f(a: &[u8; 4]) { let held: &mut [u8] = a[1..3]; }",
+        b"machine f(a: &[u8; 4]) { let held: &mut [u8] = &mut a[1..3]; }",
         "MismatchedTypes",
         b"a[1..3]",
     )

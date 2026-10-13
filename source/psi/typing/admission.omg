@@ -38,7 +38,6 @@ pub data Admission [copy] {
     case SharedLend;
     case Qualified;
     case Read;
-    case ExclusiveLend;
 }
 
 pub machine Typer::admission(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> Admission
@@ -164,24 +163,17 @@ crashes Trap
         let viewed: bool = Typer::views_array(typer, wanted, given);
         transition viewed {
             true -> exact()
-            _ -> access(typer, syntax, wanted, given, actual, expression)
+            _ -> access(wanted, given, actual)
         }
     }
 
-    state access(typer: &Typer, syntax: &SyntaxTrees, wanted: TypeRow, given: TypeRow, actual: u64 in Trapping, expression: u64 in Trapping) -> Admission {
+    // A bare range meets only a shared-reference destination: a mutable
+    // subrange is written `&mut items[start..end]`, and an expected
+    // `&mut [T]` never inserts the borrow
+    // (wiki/spec/language/expressions.md#borrowed-range-access).
+    state access(wanted: TypeRow, given: TypeRow, actual: u64 in Trapping) -> Admission {
         transition wanted.access == ReferenceAccess::Shared {
             true -> shared(wanted, given, actual)
-            _ -> exclusive(typer, syntax, wanted, actual, expression)
-        }
-    }
-
-    // An exclusive-reference destination lends a range slice whose
-    // collection is reached through an exclusive reference, its write
-    // authority.
-    state exclusive(typer: &Typer, syntax: &SyntaxTrees, wanted: TypeRow, actual: u64 in Trapping, expression: u64 in Trapping) -> Admission {
-        let writable: bool = Typer::exclusive_range_slice(typer, syntax, expression);
-        transition actual == wanted.inner && writable {
-            true -> lend_exclusively()
             _ -> rejected()
         }
     }
@@ -230,10 +222,6 @@ crashes Trap
 
     state reading() -> Admission {
         Admission::Read
-    }
-
-    state lend_exclusively() -> Admission {
-        Admission::ExclusiveLend
     }
 
     state rejected() -> Admission {
@@ -319,7 +307,6 @@ crashes Trap
         Admission::SharedLend -> lent(typer, syntax, written, expression, lend)
         Admission::Qualified -> qualified(typer, expression)
         Admission::Read -> read(typer, expression)
-        Admission::ExclusiveLend -> lent_exclusively(typer, expression)
         Admission::OutOfRange -> reject(typer, written, TypeDiagnosticCode::LiteralOutOfRange)
         Admission::NotAValue -> reject(typer, written, TypeDiagnosticCode::NotAValue)
         Admission::Rejected -> reject(typer, written, TypeDiagnosticCode::MismatchedTypes)
@@ -361,11 +348,6 @@ crashes Trap
 
     state read(typer: &mut Typer, expression: u64 in Trapping) -> bool {
         Typing::set_adaptation(&mut typer.output, expression, Adaptation::Read);
-        transition { _ -> admitted() }
-    }
-
-    state lent_exclusively(typer: &mut Typer, expression: u64 in Trapping) -> bool {
-        Typing::set_adaptation(&mut typer.output, expression, Adaptation::ExclusiveLend);
         transition { _ -> admitted() }
     }
 
@@ -420,7 +402,6 @@ crashes Trap
         Admission::SharedLend -> yes()
         Admission::Qualified -> yes()
         Admission::Read -> yes()
-        Admission::ExclusiveLend -> yes()
         _ -> no()
     }
 
@@ -458,38 +439,3 @@ crashes Trap
     }
 }
 
-// Whether `expression` is a range slice whose collection is reached
-// through an exclusive reference at some step of its place.
-pub machine Typer::exclusive_range_slice(typer: &Typer, syntax: &SyntaxTrees, expression: u64 in Trapping) -> bool
-crashes Trap
-{
-    let written: Expression = SyntaxTrees::expression(syntax, expression);
-    let selector: Expression = SyntaxTrees::expression(syntax, written.right);
-    transition written.kind == ExpressionKind::Index && selector.kind == ExpressionKind::Range {
-        true -> step(typer, syntax, written.left, 0)
-        _ -> answer(false)
-    }
-
-    state step(typer: &Typer, syntax: &SyntaxTrees, node: u64 in Trapping, walked: u64 in Trapping) -> bool {
-        let node_type: u64 in Trapping = Typing::expression_type(&typer.output, node);
-        let row: TypeRow = TypeTable::row(&typer.output.types, node_type);
-        let place: Expression = SyntaxTrees::expression(syntax, node);
-        let exclusive: bool = row.kind == TypeKind::Reference && row.access == ReferenceAccess::Mutable;
-        let projected: bool = place.kind == ExpressionKind::Field || place.kind == ExpressionKind::Index;
-        transition exclusive {
-            true -> answer(true)
-            _ -> deeper(typer, syntax, place.left, walked, projected)
-        }
-    }
-
-    state deeper(typer: &Typer, syntax: &SyntaxTrees, base: u64 in Trapping, walked: u64 in Trapping, projected: bool) -> bool {
-        transition projected && walked < 64 {
-            true -> step(typer, syntax, base, walked + 1)
-            _ -> answer(false)
-        }
-    }
-
-    state answer(found: bool) -> bool {
-        found
-    }
-}

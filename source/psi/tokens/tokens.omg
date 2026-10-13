@@ -206,7 +206,7 @@ machine TokenStream::push_decoded(token_stream: &mut TokenStream, byte: u8) {
     }
 
     state retain(token_stream: &mut TokenStream, byte: u8) {
-        token_stream.decoded[token_stream.decoded_length] = byte;
+        token_stream.decoded[token_stream.decoded_length] = byte as u8 in Trapping;
         token_stream.decoded_length = token_stream.decoded_length + 1;
         token_stream.last_retained = true;
     }

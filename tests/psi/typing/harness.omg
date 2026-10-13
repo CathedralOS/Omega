@@ -708,7 +708,6 @@ machine TypingHarness::adaptation_tag(value: Adaptation) -> u8 {
         Adaptation::SharedLend -> tag(2)
         Adaptation::Qualified -> tag(3)
         Adaptation::Read -> tag(4)
-        Adaptation::ExclusiveLend -> tag(5)
     }
 
     state tag(number: u8) -> u8 {

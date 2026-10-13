@@ -1040,7 +1040,7 @@ crashes Trap
     }
 
     state stage(parser: &mut Parser, subject: u64 in Trapping) {
-        parser.ranked_subjects[parser.ranked_subject_count] = subject as u64;
+        parser.ranked_subjects[parser.ranked_subject_count] = subject as u64 in Trapping;
         parser.ranked_subject_count = parser.ranked_subject_count + 1;
     }
 
@@ -1073,7 +1073,7 @@ crashes Trap
     }
 
     state copy(parser: &mut Parser, input: &TokenStream, cursor: u64 in Trapping) {
-        parser.output.arguments[parser.output.argument_count] = parser.ranked_subjects[cursor] as u64;
+        parser.output.arguments[parser.output.argument_count] = parser.ranked_subjects[cursor] as u64 in Trapping;
         parser.output.argument_count = parser.output.argument_count + 1;
         transition { _ -> next(parser, input, cursor + 1) }
     }

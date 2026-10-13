@@ -42,7 +42,7 @@ machine SourceUnit::append(source_unit: &mut SourceUnit, byte: u8) {
     }
 
     state retain(source_unit: &mut SourceUnit, byte: u8) {
-        source_unit.bytes[source_unit.length] = byte;
+        source_unit.bytes[source_unit.length] = byte as u8 in Trapping;
         source_unit.length = source_unit.length + 1;
         source_unit.last_retained = true;
     }
@@ -105,7 +105,7 @@ pub machine ModulePath::append(module_path: &mut ModulePath, byte: u8) -> bool {
     }
 
     state retain(module_path: &mut ModulePath, byte: u8) -> bool {
-        module_path.bytes[module_path.length] = byte;
+        module_path.bytes[module_path.length] = byte as u8 in Trapping;
         module_path.length = module_path.length + 1;
         true
     }
@@ -234,7 +234,7 @@ crashes Trap
         at: u64 in Trapping,
         byte: u8
     ) -> bool {
-        sources.bytes[at] = byte;
+        sources.bytes[at] = byte as u8 in Trapping;
         transition { _ -> bytes(sources, unit, package, path, index + 1) }
     }
 
@@ -263,7 +263,7 @@ crashes Trap
     {
         sources.units[unit_count] = SourceRange { start: unit_start, length: unit_length };
         sources.paths[unit_count] = path;
-        sources.unit_packages[unit_count] = package as u64;
+        sources.unit_packages[unit_count] = package as u64 in Trapping;
         sources.byte_count = unit_end as u64;
         sources.unit_count = (unit_count + 1) as u64;
         true
@@ -389,7 +389,7 @@ crashes Trap
     }
 
     state store(sources: &mut SourceSet, name: &ModulePath, index: u64 in Trapping, at: u64 in Trapping) -> SourceRange {
-        sources.path_bytes[at] = name.bytes[index] as u8;
+        sources.path_bytes[at] = name.bytes[index] as u8 in Trapping;
         transition { _ -> next(sources, name, index + 1) }
     }
 

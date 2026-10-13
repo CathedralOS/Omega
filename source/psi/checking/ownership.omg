@@ -726,7 +726,6 @@ crashes Trap
     let adaptation: Adaptation = Typing::adaptation(typing, node);
     transition adaptation {
         Adaptation::SharedLend -> set(checker, node, UseRole::Borrow)
-        Adaptation::ExclusiveLend -> set(checker, node, UseRole::Exclusive)
         _ -> set(checker, node, role)
     }
 

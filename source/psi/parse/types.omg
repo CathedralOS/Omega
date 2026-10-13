@@ -633,7 +633,7 @@ crashes Trap
     }
 
     state stage(parser: &mut Parser, argument: u64 in Trapping) {
-        parser.pending_type_arguments[parser.pending_type_argument_count] = argument as u64;
+        parser.pending_type_arguments[parser.pending_type_argument_count] = argument as u64 in Trapping;
         parser.pending_type_argument_count = parser.pending_type_argument_count + 1;
     }
 
@@ -667,7 +667,7 @@ crashes Trap
     }
 
     state copy(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping, cursor: u64 in Trapping) {
-        parser.output.type_arguments[parser.output.type_argument_count] = parser.pending_type_arguments[cursor] as u64;
+        parser.output.type_arguments[parser.output.type_argument_count] = parser.pending_type_arguments[cursor] as u64 in Trapping;
         parser.output.type_argument_count = parser.output.type_argument_count + 1;
         transition { _ -> next(parser, input, base, cursor + 1) }
     }

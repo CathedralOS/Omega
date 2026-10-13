@@ -1457,7 +1457,7 @@ crashes Trap
     }
 
     state push(parser: &mut Parser, handle: u64 in Trapping) {
-        parser.expression_operands[parser.expression_operand_depth] = handle as u64;
+        parser.expression_operands[parser.expression_operand_depth] = handle as u64 in Trapping;
         parser.expression_operand_depth = parser.expression_operand_depth + 1;
     }
 
@@ -2075,7 +2075,7 @@ crashes Trap
     }
 
     state stage(parser: &mut Parser, argument: u64 in Trapping) {
-        parser.pending_arguments[parser.pending_argument_count] = argument as u64;
+        parser.pending_arguments[parser.pending_argument_count] = argument as u64 in Trapping;
         parser.pending_argument_count = parser.pending_argument_count + 1;
     }
 
@@ -2137,7 +2137,7 @@ crashes Trap
     }
 
     state copy(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping, cursor: u64 in Trapping) {
-        parser.output.arguments[parser.output.argument_count] = parser.pending_arguments[cursor] as u64;
+        parser.output.arguments[parser.output.argument_count] = parser.pending_arguments[cursor] as u64 in Trapping;
         parser.output.argument_count = parser.output.argument_count + 1;
         transition { _ -> next(parser, input, base, cursor + 1) }
     }

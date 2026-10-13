@@ -485,7 +485,6 @@ crashes Trap
     state adapted(typing: &Typing, handle: u64 in Trapping, expression: Expression, adaptation: Adaptation, role: UseRole) -> Hold {
         transition adaptation {
             Adaptation::SharedLend -> answer(Hold::Shared { place: handle })
-            Adaptation::ExclusiveLend -> answer(Hold::Exclusive { place: handle })
             Adaptation::Read -> answer(Hold::Released)
             _ -> written(typing, handle, expression, role)
         }

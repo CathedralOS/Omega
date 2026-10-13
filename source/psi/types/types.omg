@@ -100,9 +100,6 @@ pub data Adaptation [copy] {
     // A reference to a builtin scalar read where the scalar is needed: the
     // value is its referent's.
     case Read;
-    // A range slice an exclusive-reference destination lends, through an
-    // exclusive reference to its collection.
-    case ExclusiveLend;
 }
 
 pub data TypeDiagnosticCode [copy] {
