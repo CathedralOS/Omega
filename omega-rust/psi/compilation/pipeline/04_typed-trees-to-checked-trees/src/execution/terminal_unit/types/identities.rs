@@ -50,35 +50,6 @@ pub(in crate::execution::terminal_unit) fn structural_access_for_type_reference(
     (!is_reference(program, shell.referee)).then(|| shell.access.into())
 }
 
-/// A boundary lends established non-linear storage rather than transferring
-/// plain owned contents. Shared descriptor members stay with that storage's
-/// owner, as they do for ordinary borrowed calls. The classifier establishes
-/// no reference lifetime, qualification or native pointer value. Nested root
-/// references and write-only authority still need their own transport protocol.
-pub(in crate::execution::terminal_unit) fn boundary_borrowed_referent(
-    program: &dyn ::validation::CheckingInput,
-    reference: TypeReferenceHandle,
-) -> Option<TypeReferenceHandle> {
-    let TypeReferenceNode::Reference {
-        access:
-            language_semantics::ReferenceAccess::Shared | language_semantics::ReferenceAccess::Mutable,
-        referee,
-        ..
-    } = program.type_reference_table.type_reference(reference)
-    else {
-        return None;
-    };
-    (!is_reference(program, *referee)
-        && program.type_multiplicity(*referee) != Multiplicity::Linear
-        && has_contents(
-            program,
-            *referee,
-            &[],
-            validation::ContentsRequirement::BorrowedStorage,
-        ))
-    .then_some(*referee)
-}
-
 /// The identity a byte carrier's structural plan registers under, or `None`
 /// when `type_reference` is not a byte carrier. The identity rule itself —
 /// which shells a view, a bounded view and a bounded owner keep — belongs to

@@ -287,27 +287,28 @@ fn estimated_trait_contract_fact_capacity_for_machine(
     direct.saturating_add(inherited)
 }
 
+/// The state that owes `requirement`'s contract facts through `machine`'s
+/// own conformance row. Every row names one exact requirement, so each
+/// implementing machine appends its own requirement's facts when its turn
+/// comes; a sibling requirement of the same trait is that sibling's row to
+/// publish. Appending it here as well, located through a same-named sibling
+/// state, restated one requirement once per conforming machine of the
+/// attached type (ten rows for one clause on a ten-leaf provider) under a
+/// conformance edge the sibling never authored.
 fn trait_requirement_state_symbols(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     trait_symbol: SymbolHandle,
     requirement: &typed_trees::signature::StateSignature,
 ) -> Option<(SymbolHandle, SymbolHandle)> {
-    if machine_selects_exact_requirement(program, machine, trait_symbol, requirement) {
-        return program
-            .machine_states(machine)
-            .first()
-            .map(|state| (machine.symbol, state.symbol));
-    }
-    trait_conformance_candidate_machines(program, machine)
-        .into_iter()
-        .find_map(|candidate| {
+    machine_selects_exact_requirement(program, machine, trait_symbol, requirement)
+        .then(|| {
             program
-                .machine_states(candidate)
-                .iter()
-                .find(|state| state.name == requirement.name)
-                .map(|state| (candidate.symbol, state.symbol))
+                .machine_states(machine)
+                .first()
+                .map(|state| (machine.symbol, state.symbol))
         })
+        .flatten()
 }
 
 fn machine_selects_exact_requirement(
@@ -326,23 +327,6 @@ fn machine_selects_exact_requirement(
                     .as_ref()
                     .is_some_and(|name| *name == requirement.name)
         })
-}
-
-fn trait_conformance_candidate_machines<'program>(
-    program: &'program dyn ::validation::CheckingInput,
-    machine: &'program typed_trees::machine::Machine,
-) -> Vec<&'program typed_trees::machine::Machine> {
-    let Some(attached_data) = machine.attached_data.as_ref() else {
-        return vec![machine];
-    };
-
-    let mut candidates = Vec::new();
-    candidates.push(machine);
-    candidates.extend(program.machines().iter().filter(|candidate| {
-        !std::ptr::eq(*candidate, machine)
-            && candidate.attached_data.as_ref() == Some(attached_data)
-    }));
-    candidates
 }
 
 fn trait_definition_by_symbol(

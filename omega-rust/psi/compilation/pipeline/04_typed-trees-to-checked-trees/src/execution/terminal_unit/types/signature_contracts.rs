@@ -108,12 +108,18 @@ pub(in crate::execution::terminal_unit) fn boundary_domain_requirements(
     binders: &[(SymbolHandle, String)],
 ) -> Option<Vec<CheckedUnitStructuralDomainRequirementPlan>> {
     let source_parameters = program.state_parameters(state);
+    // A satisfying machine's state also carries the rows its conformance
+    // inherits from the trait requirement. Those restate a clause the
+    // conformance check already matched against this signature, and their
+    // membership expressions name the requirement's own formals, not this
+    // state's parameters; the authored clauses alone describe the plan.
     let checked_requires = facts
         .proof
         .contract_facts
         .iter()
         .filter(|(_, fact)| {
             fact.kind == ContractProofFactKind::Requires
+                && fact.inherited_scope.is_none()
                 && (matches!(
                     fact.owner,
                     ContractProofFactOwner::Machine { machine_symbol }

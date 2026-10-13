@@ -6,18 +6,17 @@
 //! still requires its separately checked authorization route.
 
 use crate::execution::terminal_unit::calls::{
-    boundary_owner_scalar_signature, free_structural_scalar_signature,
+    boundary_owner_scalar_signature, free_structural_scalar_signature, parameter_signatures,
 };
+use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::{
-    ShapeCollector, boundary_borrowed_referent, boundary_domain_requirements,
-    fold_authorized_result_domains, is_unit, machine_binders, parameter_qualifications,
-    projected_parameter_qualifications, structural_access_for_type_reference,
+    ShapeCollector, boundary_domain_requirements, fold_authorized_result_domains, is_unit,
+    machine_binders, parameter_qualifications, projected_parameter_qualifications,
+    substituted_formal_type,
 };
-use crate::execution::terminal_unit::types::{byte_sequence_carrier, substituted_formal_type};
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan,
-    CheckedStructuralScalarParameterPlan, CheckedUnitStructuralDomainRequirementPlan,
-    CheckedUnitStructuralParameterPlan, SymbolHandle, is_reference,
+    CheckedUnitStructuralDomainRequirementPlan, SymbolHandle, is_reference,
 };
 
 pub(crate) fn build_boundary_machine(
@@ -182,6 +181,7 @@ pub(crate) fn build_dynamic_slot_plans(
                 program,
                 shapes,
                 &slot.parameters,
+                &[],
                 &[],
                 &crate::execution::terminal_unit::control::LocalConstructionTrace::default(),
             )
@@ -353,11 +353,13 @@ pub(crate) fn build_static_boundary_requirements(
             else {
                 continue;
             };
-            let Some((structural_parameters, scalar_parameters)) = boundary_parameters(
+            let Some((structural_parameters, scalar_parameters)) = parameter_signatures(
                 program,
                 shapes,
-                program.state_signature_parameters(signature).iter(),
+                program.state_signature_parameters(signature),
+                &[],
                 &substitutions,
+                &LocalConstructionTrace::default(),
             ) else {
                 continue;
             };
@@ -459,79 +461,6 @@ pub(crate) fn build_static_boundary_requirements(
     plans
 }
 
-/// Shared runtime parameter projection for bodyless requirements. A trait
-/// requirement's parameters are exactly its authored ones, with no provider
-/// receiver to omit; an operator's receiver is an actual operand and retains
-/// its position, type, and access like every other input.
-fn boundary_parameters<'program>(
-    program: &dyn ::validation::CheckingInput,
-    shapes: &mut ShapeCollector<'_>,
-    parameters: impl Iterator<Item = &'program typed_trees::signature::StateParameter>,
-    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
-) -> Option<(
-    Vec<CheckedUnitStructuralParameterPlan>,
-    Vec<CheckedStructuralScalarParameterPlan>,
-)> {
-    let mut structural_parameters = Vec::new();
-    let mut scalar_parameters = Vec::new();
-    for (position, parameter) in parameters.enumerate() {
-        // Erased foreign positions still have no agreed runtime transfer.
-        if parameter.relevance.is_erased() {
-            return None;
-        }
-        let source_position = u32::try_from(position).ok()?;
-        let parameter_type =
-            substituted_formal_type(program, parameter.type_reference, substitutions);
-        // An exclusive reference already retains its access. Owned mutable
-        // primitive destinations require no caller-side storage; other mutable
-        // owned carriers remain outside the current boundary presentation.
-        if parameter.is_const
-            || (parameter.is_mutable
-                && !is_reference(program, parameter_type)
-                && crate::values::mutable_scalar_parameter_type(program, parameter).is_none())
-        {
-            return None;
-        }
-        if let Some(primitive_type) = program.primitive_type_reference(parameter_type) {
-            scalar_parameters.push(CheckedStructuralScalarParameterPlan {
-                source_position,
-                primitive_type,
-            });
-            continue;
-        }
-        let type_identity = shapes.add_type(parameter_type, &[], substitutions)?;
-        let qualifications = parameter_qualifications(program, shapes, parameter_type, &[])?;
-        // This is a loan of established storage, not an owned ABI copy.
-        // Stored shared descriptors keep their original custody; borrowing
-        // the containing record neither dereferences nor copies them. Exact
-        // access, qualifications and native marshaling remain separate checks.
-        if is_reference(program, parameter_type)
-            && !byte_sequence_carrier(program, parameter_type, &[])
-                .is_some_and(checked_trees::CheckedByteSequenceCarrier::is_borrowed)
-            && !(qualifications.is_empty()
-                && boundary_borrowed_referent(program, parameter_type).is_some())
-        {
-            return None;
-        }
-        structural_parameters.push(CheckedUnitStructuralParameterPlan {
-            position: source_position,
-            primitive_referent: shapes.primitive_scalar(type_identity),
-            type_identity,
-            multiplicity: crate::checks::type_multiplicity(program, parameter_type),
-            access: structural_access_for_type_reference(program, parameter_type)?,
-            qualifications,
-            projected_qualifications: projected_parameter_qualifications(
-                program,
-                shapes,
-                parameter_type,
-                &[],
-            )?,
-            binding_carrier: None,
-        });
-    }
-    Some((structural_parameters, scalar_parameters))
-}
-
 /// Legacy operator syntax declares the same portable requirement as a
 /// bodyless call. Its authored symbol owns the signature and contract; no
 /// synthetic machine or selected provider may replace that identity.
@@ -548,11 +477,13 @@ fn build_boundary_operator(
         .contract_plans
         .crash_capsule(operator.symbol, operator.symbol)?;
     let result = boundary_result_plan(program, shapes, operator.return_type, &[], &[])?;
-    let (structural_parameters, scalar_parameters) = boundary_parameters(
+    let (structural_parameters, scalar_parameters) = parameter_signatures(
         program,
         shapes,
-        program.operator_parameters(operator).iter(),
+        program.operator_parameters(operator),
         &[],
+        &[],
+        &LocalConstructionTrace::default(),
     )?;
     let mut scalar_requires = Vec::new();
     for contract in program.operator_contracts(operator) {

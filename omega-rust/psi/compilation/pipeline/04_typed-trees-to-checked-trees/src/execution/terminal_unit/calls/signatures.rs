@@ -4,7 +4,7 @@
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::{
     ShapeCollector, parameter_qualifications, projected_parameter_qualifications,
-    structural_access_for_type_reference,
+    structural_access_for_type_reference, substituted_formal_type,
 };
 use crate::execution::terminal_unit::{
     CarryPolicy, CheckFacts, CheckedStructuralAccess, CheckedStructuralScalarParameterPlan,
@@ -384,18 +384,24 @@ fn scalar_and_structural_parameters(
         shapes,
         program.state_parameters(state),
         binders,
+        &[],
         trace,
     )
 }
 
-/// Classify a checked callee's formals into its scalar and structural
-/// lanes. A typed state and a selector call's instantiated slot present
-/// their formals to callers identically.
+/// Classify a callee's formals into its scalar and structural lanes. A
+/// typed state, a selector call's instantiated slot, a bodyless attached
+/// boundary declaration and a boundary-trait requirement all present their
+/// formals to callers identically, so one classifier serves every plan: a
+/// requirement's plan and its adapters' plans must describe one signature.
+/// `substitutions` close a prepared requirement's generic formals to the
+/// specialization every checked call retained; an ordinary state passes none.
 pub(crate) fn parameter_signatures(
     program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
     parameters: &[StateParameter],
     binders: &[(SymbolHandle, String)],
+    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
     trace: &LocalConstructionTrace,
 ) -> Option<(
     Vec<CheckedUnitStructuralParameterPlan>,
@@ -409,10 +415,9 @@ pub(crate) fn parameter_signatures(
             continue;
         }
         let source_position = u32::try_from(position).ok()?;
-        if program
-            .primitive_type_reference(parameter.type_reference)
-            .is_some()
-        {
+        let parameter_type =
+            substituted_formal_type(program, parameter.type_reference, substitutions);
+        if program.primitive_type_reference(parameter_type).is_some() {
             trace.phase("state graph: state signature: parameter signature: scalar parameter");
             scalar_parameters.push(scalar_parameter_signature(program, position, parameter)?);
             continue;
@@ -426,7 +431,7 @@ pub(crate) fn parameter_signatures(
             if typed_trees::service::classify_exact_service_parameter_carrier(
                 program,
                 typed_trees::service::ServiceCarrierOccurrence {
-                    type_reference: parameter.type_reference,
+                    type_reference: parameter_type,
                     lexical_owner: parameter.symbol,
                     enclosing_data_applications: &[],
                 },
@@ -440,27 +445,23 @@ pub(crate) fn parameter_signatures(
                     return None;
                 }
                 trace.phase("state graph: state signature: parameter signature: binding receipt");
-                let (identity, receipt) = shapes.add_binding_parameter_type(
-                    parameter.type_reference,
-                    parameter.symbol,
-                    binders,
-                )?;
+                let (identity, receipt) =
+                    shapes.add_binding_parameter_type(parameter_type, parameter.symbol, binders)?;
                 (identity, Some(receipt))
             } else {
                 trace.phase(
                     "state graph: state signature: parameter signature: ordinary structural type",
                 );
                 (
-                    shapes.add_type(parameter.type_reference, binders, &[])?,
+                    shapes.add_type(parameter_type, binders, substitutions)?,
                     None,
                 )
             };
         trace.phase("state graph: state signature: parameter signature: parameter qualifications");
-        let qualifications =
-            parameter_qualifications(program, shapes, parameter.type_reference, binders)?;
-        let multiplicity = crate::checks::type_multiplicity(program, parameter.type_reference);
+        let qualifications = parameter_qualifications(program, shapes, parameter_type, binders)?;
+        let multiplicity = crate::checks::type_multiplicity(program, parameter_type);
         trace.phase("state graph: state signature: parameter signature: parameter access");
-        let access = structural_access_for_type_reference(program, parameter.type_reference)?;
+        let access = structural_access_for_type_reference(program, parameter_type)?;
         if binding_carrier.is_some()
             && (!service_parameter_access_matches(multiplicity, access)
                 || parameter.is_mutable != (access == CheckedStructuralAccess::MutableBorrow)
@@ -472,7 +473,7 @@ pub(crate) fn parameter_signatures(
         let projected_qualifications = if binding_carrier.is_some() {
             Vec::new()
         } else {
-            projected_parameter_qualifications(program, shapes, parameter.type_reference, binders)?
+            projected_parameter_qualifications(program, shapes, parameter_type, binders)?
         };
         structural_parameters.push(CheckedUnitStructuralParameterPlan {
             position: source_position,

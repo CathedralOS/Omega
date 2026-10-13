@@ -3116,6 +3116,8 @@ fail/providers/binding_formal_runtime_operand rejected 243ms expected @a8cedb394
 	machine `bad` state `entry` parameter `binding` uses an invalid routed service carrier: open operands do not close a requirement instance
 fail/providers/borrowed_binding_local_fabricated_carrier rejected 123ms expected @619f89e4fed6+wt
 	opaque boundary data `Binding` has no public constructor; a boundary provider must establish its values
+fail/providers/boundary_lent_linear_satisfier_narrowed rejected 939ms expected @a8e8aff75d6e+wt
+	machine `TokenScaleProvider::weigh` state `weigh` does not satisfy trait `TokenScale` machine `weigh` parameter `token`: expected `&Token`, got `&Token[in Token::Issued]`
 fail/providers/checked_boundary_operator_const_application_unselected rejected 4143ms expected @4ffd613e37f1
 	fixed-array length `[u8; limit()]`: const evaluation of `limit` failed: machine `limit` is not build-time admissible: machine call path `limit -> Math::remainder` reaches a requirement that requires exact authored selection before evaluation; the evaluator cannot execute a bodyless requirement; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
 fail/providers/checked_boundary_operator_missing_contract rejected 1307ms expected @a9ae30e1c334+wt
@@ -6102,6 +6104,7 @@ pass/providers/runtime_adapter_dispatch_exit checked 11788ms check-target:macos_
 pass/providers/runtime_boundary_array_construction_exit checked 11278ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/runtime_boundary_array_forwarding_exit checked 11348ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/runtime_boundary_array_result_exit checked 11091ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/providers/runtime_boundary_linear_borrowed_argument_exit checked 4495ms check-target:macos_arm64 @a8e8aff75d6e+wt
 pass/providers/runtime_boundary_linear_result_exit checked 5080ms check-target:macos_arm64 @20ad71d6e3a6+wt
 pass/providers/runtime_boundary_owned_array_cycle_exit checked 11933ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/runtime_boundary_primitive_array_argument_exit checked 11479ms check-target:macos_arm64 @a9ae30e1c334+wt

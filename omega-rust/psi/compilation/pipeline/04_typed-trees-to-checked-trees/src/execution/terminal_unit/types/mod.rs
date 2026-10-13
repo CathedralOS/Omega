@@ -19,8 +19,6 @@ mod scalar_fields;
 pub(crate) use scalar_fields::field_requires_place_observation;
 pub(super) use scalar_fields::{retain_scalar_field, supports_primitive_storage};
 
-pub(super) use validation::has_contents;
-
 mod affine_discards;
 mod identities;
 mod parameters;

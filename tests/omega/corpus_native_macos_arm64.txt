@@ -1533,6 +1533,7 @@ pass/providers/runtime_adapter_dispatch_exit built 576ms exit:70
 pass/providers/runtime_boundary_array_construction_exit built 2510ms exit:70 @b6846d69ce88+wt
 pass/providers/runtime_boundary_array_forwarding_exit built 6861ms exit:70 @72a43a5bee12+wt
 pass/providers/runtime_boundary_array_result_exit built 1437ms exit:70 @c5756d3f7761+wt
+pass/providers/runtime_boundary_linear_borrowed_argument_exit built 4951ms exit:70 @a8e8aff75d6e+wt
 pass/providers/runtime_boundary_linear_result_exit built 4902ms exit:70 @20ad71d6e3a6+wt
 pass/providers/runtime_boundary_owned_array_cycle_exit built 1029ms exit:70 @cba4afbf6f2f+wt
 pass/providers/runtime_boundary_primitive_array_argument_exit built 901ms exit:70

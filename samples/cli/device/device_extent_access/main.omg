@@ -17,12 +17,15 @@
 // The two drivers below check the full protocol — reserve, lend, publish,
 // notify, settle, maintain_cache, complete, acquire, release — including
 // Pending-retry custody. They are deliberately unreachable from the bound
-// entry: `Main::main` must stay a Terminal unit, and unit plans admit no
-// BoundaryOpaque types in state or callee signatures, so no reachable state
-// can carry a live `DeviceLoan` or `DeviceOrderingEvent` across a
-// transition. Boundary-data unit plans and native realization of the ten
-// crossings are the toolchain's next edges; this sample pins the checked
-// contract.
+// entry: the native product carries every accepted `DeviceLoanProvider`
+// requirement plan and the ten intrinsic leaves as checked boundary plans
+// (a requirement lending a linear opaque, `publish(loan: &DeviceLoan)`,
+// included), but the toolchain's closed compiler-intrinsic inventory realizes
+// no device crossing yet, so a reachable driver would stop at provider
+// admission. Native realization of the ten crossings is the next edge; this
+// sample pins the checked contract and the inert entry's native build.
+//
+// Expected exit: 0.
 
 use omega::language::core::device;
 use omega::language::core::extent;
