@@ -161,7 +161,43 @@ fn storage_path<'types>(
     let mut byte_offset = 0_u64;
     let mut repeated_stride = None;
     let mut selected_storage = None;
-    for (position, segment) in path.iter().enumerate() {
+    let mut selected_scalar = None;
+    for segment in path {
+        if let StructuralPathSegment::RepresentationView {
+            structural_type,
+            stored_scalar,
+        } = segment
+        {
+            let source_size = match selected_scalar {
+                Some(logical) => scalar_geometry(selected_storage.unwrap_or(logical))?.0,
+                None => match types.clone().find(|row| row.id == carrier)?.shape {
+                    StructuralTypeShape::PrimitiveScalar(logical) => {
+                        scalar_geometry(selected_storage.unwrap_or(logical))?.0
+                    }
+                    _ => reference_storage_size(types.clone(), carrier)?,
+                },
+            };
+            let view = crate::representation_view_declaration(
+                types.clone(),
+                *structural_type,
+                *stored_scalar,
+            )?;
+            let view_size = match stored_scalar {
+                Some(scalar) => scalar_geometry(*scalar)?.0,
+                None => reference_storage_size(types.clone(), view.id)?,
+            };
+            if source_size != view_size {
+                return None;
+            }
+            carrier = view.id;
+            selected_storage = *stored_scalar;
+            selected_scalar = None;
+            repeated_stride = None;
+            continue;
+        }
+        if selected_scalar.is_some() {
+            return None;
+        }
         let shape = &types.clone().find(|row| row.id == carrier)?.shape;
         match (shape, segment) {
             (
@@ -201,14 +237,8 @@ fn storage_path<'types>(
                     .as_ref()
                     .and_then(AuthoredFieldStorage::element_stride);
                 if let Some(logical_scalar) = field.field_type.scalar_type() {
-                    if position + 1 != path.len() {
-                        return None;
-                    }
-                    return Some(StoragePathProjection {
-                        byte_offset,
-                        carrier,
-                        scalar: Some((logical_scalar, selected_storage.unwrap_or(logical_scalar))),
-                    });
+                    selected_scalar = Some(logical_scalar);
+                    continue;
                 }
                 let child = field.field_type.as_structural()?;
                 carrier = child;
@@ -226,11 +256,14 @@ fn storage_path<'types>(
             _ => return None,
         }
     }
-    let scalar = match types.clone().find(|row| row.id == carrier)?.shape {
-        StructuralTypeShape::PrimitiveScalar(logical) => {
-            Some((logical, selected_storage.unwrap_or(logical)))
-        }
-        _ => None,
+    let scalar = match selected_scalar {
+        Some(logical) => Some((logical, selected_storage.unwrap_or(logical))),
+        None => match types.clone().find(|row| row.id == carrier)?.shape {
+            StructuralTypeShape::PrimitiveScalar(logical) => {
+                Some((logical, selected_storage.unwrap_or(logical)))
+            }
+            _ => None,
+        },
     };
     Some(StoragePathProjection {
         byte_offset,

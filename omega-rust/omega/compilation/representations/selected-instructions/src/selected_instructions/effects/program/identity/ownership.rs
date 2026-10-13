@@ -112,6 +112,17 @@ pub fn encode_path(bytes: &mut Vec<u8>, path: &[StructuralPathSegment]) {
                 crate::codec_bytes::push_encoded(bytes, index.get().to_le_bytes());
                 crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
             }
+            StructuralPathSegment::RepresentationView {
+                structural_type,
+                stored_scalar,
+            } => {
+                bytes.push(8);
+                crate::codec_bytes::push_encoded(bytes, structural_type.get().to_le_bytes());
+                bytes.push(u8::from(stored_scalar.is_some()));
+                if let Some(scalar) = stored_scalar {
+                    crate::selected_instructions::plan_identity::encode_scalar_type(bytes, *scalar);
+                }
+            }
         }
     }
 }

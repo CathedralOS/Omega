@@ -402,6 +402,9 @@ pub(crate) fn validate_function_structural_catalog(
                                         ))
                                     }
                                     terminal_psi::StructuralPathSegment::Case(_)
+                                    | terminal_psi::StructuralPathSegment::RepresentationView {
+                                        ..
+                                    }
                                     | terminal_psi::StructuralPathSegment::Referent
                                     | terminal_psi::StructuralPathSegment::FixedByteRange {
                                         ..

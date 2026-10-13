@@ -11,8 +11,8 @@ pub(crate) use normal_subjects::InvocationReferenceSubject;
 
 use super::boundary_calls::receiver_requires_boundary_frame;
 use super::caller_aliases::{
-    AssignmentWriteTarget, LocalWriteOrigin, LocalWriteSource, assignment_write_target,
-    local_write_origins_before_statement,
+    AssignmentWriteTarget, LocalWriteOrigin, LocalWriteSource, ReferenceResultLeafOrigin,
+    assignment_write_target, local_write_origins_before_statement,
 };
 use super::caller_aliases::{
     CallOriginContext, CallerWriteSite, expression_has_calls, with_caller_origins,
@@ -109,6 +109,7 @@ pub(crate) struct CallFrameCaches {
         >,
     >,
     reference_result_origins: Mutex<HashMap<SymbolHandle, Option<Vec<LocalWriteSource>>>>,
+    reference_result_leaves: Mutex<HashMap<SymbolHandle, Option<Vec<ReferenceResultLeafOrigin>>>>,
     stable_expression_bindings: Mutex<HashMap<(SymbolHandle, ExpressionHandle), bool>>,
     stable_call_bindings: Mutex<HashMap<(SymbolHandle, usize), bool>>,
     caller_isolated_proof_values: Mutex<HashMap<typed_trees::types::TypeReferenceHandle, bool>>,
@@ -376,6 +377,44 @@ impl<'program> CallFrameResolver<'program> {
                     .map(|origin| LocalWriteSource::from(origin.place))
                     .collect()
             })
+        })
+    }
+
+    /// Complete returned leaf sources retain the frame owner's declaration
+    /// coordinates and admitted-formation candidates, including re-views and
+    /// state/call substitution. Publication independently joins each candidate
+    /// to its captured returned loan and actual checked value formation.
+    pub(crate) fn reference_result_leaf_origins(
+        &self,
+        state: SymbolHandle,
+    ) -> Option<Vec<ReferenceResultLeafOrigin>> {
+        memoized(&self.caches.reference_result_leaves, state, || {
+            let state = self.program.state_by_symbol(state)?;
+            let machine = self.program.machine_holding_state(state.symbol)?;
+            let relation = super::result_origins::state_result_origins(
+                self.program,
+                machine,
+                state,
+                state.return_type,
+                &self.tables.symbols,
+                &mut FrameInference::default(),
+                true,
+            )?;
+            // A moved subtree cannot be flattened into invented field origins.
+            // Its existing source relation must be resolved before publication.
+            if !relation.moves.is_empty() {
+                return None;
+            }
+            relation
+                .references
+                .into_iter()
+                .map(|leaf| {
+                    Some(ReferenceResultLeafOrigin {
+                        result_path: leaf.local_segments,
+                        source: LocalWriteSource::from(leaf.origin?),
+                    })
+                })
+                .collect()
         })
     }
 

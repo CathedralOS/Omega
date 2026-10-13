@@ -224,6 +224,7 @@ pub(crate) fn replay_structural_projection(
                 (selected, shape, field_offset)
             }
             terminal_psi::StructuralPathSegment::Referent
+            | terminal_psi::StructuralPathSegment::RepresentationView { .. }
             | terminal_psi::StructuralPathSegment::FixedByteRange { .. }
             | terminal_psi::StructuralPathSegment::RuntimeIndex { .. } => return None,
             terminal_psi::StructuralPathSegment::Field(identity) => {

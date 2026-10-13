@@ -51,7 +51,9 @@ pub fn projected_storage_region<'a>(
         .position(|segment| {
             matches!(
                 segment,
-                StructuralPathSegment::RuntimeIndex { .. } | StructuralPathSegment::Referent
+                StructuralPathSegment::RuntimeIndex { .. }
+                    | StructuralPathSegment::RepresentationView { .. }
+                    | StructuralPathSegment::Referent
             )
         })
         .unwrap_or(path.len());

@@ -32,8 +32,13 @@ mod placed_view_referent;
 mod primitive_place;
 mod proof_bearing_scalar;
 mod record_field;
+mod reference_completion;
 mod reference_storage_geometry;
 mod reference_views;
+pub use reference_completion::{
+    ReferenceCompletionError, ReferenceCompletionOccurrence, cleanup_disposes_reference,
+    validate_reference_result_completion,
+};
 pub use reference_storage_geometry::{
     ReferenceStorageProjection, ReferenceStorageRegion, reference_storage_layout,
     reference_storage_projection, reference_storage_region, reference_storage_size,
@@ -114,8 +119,8 @@ pub use record_field::{
 pub use reference_views::{
     reference_source_compatible, reference_source_storage_path, reference_storage_byte_width,
     reference_storage_export_byte_width, reference_storage_source_compatible,
-    reference_storage_view_is_compatible, scalar_reference_view_is_total,
-    scalar_reference_view_value,
+    reference_storage_view_is_compatible, representation_view_declaration,
+    scalar_reference_view_is_total, scalar_reference_view_value,
 };
 pub use scalar_array::{scalar_array_leaf_declaration, scalar_array_leaf_shape};
 pub use scalar_field_requirements::{

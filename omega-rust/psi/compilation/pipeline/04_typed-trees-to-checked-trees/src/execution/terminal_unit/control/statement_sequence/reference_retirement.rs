@@ -12,6 +12,30 @@ use checked_trees::{BorrowLoanFact, CheckedUnitStructuralPathSegment};
 
 type Results = [(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)];
 
+/// Completion transfers one actual result occurrence, named or anonymous.
+/// Its captured origin roster is produced by checking; this join schedules
+/// local disposition without inferring a return from a type or source root.
+pub(super) fn returned_reference_binding(
+    returned: &checked_trees::CheckedUnitStructuralReturnPlan,
+    result: &CheckedUnitStructuralResultBindingPlan,
+) -> bool {
+    !returned.reference_sources.is_empty()
+        && returned.source
+            == (CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal: result.binding_ordinal,
+            })
+        && returned.type_identity == result.type_identity
+        && returned.multiplicity == result.multiplicity
+        && match returned.completion {
+            checked_trees::CheckedStructuralReturnCompletion::Value {
+                statement_index, ..
+            } => result.statement_index <= statement_index,
+            checked_trees::CheckedStructuralReturnCompletion::Call { coordinate } => {
+                result.statement_index == coordinate.statement_index
+            }
+        }
+}
+
 use crate::execution::terminal_unit::storage_transfers as transfers;
 use transfers::{Destination, transfers};
 mod carriers;
@@ -47,6 +71,9 @@ pub(super) struct Retirement<'a> {
     /// Deferred edge releases count only once completion schedules them.
     /// Ordinary statement expiry cannot consume a future edge's custody.
     pub(super) at_exit: bool,
+    /// The selected completion transfers this exact holder before its deferred
+    /// ancestor dispositions. It never settles a loan at statement entry.
+    pub(super) returned: Option<&'a checked_trees::CheckedUnitStructuralReturnPlan>,
     pub(super) transported_loans: &'a transport::TransportedLoans,
 }
 
@@ -491,6 +518,9 @@ impl Retirement<'_> {
         if self.disposed(handle) {
             return true;
         }
+        if self.at_exit && self.return_transfers_holder(loan) {
+            return true;
+        }
         let mut holders = self.results.iter().filter(|(holder, root)| {
             *root == facts::PlaceRoot::Symbol(loan.owner_symbol)
                 && holder.statement_index as usize == loan.statement_index
@@ -692,6 +722,9 @@ impl Retirement<'_> {
                 return false;
             }
             path.extend_from_slice(&owner_path[selected.len()..]);
+            if self.return_receives_carrier(&destination, &path, loan) {
+                continue;
+            }
             let mut bindings = self
                 .results
                 .iter()
@@ -717,6 +750,93 @@ impl Retirement<'_> {
             }
         }
         found
+    }
+
+    fn return_transfers_holder(&self, loan: &BorrowLoanFact) -> bool {
+        let path = self.facts.borrow.loan_owner_path(loan);
+        self.results.iter().any(|(holder, root)| {
+            *root == loan.storage_owner
+                && *root == facts::PlaceRoot::Symbol(loan.owner_symbol)
+                && holder.statement_index as usize == loan.statement_index
+                && self.return_receives_carrier(holder, path, loan)
+        })
+    }
+
+    /// A definite owned transfer can end in the anonymous completion value,
+    /// which has no source-local loan holder. Join that receiving occurrence to
+    /// the actual captured return, rather than inventing a named local for it.
+    fn return_receives_carrier(
+        &self,
+        receiver: &CheckedUnitStructuralResultBindingPlan,
+        path: &[checked_trees::BorrowLoanOwnerSegment],
+        loan: &BorrowLoanFact,
+    ) -> bool {
+        let Some(returned) = self.returned.filter(|_| self.at_exit) else {
+            return false;
+        };
+        if !returned_reference_binding(returned, receiver) {
+            return false;
+        }
+        let Some(path) = transport::carrier_path(self.program, self.state.return_type, path) else {
+            return false;
+        };
+        let (statement_index, expression) = match returned.completion {
+            checked_trees::CheckedStructuralReturnCompletion::Value {
+                statement_index,
+                expression,
+                ..
+            } => (statement_index as usize, Some(expression)),
+            checked_trees::CheckedStructuralReturnCompletion::Call { coordinate } => {
+                (coordinate.statement_index as usize, None)
+            }
+        };
+        if loan.last_use_statement_index != statement_index {
+            return false;
+        }
+        let Some(segments) = self.facts.borrow.access_segments.span(loan.segments) else {
+            return false;
+        };
+        let mut borrowing = self
+            .facts
+            .borrow
+            .states
+            .iter()
+            .filter_map(|(_, borrowing)| {
+                (borrowing.machine_symbol == self.machine
+                    && borrowing.state_symbol == self.state.symbol)
+                    .then_some(borrowing)
+            });
+        let Some(state) = borrowing.next() else {
+            return false;
+        };
+        if borrowing.next().is_some() {
+            return false;
+        }
+        self.facts
+            .borrow
+            .returned_loans
+            .span(state.returned_loans)
+            .is_some_and(|captured| {
+                captured.iter().any(|captured| {
+                    captured.statement_index == statement_index
+                        && expression
+                            .is_none_or(|expression| captured.formation_expression == expression)
+                        && captured.root == loan.root
+                        && captured.incoming_reference == loan.incoming_reference
+                        && captured.kind == loan.kind
+                        && self.facts.borrow.access_segments.span(captured.segments)
+                            == Some(segments)
+                        && self
+                            .facts
+                            .borrow
+                            .owner_segments
+                            .span(captured.owner_path)
+                            .and_then(|owner| {
+                                transport::carrier_path(self.program, self.state.return_type, owner)
+                            })
+                            .is_some_and(|captured_path| captured_path == path)
+                })
+            })
     }
 
     /// A source owner in the result roster is provenance, not a statement

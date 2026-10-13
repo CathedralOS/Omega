@@ -927,7 +927,23 @@ impl TerminalExecution<'_> {
             }
             let prefix = &remaining[..boundary.unwrap_or(remaining.len())];
             let logical_prefix = prefix;
-            let active_view = aggregate_view.take();
+            // Origin recipes may introduce a new presentation before any
+            // descriptor crossing. Start its geometry in the retained backing,
+            // then let the existing window translator compose the whole run.
+            // Executable operands cannot carry these origin-only steps.
+            let active_view = match aggregate_view.take() {
+                Some(view) => Some(view),
+                None if prefix.iter().any(|segment| {
+                    matches!(segment, StructuralPathSegment::RepresentationView { .. })
+                }) =>
+                {
+                    Some(
+                        AggregateViewRegion::whole(&types, value.structural_type)
+                            .ok_or_else(malformed)?,
+                    )
+                }
+                None => None,
+            };
             let translated;
             let mut tip = None;
             let prefix = match active_view {

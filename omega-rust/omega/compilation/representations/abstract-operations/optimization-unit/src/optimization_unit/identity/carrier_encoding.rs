@@ -134,6 +134,17 @@ pub(super) fn encode_structural_path_segment(
             bytes.u64(index.get());
             bytes.u64(obligation.get());
         }
+        StructuralPathSegment::RepresentationView {
+            structural_type,
+            stored_scalar,
+        } => {
+            bytes.u8(8);
+            bytes.id(*structural_type);
+            bytes.boolean(stored_scalar.is_some());
+            if let Some(scalar) = stored_scalar {
+                encode_scalar_type(bytes, *scalar);
+            }
+        }
     }
 }
 

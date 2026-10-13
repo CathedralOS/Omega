@@ -34,7 +34,10 @@
 
 use crate::terminal_module::TerminalIdentityIndex;
 use crate::{OperationKind, StructuralAccess};
-use semantic_vocabulary::{ObligationId, PlaceId, StructuralCaseId, StructuralPlaceKind, ValueId};
+use semantic_vocabulary::{
+    ObligationId, PlaceId, ScalarType, StructuralCaseId, StructuralPlaceKind, StructuralTypeId,
+    ValueId,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralPathSegment {
@@ -62,6 +65,15 @@ pub enum StructuralPathSegment {
     RuntimeIndex {
         index: ValueId,
         obligation: ObligationId,
+    },
+    /// Interpret the same selected storage in an admitted declaration. This
+    /// changes the namespace for following projections, not its original home,
+    /// carrier residence, access or lifetime. It is neither an executable
+    /// conversion nor a descriptor crossing. Receiving custody must reconstruct
+    /// it from the actual reference formation; this path alone grants nothing.
+    RepresentationView {
+        structural_type: StructuralTypeId,
+        stored_scalar: Option<ScalarType>,
     },
     /// Cross a reference carrier's borrowed boundary. This never grants owned
     /// access to the referent or includes it in the carrier's cleanup.
@@ -142,6 +154,7 @@ impl StructuralPathSegment {
             | Self::Field(_)
             | Self::FixedIndex(_)
             | Self::FixedByteRange { .. }
+            | Self::RepresentationView { .. }
             | Self::Referent => None,
         }
     }
@@ -167,7 +180,9 @@ pub fn is_structural_scalar_store_path(path: &[StructuralPathSegment]) -> bool {
         StructuralPathSegment::Field(identity) => !identity.is_absent(),
         StructuralPathSegment::Case(_) => true,
         StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. } => true,
-        StructuralPathSegment::FixedByteRange { .. } | StructuralPathSegment::Referent => false,
+        StructuralPathSegment::FixedByteRange { .. }
+        | StructuralPathSegment::RepresentationView { .. }
+        | StructuralPathSegment::Referent => false,
     })
 }
 

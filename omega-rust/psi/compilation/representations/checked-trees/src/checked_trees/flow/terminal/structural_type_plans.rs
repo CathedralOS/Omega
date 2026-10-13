@@ -430,6 +430,16 @@ pub enum CheckedUnitStructuralPathSegment {
     /// The result becomes an ordinary runtime index with a bounds obligation;
     /// the computation handle supplies execution, never a proof of the bound.
     ComputedIndex(crate::CheckedScalarComputationHandle),
+    /// An admitted interpretation of the selected original storage. Following
+    /// fields use this declaration's namespace, not renamed backing fields.
+    /// It is not a descriptor crossing, a loan, or a permission transition.
+    /// Only the retained reference formation can issue this step; a type match
+    /// or equal geometry cannot authorize it. Target-selected offsets stay out
+    /// of this portable path.
+    RepresentationView {
+        type_identity: TypeIdentityId,
+        storage: super::CheckedReferenceStorage,
+    },
     Referent,
 }
 
@@ -456,6 +466,7 @@ impl Ord for CheckedUnitStructuralPathSegment {
                 RuntimeIndex(_) => 4,
                 Referent => 5,
                 ComputedIndex(_) => 6,
+                RepresentationView { .. } => 7,
             }
         }
         match (self, other) {
@@ -474,6 +485,16 @@ impl Ord for CheckedUnitStructuralPathSegment {
             (RuntimeIndex(left), RuntimeIndex(right)) => left.cmp(right),
             (ComputedIndex(left), ComputedIndex(right)) => (left.arena_index(), left.generation())
                 .cmp(&(right.arena_index(), right.generation())),
+            (
+                RepresentationView {
+                    type_identity: left_type,
+                    storage: left_storage,
+                },
+                RepresentationView {
+                    type_identity: right_type,
+                    storage: right_storage,
+                },
+            ) => (left_type, left_storage).cmp(&(right_type, right_storage)),
             _ => kind(self).cmp(&kind(other)),
         }
     }

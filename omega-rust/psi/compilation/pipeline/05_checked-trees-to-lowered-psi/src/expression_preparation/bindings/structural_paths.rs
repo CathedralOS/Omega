@@ -72,6 +72,11 @@ pub(crate) fn lower_structural_path(
             CheckedUnitStructuralPathSegment::Case(_) => Err(LoweringError::Unsupported(
                 "a case projection requires its exact source type during preparation",
             )),
+            CheckedUnitStructuralPathSegment::RepresentationView { .. } => {
+                Err(LoweringError::Unsupported(
+                    "a returned view origin requires its checked declaration and formation codec",
+                ))
+            }
             CheckedUnitStructuralPathSegment::Referent => Ok(StructuralPathSegment::Referent),
             CheckedUnitStructuralPathSegment::Field(identity) => Ok(StructuralPathSegment::Field(
                 identities.intern(&identity.spelling()),
@@ -359,6 +364,11 @@ fn prepare_argument_projection<'a>(
             }
         }
         let lowered = match step {
+            CheckedUnitStructuralPathSegment::RepresentationView { .. } => {
+                return Err(LoweringError::Unsupported(
+                    "a returned view origin is not an executable argument projection",
+                ));
+            }
             CheckedUnitStructuralPathSegment::Case(identity) => {
                 let cases = match shape {
                     Some(
@@ -565,6 +575,69 @@ pub(crate) fn lower_static_argument_path(
         &mut std::iter::empty(),
         None,
     )
+}
+
+/// Retain a returned loan's declaration-relative interpretations. This recipe
+/// describes possible backing, not an executable address: selectors are already
+/// fixed by the result interface and each view rejoins its checked declaration.
+/// Actual formation and result custody authenticate the recipe independently.
+pub(crate) fn lower_reference_origin_path(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &checked_trees::CheckedTrees,
+    mut path: &[CheckedUnitStructuralPathSegment],
+    mut root: semantic_vocabulary::StructuralTypeId,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Result<Vec<StructuralPathSegment>, LoweringError> {
+    let mut output = Vec::with_capacity(path.len());
+    loop {
+        let next_view = path.iter().position(|segment| {
+            matches!(
+                segment,
+                CheckedUnitStructuralPathSegment::RepresentationView { .. }
+            )
+        });
+        let prefix_length = next_view.unwrap_or(path.len());
+        let prefix = lower_static_argument_path(identities, &path[..prefix_length], root, types)?;
+        output.extend(prefix);
+        let Some(view_position) = next_view else {
+            return Ok(output);
+        };
+        let CheckedUnitStructuralPathSegment::RepresentationView {
+            type_identity,
+            storage,
+        } = &path[view_position]
+        else {
+            return Err(LoweringError::Unsupported(
+                "returned origin lost its view step",
+            ));
+        };
+        let checked_trees::CheckedReferenceStorage::View { stored_scalar } = storage else {
+            return Err(LoweringError::Unsupported(
+                "returned view has no formation codec",
+            ));
+        };
+        let declaration = crate::terminal_identities::structural_declaration_by_identity(
+            types,
+            identities,
+            checked,
+            *type_identity,
+            "returned view lost its checked declaration",
+        )?;
+        terminal_semantics::representation_view_declaration(
+            types.iter(),
+            declaration.id,
+            *stored_scalar,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "returned view has an incompatible storage codec",
+        ))?;
+        output.push(StructuralPathSegment::RepresentationView {
+            structural_type: declaration.id,
+            stored_scalar: *stored_scalar,
+        });
+        root = declaration.id;
+        path = &path[view_position + 1..];
+    }
 }
 
 pub(crate) fn lower_typed_argument_path(

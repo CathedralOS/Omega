@@ -85,11 +85,15 @@ pub enum LegalizationError {
     UnsupportedSourceShape {
         function: usize,
     },
+    ReferenceCompletion {
+        reason: terminal_semantics::ReferenceCompletionError,
+    },
 }
 
 impl std::fmt::Display for LegalizationError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::ReferenceCompletion { reason } => formatter.write_str(reason.description()),
             Self::UnsupportedScalarOperation { machine, operation } => write!(
                 formatter,
                 "target legalization has no legal scalar instruction for {operation:?} in machine {machine:?}"

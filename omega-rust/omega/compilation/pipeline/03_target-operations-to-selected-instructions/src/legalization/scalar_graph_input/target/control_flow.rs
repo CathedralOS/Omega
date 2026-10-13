@@ -178,23 +178,8 @@ pub(super) fn validate(
                     ..
                 },
             ) => {
-                // Keep the return-custody failure's source site: collapsing it
-                // into a Boolean loses the distinction between wrong backing,
-                // a live parent and a mismatched receiving declaration.
-                if let Some(result) = optimized.result.structural()
-                    && super::super::reference_custody::contains_reference(
-                        &plan.structural_types,
-                        result.structural_type,
-                    )
-                {
-                    super::super::reference_custody::return_custody(
-                        &custody,
-                        optimized,
-                        &plan.structural_types,
-                        *expected_source,
-                        result,
-                    )?;
-                }
+                // The selected return transaction authenticated and moved its
+                // actual loan roster before committing these cleanup actions.
                 psi_edge == expected_edge
                     && cleanup_actions == expected_cleanup
                     && trivial_affine_locals.is_empty()

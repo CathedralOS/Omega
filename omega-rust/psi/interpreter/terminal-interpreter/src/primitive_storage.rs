@@ -1622,7 +1622,11 @@ impl TerminalExecution<'_> {
                     encoding.source,
                     encoding.source,
                 )?;
-                let viewed = scalar_reference_observation(stored, encoding.view)?;
+                // An admitted representation view decodes the same physical
+                // bits, including constrained integer-to-boolean views. The
+                // ordinary shared-observation law cannot establish that cast.
+                let bits = encoding::encode(encoding.source, stored)?;
+                let viewed = encoding::decode(encoding.view, bits)?;
                 return encoding::convert_scalar(viewed, expected);
             }
             return self.read_encoded_primitive(

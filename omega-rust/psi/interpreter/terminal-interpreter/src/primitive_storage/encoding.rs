@@ -168,9 +168,18 @@ impl TerminalExecution<'_> {
             // still needed to encode its wider logical carrier correctly.
             captured.view = stored_scalar;
         } else {
+            // Typed cells retain their original value carrier: signed -1 is
+            // encoded as signed bits before an unsigned view observes them.
+            // A byte region instead assembles the requested stored width.
+            let source_scalar = match loan.storage.endpoint {
+                PrimitiveStorageEndpoint::Scalar(_) | PrimitiveStorageEndpoint::ScalarField(_) => {
+                    loan.scalar_type
+                }
+                _ => stored_scalar,
+            };
             self.position_reference_storage(loan, byte_offset, width)?;
             loan.storage.encoding = Some(PrimitiveStorageEncoding {
-                source: stored_scalar,
+                source: source_scalar,
                 view: stored_scalar,
             });
         }

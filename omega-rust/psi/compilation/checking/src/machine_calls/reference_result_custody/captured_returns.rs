@@ -351,6 +351,7 @@ impl Captures<'_> {
             .enumerate()
             .find(|(_, parameter)| loan.root == facts::PlaceRoot::Symbol(parameter.symbol))?;
         let mut path = Vec::new();
+        let mut incoming_segments = Vec::new();
         let mut selected = parameter.type_reference;
         if let Some(incoming) = incoming {
             let carrier = super::input_carrier_type(self.program, parameter.type_reference)?;
@@ -385,6 +386,7 @@ impl Captures<'_> {
                 selected = stored_loan_parts(self.program, selected)?.0;
             }
             path.extend(incoming_leaf.source.path);
+            incoming_segments = incoming_path;
         } else {
             let (referent, access) = stored_loan_parts(self.program, selected)?;
             if !reference_access_can_supply(access, leaf.source.access) {
@@ -400,6 +402,47 @@ impl Captures<'_> {
         let mut segments = segments.to_vec();
         facts::compose_captured_view_segments(&mut segments)?;
         let parameter_index = u32::try_from(parameter_index).ok()?;
+        let frame = crate::CallFrameResolver::new(self.program)?;
+        let result_path = loan_place_segments(self.program, state.return_type, &leaf.path)?;
+        let origins = frame.reference_result_leaf_origins(state.symbol);
+        if let Some(origins) = origins {
+            let matching = origins
+                .iter()
+                .filter(|origin| {
+                    origin.result_path == result_path
+                        && loan.root == facts::PlaceRoot::Symbol(origin.source.root)
+                        && frame_origin_fits_loan(&origin.source, &segments)
+                })
+                .collect::<Vec<_>>();
+            if matching
+                .iter()
+                .any(|origin| !origin.source.recasts.is_empty())
+            {
+                let mut output = Vec::new();
+                for origin in matching {
+                    let (suffix, presented) =
+                        self.view_origin_path(selected, &incoming_segments, &origin.source)?;
+                    if self.program.normalized_type_identity(presented) != leaf.source.type_identity
+                    {
+                        return None;
+                    }
+                    let mut complete = path.clone();
+                    complete.extend(suffix);
+                    let source = CheckedUnitStructuralArgumentPlan {
+                        source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                            parameter_index,
+                        },
+                        path: complete,
+                        type_identity: leaf.source.type_identity,
+                        access: leaf.source.access,
+                    };
+                    if !output.contains(&source) {
+                        output.push(source);
+                    }
+                }
+                return (!output.is_empty()).then_some(output);
+            }
+        }
         super::origin_paths::fixed_backing_paths(self.program, selected, &segments)?
             .into_iter()
             .map(|segments| {
@@ -417,6 +460,90 @@ impl Captures<'_> {
                 })
             })
             .collect()
+    }
+
+    /// A source frame retains the chronological declaration changes; actual
+    /// value formation supplies their codec. Neither the final view selectors
+    /// nor equal byte geometry may rename the original backing declaration.
+    fn view_origin_path(
+        &self,
+        mut selected: TypeReferenceHandle,
+        incoming: &[facts::PlaceSegment],
+        origin: &crate::LocalWriteSource,
+    ) -> Option<(Vec<CheckedUnitStructuralPathSegment>, TypeReferenceHandle)> {
+        let mut path = Vec::new();
+        for (ordinal, recast) in origin.recasts.iter().enumerate() {
+            if recast.root != origin.root {
+                return None;
+            }
+            let selectors = if ordinal == 0 {
+                recast.segments.strip_prefix(incoming)?
+            } else {
+                let (previous, selectors) = recast.representation.as_ref()?;
+                if self.program.normalized_type_identity(*previous)
+                    != self.program.normalized_type_identity(selected)
+                {
+                    return None;
+                }
+                selectors
+            };
+            let (projection, endpoint) = self.structural_path(selected, selectors)?;
+            path.extend(projection);
+            selected = endpoint;
+            if let Some(shell) = crate::reference_shell(self.program, selected) {
+                path.push(CheckedUnitStructuralPathSegment::Referent);
+                selected = shell.referee;
+            }
+            let mut formations =
+                self.facts
+                    .values
+                    .structural_values
+                    .nodes
+                    .iter()
+                    .filter_map(|(_, value)| {
+                        if value.expression != recast.formation_expression {
+                            return None;
+                        }
+                        let CheckedStructuralValueKind::Reference {
+                            storage,
+                            backing_type,
+                            ..
+                        } = &value.kind
+                        else {
+                            return None;
+                        };
+                        Some((value, *storage, *backing_type))
+                    });
+            let (formation, storage, backing_type) = formations.next()?;
+            if formations.next().is_some()
+                || self.program.normalized_type_identity(backing_type)
+                    != self.program.normalized_type_identity(selected)
+                || !matches!(storage, checked_trees::CheckedReferenceStorage::View { .. })
+                || storage != crate::reference_view_storage(self.program, recast.target_type)?
+                || self.program.normalized_type_identity(
+                    crate::reference_shell(self.program, formation.type_reference)?.referee,
+                ) != self.program.normalized_type_identity(recast.target_type)
+            {
+                return None;
+            }
+            // The arena occurrence remains in its original body after a call
+            // substitution. Its source identity is not the rebased caller root.
+            self.program.state_by_symbol(formation.state)?;
+            path.push(CheckedUnitStructuralPathSegment::RepresentationView {
+                type_identity: self.program.normalized_type_identity(recast.target_type),
+                storage,
+            });
+            selected = recast.target_type;
+        }
+        let (presentation, selectors) = origin.representation.as_ref()?;
+        if self.program.normalized_type_identity(*presentation)
+            != self.program.normalized_type_identity(selected)
+        {
+            return None;
+        }
+        let (suffix, endpoint) = self.structural_path(selected, selectors)?;
+        path.extend(suffix);
+        Some((path, endpoint))
     }
 
     fn call_paths(
@@ -807,9 +934,25 @@ impl Captures<'_> {
     }
 }
 
-/// Compare a completed address with the conservative coordinates of the same
-/// evaluated loan. Dynamic selectors admit a refinement, not reevaluation;
-/// every static field, case, window and later array dimension stays fixed.
+/// Match a lifetime capture in its original declaration namespace, retaining
+/// the exact presentation coordinate when the loan already captured that view.
+fn frame_origin_fits_loan(origin: &crate::LocalWriteSource, loan: &[facts::PlaceSegment]) -> bool {
+    if captured_address_refines(&origin.segments, loan) {
+        return true;
+    }
+    // A call's declared lifetime may conservatively lend the original region
+    // while its checked body returns a narrower presented subregion. Those
+    // selectors belong to different declarations. Match the loan against the
+    // original predecessor, never against same-spelled fields in the view.
+    // Publication separately authenticates every view issuer and backing type;
+    // this comparison grants neither a presentation nor a new storage root.
+    origin.recasts.first().is_some_and(|formation| {
+        formation.root == origin.root && captured_address_refines(&formation.segments, loan)
+    })
+}
+
+/// Compare exact evaluated coordinates. Dynamic selectors may refine, but
+/// static fields, cases, windows and later array dimensions stay fixed.
 fn captured_address_refines(
     segments: &[facts::PlaceSegment],
     captured: &[facts::PlaceSegment],

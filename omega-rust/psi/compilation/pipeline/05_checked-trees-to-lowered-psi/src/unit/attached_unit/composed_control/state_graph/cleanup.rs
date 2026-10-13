@@ -9,10 +9,10 @@ use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::unit::attached_unit::argument_evaluation::{Evaluation, ScalarReturnCleanup};
 use crate::unit::unit_cleanup::CleanupRegion;
 use checked_trees::{
-    CheckedComposedUnitControlStatePlan, CheckedScalarBranchDestination,
-    CheckedUnitEffectOperationPlan, FlowClaimJoinExit, FlowClaimJoinExitKind,
+    CheckedComposedUnitControlStatePlan, CheckedScalarBranchDestination, FlowClaimJoinExit,
+    FlowClaimJoinExitKind,
 };
-use terminal_psi::{StructuralParameterDeclaration, TerminalAffineCleanupAction};
+use terminal_psi::StructuralParameterDeclaration;
 
 mod case_capture;
 pub(super) use case_capture::retire_captured_subjects;
@@ -164,94 +164,9 @@ pub(super) fn coordinate(
     Ok(row.exit)
 }
 
-/// Carriers a deferred reference release leaves for this exit to retire.
-///
-/// The selected edge owns loans used by transition evaluation and the backing
-/// descriptors that cannot retire until those loans do. This includes stored
-/// fields, not only whole reference locals. The completed stage-04 schedule
-/// supplies dependency order and selected storage; lowering must retain both.
-/// Ordinary releases reach the body as an emitted `ReleaseReference` and need
-/// nothing here.
-///
-/// Each carrier must precede the storage it borrows, not every owned root:
-/// an outer aggregate may itself hold the reference lending this backing.
-/// The common establishment roster interleaves these actions with the exit's
-/// owned dispositions while preserving each home's exact cleanup partition.
-fn deferred_carrier_releases(
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-    state: &CheckedComposedUnitControlStatePlan,
-    parameters: &[StructuralParameterDeclaration],
-    evaluation: &Evaluation,
-    operations: &OperationBuffer,
-) -> Result<Vec<CleanupRegion>, LoweringError> {
-    let mut carriers = Vec::new();
-    // Stage 04 already orders releases by actual holder dependencies. Reversing
-    // that schedule would retire backing before the descriptors borrowing it.
-    for operation in &state.operations {
-        let CheckedUnitEffectOperationPlan::ReleaseReference {
-            source,
-            path,
-            select_evaluated_storage,
-            defer_to_exit: true,
-            ..
-        } = operation
-        else {
-            continue;
-        };
-        let storage = evaluation.cleanup_storage(source, parameters, |binding| {
-            let (_, result) = operations
-                .structural_values
-                .iter()
-                .find(|(ordinal, _)| *ordinal == binding)
-                .ok_or(LoweringError::Unsupported(
-                    "deferred reference release has no established carrier",
-                ))?;
-            Ok(result.into())
-        })?;
-        let suffix =
-            crate::expression_preparation::bindings::structural_paths::lower_structural_path(
-                identities, path,
-            )?;
-        let mut path = storage.path;
-        path.extend(suffix.clone());
-        let place = storage.place;
-        let action = if path.is_empty() {
-            evaluation.descriptor_retirement(place, operations)?
-        } else {
-            let leaf = terminal_semantics::runtime_structural_path_tip(
-                evaluation.structural_types.iter(),
-                storage.selected_type,
-                &suffix,
-            )
-            .ok_or(LoweringError::Unsupported(
-                "deferred release lost its carrier path",
-            ))?;
-            TerminalAffineCleanupAction::DiscardResidual(terminal_psi::StructuralAffineDiscard {
-                place,
-                path: path.clone(),
-                structural_type: leaf.id,
-            })
-        };
-        if !carriers
-            .iter()
-            .any(|region: &CleanupRegion| region.action == action)
-        {
-            carriers.push(CleanupRegion {
-                selected_region: select_evaluated_storage.then(|| {
-                    terminal_psi::StructuralArgument {
-                        place,
-                        path,
-                        access: terminal_psi::StructuralAccess::Owned,
-                    }
-                }),
-                conditions: Vec::new(),
-                action,
-            });
-        }
-    }
-    Ok(carriers)
-}
-
+/// Join the exact selected edge's authored and deferred dispositions before
+/// production cleanup selects storage. The shared reference-completion owner
+/// preserves holder dependency order and prevents a second descriptor death.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn for_exit_regions(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -329,19 +244,22 @@ pub(super) fn for_exit_regions(
             Ok(action)
         },
     )?;
-    let mut actions =
-        deferred_carrier_releases(identities, state, parameters, evaluation, operations)?;
-    // A whole carrier's authored disposition occupies its scheduled release
-    // position, rather than moving behind a backing leaf retired on this edge.
-    let mut remaining = rows;
-    for carrier in &mut actions {
-        if let Some(position) = remaining.iter().position(|row| {
-            row.action.place() == carrier.action.place()
-                && row.action.path() == carrier.action.path()
-        }) {
-            *carrier = remaining.remove(position);
-        }
-    }
-    actions.extend(remaining);
-    Ok(actions)
+    crate::unit::unit_cleanup::lower_reference_completion_regions(
+        identities,
+        &state.operations,
+        rows,
+        parameters,
+        evaluation,
+        operations,
+        |binding| {
+            let (_, result) = operations
+                .structural_values
+                .iter()
+                .find(|(ordinal, _)| *ordinal == binding)
+                .ok_or(LoweringError::Unsupported(
+                    "deferred reference release has no established carrier",
+                ))?;
+            Ok(result.into())
+        },
+    )
 }

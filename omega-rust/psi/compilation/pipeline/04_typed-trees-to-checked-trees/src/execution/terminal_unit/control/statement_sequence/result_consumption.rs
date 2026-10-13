@@ -161,6 +161,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                 operations,
                 pending: &pending,
                 at_exit: false,
+                returned: None,
                 transported_loans: &transported_loans,
             },
         )?;
@@ -189,6 +190,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                 operations,
                 pending: &pending,
                 at_exit: false,
+                returned: None,
                 transported_loans: &transported_loans,
             },
             operation,
@@ -222,6 +224,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                 operations,
                 pending: &pending,
                 at_exit: false,
+                returned: None,
                 transported_loans: &transported_loans,
             };
             if boundary <= statement_index
@@ -317,6 +320,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
             operations,
             pending: &pending,
             at_exit: false,
+            returned: None,
             transported_loans: &transported_loans,
         };
         let local_loans = validation::reference_result_custody::local_record_loans(
@@ -431,6 +435,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
             operations,
             pending: &pending,
             at_exit: false,
+            returned: None,
             transported_loans: &transported_loans,
         }
         .backing_releases()?;
@@ -480,12 +485,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             // still belongs to statement scheduling; only a loan live through
             // this state's final statement can cross its result boundary.
             if returned.is_some_and(|returned| {
-                matches!(returned.source,
-                    CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal }
-                        if binding_ordinal == result.binding_ordinal)
-                    && returned.type_identity == result.type_identity
-                    && returned.multiplicity == result.multiplicity
-                    && !returned.reference_sources.is_empty()
+                super::reference_retirement::returned_reference_binding(returned, result)
             }) {
                 let authored = program.state_by_symbol(state)?;
                 let statement_count = program
@@ -524,13 +524,13 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                         },
                         path: Vec::new(),
                         select_evaluated_storage: false,
-                        defer_to_exit: matches!(
-                            program
-                                .statement_table
-                                .statements(program.state_by_symbol(state)?.statement_nodes,)
-                                .get(boundary.checked_sub(1)? as usize)?,
-                            StatementNode::Transition(_)
-                        ),
+                        // Completion evaluates and captures its result before
+                        // closing frame-local descriptors. A shared result
+                        // copy can still retain a supplying local even after
+                        // its authored holder's last use. The selected exit
+                        // therefore owns these dispositions, just as it owns
+                        // descriptors used by transition operands.
+                        defer_to_exit: true,
                         loans,
                         selection_complements: Vec::new(),
                     },
@@ -566,6 +566,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             operations,
             pending: &scheduled,
             at_exit: true,
+            returned,
             transported_loans: &transported_loans,
         };
         let mut next = None;

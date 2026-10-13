@@ -245,20 +245,32 @@ pub(crate) fn stable_alias_initializer_origins(
             precision: FramePathPrecision::Exact,
             source: super::place_paths::FrameSourcePlace::image_storage(),
         }],
-        ExpressionNode::Borrow(inner) => stable_alias_initializer_origins(
-            program,
-            current_machine,
-            machine_symbols,
-            inference,
-            inner.target,
-            parameters,
-            isolated_local_roots,
-            aliases,
-            divergent_aliases,
-            symbols,
-            allow_isolated_local,
-            stored,
-        )?,
+        ExpressionNode::Borrow(inner) => {
+            let mut origins = stable_alias_initializer_origins(
+                program,
+                current_machine,
+                machine_symbols,
+                inference,
+                inner.target,
+                parameters,
+                isolated_local_roots,
+                aliases,
+                divergent_aliases,
+                symbols,
+                allow_isolated_local,
+                stored,
+            )?;
+            for origin in &mut origins {
+                if let Some(recast) = origin.source.recasts.last_mut()
+                    && recast.formation_expression == inner.target
+                {
+                    // The checked value owns the complete formation wrapper,
+                    // not a second loan issued by its nested cast spelling.
+                    recast.formation_expression = expression;
+                }
+            }
+            origins
+        }
         ExpressionNode::Call(call) => {
             if call_is_transparent_mutable_slice_view(program, call) {
                 return stable_alias_initializer_origins(
@@ -433,7 +445,8 @@ pub(crate) fn stable_alias_initializer_origins(
                 stored,
             )?;
             for origin in &mut origins {
-                origin.source.recast(cast.target_type);
+                let formation = crate::reference_formation_source(program, expression)?;
+                origin.source.recast(formation.view_type, expression);
             }
             origins
         }
@@ -488,16 +501,26 @@ fn stable_alias_expression_origins(
     allow_isolated_local: bool,
 ) -> Option<Vec<FramePlaceOrigin>> {
     let origins = match program.expression_table.expression(expression) {
-        ExpressionNode::Borrow(inner) => stable_alias_expression_origins(
-            program,
-            inner.target,
-            parameters,
-            isolated_local_roots,
-            aliases,
-            divergent_aliases,
-            symbols,
-            allow_isolated_local,
-        )?,
+        ExpressionNode::Borrow(inner) => {
+            let mut origins = stable_alias_expression_origins(
+                program,
+                inner.target,
+                parameters,
+                isolated_local_roots,
+                aliases,
+                divergent_aliases,
+                symbols,
+                allow_isolated_local,
+            )?;
+            for origin in &mut origins {
+                if let Some(recast) = origin.source.recasts.last_mut()
+                    && recast.formation_expression == inner.target
+                {
+                    recast.formation_expression = expression;
+                }
+            }
+            origins
+        }
         ExpressionNode::Call(call) => {
             if call_is_transparent_mutable_slice_view(program, call) {
                 return stable_alias_expression_origins(
@@ -545,7 +568,8 @@ fn stable_alias_expression_origins(
                 allow_isolated_local,
             )?;
             for origin in &mut origins {
-                origin.source.recast(cast.target_type);
+                let formation = crate::reference_formation_source(program, expression)?;
+                origin.source.recast(formation.view_type, expression);
             }
             origins
         }

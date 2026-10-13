@@ -33,7 +33,20 @@ pub(crate) fn operation_scalar_types_match(
     // Every runtime-selected path element names a defined integer selector
     // the 64-bit address model can extend; its bound stays the operation's
     // verified obligation.
-    let selectors_match = operation.runtime_indices().into_iter().all(|(index, _)| {
+    let paths = operation.structural_paths();
+    // Returned-origin interpretations describe backing only. An executable
+    // operand must use its actual established view carrier, never a recipe
+    // that would introduce observation authority without formation.
+    if paths.iter().flat_map(|path| path.iter()).any(|segment| {
+        matches!(
+            segment,
+            terminal_psi::StructuralPathSegment::RepresentationView { .. }
+        )
+    }) {
+        return false;
+    }
+    let selectors_match = paths.into_iter().flatten()
+        .filter_map(terminal_psi::StructuralPathSegment::runtime_index).all(|(index, _)| {
         matches!(scalar(index), Some(ScalarType::Integer(integer)) if integer.bits() <= 64)
     });
     if !selectors_match {

@@ -20,6 +20,17 @@ pub(crate) fn hash_structural_path(
     digest.u64(path.len() as u64);
     for segment in path {
         match segment {
+            terminal_psi::StructuralPathSegment::RepresentationView {
+                structural_type,
+                stored_scalar,
+            } => {
+                digest.byte(8);
+                digest.raw(&structural_type.get().to_le_bytes());
+                digest.byte(u8::from(stored_scalar.is_some()));
+                if let Some(scalar) = stored_scalar {
+                    hash_scalar_type(digest, *scalar);
+                }
+            }
             terminal_psi::StructuralPathSegment::Case(case) => {
                 digest.byte(7);
                 digest.raw(&case.get().to_le_bytes());

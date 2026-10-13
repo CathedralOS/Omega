@@ -920,6 +920,9 @@ fn spell_place(plan: &CheckedUnitStructuralArgumentPlan) -> String {
     };
     for segment in &plan.path {
         match segment {
+            CheckedUnitStructuralPathSegment::RepresentationView { type_identity, .. } => {
+                spelling.push_str(&format!(".[view {type_identity:?}]"));
+            }
             CheckedUnitStructuralPathSegment::Case(identity) => {
                 spelling.push_str(".[");
                 spelling.push_str(&identity.spelling());

@@ -378,6 +378,23 @@ fn validate_provider_attachment_foundation(
 
 pub(crate) fn validate_structural_path(
     module: &TerminalModule,
+    structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Result<StructuralTypeId, CodecError> {
+    if path
+        .iter()
+        .any(|segment| matches!(segment, StructuralPathSegment::RepresentationView { .. }))
+    {
+        return malformed("returned-origin interpretation is not an operand or owned path");
+    }
+    validate_reference_origin_path(module, structural_type, path)
+}
+
+/// An origin recipe describes admitted backing; it is not executable access.
+/// Only result-source rows use this entrance. Operands, claims, qualifications
+/// and cleanup use the ordinary path entrance, which rejects interpretations.
+pub(crate) fn validate_reference_origin_path(
+    module: &TerminalModule,
     mut structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Result<StructuralTypeId, CodecError> {
@@ -424,6 +441,29 @@ pub(crate) fn validate_structural_path(
             return malformed("structural case path requires its payload field");
         }
         structural_type = match (segment, &declaration.shape) {
+            (
+                StructuralPathSegment::RepresentationView {
+                    structural_type: view,
+                    stored_scalar,
+                },
+                shape,
+            ) => {
+                if matches!(shape, StructuralTypeShape::Reference { .. }) {
+                    return malformed(
+                        "storage interpretation cannot replace a descriptor crossing",
+                    );
+                }
+                let Some(view) = terminal_semantics::representation_view_declaration(
+                    module.structural_types.iter(),
+                    *view,
+                    *stored_scalar,
+                ) else {
+                    return malformed(
+                        "storage interpretation has an unknown or incompatible declaration",
+                    );
+                };
+                view.id
+            }
             (StructuralPathSegment::Case(_), _) => {
                 return malformed("structural case path requires its payload field");
             }
@@ -560,6 +600,22 @@ fn validate_operation_foundation(
     machine: &TerminalMachine,
     operation: &Operation,
 ) -> Result<(), CodecError> {
+    // Interpretation steps belong to a returned-origin recipe, never an
+    // executable operand. Only an actual EstablishReference operation can
+    // introduce a view; a path cannot mint its representation authority.
+    if operation
+        .kind
+        .structural_projections()
+        .iter()
+        .any(|projection| {
+            projection
+                .path
+                .iter()
+                .any(|segment| matches!(segment, StructuralPathSegment::RepresentationView { .. }))
+        })
+    {
+        return malformed("returned-origin interpretation is not an executable projection");
+    }
     if let Some(result) = operation.result.structural() {
         validate_structural_qualifications(
             module,

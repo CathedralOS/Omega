@@ -882,13 +882,19 @@ impl AbstractOperation {
             .collect()
     }
 
-    /// The name-spelled paths this operation carries, in operand order.
+    /// Executable operand paths this operation carries, in operand order.
     /// Operations without a projection (scalar arithmetic, control, literal
     /// establishment) carry none.
-    fn structural_paths(&self) -> Vec<&[StructuralPathSegment]> {
+    pub fn structural_paths(&self) -> Vec<&[StructuralPathSegment]> {
         match self {
+            Self::AtomicEvent { event, .. } => event
+                .location()
+                .map(|location| vec![location.path.as_slice()])
+                .unwrap_or_default(),
             Self::PrimitiveScalarRead { path, .. }
             | Self::ElementViewRead { path, .. }
+            | Self::ElementViewWrite { path, .. }
+            | Self::ReleaseReference { path, .. }
             | Self::WriteOnlyPrimitiveStore { path, .. }
             | Self::StructuralScalarFieldStore { path, .. }
             | Self::StructuralCaseMembership { path, .. }
@@ -906,6 +912,38 @@ impl AbstractOperation {
             Self::StoreStructuralField { path, value, .. } => {
                 vec![path.as_slice(), value.path.as_slice()]
             }
+            Self::EstablishRecord { fields, .. } | Self::EstablishCase { fields, .. } => fields
+                .iter()
+                .filter_map(|field| field.value.as_structural())
+                .map(|argument| argument.path.as_slice())
+                .collect(),
+            Self::EstablishByteSequenceConcatenation { left, right, .. }
+            | Self::ByteSequenceEqual { left, right, .. } => {
+                vec![
+                    left.argument().path.as_slice(),
+                    right.argument().path.as_slice(),
+                ]
+            }
+            Self::ByteSequencePredicate { operand, .. } => {
+                vec![operand.argument().path.as_slice()]
+            }
+            Self::Jump {
+                structural_bindings,
+                ..
+            } => structural_bindings
+                .iter()
+                .map(|binding| binding.argument.path.as_slice())
+                .collect(),
+            Self::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => when_true
+                .structural_bindings
+                .iter()
+                .chain(&when_false.structural_bindings)
+                .map(|binding| binding.argument.path.as_slice())
+                .collect(),
             Self::EstablishReference { source, .. }
             | Self::EstablishElementView { source, .. }
             | Self::ElementViewLength { source, .. }

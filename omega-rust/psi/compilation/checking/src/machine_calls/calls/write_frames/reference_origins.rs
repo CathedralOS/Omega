@@ -208,7 +208,7 @@ pub(super) fn exclusive_reference_origins(
         declared_origin_root(program, current_machine, formation.source)?;
         let mut origin = frame_place_path(program, formation.source)?;
         if formation.view_type.is_valid() {
-            origin.source.recast(formation.view_type);
+            origin.source.recast(formation.view_type, argument);
         }
         return Some(vec![origin]);
     }

@@ -127,6 +127,11 @@ fn judge_scalar_recast_alternative(
         Some(state),
         source,
     );
+    // The judgment concerns backing storage, not the permission descriptor.
+    // Use the same root-reference crossing as aggregate representation; keep
+    // referent constraints intact for scalar implication in both directions.
+    let source_type = source_type
+        .map(|source| crate::value_custody::places::assignment_value_type(program, source));
     let source_placed = source_type
         .and_then(|type_reference| program.placed_view_plan_for_type_reference(type_reference));
     let target_placed = program.placed_view_plan_for_type_reference(cast.target_type);
@@ -238,12 +243,6 @@ fn judge_scalar_recast_alternative(
                 );
                 return;
             }
-            let source_type = crate::value_custody::places::declared_place_type_raw(
-                program,
-                machine,
-                Some(state),
-                source,
-            );
             if let Some(source_type) = source_type
                 && let Some(source_representation) = type_representation(program, source_type)
             {
@@ -369,12 +368,6 @@ fn judge_scalar_recast_alternative(
         );
         return;
     }
-    let source_type = crate::value_custody::places::declared_place_type_raw(
-        program,
-        machine,
-        Some(state),
-        source,
-    );
     let source_primitive = source_type
         .and_then(|type_reference| exact_scalar_representation_type(program, type_reference));
     let Some(source_primitive) = source_primitive else {

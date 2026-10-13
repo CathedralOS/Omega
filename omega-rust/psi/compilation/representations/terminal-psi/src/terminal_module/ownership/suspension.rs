@@ -401,6 +401,17 @@ fn hash_loan_path_segment(
             hash.raw(&index.get().to_le_bytes());
             hash.raw(&obligation.get().to_le_bytes());
         }
+        StructuralPathSegment::RepresentationView {
+            structural_type,
+            stored_scalar,
+        } => {
+            hash.byte(8);
+            hash.raw(&structural_type.get().to_le_bytes());
+            hash.byte(u8::from(stored_scalar.is_some()));
+            if let Some(scalar) = stored_scalar {
+                hash_scalar_type(hash, *scalar);
+            }
+        }
     }
 }
 

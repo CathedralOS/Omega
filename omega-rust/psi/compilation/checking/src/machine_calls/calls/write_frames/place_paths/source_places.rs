@@ -26,6 +26,9 @@ pub(in crate::machine_calls::calls::write_frames) enum FrameSourceKind {
 /// only the current view; they cannot rewrite this predecessor's selectors.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecastSource {
+    /// Exact formation occurrence in its original body. Call/state substitution
+    /// rebases storage coordinates, never this issuer into the caller's syntax.
+    pub formation_expression: ExpressionHandle,
     pub root: SymbolHandle,
     pub segments: Vec<PlaceSegment>,
     pub representation: Option<(typed_trees::types::TypeReferenceHandle, Vec<PlaceSegment>)>,
@@ -91,8 +94,10 @@ impl FrameSourcePlace {
     pub(in crate::machine_calls::calls::write_frames) fn recast(
         &mut self,
         target_type: typed_trees::types::TypeReferenceHandle,
+        formation_expression: ExpressionHandle,
     ) {
         self.recasts.push(RecastSource {
+            formation_expression,
             root: self.root,
             segments: self.segments.clone(),
             representation: self.representation.clone(),
@@ -202,6 +207,7 @@ impl FrameSourcePlace {
             };
             let rebased = base_coordinate.append_relative(&predecessor);
             result.recasts.push(RecastSource {
+                formation_expression: recast.formation_expression,
                 root: rebased.root,
                 segments: rebased.segments,
                 representation: rebased.representation,

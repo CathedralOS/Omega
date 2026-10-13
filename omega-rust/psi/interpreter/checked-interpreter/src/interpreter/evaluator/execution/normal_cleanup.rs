@@ -336,6 +336,11 @@ impl<'program> Evaluator<'program> {
         for segment in path {
             source = self.deref_cell(source);
             match segment {
+                CheckedUnitStructuralPathSegment::RepresentationView { .. } => {
+                    return unsupported(
+                        "storage interpretation cannot provide an owned cleanup receiver",
+                    );
+                }
                 CheckedUnitStructuralPathSegment::Referent => {}
                 CheckedUnitStructuralPathSegment::FixedIndex(index) => {
                     source = self.element_cell(

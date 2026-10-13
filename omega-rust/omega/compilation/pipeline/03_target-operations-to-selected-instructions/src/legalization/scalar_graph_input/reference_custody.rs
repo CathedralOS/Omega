@@ -75,6 +75,25 @@ pub(in crate::legalization) enum Root {
 }
 
 impl Root {
+    /// Compose declaration-relative interpretation without changing the
+    /// original storage place or any descriptor/parent residence identity.
+    fn projected(&self, suffix: &[StructuralPathSegment]) -> Self {
+        if suffix.is_empty() {
+            return self.clone();
+        }
+        let mut origins = self.origins();
+        for origin in &mut origins {
+            origin.path.extend_from_slice(suffix);
+        }
+        if origins.len() == 1 {
+            let origin = origins.remove(0);
+            Self::Ingress(origin.root, origin.path)
+        } else {
+            origins.sort();
+            origins.dedup();
+            Self::Alternatives(origins)
+        }
+    }
     pub(in crate::legalization) fn origins(&self) -> Vec<target_operations::TargetReferenceOrigin> {
         match self {
             Self::Place(root) => vec![target_operations::TargetReferenceOrigin {
@@ -624,6 +643,7 @@ fn direct_storage_type(
             StructuralPathSegment::Field(_)
                 | StructuralPathSegment::FixedIndex(_)
                 | StructuralPathSegment::RuntimeIndex { .. }
+                | StructuralPathSegment::RepresentationView { .. }
         )
     }) {
         return None;
@@ -845,7 +865,7 @@ fn normalized_direct_source(
         if leaf_type(types, leaf.referent, suffix).is_none() {
             return Err(invalid());
         }
-        Ok((leaf.root.clone(), vec![leaf.identity.clone()]))
+        Ok((leaf.root.projected(suffix), vec![leaf.identity.clone()]))
     } else if source.path.is_empty() {
         Ok((Root::Place(source.place), Vec::new()))
     } else if storage_projection(function, custody, types, source).is_some() {
@@ -1823,32 +1843,62 @@ pub(in crate::legalization) fn apply(
                 return Err(invalid());
             }
             let transferred = transferred_ingress_leaf(function, custody, types, source);
-            let leaf = if let Some(key) = transferred {
-                custody.leaves.remove(&key).ok_or_else(|| invalid())?
-            } else {
-                let (root, parents) = normalized_source(function, custody, types, source)?;
-                let (backing, backing_parents) = descriptor_backing::capture(
-                    function,
-                    custody,
-                    types,
-                    source,
-                    *psi_operation,
-                    &root,
-                )?;
-                let mut leaf = Leaf::formed(
-                    (result.place, Vec::new()),
-                    root,
-                    parents,
-                    *psi_operation,
-                    result,
-                    referent,
-                );
-                leaf.backing = backing;
-                leaf.parents.extend(backing_parents);
-                leaf.parents.sort();
-                leaf.parents.dedup();
-                leaf
-            };
+            let leaf =
+                if let Some(key) = transferred {
+                    custody.leaves.remove(&key).ok_or_else(|| invalid())?
+                } else {
+                    let (mut root, parents) = normalized_source(function, custody, types, source)?;
+                    if let Some(storage) = storage {
+                        // The source operation, not its signature, issues the
+                        // interpretation step. A recipe with no relative offset
+                        // can describe only an actual zero-offset formation.
+                        let mut offsets =
+                            function
+                                .block_nodes()
+                                .filter_map(|node| match node.operation {
+                                    AbstractOperation::IntegerConstant {
+                                        result, value, ..
+                                    } if result == storage.byte_offset => Some(value),
+                                    _ => None,
+                                });
+                        if offsets.next() != Some(semantic_vocabulary::IntegerValue::Unsigned(0))
+                            || offsets.next().is_some()
+                        {
+                            return Err(invalid());
+                        }
+                        terminal_semantics::representation_view_declaration(
+                            types.iter(),
+                            referent,
+                            storage.stored_scalar,
+                        )
+                        .ok_or_else(invalid)?;
+                        root = root.projected(&[StructuralPathSegment::RepresentationView {
+                            structural_type: referent,
+                            stored_scalar: storage.stored_scalar,
+                        }]);
+                    }
+                    let (backing, backing_parents) = descriptor_backing::capture(
+                        function,
+                        custody,
+                        types,
+                        source,
+                        *psi_operation,
+                        &root,
+                    )?;
+                    let mut leaf = Leaf::formed(
+                        (result.place, Vec::new()),
+                        root,
+                        parents,
+                        *psi_operation,
+                        result,
+                        referent,
+                    );
+                    leaf.backing = backing;
+                    leaf.parents.extend(backing_parents);
+                    leaf.parents.sort();
+                    leaf.parents.dedup();
+                    leaf
+                };
             custody.leaves.insert((result.place, Vec::new()), leaf);
         }
         AbstractOperation::ReleaseReference { source, path, .. } => {
@@ -2125,12 +2175,13 @@ pub(in crate::legalization) fn apply(
 /// formal origin. The declaration lists possible case slots, not simultaneous
 /// permissions; inactive payloads owe no descriptor. Establishment and transfer
 /// reconstruct the resident roster before this independent return audit.
-pub(in crate::legalization) fn return_custody(
-    custody: &Custody,
+fn transfer_return_custody(
+    custody: &mut Custody,
     function: &PsiOptimizationFunction,
     types: &[StructuralTypeDeclaration],
     source: PlaceId,
     result: &terminal_psi::StructuralResultDeclaration,
+    cleanup_actions: &[terminal_psi::TerminalAffineCleanupAction],
 ) -> Result<(), LegalizationError> {
     if !contains_reference(types, result.structural_type) {
         return Err(invalid());
@@ -2198,7 +2249,6 @@ pub(in crate::legalization) fn return_custody(
             root => declared(root),
         };
         if !(admitted || descriptor_backing::matches_return(&leaf.backing, &declared))
-            || !leaf.parents.is_empty()
             || custody
                 .leaves
                 .values()
@@ -2219,6 +2269,33 @@ pub(in crate::legalization) fn return_custody(
             return Err(invalid());
         }
     }
+    // Output is already formed. Its original storage and admitted view chain
+    // were matched above; the signature never supplies an origin. Close only
+    // the local ancestry disposed by this exact completion. Ordinary copies
+    // and releases keep their original parent relationships unchanged.
+    let occurrences = custody
+        .leaves
+        .values()
+        .map(|leaf| terminal_semantics::ReferenceCompletionOccurrence {
+            identity: &leaf.identity,
+            parents: leaf.parents.iter().collect(),
+            returned: leaf.identity.0 == source
+                && owned_relative_path(&leaf.identity.1, &[]).is_some(),
+            disposed: function
+                .structural_parameter(leaf.identity.0)
+                .is_none_or(|parameter| parameter.access == StructuralAccess::Owned)
+                && terminal_semantics::cleanup_disposes_reference(
+                    cleanup_actions,
+                    leaf.identity.0,
+                    &leaf.identity.1,
+                ),
+        })
+        .collect::<Vec<_>>();
+    terminal_semantics::validate_reference_result_completion(&occurrences)
+        .map_err(|reason| LegalizationError::ReferenceCompletion { reason })?;
+    custody.leaves.retain(|(carrier, path), _| {
+        *carrier != source || owned_relative_path(path, &[]).is_none()
+    });
     Ok(())
 }
 
@@ -2231,6 +2308,16 @@ pub(in crate::legalization) fn apply_terminator(
     plan: &AbstractOperationPlan,
 ) -> Result<(), LegalizationError> {
     let types = &plan.structural_types[..];
+    if let AbstractOperation::ReturnStructural {
+        source,
+        cleanup_actions,
+        ..
+    } = operation
+        && let Some(result) = function.result.structural()
+        && contains_reference(types, result.structural_type)
+    {
+        transfer_return_custody(custody, function, types, *source, result, cleanup_actions)?;
+    }
     let mut exits = Vec::new();
     for (edge, actions) in operation.cleanup_rosters() {
         let owned_transfer = operation.owned_transfer(edge);

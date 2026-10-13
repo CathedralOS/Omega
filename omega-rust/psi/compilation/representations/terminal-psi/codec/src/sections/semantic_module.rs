@@ -75,7 +75,8 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Provider candidates retain checked receiving applications and ordered regions.
 // Descriptor cleanup admits exclusive pointers without disposal of their referees.
 // Whole byte operands retain their exact descriptor projection and access.
-pub(crate) const FORMAT_MARKER: u16 = 150;
+// Returned storage origins retain admitted declaration-relative interpretations.
+pub(crate) const FORMAT_MARKER: u16 = 151;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

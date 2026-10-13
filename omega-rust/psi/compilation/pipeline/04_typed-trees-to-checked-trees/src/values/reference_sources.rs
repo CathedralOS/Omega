@@ -10,8 +10,7 @@ use checked_trees::{
     CheckedReferenceStorage, CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan,
 };
-use semantic_vocabulary::{IeeeFloatFormat, IntegerSign, IntegerType, ScalarType};
-use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
+use typed_trees::types::TypeReferenceHandle;
 
 use crate::execution::terminal_unit::calls;
 use crate::execution::terminal_unit::types::field_requires_place_observation;
@@ -237,26 +236,7 @@ pub(crate) fn capture(
         _ => return None,
     };
     let storage = if is_view {
-        let stored_scalar = if let Some(primitive) = program.primitive_type_reference(referent) {
-            let geometry = validation::recast_scalar_path_projection(program, referent, &[])?;
-            Some(match geometry.stored_integer {
-                Some(integer) => ScalarType::Integer(integer),
-                None => primitive_storage_scalar(primitive)?,
-            })
-        } else {
-            // Aggregate field geometry is retained in the structural catalog.
-            // Formation keeps the address here; field loans choose their exact
-            // scalar codec when they project through this established parent.
-            // The checked source recast covers every alternative. Formation
-            // retains its actual backing; the catalog owns target-dependent
-            // offsets and sizes until exact execution closure.
-            for target in validation::layout_checking_targets(program, [referent]).ok()? {
-                let context = validation::LayoutCheckingContext::new(program, target);
-                validation::recast_scalar_layout(&context, referent)?;
-            }
-            None
-        };
-        CheckedReferenceStorage::View { stored_scalar }
+        validation::reference_view_storage(program, referent)?
     } else {
         CheckedReferenceStorage::Declared
     };
@@ -278,24 +258,6 @@ fn access_can_supply(source: CheckedStructuralAccess, result: CheckedStructuralA
             source,
             CheckedStructuralAccess::Owned | CheckedStructuralAccess::MutableBorrow
         )
-}
-
-fn primitive_storage_scalar(primitive: PrimitiveType) -> Option<ScalarType> {
-    match primitive {
-        PrimitiveType::Bool => Some(ScalarType::Boolean),
-        PrimitiveType::F32 => Some(ScalarType::IeeeFloat(IeeeFloatFormat::Binary32)),
-        PrimitiveType::F64 => Some(ScalarType::IeeeFloat(IeeeFloatFormat::Binary64)),
-        primitive if primitive.is_fixed_integer() => {
-            let sign = if primitive.is_signed_integer() {
-                IntegerSign::Signed
-            } else {
-                IntegerSign::Unsigned
-            };
-            let bits = u16::try_from(primitive.scalar_byte_size()?.checked_mul(8)?).ok()?;
-            IntegerType::new(sign, bits).ok().map(ScalarType::Integer)
-        }
-        _ => None,
-    }
 }
 
 /// Existing stored descriptors retain their current carrier. Fresh formations

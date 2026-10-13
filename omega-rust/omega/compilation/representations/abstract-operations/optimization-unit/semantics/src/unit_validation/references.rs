@@ -242,6 +242,25 @@ pub(crate) fn leaf_type(
     fields: &[terminal_psi::StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
     for segment in fields {
+        if let terminal_psi::StructuralPathSegment::RepresentationView {
+            structural_type,
+            stored_scalar,
+        } = segment
+        {
+            if matches!(
+                types.get(&current)?.shape,
+                terminal_psi::StructuralTypeShape::Reference { .. }
+            ) {
+                return None;
+            }
+            current = terminal_semantics::representation_view_declaration(
+                types.values().copied(),
+                *structural_type,
+                *stored_scalar,
+            )?
+            .id;
+            continue;
+        }
         if let terminal_psi::StructuralPathSegment::FixedIndex(index) = segment {
             let declaration = types.get(&current)?;
             let terminal_psi::StructuralTypeShape::FixedArray { element, length } =
@@ -511,6 +530,7 @@ pub(crate) fn formal_origin(
                 segment,
                 terminal_psi::StructuralPathSegment::Field(_)
                     | terminal_psi::StructuralPathSegment::FixedIndex(_)
+                    | terminal_psi::StructuralPathSegment::RepresentationView { .. }
             )
         })
     {

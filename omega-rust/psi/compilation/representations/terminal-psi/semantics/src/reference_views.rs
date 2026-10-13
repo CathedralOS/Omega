@@ -7,6 +7,29 @@
 
 use semantic_vocabulary::{ScalarType, StructuralTypeId};
 
+/// Resolve the declaration of one retained storage interpretation. This checks
+/// its vocabulary and codec only, never source representation validity, extent,
+/// access or lifetime. Result custody must match it to an actual admitted
+/// formation before the path can describe a returned loan.
+pub fn representation_view_declaration<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    view: StructuralTypeId,
+    stored: Option<ScalarType>,
+) -> Option<&'types StructuralTypeDeclaration> {
+    let mut matching = types.filter(|declaration| declaration.id == view);
+    let declaration = matching.next()?;
+    if matching.next().is_some() {
+        return None;
+    }
+    match (stored, &declaration.shape) {
+        (Some(stored), StructuralTypeShape::PrimitiveScalar(logical))
+            if reference_storage_view_is_compatible(stored, *logical) => {}
+        (None, StructuralTypeShape::Record { .. } | StructuralTypeShape::FixedArray { .. }) => {}
+        _ => return None,
+    }
+    Some(declaration)
+}
+
 /// Reference provenance may end in a marker naming ordinary borrowed storage.
 /// Only a reference-typed endpoint crosses a descriptor there. Formation and
 /// result-origin consumers use this same geometry before resolving live loans;

@@ -19,8 +19,7 @@ use target_operations::{
     TargetStructuralArgument, TargetStructuralParameter, TargetUnitOperation, TerminalPsiProvenance,
 };
 use terminal_psi::{
-    StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralPathSegment,
-    StructuralTypeShape,
+    StructuralAccess, StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape,
 };
 use terminal_psi::{StructuralArgument, StructuralOperationResult};
 
@@ -130,6 +129,25 @@ pub(super) enum ReferenceRoot {
 }
 
 impl ReferenceRoot {
+    /// Compose presentation metadata without selecting a runtime address.
+    fn projected(&self, suffix: &[StructuralPathSegment]) -> Self {
+        if suffix.is_empty() {
+            return self.clone();
+        }
+        let mut origins = self.origins();
+        for origin in &mut origins {
+            origin.path.extend_from_slice(suffix);
+        }
+        if origins.len() == 1 {
+            let origin = origins.remove(0);
+            Self::Ingress(origin.root, origin.path)
+        } else {
+            origins.sort();
+            origins.dedup();
+            Self::Alternatives(origins)
+        }
+    }
+
     pub(super) fn origins(&self) -> Vec<target_operations::TargetReferenceOrigin> {
         match self {
             Self::Place(root) => vec![target_operations::TargetReferenceOrigin {
@@ -448,97 +466,20 @@ pub(super) fn leaf_referent(
 /// segment descends into a fixed array's element within its declared extent.
 pub(super) fn leaf_type(
     types: &StructuralTypeLookup<'_>,
-    mut current: StructuralTypeId,
+    current: StructuralTypeId,
     fields: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
-    if let Some(primitive) = terminal_semantics::primitive_projection_declaration(
-        types.values().copied(),
-        current,
-        fields,
-    ) {
-        return Some(primitive);
-    }
-    let mut case_fields = None;
-    for segment in fields {
-        if case_fields.is_some() && !matches!(segment, StructuralPathSegment::Field(_)) {
-            return None;
-        }
-        if let StructuralPathSegment::Case(case) = segment {
-            let declaration = types.get(&current)?;
-            let cases = declaration.shape.sum_cases()?;
-            // Case selects a namespace, not a structural child. Disposal of a
-            // selected residual must resolve the payload's declaration before
-            // asking whether it carries descriptors; shape alone grants no
-            // active-case or ownership permission.
-            case_fields = Some(
-                cases
-                    .iter()
-                    .find(|candidate| candidate.id == *case)?
-                    .fields
-                    .as_slice(),
-            );
-            continue;
-        }
-        if matches!(
-            segment,
-            StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. }
-        ) && matches!(
-            types.get(&current)?.shape,
-            StructuralTypeShape::ByteSequence(_)
-        ) {
-            current = terminal_semantics::primitive_projection_declaration(
+    // Native custody uses the same declaration-relative geometry as Terminal.
+    // A re-view changes observation, never a carrier home or emitted pointer.
+    terminal_semantics::runtime_structural_path_tip(types.values().copied(), current, fields)
+        .map(|declaration| declaration.id)
+        .or_else(|| {
+            terminal_semantics::primitive_projection_declaration(
                 types.values().copied(),
                 current,
-                std::slice::from_ref(segment),
-            )?;
-            continue;
-        }
-        if matches!(segment, StructuralPathSegment::RuntimeIndex { .. }) {
-            current = match &types.get(&current)?.shape {
-                StructuralTypeShape::FixedArray { element, .. }
-                | StructuralTypeShape::ElementView { element } => *element,
-                _ => return None,
-            };
-            continue;
-        }
-        if *segment == StructuralPathSegment::Referent {
-            let StructuralTypeShape::Reference { referent, .. } = &types.get(&current)?.shape
-            else {
-                return None;
-            };
-            current = *referent;
-            continue;
-        }
-        if let StructuralPathSegment::FixedIndex(index) = segment {
-            let declaration = types.get(&current)?;
-            let StructuralTypeShape::FixedArray { element, length } = &declaration.shape else {
-                return None;
-            };
-            if index >= length {
-                return None;
-            }
-            current = *element;
-            continue;
-        }
-        let StructuralPathSegment::Field(identity) = segment else {
-            return None;
-        };
-        let declaration = types.get(&current)?;
-        let fields = match case_fields.take() {
-            Some(fields) => fields,
-            None => declaration.shape.direct_fields()?,
-        };
-        let field = terminal_psi::live_field_by_identity(fields, *identity)?;
-        current = match &field.field_type {
-            StructuralFieldType::Structural(child) => *child,
-            leaf => {
-                leaf.canonical_leaf_type()?
-                    .leaf_declaration(types.values().copied())?
-                    .id
-            }
-        };
-    }
-    case_fields.is_none().then_some(current)
+                fields,
+            )
+        })
 }
 
 /// The structural contract a place currently carries: a signature parameter, a
@@ -582,6 +523,7 @@ fn direct_storage_type(
             StructuralPathSegment::Field(_)
                 | StructuralPathSegment::FixedIndex(_)
                 | StructuralPathSegment::RuntimeIndex { .. }
+                | StructuralPathSegment::RepresentationView { .. }
         )
     }) {
         return None;
@@ -765,7 +707,7 @@ fn normalized_direct_source(
         if leaf_type(types, leaf.referent, suffix).is_none() {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
-        Ok(leaf.root.clone())
+        Ok(leaf.root.projected(suffix))
     } else if source.path.is_empty() {
         Ok(ReferenceRoot::Place(source.place))
     } else if storage_projection(function, live, types, source).is_some() {
@@ -942,7 +884,13 @@ pub(super) fn establish(
     // EstablishReference always borrows, including a projection through an
     // owned record. Moving a stored descriptor uses the checked owned-value
     // projection/transfer operation, not an ingress-shape reinterpretation.
-    let root = normalized_source(function, live, types, source)?;
+    let mut root = normalized_source(function, live, types, source)?;
+    if let Some(storage) = storage {
+        root = root.projected(&[StructuralPathSegment::RepresentationView {
+            structural_type: referent,
+            stored_scalar: storage.stored_scalar,
+        }]);
+    }
     live.references.insert(
         (result.place, Vec::new()),
         ReferenceStorage {

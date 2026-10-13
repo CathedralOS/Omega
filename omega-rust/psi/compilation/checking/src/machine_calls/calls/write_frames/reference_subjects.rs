@@ -443,10 +443,14 @@ fn declared_initializer_origins(
     aliases: &[(String, FramePlaceOrigin)],
     stored: &[StoredLocalOrigins],
 ) -> Option<Vec<FramePlaceOrigin>> {
-    let explicit_borrow = matches!(
-        program.expression_table.expression(expression),
-        ExpressionNode::Borrow(_)
-    );
+    // Every reference formation lends its source, including a recast without
+    // an outer Borrow node. Validate that source's selectors, not the syntax
+    // wrapper or the new observation declaration.
+    let formation = crate::reference_formation_source(program, expression);
+    let explicit_borrow = formation.is_some();
+    if let Some(formation) = formation {
+        expression = formation.source;
+    }
     expression = program
         .expression_table
         .peeled_expression_handle(expression);
@@ -576,6 +580,63 @@ fn frozen_reference_origin(
 /// body before exporting that boundary for caller substitution. Neither query
 /// supplies a qualification merely from the input's declared type.
 pub(super) fn validate_source_projection(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    index: usize,
+    source: &FrameSourcePlace,
+    stored: &[StoredLocalOrigins],
+) -> Option<()> {
+    let Some(first) = source.recasts.first() else {
+        if source.representation.is_some() {
+            return None;
+        }
+        return validate_declaration_source_projection(
+            program, machine, state, index, source, stored,
+        );
+    };
+    // Prove the original declaration prefix once. Each later selector belongs
+    // to the preceding interpretation, not to that original field namespace.
+    // These coordinates still grant no loan or representation validity proof.
+    let mut original = source.clone();
+    original.segments = first.segments.clone();
+    original.representation = None;
+    original.recasts.clear();
+    validate_declaration_source_projection(program, machine, state, index, &original, stored)?;
+    let mut presentation = None;
+    for recast in &source.recasts {
+        if recast.root != source.root {
+            return None;
+        }
+        match (presentation, &recast.representation) {
+            (None, None) => {}
+            (Some(previous), Some((reference, selectors)))
+                if program.normalized_type_identity(previous)
+                    == program.normalized_type_identity(*reference) =>
+            {
+                validate_owned_projection(program, *reference, selectors)?;
+            }
+            _ => return None,
+        }
+        let formation = crate::reference_formation_source(program, recast.formation_expression)?;
+        if !formation.view_type.is_valid()
+            || program.normalized_type_identity(formation.view_type)
+                != program.normalized_type_identity(recast.target_type)
+        {
+            return None;
+        }
+        presentation = Some(recast.target_type);
+    }
+    let (reference, selectors) = source.representation.as_ref()?;
+    if presentation.map(|reference| program.normalized_type_identity(reference))
+        != Some(program.normalized_type_identity(*reference))
+    {
+        return None;
+    }
+    validate_owned_projection(program, *reference, selectors)
+}
+
+fn validate_declaration_source_projection(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,

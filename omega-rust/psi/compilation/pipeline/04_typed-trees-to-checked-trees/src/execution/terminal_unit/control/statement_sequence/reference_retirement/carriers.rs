@@ -56,6 +56,17 @@ impl Retirement<'_> {
         if active.contains(&result.binding_ordinal) {
             return false;
         }
+        // A call's anonymous output can be the selected return without ever
+        // acquiring a local symbol. Capture it before closing its inputs;
+        // the independent completion judgment still checks their ancestry
+        // and every sibling's actual disposition on this edge.
+        if self.at_exit
+            && self
+                .returned
+                .is_some_and(|returned| super::returned_reference_binding(returned, result))
+        {
+            return true;
+        }
         let source = CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: result.binding_ordinal,
         };

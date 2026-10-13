@@ -11,7 +11,8 @@ use super::structural_signature_wire::{
 };
 use super::wire::{Reader, Writer};
 use crate::sections::semantic_module::structural_place_wire::{
-    decode_structural_path, encode_structural_path,
+    decode_reference_origin_path, decode_structural_path, encode_reference_origin_path,
+    encode_structural_path,
 };
 use crate::sections::semantic_module::wire::{decode_counted, decode_ids};
 
@@ -45,7 +46,7 @@ pub(crate) fn validate_reference_sources(
             };
             if *access != source.access
                 || *referent
-                    != crate::sections::semantic_module::module_foundation_validation::validate_structural_path(
+                    != crate::sections::semantic_module::module_foundation_validation::validate_reference_origin_path(
                         module,
                         parameter.structural_type,
                         &source.path,
@@ -107,7 +108,7 @@ pub(crate) fn encode_function_result(
         for source in &reference.sources {
             writer.id(source.place);
             super::structural_signature_wire::encode_structural_access(writer, source.access);
-            encode_structural_path(writer, "reference source path", &source.path)?;
+            encode_reference_origin_path(writer, "reference source path", &source.path)?;
         }
     }
     Ok(())
@@ -129,7 +130,7 @@ pub(crate) fn decode_function_result(
                     Ok(terminal_psi::StructuralArgument {
                         place: reader.id("PlaceId")?,
                         access: super::structural_signature_wire::decode_structural_access(reader)?,
-                        path: decode_structural_path(reader)?,
+                        path: decode_reference_origin_path(reader)?,
                     })
                 })?,
             })

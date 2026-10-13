@@ -63,7 +63,18 @@ The source place retains its original type and storage; the reference declares
 the observation type. Width equality alone grants no authority. Address
 carriers do not become integers, and an integer-to-Boolean view requiring a
 proved 0/1 landing stays on the scalar observation route. Aggregate and
-exclusive reference formation retain exact referent identity.
+exclusive reference formation retain original storage identity and independently
+admitted representation compatibility, per [recasts](../layouts/recasts.md).
+
+A returned representation view retains its original ingress root separately
+from its presentation. Its origin path may include `RepresentationView`, naming
+the admitted declaration and stored scalar codec, followed by projections in
+that declaration's namespace. This is origin metadata, not an executable place
+operand, pointer crossing, owned residence, or permission grant. `Referent`
+remains the only reference crossing. An actual establishment authenticates each
+interpretation; equal geometry or a result annotation cannot manufacture one.
+Byte layout stays target-owned. Differently named fields across a representation
+change do not establish disjointness from original backing fields.
 
 A scalar ingress that needs addressable storage receives one home for its
 original value. Multiple shared views borrow that same home. Helper arguments
@@ -82,6 +93,16 @@ have ended. It neither crosses a reference nor disposes the referent. A projecte
 release consumes that leaf's ownership, retains disjoint siblings, and makes the
 ancestor unavailable for whole-value use. Subsequent cleanup reconstructs the
 exact remaining structural complement, excluding released leaves.
+
+Normal structural completion captures its actual output before disposing local
+descriptors. A copied result retains its immediate parents until that boundary.
+Matching its original ingress sources does not excuse missing ancestry: every
+local ancestor must have an actual descriptor disposition on that selected exit,
+and every sibling child must either leave with the output or be disposed there.
+Home retirement alone proves neither. The completion transfers the authenticated
+result loans, then closes the remaining local carriers deepest-first and restores
+borrowed ingress. This is the return transaction, not an early `ReleaseReference`
+or a serialized root-handoff certificate.
 
 An empty structural complement settles disposal obligations, not the initialized
 storage of scalar siblings. Their nonoverlapping observations remain available

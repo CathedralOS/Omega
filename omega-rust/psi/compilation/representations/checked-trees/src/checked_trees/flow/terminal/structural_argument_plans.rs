@@ -14,7 +14,7 @@ use typed_trees::types::PrimitiveType;
 /// A view begins at the source's actual projected address. Aggregate views
 /// obtain field encodings from their authored structural catalog; scalar views
 /// carry their codec independently of the callee's logical parameter type.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub enum CheckedReferenceStorage {
     #[default]
     Declared,

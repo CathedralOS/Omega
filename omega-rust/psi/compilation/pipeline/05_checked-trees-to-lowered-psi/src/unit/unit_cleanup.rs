@@ -24,7 +24,9 @@ mod dispositions;
 pub(crate) use dispositions::outstanding_actions;
 mod ordered;
 mod partial;
+mod reference_retirement;
 use ordered::lower_ordered_nominal_affine_unit_cleanup_machine;
+pub(crate) use reference_retirement::lower_reference_completion_regions;
 
 /// Emission scratch for one checked region. Conditions remain control, not a
 /// property of the cleanup callable or authority to discharge its contract.

@@ -342,6 +342,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         .position(|statement| matches!(statement, StatementNode::Transition(_)))
         .or_else(|| statements.len().checked_sub(1));
     if let Some(statement_index) = completion_entry {
+        trace.phase("statement sequence: statement-entry descriptor retirement");
         append_reference_releases(
             program,
             facts,
@@ -411,6 +412,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             returned_scalar_call = Some(result);
         }
     }
+    trace.phase("statement sequence: completion descriptor retirement");
     append_exit_reference_releases(
         program,
         facts,

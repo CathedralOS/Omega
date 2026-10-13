@@ -156,10 +156,10 @@ pub(super) fn establishment(
         StructuralTypeShape::Reference { referent, .. } if through_referent => (*referent, true),
         _ => (selected, false),
     };
-    let load_codec = storage.is_none()
-        && semantic_scalar.is_some()
-        && (load_pointer || borrowed_scalar_source(function, source.place).is_some());
-    load_pointer |= load_codec;
+    // Borrowed scalar ingress carries an address-and-codec descriptor. A new
+    // interpretation replaces the codec, not the descriptor's pointer crossing.
+    load_pointer |= borrowed_scalar_source(function, source.place).is_some();
+    let load_codec = storage.is_none() && semantic_scalar.is_some() && load_pointer;
     let codec = match storage {
         Some(storage) => storage
             .stored_scalar

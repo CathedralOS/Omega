@@ -223,6 +223,7 @@ where
                 | terminal_psi::StructuralPathSegment::Case(_)
                 | terminal_psi::StructuralPathSegment::RuntimeIndex { .. } => true,
                 terminal_psi::StructuralPathSegment::Referent
+                | terminal_psi::StructuralPathSegment::RepresentationView { .. }
                 | terminal_psi::StructuralPathSegment::FixedByteRange { .. } => false,
             });
         let path_shape_matches = match projection {

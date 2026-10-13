@@ -30,6 +30,12 @@ pub(crate) fn structural_projected_qualifications_match(
     !qualifications.windows(2).any(|pair| pair[0] >= pair[1])
         && qualifications.iter().all(|qualification| {
             !qualification.path.is_empty()
+                && !qualification.path.iter().any(|segment| {
+                    matches!(
+                        segment,
+                        terminal_psi::StructuralPathSegment::RepresentationView { .. }
+                    )
+                })
                 && resolve_structural_path(types, root, &qualification.path).is_some_and(
                     |projected| {
                         domains
@@ -163,6 +169,23 @@ fn resolve_path<'types>(
             return None;
         }
         structural_type = match (segment, &declaration.shape) {
+            (
+                terminal_psi::StructuralPathSegment::RepresentationView {
+                    structural_type: view,
+                    stored_scalar,
+                },
+                shape,
+            ) => {
+                if matches!(shape, terminal_psi::StructuralTypeShape::Reference { .. }) {
+                    return None;
+                }
+                terminal_semantics::representation_view_declaration(
+                    declarations.clone(),
+                    *view,
+                    *stored_scalar,
+                )?
+                .id
+            }
             (terminal_psi::StructuralPathSegment::Field(identity), shape) => {
                 let fields = match payload_fields.take() {
                     Some(fields) => fields,

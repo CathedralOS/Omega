@@ -1173,7 +1173,12 @@ pub(super) fn runtime_storage_projection<'types>(
                     layout.cases[case_position].fields[field_position].byte_offset,
                 )
             }
-            StructuralPathSegment::Referent | StructuralPathSegment::FixedByteRange { .. } => {
+            // Returned-origin interpretations do not select an executable
+            // address. Actual reference formation owns the emitted pointer;
+            // an origin recipe must not replace that physical operand path.
+            StructuralPathSegment::RepresentationView { .. }
+            | StructuralPathSegment::Referent
+            | StructuralPathSegment::FixedByteRange { .. } => {
                 return Err(LoweringError::UnsupportedStructuralReference(
                     structural_type,
                 ));

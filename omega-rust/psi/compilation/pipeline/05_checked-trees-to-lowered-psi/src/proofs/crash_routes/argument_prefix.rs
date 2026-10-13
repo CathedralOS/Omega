@@ -72,6 +72,11 @@ pub(crate) fn structural_crash_route_prefix_from_type(
             return unsupported("structural crash route case must select its payload field");
         }
         match segment {
+            StructuralPathSegment::RepresentationView { .. } => {
+                return unsupported(
+                    "returned view origins cannot create canonical crash predicate places",
+                );
+            }
             StructuralPathSegment::Case(selected) => {
                 let cases = match &declaration.shape {
                     StructuralTypeShape::Sum { cases }

@@ -125,6 +125,14 @@ pub fn structural_paths_may_overlap(
     right: &[StructuralPathSegment],
 ) -> bool {
     for (left, right) in left.iter().zip(right) {
+        // A view changes declaration namespaces without changing the original
+        // bytes. Different following field identities cannot establish alias
+        // freedom. Precise geometry belongs to the admitted storage projection.
+        if matches!(left, StructuralPathSegment::RepresentationView { .. })
+            || matches!(right, StructuralPathSegment::RepresentationView { .. })
+        {
+            return true;
+        }
         // Variant namespaces describe the same overlay. Even different
         // runtime selectors can alias, so stop before comparing their fields.
         if let (StructuralPathSegment::Case(left), StructuralPathSegment::Case(right)) =
@@ -197,8 +205,14 @@ pub fn interior_member_borrow(parent: &StructuralArgument, child: &StructuralArg
     };
     admitted
         && child.place == parent.place
-        && child.path.len() > parent.path.len()
-        && child.path.starts_with(&parent.path)
+        && child
+            .path
+            .strip_prefix(parent.path.as_slice())
+            .is_some_and(|suffix| {
+                suffix.iter().any(|segment| {
+                    !matches!(segment, StructuralPathSegment::RepresentationView { .. })
+                })
+            })
 }
 
 /// Resolve `path` from `root` to its tip declaration, rejecting a duplicated

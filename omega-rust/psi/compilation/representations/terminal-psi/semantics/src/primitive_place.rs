@@ -591,6 +591,28 @@ fn walk_primitive_projection<'a>(
     let mut position = Position::Declared(root);
     let mut payload_fields = None;
     for segment in path {
+        if let StructuralPathSegment::RepresentationView {
+            structural_type,
+            stored_scalar,
+        } = segment
+        {
+            if payload_fields.is_some()
+                || matches!(position, Position::Declared(root)
+                    if matches!(unique(root)?.shape, StructuralTypeShape::Reference { .. }))
+            {
+                return None;
+            }
+            let view = crate::reference_views::representation_view_declaration(
+                declarations.clone(),
+                *structural_type,
+                *stored_scalar,
+            )?;
+            // Interpretation never mints an owned canonical fact, even when
+            // later fields have fixed declaration-local identities.
+            step(None);
+            position = Position::Declared(view.id);
+            continue;
+        }
         let Position::Declared(root) = position else {
             return None;
         };

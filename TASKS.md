@@ -2825,16 +2825,6 @@ crash and native exit behavior.
     is supplied by **FILESYSTEM-PLATFORM-SERVICES** under
     `portable-service-per-family-binding-carrier` in
     [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md).
-  - Preserve original source coordinates independently of a returned reference's
-    presentation. `pending/recast/callee_returned_aggregate_view_exit` admits
-    the callee's re-view but stops at `statement sequence: reference result`:
-    checking's `reference_result_custody/captured_returns.rs` requires the
-    original source type to equal the result referent. Terminal result-origin
-    validation and return binding require the same equality. Retain the admitted
-    formation's extent, codec and access rather than rename its source path or
-    infer cast authority from equal size. Acceptance: native and Terminal exit 0,
-    including returned subregions and scalar interpretations; invalid source,
-    lifetime, predicate and footprint controls remain refusals.
   - The common lowering route retains runtime bodies and opaque contracts,
     including unreachable members and uncatalogued tags, in Terminal family
     rows; inspection exposes tags and exact callable ids. Semantic conformance

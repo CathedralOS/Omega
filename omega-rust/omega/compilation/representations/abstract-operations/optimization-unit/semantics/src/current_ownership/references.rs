@@ -48,6 +48,40 @@ fn origin_place(origin: &ReferenceOrigin) -> PlaceId {
     }
 }
 
+/// Interpretation is a coordinate over the same original storage. Carrier
+/// identities and immediate parents never acquire these origin-only steps.
+fn projected_origin(
+    origin: &ReferenceOrigin,
+    suffix: &[terminal_psi::StructuralPathSegment],
+) -> ReferenceOrigin {
+    if suffix.is_empty() {
+        return origin.clone();
+    }
+    match origin {
+        ReferenceOrigin::Primitive(place) => ReferenceOrigin::IngressLeaf(ReferenceIdentity {
+            place: *place,
+            path: suffix.to_vec(),
+        }),
+        ReferenceOrigin::IngressLeaf(identity) => {
+            let mut identity = identity.clone();
+            identity.path.extend_from_slice(suffix);
+            ReferenceOrigin::IngressLeaf(identity)
+        }
+        ReferenceOrigin::Alternatives { place, paths } => {
+            let mut paths = paths.clone();
+            for path in &mut paths {
+                path.extend_from_slice(suffix);
+            }
+            paths.sort();
+            paths.dedup();
+            ReferenceOrigin::Alternatives {
+                place: *place,
+                paths,
+            }
+        }
+    }
+}
+
 fn origins_overlap(left: &ReferenceOrigin, right: &ReferenceOrigin) -> bool {
     if origin_place(left) != origin_place(right) {
         return false;
@@ -100,8 +134,15 @@ pub(super) fn owned_resident(
     path: &[terminal_psi::StructuralPathSegment],
     prefix: &[terminal_psi::StructuralPathSegment],
 ) -> bool {
-    path.strip_prefix(prefix)
-        .is_some_and(|suffix| !suffix.contains(&terminal_psi::StructuralPathSegment::Referent))
+    path.strip_prefix(prefix).is_some_and(|suffix| {
+        !suffix.iter().any(|segment| {
+            matches!(
+                segment,
+                terminal_psi::StructuralPathSegment::Referent
+                    | terminal_psi::StructuralPathSegment::RepresentationView { .. }
+            )
+        })
+    })
 }
 
 /// A surviving permission prevents moving its actual owned backing, not the
@@ -122,7 +163,13 @@ pub(super) fn borrows_owned_storage(
             });
         expected
             .and_then(|expected| storage_cursor(function, types, identity, expected))
-            .is_none_or(|cursor| owned_resident(&cursor.path, &[]))
+            // The interpretation has no owned residence of its own, but a
+            // live view still prevents moving the original owned backing.
+            .is_none_or(|cursor| {
+                !cursor
+                    .path
+                    .contains(&terminal_psi::StructuralPathSegment::Referent)
+            })
     };
     match &reference.root {
         ReferenceOrigin::Primitive(root) => *root == place,
@@ -482,9 +529,13 @@ fn normalized_direct_source(
     live: &[LiveReference],
     source: &StructuralArgument,
 ) -> Result<(ReferenceOrigin, ReferenceParent), OptimizationUnitValidationError> {
-    if let Some((terminal_psi::StructuralPathSegment::Referent, carrier_path)) =
-        source.path.split_last()
+    if let Some(crossing) = source
+        .path
+        .iter()
+        .rposition(|segment| *segment == terminal_psi::StructuralPathSegment::Referent)
     {
+        let carrier_path = &source.path[..crossing];
+        let suffix = &source.path[crossing + 1..];
         if let Some(parent) = live.iter().find(|reference| {
             reference.carrier == source.place && reference.carrier_path == carrier_path
         }) {
@@ -501,7 +552,7 @@ fn normalized_direct_source(
                 ));
             }
             return Ok((
-                parent.root.clone(),
+                projected_origin(&parent.root, suffix),
                 ReferenceParent::Reference(parent.identity.clone()),
             ));
         }
@@ -535,6 +586,14 @@ fn normalized_direct_source(
                 block,
                 Some(node),
                 "reference carrier is no longer live",
+            ));
+        }
+        if !suffix.is_empty() {
+            return Err(invalid(
+                function,
+                block,
+                Some(node),
+                "reference projection has no live supplying descriptor",
             ));
         }
         let root = ReferenceOrigin::IngressLeaf(ReferenceIdentity {
@@ -1849,16 +1908,24 @@ pub(super) fn apply_operation(
             let mut alternatives = Vec::with_capacity(candidates.len());
             for (source, transfers_existing) in candidates {
                 let compatible = reference_source_type(function, structural_types, &source)
-                    .is_some_and(|actual| {
-                        if matches!(operation, O::EstablishReference { .. }) {
+                    .is_some_and(|actual| match operation {
+                        O::EstablishReference {
+                            storage: Some(storage),
+                            ..
+                        } => terminal_semantics::reference_storage_source_compatible(
+                            structural_types.values().copied(),
+                            actual,
+                            result.structural_type,
+                            storage.stored_scalar,
+                        ),
+                        O::EstablishReference { storage: None, .. } => {
                             terminal_semantics::reference_source_compatible(
                                 structural_types.values().copied(),
                                 actual,
                                 result.structural_type,
                             )
-                        } else {
-                            actual == expected
                         }
+                        _ => actual == expected,
                     });
                 if !compatible
                     || !leaf_access_within(
@@ -1906,7 +1973,7 @@ pub(super) fn apply_operation(
                     reference.carrier_path = path.clone();
                     reference
                 } else {
-                    let (root, parent) = normalized_source(
+                    let (mut root, mut parent) = normalized_source(
                         function,
                         structural_types,
                         borrowed_sources,
@@ -1915,6 +1982,50 @@ pub(super) fn apply_operation(
                         live,
                         &source,
                     )?;
+                    if let O::EstablishReference {
+                        storage: Some(storage),
+                        ..
+                    } = operation
+                    {
+                        let mut offsets =
+                            function
+                                .block_nodes()
+                                .filter_map(|node| match node.operation {
+                                    O::IntegerConstant { result, value, .. }
+                                        if result == storage.byte_offset =>
+                                    {
+                                        Some(value)
+                                    }
+                                    _ => None,
+                                });
+                        if offsets.next() != Some(semantic_vocabulary::IntegerValue::Unsigned(0))
+                            || offsets.next().is_some()
+                            || terminal_semantics::representation_view_declaration(
+                                structural_types.values().copied(),
+                                expected,
+                                storage.stored_scalar,
+                            )
+                            .is_none()
+                        {
+                            return Err(invalid(
+                                function,
+                                block,
+                                Some(node),
+                                "returned interpretation differs from actual view formation",
+                            ));
+                        }
+                        let interpreted = projected_origin(
+                            &root,
+                            &[terminal_psi::StructuralPathSegment::RepresentationView {
+                                structural_type: expected,
+                                stored_scalar: storage.stored_scalar,
+                            }],
+                        );
+                        if parent == ReferenceParent::Root(root.clone()) {
+                            parent = ReferenceParent::Root(interpreted.clone());
+                        }
+                        root = interpreted;
+                    }
                     LiveReference {
                         identity: ReferenceIdentity {
                             place: result.place,
@@ -2092,6 +2203,7 @@ pub(super) fn transfer_return(
     source: PlaceId,
     live: &mut Vec<LiveReference>,
     observed: &mut Vec<terminal_psi::StructuralReferenceResultSource>,
+    cleanup_actions: &[terminal_psi::TerminalAffineCleanupAction],
 ) -> Result<bool, OptimizationUnitValidationError> {
     let Some(signature) = structural_source_contract(function, source) else {
         return Ok(false);
@@ -2160,7 +2272,7 @@ pub(super) fn transfer_return(
             _ => 1,
         };
         if sources.len() != origin_count
-            || reference.parent != ReferenceParent::Root(reference.root.clone())
+            || matches!(&reference.parent, ReferenceParent::Root(root) if *root != reference.root)
             || live.iter().any(|child| matches!(&child.parent, ReferenceParent::Reference(identity) if identity == &reference.identity))
         {
             return Err(invalid(
@@ -2175,6 +2287,33 @@ pub(super) fn transfer_return(
             sources,
         });
     }
+    // A result copy keeps its immediate parents until this boundary. Verify
+    // their complete selected disposal cohort before transferring the result;
+    // this is not permission to retire a parent at an ordinary statement.
+    let occurrences = live
+        .iter()
+        .map(
+            |reference| terminal_semantics::ReferenceCompletionOccurrence {
+                identity: &reference.identity,
+                parents: match &reference.parent {
+                    ReferenceParent::Root(_) => Vec::new(),
+                    ReferenceParent::Reference(parent) => vec![parent],
+                },
+                returned: reference.carrier == source
+                    && owned_resident(&reference.carrier_path, &[]),
+                disposed: function
+                    .structural_parameter(reference.carrier)
+                    .is_none_or(|parameter| parameter.access == StructuralAccess::Owned)
+                    && terminal_semantics::cleanup_disposes_reference(
+                        cleanup_actions,
+                        reference.carrier,
+                        &reference.carrier_path,
+                    ),
+            },
+        )
+        .collect::<Vec<_>>();
+    terminal_semantics::validate_reference_result_completion(&occurrences)
+        .map_err(|reason| invalid(function, block, None, reason.description()))?;
     // This removes frame-local ownership rows, not the referents or the loans.
     // The caller independently instantiates the checked result source roster.
     live.retain(|reference| {

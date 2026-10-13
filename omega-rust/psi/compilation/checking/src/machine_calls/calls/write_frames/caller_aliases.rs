@@ -120,6 +120,15 @@ pub struct LocalWriteSource {
     pub segments: Vec<facts::PlaceSegment>,
 }
 
+/// Complete chronological source of one returned reference leaf. This is
+/// construction evidence for origin publication, not a new lifetime or loan.
+/// Unresolved leaves are unavailable, never an empty result roster.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ReferenceResultLeafOrigin {
+    pub result_path: Vec<facts::PlaceSegment>,
+    pub source: LocalWriteSource,
+}
+
 impl LocalWriteSource {
     /// Substitute relative storage using the frame owner's coordinate algebra.
     /// Text paths are only display/footprint payload; they never select fields.

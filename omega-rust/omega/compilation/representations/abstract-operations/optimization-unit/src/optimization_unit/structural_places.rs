@@ -278,6 +278,7 @@ pub(crate) fn canonicalize_ordinary_path(
             },
             StructuralPathSegment::Case(_)
             | StructuralPathSegment::RuntimeIndex { .. }
+            | StructuralPathSegment::RepresentationView { .. }
             | StructuralPathSegment::Referent
             | StructuralPathSegment::FixedByteRange { .. } => return None,
         }
@@ -696,6 +697,15 @@ pub(crate) fn descended_type(
         .shape;
     match segment {
         StructuralPathSegment::Case(_) | StructuralPathSegment::FixedByteRange { .. } => None,
+        StructuralPathSegment::RepresentationView {
+            structural_type,
+            stored_scalar,
+        } => terminal_semantics::representation_view_declaration(
+            unit.structural_types.iter(),
+            *structural_type,
+            *stored_scalar,
+        )
+        .map(|declaration| declaration.id),
         StructuralPathSegment::Field(identity) => {
             let fields = match shape {
                 terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
@@ -1085,6 +1095,7 @@ impl<'a> Position<'a> {
                 },
                 StructuralPathSegment::Referent
                 | StructuralPathSegment::Case(_)
+                | StructuralPathSegment::RepresentationView { .. }
                 | StructuralPathSegment::FixedByteRange { .. } => None,
             },
             (

@@ -1072,6 +1072,7 @@ pub(super) fn validate_current_ownership_cfg(
                         *source,
                         &mut frontier.live_references,
                         &mut returned_reference_sources,
+                        cleanup_actions,
                     )?;
                     if frontier.partial_custody_paths.contains_key(source) {
                         return Err(

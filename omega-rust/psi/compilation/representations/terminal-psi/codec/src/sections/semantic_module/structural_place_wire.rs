@@ -3,6 +3,7 @@
 //! module, contract, and dynamic-dispatch sections.
 
 use crate::codec_error::CodecError;
+use crate::sections::semantic_module::scalar_wire::{decode_scalar_type, encode_scalar_type};
 use crate::sections::semantic_module::structural_signature_wire;
 use crate::sections::semantic_module::wire::{
     Reader, Writer, decode_counted, decode_ids, decode_optional_id, encode_optional_id,
@@ -71,6 +72,17 @@ pub(crate) fn encode_structural_path(
     label: &'static str,
     path: &[StructuralPathSegment],
 ) -> Result<(), CodecError> {
+    require_operand_path(path)?;
+    encode_reference_origin_path(writer, label, path)
+}
+
+/// Result-source metadata alone may carry a declaration interpretation.
+/// Every other wire owner uses the ordinary entrance, including block bindings.
+pub(crate) fn encode_reference_origin_path(
+    writer: &mut Writer,
+    label: &'static str,
+    path: &[StructuralPathSegment],
+) -> Result<(), CodecError> {
     writer.len(label, path.len())?;
     for segment in path {
         match segment {
@@ -99,6 +111,17 @@ pub(crate) fn encode_structural_path(
                 writer.u8(6);
                 writer.id(*index);
                 writer.id(*obligation);
+            }
+            StructuralPathSegment::RepresentationView {
+                structural_type,
+                stored_scalar,
+            } => {
+                writer.u8(8);
+                writer.id(*structural_type);
+                writer.boolean(stored_scalar.is_some());
+                if let Some(scalar) = stored_scalar {
+                    encode_scalar_type(writer, *scalar);
+                }
             }
         }
     }
@@ -218,6 +241,14 @@ pub(crate) fn decode_structural_arguments(
 pub(crate) fn decode_structural_path(
     reader: &mut Reader<'_>,
 ) -> Result<Vec<StructuralPathSegment>, CodecError> {
+    let path = decode_reference_origin_path(reader)?;
+    require_operand_path(&path)?;
+    Ok(path)
+}
+
+pub(crate) fn decode_reference_origin_path(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<StructuralPathSegment>, CodecError> {
     decode_counted(reader, |reader| match reader.u8()? {
         1 => Ok(StructuralPathSegment::Field(TerminalIdentityIndex(
             reader.u32()?,
@@ -233,8 +264,28 @@ pub(crate) fn decode_structural_path(
             obligation: reader.id("ObligationId")?,
         }),
         7 => Ok(StructuralPathSegment::Case(reader.id("StructuralCaseId")?)),
+        8 => Ok(StructuralPathSegment::RepresentationView {
+            structural_type: reader.id("StructuralTypeId")?,
+            stored_scalar: if reader.boolean()? {
+                Some(decode_scalar_type(reader)?)
+            } else {
+                None
+            },
+        }),
         tag => Err(CodecError::InvalidTag("StructuralPathSegment", tag)),
     })
+}
+
+fn require_operand_path(path: &[StructuralPathSegment]) -> Result<(), CodecError> {
+    if path
+        .iter()
+        .any(|segment| matches!(segment, StructuralPathSegment::RepresentationView { .. }))
+    {
+        return crate::codec_error::malformed(
+            "returned-origin interpretation is not an operand or owned path",
+        );
+    }
+    Ok(())
 }
 
 pub(crate) fn decode_structural_place_kind(

@@ -518,6 +518,17 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
                     crate::codec_bytes::push_encoded(bytes, index.get().to_le_bytes());
                     crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
                 }
+                terminal_psi::StructuralPathSegment::RepresentationView {
+                    structural_type,
+                    stored_scalar,
+                } => {
+                    bytes.push(8);
+                    crate::codec_bytes::push_encoded(bytes, structural_type.get().to_le_bytes());
+                    bytes.push(u8::from(stored_scalar.is_some()));
+                    if let Some(scalar) = stored_scalar {
+                        encode_scalar_type(bytes, *scalar);
+                    }
+                }
             }
         }
         bytes.push(match binding.semantic.argument.access {
@@ -612,7 +623,7 @@ fn encode_fuel(bytes: &mut Vec<u8>, fuel: &[FuelSettlement]) {
     }
 }
 
-fn encode_scalar_type(bytes: &mut Vec<u8>, scalar_type: ScalarType) {
+pub(crate) fn encode_scalar_type(bytes: &mut Vec<u8>, scalar_type: ScalarType) {
     match scalar_type {
         ScalarType::Boolean => bytes.push(0),
         ScalarType::Integer(integer) => {

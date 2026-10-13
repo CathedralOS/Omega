@@ -671,6 +671,15 @@ pub(super) fn emit(
         )?;
         // A projected owned alias row owns no place: its storage is the root's,
         // which keeps its own row and its own residual schedule.
+        let normal_regions = crate::unit::unit_cleanup::lower_reference_completion_regions(
+            identities,
+            &plan.operations,
+            normal_regions,
+            parameters,
+            &evaluation,
+            &operations,
+            |binding| results.cleanup_value(binding, &operations),
+        )?;
         let mut selection_roster = structural_result_places
             .iter()
             .rev()
@@ -1520,6 +1529,15 @@ impl MachineEmission<'_> {
             _ => return unsupported("call schedule disagrees with its active argument group"),
         };
         let operation = &plan.operations[operation_index];
+        if matches!(
+            operation,
+            CheckedUnitEffectOperationPlan::ReleaseReference {
+                defer_to_exit: true,
+                ..
+            }
+        ) {
+            return Ok(());
+        }
         // A continuation cleanup reads no operands; it commits the completed
         // call's dying results before the next operation evaluates any.
         if matches!(
