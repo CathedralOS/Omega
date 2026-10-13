@@ -150,7 +150,7 @@ pub(super) fn direct_context_proves_instantiated_boolean_expression(
             _ => None,
         };
         if let Some((guard, value)) = supplied {
-            return guard_values::proves_with(
+            let proven = guard_values::proves_with(
                 program,
                 guard,
                 value,
@@ -158,6 +158,14 @@ pub(super) fn direct_context_proves_instantiated_boolean_expression(
                 true,
                 &|left, right| denotations.equal(left, right),
             );
+            // A boolean value fact is decided by its guard denotation alone.
+            // Expression facts also carry the label route below: a state's own
+            // `requires i < view.len` re-established for a call with the same
+            // operands is proven by its label even where the denotation
+            // comparison has no match, so a failed match must not hide it.
+            if proven || matches!(fact.payload, facts::FactPayload::BooleanValue { .. }) {
+                return proven;
+            }
         }
         let candidate_label = semantic_boolean_fact_label(program, semantic, fact).or_else(|| {
             semantic
