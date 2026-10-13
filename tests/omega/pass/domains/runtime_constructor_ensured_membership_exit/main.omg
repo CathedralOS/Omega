@@ -1,9 +1,17 @@
 // Ordinary call arguments and returned constructors retain the same checked
 // operand membership without changing the issuer's declared result carrier.
+// A call whose owned formal names the membership consumes the established
+// operand inside a compound transition guard as it does in a statement, for
+// a copyable and an affine carrier, in the entry state and a later state.
 data Ticket [copy] { amount: i32; }
 domain Ticket::Issued established by Ticket::issue;
 machine Ticket::issue() -> Ticket ensures result in Ticket::Issued {
     Ticket { amount: 41 }
+}
+data Stub { amount: i32; }
+domain Stub::Issued established by Stub::issue;
+machine Stub::issue() -> Stub ensures result in Stub::Issued {
+    Stub { amount: 41 }
 }
 data Envelope [copy] { ticket: Ticket in Issued; }
 data Main {}
@@ -21,7 +29,28 @@ machine valid(ticket: Ticket in Issued) crashes Trap {
     state done() {}
     state bad() { crash Trap; }
 }
+machine amount(ticket: Ticket in Issued) -> i32 {
+    ticket.amount
+}
+machine stub_amount(stub: Stub in Stub::Issued) -> i32 {
+    stub.amount
+}
 machine Main::main(main: &mut Main) crashes Trap {
     observe(Envelope { ticket: Ticket::issue() });
     observe(envelope());
+    let ticket: Ticket = Ticket::issue();
+    let stub: Stub = Stub::issue();
+    transition amount(ticket) == 41 && stub_amount(stub) == 41 {
+        true -> later()
+        false -> bad()
+    }
+    state later() {
+        let again: Ticket = Ticket::issue();
+        transition again.amount == 41 && amount(again) == 41 {
+            true -> done()
+            false -> bad()
+        }
+    }
+    state done() {}
+    state bad() { crash Trap; }
 }

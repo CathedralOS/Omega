@@ -797,16 +797,34 @@ fn owned_argument(
         // the exact call's ownership and loan events authorize their transfer.
         // Requiring CleanupOwned here discarded otherwise valid carriers only
         // when their consuming call was nested inside a scalar computation.
-        if program.primitive_type_reference(reference).is_some()
+        // Checking proved any membership the formal names, so qualifications
+        // ride the formal exactly as on the statement route and the borrowed
+        // route: the carrier beneath them is the storage, and the qualified
+        // type must remain represented owned storage.
+        let qualified = !parameter_qualifications(program, &mut shapes, reference, &[])?.is_empty();
+        let storage = if qualified {
+            validation::peel_declared_constraints(program, reference)
+        } else {
+            reference
+        };
+        if program.primitive_type_reference(storage).is_some()
             || structural_access_for_type_reference(program, reference)?
                 != CheckedStructuralAccess::Owned
-            || !parameter_qualifications(program, &mut shapes, reference, &[])?.is_empty()
+            || (qualified
+                && !validation::has_contents(
+                    program,
+                    reference,
+                    &[],
+                    validation::ContentsRequirement::RepresentedOwned,
+                ))
         {
             return None;
         }
     }
-    let type_identity = shapes.add_type(selected_type, &[], &[])?;
-    if type_identity != shapes.add_type(target.type_reference, &[], &[])?
+    // The formal keeps its qualifications; the transferred storage is the
+    // same declaration on both sides, as on the statement call route.
+    let type_identity = base_type_identity(program, selected_type, &[], &[])?;
+    if type_identity != base_type_identity(program, target.type_reference, &[], &[])?
         || crate::checks::type_multiplicity(program, selected_type)
             != crate::checks::type_multiplicity(program, target.type_reference)
     {

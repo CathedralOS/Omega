@@ -1015,7 +1015,7 @@ pass/domains/record_predicate_domain_member_exit built 970ms exit:70 @2efb222df0
 pass/domains/refinement_chain_predicates checked 148ms
 pass/domains/refinement_chain_routed_provenance checked 167ms
 pass/domains/runtime_computed_qualification_exit built 4477ms exit:0 @27dfa182e550
-pass/domains/runtime_constructor_ensured_membership_exit built 1744ms exit:0 @1fb1b73fcfb5
+pass/domains/runtime_constructor_ensured_membership_exit built 9530ms exit:0 @dd191203ff08+wt
 pass/domains/runtime_nested_record_membership_transport_exit built 1655ms exit:0 @7b3ac815c2b7
 pass/domains/runtime_qualified_borrowed_gated_input_exit built 1510ms exit:0 @f20b8ea3bb8d
 pass/domains/runtime_qualified_view_field_parameter_store_exit built 4794ms exit:70 stdout:match @9dd545defbc0
