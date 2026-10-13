@@ -3,11 +3,15 @@
 use super::arguments::RunArguments;
 use compiler::CompilerRequestOutcome;
 use omega::execution::{
-    ExecutionOutcome, InterpreterComparison, RunError, RunRequest, run_project,
+    CaseRunRequest, ExecutionOutcome, InterpreterComparison, RunError, RunRequest, run_project,
+    run_project_cases,
 };
 use std::io::Write;
 
 pub(crate) fn run(arguments: RunArguments) -> ! {
+    if let (Some(inputs), Some(outputs)) = (arguments.inputs.clone(), arguments.outputs.clone()) {
+        run_cases(arguments, inputs, outputs);
+    }
     let outcome = match run_project(RunRequest {
         root_path: arguments.main_path,
         target_name: arguments.target_name,
@@ -83,6 +87,88 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
             }
         }
     };
+    if arguments.keep {
+        eprintln!("build dir kept: {}", outcome.build_dir.display());
+    }
+    std::process::exit(status);
+}
+
+/// One compilation, one native run (and Terminal replay with `--both`) per
+/// `*.stdin` file. Per-case streams and statuses go to the output directory;
+/// the command exits 201 when any case diverges or fails interpretation.
+fn run_cases(
+    arguments: RunArguments,
+    inputs: std::path::PathBuf,
+    outputs: std::path::PathBuf,
+) -> ! {
+    let mut cases = match std::fs::read_dir(&inputs) {
+        Ok(entries) => entries
+            .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+            .filter(|path| {
+                path.extension()
+                    .is_some_and(|extension| extension == "stdin")
+            })
+            .collect::<Vec<_>>(),
+        Err(error) => {
+            eprintln!("cannot read --inputs {}: {error}", inputs.display());
+            std::process::exit(200);
+        }
+    };
+    cases.sort();
+    if cases.is_empty() {
+        eprintln!("--inputs {} holds no *.stdin files", inputs.display());
+        std::process::exit(200);
+    }
+    let outcome = match run_project_cases(CaseRunRequest {
+        root_path: arguments.main_path,
+        compare_interpreter: arguments.both,
+        inputs: cases,
+        output_directory: outputs.clone(),
+        keep_artifacts: arguments.keep,
+    }) {
+        Ok(outcome) => outcome,
+        Err(error) => {
+            eprintln!("{error}");
+            std::process::exit(compile_failure_status(&error));
+        }
+    };
+    let mut status = 0;
+    for case in &outcome.cases {
+        let interpreter = match &case.comparison {
+            InterpreterComparison::NotRequested => String::new(),
+            InterpreterComparison::Declined(reason) => format!("; interp DECLINED ({reason})"),
+            InterpreterComparison::Agrees { exit_code } => format!("; interp exit {exit_code}"),
+            InterpreterComparison::AgreesCrash { cause } => format!("; interp crash {cause:?}"),
+            InterpreterComparison::Disagrees {
+                interpreter_exit_code,
+            } => {
+                status = 201;
+                format!("; DIVERGENCE interp exit {interpreter_exit_code}")
+            }
+            InterpreterComparison::DisagreesCrash { cause } => {
+                status = 201;
+                format!("; DIVERGENCE interp crash {cause:?}")
+            }
+            InterpreterComparison::Failed(diagnostics) => {
+                status = 201;
+                let reasons = diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>();
+                format!("; Terminal interpretation FAILED: {}", reasons.join("; "))
+            }
+        };
+        eprintln!(
+            "case {}: native {}{interpreter}",
+            case.name,
+            case.exit.describe()
+        );
+    }
+    eprintln!(
+        "{} cases; streams and results.tsv in {}",
+        outcome.cases.len(),
+        outputs.display()
+    );
     if arguments.keep {
         eprintln!("build dir kept: {}", outcome.build_dir.display());
     }

@@ -23,12 +23,16 @@ const REFERENCE_EXECUTION_FUEL_ALLOWANCE: u64 = 10_000_000;
 
 pub(super) struct ProbeCompilation {
     pub report: CompileReport,
-    pub interpretation: Option<Result<TerminalRuntimeObservation, TerminalRuntimeError>>,
+    /// One reference execution per supplied input, in input order.
+    pub interpretations: Vec<Result<TerminalRuntimeObservation, TerminalRuntimeError>>,
 }
 
+/// Compiles once and replays the produced Terminal artifact against each
+/// reference input before publication transfers the payload, so many inputs
+/// share one compilation.
 pub(super) fn compile(
     mut options: CompileOptions,
-    reference_input: Option<std::fs::File>,
+    reference_inputs: Vec<std::fs::File>,
 ) -> Result<ProbeCompilation, Vec<Diagnostic>> {
     let build_dir = options.retain_build_dir();
     let target = crate::invocation_target_profile(options.target_name.as_deref())
@@ -57,11 +61,13 @@ pub(super) fn compile(
         )
         .and_then(compiler::CompileOutcomes::into_single_report)?
     };
-    let interpretation =
-        reference_input.map(|input| interpret_product(&report, input, target.target_name()));
+    let interpretations = reference_inputs
+        .into_iter()
+        .map(|input| interpret_product(&report, input, target.target_name()))
+        .collect();
     Ok(ProbeCompilation {
         report,
-        interpretation,
+        interpretations,
     })
 }
 

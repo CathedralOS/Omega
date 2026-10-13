@@ -33,6 +33,16 @@ Interpreter comparison (`--both`) instead snapshots stdin to EOF before compilat
 for independent native and Terminal replay. Use a finite pipe or redirected file
 for comparison; interactive input must be ended with EOF. Temporary input storage
 is deleted even with `--keep`.
+`--inputs <dir> --outputs <dir>` runs many cases against one compilation:
+every `*.stdin` file in the input directory, in name order, is fed to the
+native program and, with `--both`, replayed through the Terminal reference
+before publication. Each case writes `<case>.stdout` and `<case>.stderr`, plus
+`<case>.terminal.stdout` and `<case>.terminal.stderr` when interpreted, and
+`results.tsv` lists every case's native status, comparison verdict and
+interpreter status. The command exits 201 when any case diverges or fails
+interpretation, otherwise 0; program statuses are in `results.tsv`. A
+validation that previously compiled once per input, or linked its own
+Terminal capture program, uses this instead.
 Target-only invocations do not read stdin. Stdout/stderr remain captured until
 native execution ends. The command forwards those original bytes without
 UTF-8 decoding, before its own diagnostics on stderr. A failed stream write or
@@ -99,7 +109,7 @@ omega [--check] [--offline] [--timings]
       [--report-file <path>]
       [--build-input <path>]... [--optional-build-input <path>]...
       [--build-dir <dir>] [--target <name>]... [--disable-optimization <ExactName>]... <root.omg>
-omega run [--both] [--keep] [--target <name>] <root.omg>
+omega run [--both] [--keep] [--target <name> | --inputs <dir> --outputs <dir>] <root.omg>
 omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>
 omega audit source --kind <local|git> <locator> [--rev <rev>]
 omega audit packages [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...

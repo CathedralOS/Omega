@@ -120,7 +120,7 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
     };
     let compilation::ProbeCompilation {
         report,
-        interpretation,
+        interpretations,
     } = compilation::compile(
         CompileOptions {
             root_path: request.root_path,
@@ -131,9 +131,12 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
             .as_ref()
             .map(|input| input.open_input())
             .transpose()
-            .map_err(RunError::StandardInput)?,
+            .map_err(RunError::StandardInput)?
+            .into_iter()
+            .collect(),
     )
     .map_err(RunError::Compilation)?;
+    let interpretation = interpretations.into_iter().next();
     let (report, executable) =
         crate::compilation::publication::publish_native_artifact(report, &build_dir)
             .map_err(RunError::Publication)?;
@@ -172,6 +175,129 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
         build_dir,
         execution,
     })
+}
+
+/// Many stdin cases against one compilation: each input file is replayed
+/// through the Terminal reference (when requested) and the native program.
+pub struct CaseRunRequest {
+    pub root_path: PathBuf,
+    pub compare_interpreter: bool,
+    /// Input files, run in this order; each case is named by its file stem.
+    pub inputs: Vec<PathBuf>,
+    /// Receives `<case>.stdout`, `<case>.stderr`, `<case>.terminal.stdout`,
+    /// `<case>.terminal.stderr` and `results.tsv`.
+    pub output_directory: PathBuf,
+    pub keep_artifacts: bool,
+}
+
+pub struct CaseOutcome {
+    pub name: String,
+    pub exit: ProcessExitObservation,
+    pub comparison: InterpreterComparison,
+}
+
+pub struct CaseRunOutcome {
+    pub report: CompileReport,
+    pub build_dir: PathBuf,
+    pub cases: Vec<CaseOutcome>,
+}
+
+pub fn run_project_cases(request: CaseRunRequest) -> Result<CaseRunOutcome, RunError> {
+    let output_directory = TemporaryDirectory::create("probe", request.keep_artifacts)
+        .map_err(RunError::TemporaryStorage)?;
+    let build_dir = output_directory.path().to_path_buf();
+    std::fs::create_dir_all(&request.output_directory).map_err(RunError::ReferenceOutput)?;
+    let reference_inputs = if request.compare_interpreter {
+        request
+            .inputs
+            .iter()
+            .map(std::fs::File::open)
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(RunError::StandardInput)?
+    } else {
+        Vec::new()
+    };
+    let compilation::ProbeCompilation {
+        report,
+        interpretations,
+    } = compilation::compile(
+        CompileOptions {
+            root_path: request.root_path,
+            build_dir: Some(build_dir.clone()),
+            target_name: None,
+        },
+        reference_inputs,
+    )
+    .map_err(RunError::Compilation)?;
+    let (report, executable) =
+        crate::compilation::publication::publish_native_artifact(report, &build_dir)
+            .map_err(RunError::Publication)?;
+    let mut interpretations = interpretations.into_iter();
+    let mut cases = Vec::new();
+    let mut table = String::from("case\tnative\tinterpreter\tinterpreter_exit\n");
+    for input in &request.inputs {
+        let name = input
+            .file_stem()
+            .map(|stem| stem.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let output = Command::new(&executable)
+            .stdin(Stdio::from(
+                std::fs::File::open(input).map_err(RunError::StandardInput)?,
+            ))
+            .output()
+            .map_err(|error| RunError::Spawn {
+                executable: executable.clone(),
+                error,
+            })?;
+        let directory = &request.output_directory;
+        let write = |suffix: &str, bytes: &[u8]| {
+            std::fs::write(directory.join(format!("{name}.{suffix}")), bytes)
+                .map_err(RunError::ReferenceOutput)
+        };
+        write("stdout", &output.stdout)?;
+        write("stderr", &output.stderr)?;
+        let interpretation = interpretations.next();
+        if let Some(Ok(reference)) = interpretation.as_ref() {
+            write("terminal.stdout", &reference.stdout)?;
+            write("terminal.stderr", &reference.stderr)?;
+        }
+        let exit = ProcessExitObservation::observe(&output.status);
+        let comparison = compare_interpretation(exit, interpretation);
+        let (verdict, interpreter_exit) = comparison_columns(&comparison);
+        table.push_str(&format!(
+            "{name}\t{}\t{verdict}\t{interpreter_exit}\n",
+            exit.code()
+                .map_or_else(|| exit.describe(), |code| code.to_string())
+        ));
+        cases.push(CaseOutcome {
+            name,
+            exit,
+            comparison,
+        });
+    }
+    std::fs::write(request.output_directory.join("results.tsv"), table)
+        .map_err(RunError::ReferenceOutput)?;
+    Ok(CaseRunOutcome {
+        report,
+        build_dir,
+        cases,
+    })
+}
+
+fn comparison_columns(comparison: &InterpreterComparison) -> (&'static str, String) {
+    match comparison {
+        InterpreterComparison::NotRequested => ("not-requested", String::new()),
+        InterpreterComparison::Declined(_) => ("declined", String::new()),
+        InterpreterComparison::Agrees { exit_code } => ("agrees", exit_code.to_string()),
+        InterpreterComparison::Disagrees {
+            interpreter_exit_code,
+        } => ("disagrees", interpreter_exit_code.to_string()),
+        InterpreterComparison::AgreesCrash { cause } => ("agrees-crash", format!("{cause:?}")),
+        InterpreterComparison::DisagreesCrash { cause } => {
+            ("disagrees-crash", format!("{cause:?}"))
+        }
+        InterpreterComparison::Failed(_) => ("failed", String::new()),
+    }
 }
 
 fn compare_interpretation(
