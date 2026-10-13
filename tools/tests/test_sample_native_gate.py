@@ -403,6 +403,30 @@ class GateCliTests(unittest.TestCase):
 
 
 class RunHistoryTests(unittest.TestCase):
+    def test_main_creates_result_parents_and_preserves_the_gate_verdict(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "reports/nested/results.json"
+            history = Path(directory) / "history"
+            sample = "samples/cli/collections/example"
+            for state, expected_exit in (("pass", 0), ("oracle-failed", 1)):
+                with self.subTest(state=state):
+                    result = {"sample": sample, "state": state,
+                              "detail": "", "seconds": 0.0}
+                    arguments = ["sample_native_gate.py", "--cli", "omega",
+                                 "--target", "macos_arm64", "--jobs", "1",
+                                 "--write-results", str(output),
+                                 "--history-dir", str(history)]
+                    with patch.object(sys, "argv", arguments), \
+                            patch.object(gate, "discover", return_value=[sample]), \
+                            patch.object(gate, "cli_staleness", return_value=""), \
+                            patch.object(gate, "timed_measure", return_value=result), \
+                            contextlib.redirect_stdout(io.StringIO()):
+                        self.assertEqual(gate.main(), expected_exit)
+                    self.assertEqual(gate.json.loads(output.read_text()), [result])
+                    records = [gate.json.loads(path.read_text())
+                               for path in history.glob("*.json")]
+                    self.assertTrue(any(record["results"] == [result] for record in records))
+
     def test_each_run_writes_a_dated_record(self):
         with tempfile.TemporaryDirectory() as directory:
             arguments = gate.argparse.Namespace(

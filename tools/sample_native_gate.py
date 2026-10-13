@@ -583,7 +583,10 @@ def main():
         print(f"sample_native_gate: {len(retried)} samples retried after stale package state; "
               f"{recovered} recovered")
     if arguments.write_results:
-        json.dump(results, open(arguments.write_results, "w"), indent=1)
+        output = Path(arguments.write_results)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        with output.open("w", encoding="utf-8") as document:
+            json.dump(results, document, indent=1)
     if arguments.history_dir:
         record_run(arguments, started, results, buckets, passed, len(scored), timing, staleness)
     failures = [result for result in results if result["state"] not in
