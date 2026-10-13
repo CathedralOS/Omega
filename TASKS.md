@@ -6168,6 +6168,19 @@ wait for Cathedral's instruction coverage. The interpreter is
   template-dependent result carrier unless static machine arguments close
   it. 78 files under `tests/` still author 99 retired rows.
 
+  Preserve [source-selected trait tokens](wiki/spec/language/expressions.md#operator-declarations)
+  through the migration. One explicit proof-static implementation binder may
+  select a token-bearing requirement in a generic body; specialization retains
+  and substitutes its exact row before lowering. No binder and multiple
+  applicable binders reject. `Build::select_provider` may realize an already
+  selected boundary row but never supplies token evidence, activates a trait
+  token, overrides a primitive/direct family or changes resolution by target.
+  Keep `samples/cli/probes/operator_requires_effects`: its direct boundary
+  declaration fixes `==` before Build selects `CheckedEquality` as provider.
+  Add migration twins where a boundary-trait provider without source evidence
+  cannot make `==` resolve, two explicit evidence binders are ambiguous, and a
+  named requirement call remains available for a noncanonical meaning.
+
   Acceptance: no accepted source, product source, durable IR, package record or
   artifact schema contains the standalone declaration kind. Migrated customers
   run through Terminal and native paths under boundary-trait selection;

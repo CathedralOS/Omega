@@ -162,8 +162,12 @@ trait Ranked<T> {
 ```
 
 Its implementation comes from an explicitly selected conformance, never the
-only visible candidate by accident. Use an explicit named requirement call
-when several meanings are relevant. The [operator declaration and family
+only visible candidate by accident. Generic code selects that implementation in
+its static telescope, for example `Order satisfies Ranked<Element>`; the selected
+row then determines `<` inside that generic body. Build provider selection may
+realize a boundary requirement but cannot act as `Order`, activate a token, or
+change source resolution. Use an explicit named requirement call when several
+meanings are relevant. The [operator declaration and family
 rules](../spec/language/expressions.md#operator-declarations) define visibility,
 overload identity, fixed vocabulary, and domain ownership.
 

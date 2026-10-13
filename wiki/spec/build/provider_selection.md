@@ -38,6 +38,14 @@ their rows explicitly; omitted reach on a pure numeric requirement is empty.
 Checked providers must fit that row, while imported or assumed implementations
 retain their trust and physical-authority findings independently of reach.
 
+Provider selection supplies no source-level token binder or conformance
+evidence. Checked source must already select a token-bearing trait requirement
+through one explicit proof-static implementation binder, or select its canonical
+direct family, before provider planning. A provider row may realize that exact
+boundary requirement; it cannot activate the trait's token, displace primitive
+or direct operator meaning, resolve missing/ambiguous source evidence, or make
+the same source select another operation on a different target.
+
 `Build::select_provider<Slot, Provider>(builder)` is ordinary typed vocabulary. Slot
 resolves to one exact boundary trait or package-qualified same-path boundary-
 operator family. Provider resolves to one

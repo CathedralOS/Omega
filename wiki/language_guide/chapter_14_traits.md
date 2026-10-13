@@ -318,9 +318,40 @@ Token syntax has no conformance-selection position. A trait-backed token use
 therefore requires one exact conformance already selected by a proof-static
 binder in the surrounding machine. It never searches visible conformances or
 chooses a unique ambient candidate. No selected binder rejects even when only
-one matching conformance is visible; several applicable selected binders are
-ambiguous. The named requirement call with an explicit conformance application
-remains available whenever the token form cannot select the intended meaning.
+one matching conformance or Build provider is visible; several applicable
+selected binders are ambiguous. Build provider selection may realize the exact
+requirement after source checking, but cannot supply this binder or change the
+token's meaning. The named requirement call with an explicit conformance
+application remains available whenever the token form cannot select the intended
+meaning.
+
+The implementation binder is an ordinary generic parameter; its name is not
+special:
+
+```omega
+trait Ordered<T> {
+    machine < before(left: T, right: T) -> bool;
+}
+
+Ascending satisfies Ordered<Card> {
+    machine before(left: Card, right: Card) -> bool {
+        left.power < right.power
+    }
+}
+
+machine choose<Element, Order satisfies Ordered<Element>>(
+    left: Element,
+    right: Element
+) -> bool {
+    left < right
+}
+
+let selected: bool = choose<Card, Ascending>(first, second);
+```
+
+The generic body records `Order`'s exact `Ordered<Element>::before` row. The
+specialization substitutes `Ascending`; lowering consumes that retained row and
+does not search again. Renaming `Order` changes nothing.
 
 A concrete declaration may deliberately crown one selected conformance as the
 canonical token meaning for its operand signature:

@@ -194,14 +194,24 @@ general search for borrowed variants of operands. An owned operand remains
 owned. If permitted adaptations leave competing candidates, ordinary ambiguity
 rejection applies, not an implicit preference for an owned or borrowed overload.
 
+Named decision: `boundary-trait-token-binder`, settled 2026-10-13.
+
 Trait requirements may bind tokens. Their conformances supply implementations,
 never new token bindings. A trait-backed token use requires one exact conformance
-already selected by an explicit proof-static binder: no binder rejects even
-when only one conformance is visible, and several applicable binders are
-ambiguous. An explicit named requirement call selects other meanings. A concrete
-type may publish one canonical direct wrapper for a token/operand shape; a
-second wrapper with that shape rejects. Direct operators need no conformance
-selection.
+already selected by an explicit proof-static binder in the surrounding source
+telescope. At generic specialization, that binder substitutes its exact
+requirement row before lowering; lowering performs no implementation search.
+No binder rejects even when one conformance or Build provider is visible, and
+several applicable binders are ambiguous. `Build::select_provider` realizes an
+already-selected boundary requirement; it never supplies proof-static evidence,
+activates a trait's token, overrides a primitive/direct family, or changes source
+resolution. Changing provider configuration therefore cannot change what an
+operator token means.
+
+An explicit named requirement call selects other meanings. A concrete type may
+publish one canonical direct wrapper for a token/operand shape; a second wrapper
+with that shape rejects rather than becoming a selectable alternative. Direct
+operators need no conformance selection.
 
 When operator syntax selects a machine, that machine's `requires` is a call
 obligation in executable and proof-term formation. Resolution does not discharge

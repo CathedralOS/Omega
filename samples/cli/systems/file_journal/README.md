@@ -1,6 +1,6 @@
 # file_journal
 
-Waiting on [OWNER_QUESTIONS.md Q2](../../../../OWNER_QUESTIONS.md#q2---what-carries-a-portable-services-per-family-raw-binding)
+Waiting on [OWNER_QUESTIONS.md Q1](../../../../OWNER_QUESTIONS.md#q1---what-carries-a-portable-services-per-family-raw-binding)
 (`portable-service-per-family-binding-carrier`): the portable `Filesystem`
 has no way to carry a per-target raw binding after `FilesystemHost` splits
 into its POSIX and Windows families.

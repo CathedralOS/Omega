@@ -70,6 +70,12 @@ search. Overlapping blanket and specialized conformances may coexist because
 selection is explicit. Another package may declare a separately named map but
 cannot add, replace, or duplicate rows in an existing map.
 
+A Build provider row is realization selection, not conformance evidence. It
+cannot fill a generic evidence binder, select a trait-backed token, or make one
+visible conformance implicit. When a proof-static binder selects a token-bearing
+requirement, specialization retains that exact implementation map and provider
+planning may later realize its boundary rows without changing the selection.
+
 This same selection supplies operation and law requirements for computed static
 indices. A generic consumer requiring commutativity takes an ordinary conformance
 binder whose trait contains that law for the selected operation. The index
