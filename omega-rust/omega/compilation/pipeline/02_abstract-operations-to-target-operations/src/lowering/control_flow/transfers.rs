@@ -213,8 +213,13 @@ fn address_join_argument(
             && home.projected_qualifications().is_empty())
         .then(|| home.structural_type())
     } else if let Some(source) = function.structural_parameter(argument.place) {
-        (loan_access_permitted(source.access, parameter.access)
-            && source.multiplicity != terminal_psi::StructuralMultiplicity::Linear
+        (abstract_operations::control_flow::address_joins::loan_access_permitted(
+            structural_types.values().copied(),
+            source.structural_type,
+            &argument.path,
+            source.access,
+            parameter.access,
+        ) && source.multiplicity != terminal_psi::StructuralMultiplicity::Linear
             && source.qualifications.is_empty()
             && source.projected_qualifications.is_empty())
         .then_some(source.structural_type)
@@ -222,7 +227,15 @@ fn address_join_argument(
         function
             .block_structural_parameters()
             .find(|source| source.place == argument.place)
-            .filter(|source| loan_access_permitted(source.access, parameter.access))
+            .filter(|source| {
+                abstract_operations::control_flow::address_joins::loan_access_permitted(
+                    structural_types.values().copied(),
+                    source.structural_type,
+                    &argument.path,
+                    source.access,
+                    parameter.access,
+                )
+            })
             .map(|source| source.structural_type)
     } else {
         // An element view is a readable descriptor root: a static index
@@ -243,24 +256,6 @@ fn address_join_argument(
             argument.access,
         )
     }) == Some(parameter.structural_type)
-}
-
-/// Carrying an address cannot amplify the source loan's authority. Signature
-/// parameters and prior arrivals obey the same rule; referent shape and live
-/// storage remain separate requirements of the transfer.
-fn loan_access_permitted(
-    source: terminal_psi::StructuralAccess,
-    destination: terminal_psi::StructuralAccess,
-) -> bool {
-    use terminal_psi::StructuralAccess::{MutableBorrow, Owned, SharedBorrow, WriteOnlyBorrow};
-    matches!(
-        (source, destination),
-        (
-            MutableBorrow,
-            SharedBorrow | MutableBorrow | WriteOnlyBorrow
-        ) | (Owned | SharedBorrow, SharedBorrow)
-            | (WriteOnlyBorrow, WriteOnlyBorrow)
-    )
 }
 
 pub(super) fn validate_successors(

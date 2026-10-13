@@ -6742,3 +6742,22 @@ fail/layouts/unselected_target_layout_contract rejected 3615ms expected @e63c4b1
 pass/termination/runtime_projected_extent_fill_exit checked 5030ms check-target:macos_arm64 @0ab6a3e7fdb4+wt
 fail/termination/mixed_endpoint_stored_length_write rejected 527ms expected @0ab6a3e7fdb4+wt
 	machine call cycle: `ranged`, `unranged` -- a write, call, or alias invalidates the entry-relative ranking; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+
+# W2-19: scoped new source witnesses; prior published rows preserved verbatim.
+pass/borrows/state_reference_scalar_snapshots checked 12315ms check-target:linux_x86_64 @fa10277fce92
+fail/borrows/call_transfer_scalar_observation rejected 1264ms @fa10277fce92
+	state `receive` receives `control` as both mutable and read-only
+fail/borrows/state_transfer_active_child_observation rejected 1230ms @fa10277fce92
+	state `done` receives `control` while local borrow `child` is still active
+	statement 1 mutates `control.value` while local borrow `child` is still active (borrowed at statement 0)
+fail/borrows/state_transfer_new_loan_observation rejected 1226ms @fa10277fce92
+	state `done` receives `control` as both mutable and read-only
+fail/borrows/state_transfer_reference_leaf_duplicate rejected 1246ms @fa10277fce92
+	state `done` receives `carrier.body` as mutable more than once
+fail/borrows/state_transfer_retained_loan_overlap rejected 1114ms @fa10277fce92
+	state `done` receives `control` as mutable more than once
+fail/borrows/state_transfer_shared_carrier_mutable_leaf rejected 393ms @fa10277fce92
+	argument `reference` for state `done` is declared `&mut` (`&mut Control`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/borrows/state_transfer_write_only_carrier_pointer rejected 408ms @fa10277fce92
+	machine `transfer` state `entry` reads field `body` from write-only parameter `carrier`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
+	argument `reference` for state `done` requires explicit write-only attenuation; pass `&write ...` (a bare value or `&mut ...` does not establish the no-read contract)

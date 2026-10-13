@@ -119,7 +119,31 @@ pub(super) fn check_call_access_conflicts<'p>(
             // staging the other operands. The successor footprint judges each
             // retained child's lifetime; a completed copy holds no child loan.
             // Ordinary calls and pairs between other operands stay exclusive.
-            if data_access == Some(index) || data_access == Some(other_index) {
+            if (data_access == Some(index) && other_access.end_before_access.is_none())
+                || (data_access == Some(other_index) && access.end_before_access.is_none())
+            {
+                continue;
+            }
+            // A local jump stages scalar snapshots before transferring its
+            // existing reference carriers. Reading through that same route
+            // forms no second retained loan, regardless of the machine's
+            // lexical qualification. Fresh borrows and returning invocations
+            // still establish ordinary argument exclusivity.
+            if super::staging::copied_read_before_reference_transfer(
+                program,
+                facts,
+                state_flow,
+                borrow_call,
+                access,
+                other_access,
+            ) || super::staging::copied_read_before_reference_transfer(
+                program,
+                facts,
+                state_flow,
+                borrow_call,
+                other_access,
+                access,
+            ) {
                 continue;
             }
             // A copied read or completed nested-call loan no longer observes

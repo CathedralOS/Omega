@@ -87,8 +87,9 @@ impl<'program> CallTarget<'program> {
 
 pub(crate) use affine_locals::build_affine_array_construction_prefix;
 pub(crate) use argument_paths::{
-    borrowed_index_segment, byte_sequence_literal_argument, projected_argument_path,
-    projected_borrowed_path, projected_observed_path, projected_selected_path,
+    borrowed_argument_endpoint, borrowed_index_segment, byte_sequence_literal_argument,
+    projected_argument_path, projected_borrowed_path, projected_observed_path,
+    projected_selected_path,
 };
 pub(crate) use boundary_admission::{
     BoundaryTraitReceiver, boundary_trait_receiver_source, parameter_binding_receiver_source,

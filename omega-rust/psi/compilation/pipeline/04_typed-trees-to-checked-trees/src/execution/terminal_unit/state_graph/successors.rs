@@ -772,19 +772,6 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                                 CheckedUnitStructuralArgumentSourcePlan::Parameter {
                                     parameter_index: u32::try_from(source_index).ok()?,
                                 },
-                                // Borrowed roots retain their existing referent
-                                // custody: inspect that storage, not the outer
-                                // reference shell representing the parameter's
-                                // loan. Owned roots lend only the peeled
-                                // projected subtree.
-                                match source_parameter.access {
-                                    CheckedStructuralAccess::SharedBorrow
-                                    | CheckedStructuralAccess::MutableBorrow
-                                    | CheckedStructuralAccess::WriteOnlyBorrow => {
-                                        Some(source_parameter.type_identity)
-                                    }
-                                    _ => None,
-                                },
                                 expected_access,
                                 target,
                                 target_parameters,
@@ -847,9 +834,20 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                         // store through the loan preserves the domain.
                         // Lending an enrolled live home does not copy/recast
                         // its contents. Binding-backed fields retain their own
-                        // receipts; projected_loan_transfer rejoins the finite
-                        // declared shape and independently excludes references.
-                        let mutable_local_loan = expected_access
+                        // receipts; endpoint preparation checks the selected
+                        // referent and its exact descriptor route.
+                        // A stored reference leaf supplies its own loan
+                        // authority. Its immutable container does not make
+                        // that referent shared, nor grant mutation of the
+                        // container. Source admission checked the exact leaf;
+                        // endpoint preparation retains its pointer crossing.
+                        let stored_leaf_access = validation::canonical_place_type_reference(
+                            program, source.symbol, ordinal as usize, &place,
+                        ).and_then(|reference| {
+                            validation::reference_result_custody::stored_loan_parts(program, reference)
+                        }).map(|(_, access)| access);
+                        let mutable_local_loan = stored_leaf_access.is_some_and(loan_permitted)
+                            || expected_access
                             == CheckedStructuralAccess::SharedBorrow
                             || ((local.is_mutable || !local.initial_value.is_valid())
                                 && matches!(
@@ -875,7 +873,6 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                                 super::super::local_storage::source(
                                     program, source, operations, root_symbol,
                                 )?,
-                                None,
                                 expected_access,
                                 target,
                                 target_parameters,
@@ -1059,6 +1056,13 @@ fn projected_value_subject(
     expression: typed_trees::expression::ExpressionHandle,
     target: &CheckedUnitStructuralParameterPlan,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
+    // Value transfer observes or moves the selected stored value. A borrowed
+    // formal instead needs that value's referent and exact loan access; use
+    // the common projected-loan endpoint below, never copy an exclusive
+    // descriptor or substitute its referent's unrestricted multiplicity.
+    if target.access != CheckedStructuralAccess::Owned {
+        return None;
+    }
     let place = validation::canonical_place_from_expression_in_state(
         program,
         source.symbol,
@@ -1150,17 +1154,17 @@ fn projected_value_subject(
 }
 
 /// A projected-loan edge transfer against an already-admitted place:
-/// `subject_source` is the parameter or earlier result the loan rides on
-/// and `borrowed_identity` is the borrowed storage's referent identity —
-/// `None` computes the peeled base identity of the projected type.
+/// `subject_source` is the parameter or earlier result the loan rides on.
 ///
 /// A projected loan keeps its original storage root and exact path across
 /// the edge. Case steps use this same route, including deeper payload
 /// fields; receiving verification must prove each selected case active
-/// before rebinding the loan. Reference-bearing storage still needs its own
-/// carrier custody and is not admitted here: the shape table keys storage
-/// identities, so an owned projection names its peeled base while a
-/// borrowed root inspects the referent. A state argument has the same
+/// before rebinding the loan. Stored reference leaves cross their exact
+/// descriptor under the same endpoint judgment as call arguments. Carrier
+/// custody remains with the checked source; the selected referent, rather
+/// than an unrelated enclosing record, determines the incoming storage type.
+/// Reference-bearing referents still need their separate carrier custody.
+/// A state argument has the same
 /// presentation as a call argument; access, live-home and reference-content
 /// checks remain independent.
 #[allow(clippy::too_many_arguments)]
@@ -1174,7 +1178,6 @@ fn projected_loan_transfer(
     formation_expression: ExpressionHandle,
     place: &validation::CanonicalPlace,
     subject_source: CheckedUnitStructuralArgumentSourcePlan,
-    borrowed_identity: Option<typed_trees::type_identity::TypeIdentityId>,
     expected_access: CheckedStructuralAccess,
     target: &CheckedUnitStructuralParameterPlan,
     target_parameters: &[typed_trees::signature::StateParameter],
@@ -1209,6 +1212,8 @@ fn projected_loan_transfer(
     let target_type_reference = target_parameters
         .get(target.position as usize)?
         .type_reference;
+    let (projected_type, path) =
+        calls::borrowed_argument_endpoint(program, projected_type, path, target_type_reference)?;
     if !path.iter().all(|segment| {
         matches!(
             segment,
@@ -1220,6 +1225,7 @@ fn projected_loan_transfer(
                         | checked_trees::CheckedRuntimeIndex::Local { .. }
                 )
                 | CheckedUnitStructuralPathSegment::ComputedIndex(_)
+                | CheckedUnitStructuralPathSegment::Referent
         )
     }) || !calls::argument_presentation::classify(
         program,
@@ -1235,8 +1241,7 @@ fn projected_loan_transfer(
     }) {
         return None;
     }
-    let identity = borrowed_identity
-        .or_else(|| super::super::types::base_type_identity(program, projected_type, &[], &[]));
+    let identity = super::super::types::base_type_identity(program, projected_type, &[], &[]);
     if identity.is_some_and(|identity| declared_contains_reference(shapes, identity)) {
         return None;
     }

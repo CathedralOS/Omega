@@ -278,3 +278,6 @@ pass/generics/runtime_static_requirement_complex_composition_exit built 17284ms 
 pass/control_flow/runtime_dispatch_boundary_total_exit built 9643ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @58a5ed816ae5
 pass/collections/runtime_float_array_projection_return_exit built 25342ms exit:0 interpreter-exit:0 interpreter:agrees @2617de0d2dec
 pass/collections/runtime_owned_array_projection_snapshot_exit built 16143ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @2617de0d2dec
+
+# W2-19: scoped measured witness; all prior published rows preserved verbatim.
+pass/borrows/state_reference_scalar_snapshots built 12426ms exit:0 interpreter-exit:0 interpreter:agrees @1b7a573f2276

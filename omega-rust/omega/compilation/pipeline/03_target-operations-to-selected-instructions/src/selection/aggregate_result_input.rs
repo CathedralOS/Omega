@@ -941,7 +941,12 @@ pub(super) fn block_parameter_transport(
     let mut presented_type = None;
     let source_byte_offset = if argument.access == StructuralAccess::Owned {
         let declarations = &source.structural.as_ref()?.structural_types;
-        let root = super::address_join_input::root_type(source, argument.place, argument.access)?;
+        let root = super::address_join_input::root_type(
+            source,
+            argument.place,
+            argument.access,
+            &argument.path,
+        )?;
         let (selected, offset) =
             crate::structural_inputs::structural_reference_input::leaf_copy_projection(
                 root,

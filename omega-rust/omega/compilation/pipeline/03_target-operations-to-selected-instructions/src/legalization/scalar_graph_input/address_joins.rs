@@ -245,6 +245,7 @@ pub(in crate::legalization) fn edge_bindings(
                                 function,
                                 source_block,
                                 binding.argument.place,
+                                &binding.argument.path,
                                 declaration.access,
                                 plan,
                             )
@@ -265,6 +266,7 @@ pub(in crate::legalization) fn edge_bindings(
                         function,
                         source_block,
                         binding.argument.place,
+                        &binding.argument.path,
                         declaration.access,
                         plan,
                     )
@@ -307,15 +309,15 @@ fn bounded_owner_source(
         .is_some_and(|(owner, source)| identical(source) && dominates(function, owner, block))
 }
 
-/// Permission attenuation for an address supplied by an entry or prior join.
+/// Root attenuation for an argument lent by an existing address join. Its
+/// runtime projection separately checks the endpoint and descriptor access;
+/// static state edges use the canonical path query below.
 fn loan_access_permitted(source: StructuralAccess, destination: StructuralAccess) -> bool {
     use StructuralAccess::{MutableBorrow, Owned, SharedBorrow, WriteOnlyBorrow};
     matches!(
         (source, destination),
-        (
-            MutableBorrow,
-            SharedBorrow | MutableBorrow | WriteOnlyBorrow
-        ) | (Owned | SharedBorrow, SharedBorrow)
+        (MutableBorrow, SharedBorrow | MutableBorrow | WriteOnlyBorrow)
+            | (Owned | SharedBorrow, SharedBorrow)
             | (WriteOnlyBorrow, WriteOnlyBorrow)
     )
 }
@@ -326,6 +328,7 @@ fn root_type(
     function: &PsiOptimizationFunction,
     block: BlockId,
     place: PlaceId,
+    path: &[terminal_psi::StructuralPathSegment],
     access: StructuralAccess,
     plan: &AbstractOperationPlan,
 ) -> Option<semantic_vocabulary::StructuralTypeId> {
@@ -334,10 +337,15 @@ fn root_type(
             && qualifications.is_empty()
             && projected.is_empty()
     };
+    let permitted = |source: &StructuralParameterDeclaration| {
+        abstract_operations::control_flow::address_joins::loan_access_permitted(
+            plan.structural_types.iter(), source.structural_type, path, source.access, access,
+        )
+    };
     if let Some(source) = function.structural_parameter(place) {
         // Explicit parameters lend their declared referents. Namespace
         // attachment neither supplies a root nor changes its authority.
-        return (loan_access_permitted(source.access, access)
+        return (permitted(source)
             && plain(
                 source.multiplicity,
                 &source.qualifications,
@@ -347,7 +355,7 @@ fn root_type(
     }
     if let Some((owner, joined)) = parameter(function, place, plan) {
         return ((owner == block || dominates(function, owner, block))
-            && loan_access_permitted(joined.access, access))
+            && permitted(joined))
         .then_some(joined.structural_type);
     }
     if matches!(access, terminal_psi::exclusive_borrow_pair_pattern!())

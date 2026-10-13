@@ -98,9 +98,22 @@ pub(crate) fn projection(
             && result.projected_qualifications.is_empty())
         .then_some(result.structural_type)
     };
-    let Some(root) = root_type(source, argument.place, argument.access).or_else(owner_home) else {
+    let Some(root) =
+        root_type(source, argument.place, argument.access, &argument.path).or_else(owner_home)
+    else {
         return None;
     };
+    // Rejoin the selected endpoint and every stored pointer's permission from
+    // this consumer's catalog before deriving runtime descriptor loads.
+    if abstract_operations::control_flow::address_joins::borrowed_referent_type(
+        signature.structural_types.iter(),
+        root,
+        &argument.path,
+        argument.access,
+    ) != Some(parameter.structural_type)
+    {
+        return None;
+    }
     let mut projection_root = root;
     let mut segment_start = 0;
     let mut descriptor_offsets = Vec::new();
@@ -265,8 +278,22 @@ pub(super) fn root_type(
     source: &LegalizedScalarFunction,
     place: PlaceId,
     access: StructuralAccess,
+    path: &[terminal_psi::StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
     if matches!(access, terminal_psi::exclusive_borrow_pair_pattern!()) {
+        let permits = |parameter: &StructuralParameterDeclaration| {
+            abstract_operations::control_flow::address_joins::loan_access_permitted(
+                source
+                    .structural
+                    .as_ref()
+                    .into_iter()
+                    .flat_map(|signature| signature.structural_types.iter()),
+                parameter.structural_type,
+                path,
+                parameter.access,
+                access,
+            )
+        };
         if let Some((_, result)) = crate::selection::aggregate_result_input::home(source, place) {
             return (matches!(
                 result.multiplicity,
@@ -278,9 +305,12 @@ pub(super) fn root_type(
             .then_some(result.structural_type);
         }
         if let Some((_, parameter)) = join(source, place) {
-            return (parameter.access == StructuralAccess::MutableBorrow
-                || parameter.access == access)
-                .then_some(parameter.structural_type);
+            return permits(parameter).then_some(parameter.structural_type);
+        }
+        if let Some((_, parameter)) =
+            crate::selection::aggregate_result_input::block_home(source, place)
+        {
+            return permits(parameter).then_some(parameter.structural_type);
         }
         return source
             .structural
@@ -288,10 +318,7 @@ pub(super) fn root_type(
             .parameters
             .iter()
             .find(|parameter| parameter.semantic.place == place)
-            .filter(|parameter| {
-                parameter.semantic.access == StructuralAccess::MutableBorrow
-                    || parameter.semantic.access == access
-            })
+            .filter(|parameter| permits(&parameter.semantic))
             .map(|parameter| parameter.semantic.structural_type);
     }
     if let Some(result) = source.instructions().find_map(|row| match &row.kind {

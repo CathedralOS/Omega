@@ -1127,3 +1127,5 @@ pass/calls/runtime_guarded_reference_return_before_crash_exit built 8819ms exit:
 pass/calls/runtime_guarded_reference_return_crash built 11294ms exit:signal signal:4 stdout:match stderr:match terminal-target.linux_x86_64:trap terminal-target.linux_arm64:trap terminal-target.macos_arm64:trap terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match @0e06d190735e
 # e01calls: scoped exact1b127 producer rows; other published rows preserved.
 # historical-context (9462 measurement, not current): {"cpus": 5, "jobs": "1", "load1_end": 1.85, "load1_start": 1.52, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# W2-19: scoped measured witness; all prior published rows preserved verbatim.
+pass/borrows/state_reference_scalar_snapshots built 13244ms exit:0 @1b7a573f2276

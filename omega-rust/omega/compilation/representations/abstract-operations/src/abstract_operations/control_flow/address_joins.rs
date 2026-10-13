@@ -105,6 +105,58 @@ pub fn is_address_projection(path: &[StructuralPathSegment]) -> bool {
     })
 }
 
+/// The access ceiling retained along an exact address projection. An owned
+/// container can forward its stored descriptor's loan without lending mutable
+/// container storage. Shared enclosing access attenuates descendants; reading
+/// a stored pointer through write-only storage is forbidden. This is only a
+/// catalog/type judgment: each receiver must independently establish the live
+/// root, its owner, qualifications and exact endpoint. See structural_access.md
+/// (Projection across reference fields) and loans.md (Reborrow lineage).
+pub fn loan_access_permitted<'a>(
+    declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    source: StructuralAccess,
+    destination: StructuralAccess,
+) -> bool {
+    use StructuralAccess::{MutableBorrow, Owned, SharedBorrow, WriteOnlyBorrow};
+    if !is_address_projection(path)
+        || borrowed_referent_type(declarations.clone(), root, path, destination).is_none()
+    {
+        return false;
+    }
+    let mut ceiling = source;
+    for (position, segment) in path.iter().enumerate() {
+        if *segment != StructuralPathSegment::Referent {
+            continue;
+        }
+        if ceiling == WriteOnlyBorrow {
+            return false;
+        }
+        let Some(reference) = referent_type(declarations.clone(), root, &path[..position])
+            .and_then(|identity| unique_structural_type(declarations.clone(), identity))
+        else {
+            return false;
+        };
+        let StructuralTypeShape::Reference { access, .. } = reference.shape else {
+            return false;
+        };
+        ceiling = match ceiling {
+            SharedBorrow => SharedBorrow,
+            Owned | MutableBorrow => access,
+            WriteOnlyBorrow => return false,
+        };
+    }
+    matches!(
+        (ceiling, destination),
+        (
+            MutableBorrow,
+            SharedBorrow | MutableBorrow | WriteOnlyBorrow
+        ) | (Owned | SharedBorrow, SharedBorrow)
+            | (WriteOnlyBorrow, WriteOnlyBorrow)
+    )
+}
+
 /// Resolve a loan endpoint while checking authority at every pointer crossing.
 /// This type query does not establish that a carrier or its backing is live.
 pub fn borrowed_referent_type<'a>(

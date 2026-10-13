@@ -1,0 +1,3 @@
+// Expected rejection: reaction index 6 exceeds six-reaction storage.
+data Control { reactions: [i64; 6]; observed: i64; }
+machine Control::main(control: &mut Control) { control.observed = control.reactions[6]; }

@@ -15,6 +15,7 @@ use crate::labels::call_target_label;
 
 mod conflicts;
 mod receiver;
+mod staging;
 
 pub(super) use receiver::{
     ReceiverSummaries, check_exclusive_place_use, check_receiver_footprint_against_argument_loans,
