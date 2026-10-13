@@ -3142,6 +3142,25 @@ crash and native exit behavior.
   revision, with no timeout replacing the actual diagnostic. Native execution
   remains the owning capability task's acceptance.
 
+- **STRUCT-CONSTANT-REQUIRES-REFUTATION-DRIFT.** (new-scope)
+  `fail/calls/struct_constant_requires_argument_rejected` pins that
+  `Main::take(Point { x: 1, y: 0 })` under `requires p == Point::zero()` is
+  refuted structurally ("the instantiated fact is structurally false"). At
+  `24e663ccd27` the refutation no longer fires: the call reports "cannot
+  prove requires contract for call take from Main::main" and spells the
+  instantiated fact with the constructor's internal identity text
+  (`constructor:79:package:0101...::Point6:record13:common:name:x1:1...`)
+  instead of its source spelling. Two defects: the constant machine
+  application `Point::zero()` no longer normalizes to its closed constructor
+  shape before the structural judgment (the refutation rung in
+  `checking/src/proof_contracts/contract_entailment/refuted_requires.rs`
+  and `structural_terms.rs`), and the fallback diagnostic renders a type
+  identity rather than an expression. The row is recorded `unexpected`
+  with that diagnostic; the fixture also needed `reaches Console`, which
+  every green sibling already spells. Acceptance: the row rejects with its
+  authored fragment and the diagnostic names `Point { x: 1, y: 0 } ==
+  Point { x: 0, y: 0 }`.
+
 - **MACOS-NATIVE-LOST-SUCCESSES.** (new-scope)
   Restore the macOS ARM64 corpus rows that met their authored check, build or
   runtime oracle and no longer do. Most goldens still claim these successes,

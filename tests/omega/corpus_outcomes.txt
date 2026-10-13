@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 5.92, "load1_start": 2.26, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 11.11, "load1_start": 12.1, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 835ms expected @a9ae30e1c334+wt
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -1045,8 +1045,8 @@ fail/calls/statement_call_undeclared_callee_rejected rejected 829ms expected @a9
 	machine `main` cannot resolve ordinary call `no_such_leg` to a machine entry or requirement
 fail/calls/static_tail_local_custody_no_decrease rejected 1528ms expected @a9ae30e1c334+wt
 	machine call cycle: `Counter::even`, `Counter::odd` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
-fail/calls/struct_constant_requires_argument_rejected rejected 2696ms expected @a9ae30e1c334+wt
-	machine `Main::main` state `main` value call to `Main::take` violates required fact `p == Point.zero()`: the instantiated fact is structurally false
+fail/calls/struct_constant_requires_argument_rejected rejected 2104ms unexpected @e6088bf995e6+wt
+	cannot prove requires contract for call take from Main::main: constructor:79:package:0101010101010101010101010101010101010101010101010101010101010101::Point6:record13:common:name:x1:113:common:name:y1:0 == Point.zero() (needs fact `p == Point.zero()` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/calls/terminal_call_duplicate_block rejected 2ms expected @1ade44fe20d0+wt
 fail/calls/terminal_call_duplicate_suspend rejected 1ms expected @1ade44fe20d0+wt
 fail/calls/terminal_call_marked_state rejected 1620ms expected @1ade44fe20d0+wt
@@ -1074,8 +1074,8 @@ fail/capabilities/cyclic_synchronous_invocation rejected 894ms expected @1a353f2
 	selected providers realize a cyclic synchronous `invokes` graph: Alpha -> Beta -> Alpha; break one edge with a mailbox, queue, scheduler handoff, or other new activation
 fail/capabilities/effect_ceiling_exceeded rejected 1281ms expected @a9ae30e1c334+wt
 	machine `Worker::run` publishes service reach `Console` but its checked body reaches undeclared service `Disk`
-fail/capabilities/native_slice_external_leaf_rejected rejected 130ms unexpected @a9ae30e1c334+wt
-	cannot evaluate compatibility calling plan for `NativeSlice::send`: aggregate integer classification is not normalized for this calling policy
+fail/capabilities/native_slice_external_leaf_rejected rejected 292ms expected @e6088bf995e6
+	external leaf `send` cannot use safe slice `&[u8]` as a default-native parameter for `NativeSlice::send`; declare the foreign pointer/length/terminator or record shape explicitly in a checked adapter, or select a custom `Calling<C>` policy that publishes a canonical representation
 fail/capabilities/provider_widens_requirement_ceiling rejected 4446ms expected @a9ae30e1c334+wt
 	machine `sneaky` state `entry` does not satisfy trait `Meter` machine `read_value`: service `Filesystem` is not allowed by the trait requirement
 fail/capabilities/undeclared_synchronous_invocation rejected 1341ms expected @a9ae30e1c334+wt
@@ -1116,12 +1116,12 @@ fail/collections/guarded_computed_index_overrun rejected 1546ms expected @a9ae30
 	cannot prove index `position + 1` is within length 6 in rises::entry
 fail/collections/literal_element_read_empty_view rejected 1605ms expected @a9ae30e1c334+wt
 	cannot prove index `0` is within unknown slice length of `values` in read::entry
-fail/collections/nested_read_index_uses_selected_extent rejected 1515ms unexpected @a9ae30e1c334+wt
-	cannot prove index `__hoist_15` is within length 2
-fail/collections/non_integer_index_rejected rejected 849ms unexpected @a9ae30e1c334+wt
-	machine `pick` state `entry` indexes `values` with `__hoist_14` of type `f64`, but an index or range endpoint must be an integer
-	machine `store` state `entry` indexes `values` with `__hoist_15` of type `f32`, but an index or range endpoint must be an integer
-	machine `choose` state `entry` indexes `values` with `__hoist_16` of type `bool`, but an index or range endpoint must be an integer
+fail/collections/nested_read_index_uses_selected_extent rejected 1247ms expected @e6088bf995e6
+	cannot prove index `index` is within length 2
+fail/collections/non_integer_index_rejected rejected 399ms expected @e6088bf995e6
+	machine `pick` state `entry` indexes `values` with `position` of type `f64`, but an index or range endpoint must be an integer
+	machine `store` state `entry` indexes `values` with `position` of type `f32`, but an index or range endpoint must be an integer
+	machine `choose` state `entry` indexes `values` with `flag` of type `bool`, but an index or range endpoint must be an integer
 	machine `window` state `entry` indexes `values` with `start` of type `f64`, but an index or range endpoint must be an integer
 fail/collections/projected_range_call_selected_extent rejected 1540ms expected @a9ae30e1c334+wt
 	cannot prove subslice range end bound `0..4` is within slice length 3
@@ -1698,8 +1698,8 @@ fail/drops/borrowed_replacement_old_hook_prerequisite rejected 1576ms expected @
 	cannot prove automatic cleanup requires at selected edge from replace state entry after statement 0: holder.token does not establish Token::drop clause `token.value == 7`
 fail/drops/borrowed_selected_cleanup_missing_child_requirement rejected 1621ms expected @a9ae30e1c334+wt
 	cannot prove automatic cleanup requires at selected edge from replace state entry after statement 1: elements[__hoist_14].child does not establish Child::drop clause `child.value == 7`
-fail/drops/borrowed_temporary_projection_retains_owner_disposition rejected 820ms unexpected @a9ae30e1c334+wt
-	argument `receipt` for state `entry` expects `&Receipt`, got `member access`
+fail/drops/borrowed_temporary_projection_retains_owner_disposition rejected 570ms expected @e6088bf995e6
+	cannot automatically dispose borrowed temporary `named(name(Pair))` after call `entry` at statement 0: every contained linear obligation needs its owner-authorized terminal disposition
 fail/drops/claim_bearing_temporary_hook_prerequisite rejected 1555ms expected @a9ae30e1c334+wt
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 0: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
 fail/drops/claim_bearing_temporary_requires_disposition rejected 1169ms expected @a9ae30e1c334+wt
@@ -3151,8 +3151,8 @@ fail/slices/index_operator_contract_unproven rejected 916ms expected @a9ae30e1c3
 	machine `Main::main` state `main` value call to `Slice::index` violates required fact `index < items.len`: the instantiated fact is structurally false
 fail/slices/inline_mutable_call_windows_overlap rejected 1593ms expected @a9ae30e1c334+wt
 	state `inspect` receives `values[0..2]` as mutable more than once
-fail/slices/inline_shared_window_mutable_call rejected 890ms unexpected @a9ae30e1c334+wt
-	argument `values` for state `entry` expects `&mut [u64]`, got `indexed value`
+fail/slices/inline_shared_window_mutable_call rejected 249ms expected @e6088bf995e6
+	argument `values` for state `entry` is declared `&mut` (`&mut [u64]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/slices/invalid_slice_reassigned_local_index_unchecked rejected 1661ms expected @a9ae30e1c334+wt
 	cannot prove index `__hoist_14` is within length 4
 fail/slices/invalid_subslice_bounded_order_unchecked rejected 1566ms expected @a9ae30e1c334+wt
@@ -3224,8 +3224,8 @@ fail/slices/scalar_store_does_not_establish_sibling rejected 1694ms expected @a9
 	reading `values[1]` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `u64[in Positive]`
 fail/slices/shared_subslice_state_cannot_lend_mutable rejected 178ms expected @9c4d1c444502+wt
 	argument `items` for state `forwarded` is declared `&mut` (`&mut [i32]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
-fail/slices/signed_slice_index_upper_only rejected 1654ms unexpected @a9ae30e1c334+wt
-	cannot prove index `__hoist_14` is non-negative
+fail/slices/signed_slice_index_upper_only rejected 1061ms expected @e6088bf995e6
+	cannot prove index `index` is non-negative
 fail/slices/signed_slice_range_upper_only rejected 1708ms expected @a9ae30e1c334+wt
 	cannot prove every subslice range endpoint of `__hoist_14..__hoist_15` is non-negative
 fail/slices/signed_to_unsigned_cast_does_not_inherit_position rejected 291ms expected @2ab552549670+wt
@@ -3597,8 +3597,8 @@ fail/traits/default_row_foreign_captured_operand rejected 115ms expected @619f89
 	machine `Mapped::Reader::read` state `read` return type uses undeclared lifetime argument `'same' in `Marker`; declare it in the owner's generic parameter list
 fail/traits/dyn_data_carrier_selector_retired rejected 0ms expected @a9ae30e1c334+wt
 	tests/omega/fail/traits/dyn_data_carrier_selector_retired/main.omg:13:33: `dyn Data::Implementation` is retired; name the trait application (`dyn Trait<Data>`) and select an implementation with `Implementation as dyn Trait<Data>`
-fail/traits/dyn_finite_family_non_member rejected 723ms unexpected @a9ae30e1c334+wt
-	static application of requirement `Shape::code` violates its declared where facts: the complete tuple is structurally false
+fail/traits/dyn_finite_family_non_member rejected 263ms expected @e6088bf995e6
+	dynamic family call `Shape::code` requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
 fail/traits/dyn_selector_from_data_place rejected 1279ms expected @a9ae30e1c334+wt
 	`item as dyn Shape<Item>` converts a value to `dyn Shape`; a selector is constructed from a named implementation (`Implementation as dyn Shape<...>`) and the data is passed to each call
 fail/traits/dyn_selector_receiver_call rejected 872ms expected @a9ae30e1c334+wt
@@ -3878,35 +3878,34 @@ pass/borrow/runtime_dispatch_call_payload_snapshot_exit checked 11203ms check-ta
 pass/borrow/runtime_exclusive_loan_local_write_exit checked 11011ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrow/runtime_indexed_write_only_local_receiver_exit checked 10278ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrow/runtime_method_view_write_after_last_use_exit checked 11063ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/borrow/runtime_write_only_affine_sum_exit checked 4298ms check-target:macos_arm64 @6abc05dd203a
-pass/borrow/runtime_write_only_aggregate_selector_snapshot_exit checked 5105ms check-target:macos_arm64 @a9c11ff574b9+wt
-pass/borrow/runtime_write_only_array_indexed_calls_exit checked 2848ms check-target:macos_arm64 @e67b2abb52b9+wt
-pass/borrow/runtime_write_only_array_selector_snapshot_exit checked 4145ms check-target:macos_arm64 @e80db4a269fa+wt
-pass/borrow/runtime_write_only_call_result_observation_exit checked 10497ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/borrow/runtime_write_only_captured_record_copy_exit checked 4227ms check-target:macos_arm64 @2e62c6e27183+wt
-pass/borrow/runtime_write_only_exclusive_reference_aggregate_exit checked 3640ms check-target:macos_arm64 @6ede3322eb88+wt
-pass/borrow/runtime_write_only_exclusive_reference_call_operand_exit checked 3640ms check-target:macos_arm64 @6ede3322eb88+wt
-pass/borrow/runtime_write_only_exclusive_reference_call_result_exit checked 3640ms check-target:macos_arm64 @6ede3322eb88+wt
-pass/borrow/runtime_write_only_exclusive_reference_detached_child_exit checked 3483ms check-target:macos_arm64 @6ede3322eb88+wt
-pass/borrow/runtime_write_only_exclusive_reference_forward_exit checked 3483ms check-target:macos_arm64 @6ede3322eb88+wt
-pass/borrow/runtime_write_only_exclusive_reference_nested_call_operand_exit checked 3483ms check-target:macos_arm64 @6ede3322eb88+wt
-pass/borrow/runtime_write_only_exclusive_reference_owned_wrapper_exit checked 3411ms check-target:macos_arm64 @6ede3322eb88+wt
-pass/borrow/runtime_write_only_exclusive_reference_projected_exit checked 3414ms check-target:macos_arm64 @6ede3322eb88+wt
-pass/borrow/runtime_write_only_exclusive_reference_returned_view_exit checked 3410ms check-target:macos_arm64 @6ede3322eb88+wt
-pass/borrow/runtime_write_only_indexed_record_copy_exit checked 4227ms check-target:macos_arm64 @2e62c6e27183+wt
-pass/borrow/runtime_write_only_local_affine_aggregate_exit checked 4298ms check-target:macos_arm64 @6abc05dd203a
-pass/borrow/runtime_write_only_record_array_argument_exit rejected 10341ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(1), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
-pass/borrow/runtime_write_only_reference_aggregate_alias_exit checked 3862ms check-target:macos_arm64 @992d27dd3135+wt
-pass/borrow/runtime_write_only_reference_aggregate_array_alias_exit checked 3863ms check-target:macos_arm64 @992d27dd3135+wt
-pass/borrow/runtime_write_only_reference_aggregate_call_exit checked 3862ms check-target:macos_arm64 @992d27dd3135+wt
-pass/borrow/runtime_write_only_reference_aggregate_call_result_exit checked 2785ms check-target:macos_arm64 @992d27dd3135+wt
-pass/borrow/runtime_write_only_reference_aggregate_capture_exit checked 2785ms check-target:macos_arm64 @992d27dd3135+wt
-pass/borrow/runtime_write_only_reference_aggregate_copy_exit checked 2786ms check-target:macos_arm64 @992d27dd3135+wt
-pass/borrow/runtime_write_only_reference_aggregate_detached_exit checked 2813ms check-target:macos_arm64 @992d27dd3135+wt
-pass/borrow/runtime_write_only_reference_aggregate_projected_exit checked 2813ms check-target:macos_arm64 @992d27dd3135+wt
-pass/borrow/runtime_write_only_sum_copy_exit checked 4097ms check-target:macos_arm64 @2e62c6e27183+wt
-pass/borrow/runtime_write_only_utf8_field_exit checked 4414ms check-target:macos_arm64 @7fa075570fe9
+pass/borrow/runtime_write_only_affine_sum_exit checked 5635ms check-target:macos_arm64 @af6b0f221559+wt
+pass/borrow/runtime_write_only_aggregate_selector_snapshot_exit checked 5735ms check-target:macos_arm64 @af6b0f221559+wt
+pass/borrow/runtime_write_only_array_indexed_calls_exit checked 5689ms check-target:macos_arm64 @af6b0f221559+wt
+pass/borrow/runtime_write_only_array_selector_snapshot_exit checked 5670ms check-target:macos_arm64 @af6b0f221559+wt
+pass/borrow/runtime_write_only_call_result_observation_exit checked 5546ms check-target:macos_arm64 @af6b0f221559+wt
+pass/borrow/runtime_write_only_captured_record_copy_exit checked 5658ms check-target:macos_arm64 @af6b0f221559+wt
+pass/borrow/runtime_write_only_exclusive_reference_aggregate_exit checked 5642ms check-target:macos_arm64 @af6b0f221559+wt
+pass/borrow/runtime_write_only_exclusive_reference_call_operand_exit checked 5646ms check-target:macos_arm64 @af6b0f221559+wt
+pass/borrow/runtime_write_only_exclusive_reference_call_result_exit checked 5645ms check-target:macos_arm64 @af6b0f221559+wt
+pass/borrow/runtime_write_only_exclusive_reference_detached_child_exit checked 5687ms check-target:macos_arm64 @af6b0f221559+wt
+pass/borrow/runtime_write_only_exclusive_reference_forward_exit checked 5636ms check-target:macos_arm64 @af6b0f221559+wt
+pass/borrow/runtime_write_only_exclusive_reference_nested_call_operand_exit checked 5646ms check-target:macos_arm64 @af6b0f221559+wt
+pass/borrow/runtime_write_only_exclusive_reference_owned_wrapper_exit checked 5650ms check-target:macos_arm64 @af6b0f221559+wt
+pass/borrow/runtime_write_only_exclusive_reference_projected_exit checked 5601ms check-target:macos_arm64 @af6b0f221559+wt
+pass/borrow/runtime_write_only_exclusive_reference_returned_view_exit checked 5564ms check-target:macos_arm64 @af6b0f221559+wt
+pass/borrow/runtime_write_only_indexed_record_copy_exit checked 5706ms check-target:macos_arm64 @af6b0f221559+wt
+pass/borrow/runtime_write_only_local_affine_aggregate_exit checked 5644ms check-target:macos_arm64 @af6b0f221559+wt
+pass/borrow/runtime_write_only_record_array_argument_exit checked 5550ms check-target:macos_arm64 @af6b0f221559+wt
+pass/borrow/runtime_write_only_reference_aggregate_alias_exit checked 6207ms check-target:macos_arm64 @af6b0f221559+wt
+pass/borrow/runtime_write_only_reference_aggregate_array_alias_exit checked 6003ms check-target:macos_arm64 @af6b0f221559+wt
+pass/borrow/runtime_write_only_reference_aggregate_call_exit checked 4437ms check-target:macos_arm64 @af6b0f221559+wt
+pass/borrow/runtime_write_only_reference_aggregate_call_result_exit checked 4544ms check-target:macos_arm64 @af6b0f221559+wt
+pass/borrow/runtime_write_only_reference_aggregate_capture_exit checked 4509ms check-target:macos_arm64 @af6b0f221559+wt
+pass/borrow/runtime_write_only_reference_aggregate_copy_exit checked 4501ms check-target:macos_arm64 @af6b0f221559+wt
+pass/borrow/runtime_write_only_reference_aggregate_detached_exit checked 4490ms check-target:macos_arm64 @af6b0f221559+wt
+pass/borrow/runtime_write_only_reference_aggregate_projected_exit checked 4464ms check-target:macos_arm64 @af6b0f221559+wt
+pass/borrow/runtime_write_only_sum_copy_exit checked 5368ms check-target:macos_arm64 @af6b0f221559+wt
+pass/borrow/runtime_write_only_utf8_field_exit checked 5378ms check-target:macos_arm64 @af6b0f221559+wt
 pass/borrow/stored_write_only_metadata checked 1593ms @a9ae30e1c334+wt
 pass/borrow/write_only_composed_forward_exit checked 11148ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrow/write_only_constrained_record_field checked 1597ms @a9ae30e1c334+wt
@@ -4094,8 +4093,8 @@ pass/borrows/stored_primitive_reference_observations_exit checked 11205ms check-
 pass/borrows/stored_reference_projection_exit checked 11240ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/transition_shared_borrow_result checked 11028ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/view_field_record_exit_disposal checked 1549ms @a9ae30e1c334+wt
-pass/borrows/writeonly_record_field_store incomplete 5583ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (structural field store: destination parameter)
+pass/borrows/writeonly_record_field_store checked 5039ms check-target:macos_arm64 @af6b0f221559+wt
+pass/borrows/writeonly_record_field_store_variants checked 4946ms check-target:macos_arm64 @af6b0f221559+wt
 pass/boundary/interleaved_structural_crash_formal_exit checked 10426ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/boundary/later_state_requirement_scalar_result_exit rejected 86458ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
 	call `darwin_clock_ns` selects no declaration: `darwin_clock_ns` is not a declared machine, data, or proof definition
@@ -4338,8 +4337,7 @@ pass/calls/runtime_static_tail_reordered_local_custody_exit checked 11934ms chec
 pass/calls/runtime_std_math_sin_cos_exit checked 33684ms check-target:macos_arm64 @5c5bb7a1c2c2+wt
 pass/calls/runtime_stored_constructor_snapshots_exit checked 11619ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_stored_equal_observations_exit checked 11955ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/calls/runtime_stored_reference_computation_argument_exit rejected 11916ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(6), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
+pass/calls/runtime_stored_reference_computation_argument_exit checked 4325ms check-target:macos_arm64 @af6b0f221559+wt
 pass/calls/runtime_structural_literal_call_initializer_exit checked 12783ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_temporary_lending_order_exit checked 12689ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_terminal_requirement_projected_context_exit checked 12338ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -4531,8 +4529,8 @@ pass/comptime/runtime_const_measured_recursion_exit checked 12401ms check-target
 pass/comptime/selected_float_array_length_exit checked 21625ms check-target:macos_arm64 @4ffd613e37f1
 pass/concurrency/boundary_suspension_inline_completion_exit checked 11498ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/concurrency/runtime_array_loan_suspension_exit checked 10498ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/concurrency/runtime_retained_reference_boundary_exit rejected 4723ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	machine `InlineScheduler::advance` state `advance` does not satisfy trait `Scheduler` machine `advance`: conformance borrow contract: callable input has a different carried region frontier
+pass/concurrency/runtime_retained_reference_boundary_exit incomplete 1995ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @af6b0f221559+wt
+	`Main::main` has no executable body: this compiler does not lower a state of it yet (statement sequence: returned carrier releases)
 pass/concurrency/runtime_returned_carrier_suspension_exit checked 10790ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/concurrency/runtime_suspension_repeated_actual_exit checked 11619ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/concurrency/runtime_zero_extent_carry_exit checked 12265ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6130,13 +6128,13 @@ pass/structural/sum_attachment_receiver_compile checked 1694ms @a9ae30e1c334+wt
 pass/targets/aarch64_hfa_entry_argument checked 33475ms @a9ae30e1c334+wt
 pass/targets/boundary_family_member_identities checked 10831ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/targets/efi_vtable_call checked 11423ms @a9ae30e1c334+wt
+pass/targets/imported_target_family_heads_exit checked 3669ms check-target:macos_arm64 @61ba1df9375e+wt
 pass/targets/per_target_import_satisfies checked 1623ms @a9ae30e1c334+wt
 pass/targets/portable_family_entry_installations_exit checked 10740ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:trap terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @a9ae30e1c334+wt
 pass/targets/private_target_supplies_remain_disclosed checked 8039ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/targets/provider_family_private_contracts_exit checked 10777ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/targets/retained_target_family_bodies checked 10952ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/targets/retained_target_provider_family_exit checked 11966ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/targets/imported_target_family_heads_exit checked 3669ms check-target:macos_arm64 @61ba1df9375e+wt
 pass/targets/runtime_closed_generic_attached_family_exit checked 11032ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/targets/runtime_family_applied_nominal_visitor_exit checked 11013ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/targets/runtime_family_callback_guarantee_conjunction_exit checked 2751ms check-target:macos_arm64 @8ef927ca678b

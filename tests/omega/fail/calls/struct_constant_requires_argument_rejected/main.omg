@@ -18,7 +18,7 @@ machine Main::take(p: Point) -> u64
 {
     p.y
 }
-machine Main::main(main: &mut Main) {
+machine Main::main(main: &mut Main) reaches Console {
     let result: u64 = Main::take(Point {
         x: 1,
         y: 0,
