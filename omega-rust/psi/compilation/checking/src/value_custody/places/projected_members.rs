@@ -1,4 +1,10 @@
 //! Declared member types retain the selected case instead of flattening it away.
+//!
+//! Prepared applications own substituted field types, but their concrete storage
+//! symbols can differ from the template selectors retained by source expressions.
+//! Join those selectors through the receiver's exact declaration correspondence
+//! before querying a field. Symbolic views keep their template symbols; neither
+//! route substitutes another declaration's same-named field or supplies membership.
 
 use super::{declared_place_type_raw, unwrapped_type_reference};
 use symbols::SymbolHandle;
@@ -6,6 +12,41 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::TypeReferenceHandle;
+
+/// Read a member's applied type without reopening the generic declaration.
+/// Closed storage may translate a retained template selector; an open view
+/// already uses the template's exact field namespace. Payload selection stays
+/// qualified by its case and ordinary checking still owes case membership.
+pub(crate) fn applied_data_member_field<'program>(
+    program: &'program dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+    member: &typed_trees::expression::TableMemberExpression,
+) -> Option<&'program typed_trees::data::DataField> {
+    let reference = program
+        .type_reference_table
+        .peeled_type_reference(reference);
+    let closed = program.closed_data_definition(reference);
+    let data = match closed {
+        Some(data) => data,
+        None => program
+            .data_application_definition(reference)
+            .or_else(|| super::data_definition_for_type(program, reference))?,
+    };
+    let selected = if closed.is_some() && member.member_symbol.is_valid() {
+        program
+            .closed_data_constructor_field(reference, data.symbol, member.member_symbol)?
+            .symbol
+    } else {
+        member.member_symbol
+    };
+    exact_data_member_field(
+        program,
+        data,
+        selected,
+        member.member.as_str(),
+        member.case_variant.as_ref().map(|variant| variant.as_str()),
+    )
+}
 
 pub(super) fn contains_case_projection(
     program: &dyn crate::CheckingInput,

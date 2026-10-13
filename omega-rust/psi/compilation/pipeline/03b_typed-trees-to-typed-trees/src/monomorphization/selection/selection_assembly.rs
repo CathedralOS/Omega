@@ -69,6 +69,7 @@ pub(crate) fn selection_for_call(
     selection.explicit_argument_overflow =
         explicit_arguments == super::ExplicitArgumentCapacity::Exceeded;
     selection.lexical_owner = caller_machine.symbol;
+    selection.lexical_state = caller_state.symbol;
     Some(selection)
 }
 
@@ -87,6 +88,7 @@ pub(crate) fn selection_from_proposals(
     let mut selection = CallSelection {
         site,
         lexical_owner: SymbolHandle::invalid(),
+        lexical_state: SymbolHandle::invalid(),
         callee_symbol: callee.symbol,
         candidate_index: callee.candidate_index,
         caller_is_generic,

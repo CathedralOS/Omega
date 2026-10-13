@@ -470,6 +470,7 @@ pass/float/saturating_named_operations_retain_ordered_inputs built 8797ms exit:0
 pass/float/symbolic_integer_conversion_finite_requires_exit built 21063ms exit:0 interpreter-exit:0 interpreter:agrees @95f5c1baea71
 pass/float/trapping_float_sites_share_nonentry_guard_coverage built 8770ms exit:0 interpreter-exit:0 interpreter:agrees @cba4ef8c9ab1
 pass/float/trapping_raw_finite_semantic_result_proof built 8851ms exit:0 interpreter-exit:0 interpreter:agrees @cba4ef8c9ab1
+pass/generics/borrowed_applied_field_static_selection_exit built 5642ms exit:0 interpreter-exit:0 interpreter:agrees @d1fa4738e67a+wt
 pass/generics/closed_generic_local_field_observation_exit built 3226ms exit:0 interpreter-exit:0 interpreter:agrees @c9b4ecc7551a
 pass/generics/contextual_static_machine_const_scopes_exit built 3451ms exit:0 interpreter-exit:0 interpreter:agrees @af65e4684ce5+wt
 pass/generics/contextual_static_machine_open_const_exit built 3537ms exit:0 interpreter-exit:0 interpreter:agrees @af65e4684ce5+wt

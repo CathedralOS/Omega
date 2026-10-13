@@ -20,6 +20,12 @@ history through aliases, replacements, records and state transfer.
 The corpus exercises replacement and returned-view composition separately from
 invalid controls for bounds, access, and backing lifetimes.
 
+Generic batch forwarding also retains the exact instantiated field type.
+Source projections can keep the template field selector after concrete storage
+has acquired new field symbols; the compiler rejoins them through the selected
+receiver's declaration correspondence. Fixed-array slice presentation follows
+the existing admitted backing rules and preserves the original backing.
+
 The language's [returned-view contract](../../../../wiki/spec/language/lifetimes.md#returned-views)
 requires the result to retain its input lifetime and exact backing. A fixed-size
 scan, copied result or boolean-plus-payload API is not acceptance of this program.

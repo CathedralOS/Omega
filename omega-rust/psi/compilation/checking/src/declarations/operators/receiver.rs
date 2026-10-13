@@ -285,23 +285,11 @@ fn field_type_reference(
     type_reference: TypeReferenceHandle,
     member: &typed_trees::expression::TableMemberExpression,
 ) -> Option<TypeReferenceHandle> {
-    // A prepared application owns substituted field types. Retained template
-    // selectors translate only through that exact receiver's correspondence;
-    // another instance or a same-named declaration cannot replace them.
-    if let Some(data) = program.closed_data_definition(type_reference) {
-        let selected = if member.member_symbol.is_valid() {
-            program
-                .closed_data_constructor_field(type_reference, data.symbol, member.member_symbol)?
-                .symbol
-        } else {
-            member.member_symbol
-        };
-        return crate::value_custody::places::exact_data_member_field(
+    if program.closed_data_definition(type_reference).is_some() {
+        return crate::value_custody::places::applied_data_member_field(
             program,
-            data,
-            selected,
-            member.member.as_str(),
-            member.case_variant.as_ref().map(|variant| variant.as_str()),
+            type_reference,
+            member,
         )
         .map(|field| field.type_reference);
     }

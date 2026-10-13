@@ -123,6 +123,7 @@ enum CallSite {
 struct CallSelection {
     site: CallSite,
     lexical_owner: SymbolHandle,
+    lexical_state: SymbolHandle,
     callee_symbol: SymbolHandle,
     candidate_index: usize,
     caller_is_generic: bool,
@@ -250,15 +251,14 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
             // map<step>(items))`), or land a receiver, provider, or endpoint
             // binding that completes the tuple, so this pass must wait for
             // `applied_any` to go quiet before calling the call underivable.
-            if selections.iter().any(|selection| {
+            if let Some(selection) = selections.iter().find(|selection| {
                 selection.candidate_index == candidate_index
                     && selection.conflicted
                     && holds_partial_static_evidence(selection)
             }) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "generic machine `{}` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived",
-                    candidate.template.template_name
-                )));
+                diagnostics.push(incomplete_selection_diagnostic(
+                    program, candidate, selection,
+                ));
                 continue;
             }
             match apply_call_specializations(
@@ -286,14 +286,13 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
             // Partial static evidence that no round completed is underivable
             // at every call site, independently of the speculative fence.
             for (candidate_index, candidate) in candidates.iter().enumerate() {
-                if selections.iter().any(|selection| {
+                if let Some(selection) = selections.iter().find(|selection| {
                     selection.candidate_index == candidate_index
                         && holds_partial_static_evidence(selection)
                 }) {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "generic machine `{}` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived",
-                        candidate.template.template_name
-                    )));
+                    diagnostics.push(incomplete_selection_diagnostic(
+                        program, candidate, selection,
+                    ));
                 }
             }
             if !diagnostics.is_empty() {
@@ -319,16 +318,15 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
                 && program.pending_const_range_endpoints.is_empty()
             {
                 for (candidate_index, candidate) in candidates.iter().enumerate() {
-                    if selections.iter().any(|selection| {
+                    if let Some(selection) = selections.iter().find(|selection| {
                         selection.candidate_index == candidate_index
                             && !selection.caller_is_generic
                             && !selection.is_complete()
                             && matches!(selection.site, CallSite::Statement(_))
                     }) {
-                        diagnostics.push(Diagnostic::error(format!(
-                            "generic machine `{}` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived",
-                            candidate.template.template_name
-                        )));
+                        diagnostics.push(incomplete_selection_diagnostic(
+                            program, candidate, selection,
+                        ));
                     }
                 }
                 if !diagnostics.is_empty() {
@@ -498,6 +496,37 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
 mod operator_candidates;
 use crate::monomorphization::selection::{contract_expression_handles, unique_complete_selections};
 pub(crate) use operator_candidates::{OperatorCandidateTemplates, specialize_operator_candidates};
+
+/// Keep the failed occurrence's source context; the callee alone cannot identify
+/// which of several forwarded applications failed to close.
+fn incomplete_selection_diagnostic(
+    program: &TypedTrees,
+    candidate: &Candidate,
+    selection: &CallSelection,
+) -> Diagnostic {
+    let owner = program.symbols.display_path(selection.lexical_owner, "::");
+    let state = program.symbols.display_path(selection.lexical_state, "::");
+    let location = if selection.lexical_state.is_valid() {
+        format!(" in machine `{owner}` state `{state}`")
+    } else if selection.lexical_owner.is_valid() {
+        format!(" in declaration `{owner}`")
+    } else {
+        String::new()
+    };
+    let diagnostic = Diagnostic::error(format!(
+        "generic machine `{}` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived{location}",
+        candidate.template.template_name,
+    ));
+    match selection.site {
+        CallSite::Expression(expression) => {
+            diagnostic.with_source_span(program.expression_table.source_span(expression))
+        }
+        CallSite::Statement(statement) => match program.statement_table.statement(statement) {
+            StatementNode::Call(call) => diagnostic.with_source_span(call.source_span),
+            _ => diagnostic,
+        },
+    }
+}
 
 /// A concrete caller's incomplete tuple that already names a const, machine
 /// or conformance operand: it can only complete or be underivable.

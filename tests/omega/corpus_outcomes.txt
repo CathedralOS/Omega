@@ -2414,8 +2414,15 @@ fail/float/unbounded_result_does_not_prove_guarantee rejected 1369ms expected @9
 	cannot prove ensures contract for exit from tail at statement 1: result == 3.75
 fail/float/unguarded_scalar_state_contract rejected 1179ms expected @9c4d1c444502
 	cannot prove requires contract for call bounded from unchecked: value == value && value >= -100.0 && value <= 100.0 (needs fact `value == value && value >= -100.0 && value <= 100.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/generics/applied_array_field_needs_explicit_borrow rejected 77ms expected @d1fa4738e67a+wt
+	generic machine `count` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `scan_batch$specialized$bf15ef4e5fffadba$0` state `scan_batch$specialized$bf15ef4e5fffadba$0::entry`
+fail/generics/applied_payload_field_needs_case_membership rejected 658ms expected @d1fa4738e67a+wt
+	cannot prove selected case for payload access
 fail/generics/attached_machine_unresolved_extent rejected 869ms expected @a9ae30e1c334+wt
 	machine `Buffer::scratch` state `scratch` parameter `copy` uses unresolved fixed-array length `Missing`; a symbolic array length must name an in-scope `const` parameter
+fail/generics/borrowed_applied_field_static_selection_wrong_predicate rejected 148ms expected @d1fa4738e67a+wt
+	machine argument `small` for `scan_batch` does not refine `Predicate`: parameter 0 expects `&i32`, got `&u8`
+	machine argument `small` for `count` does not refine `Predicate`: parameter 0 expects `&i32`, got `&u8`
 fail/generics/closed_indexed_domain_mismatch rejected 1362ms expected @a9ae30e1c334+wt
 	index compatibility condition `index-equality:Quantity:mismatch::entry:statement-0:Quantity<Unit { exponent: 0 }>==Quantity<Unit { exponent: 1 }>` is not established: actual `Quantity<Unit { exponent: 0 }>` and expected `Quantity<Unit { exponent: 1 }>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 fail/generics/const_binder_carrier_range_names_sibling_rejected rejected 850ms expected @a9ae30e1c334+wt
@@ -2557,8 +2564,8 @@ fail/generics/erased_static_const_keeps_declared_carrier rejected 722ms expected
 	const parameter `Tag` of `unused` requires `u8`, but `TAG` declares `u16`
 fail/generics/erased_static_const_keeps_literal_landing rejected 783ms expected @a9ae30e1c334+wt
 	const parameter `Tag` of `unused` requires `u8`, but its literal already landed as `u16`
-fail/generics/forwarded_const_argument_conflicts_with_explicit_selection rejected 1983ms expected @a9ae30e1c334+wt
-	generic machine `FixedBuffer::select` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived
+fail/generics/forwarded_const_argument_conflicts_with_explicit_selection rejected 1983ms expected @d1fa4738e67a+wt
+	generic machine `FixedBuffer::select` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `FixedBuffer<2>::total` state `FixedBuffer<2>::total::total`
 fail/generics/forwarded_slice_argument_element_mismatch rejected 159ms expected @71e65af3059c+wt
 	argument `items` for state `entry` expects `&[Element]`, got `named value`
 fail/generics/forwarded_slice_result_element_mismatch rejected 120ms expected @71e65af3059c+wt
@@ -2661,6 +2668,8 @@ fail/generics/qualified_closed_equation_value_operand rejected 2677ms expected @
 	generic machine `capacity` where type equation operand `models::COUNT` does not name a closed type
 fail/generics/qualified_closed_equation_value_reconstruction rejected 2578ms expected @a9ae30e1c334+wt
 	generic machine `recovered` where type equation operand `models::COUNT` does not name a closed type
+fail/generics/returned_applied_field_does_not_widen_access rejected 168ms expected @d1fa4738e67a+wt
+	mutable argument `returned` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 fail/generics/selected_operator_preserves_blocking_ceiling rejected 1353ms expected @a9ae30e1c334+wt
 	machine `choose` omits `blocks;` from its published contract, but its body may block
 fail/generics/static_callable_excess_local_type_argument rejected 905ms expected @a9ae30e1c334+wt
@@ -5998,6 +6007,8 @@ pass/float/trapping_raw_finite_semantic_result_proof checked 11246ms check-targe
 pass/float/waterline_record_computed_return_exit checked 11575ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/float/x86_fma_plan_association checked 11382ms check-target:linux_x86_64 @9c4d1c444502
 pass/formatting/runtime_repeated_wrapping_decimal_format_exit checked 5204ms check-target:macos_arm64 @589aedee8ebc+wt
+pass/generics/borrowed_applied_field_static_selection_exit checked 5556ms check-target:macos_arm64 @d1fa4738e67a+wt
+pass/generics/borrowed_applied_payload_field_static_selection checked 1827ms @d1fa4738e67a+wt
 pass/generics/closed_generic_local_field_observation_exit checked 10700ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/closed_indexed_quantity checked 12823ms check-target:macos_arm64 @9c4d1c444502
 pass/generics/closed_sum_case_membership checked 1660ms @a9ae30e1c334+wt
