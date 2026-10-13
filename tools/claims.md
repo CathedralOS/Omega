@@ -69,8 +69,15 @@ Deprecated JSON fields `off_board_fences` and audit `violations` remain
 empty for existing consumers. Directory estimates appear in `off_board_paths`;
 audit collisions appear in `overlaps`.
 
-Commands have a 15-second total coordination budget; `--timeout-seconds`
-before the subcommand permits up to 300 seconds. Timed-out claims save
+Commands have a 15-second total coordination budget. When the observed registry
+tip is missing locally and no registry cache exists, the first acquisition uses
+a 120-second total budget and reports initialization on stderr. This lets the
+complete registry history establish its cache instead of repeatedly aborting the
+same download. Network stall bounds still apply. Registry fetches use two pack
+workers and a 96 MiB delta-base cache to bound memory used by large snapshot
+histories. Cached commands retain the 15-second limit. `--timeout-seconds` before the subcommand sets an explicit total
+budget up to 300 seconds, including first acquisition; it is never extended.
+Timed-out claims save
 `build/claims-pending/<ticket>.json`. Inspect status before retrying an
 uncertain write, retaining its ticket. Removed tickets cannot be resurrected.
 

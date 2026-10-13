@@ -77,8 +77,13 @@ def git(repository, *arguments, input_text="", allow_failure=False, deadline=Non
             # A timed-out fetch can leave index-pack consuming CPU long after
             # coordination returns. Own the transport tree as well as Git, so
             # the deadline also settles its descendants before a retry/build.
+            # Registry commits contain full snapshots. Keep index-pack workers
+            # and reused delta bases bounded during first acquisition, rather
+            # than multiplying large reconstructed snapshots across workers.
+            configuration = (["-c", "pack.threads=2", "-c", "core.deltaBaseCacheLimit=96m"]
+                             if arguments and arguments[0] == "fetch" else [])
             process = subprocess.Popen(
-                ["git", "-C", str(repository), *arguments],
+                ["git", "-C", str(repository), *configuration, *arguments],
                 stdin=standard_input, stdout=output, stderr=error_output,
                 env=environment,
                 start_new_session=os.name != "nt")
@@ -119,9 +124,14 @@ def git(repository, *arguments, input_text="", allow_failure=False, deadline=Non
             result.stdout = output.read().decode("utf-8", errors="replace")
             result.stderr = error_output.read().decode("utf-8", errors="replace")
     except subprocess.TimeoutExpired as error:
+        operation = next((argument for argument in arguments
+                          if argument in ("fetch", "push", "ls-remote", "log", "cat-file")),
+                         arguments[0] if arguments else "command")
+        advice = ("A remote mutation may have landed; inspect status before retrying."
+                  if operation == "push" else "Inspect status before retrying an uncertain write.")
         raise CoordinationTimeout(
-            "Coordination deadline exceeded during Git; a remote mutation may have landed. "
-            "Inspect status before retrying." + getattr(error, "cleanup_note", "")) from error
+            f"Coordination deadline exceeded during Git {operation}. "
+            + advice + getattr(error, "cleanup_note", "")) from error
     result.stdout = result.stdout.rstrip()
     result.stderr = result.stderr.rstrip()
     if result.returncode and not allow_failure:

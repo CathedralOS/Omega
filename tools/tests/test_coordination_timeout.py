@@ -24,6 +24,19 @@ class CoordinationTimeoutTests(unittest.TestCase):
                 process.kill.assert_called_once()
                 self.assertEqual(process.wait.call_count,2)
 
+    def test_fetch_bounds_pack_workers_and_names_the_timed_out_operation(self):
+        process = Mock(pid=12345, args=["git", "fetch"])
+        process.wait.side_effect = [subprocess.TimeoutExpired("git", 0.1), 0]
+        platform = SimpleNamespace(name="nt", environ=os.environ)
+        with patch.object(coordination, "os", platform), \
+             patch.object(coordination.subprocess, "Popen", return_value=process) as start, \
+             patch.object(coordination.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)):
+            with self.assertRaisesRegex(coordination.CoordinationTimeout, "during Git fetch") as raised:
+                coordination.git(".", "fetch", deadline=time.monotonic() + 0.1)
+        self.assertIn("pack.threads=2", start.call_args.args[0])
+        self.assertIn("core.deltaBaseCacheLimit=96m", start.call_args.args[0])
+        self.assertNotIn("remote mutation may have landed", str(raised.exception))
+
     @unittest.skipIf(os.name=='nt','POSIX transport-tree control')
     def test_timeout_stops_descendant_work(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -39,6 +39,7 @@ PROTOCOL = "omega-claims-v1"
 BOARDS = ("TASKS.md", "TASKS_BOOTSTRAP.md", "TASKS_OPTIMIZER.md")
 DEFAULT_LEASE_MINUTES = 480
 DEFAULT_TIMEOUT_SECONDS = 15
+BOOTSTRAP_TIMEOUT_SECONDS = 120
 MIN_LEASE_MINUTES = 15
 MAX_LEASE_MINUTES = 1440
 NOTE_TEXT_LIMIT = 2000
@@ -206,9 +207,11 @@ def pending_notes(record):
             if note.get("swept_utc") is None]
 
 class Claims:
-    def __init__(self, repository, remote, timeout_seconds=DEFAULT_TIMEOUT_SECONDS):
+    def __init__(self, repository, remote, timeout_seconds=None):
         self.repository = Path(repository).resolve()
-        self.deadline = time.monotonic() + timeout_seconds
+        self.started = time.monotonic()
+        self.automatic_bootstrap = timeout_seconds is None
+        self.deadline = self.started + (DEFAULT_TIMEOUT_SECONDS if timeout_seconds is None else timeout_seconds)
         self.attempted_claims = []
         os.environ.setdefault("GIT_HTTP_LOW_SPEED_LIMIT", TRANSPORT_LOW_SPEED_LIMIT)
         os.environ.setdefault("GIT_HTTP_LOW_SPEED_TIME", TRANSPORT_STALL_SECONDS)
@@ -254,6 +257,20 @@ class Claims:
         if not self.git("cat-file", "-e", version, allow_failure=True).returncode:
             self.remember_version(version)
             return
+        # A cold reader needs the complete independent registry history for
+        # removed-ticket checks. The measured first acquisition took 27.7 seconds;
+        # killing it at 15 seconds prevents the cache from ever being established.
+        # Extend only automatic cold acquisition, once from command startup. An
+        # explicit operator budget and warm command deadlines remain unchanged.
+        if getattr(self, "automatic_bootstrap", False):
+            cached = self.git("rev-parse", "--verify", "--quiet",
+                              coordination.cache_ref(self.push_url, CLAIMS_REF),
+                              allow_failure=True)
+            if cached.returncode:
+                self.deadline = self.started + BOOTSTRAP_TIMEOUT_SECONDS
+                self.automatic_bootstrap = False
+                print("claims: initializing local registry history (up to 120 seconds); "
+                      "subsequent commands use the 15-second budget.", file=sys.stderr)
         try:
             coordination.fetch_object(self.repository, self.push_url, version,
                                       reference=CLAIMS_REF, deadline=self.deadline)
@@ -646,8 +663,8 @@ def main(argv=None):
     parser = Parser(description=__doc__)
     parser.add_argument("--repository", default=".")
     parser.add_argument("--remote", default="origin")
-    parser.add_argument("--timeout-seconds", type=float, default=DEFAULT_TIMEOUT_SECONDS,
-                        help="total coordination deadline (default: 15 seconds)")
+    parser.add_argument("--timeout-seconds", type=float, default=None,
+                        help="explicit total deadline; default 15 seconds, 120 for cold registry acquisition")
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("status")
     claim = subparsers.add_parser("claim")
@@ -699,7 +716,7 @@ def main(argv=None):
     audit.add_argument("--base", default="origin/main")
     try:
         options = parser.parse_args(argv)
-        if not 0 < options.timeout_seconds <= 300:
+        if options.timeout_seconds is not None and not 0 < options.timeout_seconds <= 300:
             raise ClaimsError("--timeout-seconds must be greater than zero and at most 300.")
         if options.command in ("claim", "renew"):
             lease = options.lease_minutes or DEFAULT_LEASE_MINUTES

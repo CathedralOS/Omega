@@ -254,6 +254,34 @@ class ClaimsTests(unittest.TestCase):
     def remote_record(self):
         return json.loads(self.git(self.remote, "show", "-s", "--format=%B", CLAIMS_REF))
 
+    def test_cold_acquisition_extends_only_the_automatic_budget(self):
+        module = load_claims()
+        self.claim(self.a)
+        version = self.git(self.remote, "rev-parse", CLAIMS_REF)
+        for explicit in (None, 15):
+            with self.subTest(explicit=explicit):
+                reader = self.root / ("cold-default" if explicit is None else "cold-explicit")
+                self.git(self.root, "clone", "--no-local", str(self.remote), str(reader))
+                registry = module.Claims(reader, "origin", explicit)
+                original_fetch = module.coordination.fetch_object
+                def elapsed_acquisition(*arguments, **keywords):
+                    # Account for a transfer taking 20 seconds without sleeping.
+                    # The default bootstrap must survive; the explicit budget
+                    # must expire. Complete normal acquisition for the survivor.
+                    registry.deadline -= 20
+                    module.coordination.remaining_seconds(registry.deadline)
+                    keywords["deadline"] = registry.deadline
+                    return original_fetch(*arguments, **keywords)
+                with mock.patch.object(module.coordination, "fetch_object", side_effect=elapsed_acquisition):
+                    if explicit is None:
+                        registry.fetch_version(version)
+                        self.assertEqual(self.git(reader, "rev-parse", module.coordination.cache_ref(str(self.remote), CLAIMS_REF)), version)
+                        warm = module.Claims(reader, "origin")
+                        self.assertLessEqual(warm.deadline - warm.started, 15)
+                    else:
+                        with self.assertRaises(module.coordination.CoordinationTimeout):
+                            registry.fetch_version(version)
+
     def test_existing_tip_warms_local_cache_without_fetch_or_remote_write(self):
         module = load_claims()
         self.claim(self.a)
