@@ -377,22 +377,38 @@ pub(crate) fn lower_scalar_expression(
     // the checked form retains the source place's own read at its declared
     // carrier beneath the re-view (`view_place_read`). Validation already
     // proved the representation relation and the borrow walk attributes the
-    // view to the source place, so only whole-place sources compose here --
-    // a byte-region view over an indexed source keeps element-unit reads
-    // that cannot carry the target width and stays unlowered (loud) rather
-    // than misattributing bytes.
+    // view to the source place. An element source is a selection whether its
+    // index is a literal or a runtime value: the view starts at that element,
+    // and a wider view covers the byte region the recast judgment proved in
+    // bounds. Folding a literal index into a field path would leave a single
+    // element leaf that cannot carry the target width.
     if let Some((source, target_type)) = recast_view_operand(program, expression) {
         let primitive_type = program.primitive_type_reference(target_type)?;
-        let (read, _) = lower_scalar_expression(
-            program,
-            operators,
-            source,
-            parameters,
-            authored_parameters,
-            parameter_types,
-            locals,
-            exact_integer_casts,
-        )?;
+        let element = program.expression_table.indexed_node(source).and_then(|_| {
+            indexed_scalar_read(
+                program,
+                operators,
+                source,
+                parameters,
+                authored_parameters,
+                parameter_types,
+                locals,
+                exact_integer_casts,
+            )
+        });
+        let (read, _) = match element {
+            Some(element) => element,
+            None => lower_scalar_expression(
+                program,
+                operators,
+                source,
+                parameters,
+                authored_parameters,
+                parameter_types,
+                locals,
+                exact_integer_casts,
+            )?,
+        };
         return Some((
             view_place_read(read, primitive_type)?,
             program.arithmetic_domain_for_type_reference(target_type),

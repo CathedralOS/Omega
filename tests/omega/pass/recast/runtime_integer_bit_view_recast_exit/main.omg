@@ -3,8 +3,11 @@
 // a negative i32 read through `&u32` is its modular image, an inline `&u8`
 // view of an i8 guard operand likewise, and a `u8` byte region at a
 // guard-bounded runtime offset re-viewed as `&i16` assembles its bytes
-// little-endian before the signed image. The viewed fields keep their
-// declared carriers; each byte of the region owes its own index proof.
+// little-endian before the signed image. The same region selected by a
+// literal index reads identically as an inline guard operand: an element
+// source is a selection whichever way its index is spelled. The viewed
+// fields keep their declared carriers; each byte of the region owes its own
+// index proof.
 use omega_language_std::console;
 use omega::language::core::binding;
 
@@ -30,7 +33,8 @@ machine Main::main(main: &mut Main) reaches Console {
 
     state region(main: &mut Main, offset: u32) {
         let pair: &i16 = &main.bytes[offset] as &i16;
-        transition pair == -2 {
+        transition pair == -2 && (&main.bytes[3] as &i16) == -2
+            && (&main.bytes[offset] as &i16) == (&main.bytes[3] as &i16) {
             true -> good(main)
             _ -> bad(main)
         }

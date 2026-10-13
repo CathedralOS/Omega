@@ -6772,7 +6772,7 @@ pass/recast/runtime_guarded_offset_recast_exit checked 11146ms check-target:maco
 pass/recast/runtime_inline_shared_slice_record_read_exit checked 11818ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/runtime_inline_slice_recast_call_exit checked 11768ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/runtime_inline_slice_view_mutable_write_exit checked 12240ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/recast/runtime_integer_bit_view_recast_exit checked 12237ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/recast/runtime_integer_bit_view_recast_exit checked 11222ms check-target:macos_arm64 @dd191203ff08+wt
 pass/recast/runtime_interior_slice_congruent_offset_exit checked 12905ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/runtime_interior_slice_view_mutable_write_exit checked 14083ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/runtime_mutable_equivalent_domain_recast_exit checked 4816ms check-target:macos_arm64 @9dd545defbc0
