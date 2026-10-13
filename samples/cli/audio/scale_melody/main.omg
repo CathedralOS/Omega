@@ -6,7 +6,8 @@
 // periods are samples per cycle at 8000 Hz
 // (8000/frequency rounded); the period is picked with a value-position match
 // on the note index.
-// Expected exit: 0 on a successful write, 1 on any error.
+// Expected exit: 0 after writing and playback; 1 on write failure, 2 on playback failure.
+// Expected output contains: scale_melody: played scale_melody.wav
 
 use omega::language::core::process_exit;
 use omega_language_std::process_exit;

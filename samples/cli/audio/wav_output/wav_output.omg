@@ -7,6 +7,11 @@
 // `write_wav` creates/truncates `path`, writes `bytes`, closes, and returns
 // the byte count or a negative error (negated errno on POSIX, negated Win32
 // code on Windows).
+// The current raw interfaces explicitly reach their family identities, so
+// this portable ceiling conservatively includes both. `invokes` records
+// direct calls; it does not replace the service ceiling or select providers.
+// These names grant no filesystem authority. When the raw interfaces migrate
+// to core capability identities, this ceiling must follow their declared rows.
 use omega_language_std::filesystem_host;
 use omega_language_std::posix_filesystem_host;
 use omega_language_std::windows_filesystem_host;
@@ -15,7 +20,7 @@ use omega::language::core::binding;
 
 pub boundary trait WavOutput {
     machine write_wav(path: &[u8] in Path, bytes: &[u8]) -> i64
-        reaches WavOutput
+        reaches WavOutput + PosixFilesystemHost + WindowsFilesystemHost
         invokes PosixFilesystemHost;
         invokes WindowsFilesystemHost;
 }

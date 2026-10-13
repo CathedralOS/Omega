@@ -13,8 +13,7 @@ After the WAV is written the program plays it on the host speaker through
 the portable `AudioPlayback` binding in `../audio_playback`, which blocks
 until playback finishes: winmm `PlaySoundW` (`SND_MEMORY|SND_NODEFAULT`) on
 windows_x86_64, ALSA (`snd_pcm_*` via `libasound.so.2`) on linux_x86_64 and
-linux_arm64. macOS has no CoreAudio provider yet — the WAV is still written
-and playback reports a failure there.
+linux_arm64, and AudioToolbox `AudioQueue*` on macos_arm64.
 
 Run from this directory on Windows, Linux, or macOS:
 
@@ -28,6 +27,6 @@ kept `build dir`/`omega-program` binary from this directory on that platform
 (e.g. `omega run --target linux_x86_64 --keep main.omg` on Windows, then run
 the ELF under WSL).
 Expected exit: `0` after printing `played square_tone.wav`; `1` on a write
-error, `2` on a playback failure (the WAV is still written). Verify with `python ../verify_wav.py square_tone.wav` — expect
+error, `2` on a playback failure (the WAV is still written). Verify with `python ../verify_wav.py square_tone.wav --expect square_tone` — expect
 `channels=1 sampwidth=1 rate=8000 frames=8000` and an estimate near 444 Hz.
 Any media player opens the WAV directly.

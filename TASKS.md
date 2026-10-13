@@ -5720,11 +5720,10 @@ wait for Cathedral's instruction coverage. The interpreter is
   family names are "provider-selection identities, not automatically added
   service effects", so a portable caller's reach names the core filesystem
   service identities, not `PosixFilesystemHost` or `WindowsFilesystemHost`.
-  `samples/cli/audio/wav_output` already has this shape and runs natively on
-  Windows x86-64 and linux_x86_64, but its trait's
-  `invokes PosixFilesystemHost; invokes WindowsFilesystemHost;` still puts
-  both family names in every caller's reach set; replace them with the core
-  filesystem identities when the portable `Filesystem` moves over.
+  Migrate `samples/cli/audio/wav_output`'s explicit raw-family reach ceiling
+  to the core filesystem identities together with the raw requirements.
+  Its `invokes` declarations track direct boundary calls, not implicit
+  family reach; keep that distinction when the portable `Filesystem` moves over.
   Update `source/library/std/targets/<target>/filesystem_impl.omg`:
   POSIX stores descriptor + 1, Windows stores HANDLE, zero OpenOptions means
   defaults, failures are closed and unsupported operations return

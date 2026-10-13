@@ -5,7 +5,8 @@
 // the target's raw filesystem family (PosixFilesystemHost on linux/macos,
 // WindowsFilesystemHost on windows_x86_64), so the sample runs identically
 // on every hosted target.
-// Expected exit: 0 on a successful write, 1 on any error.
+// Expected exit: 0 after writing and playback; 1 on write failure, 2 on playback failure.
+// Expected output contains: square_tone: played square_tone.wav
 
 use omega::language::core::process_exit;
 use omega_language_std::process_exit;
