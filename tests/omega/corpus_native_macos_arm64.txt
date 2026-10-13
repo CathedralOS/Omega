@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "3", "load1_end": 29.12, "load1_start": 29.12, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "3", "load1_end": 4.31, "load1_start": 4.25, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -569,7 +569,7 @@ pass/collections/element_view_borrow_local built 966ms exit:181 @2c44d70118d1+wt
 pass/collections/element_view_edge_loan built 920ms exit:70 @a979cc34b51d+wt
 pass/collections/element_view_field_write built 657ms exit:181 @48008365d839
 pass/collections/element_view_indexed_read built 719ms exit:181 @48008365d839
-pass/collections/element_view_indexed_write built 447ms @48008365d839
+pass/collections/element_view_indexed_write built 4695ms @e3e4be8878bd
 pass/collections/element_view_runtime_field_write built 626ms exit:181 @48008365d839
 pass/collections/element_view_runtime_loan_read built 631ms exit:181 @48008365d839
 pass/collections/element_view_whole_write built 1023ms exit:181 @2c44d70118d1+wt
@@ -899,7 +899,7 @@ pass/domains/runtime_qualified_borrowed_gated_input_exit built 1510ms exit:0 @f2
 pass/domains/runtime_qualified_view_field_parameter_store_exit built 4794ms exit:70 stdout:match @9dd545defbc0
 pass/domains/runtime_result_domain_machine_overload_exit built 1950ms exit:70 @d1a49981c6d2+wt
 pass/domains/semantic_cast_guard_chain_mint checked 193ms
-pass/domains/slice_domain_validator built 546ms
+pass/domains/slice_domain_validator built 4695ms @e3e4be8878bd
 pass/domains/threaded_subject_keeps_established_domains built 1010ms exit:0 @b027f59996c3+wt
 pass/domains/transparent_alias_expansion checked 205ms
 pass/domains/unit_membership_postcondition_exit built 5301ms exit:70 @45c8d6b8b1ce+wt
@@ -1528,6 +1528,7 @@ pass/providers/runtime_boundary_owned_array_cycle_exit built 1029ms exit:70 @cba
 pass/providers/runtime_boundary_primitive_array_argument_exit built 901ms exit:70
 pass/providers/runtime_foreign_leaf_borrowed_byte_argument_exit built 1199ms exit:70 @a9f373809a48+wt
 pass/providers/runtime_foreign_leaf_slice_element_argument_exit built 1250ms exit:70 @c5248fcf82a0+wt
+pass/providers/runtime_linear_provider_results_exit built 12448ms exit:0 @83314997c2b2
 pass/providers/runtime_named_provider_explicit_state_exit built 1013ms exit:70 @cba4afbf6f2f+wt
 pass/providers/runtime_result_domain_requirement_overload_exit built 613ms exit:70
 pass/providers/same_name_requirement_dispatch_exit built 1026ms exit:70 @b14cbb25f486
@@ -1538,6 +1539,7 @@ pass/providers/service_fused_root_establishment built 256ms
 pass/providers/specialized_mixed_structural_result_operator_hosted_native built 1756ms exit:0 @c9b4ecc7551a
 pass/providers/specialized_structural_fixed_operator_terminal_custody built 370ms
 pass/providers/token_machine_family_override_exit built 676ms exit:70
+pass/providers/unreached_console_provider_rows built 4695ms @e3e4be8878bd
 pass/range/data_parameter_counter_non_negative_exit built 850ms exit:11 @ec784d4d82e8+wt
 pass/range/runtime_funnel_guard_agreement_exit built 673ms exit:7
 pass/range/runtime_guarded_runtime_index_increment_exit built 1769ms exit:1 @fb2178def922
@@ -1966,4 +1968,3 @@ run/contained_health_loop_command_branch checked 192ms
 run/nested_mut_alias_assignment_return built 944ms exit:0 stdout:match @874bbd295e3e+wt
 run/stores/runtime_float_indexed_call_result_exit built 9716ms exit:0 stdout:match stderr:match @589aedee8ebc+wt
 run/stores/runtime_float_store_selector_snapshot_exit built 9116ms exit:0 stdout:match stderr:match @589aedee8ebc+wt
-pass/providers/runtime_linear_provider_results_exit built 12448ms exit:0 @83314997c2b2

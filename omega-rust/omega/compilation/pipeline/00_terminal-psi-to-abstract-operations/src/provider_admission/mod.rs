@@ -27,7 +27,10 @@ mod terminal_authority_policy;
 mod terminal_authority_review;
 
 pub(crate) use callback_arguments::project_native_callback_arguments;
-pub use compiler_builtins::{CompilerIntrinsicPlanProvenance, TerminalCompilerBuiltinProposal};
+pub use compiler_builtins::{
+    CompilerIntrinsicPlanProvenance, TerminalCompilerBuiltinProposal,
+    TerminalCompilerBuiltinSettlement,
+};
 pub(crate) use compiler_builtins::{
     demanded_boundary_identities, derive_selected_intrinsic_settlement_proposals,
     prepare_retained_compiler_builtins,

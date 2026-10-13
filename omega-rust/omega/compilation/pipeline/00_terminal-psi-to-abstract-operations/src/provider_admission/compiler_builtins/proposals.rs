@@ -98,7 +98,6 @@ fn boundary_float_formats(
 struct SelectedIntrinsicRow<'a> {
     requirement_identity: &'a str,
     plan_index: usize,
-    plan_name: &'a str,
     execution: Option<CompilerIntrinsicExecutionIdentity>,
 }
 
@@ -139,7 +138,6 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
                 selected_rows.push(SelectedIntrinsicRow {
                     requirement_identity: plan.identities.text(row.requirement_identity),
                     plan_index,
-                    plan_name: &plan.name,
                     execution: *execution,
                 });
             }
@@ -177,22 +175,6 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
             }
             continue;
         };
-        let Some(execution) = selected_row.execution else {
-            diagnostics.push(Diagnostic::error(format!(
-                "selected compiler intrinsic `{}` for Terminal boundary `{requirement}` has no closed native catalog identity",
-                selected_row.plan_name,
-            )));
-            continue;
-        };
-        let Some(execution) =
-            compiler_builtin_execution(execution, float_formats.get(requirement).copied())
-        else {
-            diagnostics.push(Diagnostic::error(format!(
-                "selected compiler intrinsic `{}` for Terminal boundary `{requirement}` has no native boundary realization",
-                selected_row.plan_name,
-            )));
-            continue;
-        };
         let mut matching_boundaries = boundaries
             .iter()
             .filter(|boundary| identities.text(boundary.identity) == Some(requirement.as_str()));
@@ -203,11 +185,26 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
             )));
             continue;
         };
+        // A row this compile could not close is retained with its reason, not
+        // refused here: whether the boundary is executed is each entry's
+        // execution-scope question, answered at admission.
+        let settlement = match selected_row.execution {
+            None => super::TerminalCompilerBuiltinSettlement::NoClosedCatalogIdentity,
+            Some(execution) => {
+                match compiler_builtin_execution(execution, float_formats.get(requirement).copied())
+                {
+                    Some(execution) => {
+                        super::TerminalCompilerBuiltinSettlement::Execution(execution)
+                    }
+                    None => super::TerminalCompilerBuiltinSettlement::NoNativeBoundaryRealization,
+                }
+            }
+        };
         evidence.push(super::TerminalCompilerBuiltinProposal::new(
             selected_row.requirement_identity.to_owned(),
             selected_row.plan_index,
             boundary.id,
-            execution,
+            settlement,
         ));
     }
     if diagnostics.is_empty() {
@@ -282,9 +279,7 @@ fn compiler_builtin_execution(
                 Primitive::Less => Arithmetic::Compare(Relation::Less),
                 Primitive::LessOrEqual => Arithmetic::Compare(Relation::LessOrEqual),
                 Primitive::Greater => Arithmetic::Compare(Relation::Greater),
-                Primitive::GreaterOrEqual => {
-                    Arithmetic::Compare(Relation::GreaterOrEqual)
-                }
+                Primitive::GreaterOrEqual => Arithmetic::Compare(Relation::GreaterOrEqual),
             };
             (operation, ieee_format(format))
         }

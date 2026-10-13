@@ -23,8 +23,8 @@ pub use proposals::CompilerIntrinsicPlanProvenance;
 pub(crate) use proposals::{
     demanded_boundary_identities, derive_selected_intrinsic_settlement_proposals,
 };
-pub use retained::TerminalCompilerBuiltinProposal;
 pub(crate) use retained::prepare_retained_compiler_builtins;
+pub use retained::{TerminalCompilerBuiltinProposal, TerminalCompilerBuiltinSettlement};
 
 use crate::provider_admission::AdmittedTerminalMechanism;
 use crate::provider_admission::{NativeRealizationInput, ProviderAdmissionRequest};
@@ -53,10 +53,41 @@ pub(super) fn settle_compiler_builtins<'request>(
     ),
     Vec<Diagnostic>,
 > {
+    // Every executed row derivation could not close is reported together:
+    // the roster was scoped to this entry's executed boundaries before it
+    // arrived, so each unsettled proposal here names a boundary this entry
+    // actually calls.
+    let unsettled = request
+        .compiler_builtins
+        .iter()
+        .filter_map(|proposal| {
+            let requirement = proposal.requirement_identity;
+            let plan = &proposal.provider_plan.name;
+            match proposal.settlement {
+                TerminalCompilerBuiltinSettlement::Execution(_) => None,
+                TerminalCompilerBuiltinSettlement::NoClosedCatalogIdentity => {
+                    Some(Diagnostic::error(format!(
+                        "selected compiler intrinsic `{plan}` for Terminal boundary `{requirement}` has no closed native catalog identity",
+                    )))
+                }
+                TerminalCompilerBuiltinSettlement::NoNativeBoundaryRealization => {
+                    Some(Diagnostic::error(format!(
+                        "selected compiler intrinsic `{plan}` for Terminal boundary `{requirement}` has no native boundary realization",
+                    )))
+                }
+            }
+        })
+        .collect::<Vec<_>>();
+    if !unsettled.is_empty() {
+        return Err(unsettled);
+    }
     let mut admitted = Vec::with_capacity(request.compiler_builtins.len());
     let mut mechanisms = Vec::with_capacity(request.compiler_builtins.len());
     for proposal in request.compiler_builtins {
         let requirement = proposal.requirement_identity;
+        let TerminalCompilerBuiltinSettlement::Execution(execution) = proposal.settlement else {
+            unreachable!("unsettled compiler-builtin proposals were refused above");
+        };
         let boundary = terminal_psi::find_boundary_machine(
             &input.plan().boundary_machines,
             proposal.boundary,
@@ -67,13 +98,13 @@ pub(super) fn settle_compiler_builtins<'request>(
             ))]
         })?;
         if !boundary_contract_matches_selected_schema(boundary, proposal.provider_plan, requirement)
-            || boundary.completion != compiler_builtin_completion(proposal.execution)
+            || boundary.completion != compiler_builtin_completion(execution)
         {
             return Err(vec![Diagnostic::error(format!(
                 "compiler-builtin completion for `{requirement}` disagrees with its exact requirement contract"
             ))]);
         }
-        let mechanism = compiler_intrinsic_execution_identity(proposal.execution);
+        let mechanism = compiler_intrinsic_execution_identity(execution);
         request
             .terminal_authority_policy
             .classify(mechanism)
@@ -84,7 +115,7 @@ pub(super) fn settle_compiler_builtins<'request>(
                     unclassified.mechanism(),
                 ))]
             })?;
-        let realization = match proposal.execution {
+        let realization = match execution {
             CompilerBuiltinExecution::HostedExitProcessI32
                 if HostedExitProcessI32Realization::supports_target(request.target()) =>
             {
@@ -145,7 +176,7 @@ pub(super) fn settle_compiler_builtins<'request>(
         };
         admitted.push(AdmittedBoundarySettlement {
             boundary: boundary.id,
-            execution: AdmittedBoundaryExecution::CompilerBuiltin(proposal.execution),
+            execution: AdmittedBoundaryExecution::CompilerBuiltin(execution),
             realization: BoundarySettlementRealization::Builtin(realization),
         });
         mechanisms.push(AdmittedTerminalMechanism {

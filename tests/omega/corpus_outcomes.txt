@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "4", "load1_end": 5.67, "load1_start": 5.67, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "3", "load1_end": 4.25, "load1_start": 4.19, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 835ms expected @a9ae30e1c334+wt
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -3048,6 +3048,8 @@ fail/providers/inherited_provider_erased_regions rejected 2845ms expected @a9ae3
 	slot `Parent` has two covering provider plans for the selected target: `<selected target>::FirstParentMap::satisfies::Parent` [<fingerprint>], `<selected target>::SecondParentMap::satisfies::Parent` [<fingerprint>] -- choose one in build.omg with `Build::select_provider<Parent, ProviderType>(b);`
 fail/providers/inherited_provider_phantom_arguments rejected 2873ms expected @a9ae30e1c334+wt
 	slot `Parent` has two covering provider plans for the selected target: `<selected target>::FirstBoolMap::satisfies::Parent` [<fingerprint>], `<selected target>::SecondBoolMap::satisfies::Parent` [<fingerprint>] -- choose one in build.omg with `Build::select_provider<Parent, ProviderType>(b);`
+fail/providers/linear_provider_result_second_use rejected 365ms expected @83314997c2b2
+	cannot use `result` in machine `main` state `entry` (statement 2) after `result` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `result` first
 fail/providers/module_operator_hidden_signature_rejected rejected 1290ms expected @a9ae30e1c334+wt
 	machine `Provider::wrong` operator realization `Policy::convert` does not retain the exact selected overload
 fail/providers/module_operator_satisfier_signature_mismatch rejected 1977ms expected @71e65af3059c+wt
@@ -4537,9 +4539,7 @@ pass/collections/element_view_borrow_local checked 11588ms check-target:macos_ar
 pass/collections/element_view_edge_loan checked 11797ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/element_view_field_write checked 11606ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/element_view_indexed_read checked 11784ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/collections/element_view_indexed_write rejected 11400ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	selected compiler intrinsic `<selected target>::ConsoleNativeProvider::satisfies::Console` for Terminal boundary `ConsoleNativeProvider::read_byte` has no closed native catalog identity
-	selected compiler intrinsic `<selected target>::ConsoleNativeProvider::satisfies::Console` for Terminal boundary `ConsoleNativeProvider::write_byte` has no closed native catalog identity
+pass/collections/element_view_indexed_write checked 4647ms check-target:macos_arm64 @e3e4be8878bd
 pass/collections/element_view_runtime_field_write checked 11509ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/element_view_runtime_loan_read checked 11757ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/element_view_whole_write checked 11646ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5022,9 +5022,7 @@ pass/domains/runtime_result_domain_machine_overload_exit checked 12750ms check-t
 pass/domains/runtime_scalar_alias_zero_and_qualification_exit checked 12996ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/runtime_selected_nested_field_domain_exit checked 2724ms check-target:macos_arm64 @1e469c9b15bb
 pass/domains/semantic_cast_guard_chain_mint checked 2041ms @a9ae30e1c334+wt
-pass/domains/slice_domain_validator rejected 13562ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	selected compiler intrinsic `<selected target>::ConsoleNativeProvider::satisfies::Console` for Terminal boundary `ConsoleNativeProvider::read_byte` has no closed native catalog identity
-	selected compiler intrinsic `<selected target>::ConsoleNativeProvider::satisfies::Console` for Terminal boundary `ConsoleNativeProvider::write_byte` has no closed native catalog identity
+pass/domains/slice_domain_validator checked 4647ms check-target:macos_arm64 @e3e4be8878bd
 pass/domains/threaded_subject_keeps_established_domains checked 15236ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/transparent_alias_expansion checked 1833ms @a9ae30e1c334+wt
 pass/domains/unit_membership_postcondition_exit checked 14120ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5986,6 +5984,7 @@ pass/providers/runtime_boundary_owned_array_cycle_exit checked 11933ms check-tar
 pass/providers/runtime_boundary_primitive_array_argument_exit checked 11479ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/runtime_foreign_leaf_borrowed_byte_argument_exit checked 11194ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/runtime_foreign_leaf_slice_element_argument_exit checked 11523ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/providers/runtime_linear_provider_results_exit checked 11050ms check-target:macos_arm64 @83314997c2b2
 pass/providers/runtime_named_provider_explicit_state_exit checked 11429ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/runtime_result_domain_requirement_overload_exit checked 11708ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/same_name_requirement_dispatch_exit checked 11740ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6000,6 +5999,7 @@ pass/providers/specialized_mixed_structural_result_operator_hosted_native checke
 pass/providers/specialized_structural_fixed_operator_hosted_native checked 10708ms @a9ae30e1c334+wt
 pass/providers/specialized_structural_fixed_operator_terminal_custody checked 11484ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/token_machine_family_override_exit checked 11111ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/providers/unreached_console_provider_rows checked 4648ms check-target:macos_arm64 @e3e4be8878bd
 pass/range/data_parameter_counter_non_negative_exit checked 11241ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/range/runtime_funnel_guard_agreement_exit checked 11316ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/range/runtime_guarded_runtime_index_increment_exit checked 11753ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6627,6 +6627,3 @@ run/stores/runtime_float_indexed_call_result_exit checked 8854ms check-target:ma
 run/stores/runtime_float_store_selector_snapshot_exit checked 8082ms check-target:macos_arm64 @589aedee8ebc+wt
 run/variant_decimal_runtime_division checked 11419ms check-target:linux_x86_64 @a9ae30e1c334+wt
 run/variant_record_normalization_repeats checked 13906ms check-target:linux_x86_64 @a9ae30e1c334+wt
-pass/providers/runtime_linear_provider_results_exit checked 11050ms check-target:macos_arm64 @83314997c2b2
-fail/providers/linear_provider_result_second_use rejected 365ms expected @83314997c2b2
-	cannot use `result` in machine `main` state `entry` (statement 2) after `result` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `result` first

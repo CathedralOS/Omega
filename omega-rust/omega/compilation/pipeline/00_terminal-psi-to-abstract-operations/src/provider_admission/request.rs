@@ -52,13 +52,16 @@ pub struct NativeProviderSettlement<'execution> {
 
 /// Target-constrained compiler-builtin proposal consumed by the local native
 /// lowerer. This carries no provider execution or installation receipt.
-/// `boundary` is the Terminal boundary derivation bound the row to.
+/// `boundary` is the Terminal boundary derivation bound the row to;
+/// `settlement` is the execution derivation closed for it, or the reason it
+/// could not, which admission refuses only when this entry's scope executes
+/// the boundary.
 #[derive(Debug, Clone, Copy)]
 pub struct NativeCompilerBuiltinSettlement<'execution> {
     pub requirement_identity: &'execution str,
     pub provider_plan: &'execution effects::provider_plan::ProviderPlan,
     pub boundary: semantic_vocabulary::BoundaryMachineId,
-    pub execution: target_operations::CompilerBuiltinExecution,
+    pub settlement: crate::provider_admission::TerminalCompilerBuiltinSettlement,
 }
 
 /// The inputs provider admission reads from one target realization: the

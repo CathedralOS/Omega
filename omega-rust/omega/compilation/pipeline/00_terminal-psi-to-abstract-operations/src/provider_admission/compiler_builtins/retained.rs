@@ -8,16 +8,35 @@ use super::super::NativeCompilerBuiltinSettlement;
 use diagnostics::Diagnostic;
 use effects::provider_plan::ProviderPlan;
 
+/// What derivation settled for one demanded intrinsic row. Derivation covers
+/// the complete canonical program once and is shared by every entry (main and
+/// each private callback), so it cannot know whether a demanded boundary is
+/// inside any one entry's execution scope. A row it could not close is
+/// therefore retained with its reason rather than refused: the entry whose
+/// scope executes that boundary refuses it at admission with that reason, and
+/// an entry whose scope never reaches it (a retained provider adapter nothing
+/// calls) omits it with the rest of its out-of-scope occurrences.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalCompilerBuiltinSettlement {
+    /// The catalog execution the local target lowerer admits.
+    Execution(target_operations::CompilerBuiltinExecution),
+    /// The selected row's execution has no closed native catalog identity.
+    NoClosedCatalogIdentity,
+    /// The closed identity has no native boundary realization in the catalog.
+    NoNativeBoundaryRealization,
+}
+
 /// One compiler-owned builtin proposed beside a target-neutral Terminal
 /// artifact: the demanded requirement, the selected plan holding its one
-/// intrinsic row, the Terminal boundary it settles and the native execution.
-/// The local lowerer still admits the execution through its target catalog.
+/// intrinsic row, the Terminal boundary it settles and what derivation
+/// settled for it. The local lowerer still admits the execution through its
+/// target catalog.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalCompilerBuiltinProposal {
     requirement_identity: String,
     provider_plan_index: usize,
     boundary: semantic_vocabulary::BoundaryMachineId,
-    execution: target_operations::CompilerBuiltinExecution,
+    settlement: TerminalCompilerBuiltinSettlement,
 }
 
 impl TerminalCompilerBuiltinProposal {
@@ -25,13 +44,13 @@ impl TerminalCompilerBuiltinProposal {
         requirement_identity: String,
         provider_plan_index: usize,
         boundary: semantic_vocabulary::BoundaryMachineId,
-        execution: target_operations::CompilerBuiltinExecution,
+        settlement: TerminalCompilerBuiltinSettlement,
     ) -> Self {
         Self {
             requirement_identity,
             provider_plan_index,
             boundary,
-            execution,
+            settlement,
         }
     }
 
@@ -47,8 +66,8 @@ impl TerminalCompilerBuiltinProposal {
         self.boundary
     }
 
-    pub const fn execution(&self) -> target_operations::CompilerBuiltinExecution {
-        self.execution
+    pub const fn settlement(&self) -> TerminalCompilerBuiltinSettlement {
+        self.settlement
     }
 }
 
@@ -73,7 +92,7 @@ pub(crate) fn prepare_retained_compiler_builtins<'request>(
                 requirement_identity: builtin.requirement_identity(),
                 provider_plan,
                 boundary: builtin.boundary(),
-                execution: builtin.execution(),
+                settlement: builtin.settlement(),
             })
         })
         .collect()
