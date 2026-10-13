@@ -1,4 +1,9 @@
 //! Arena addressing: the typed `Handle` and the contiguous `HandleSpan`.
+//!
+//! Identity comparisons and accessors sit inside loops across pipeline crates.
+//! Keep these tiny operations available for cross-crate inlining: otherwise
+//! opt-level-1 consumers pay a call for each handle comparison or component read.
+//! Equality and hashing still observe both the arena position and generation.
 
 pub(crate) mod handle_span;
 
@@ -13,6 +18,7 @@ pub struct Handle<T> {
 }
 
 impl<T> Handle<T> {
+    #[inline]
     pub const fn invalid() -> Self {
         Self {
             arena_index: 0,
@@ -21,6 +27,7 @@ impl<T> Handle<T> {
         }
     }
 
+    #[inline]
     pub const fn from_arena_index(arena_index: u32) -> Self {
         Self {
             arena_index,
@@ -29,6 +36,7 @@ impl<T> Handle<T> {
         }
     }
 
+    #[inline]
     pub const fn from_parts(arena_index: u32, generation: u32) -> Self {
         Self {
             arena_index,
@@ -37,20 +45,24 @@ impl<T> Handle<T> {
         }
     }
 
+    #[inline]
     pub const fn arena_index(self) -> u32 {
         self.arena_index
     }
 
+    #[inline]
     pub const fn generation(self) -> u32 {
         self.generation
     }
 
+    #[inline]
     pub const fn is_valid(self) -> bool {
         self.arena_index != 0
     }
 }
 
 impl<T> Clone for Handle<T> {
+    #[inline]
     fn clone(&self) -> Self {
         *self
     }
@@ -59,12 +71,14 @@ impl<T> Clone for Handle<T> {
 impl<T> Copy for Handle<T> {}
 
 impl<T> Default for Handle<T> {
+    #[inline]
     fn default() -> Self {
         Self::invalid()
     }
 }
 
 impl<T> PartialEq for Handle<T> {
+    #[inline]
     fn eq(&self, other: &Self) -> bool {
         self.arena_index == other.arena_index && self.generation == other.generation
     }
@@ -73,6 +87,7 @@ impl<T> PartialEq for Handle<T> {
 impl<T> Eq for Handle<T> {}
 
 impl<T> Hash for Handle<T> {
+    #[inline]
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.arena_index.hash(state);
         self.generation.hash(state);

@@ -135,31 +135,31 @@ helper that passes does not close an item.
   in the program's own check. A std-free fixture checks in 1.26 s. The corpus
   is 767 CPU-minutes (median fixture 5.6 s; 1,385 of 3,998 fixtures depend on
   std). std is already checked once at package review. Dependents should
-  consume that judgment through a handle-free checked package interface: per
-  public machine, the crash, effect/reach, termination and write-frame
-  summaries Psi now infers from callee bodies, plus checked generic templates.
-  That interface must carry the same facts at the same precision, so it is
+  consume that judgment through compiler-private checked package reuse, with
+  exact dependency and compiler identities. Reuse must retain the same facts
+  and body-dependent queries at the same precision, so it is
   implementation, not a language change. Reachability pruning was measured
   and rejected: the existing product closure keeps 904 of 1,174 library
   machines for the 10-line program, because every provider of a reached
   requirement stays live for every target. Acceptance: fixture median under
   2 s and a std probe check under 3 s, with `corpus_gate --compare` over the
-  touched groups losing nothing. Frontier: the dependent check derives six
-  fact families from callee bodies: inferred crash summaries (`facts/crash_calls`),
-  operational suspension/blocking and service reach (`effect_inference`),
-  caller-visible write frames and mutation summaries (`write_frames`,
-  `flow/mutation`), termination/progress summaries
-  (`checks/termination/progress`), and denotational eligibility derived from
-  those. Generic std bodies are cloned per instantiation in 03b and need checked
-  templates instead. The review policy baseline is risk-acceptance evidence,
-  not checker facts, so the interface is its own Psi artifact keyed by
-  declaration identity. The seam is the existing bodyless-supply handling
-  (boundary/external ceilings and frames): a summarized dependency machine
-  presents its exact inferred summaries the same way. Stage 05 lowering reads
-  each body's checked flow facts, so skipping dependency checking serves
-  check-only work (review, `--check`, the corpus check leg) first; native runs
-  also need per-package Terminal Psi reuse. Next: produce the six summaries
-  per public machine from std's own check and serve `--check` from them.
+  touched groups losing nothing. Frontier: prepared `vector_distance --check`
+  on macOS ARM64 at `e01a67855f4` takes 7.50 s with an opt-level-1 compiler.
+  Six coarse summaries and bodyless-supply handling are insufficient:
+  `CallFrameResolver` also derives returned-reference origins and binding
+  stability, denotational admission checks observation freedom, and
+  `return_ranges::infer_return_interval` traverses captured arrivals using
+  the caller's actual intervals. Keep frozen dependency bodies available to
+  these queries; do not invent a second summary language or weaken imports
+  to boundary ceilings. Reuse the existing checked graph and fact owners,
+  with one declaration/state/expression correspondence, while new local bodies
+  and generic substitutions retain their own obligations. Package policy
+  acceptance is not a checked judgment. Same-invocation reuse should borrow
+  retained graphs; persisted compiler-private reuse needs exact source,
+  dependency and compiler binding, not process-local handles. Native consumers
+  still require executable checked bodies or reused Terminal products.
+  Next: preserve this graph boundary and remove measured repeated checking;
+  demonstrate the timing bound through public checks and invalid controls.
 
 - **FLOAT-PAYLOAD-COMPILE-TIME.** (new-scope) Finish restoring the float
   case-payload cohort's full corpus-check path to its historical 4–5s bound.
