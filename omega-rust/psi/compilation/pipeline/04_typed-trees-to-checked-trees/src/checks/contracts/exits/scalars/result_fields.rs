@@ -41,6 +41,25 @@ impl ExitScalars<'_, '_> {
             },
             expression,
             |occurrence, primitive| {
+                if let Some(length) = arithmetic::collection_length_value(
+                    self.program,
+                    &Callable::Machine {
+                        machine: self.machine,
+                        state: entry,
+                    },
+                    occurrence,
+                    |place| {
+                        arithmetic::value_origin(
+                            self.program,
+                            caller,
+                            self.exit.statement_index,
+                            self.call_frames?,
+                            self.contract_place_at_exit(place)?,
+                        )
+                    },
+                ) {
+                    return Some(length);
+                }
                 if let Some((selected, remaining)) = self.result_projection(occurrence) {
                     if remaining.is_empty() {
                         let value = arithmetic::scalar_term(

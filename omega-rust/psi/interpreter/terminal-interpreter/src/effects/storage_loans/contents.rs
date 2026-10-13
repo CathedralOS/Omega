@@ -349,11 +349,15 @@ pub(super) fn scalar_storage(
         return Err(malformed());
     };
     if let Some(loan) = array_loan {
-        loan.scalar_storage(
-            execution,
-            &leaf.path,
-            access == StructuralAccess::MutableBorrow,
-        )
+        let path = leaf
+            .path
+            .iter()
+            .map(|step| match step {
+                Path::FixedIndex(index) => Ok(StructuralPathSegment::FixedIndex(*index)),
+                _ => Err(malformed()),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        loan.scalar_storage(execution, &path, access == StructuralAccess::MutableBorrow)
     } else {
         execution.boundary_scalar_storage(referent, &leaf.path, scalar, access)
     }

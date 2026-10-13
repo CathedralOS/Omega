@@ -6930,3 +6930,22 @@ pass/generics/runtime_const_extent_guard_floors_exit checked 11328ms check-targe
 pass/contracts/call_write_keeps_disjoint_guard_assert_exit checked 2820ms check-target:linux_x86_64 @fce0c29a3681+wt
 pass/contracts/guard_conjunct_survives_disjoint_state_write_assert_exit checked 2927ms check-target:linux_x86_64 @fce0c29a3681+wt
 pass/calls/runtime_indexed_module_guard_operands_exit checked 3006ms check-target:linux_x86_64 @2aa144e14ed+wt
+fail/arithmetic/collection_result_changed_predecessor rejected 550ms expected @d840c6ae9019+wt
+	cannot prove ensures contract for exit from rejected at statement 0: result <= values.len; no exact incoming reference origin for values
+fail/arithmetic/collection_result_conditional_bound rejected 181ms expected @d840c6ae9019+wt
+	exact arithmetic in machine `rejected` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `count(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+fail/arithmetic/collection_result_distinct_windows rejected 558ms expected @d840c6ae9019+wt
+	cannot prove index `count` is within length 1 in rejected::entry
+fail/arithmetic/collection_result_endpoint_effect rejected 610ms expected @d840c6ae9019+wt
+	cannot prove subslice range end bound `__hoist_14..__hoist_15` is within slice length 3
+fail/arithmetic/collection_result_false_loop_bound rejected 703ms expected @d840c6ae9019+wt
+	cannot prove ensures contract for exit from count at statement 1: result < values.len
+fail/arithmetic/collection_result_rebound_descriptor rejected 659ms expected @d840c6ae9019+wt
+	cannot prove ensures contract for exit from count at statement 1: result <= values.len; no exact incoming reference origin for values
+	cannot prove index `count` is within length 2 in rejected::entry
+fail/arithmetic/collection_result_window_metadata rejected 645ms expected @d840c6ae9019+wt
+	cannot prove ensures contract for exit from rejected at statement 2: result <= 1
+fail/arithmetic/collection_result_wrong_argument rejected 197ms expected @d840c6ae9019+wt
+	exact arithmetic in machine `rejected` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `count(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+pass/arithmetic/collection_result_bound_exit checked 5786ms check-target:macos_arm64 @d840c6ae9019+wt
+pass/borrows/collection_element_loans_exit checked 5787ms check-target:macos_arm64 @d840c6ae9019+wt

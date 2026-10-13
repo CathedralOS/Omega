@@ -138,6 +138,16 @@ fn proves_bound(
             &Callable::Machine { machine, state },
             expression,
             |occurrence, primitive| {
+                if let Some(length) = collection_length_value(
+                    program,
+                    &Callable::Machine { machine, state },
+                    occurrence,
+                    |place| value_origin(program, caller, statement, frames, place),
+                ) {
+                    // Call operands have their own evaluation frontier. Do not
+                    // import a statement-end descriptor into that earlier epoch.
+                    return call.is_none().then_some(length);
+                }
                 let place = direct_place(program, occurrence)?;
                 let place = if let Some(call) = call {
                     crate::flow::value_origin_at_call(
@@ -269,6 +279,40 @@ pub(in crate::checks) fn atom(
     }
 }
 
+/// Metadata is a scalar observation of a descriptor, not a stored field named
+/// `len`. The caller supplies exact descriptor origin/preservation at its own
+/// evaluation frontier. Its atom is distinct from every element/value atom.
+pub(in crate::checks) fn collection_length_value(
+    program: &dyn ::validation::CheckingInput,
+    callable: &Callable<'_>,
+    expression: ExpressionHandle,
+    origin: impl FnOnce(validation::CanonicalPlace) -> Option<validation::CanonicalPlace>,
+) -> Option<ScopedArithmeticValue> {
+    let place = origin(collection_length_subject(program, callable, expression)?)?;
+    Some(ScopedArithmeticValue::Atom {
+        identity: format!("\0call-guarantee:length:{place:?}"),
+        unsigned: true,
+    })
+}
+
+fn collection_length_subject(
+    program: &dyn ::validation::CheckingInput,
+    callable: &Callable<'_>,
+    expression: ExpressionHandle,
+) -> Option<validation::CanonicalPlace> {
+    let member = program.expression_table.member_node(expression)?;
+    let reference = callable.scalar_reference(program, member.receiver)?;
+    if validation::collection_operations::collection_measure_member(
+        program,
+        member,
+        validation::collection_operations::MeasureReceiver::Declared(reference),
+    ) != Some(language_semantics::declaration_selection::CollectionMeasure::Length)
+    {
+        return None;
+    }
+    direct_place(program, member.receiver)
+}
+
 pub(in crate::checks) fn proposition(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
@@ -333,6 +377,22 @@ fn bind_occurrences(
         expression,
         &mut occurrences,
     );
+    // Storage-dependency discovery deliberately records a measure's receiver.
+    // The arithmetic roster also needs the metadata observation itself; it is
+    // not a scalar read of that receiver's bytes.
+    let mut expressions = Vec::new();
+    validation::expression_traversal::collect_expression_tree(
+        program,
+        expression,
+        &mut expressions,
+    );
+    for expression in expressions {
+        if collection_length_subject(program, callable, expression).is_some()
+            && !occurrences.contains(&expression)
+        {
+            occurrences.push(expression);
+        }
+    }
     let mut bindings = Vec::new();
     for occurrence in occurrences {
         // Opaque calls may receive noninteger values. They are independently

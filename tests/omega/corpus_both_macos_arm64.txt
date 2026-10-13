@@ -1015,3 +1015,5 @@ pass/termination/runtime_zero_local_rank_prefix_exit built 18445ms exit:0 interp
 pass/borrows/runtime_recursive_mutable_array_store_exit built 6454ms exit:70 interpreter-exit:70 interpreter:agrees @0ab6a3e7fdb4+wt
 pass/termination/runtime_projected_extent_fill_exit built 5302ms exit:0 interpreter-exit:0 interpreter:agrees @0ab6a3e7fdb4+wt
 pass/arithmetic/relative_midpoint_values_exit built 5494ms exit:0 interpreter-exit:0 interpreter:agrees @4c1d863a7eae+wt
+pass/arithmetic/collection_result_bound_exit built 5468ms exit:0 interpreter-exit:0 interpreter:agrees @3b72a3521c0e+wt
+pass/borrows/collection_element_loans_exit built 5544ms exit:0 interpreter-exit:0 interpreter:agrees @3b72a3521c0e+wt

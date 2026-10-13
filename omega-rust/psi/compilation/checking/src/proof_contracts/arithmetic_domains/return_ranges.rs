@@ -9,7 +9,6 @@ use crate::proof_contracts::arithmetic_domains::range_constraints::range_constra
 use crate::proof_contracts::arithmetic_domains::value_environment::ValueEnvironment;
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
-use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, TableCallExpression};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -54,7 +53,7 @@ pub(crate) fn call_return_type(
 pub(crate) fn ensured_call_result_interval(
     program: &dyn crate::CheckingInput,
     call: &TableCallExpression,
-    actuals: &[(SymbolHandle, Interval)],
+    actuals: &super::call_result_bounds::ArgumentBounds,
 ) -> Option<Interval> {
     let callee = crate::machine_calls::calls::callee_entry_contract(program, call.target_symbol)?;
     // One contract projector serves every selected call. The old static-call
@@ -83,7 +82,11 @@ pub fn normal_return_integer_bounds(
     {
         return None;
     }
-    let interval = ensured_call_result_interval(program, call, &[])?;
+    let interval = ensured_call_result_interval(
+        program,
+        call,
+        &super::call_result_bounds::ArgumentBounds::default(),
+    )?;
     if interval
         .low
         .zip(interval.high)

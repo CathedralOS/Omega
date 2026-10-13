@@ -9,11 +9,20 @@ use crate::proof_contracts::arithmetic_domains::integer_ranges::{
 };
 use symbols::SymbolHandle;
 
+/// Observations of an immutable argument binding. A collection's descriptor
+/// extent is independent of writes to its elements; it is not the integer
+/// value of that formal. Keep the two coordinates separate during substitution.
+#[derive(Default)]
+pub(super) struct ArgumentBounds {
+    pub values: Vec<(SymbolHandle, Interval)>,
+    pub lengths: Vec<(SymbolHandle, Interval)>,
+}
+
 pub(super) fn normal_return_interval(
     program: &dyn crate::CheckingInput,
     callee: &CalleeContract<'_>,
     declared: Interval,
-    actuals: &[(SymbolHandle, Interval)],
+    actuals: &ArgumentBounds,
 ) -> Interval {
     // Only gated builtin preconditions may refine a formal used in a result
     // relation. The ordinary source guard environment is not selection evidence.
@@ -28,7 +37,7 @@ pub(super) fn normal_return_interval(
         else {
             continue;
         };
-        if let Some(actual) = crate::substitutions::actual_for(actuals, parameter.symbol) {
+        if let Some(actual) = crate::substitutions::actual_for(&actuals.values, parameter.symbol) {
             interval = interval.intersect(actual);
         }
         for contract in callee
@@ -42,6 +51,7 @@ pub(super) fn normal_return_interval(
                         program,
                         callee,
                         &environment,
+                        &actuals.lengths,
                         *expression,
                         Some(parameter),
                     ));
@@ -53,7 +63,14 @@ pub(super) fn normal_return_interval(
     program
         .contract_expressions(callee.contracts.iter(), SignatureContractKind::Ensures)
         .fold(declared, |interval, expression| {
-            interval.intersect(project(program, callee, &environment, expression, None))
+            interval.intersect(project(
+                program,
+                callee,
+                &environment,
+                &actuals.lengths,
+                expression,
+                None,
+            ))
         })
 }
 
@@ -61,6 +78,7 @@ fn project(
     program: &dyn crate::CheckingInput,
     callee: &CalleeContract<'_>,
     environment: &ValueEnvironment,
+    lengths: &[(SymbolHandle, Interval)],
     expression: ExpressionHandle,
     formal: Option<&typed_trees::signature::StateParameter>,
 ) -> Interval {
@@ -69,8 +87,8 @@ fn project(
     };
     if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
         // These two selective connectives have no declared operator spelling.
-        let left = project(program, callee, environment, binary.left, formal);
-        let right = project(program, callee, environment, binary.right, formal);
+        let left = project(program, callee, environment, lengths, binary.left, formal);
+        let right = project(program, callee, environment, lengths, binary.right, formal);
         return if binary.operator == BinaryOperator::And {
             left.intersect(right)
         } else {
@@ -94,9 +112,14 @@ fn project(
     } else {
         return Interval::UNBOUNDED;
     };
-    let Some((operand, operand_type)) =
-        operand_interval(program, callee, environment, other, formal.is_none())
-    else {
+    let Some((operand, operand_type)) = operand_interval(
+        program,
+        callee,
+        environment,
+        lengths,
+        other,
+        formal.is_none(),
+    ) else {
         return Interval::UNBOUNDED;
     };
     let subject_type = formal.map_or(callee.return_type, |parameter| {
@@ -143,6 +166,7 @@ pub(crate) fn normal_return_referent_interval(
                     program,
                     &callee,
                     &environment,
+                    &[],
                     expression,
                     Some(parameter),
                 ))
@@ -154,6 +178,7 @@ fn operand_interval(
     program: &dyn crate::CheckingInput,
     callee: &CalleeContract<'_>,
     environment: &ValueEnvironment,
+    lengths: &[(SymbolHandle, Interval)],
     expression: ExpressionHandle,
     allow_formals: bool,
 ) -> Option<(Interval, Option<TypeReferenceHandle>)> {
@@ -166,8 +191,14 @@ fn operand_interval(
         ) {
             return None;
         }
-        let (interval, source_type) =
-            operand_interval(program, callee, environment, cast.value, allow_formals)?;
+        let (interval, source_type) = operand_interval(
+            program,
+            callee,
+            environment,
+            lengths,
+            cast.value,
+            allow_formals,
+        )?;
         let source = program.primitive_type_reference(source_type?)?;
         let target = program.primitive_type_reference(cast.target_type)?;
         return crate::integer_widen_is_total(source, target)
@@ -180,6 +211,34 @@ fn operand_interval(
     }
     if !allow_formals {
         return None;
+    }
+    if let Some(member) = program.expression_table.member_node(expression) {
+        use crate::value_custody::places::collection_operations::{
+            MeasureReceiver, collection_measure_member,
+        };
+        let path = program.expression_table.name_path_node(member.receiver)?;
+        let parameter = callee.parameters.iter().find(|parameter| {
+            parameter.symbol.is_valid()
+                && parameter.symbol == path.symbol
+                && path.symbol == path.head_symbol
+                && !parameter.is_const
+        })?;
+        if collection_measure_member(
+            program,
+            member,
+            MeasureReceiver::Declared(parameter.type_reference),
+        ) != Some(language_semantics::declaration_selection::CollectionMeasure::Length)
+        {
+            return None;
+        }
+        let interval = crate::substitutions::actual_for(lengths, parameter.symbol)?;
+        let reference = crate::parameter_expression_result_type_reference(
+            program,
+            callee.callable,
+            callee.parameters,
+            expression,
+        )?;
+        return Some((interval, Some(reference)));
     }
     let path = program.expression_table.name_path_node(expression)?;
     if !path.symbol.is_valid() || path.symbol != path.head_symbol {

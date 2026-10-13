@@ -342,10 +342,12 @@ fn declared_return_range(walk: &ExpressionWalk, call: &TableCallExpression) -> O
     let primitive = program.primitive_type_reference(return_type);
     let declared = range_constraint_interval(program, return_type);
     let actuals = exact_ordinary_actual_intervals(walk, call).unwrap_or_default();
-    let concrete: Vec<_> = actuals
+    let values: Vec<_> = actuals
         .iter()
         .map(|(symbol, interval, _)| (*symbol, *interval))
         .collect();
+    let lengths = argument_collection_lengths(walk, call);
+    let concrete = super::super::call_result_bounds::ArgumentBounds { values, lengths };
     let ensured = ensured_call_result_interval(program, call, &concrete).map(|ensured| {
         primitive
             .and_then(primitive_range)
@@ -361,6 +363,81 @@ fn declared_return_range(walk: &ExpressionWalk, call: &TableCallExpression) -> O
         interval,
         primitive,
     })
+}
+
+/// A borrowed slice carries its extent by value, even when its elements are
+/// writable. Only a single reference to the collection has that property:
+/// a reference to a descriptor can replace it and must not import its entry
+/// extent as a normal-return observation. The existing geometry owner rejects
+/// unstable saved initializers and owns range formation and selected operators.
+fn argument_collection_lengths(
+    walk: &ExpressionWalk,
+    call: &TableCallExpression,
+) -> Vec<(symbols::SymbolHandle, Interval)> {
+    use typed_trees::types::TypeReferenceNode;
+    let Some(state) = walk.state else {
+        return Vec::new();
+    };
+    let Some(callee) =
+        crate::machine_calls::calls::callee_entry_contract(walk.program, call.target_symbol)
+            .filter(|_| call.selects_only_nominal_route())
+    else {
+        return Vec::new();
+    };
+    let arguments = walk
+        .program
+        .expression_table
+        .expression_handles(call.arguments);
+    let Some(arguments) = arguments.get(callee.leading_operands..) else {
+        return Vec::new();
+    };
+    if arguments.len() != callee.parameters.len() {
+        return Vec::new();
+    }
+    callee
+        .parameters
+        .iter()
+        .zip(arguments)
+        .filter_map(|(parameter, argument)| {
+            if parameter.is_const {
+                return None;
+            }
+            let mut reference = parameter.type_reference;
+            if let TypeReferenceNode::Reference { referee, .. } =
+                walk.program.type_reference_table.type_reference(reference)
+            {
+                let (machine, entry) = crate::machine_calls::calls::machine_state_by_symbol(
+                    walk.program,
+                    call.target_symbol,
+                )?;
+                if !crate::state_reference_parameter_binding_is_stable(
+                    walk.program,
+                    machine,
+                    entry,
+                    parameter.symbol,
+                ) {
+                    return None;
+                }
+                reference = *referee;
+            }
+            if !matches!(
+                walk.program.type_reference_table.type_reference(reference),
+                TypeReferenceNode::FixedArray { .. } | TypeReferenceNode::Slice { .. }
+            ) {
+                return None;
+            }
+            let length =
+                crate::closed_collection_length(walk.program, walk.machine, state, *argument)?;
+            let length = i64::try_from(length).ok();
+            Some((
+                parameter.symbol,
+                Interval {
+                    low: Some(length.unwrap_or(0)),
+                    high: length,
+                },
+            ))
+        })
+        .collect()
 }
 
 /// Pair immutable ordinary formals with the selected call's current actual

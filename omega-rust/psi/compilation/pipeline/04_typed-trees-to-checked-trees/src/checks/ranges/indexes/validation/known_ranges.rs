@@ -59,9 +59,22 @@ pub(super) fn prove(
     let start_maximum = start.or_else(|| {
         expression_enforced_declared_range(program, machine, state, range.start)
             .map(|(_, maximum)| maximum)
+            .into_iter()
+            .chain(
+                validation::expression_interval(facts.expression_intervals, range.start)
+                    .and_then(|interval| interval.high),
+            )
+            .min()
     });
     let end_minimum = expression_enforced_declared_range(program, machine, state, range.end)
-        .and_then(|(minimum, _)| normalize_exclusive_end(minimum, range.end_inclusive));
+        .map(|(minimum, _)| minimum)
+        .into_iter()
+        .chain(
+            validation::expression_interval(facts.expression_intervals, range.end)
+                .and_then(|interval| interval.low),
+        )
+        .max()
+        .and_then(|minimum| normalize_exclusive_end(minimum, range.end_inclusive));
     // Zero precedes a separately proven nonnegative end. Otherwise require
     // separated intervals or an independently retained live ordering.
     start == Some(0)
@@ -88,6 +101,9 @@ fn at_most_constant(
     }
     if expression_enforced_declared_range(program, machine, state, expression)
         .is_some_and(|(_, maximum)| maximum <= limit)
+        || validation::expression_interval(facts.expression_intervals, expression)
+            .and_then(|interval| interval.high)
+            .is_some_and(|maximum| maximum <= limit)
     {
         return true;
     }

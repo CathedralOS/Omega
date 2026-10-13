@@ -696,13 +696,26 @@ impl TerminalExecution<'_> {
         ),
         TerminalInterpretError,
     > {
-        self.resolve_live_projection_with_leaf_type(
+        let mut projected = self.resolve_live_projection_with_leaf_type(
             place,
             path,
             access,
             self.borrowed_projection_leaf(expected, access),
-        )
-        .map(|projected| (projected.value, projected.primitive_storage))
+        )?;
+        // A fixed-array formal's loan has no descriptor crossing in its typed
+        // path. Retain that frame home for primitive leaves, just as a dynamic
+        // window retains it below. Record fields already have their own cell
+        // namespace and must not become canonical primitive-array storage.
+        if projected.primitive_storage.is_none()
+            && projected.endpoint_field.is_none()
+            && let Some(loan) = self.element_view_values.get(&place)
+        {
+            projected.primitive_storage = Some(
+                loan.scalar_storage(self, path, access != StructuralAccess::SharedBorrow)?
+                    .0,
+            );
+        }
+        Ok((projected.value, projected.primitive_storage))
     }
 
     /// Present the exact selected declaration at borrowed ingress while
@@ -900,6 +913,7 @@ impl TerminalExecution<'_> {
         let mut remaining = path;
         let mut aggregate_view = initial_view;
         let mut primitive_storage = None;
+        let mut collection_home = None;
         loop {
             // Inline geometry ends at each descriptor. Resolving the whole
             // suffix statically would either invent an extent or address the
@@ -1066,6 +1080,10 @@ impl TerminalExecution<'_> {
                     } else {
                         project_structural_value(&types, &collection, &selected)?
                     };
+                    // Keep the supplying home through the remaining inline
+                    // projection, including nested arrays. The presentation's
+                    // synthetic identity is not primitive payload storage.
+                    collection_home = Some((view, remaining[boundary].clone()));
                     remaining = &remaining[boundary + 1..];
                     continue;
                 }
@@ -1082,6 +1100,7 @@ impl TerminalExecution<'_> {
                     .primitive_loan
                     .as_ref()
                     .map(|loan| loan.storage.clone());
+                collection_home = None;
                 value = captured.view.clone();
                 if let Some(view) = captured.aggregate_view {
                     // The backing keeps its declaration; the next run is
@@ -1108,6 +1127,30 @@ impl TerminalExecution<'_> {
                 }
                 remaining = &remaining[boundary + 1..];
             } else {
+                if primitive_storage.is_none()
+                    && endpoint_field.is_none()
+                    && matches!(
+                        types
+                            .get(&value.structural_type)
+                            .ok_or_else(malformed)?
+                            .shape,
+                        StructuralTypeShape::PrimitiveScalar(_)
+                    )
+                    && let Some((view, selector)) = collection_home
+                {
+                    let mut selected = Vec::with_capacity(1 + prefix.len());
+                    selected.push(selector);
+                    selected.extend_from_slice(prefix);
+                    primitive_storage = Some(
+                        view.scalar_storage(
+                            self,
+                            &selected,
+                            access
+                                .is_some_and(|required| required != StructuralAccess::SharedBorrow),
+                        )?
+                        .0,
+                    );
+                }
                 // A crossing that ends the path names the whole re-viewed
                 // backing; its view tip is the view declaration itself.
                 let tip = tip.or_else(|| {

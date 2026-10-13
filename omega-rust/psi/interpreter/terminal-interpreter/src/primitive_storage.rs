@@ -875,23 +875,17 @@ impl TerminalExecution<'_> {
                 return Ok(storage);
             }
         }
-        if let Some(loan) = element_view_values.get(&place)
-            && matches!(
-                self.program
-                    .structural_types()
-                    .get(&home.structural_type)
-                    .ok_or_else(malformed)?
-                    .shape,
-                terminal_psi::StructuralTypeShape::FixedArray { .. }
-            )
-        {
-            let path = terminal_semantics::canonical_primitive_path(
-                self.program.structural_types().values(),
-                home.structural_type,
-                path,
-            )
-            .ok_or_else(malformed)?;
-            return loan.scalar_storage(self, &path, writing);
+        if let Some(loan) = element_view_values.get(&place) {
+            self.primitive_home_contract(home, writing, path)?;
+            let owner = structural_values.get(&place).ok_or_else(malformed)?;
+            if owner.structural_type != home.structural_type || !loan.matches_descriptor_home(owner)
+            {
+                return Err(malformed());
+            }
+            // Fixed arrays and dynamic windows lend the same backing cells.
+            // The live descriptor owns the extent; its activation home owns
+            // the remaining typed projection and stored scalar carrier.
+            return loan.scalar_storage(self, path, writing);
         }
         let machine = self
             .program
