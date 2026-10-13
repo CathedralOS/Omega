@@ -1,0 +1,52 @@
+// A reachable one-member boundary trait requirement with a consuming contract
+// and no provider: `Acknowledgement::ack` is declared and called on every
+// path, but nothing satisfies it, so native closure review refuses the program
+// instead of inventing a disposition for the receipt. The same program with an
+// external sink selected for the slot is
+// `pass/providers/consuming_trait_requirement_external_sink_exit`.
+pub data Receipt [linear] { code: i32; }
+
+pub boundary trait Acknowledgement {
+    machine ack(receipt: Receipt) -> i32;
+}
+
+data Pair { left: Receipt; right: Receipt; }
+
+machine verify(correct: bool) crashes Trap {
+    transition correct {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+machine settle(receipt: Receipt, first: bool) -> i32 reaches Acknowledgement {
+    transition first {
+        true -> consume_first(receipt)
+        _ -> consume_second(receipt)
+    }
+
+    state consume_first(receipt: Receipt) -> i32 {
+        let held: Receipt = receipt;
+        transition { _ -> later(held) }
+    }
+
+    state later(held: Receipt) -> i32 {
+        Acknowledgement::ack(held)
+    }
+
+    state consume_second(receipt: Receipt) -> i32 {
+        let code: i32 = Acknowledgement::ack(receipt);
+        code % 100 + 100
+    }
+}
+
+machine main() reaches Acknowledgement crashes Trap {
+    let first: i32 = settle(Receipt { code: 7 }, true);
+    let second: i32 = settle(Receipt { code: 8 }, false);
+    let pair: Pair = Pair { left: Receipt { code: 1 }, right: Receipt { code: 2 } };
+    let left: i32 = Acknowledgement::ack(pair.left);
+    let right: i32 = Acknowledgement::ack(pair.right);
+    verify(first == 7 && second == 108 && left == 1 && right == 2);
+}

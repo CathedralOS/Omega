@@ -3321,6 +3321,8 @@ fail/providers/borrowed_binding_local_fabricated_carrier rejected 123ms expected
 	opaque boundary data `Binding` has no public constructor; a boundary provider must establish its values
 fail/providers/boundary_lent_linear_satisfier_narrowed rejected 939ms expected @a8e8aff75d6e+wt
 	machine `TokenScaleProvider::weigh` state `weigh` does not satisfy trait `TokenScale` machine `weigh` parameter `token`: expected `&Token`, got `&Token[in Token::Issued]`
+fail/providers/boundary_operator_without_provider rejected 5915ms expected @b8976916d516+wt
+	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(Integer::equal),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 fail/providers/carry_external_issuance_unadmitted rejected 294ms expected @3e583b96cb82
 	external machine `issue` cannot directly admit carry permission `Carry::AcrossSuspend`; publish it on an owner-authorized boundary trait requirement and satisfy that requirement through the provider
 fail/providers/checked_boundary_operator_const_application_unselected rejected 4143ms expected @4ffd613e37f1
@@ -3333,6 +3335,8 @@ fail/providers/computed_binding_receiver_fabricated_carrier rejected 3603ms expe
 	opaque boundary data `Binding` has no public constructor; a boundary provider must establish its values
 fail/providers/consuming_requirement_without_provider rejected 23449ms expected @a9ae30e1c334+wt
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(Receipt::ack),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(Receipt\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+fail/providers/consuming_trait_requirement_without_provider rejected 5002ms expected @b8976916d516+wt
+	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(Acknowledgement::ack),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(Receipt\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 fail/providers/finite_requirement_boolean_outside_roster rejected 3413ms expected @a9ae30e1c334+wt
 	static application of requirement `Service::echo` violates its declared where facts: the complete tuple is structurally false
 fail/providers/finite_requirement_const_outside_roster rejected 3391ms expected @a9ae30e1c334+wt
@@ -6056,6 +6060,7 @@ pass/operators/runtime_declared_open_range_preserves_operand_snapshot_exit check
 pass/operators/runtime_declared_range_guarded_collection_exit checked 11061ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/operators/runtime_declared_reference_index_capture_exit checked 4355ms check-target:macos_arm64 @a9c11ff574b9+wt
 pass/operators/runtime_generic_reference_selector_snapshot_exit checked 4337ms check-target:macos_arm64 @a9c11ff574b9+wt
+pass/operators/runtime_selected_operator_requires_after_effects_exit checked 5879ms check-target:macos_arm64 @b8976916d516+wt
 pass/operators/runtime_xorshift_prng_exit checked 12139ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/operators/slice_index_bounds_from_operator_contract checked 1634ms @a9ae30e1c334+wt
 pass/operators/slice_range_bounds_from_operator_contract checked 1825ms @a9ae30e1c334+wt
@@ -6352,6 +6357,7 @@ pass/providers/checked_fixed_operator_dispatch_exit checked 12029ms check-target
 pass/providers/checked_fixed_operator_physical_custody checked 11307ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/component_owner_provider_override_compile checked 11504ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/const_generic_entry_record_field_exit checked 2988ms check-target:macos_arm64 @b016b7e0a226
+pass/providers/consuming_trait_requirement_external_sink_exit checked 5872ms check-target:macos_arm64 @b8976916d516+wt
 pass/providers/direct_boundary_array_snapshot_exit checked 12346ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/external_boundary_requirement_via_exit checked 11623ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/external_leaf_dllimport_compile checked 11105ms check-target:macos_arm64 @a9ae30e1c334+wt

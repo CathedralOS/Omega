@@ -1360,6 +1360,7 @@ pass/operators/operand_requires_after_effects checked 216ms
 pass/operators/parenthesized_precedence_value checked 198ms
 pass/operators/runtime_bitwise_operators_exit built 611ms exit:70
 pass/operators/runtime_constructed_operand_result_exit built 13690ms exit:0 @9beb2be72f2d+wt
+pass/operators/runtime_selected_operator_requires_after_effects_exit built 3985ms exit:0 @b8976916d516+wt
 pass/operators/runtime_xorshift_prng_exit built 630ms exit:70
 pass/operators/slice_index_bounds_from_operator_contract checked 209ms
 pass/operators/slice_range_bounds_from_operator_contract checked 210ms
@@ -1506,6 +1507,7 @@ pass/providers/checked_fixed_operator_dispatch_exit built 620ms exit:70
 pass/providers/checked_fixed_operator_physical_custody built 1393ms exit:70 @bed5f45e9185+wt
 pass/providers/component_owner_provider_override_compile built 300ms
 pass/providers/const_generic_entry_record_field_exit built 4357ms exit:70 @b016b7e0a226
+pass/providers/consuming_trait_requirement_external_sink_exit built 4004ms exit:0 @b8976916d516+wt
 pass/providers/direct_boundary_array_snapshot_exit built 2031ms exit:70 @36ad3370c97a
 pass/providers/external_boundary_requirement_via_exit built 2953ms exit:21 @fb2178def922
 pass/providers/external_leaf_dllimport_compile built 2074ms @fb2178def922
