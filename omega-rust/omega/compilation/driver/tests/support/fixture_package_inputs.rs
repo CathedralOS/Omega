@@ -10,6 +10,9 @@
 //! - [`fixture_package_inputs_bound_to`] binds that closure with the
 //!   compilation root at marker 1 and the bundled standard library at
 //!   marker 2, the identity entry and dangerous-service acceptance name;
+//! - [`join_dependency_builds`] executes the dependency Build occurrences that
+//!   closure requires through the driver's package route and joins their
+//!   generated source into the root's inputs, as the product compile does;
 //! - [`reviewed_repository_fixture_package_inputs`] stages the fixture's
 //!   sealed source snapshot, binds the root package to it, and adds this
 //!   repository's test acceptance: the target profile's reviewed
@@ -442,102 +445,299 @@ fn copy_member_tree(from: &Path, to: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Package inputs for a repository fixture, or `None` when it authored no
-/// dependency at all and did not request package identity. A fixture that
-/// declares `Build::package` or `Build::application` compiles in package mode
-/// even with an empty dependency set.
+/// One package a fixture's dependency rows reach.
+struct FixtureGraphPackage {
+    identity: PackageKeyIdentity,
+    binding: PackageSourceBinding,
+    /// Where `binding` binds the package's source.
+    bound_root: PathBuf,
+    /// The authored directory the package's rows are read from.
+    authored_root: PathBuf,
+    role: BuildDeclarationKind,
+    /// The authored edges this package declares, each naming its target.
+    edges: Vec<(DependencyPurpose, String, PackageKeyIdentity)>,
+}
+
+/// Every package a fixture's dependency rows reach, transitively, including
+/// the packages a dependency's own build edges name, each bound once under
+/// one identity, so that the root compilation and every dependency Build
+/// occurrence describe the same packages.
 ///
 /// Identities: the compilation root takes marker 1 and the bundled standard
 /// library marker 2 — pinned so entry and dangerous-service acceptance can
 /// name it — and every other package takes the next free marker in the order
-/// the walk reaches it. Edges project transitively: a dependency's own
-/// authored rows join the same inputs. Product edges authorize imports for
-/// every package in scope, while a build edge authorizes only the compilation
-/// root's build entry, exactly as the package manager's compiler input does,
-/// because a dependency's build context resolves in its own compilation where
-/// that package is the root.
-///
-/// `bound_root` is where the root package's source is bound and
-/// `authored_root` is where its `build.omg` is read and its relative
-/// dependency locations resolve. They differ because the root is bound to a
-/// sealed snapshot staged out of the authored directory.
-fn fixture_package_inputs_bound_to(
-    authored_root: &Path,
-    bound_root: &Path,
-) -> Option<PackageCompilationInputs> {
-    if fixture_path_dependencies(authored_root).is_empty() {
-        return dependency_free_package_inputs_bound_to(authored_root, bound_root);
-    }
+/// the walk reaches it. The walk first reaches what the root's own
+/// compilation names, then what a dependency's build edges add, so a
+/// package the root names keeps the marker it had before dependency Builds
+/// were staged.
+struct FixturePackageGraph {
+    /// In marker order; the root is first.
+    packages: Vec<FixtureGraphPackage>,
+}
 
-    let (root_role, root_name) = fixture_root_declaration(authored_root);
-    let root_identity = fixture_package_identity(1);
-    let standard_library_root = fs::canonicalize(bundled_standard_library_root())
-        .expect("bundled standard library root resolves");
-
-    let mut packages = vec![sealed_root_source_binding(
-        root_identity,
-        root_name,
-        bound_root,
-    )];
-    let mut dependencies = Vec::new();
-    let mut bound: HashMap<PathBuf, PackageKeyIdentity> = HashMap::new();
-    bound.insert(
-        fs::canonicalize(authored_root)
-            .unwrap_or_else(|error| panic!("fixture {}: {error}", authored_root.display())),
-        root_identity,
-    );
-    let mut next_marker: u8 = 3;
-    let mut pending = vec![(authored_root.to_path_buf(), root_identity)];
-    while let Some((requester_root, requester)) = pending.pop() {
-        for dependency in fixture_path_dependencies(&requester_root) {
-            if !dependency.purpose.is_product() && requester != root_identity {
-                continue;
-            }
-            let target = match bound.get(&dependency.location) {
-                Some(bound_target) => *bound_target,
-                None => {
-                    let identity = if dependency.location == standard_library_root {
-                        fixture_package_identity(2)
-                    } else {
-                        let marker = next_marker;
-                        next_marker = next_marker
-                            .checked_add(1)
-                            .expect("fixture package markers stay distinct");
-                        fixture_package_identity(marker)
-                    };
-                    // Source roots must be disjoint. A fixture may author its
-                    // member inside its own directory (`depend_as("leaf",
-                    // Source::Path { location: "leaf" })`), which the real
-                    // build accepts because acquisition snapshots every
-                    // package into its own cache directory before compiling.
-                    // Binding the authored nesting directly instead would
-                    // report overlapping roots, so stage the member the same
-                    // way. The walk continues from the AUTHORED location, so
-                    // the member's own relative rows still resolve.
-                    let bound_location = staged_member_root(&dependency.location, &bound);
-                    packages.push(PackageSourceBinding::new(
-                        identity,
-                        dependency.package_name.clone(),
-                        bound_location,
-                    ));
-                    bound.insert(dependency.location.clone(), identity);
-                    pending.push((dependency.location.clone(), identity));
-                    identity
+impl FixturePackageGraph {
+    /// `bound_root` is where the root package's source is bound and
+    /// `authored_root` is where its `build.omg` is read and its relative
+    /// dependency locations resolve. They differ because the root is bound
+    /// to a sealed snapshot staged out of the authored directory.
+    fn new(authored_root: &Path, bound_root: &Path) -> Self {
+        let (root_role, root_name) = fixture_root_declaration(authored_root);
+        let root_identity = fixture_package_identity(1);
+        let mut walk = FixtureGraphWalk {
+            packages: vec![FixtureGraphPackage {
+                identity: root_identity,
+                binding: sealed_root_source_binding(root_identity, root_name, bound_root),
+                bound_root: bound_root.to_path_buf(),
+                authored_root: authored_root.to_path_buf(),
+                role: root_role,
+                edges: Vec::new(),
+            }],
+            bound: HashMap::from([(
+                fs::canonicalize(authored_root)
+                    .unwrap_or_else(|error| panic!("fixture {}: {error}", authored_root.display())),
+                root_identity,
+            )]),
+            standard_library_root: fs::canonicalize(bundled_standard_library_root())
+                .expect("bundled standard library root resolves"),
+            next_marker: 3,
+            pending: vec![(authored_root.to_path_buf(), root_identity)],
+        };
+        let mut deferred = Vec::new();
+        loop {
+            while let Some((requester_root, requester)) = walk.pending.pop() {
+                for dependency in fixture_path_dependencies(&requester_root) {
+                    // A dependency's build edge resolves in that dependency's
+                    // own Build occurrence, not in the root's compilation.
+                    if !dependency.purpose.is_product() && requester != root_identity {
+                        deferred.push((requester, dependency));
+                        continue;
+                    }
+                    walk.add_edge(requester, dependency);
                 }
-            };
-            dependencies.push(PackageDependencyBinding::for_purpose(
-                requester,
-                dependency.alias.as_str(),
-                target,
-                dependency.purpose,
-            ));
+            }
+            if deferred.is_empty() {
+                break;
+            }
+            for (requester, dependency) in std::mem::take(&mut deferred) {
+                walk.add_edge(requester, dependency);
+            }
+        }
+        Self {
+            packages: walk.packages,
         }
     }
 
-    Some(
-        PackageCompilationInputs::new(root_identity, root_role, packages, dependencies)
-            .unwrap_or_else(|errors| panic!("fixture {}: {errors:#?}", authored_root.display())),
-    )
+    fn package(&self, identity: PackageKeyIdentity) -> &FixtureGraphPackage {
+        self.packages
+            .iter()
+            .find(|package| package.identity == identity)
+            .expect("fixture graph edges name bound packages")
+    }
+
+    /// The compilation inputs rooted at `root`: its own edges of both
+    /// purposes and every reached package's product edges. A build edge
+    /// authorizes only its requester's build entry, exactly as the package
+    /// manager's compiler input does, because a dependency's build context
+    /// resolves in its own compilation where that package is the root.
+    ///
+    /// `root_binding` binds the root package: its graph binding for the
+    /// fixture's own compilation, a sealed dependency snapshot for a
+    /// dependency Build occurrence.
+    fn inputs_rooted_at(
+        &self,
+        root: PackageKeyIdentity,
+        root_binding: PackageSourceBinding,
+    ) -> PackageCompilationInputs {
+        let mut reached = vec![root];
+        let mut dependencies = Vec::new();
+        let mut cursor = 0;
+        while let Some(&requester) = reached.get(cursor) {
+            cursor += 1;
+            for (purpose, alias, target) in &self.package(requester).edges {
+                if !purpose.is_product() && requester != root {
+                    continue;
+                }
+                dependencies.push(PackageDependencyBinding::for_purpose(
+                    requester,
+                    alias.as_str(),
+                    *target,
+                    *purpose,
+                ));
+                if !reached.contains(target) {
+                    reached.push(*target);
+                }
+            }
+        }
+        let root_package = self.package(root);
+        let packages = std::iter::once(root_binding)
+            .chain(
+                self.packages
+                    .iter()
+                    .filter(|package| {
+                        package.identity != root && reached.contains(&package.identity)
+                    })
+                    .map(|package| package.binding.clone()),
+            )
+            .collect();
+        PackageCompilationInputs::new(root, root_package.role, packages, dependencies)
+            .unwrap_or_else(|errors| {
+                panic!(
+                    "fixture package graph rooted at {}: {errors:#?}",
+                    root_package.bound_root.display()
+                )
+            })
+    }
+
+    /// Every dependency Build occurrence a compilation over `inputs`
+    /// requires, transitively, ordered dependency-first, as the package
+    /// manager orders its occurrence roster: each occurrence's own required
+    /// occurrences come before it. Each occurrence is rooted at a sealed
+    /// snapshot of its package, which is answered beside its inputs.
+    fn dependency_occurrences(
+        &self,
+        inputs: &PackageCompilationInputs,
+    ) -> Vec<DependencyOccurrence> {
+        let mut ordered = Vec::new();
+        for (package, purpose) in inputs.required_dependency_source_instances() {
+            self.visit_occurrence(package, purpose, &mut ordered);
+        }
+        ordered
+    }
+
+    fn visit_occurrence(
+        &self,
+        package: PackageKeyIdentity,
+        purpose: DependencyPurpose,
+        ordered: &mut Vec<DependencyOccurrence>,
+    ) {
+        if ordered
+            .iter()
+            .any(|occurrence| occurrence.package == package && occurrence.purpose == purpose)
+        {
+            return;
+        }
+        let graph_package = self.package(package);
+        let snapshot = sealed_fixture_staging::stage_sealed_dependency_snapshot(
+            &repo_root(),
+            &graph_package.authored_root,
+        );
+        let name = package_name_of(&graph_package.authored_root);
+        let inputs = self
+            .inputs_rooted_at(
+                package,
+                sealed_root_source_binding(package, name, &snapshot),
+            )
+            .with_compilation_purpose(purpose)
+            .unwrap_or_else(|errors| panic!("fixture dependency occurrence: {errors:#?}"));
+        for (required, required_purpose) in inputs.required_dependency_source_instances() {
+            self.visit_occurrence(required, required_purpose, ordered);
+        }
+        ordered.push(DependencyOccurrence {
+            package,
+            purpose,
+            snapshot,
+            inputs,
+        });
+    }
+}
+
+/// One dependency Build occurrence: the package, the purpose it is
+/// activated for, the sealed snapshot it is rooted at, and its inputs.
+struct DependencyOccurrence {
+    package: PackageKeyIdentity,
+    purpose: DependencyPurpose,
+    snapshot: PathBuf,
+    inputs: PackageCompilationInputs,
+}
+
+/// The package name a dependency directory's own `build.omg` declares.
+fn package_name_of(authored_root: &Path) -> String {
+    match extract_build_declaration(authored_root) {
+        Ok(BuildDeclaration::Package(package)) => package.name.into_string(),
+        _ => panic!(
+            "fixture dependency {} declares no package",
+            authored_root.display()
+        ),
+    }
+}
+
+/// Construction state for [`FixturePackageGraph::new`].
+struct FixtureGraphWalk {
+    packages: Vec<FixtureGraphPackage>,
+    bound: HashMap<PathBuf, PackageKeyIdentity>,
+    standard_library_root: PathBuf,
+    next_marker: u8,
+    pending: Vec<(PathBuf, PackageKeyIdentity)>,
+}
+
+impl FixtureGraphWalk {
+    fn add_edge(&mut self, requester: PackageKeyIdentity, dependency: FixturePathDependency) {
+        let target = match self.bound.get(&dependency.location) {
+            Some(bound_target) => *bound_target,
+            None => {
+                let identity = if dependency.location == self.standard_library_root {
+                    fixture_package_identity(2)
+                } else {
+                    let marker = self.next_marker;
+                    self.next_marker = self
+                        .next_marker
+                        .checked_add(1)
+                        .expect("fixture package markers stay distinct");
+                    fixture_package_identity(marker)
+                };
+                // Source roots must be disjoint. A fixture may author its
+                // member inside its own directory (`depend_as("leaf",
+                // Source::Path { location: "leaf" })`), which the real
+                // build accepts because acquisition snapshots every
+                // package into its own cache directory before compiling.
+                // Binding the authored nesting directly instead would
+                // report overlapping roots, so stage the member the same
+                // way. The walk continues from the AUTHORED location, so
+                // the member's own relative rows still resolve.
+                let bound_location = staged_member_root(&dependency.location, &self.bound);
+                self.packages.push(FixtureGraphPackage {
+                    identity,
+                    binding: PackageSourceBinding::new(
+                        identity,
+                        dependency.package_name.clone(),
+                        bound_location.clone(),
+                    ),
+                    bound_root: bound_location,
+                    authored_root: dependency.location.clone(),
+                    role: BuildDeclarationKind::Package,
+                    edges: Vec::new(),
+                });
+                self.bound.insert(dependency.location.clone(), identity);
+                self.pending.push((dependency.location.clone(), identity));
+                identity
+            }
+        };
+        self.packages
+            .iter_mut()
+            .find(|package| package.identity == requester)
+            .expect("fixture graph requester is bound")
+            .edges
+            .push((dependency.purpose, dependency.alias, target));
+    }
+}
+
+/// Package inputs for a repository fixture, or `None` when it authored no
+/// dependency at all and did not request package identity. A fixture that
+/// declares `Build::package` or `Build::application` compiles in package mode
+/// even with an empty dependency set. The graph is returned beside the inputs
+/// so the caller can stage the dependency Build occurrences they require.
+fn fixture_package_inputs_bound_to(
+    authored_root: &Path,
+    bound_root: &Path,
+) -> Option<(PackageCompilationInputs, Option<FixturePackageGraph>)> {
+    if fixture_path_dependencies(authored_root).is_empty() {
+        return dependency_free_package_inputs_bound_to(authored_root, bound_root)
+            .map(|inputs| (inputs, None));
+    }
+    let graph = FixturePackageGraph::new(authored_root, bound_root);
+    let root = fixture_package_identity(1);
+    let inputs = graph.inputs_rooted_at(root, graph.package(root).binding.clone());
+    Some((inputs, Some(graph)))
 }
 
 /// The reviewed `ProgramEntry` candidate the standard library at
@@ -774,7 +974,7 @@ pub fn reviewed_repository_fixture_package_inputs(
     // Dependency rows are read and resolved against the authored project: a
     // fixture spells the bundled library as a path relative to its own
     // directory, which no snapshot location reproduces.
-    let Some(mut package_inputs) =
+    let Some((mut package_inputs, graph)) =
         fixture_package_inputs_bound_to(authored_project_root, &staged_project_root)
     else {
         return Ok(ReviewedFixtureCompilation {
@@ -782,6 +982,15 @@ pub fn reviewed_repository_fixture_package_inputs(
             package_inputs: None,
         });
     };
+    if let Some(graph) = &graph {
+        package_inputs = join_dependency_builds(
+            graph,
+            package_inputs,
+            &root_path,
+            authored_project_root,
+            target_name,
+        )?;
+    }
     // Hosted entry acceptance belongs to the bundled standard library's exact
     // package identity. Service acceptance below follows each selected owner.
     let standard_library_identity = fixture_package_identity(2);
@@ -865,6 +1074,127 @@ pub fn reviewed_repository_fixture_package_inputs(
         root_path,
         package_inputs: Some(package_inputs),
     })
+}
+
+/// Execute every dependency Build occurrence the root compilation requires
+/// and join their generated source into its inputs, the way the product
+/// compile does: the occurrences go through the driver's package route
+/// ([`compiler::CompilationSession::join_dependency_builds`]), dependency-first,
+/// each rooted at its own package with its own build edges, staged in its own
+/// writable directory, and run for the product target or, for a Build
+/// occurrence, the host's execution profile — as the package manager plans
+/// them. Without this a fixture whose dependency generates source compiles
+/// without that source and can check where `omega --check` refuses.
+///
+/// A product-scope occurrence's generated source is target-scoped, so a
+/// targetless compile cannot consume it; that compile keeps its dependencies'
+/// authored source only. A fixture whose product dependency generates source
+/// binds a target in its own `build.omg` so its check leg realizes one.
+fn join_dependency_builds(
+    graph: &FixturePackageGraph,
+    inputs: PackageCompilationInputs,
+    root_path: &Path,
+    authored_project_root: &Path,
+    target_name: Option<&str>,
+) -> Result<PackageCompilationInputs, Vec<Diagnostic>> {
+    let consumes_product_output = inputs
+        .required_dependency_source_instances()
+        .iter()
+        .any(|(_, purpose)| purpose.is_product());
+    if target_name.is_none() && consumes_product_output {
+        return Ok(inputs);
+    }
+    let occurrences = graph.dependency_occurrences(&inputs);
+    if occurrences.is_empty() {
+        return Ok(inputs);
+    }
+    let execution_profile = TargetProfile::host_if_supported();
+    let staging = {
+        let fixture_staging =
+            sealed_fixture_staging::fresh_staging_build_dir(&repo_root(), authored_project_root);
+        let mut name = fixture_staging
+            .file_name()
+            .expect("fixture staging has a name")
+            .to_os_string();
+        name.push("-dependencies");
+        fixture_staging.with_file_name(name)
+    };
+    let _ = fs::remove_dir_all(&staging);
+    let mut requests = Vec::with_capacity(occurrences.len() + 1);
+    for DependencyOccurrence {
+        purpose,
+        snapshot,
+        inputs: occurrence_inputs,
+        ..
+    } in occurrences
+    {
+        let occurrence_target = if purpose.is_product() {
+            target_name.map(str::to_owned)
+        } else {
+            let Some(profile) = execution_profile else {
+                return Err(vec![Diagnostic::error(
+                    "Build dependencies require an admitted execution profile",
+                )]);
+            };
+            Some(profile.target_name().to_owned())
+        };
+        let main = snapshot.join("main.omg");
+        let entry = if main.is_file() {
+            main
+        } else {
+            snapshot.join("build.omg")
+        };
+        requests.push(CheckedCompileRequest {
+            package_inputs: Some(occurrence_inputs),
+            build_execution_profile: execution_profile,
+            build_dir: Some(staging.join(format!(
+                "{}-{}",
+                requests.len(),
+                if purpose.is_product() {
+                    "product"
+                } else {
+                    "build"
+                }
+            ))),
+            build_snapshot: Some(package_compilation::BuildSnapshotRequest::new(
+                std::iter::empty::<Vec<u8>>(),
+            )),
+            ..CheckedCompileRequest::new(&entry, occurrence_target.as_deref())
+        });
+    }
+    requests.push(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        build_execution_profile: execution_profile,
+        ..CheckedCompileRequest::new(root_path, target_name)
+    });
+    with_dependency_build_session(|session| session.join_dependency_builds(requests))
+        .map_err(|failure| failure.failure.into_diagnostics())
+}
+
+/// Lend `work` a compiler session reserved for dependency Build occurrences,
+/// reused across fixtures.
+///
+/// The bundled standard library is a Product dependency of most fixtures, and
+/// its occurrence has the same source custody, inputs and target in every one
+/// of them. A session keeps prepared source and the pure-Build store across
+/// requests and matches complete inputs before reusing either, which is how
+/// one package invocation serves several targets; lending the same sessions
+/// to every fixture lets that occurrence prepare once per worker instead of
+/// once per compile. A session is held by one worker at a time and returns to
+/// the pool afterwards; a panicking compile drops its session.
+fn with_dependency_build_session<T>(
+    work: impl FnOnce(&mut compiler::CompilationSession) -> T,
+) -> T {
+    static IDLE: std::sync::Mutex<Vec<compiler::CompilationSession>> =
+        std::sync::Mutex::new(Vec::new());
+    let idle = || {
+        IDLE.lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    };
+    let mut session = idle().pop().unwrap_or_default();
+    let result = work(&mut session);
+    idle().push(session);
+    result
 }
 
 /// The package names a fixture's `accepted_entry_supplier.txt` declares, one

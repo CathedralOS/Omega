@@ -4,6 +4,10 @@
 //! Independent components demanded at the same frontier enter source completion
 //! together. A target roster no longer completes its whole chain before sibling
 //! targets can contribute the same dependency source.
+//!
+//! A frontier either prepares its Product root's Build or, for a caller that
+//! compiles that root through its own product request, stops after joining the
+//! dependencies' generated source into the root request.
 
 use super::{CompilationSession, PackageCompileFailure};
 use build_declarations::DependencyPurpose;
@@ -24,6 +28,24 @@ struct PackageFrontier {
     position: usize,
     remaining: std::vec::IntoIter<CheckedCompileRequest>,
     products: Vec<OccurrenceProduct>,
+    /// The Product root a joining frontier receives its dependencies'
+    /// generated source into instead of preparing; `None` prepares the last
+    /// remaining occurrence as the root.
+    joined_root: Option<CheckedCompileRequest>,
+}
+
+/// How one package plan finished: its root's prepared Build, or the root
+/// request joined with every dependency occurrence's generated source.
+pub(super) enum PreparedPackageRoot {
+    Build(Box<PreparedPackageBuild>),
+    Joined(CheckedCompileRequest),
+}
+
+/// One dependency-ordered plan and what to do with its Product root.
+pub(super) struct PackagePlan {
+    pub occurrences: Vec<CheckedCompileRequest>,
+    /// Join generated source into the root instead of preparing its Build.
+    pub join_root: bool,
 }
 
 struct PendingOccurrence {
@@ -36,19 +58,33 @@ struct PendingOccurrence {
 impl CompilationSession {
     pub(super) fn prepare_packages(
         &mut self,
-        requests: Vec<Vec<CheckedCompileRequest>>,
-    ) -> Vec<Result<PreparedPackageBuild, PackageCompileFailure>> {
-        let mut outcomes: Vec<_> = (0..requests.len()).map(|_| None).collect();
+        plans: Vec<PackagePlan>,
+    ) -> Vec<Result<PreparedPackageRoot, PackageCompileFailure>> {
+        let mut outcomes: Vec<_> = (0..plans.len()).map(|_| None).collect();
         let mut frontiers = Vec::new();
-        for (position, request) in requests.into_iter().enumerate() {
-            match validate_order(&request) {
-                Ok(()) => frontiers.push(PackageFrontier {
-                    position,
-                    products: Vec::with_capacity(request.len().saturating_sub(1)),
-                    remaining: request.into_iter(),
-                }),
-                Err(error) => outcomes[position] = Some(Err(error)),
+        for (position, plan) in plans.into_iter().enumerate() {
+            let PackagePlan {
+                mut occurrences,
+                join_root,
+            } = plan;
+            if let Err(error) = validate_order(&occurrences) {
+                outcomes[position] = Some(Err(error));
+                continue;
             }
+            let joined_root = if join_root { occurrences.pop() } else { None };
+            let frontier = PackageFrontier {
+                position,
+                products: Vec::with_capacity(occurrences.len()),
+                remaining: occurrences.into_iter(),
+                joined_root,
+            };
+            if frontier.remaining.len() == 0 {
+                // A joining root with no dependency occurrence joins the
+                // empty roster; a preparing root always has its own.
+                outcomes[position] = Some(frontier.join_root());
+                continue;
+            }
+            frontiers.push(frontier);
         }
 
         while !frontiers.is_empty() {
@@ -122,8 +158,11 @@ impl CompilationSession {
                             failure,
                         }))
                     }
-                    Ok(build) if frontier.remaining.len() == 0 => {
-                        outcomes[frontier.position] = Some(Ok(build));
+                    Ok(build)
+                        if frontier.remaining.len() == 0 && frontier.joined_root.is_none() =>
+                    {
+                        outcomes[frontier.position] =
+                            Some(Ok(PreparedPackageRoot::Build(Box::new(build))));
                     }
                     Ok(build) => {
                         frontier.products.push(OccurrenceProduct {
@@ -133,7 +172,12 @@ impl CompilationSession {
                             prepared: Some(build),
                             description: None,
                         });
-                        frontiers.push(frontier);
+                        if frontier.remaining.len() == 0 {
+                            let position = frontier.position;
+                            outcomes[position] = Some(frontier.join_root());
+                        } else {
+                            frontiers.push(frontier);
+                        }
                     }
                 }
             }
@@ -208,6 +252,24 @@ impl CompilationSession {
                 }
             }
         }
+    }
+}
+
+impl PackageFrontier {
+    /// Finish a joining frontier: its root receives every dependency
+    /// occurrence's generated source and is returned unprepared.
+    fn join_root(mut self) -> Result<PreparedPackageRoot, PackageCompileFailure> {
+        let occurrence = self.products.len();
+        let refuse = |failure| PackageCompileFailure {
+            occurrence,
+            failure,
+        };
+        let root = self.joined_root.take().ok_or_else(|| {
+            refuse(vec![Diagnostic::error("package frontier lost its joined root")].into())
+        })?;
+        join_generated_sources(root, &self.products)
+            .map(PreparedPackageRoot::Joined)
+            .map_err(refuse)
     }
 }
 

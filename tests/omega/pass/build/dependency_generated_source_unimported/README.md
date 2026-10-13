@@ -16,14 +16,11 @@ unimported generated `seed()` call was refused as unresolved. Authored source
 selecting its own generated declarations still rejects
 (`samples/cli/probes/build_retry_reseal/controls/invalid_authored_selects_generated`).
 
-Run `omega --check tests/omega/pending/build/dependency_generated_source_unimported/main.omg`.
+Each dependency's generated unit joins only once that dependency's Build
+runs, so the fixture binds program entries and its check leg realizes it for
+a declared target: a product dependency's generated source is target-scoped,
+and a targetless check cannot consume it. The corpus runner executes each
+dependency Build occurrence through the driver's package route before
+compiling the root, as `omega --check` does.
 
-## Status: pending (runner limitation)
-
-The corpus runner does not execute dependency Builds, so neither generated
-unit joins there and a runner built without the repair also checks this
-fixture; it cannot witness the repair. Verified through the real CLI on
-2026-10-13: `omega --check` compiles 20 source files; the compiler before the
-repair refused `seed(..)` in both generated units of `tool`. Promote to `pass/`
-once the runner stages dependency builds (see
-`nested_generated_dependency_dual_purpose`).
+Run `omega --check tests/omega/pass/build/dependency_generated_source_unimported/main.omg`.

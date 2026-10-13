@@ -381,13 +381,19 @@ fn record_text(
 /// sealed snapshot staged for it, which keeps its repository-relative path
 /// under a private per-process session root, so stripping that root yields
 /// the same relative spelling the repository root yields and no recorded
-/// position moved when the snapshot became the compiled source. Paths that
+/// position moved when the snapshot became the compiled source. A dependency
+/// whose Build occurrence ran is read from its own sealed snapshot, staged
+/// the same way under a sibling root. Paths that
 /// still name the checkout — a sibling the harness read directly, an
 /// authored dependency location — keep the repository prefix.
 fn sanitize(diagnostic: &str) -> String {
     // Strip before escaping: a Windows backslash otherwise becomes two
     // characters and no longer matches the actual checkout path.
     let diagnostic = strip_root_prefix(diagnostic, sealed_fixture_staging::staging_session_root());
+    let diagnostic = strip_root_prefix(
+        &diagnostic,
+        sealed_fixture_staging::dependency_staging_session_root(),
+    );
     let root = repo_root();
     let diagnostic = strip_root_prefix(&diagnostic, &root);
     if (diagnostic.starts_with("tests/") || diagnostic.starts_with("tests\\"))

@@ -4744,6 +4744,7 @@ pass/build/const_index_dependency_order_exit checked 10505ms check-target:macos_
 pass/build/crash_exclusion_untrapping_provider_exit checked 10378ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/declaration_domain_context checked 10396ms @a9ae30e1c334+wt
 pass/build/dependency_declaration_queries checked 10390ms @a9ae30e1c334+wt
+pass/build/dependency_generated_source_unimported checked 8642ms check-target:macos_arm64 @5e2a4e6e927b+wt
 pass/build/dependency_implementation_closure checked 19855ms check-target:macos_arm64 @1f63ee648905+wt
 pass/build/described_runner_entry_left_exit checked 11063ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/described_runner_entry_right_exit checked 11077ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -4752,6 +4753,7 @@ pass/build/entry_schema_same_leaf_exit checked 10244ms check-target:macos_arm64 
 pass/build/explicit_lifetime_entry_context_exit checked 10214ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/generated_source_selects_authored checked 14385ms published:files/generated.omg @ca002ac106ad+wt
 pass/build/named_map_target_family_rows_exit checked 7260ms check-target:macos_arm64 @cbb413ac54c3
+pass/build/nested_generated_dependency_dual_purpose checked 8506ms check-target:macos_arm64 @5e2a4e6e927b+wt
 pass/build/product_description_paths_exit checked 10456ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/product_entry_named_user_machine_exit checked 10318ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/runtime_depend_mapping_exit checked 11118ms check-target:macos_arm64 @a9ae30e1c334+wt

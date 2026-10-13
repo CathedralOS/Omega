@@ -42,6 +42,7 @@ fn accepted_packages_supply_plans_not_compiler_continuations() {
         ".prepare_build(",
         ".check_build(",
         "with_complete_dependency_generated_sources(",
+        "join_dependency_builds(",
         "with_independent_component_descriptions(",
         "publish_checked_component(",
         "CheckedCompilation",

@@ -27,8 +27,9 @@ own Build occurrence prepares the package.
 
 Run `omega --check tests/omega/pass/build/dependency_implementation_closure/main.omg`
 to exercise dependency Build preparation through package orchestration. The
-corpus native route exercises the imported module and must exit 0, but does
-not run dependency Builds and cannot establish the source-closure acceptance.
+corpus runner executes the dependency's Build occurrence through the same
+package route before compiling the consumer, and its native route exercises
+the imported module and must exit 0.
 
 This intentionally invalid full dependency is a frontend selection probe,
 not an accepted-package fixture: full review must reject the undeclared call,

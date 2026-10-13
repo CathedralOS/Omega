@@ -6,6 +6,7 @@
 //! before checking the root. Package callers do not assemble compiler stages.
 
 use super::CompilationSession;
+use super::package_preparation::{PackagePlan, PreparedPackageRoot};
 use compilation_products::{CheckedCompileRequest, CompileFailure};
 use diagnostics::Diagnostic;
 
@@ -57,16 +58,28 @@ impl CompilationSession {
                     request.product,
                     request.terminal_permissions,
                 ));
-                plans.push(request.occurrences);
+                plans.push(PackagePlan {
+                    occurrences: request.occurrences,
+                    join_root: false,
+                });
             }
 
             let mut builds = Vec::new();
             let mut admitted = Vec::new();
             for (prepared, selection) in self.prepare_packages(plans).into_iter().zip(selections) {
                 match prepared {
-                    Ok(build) => {
-                        builds.push(build);
+                    Ok(PreparedPackageRoot::Build(build)) => {
+                        builds.push(*build);
                         admitted.push(selection);
+                    }
+                    Ok(PreparedPackageRoot::Joined(_)) => {
+                        outcomes[selection.0] = Some(Err(PackageCompileFailure {
+                            occurrence: selection.1,
+                            failure: vec![Diagnostic::error(
+                                "package compilation joined a root it was asked to prepare",
+                            )]
+                            .into(),
+                        }))
                     }
                     Err(error) => outcomes[selection.0] = Some(Err(error)),
                 }
@@ -128,6 +141,57 @@ impl CompilationSession {
                     })
                 })
                 .collect()
+        })
+    }
+
+    /// Execute every dependency occurrence of one dependency-ordered plan, as
+    /// [`Self::compile_packages`] does, and return its Product root's package
+    /// inputs joined with their complete generated source, without preparing
+    /// or checking the root. `occurrences` has the shape of
+    /// [`PackageCompilationRequest::occurrences`]: the Product root is last.
+    ///
+    /// The corpus runner's fixture harness calls this. Each of its legs
+    /// compiles a fixture root through its own product request, so the root
+    /// needs dependency Build output joined into its inputs rather than a
+    /// finished package product. Package operations submit whole plans
+    /// through [`Self::compile_packages`] instead.
+    pub fn join_dependency_builds(
+        &mut self,
+        occurrences: Vec<CheckedCompileRequest>,
+    ) -> Result<package_compilation::PackageCompilationInputs, PackageCompileFailure> {
+        let root = occurrences.len().saturating_sub(1);
+        super::run_on_compile_thread(|| {
+            let prepared = self
+                .prepare_packages(vec![PackagePlan {
+                    occurrences,
+                    join_root: true,
+                }])
+                .pop();
+            Ok::<_, Vec<Diagnostic>>(match prepared {
+                Some(Ok(PreparedPackageRoot::Joined(request))) => {
+                    request.package_inputs.ok_or_else(|| PackageCompileFailure {
+                        occurrence: root,
+                        failure: vec![Diagnostic::error(
+                            "package compilation requires source custody",
+                        )]
+                        .into(),
+                    })
+                }
+                Some(Err(error)) => Err(error),
+                Some(Ok(PreparedPackageRoot::Build(_))) | None => Err(PackageCompileFailure {
+                    occurrence: root,
+                    failure: vec![Diagnostic::error(
+                        "package preparation lost its joined root",
+                    )]
+                    .into(),
+                }),
+            })
+        })
+        .unwrap_or_else(|diagnostics| {
+            Err(PackageCompileFailure {
+                occurrence: 0,
+                failure: diagnostics.into(),
+            })
         })
     }
 }

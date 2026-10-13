@@ -19,19 +19,14 @@ rejection half of that suite, and
 `pass/build/captured_source_generated_constant` pin required-output
 settlement.
 
+The fixture binds program entries so its check leg realizes it for a
+declared target: the product edge's generated `value()` is target-scoped
+source a targetless check cannot consume. The corpus runner executes the
+four occurrences (generator@Build, nested_kernel@Product, nested_kernel@Build
+and the root) through the driver's package route, as `omega --check` does;
+authored source never selects its own package's generated declarations
+(`wiki/spec/build/execution.md`, "Generated-source boundary"), so the
+generated `value()` calls the authored `seed()`. The native leg exits 0
+after the entry observes 7.
+
 Run `omega --check tests/omega/pass/build/nested_generated_dependency_dual_purpose/main.omg`.
-
-## Status: pending (runner limitation)
-
-Verified directly through the real CLI: `omega --check main.omg` compiles 19
-source files and evaluates all four occurrence rows (generator@Build,
-nested_kernel@Product, nested_kernel@Build, root@Product) successfully on
-2026-10-13, after the generated `value()` took over the public machine and
-calls the authored `seed()`: authored source never selects its own package's
-generated declarations (`wiki/spec/build/execution.md`, "Generated-source
-boundary"). The corpus runner rejects it because it stages the fixture root as
-a sealed snapshot and does not execute dependency `build_depend_as` chains the
-way the CLI does — the same limitation
-`pass/build/dependency_implementation_closure/README.md` documents for the
-native route. Promote to `pass/` once the runner stages nested dependency
-builds, or cover this path at CLI level instead.

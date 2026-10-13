@@ -35,12 +35,14 @@
 //!   run's source. The session root is exclusively created, so even processes
 //!   with the same id in separate PID namespaces cannot share it.
 //!
-//! Dependency rows are deliberately not staged here. A fixture resolves
-//! `Source::Path` locations against its authored project (849 fixtures reach
-//! the bundled standard library through `../../../../../source/library/std`),
-//! so the authored directory stays the place those rows are read and resolved
-//! from, and only the root package's binding moves to the snapshot. Nested
-//! members keep their own existing staging.
+//! Dependency rows are deliberately not staged for the root's compilation. A
+//! fixture resolves `Source::Path` locations against its authored project
+//! (849 fixtures reach the bundled standard library through
+//! `../../../../../source/library/std`), so the authored directory stays the
+//! place those rows are read and resolved from, and only the root package's
+//! binding moves to the snapshot. Nested members keep their own existing
+//! staging. A dependency whose own Build occurrence runs is that occurrence's
+//! root, so it is sealed the same way, once per process, apart from fixtures.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -147,6 +149,77 @@ pub fn stage_sealed_snapshot(repository_root: &Path, authored_root: &Path) -> Pa
         )
     });
     staged
+}
+
+/// The private directory every staged dependency snapshot lands under,
+/// canonicalized for the same reason as [`staging_session_root`].
+///
+/// A dependency is staged apart from fixture roots because a dependency
+/// directory may sit inside another fixture (`pass/targets/.../kit`) whose
+/// own snapshot is discarded and restaged while a concurrent worker reads the
+/// dependency. The runner strips this root from recorded diagnostics too.
+pub fn dependency_staging_session_root() -> &'static Path {
+    static ROOT: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    ROOT.get_or_init(|| {
+        let root = temporary_session_root().join("dependency-source");
+        fs::create_dir_all(&root).unwrap_or_else(|error| {
+            panic!(
+                "dependency source root {} could not be created: {error}",
+                root.display()
+            )
+        });
+        fs::canonicalize(&root).unwrap_or(root)
+    })
+    .as_path()
+}
+
+/// Stage a dependency the way acquisition seals it into its cache lane, at
+/// its repository-relative path under [`dependency_staging_session_root`],
+/// and answer the snapshot's root directory.
+///
+/// A dependency Build occurrence is a package-aware build activation rooted
+/// at that dependency, so it needs the same canonical Source metadata a
+/// fixture root does. Unlike a fixture root, one dependency (the bundled
+/// standard library above all) serves many fixtures at once, so it is staged
+/// once per process and then only read: restaging it per fixture would
+/// discard a snapshot a concurrent worker is compiling.
+pub fn stage_sealed_dependency_snapshot(repository_root: &Path, authored_root: &Path) -> PathBuf {
+    static STAGED: std::sync::Mutex<Vec<(PathBuf, PathBuf)>> = std::sync::Mutex::new(Vec::new());
+    let mut staged = STAGED
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some((_, snapshot)) = staged
+        .iter()
+        .find(|(authored, _)| authored == authored_root)
+    {
+        return snapshot.clone();
+    }
+    let snapshot = dependency_staging_session_root()
+        .join(relative_fixture_path(repository_root, authored_root));
+    discard_snapshot(&snapshot);
+    if let Some(parent) = snapshot.parent() {
+        fs::create_dir_all(parent).unwrap_or_else(|error| {
+            panic!(
+                "dependency snapshot parent {} could not be created: {error}",
+                parent.display()
+            )
+        });
+    }
+    copy_tree(authored_root, &snapshot).unwrap_or_else(|error| {
+        panic!(
+            "dependency {} could not be staged at {}: {error}",
+            authored_root.display(),
+            snapshot.display()
+        )
+    });
+    seal_tree(&snapshot).unwrap_or_else(|error| {
+        panic!(
+            "dependency snapshot {} could not be sealed: {error}",
+            snapshot.display()
+        )
+    });
+    staged.push((authored_root.to_path_buf(), snapshot.clone()));
+    snapshot
 }
 
 /// Release this process's snapshots and working directories.

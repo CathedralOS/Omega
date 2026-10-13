@@ -3013,7 +3013,7 @@ crash and native exit behavior.
   per-target missing-row outcomes stay per target. Nested generated-dependency
   and dual-purpose custody, pre-effect rejection and snapshot/required-output
   settlement keep their behavior, covered by
-  tests/omega/pending/build/nested_generated_dependency_dual_purpose and
+  tests/omega/pass/build/nested_generated_dependency_dual_purpose and
   corpus fixtures scoped_build_stops_before_unaccepted_effect,
   artifact_only_unsealed_output_refused and
   captured_source_generated_constant.
