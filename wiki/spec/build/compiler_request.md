@@ -7,7 +7,8 @@ algorithms need not match. Rust compiler objects are not a wire specification.
 **Incomplete physical specification:** the outer framing, semantic contents,
 commitment preimage, validation order, publication rules, outcome frame
 layout, coordinate spaces, diagnostic phases, scalar-resource table, the
-subject/invocation field/tag tables, the assigned `Reject` inventory
+subject/invocation field/tag tables except the package-origin encoding below,
+the assigned `Reject` inventory
 below — including the syntax distinction granularity and the checking codes —
 and the named `Incomplete` coverage provisions are settled. The semantic
 phases over the decoded fields still need implementation, and producers still
@@ -29,8 +30,8 @@ Rust reference compiler to implement Alpha compilation; the
 [bootstrap contract](../../../bootstrap/CONTRACT.md#selected-execution-chain)
 places that obligation on D and C. Package instances, locks, and source
 resolution do not certify compiler artifacts. V1 accepts resolved source, not
-preaccepted compiled dependency instances; adding the latter requires a new
-request version, not a zero or omitted row interpreted as acceptance.
+preaccepted compiled dependency instances; adding the latter requires an explicit
+request-format change, not a zero or omitted row interpreted as acceptance.
 
 [Default builds and anonymous owners](declarations.md#default-builds-and-anonymous-owner-identity)
 are part of this logical contract. Source preparation closes and deduplicates
@@ -42,7 +43,7 @@ authority or executable-entry discovery.
 
 The physical OCREQ v1 package rows below encode only named name/lineage owners;
 they do not yet encode the anonymous-owner record and default-build provenance.
-Supporting that logical input requires a versioned request extension shared by
+Supporting that logical input requires an explicit request extension shared by
 D and C, not fake names, host-path lineages, or reinterpreting existing tags.
 This wire limitation does not revoke anonymous compilation or require an authored
 build file in the language. Its implementation is tracked with
@@ -73,9 +74,13 @@ collection of live half-compiled checkpoints.
 | 12 | Little-endian `u32` invocation byte length. |
 | 16 | Exact subject section, then exact invocation section, then exact end. |
 
-There is one flat version. Sections have no independent nested versions;
-representation changes revise the outer version atomically. Variable bytes are
-length-framed; tables have explicit counts; graph indices are zero-based;
+There is one flat version. Sections have no independent nested versions.
+Before release, this format may change in place: update producers, D, C and
+shared request vectors together, without legacy readers, dual encodings or
+compatibility adapters. The v1 label is not a pre-release stability promise.
+Once released, incompatible representation changes revise the outer version
+atomically. Variable bytes are length-framed; tables have explicit counts;
+graph indices are zero-based;
 variants have assigned numeric tags. Reserved slots are zero, including identity
 bytes 6–7. Counts, lengths, indices, and coordinate-producing extents are at most
 `INT32_MAX`. Language names use their specified UTF-8 grammar; snapshot paths,
@@ -96,6 +101,32 @@ local name-resolution syntax, not package identity; one requester cannot rename
 an alias inside another package. [Source acquisition](../packages/sources.md)
 defines selection and lineage separately from this encoding.
 
+### Shared package identity
+
+The request carries the same canonical structured source-lineage record used
+by package acquisition and package identity. It does not replace that record
+with a request-specific origin string or define a second package key. Acquisition
+resolves and canonicalizes the source; the standalone compiler decodes the
+record and recomputes the same `PackageKeyIdentity` without contacting the
+origin. This shares logical fields and identity rules, not a Rust memory layout.
+
+For named packages, only the declared name and canonical lineage determine the
+key. Requester-local aliases remain dependency-edge fields; revision, tree and
+content identify the exact resolution, not a different lineage. Identical
+canonical name/lineage inputs must produce identical keys in package management,
+D and C. Their canonical identity encoding and hashing must be specified once
+and exercised by shared vectors, not independently invented per consumer.
+
+The old two-tag `external_local`/`git` plus opaque lineage-text encoding is
+superseded. Completing the shared structured encoding, including its tags,
+field framing and canonical identity preimage, is engineering under OMEGA-D
+and OMEGA-PRODUCT-COMPILER-SOURCE. Record those bytes here alongside the
+implementation before claiming interoperability. The source-lineage model must
+preserve the [package identity rules](declarations.md#names-lineage-and-resolution);
+private implementation fields do not override those rules.
+
+### Source snapshots
+
 Each snapshot is a complete deterministic virtual filesystem. Its closed rows
 are directories, regular files with executable state and exact bytes, and
 symbolic links with exact target spelling. Validate root directory, parent
@@ -104,7 +135,7 @@ Rows follow raw-path order. Absence is the complement of the complete set;
 direct-child enumeration, lengths, and canonical metadata derive from the rows
 and payload. Do not serialize those derived facts a second time.
 
-An external-local canonical path in lineage is identity text only: the compiler
+An external-local canonical path in lineage is identity data only: the compiler
 never dereferences it. Ambient environment, clocks, randomness, network state,
 or a prior build-operation trace cannot replace snapshot facts. BuildOutput
 starts as a fresh activation-local tree and is validated after its one execution.
@@ -134,19 +165,19 @@ Each package row is, in order:
 | Order | Field | Encoding |
 | --- | --- | --- |
 | 1 | `name` | `bytes`, the declared package name |
-| 2 | `lineage_kind` | `u32` tag: 1 `external_local`, 2 `git` |
-| 3 | `lineage` | `bytes`, canonical lineage identity text |
-| 4 | `revision` | `bytes`, exact selected revision resolution |
-| 5 | `tree` | `bytes`, exact tree resolution |
-| 6 | `content` | `bytes`, exact content resolution |
-| 7 | `member` | `bytes`, member projection path; empty selects the repository root |
-| 8 | `role` | `u32` tag: 1 `package`, 2 `application`; the row's declared role |
-| 9 | `snapshot` | `u32` count, then that many snapshot rows |
+| 2 | `lineage` | Shared tagged structural source-lineage record; physical encoding remains to be completed under the rule above |
+| 3 | `revision` | `bytes`, exact selected revision resolution |
+| 4 | `tree` | `bytes`, exact tree resolution |
+| 5 | `content` | `bytes`, exact content resolution |
+| 6 | `member` | `bytes`, member projection path; empty selects the repository root |
+| 7 | `role` | `u32` tag: 1 `package`, 2 `application`; the row's declared role |
+| 8 | `snapshot` | `u32` count, then that many snapshot rows |
 
-The name, lineage, and resolutions supply the structural fields the
-`PackageKeyIdentity` recomputation and ordering rules consume. Resolution and
-lineage payloads are opaque custody text to the compiler; their
-canonicalization is acquisition-owned.
+The declared name and structural lineage supply `PackageKeyIdentity`
+recomputation; package rows are ordered by unsigned lexicographic comparison
+of its 32 digest bytes. Resolution remains separate. Source canonicalization
+is acquisition-owned, but the compiler must decode and validate the canonical
+identity structure rather than treating it as unspecified text.
 
 Each snapshot row is, in order:
 

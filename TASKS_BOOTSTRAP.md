@@ -149,10 +149,16 @@ prerequisite to every lower-rung milestone.
   malformed-input rejection, bounded arithmetic, and Complete-only publication
   must agree before either implementation claims the V1 boundary. D and C
   both decode phases 0, 1, 2 and 6 and answer
-  `tests/product/request/test-request.sh`'s shared vectors alike; phase 3
-  waits on the owner decision `ocreq-package-key-identity-derivation`, and
-  later phases cannot publish refusals ahead of it.
-  With **MODULE-NAMESPACE-RESOLUTION** in `TASKS.md`, extend the versioned
+  `tests/product/request/test-request.sh`'s shared vectors alike. Replace the
+  old two-tag lineage text with the package manager's canonical structured
+  lineage and shared key computation under
+  [shared package identity](wiki/spec/build/compiler_request.md#shared-package-identity).
+  Specify the encoding and update D, C, producers and vectors together; before
+  release, change the request in place without compatibility readers. Phase 3
+  must agree on identity/order before later phases publish refusals. Cover
+  each supported origin, alias-only changes, changed lineage, and changed
+  resolution (same key, different instance).
+  With **MODULE-NAMESPACE-RESOLUTION** in `TASKS.md`, extend the
   request for anonymous content owners and default-build provenance. V1's
   named-only rows are not that encoding; validate canonical identity inputs and
   graph sharing in D and C without a compiled-project registry or fake lineage.

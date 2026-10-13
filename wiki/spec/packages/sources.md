@@ -34,6 +34,13 @@ to the same std therefore has one std owner, not two copied declarations.
 Checked build instances may still differ by host/product context or target.
 Those instances do not rename the package's declarations.
 
+The standalone compiler handoff serializes this same canonical source-lineage
+structure and uses the same package-key identity algorithm. Local aliases and
+exact source resolutions remain separate; the request does not introduce a
+second origin identity. See the
+[shared package identity contract](../build/compiler_request.md#shared-package-identity)
+for the encoding obligation and pre-release format policy.
+
 Graph preparation also establishes [anonymous root identities](../build/declarations.md#default-builds-and-anonymous-owner-identity),
 working dependency-first over exact source inputs, without compiling outputs or
 consulting a historical build catalog. Compilation carries those owners forward;

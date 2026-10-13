@@ -2099,7 +2099,7 @@ then independent claimed restoration slices -> final closure.
   **BUILD-EVALUATES-ONCE**, pre-effect admission and all-target authored rows;
   do not retain a feature/fixture-specific Build evaluator.
   Discovery/default-source phase selection is **OWNER-BLOCKED** on
-  [build-discovery-entry-phase](OWNER_QUESTIONS.md#q6---how-does-a-build-select-its-core-only-discovery-entry):
+  [build-discovery-entry-phase](OWNER_QUESTIONS.md#q5---how-does-a-build-select-its-core-only-discovery-entry):
   the same free Build entry mixes discovery with work needing the resolved
   graph, with no defined entry/phase boundary. This blocks that subfrontier
   only; Terminal/mutable-slot/accounting and immutable resolver joins remain
@@ -5481,7 +5481,7 @@ wait for Cathedral's instruction coverage. The interpreter is
   - Default builds and anonymous owners
     ([spec](wiki/spec/build/declarations.md#default-builds-and-anonymous-owner-identity)):
     The interpreted discovery/default-source prerequisite references
-    [build-discovery-entry-phase](OWNER_QUESTIONS.md#q6---how-does-a-build-select-its-core-only-discovery-entry);
+    [build-discovery-entry-phase](OWNER_QUESTIONS.md#q5---how-does-a-build-select-its-core-only-discovery-entry);
     other owner/identity/resolution joins remain engineering.
     `omega-rust/omega/packages/compilation-inputs/src/source_imports/frontier.rs`
     leaves loose roots without package identity. Derive the versioned anonymous
@@ -6710,9 +6710,14 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   carrying forward earlier case counts or package-size measurements.
 
   - Request semantics (`source/omega/request/`): well-formed requests stop at
-    `coverage_request_semantics`. Phase 3 needs
-    `ocreq-package-key-identity-derivation` in `OWNER_QUESTIONS.md`; implement
-    package identity/order, dependency graph, snapshot materialization,
+    `coverage_request_semantics`. For phase 3, replace the two-tag lineage
+    text with the canonical package-origin structure and shared key computation
+    under [shared package identity](wiki/spec/build/compiler_request.md#shared-package-identity).
+    Specify encoding and migrate producers, D, C and shared vectors together;
+    change the unreleased format in place, without legacy readers. Verify each
+    supported origin agrees with package management; alias changes preserve
+    identity, lineage changes change it, and resolution changes only the instance.
+    Implement package identity/order, dependency graph, snapshot materialization,
     admissions and subject commitment (phases 3, 4, 5, 7 and 8), preserving
     the contract's diagnostic selection order, then hand the root source to
     Psi. Keep D's request vectors in `tests/product/request/test-request.sh`.

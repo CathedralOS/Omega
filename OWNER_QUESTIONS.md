@@ -137,59 +137,7 @@ twin. The verified member classification, call-site confinement and the ten
 Rust consumers the split moves stay on **FILESYSTEM-PLATFORM-SERVICES** in
 `TASKS.md`; that work is ordinary implementation once this is answered.
 
-### Q2 - How does an OCREQ v1 package row derive its `PackageKeyIdentity`?
-
-Named decision: `ocreq-package-key-identity-derivation`.
-
-**Customer:** the standalone compiler request's phase 3, which both
-compilers must implement identically before either claims the V1 boundary
-(**OMEGA-D** in `TASKS_BOOTSTRAP.md`, **OMEGA-PRODUCT-COMPILER-SOURCE** in
-`TASKS.md`). D and the Omega-written product compiler C both decode phases
-0, 1, 2 and 6 today and stop every well-formed request at
-`coverage_request_semantics`. Phases 4, 5, 7 and 8 (graph, snapshots,
-admissions, commitment) are fully specified, but a compiler cannot publish
-their refusals until it implements phase 3: a request failing both phase 3
-and a later phase must report phase 3 under the fixed selection order.
-
-**Existing rules:** [the request contract](wiki/spec/build/compiler_request.md#canonical-subject)
-requires package rows "strictly ordered by recomputed `PackageKeyIdentity`"
-and says a row's name, lineage and resolutions "supply the structural fields
-the `PackageKeyIdentity` recomputation and ordering rules consume", but no
-rule is written there. The row carries `name`, a two-valued `lineage_kind`
-(`external_local`, `git`) and `lineage`, "canonical lineage identity text"
-whose "canonicalization is acquisition-owned".
-[Declarations](wiki/spec/build/declarations.md) defines `PackageKey` as the
-declared name plus canonical source lineage, without bytes.
-[Sources](wiki/spec/packages/sources.md) keeps Git lineage's transport, user,
-host, port and path, without a text form. The only implementation is Rust's
-package manager (`omega-rust/omega/packages/package-manager/src/declarations/identity.rs`
-and `.../source-acquisition/src/identity/git.rs`): SHA-256 over
-length-framed fields — `omega-package-key-identity-v1`, the name, then a
-variant label (`github`, `gitlab`, `git`, `workspace`, `external-local`) and
-that variant's structured fields. Five variants with structured fields do not
-map onto the wire's two kinds and one text field, and nothing serializes
-lineage as text.
-
-**Decision needed:**
-
-1. **Recommended: define the key over the wire fields.**
-   `PackageKeyIdentity = SHA-256(frame("omega.ocreq.package-key.v1") ||
-   frame(name) || u32_le(lineage_kind) || frame(lineage))`, with
-   `frame(x) = u32_le(len(x)) || x`, ordered by unsigned byte comparison of the
-   32-byte digest. Every compiler computes it from the decoded row alone. It
-   need not equal the package manager's lock identity; acquisition is then
-   responsible for canonical lineage text, and the request carries no claim
-   that two spellings name one repository.
-2. **Make the request key the package manager's key.** Specify a canonical
-   text form for every lineage variant (or widen `lineage_kind` to the five
-   variants with structured fields) and the exact Rust framing in the
-   contract, so locks, reviews and requests agree on one identity. This
-   needs a request revision if the row's fields change.
-3. **Order rows without a digest** (by name, then lineage kind, then lineage
-   bytes) and drop "recomputed identity" from phase 3, keeping duplicate and
-   identity-mismatch checks on those fields.
-
-### Q3 - Which service does a migrated boundary operation reach?
+### Q2 - Which service does a migrated boundary operation reach?
 
 Named decision: `boundary-trait-requirement-service-row`.
 
@@ -269,7 +217,7 @@ The storage and view traits moved here (`ArrayAccess`, `SliceAccess`,
 have no callers, so their service identity is unobserved today; the answer
 decides whether their rows declare `reaches;`.
 
-### Q4 - How does source call a requirement through a `Binding<R>`?
+### Q3 - How does source call a requirement through a `Binding<R>`?
 
 Named decision: `binding-receiver-call-form`.
 
@@ -318,7 +266,7 @@ The Rust reference compiler accepts the dot form by unwrapping a
    compiler; two candidates reject. No receiver is written, but selection
    depends on the context's shape rather than the call.
 
-### Q5 - What does `==` between data values mean in a proof fact?
+### Q4 - What does `==` between data values mean in a proof fact?
 
 Named decision: `proof-fact-data-equality`.
 
@@ -370,7 +318,7 @@ synthesis, which recursive Nat cannot join").
    core `Identity(a, b)` proposition or another token), and `==` keeps one
    meaning everywhere. The eight files' theorems are respelled.
 
-### Q6 - How does a Build select its core-only discovery entry?
+### Q5 - How does a Build select its core-only discovery entry?
 
 Named decision: `build-discovery-entry-phase`.
 
