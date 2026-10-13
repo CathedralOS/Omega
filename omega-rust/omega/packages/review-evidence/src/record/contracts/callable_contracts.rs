@@ -11,6 +11,12 @@ pub enum PackageReviewContractFact {
         value: PackageReviewContractExpression,
         domain: PackageReviewNominalIdentity,
     },
+    /// Closed compiler permission fact; no nominal value-domain owner exists.
+    /// This describes the checked contract and grants no runtime authority.
+    CarryMembership {
+        value: PackageReviewContractExpression,
+        permission: language_semantics::CarryPermission,
+    },
     Proposition(PackageReviewPropositionApplication),
     PropositionParameter(PackageReviewPropositionParameterApplication),
 }

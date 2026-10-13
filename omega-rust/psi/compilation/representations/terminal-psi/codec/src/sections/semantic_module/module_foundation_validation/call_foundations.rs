@@ -645,6 +645,36 @@ pub(super) fn validate_boundary_call(
     if actual_result.as_ref() != Some(&boundary.result) {
         return malformed("boundary call result disagrees with its declaration");
     }
+    if let OperationResult::Structural(result) = &operation.result {
+        let paths = result
+            .claims
+            .iter()
+            .map(|row| row.path.clone())
+            .collect::<Vec<_>>();
+        for candidate in module
+            .provider_candidates
+            .iter()
+            .filter(|candidate| candidate.boundary == boundary.id)
+        {
+            let Some(provider) = module.machine(candidate.candidate) else {
+                return malformed("boundary result provider has no machine");
+            };
+            if !terminal_semantics::result_claim_paths_match_returns(
+                &paths,
+                provider
+                    .blocks
+                    .iter()
+                    .filter_map(|block| match &block.terminator {
+                        Terminator::ReturnStructural {
+                            returned_claims, ..
+                        } => Some(returned_claims.as_slice()),
+                        _ => None,
+                    }),
+            ) {
+                return malformed("boundary provider return claims disagree with its result paths");
+            }
+        }
+    }
     if arguments.len() != boundary.scalar_parameters.len() {
         return malformed("boundary call has the wrong scalar arity");
     }

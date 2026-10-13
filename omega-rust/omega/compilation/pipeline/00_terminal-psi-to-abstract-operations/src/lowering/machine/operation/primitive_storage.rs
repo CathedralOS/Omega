@@ -51,6 +51,25 @@ pub(super) fn owned_state_parameter(
     semantic_vocabulary::BlockId,
     &terminal_psi::StructuralParameterDeclaration,
 )> {
+    let (block, parameter) = owned_state_storage_parameter(machine, place)?;
+    (matches!(
+        parameter.multiplicity,
+        terminal_psi::nonlinear_multiplicity_pair_pattern!()
+    ) && super::structural_scalar_fields::has_empty_structural_custody(machine, place))
+    .then_some((block, parameter))
+}
+
+/// Resolve an exact owned block home for scalar-field mutation. Live linear
+/// claims are preserved by a field store; they do not prohibit exclusive
+/// mutation. Whole-carrier primitive/window operations retain the stricter
+/// claim-free classifier above. Membership/content restoration remains separate.
+pub(super) fn owned_state_storage_parameter(
+    machine: &TerminalMachine,
+    place: PlaceId,
+) -> Option<(
+    semantic_vocabulary::BlockId,
+    &terminal_psi::StructuralParameterDeclaration,
+)> {
     let mut declarations = machine
         .structural_places
         .iter()
@@ -69,13 +88,9 @@ pub(super) fn owned_state_parameter(
     (parameter.place == place
         && parameter.position == position
         && parameter.access == StructuralAccess::Owned
-        && matches!(
-            parameter.multiplicity,
-            terminal_psi::nonlinear_multiplicity_pair_pattern!()
-        )
         && parameter.qualifications.is_empty()
         && parameter.projected_qualifications.is_empty()
-        && super::structural_scalar_fields::has_empty_structural_custody(machine, place))
+        && super::structural_scalar_fields::has_unqualified_storage(machine, place))
     .then_some((block, parameter))
 }
 

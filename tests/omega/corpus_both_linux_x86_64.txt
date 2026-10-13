@@ -281,3 +281,20 @@ pass/collections/runtime_owned_array_projection_snapshot_exit built 16143ms exit
 
 # W2-19: scoped measured witness; all prior published rows preserved verbatim.
 pass/borrows/state_reference_scalar_snapshots built 12426ms exit:0 interpreter-exit:0 interpreter:agrees @1b7a573f2276
+pass/borrows/linear_call_result_shared_observation_exit built 12053ms exit:70 interpreter-exit:70 interpreter:agrees @815ea0247677
+pass/drops/runtime_named_linear_container_cleanup_exit built 9852ms exit:0 interpreter-exit:0 interpreter:agrees @815ea0247677
+pass/layouts/placed_view_call_custody checked 36577ms terminal-inspections:match @815ea0247677
+pass/ownership/linear_call_result_claims_exit built 8451ms exit:0 interpreter-exit:0 interpreter:agrees @815ea0247677
+pass/ownership/linear_call_result_members_fused_owner_exit built 8790ms exit:0 interpreter-exit:0 interpreter:agrees @815ea0247677
+pass/ownership/linear_call_result_place_assignment_exit built 8398ms exit:0 interpreter-exit:0 interpreter:agrees @815ea0247677
+pass/ownership/linear_computed_call_claim_transfers_exit built 10578ms exit:0 interpreter-exit:0 interpreter:agrees @815ea0247677
+pass/ownership/linear_qualified_call_result_claims built 9103ms exit:0 interpreter-exit:0 interpreter:agrees @815ea0247677
+pass/ownership/linear_state_graph_call_arguments_exit built 8417ms exit:0 interpreter-exit:0 interpreter:agrees @815ea0247677
+pass/ownership/linear_state_graph_claim_transport_exit built 8448ms exit:0 interpreter-exit:0 interpreter:agrees @815ea0247677
+pass/ownership/runtime_linear_case_payload_forward_exit built 8575ms exit:0 interpreter-exit:0 interpreter:agrees @815ea0247677
+pass/ownership/runtime_repeated_linear_result_forwarding_exit built 8667ms exit:0 interpreter-exit:0 interpreter:agrees @815ea0247677
+pass/providers/linear_structural_provider_pure_exit built 7341ms exit:0 interpreter-exit:0 interpreter:agrees @815ea0247677
+pass/providers/linear_structural_provider_return_exit built 8564ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @815ea0247677
+pass/providers/runtime_linear_provider_results_exit built 8890ms exit:0 interpreter-exit:0 interpreter:agrees @815ea0247677
+pass/traits/runtime_dyn_guarded_result_exit built 8165ms exit:0 interpreter-exit:0 interpreter:agrees @815ea0247677
+pass/ownership/linear_result_owners_residual_cleanup_exit built 9360ms exit:0 interpreter-exit:0 interpreter:agrees @b74df5e46260

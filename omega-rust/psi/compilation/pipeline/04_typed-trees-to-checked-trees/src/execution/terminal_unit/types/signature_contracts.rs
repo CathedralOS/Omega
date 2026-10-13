@@ -285,6 +285,17 @@ pub(in crate::execution::terminal_unit) fn qualification_carriers(
                             shapes.types.get(&identity)?.scalar_restriction.as_ref()?;
                             continue;
                         }
+                        // Carry is permission on the value's existing claims,
+                        // checked and retained by the carry channel. It names
+                        // no value-domain membership or runtime storage theory.
+                        TypeConstraintNode::Domain(domain)
+                            if matches!(
+                                domain.subject,
+                                typed_trees::types::DomainConstraintSubject::Carry(_)
+                            ) =>
+                        {
+                            continue;
+                        }
                         TypeConstraintNode::Domain(domain) => domain,
                         _ => return None,
                     };

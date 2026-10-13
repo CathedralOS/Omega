@@ -103,7 +103,7 @@ pub(super) fn store_destination(
         // verification admits an owned block parameter as write authority.
         .or_else(|| {
             let (block, parameter) =
-                super::primitive_storage::owned_state_parameter(machine, destination)?;
+                super::primitive_storage::owned_state_storage_parameter(machine, destination)?;
             (block != machine.entry).then(|| {
                 StructuralScalarStoreDestination::OwnedBlockParameter {
                     block,

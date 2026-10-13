@@ -47,6 +47,10 @@ pub(in crate::encoding::recovery) fn contract_fact(
             value: expression(reader)?,
             domain: nominal(reader)?,
         },
+        4 => PackageReviewContractFact::CarryMembership {
+            value: expression(reader)?,
+            permission: super::declarations::domains::carry_permission(reader)?,
+        },
         2 => PackageReviewContractFact::Proposition(proposition_application(reader)?),
         3 => PackageReviewContractFact::PropositionParameter(
             PackageReviewPropositionParameterApplication {
@@ -130,4 +134,34 @@ pub(in crate::encoding::recovery) fn evidence_interface(
             })
         })?,
     })
+}
+
+#[cfg(test)]
+mod codec_tests {
+    use super::super::PackagePolicyRecoveryLimits;
+    use super::*;
+    use crate::record::PackageReviewContractExpression;
+
+    #[test]
+    fn closed_carry_fact_recovers_without_a_nominal_domain() {
+        for (tag, permission) in language_semantics::CarryPermission::ALL
+            .into_iter()
+            .enumerate()
+        {
+            let bytes = [4, 3, tag as u8];
+            let mut reader = Reader::new(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
+            assert_eq!(
+                contract_fact(&mut reader).unwrap(),
+                PackageReviewContractFact::CarryMembership {
+                    value: PackageReviewContractExpression::Result,
+                    permission,
+                }
+            );
+            reader.finish().unwrap();
+        }
+        for bytes in [[4, 3, 4], [4, 3, 255], [5, 3, 0]] {
+            let mut reader = Reader::new(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
+            assert!(contract_fact(&mut reader).is_err());
+        }
+    }
 }

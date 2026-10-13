@@ -6,7 +6,7 @@
 //! catalog selection alone grants neither a provider nor a host adapter.
 
 use crate::capabilities::TerminalUnsupportedCapability;
-use crate::custody::{bind_structural_arguments, validate_boundary_requirements};
+use crate::custody::{bind_active_structural_arguments, validate_boundary_requirements};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, ResultClaimOrigin, TerminalExecution};
 use crate::program::AdmittedTerminalProgram;
@@ -137,7 +137,12 @@ impl TerminalExecution<'_> {
                 return Err(malformed());
             }
         }
-        bind_structural_arguments(&opaque_parameters, &opaque_values)?;
+        bind_active_structural_arguments(
+            &opaque_parameters,
+            &opaque_values,
+            &self.program.structural_types(),
+            &self.structural_cases,
+        )?;
         validate_boundary_requirements(head, |argument_index| {
             member
                 .structural_parameters

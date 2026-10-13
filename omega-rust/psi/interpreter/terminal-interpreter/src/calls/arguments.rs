@@ -113,7 +113,11 @@ impl TerminalExecution<'_> {
         // neighbors. External buffer staging is a separate later operation.
         let mut prepared = self
             .prepare_boundary_arguments(&opaque_parameters, &opaque_arguments)?
-            .into_call_arguments(&opaque_parameters)?;
+            .into_call_arguments(
+                &opaque_parameters,
+                &self.program.structural_types(),
+                &self.structural_cases,
+            )?;
         prepared.scalar_arrays = scalar_arrays;
         Ok(prepared)
     }

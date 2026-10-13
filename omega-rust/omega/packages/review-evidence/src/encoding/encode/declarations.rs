@@ -36,7 +36,9 @@ pub(crate) use dependency_trust::{
     unused_imports,
     reason = "retain every established declaration encoder entry point"
 )]
-pub(crate) use domains::{encode_domain_alias_atom, encode_domain_establishment_route};
+pub(crate) use domains::{
+    encode_carry_permission, encode_domain_alias_atom, encode_domain_establishment_route,
+};
 #[allow(
     unused_imports,
     reason = "retain every established declaration encoder entry point"

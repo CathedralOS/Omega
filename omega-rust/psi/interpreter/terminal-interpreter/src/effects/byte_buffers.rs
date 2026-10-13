@@ -4,7 +4,7 @@ mod writeback;
 use crate::byte_sequences::ByteSequenceView;
 use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::calls::arguments::StructuralCallArguments;
-use crate::custody::bind_structural_arguments;
+use crate::custody::bind_active_structural_arguments;
 use crate::effects::storage_loans::BoundaryStorageLoans;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
@@ -51,6 +51,11 @@ impl BoundaryArguments {
     pub(crate) fn into_call_arguments(
         mut self,
         parameters: &[StructuralParameterDeclaration],
+        types: &crate::program::ProgramDeclarations<'_, terminal_psi::StructuralTypeDeclaration>,
+        cases: &std::collections::BTreeMap<
+            crate::values::StructuralRuntimePlace,
+            crate::structural_inputs::case_membership::StructuralCaseContents,
+        >,
     ) -> Result<StructuralCallArguments, TerminalInterpretError> {
         if parameters.len() != self.byte_sequences.len()
             || parameters.len() != self.values.len()
@@ -70,7 +75,7 @@ impl BoundaryArguments {
                 value.absorb_qualifications(&parameter.qualifications);
             }
         }
-        let values = bind_structural_arguments(parameters, &self.values)?;
+        let values = bind_active_structural_arguments(parameters, &self.values, types, cases)?;
         let aggregate_backings = parameters
             .iter()
             .zip(self.aggregate_backings)

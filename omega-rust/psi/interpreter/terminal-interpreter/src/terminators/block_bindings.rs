@@ -29,9 +29,9 @@ use terminal_psi::{
 };
 
 use crate::byte_sequences::binding::ByteSequenceBinding;
+use crate::custody::bind_active_structural_arguments;
 use crate::custody::bind_affine_frontier;
 use crate::custody::bind_arguments;
-use crate::custody::bind_structural_arguments;
 use crate::custody::resolve_single_structural_argument;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{LiveClaim, TerminalExecution};
@@ -739,7 +739,12 @@ impl TerminalExecution<'_> {
                 value.absorb_qualifications(&parameter.qualifications);
             }
         }
-        let mut structural = bind_structural_arguments(descriptor_parameters, &resolved_arguments)?;
+        let mut structural = bind_active_structural_arguments(
+            descriptor_parameters,
+            &resolved_arguments,
+            &self.program.structural_types(),
+            &self.structural_cases,
+        )?;
         let mut bound_claims = BTreeMap::new();
         for parameter in descriptor_parameters {
             let catalogue = machine

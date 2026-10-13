@@ -71,7 +71,7 @@ pub(super) fn replay_installed_provider_calls(
                     &terminal_operation.result,
                     &boundary_declaration.result,
                     &candidate.result,
-                    &terminal_candidate.result,
+                    terminal_candidate,
                 )
                 || structural_arguments.len() != provider.signature.parameters.len()
                 || boundary_declaration.structural_parameters.len() != structural_arguments.len()
@@ -83,8 +83,12 @@ pub(super) fn replay_installed_provider_calls(
             // ordinary return-path correspondence instead of requiring a
             // claim-free result or manufacturing issuance from its type.
             if let terminal_psi::OperationResult::Structural(result) = &terminal_operation.result
-                && !terminal_semantics::result_claim_catalog_matches_returns(
-                    &result.claims,
+                && !terminal_semantics::result_claim_paths_match_returns(
+                    &result
+                        .claims
+                        .iter()
+                        .map(|row| row.path.clone())
+                        .collect::<Vec<_>>(),
                     terminal_candidate
                         .blocks
                         .iter()
@@ -220,9 +224,12 @@ fn replays_result(
     occurrence: &terminal_psi::OperationResult,
     boundary: &terminal_psi::BoundaryMachineResult,
     candidate: &AbstractFunctionResult,
-    terminal_candidate: &terminal_psi::TerminalMachineResult,
+    terminal_machine: &terminal_psi::TerminalMachine,
 ) -> bool {
-    match (occurrence, boundary, candidate, terminal_candidate) {
+    if !boundary.accepts_provider_result(&terminal_machine.result) {
+        return false;
+    }
+    match (occurrence, boundary, candidate, &terminal_machine.result) {
         (
             terminal_psi::OperationResult::Unit,
             terminal_psi::BoundaryMachineResult::Unit,
@@ -252,8 +259,8 @@ fn replays_result(
             candidate == terminal_candidate
                 && occurrence.structural_type == boundary.structural_type
                 && candidate.structural_type == boundary.structural_type
-                // The actual returning edge supplies claims separately; this
-                // declaration join cannot manufacture or discard that custody.
+                // The body carries actual return claims in its own namespace.
+                // Installation joins their typed paths, never numeric IDs.
                 && occurrence.multiplicity == boundary.multiplicity
                 && candidate.multiplicity == boundary.multiplicity
                 // Route-authorized ensures mint caller-side result

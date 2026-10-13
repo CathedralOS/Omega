@@ -1,4 +1,4 @@
-use super::super::declarations::encode_type_identity;
+use super::super::declarations::{encode_carry_permission, encode_type_identity};
 use super::super::encoder::Encoder;
 use crate::encoding::PackageReviewEncodingError;
 use crate::record::{
@@ -67,6 +67,16 @@ pub(crate) fn encode_contract_fact(
             encoder.tag("expression", 0);
             encoder.field("expression", |encoder| {
                 encode_contract_expression(encoder, expression)
+            })
+        }
+        PackageReviewContractFact::CarryMembership { value, permission } => {
+            encoder.tag("carry_membership", 4);
+            encoder.field("value", |encoder| {
+                encode_contract_expression(encoder, value)
+            })?;
+            encoder.field("permission", |encoder| {
+                encode_carry_permission(encoder, *permission);
+                Ok(())
             })
         }
         PackageReviewContractFact::Membership { value, domain } => {
@@ -194,4 +204,26 @@ pub(crate) fn encode_proposition_application(
         Ok(())
     })?;
     Ok(())
+}
+
+#[cfg(test)]
+mod codec_tests {
+    use super::*;
+    use crate::record::PackageReviewContractExpression;
+
+    #[test]
+    fn closed_carry_fact_has_stable_distinct_wire_tags() {
+        for (tag, permission) in language_semantics::CarryPermission::ALL
+            .into_iter()
+            .enumerate()
+        {
+            let fact = PackageReviewContractFact::CarryMembership {
+                value: PackageReviewContractExpression::Result,
+                permission,
+            };
+            let mut encoder = Encoder::bounded(3);
+            encode_contract_fact(&mut encoder, &fact).unwrap();
+            assert_eq!(encoder.finish().unwrap(), [4, 3, tag as u8]);
+        }
+    }
 }

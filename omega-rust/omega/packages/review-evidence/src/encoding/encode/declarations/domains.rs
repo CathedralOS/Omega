@@ -18,16 +18,7 @@ pub(crate) fn encode_domain_alias_atom(
         PackageReviewDomainAliasAtom::Carry(permission) => {
             encoder.tag("carry", 1);
             encoder.field("permission", |encoder| {
-                match permission {
-                    language_semantics::CarryPermission::AcrossSuspend => {
-                        encoder.tag("across_suspend", 0)
-                    }
-                    language_semantics::CarryPermission::AnyCpu => encoder.tag("any_cpu", 1),
-                    language_semantics::CarryPermission::AnyThread => encoder.tag("any_thread", 2),
-                    language_semantics::CarryPermission::MovableAddress => {
-                        encoder.tag("movable_address", 3)
-                    }
-                };
+                encode_carry_permission(encoder, *permission);
                 Ok(())
             })?;
             Ok(())
@@ -74,4 +65,17 @@ pub(crate) fn encode_domain_establishment_route(
                 encode_nominal(encoder, machine_identity)
             }),
     }
+}
+
+/// Shared closed permission encoding for alias atoms and contract facts.
+pub(crate) fn encode_carry_permission(
+    encoder: &mut Encoder,
+    permission: language_semantics::CarryPermission,
+) {
+    match permission {
+        language_semantics::CarryPermission::AcrossSuspend => encoder.tag("across_suspend", 0),
+        language_semantics::CarryPermission::AnyCpu => encoder.tag("any_cpu", 1),
+        language_semantics::CarryPermission::AnyThread => encoder.tag("any_thread", 2),
+        language_semantics::CarryPermission::MovableAddress => encoder.tag("movable_address", 3),
+    };
 }

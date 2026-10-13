@@ -1,0 +1,83 @@
+// Expected output: token=7, fresh=9, pair=45, choices=06 (one row each).
+use omega_language_std::console;
+use omega::language::core::binding;
+use omega::language::core::drop;
+
+pub data Token [linear] { value: i32 in Wrapping; }
+machine Token::drop(token: &mut Token) { token.value = 0; }
+pub domain Token::SuspensionSafe = Carry::AcrossSuspend;
+pub domain Token::Marked;
+pub data Pair { left: Token in Token::Marked; right: Token in Token::Marked; }
+pub data Envelope { pair: Pair; }
+pub data Choice { case Empty; case Held(token: Token in Token::Marked); }
+pub boundary trait TokenFlow {
+    machine forward(token: Token) -> Token ensures result in Token::SuspensionSafe;
+    machine replace(token: Token) -> Token;
+    machine pair() -> Envelope;
+    machine choose(held: bool) -> Choice;
+}
+data TokenProvider {}
+machine advance(token: Token) -> Token {
+    let mut moved: Token = token;
+    moved.value = moved.value + 3;
+    moved
+}
+machine TokenProvider::forward(token: Token) -> Token satisfies TokenFlow::forward {
+    advance(token)
+}
+machine TokenProvider::replace(token: Token) -> Token satisfies TokenFlow::replace {
+    drop(token);
+    Token { value: 9 }
+}
+machine TokenProvider::pair() -> Envelope satisfies TokenFlow::pair {
+    let left: Token in Token::Marked = Token { value: 4 };
+    let right: Token in Token::Marked = Token { value: 5 };
+    Envelope { pair: Pair { left: left, right: right } }
+}
+machine TokenProvider::choose(held: bool) -> Choice satisfies TokenFlow::choose {
+    transition held { true -> present() false -> absent() }
+    state present() -> Choice {
+        let token: Token in Token::Marked = Token { value: 6 };
+        Choice::Held { token: token }
+    }
+    state absent() -> Choice { Choice::Empty }
+}
+machine consume(token: Token) -> i32 {
+    let observed: i32 = token.value as i32;
+    drop(token);
+    observed
+}
+machine consume_marked(token: Token in Token::Marked) -> i32 {
+    let observed: i32 = token.value as i32;
+    drop(token);
+    observed
+}
+machine observe(choice: Choice) -> i32 {
+    transition choice { Choice::Empty -> 0 Choice::Held { token } -> finish(token) }
+    state finish(token: Token in Token::Marked) -> i32 { consume_marked(token) }
+}
+data Main { console: Binding<Console>; flow: Binding<TokenFlow>; }
+machine Main::main(main: &mut Main) reaches Console, TokenFlow {
+    let issued: Token in Token::SuspensionSafe = main.flow.forward(Token { value: 4 });
+    let observed: i32 = consume(issued);
+    let replaced: i32 = consume(main.flow.replace(Token { value: 1 }));
+    let nested: Envelope = main.flow.pair();
+    let left: i32 = consume_marked(nested.pair.left);
+    let right: i32 = consume_marked(nested.pair.right);
+    let absent: i32 = observe(main.flow.choose(false));
+    let present: i32 = observe(main.flow.choose(true));
+    transition observed == 7 && replaced == 9 && left == 4 && right == 5
+        && absent == 0 && present == 6 {
+        true -> report(main, observed, replaced, left, right, absent, present)
+        false -> bad(main)
+    }
+    state report(main: &mut Main, observed: i32, replaced: i32, left: i32, right: i32, absent: i32, present: i32)
+    requires observed == 7 && replaced == 9 && left == 4 && right == 5 && absent == 0 && present == 6 {
+        main.console.write("token="); main.console.write_byte(observed + 48); main.console.write_line("");
+        main.console.write("fresh="); main.console.write_byte(replaced + 48); main.console.write_line("");
+        main.console.write("pair="); main.console.write_byte(left + 48); main.console.write_byte(right + 48); main.console.write_line("");
+        main.console.write("choices="); main.console.write_byte(absent + 48); main.console.write_byte(present + 48); main.console.write_line("");
+        main.console.exit_process(0);
+    }
+    state bad(main: &mut Main) { main.console.exit_process(73); }
+}

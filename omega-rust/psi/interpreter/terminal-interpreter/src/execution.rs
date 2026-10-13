@@ -189,14 +189,13 @@ pub(crate) enum ResultClaimOrigin {
         head: BoundaryMachineId,
         member: MachineId,
     },
-    /// A selected checked provider returns actual custody. Its admitted
-    /// crossing may additionally establish authorized root qualifications.
+    /// A checked provider returns actual custody through an admitted boundary route.
     CheckedProvider,
 }
 
 impl ResultClaimOrigin {
     /// Whether `result` carries exactly the domains its callee returns: the
-    /// callee's declared result domains plus, for a checked-provider return, each
+    /// callee's declared result domains plus, for a checked boundary return, each
     /// domain the operation establishes through its admitted route. An
     /// ordinary callee return establishes nothing beyond its declaration.
     pub(crate) fn result_qualifications_match(
@@ -227,7 +226,10 @@ impl ResultClaimOrigin {
         result: &terminal_psi::StructuralOperationResult,
         declared: &[terminal_psi::StructuralPathQualification],
     ) -> bool {
-        if matches!(self, Self::TargetFamilyReturn { .. }) {
+        if matches!(
+            self,
+            Self::TargetFamilyReturn { .. } | Self::CheckedProvider
+        ) {
             result
                 .projected_qualifications
                 .iter()

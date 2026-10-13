@@ -427,6 +427,36 @@ pub(crate) fn bind_boundary_arguments(
     Ok(())
 }
 
+/// A parameter declares the possible projected roster; only authenticated active
+/// case paths require evidence for this invocation. Entry binding without case
+/// backing continues to use the strict binder below.
+pub(crate) fn bind_active_structural_arguments(
+    parameters: &[StructuralParameterDeclaration],
+    arguments: &[TerminalStructuralValue],
+    types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
+    cases: &BTreeMap<
+        StructuralRuntimePlace,
+        crate::structural_inputs::case_membership::StructuralCaseContents,
+    >,
+) -> Result<BTreeMap<PlaceId, TerminalStructuralValue>, TerminalInterpretError> {
+    if parameters.len() != arguments.len() {
+        return bind_structural_arguments(parameters, arguments);
+    }
+    let mut active_parameters = parameters.to_vec();
+    for (parameter, argument) in active_parameters.iter_mut().zip(arguments) {
+        let mut active = Vec::new();
+        for row in &parameter.projected_qualifications {
+            if crate::structural_inputs::case_membership::case_projection_in_value_is_active(
+                types, argument, cases, &row.path,
+            )? {
+                active.push(row.clone());
+            }
+        }
+        parameter.projected_qualifications = active;
+    }
+    bind_structural_arguments(&active_parameters, arguments)
+}
+
 pub(crate) fn bind_structural_arguments(
     parameters: &[StructuralParameterDeclaration],
     arguments: &[TerminalStructuralValue],

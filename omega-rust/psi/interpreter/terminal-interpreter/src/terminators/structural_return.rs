@@ -257,6 +257,33 @@ impl TerminalExecution<'_> {
                     .projected_qualifications
                     .clone_from(&result.projected_qualifications);
             }
+            // A checked provider can retain stronger projected memberships.
+            // Its own returning edge already authenticated them. Reveal only
+            // the public boundary roster, without adding any membership or
+            // changing the returned claims, backing, or carried ownership.
+            if let Some(SuspendedCall {
+                result:
+                    SuspendedCallResult::Structural {
+                        result,
+                        claim_origin: crate::execution::ResultClaimOrigin::CheckedProvider,
+                        ..
+                    },
+                ..
+            }) = self.call_stack.last()
+            {
+                let mut active = Vec::new();
+                for row in &result.projected_qualifications {
+                    if crate::structural_inputs::case_membership::case_projection_in_value_is_active(
+                        &self.program.structural_types(), &value, &self.structural_cases, &row.path,
+                    )? {
+                        if !value.projected_qualifications.contains(row) {
+                            return Err(malformed());
+                        }
+                        active.push(row.clone());
+                    }
+                }
+                value.projected_qualifications = active;
+            }
             let byte_sequence = byte_sequence.map(|binding| match binding {
                 ByteSequenceBinding::Immutable(view) => {
                     ByteSequenceBinding::Immutable(view.with_descriptor_home(value.clone()))

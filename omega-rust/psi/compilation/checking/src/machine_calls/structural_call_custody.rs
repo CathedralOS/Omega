@@ -400,6 +400,13 @@ pub fn structural_result_contract(
             let TypeConstraintNode::Domain(domain) = constraint else {
                 return Err("structural result has an unsupported qualification");
             };
+            // Carry permission travels with claim custody, not value membership.
+            if matches!(
+                domain.subject,
+                typed_trees::types::DomainConstraintSubject::Carry(_)
+            ) {
+                continue;
+            }
             if !domain.semantic_id.is_valid() {
                 return Err("structural result qualification has no exact identity");
             }
@@ -459,6 +466,13 @@ pub fn view_result_carrier_qualifications(
                     let TypeConstraintNode::Domain(domain) = constraint else {
                         return Err("view result has an unsupported qualification");
                     };
+                    // Carry permission travels with claim custody, not value membership.
+                    if matches!(
+                        domain.subject,
+                        typed_trees::types::DomainConstraintSubject::Carry(_)
+                    ) {
+                        continue;
+                    }
                     if !domain.semantic_id.is_valid() {
                         return Err("view result qualification has no exact identity");
                     }
@@ -479,7 +493,7 @@ pub fn view_result_carrier_qualifications(
 
 /// Reconstruct exact nested domain rows from a source structural type. Root
 /// constraints remain owned by `structural_result_qualifications`; this route
-/// emits finite record/fixed-index paths and rejects malformed spans.
+/// emits finite record, guarded case payload, and fixed-index paths and rejects malformed spans.
 pub fn structural_result_projected_qualifications(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
@@ -525,6 +539,13 @@ pub fn structural_qualification_contract(
                     let TypeConstraintNode::Domain(domain) = constraint else {
                         continue;
                     };
+                    // Carry permission travels with claim custody, not value membership.
+                    if matches!(
+                        domain.subject,
+                        typed_trees::types::DomainConstraintSubject::Carry(_)
+                    ) {
+                        continue;
+                    }
                     if !domain.semantic_id.is_valid() {
                         return Err("projected qualification has no exact identity");
                     }
@@ -621,10 +642,24 @@ pub fn structural_qualification_contract(
                     return Ok(());
                 }
                 active.push(reference);
-                for member in program.data_members(record) {
-                    let Some(field) = member.as_field() else {
-                        continue;
-                    };
+                let mut fields = program
+                    .data_members(record)
+                    .iter()
+                    .filter_map(|member| member.as_field().map(|field| (None, field)))
+                    .collect::<Vec<_>>();
+                for variant in program
+                    .data_members(record)
+                    .iter()
+                    .filter_map(|member| member.as_variant())
+                {
+                    fields.extend(
+                        program
+                            .data_payload_fields(variant)
+                            .iter()
+                            .map(|field| (Some(variant), field)),
+                    );
+                }
+                for (case, field) in fields {
                     if field.relevance.is_erased()
                         || program
                             .primitive_type_reference(field.type_reference)
@@ -638,6 +673,14 @@ pub fn structural_qualification_contract(
                             .is_some()
                     {
                         continue;
+                    }
+                    if let Some(case) = case {
+                        path.push(CheckedUnitStructuralPathSegment::Case(
+                            checked_trees::CheckedMemberIdentity::of_member(
+                                case.identity,
+                                case.name.clone(),
+                            ),
+                        ));
                     }
                     path.push(CheckedUnitStructuralPathSegment::Field(
                         checked_trees::CheckedMemberIdentity::of_member(
@@ -655,6 +698,9 @@ pub fn structural_qualification_contract(
                         active,
                     )?;
                     path.pop();
+                    if case.is_some() {
+                        path.pop();
+                    }
                 }
                 active.pop();
                 Ok(())

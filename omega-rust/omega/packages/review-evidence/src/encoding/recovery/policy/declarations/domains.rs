@@ -6,12 +6,7 @@ pub(in crate::encoding::recovery) fn alias_atom(
 ) -> Result<PackageReviewDomainAliasAtom, Error> {
     Ok(super::super::tag!(reader => {
         0 => PackageReviewDomainAliasAtom::Declared(nominal(reader)?),
-        1 => PackageReviewDomainAliasAtom::Carry(super::super::tag!(reader => {
-            0 => language_semantics::CarryPermission::AcrossSuspend,
-            1 => language_semantics::CarryPermission::AnyCpu,
-            2 => language_semantics::CarryPermission::AnyThread,
-            3 => language_semantics::CarryPermission::MovableAddress,
-        })),
+        1 => PackageReviewDomainAliasAtom::Carry(carry_permission(reader)?),
     }))
 }
 
@@ -32,5 +27,16 @@ pub(in crate::encoding::recovery) fn establishment_route(
         2 => PackageReviewDomainEstablishmentRoute::ExactMachine {
             machine_identity: nominal(reader)?,
         },
+    }))
+}
+
+pub(in crate::encoding::recovery) fn carry_permission(
+    reader: &mut Reader<'_>,
+) -> Result<language_semantics::CarryPermission, Error> {
+    Ok(super::super::tag!(reader => {
+        0 => language_semantics::CarryPermission::AcrossSuspend,
+        1 => language_semantics::CarryPermission::AnyCpu,
+        2 => language_semantics::CarryPermission::AnyThread,
+        3 => language_semantics::CarryPermission::MovableAddress,
     }))
 }

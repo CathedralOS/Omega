@@ -16,7 +16,7 @@ use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::emit_direct_expression;
 use crate::expression_preparation::bindings::structural_paths::{
-    lower_structural_path, structural_access_can_supply, structural_argument, terminal_access,
+    lower_typed_argument_path, structural_access_can_supply, structural_argument, terminal_access,
 };
 use crate::expression_preparation::bindings::{
     StructuralLocalBinding, StructuralScalarFieldBinding,
@@ -806,7 +806,18 @@ pub(crate) fn lower_projected_qualifications(
             if row.path.is_empty() {
                 return unsupported("projected qualification has an empty path");
             }
-            let path = lower_structural_path(identities, &row.path)?;
+            // Case identities are local to the exact sum declaration. Resolve the
+            // static qualification path against its carrier through the shared
+            // typed projection route; no runtime selectors are available here.
+            let path = lower_typed_argument_path(
+                identities,
+                &row.path,
+                root,
+                structural_types,
+                None,
+                &mut std::iter::empty(),
+                None,
+            )?;
             let carrier = terminal_semantics::runtime_structural_path_tip(
                 structural_types.iter(),
                 root,

@@ -316,18 +316,10 @@ pub(super) fn checked_unit_provider_candidates(
                             "provider result disagrees with its structural boundary requirement",
                         );
                     };
-                    // The requirement's result qualifications and argument
-                    // domain requirements are minted on the caller side by the
-                    // checked boundary plan and its claim transfers; the
-                    // selected conformance has already joined the provider's
-                    // own contract to them. The provider's declared result
-                    // must still be the exact carrier, and any qualifications
-                    // it declares itself must be authorized by the requirement.
-                    // Multiplicity describes result custody, not a second
-                    // provider execution route. The ordinary body lowers its
-                    // returning edge's current claims through lower_return_claims;
-                    // a linear carrier cannot bypass that operation or mint
-                    // claims merely by entering this candidate catalog.
+                    // Conformance authorizes boundary result qualifications.
+                    // Ownership comes from the selected ordinary body's actual
+                    // return claims, joined by typed path at installation and
+                    // transferred through its ordinary call continuation.
                     if result.type_identity != *type_identity
                         || result.multiplicity != *multiplicity
                         || projected_qualifications

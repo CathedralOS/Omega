@@ -33,6 +33,9 @@ pub(in crate::record) fn fact(
 ) -> Result {
     match value {
         PackageReviewContractFact::Expression(value) => expression(value, scope, nesting)?,
+        PackageReviewContractFact::CarryMembership { value, .. } => {
+            expression(value, scope, nesting)?
+        }
         PackageReviewContractFact::Membership { value, domain } => {
             nominal(domain)?;
             expression(value, scope, nesting)?;

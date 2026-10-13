@@ -11,7 +11,7 @@ use crate::record::{
     PackageReviewResultCaseIdentity,
 };
 use diagnostics::Diagnostic;
-use symbols::SymbolHandle;
+use symbols::{JoinedPath, SymbolHandle};
 
 pub(crate) struct ContractProjectionContext<'a> {
     pub(crate) subject_kind: &'static str,
@@ -159,34 +159,62 @@ pub(crate) fn project_contracts(
                         compilation.checking_input,
                         membership,
                     )?;
-                    let domain = compilation
-                        .domain_definition(membership.domain_symbol)
-                        .ok_or_else(|| {
-                            vec![Diagnostic::error(format!(
-                                "reviewed {} `{}` contract refers to an unresolved domain",
-                                context.subject_kind, context.subject_name
-                            ))]
-                        })?;
-                    let domain_identity = nominal_identity(compilation, domain.symbol)?;
-                    if context.requires_public_nominals()
-                        && reviewed_package_owns(&domain_identity, reviewed_package)?
-                        && !domain.is_public
-                    {
-                        return Err(vec![Diagnostic::error(format!(
-                            "reviewed {} `{}` exposes non-public domain `{}` in its contract",
-                            context.subject_kind, context.subject_name, domain.name
-                        ))]);
-                    }
-                    PackageReviewContractFact::Membership {
-                        value: project_contract_expression(
-                            compilation,
-                            context,
-                            binders,
-                            membership.value,
-                            Some(fact_handle),
-                            0,
-                        )?,
-                        domain: domain_identity,
+                    // Typing expands Carry aliases to one closed compiler
+                    // permission. Such a fact has no nominal domain symbol;
+                    // inventing one would lose its meaning and ownership.
+                    // Symbol-backed declarations retain the ordinary exact
+                    // nominal projection, even if their spelling resembles Carry.
+                    let carry = (!membership.domain_symbol.is_valid())
+                        .then(|| {
+                            language_semantics::CarryPermission::from_name(
+                                &compilation
+                                    .domain_path_members(membership.domain)
+                                    .joined_path(),
+                            )
+                        })
+                        .flatten();
+                    if let Some(permission) = carry {
+                        PackageReviewContractFact::CarryMembership {
+                            value: project_contract_expression(
+                                compilation,
+                                context,
+                                binders,
+                                membership.value,
+                                Some(fact_handle),
+                                0,
+                            )?,
+                            permission,
+                        }
+                    } else {
+                        let domain = compilation
+                            .domain_definition(membership.domain_symbol)
+                            .ok_or_else(|| {
+                                vec![Diagnostic::error(format!(
+                                    "reviewed {} `{}` contract refers to an unresolved domain",
+                                    context.subject_kind, context.subject_name
+                                ))]
+                            })?;
+                        let domain_identity = nominal_identity(compilation, domain.symbol)?;
+                        if context.requires_public_nominals()
+                            && reviewed_package_owns(&domain_identity, reviewed_package)?
+                            && !domain.is_public
+                        {
+                            return Err(vec![Diagnostic::error(format!(
+                                "reviewed {} `{}` exposes non-public domain `{}` in its contract",
+                                context.subject_kind, context.subject_name, domain.name
+                            ))]);
+                        }
+                        PackageReviewContractFact::Membership {
+                            value: project_contract_expression(
+                                compilation,
+                                context,
+                                binders,
+                                membership.value,
+                                Some(fact_handle),
+                                0,
+                            )?,
+                            domain: domain_identity,
+                        }
                     }
                 }
                 ProofFact::Proposition(application) => project_contract_proposition(

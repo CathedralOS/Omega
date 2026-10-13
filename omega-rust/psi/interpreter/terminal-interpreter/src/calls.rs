@@ -10,7 +10,7 @@ pub(crate) mod frames;
 pub(crate) mod target_families;
 
 use crate::custody::{
-    bind_arguments, bind_boundary_arguments, bind_structural_arguments, complete_claims,
+    bind_active_structural_arguments, bind_arguments, bind_boundary_arguments, complete_claims,
     remove_affine_root, validate_boundary_requirements,
 };
 use crate::effects::results::TerminalEffectResult;
@@ -391,21 +391,23 @@ impl TerminalExecution<'_> {
                 &opaque_parameters,
                 &select_positions(structural_arguments, &opaque_positions)?,
             )?;
-            bind_structural_arguments(&opaque_parameters, &boundary_arguments.values)?;
+            bind_active_structural_arguments(
+                &opaque_parameters,
+                &boundary_arguments.values,
+                &self.program.structural_types(),
+                &self.structural_cases,
+            )?;
             validate_boundary_requirements(boundary_declaration, |index| {
                 opaque_positions
                     .iter()
                     .position(|position| *position == index)
                     .and_then(|position| boundary_arguments.values.get(position))
             })?;
-            // One installed provider call shares the exact frame each result
-            // form already uses for an ordinary callee. Scalar results carry
-            // no structural custody to restrict: the callee's declared scalar
-            // result type is checked against the operation result at entry.
-            // Structural results use ordinary returned-path custody, including
-            // claims below affine records. Root domains introduced by the exact
-            // admitted crossing remain separate from those actual claims;
-            // neither multiplicity nor provider selection mints an owner.
+            // Checked providers use ordinary call frames and return custody.
+            // The admitted route may introduce whole-value qualifications;
+            // projected qualifications must match the actual callee signature.
+            // The shared frame binder checks both, including result type and
+            // multiplicity. No result capability is inferred from a host value.
             let Some(crate::effects::AdmittedBoundarySupply::CheckedProvider(callee_id)) = supply
             else {
                 return Err(TerminalInterpretError::ProviderInstallationMissing(
@@ -415,6 +417,8 @@ impl TerminalExecution<'_> {
             let callee = self.program.verified_machine(callee_id)?;
             let mut prepared_arguments = boundary_arguments.into_call_arguments(
                 &select_positions(&callee.structural_parameters, &opaque_positions)?,
+                &self.program.structural_types(),
+                &self.structural_cases,
             )?;
             for position in owned_arrays {
                 let formal = callee
@@ -483,9 +487,11 @@ impl TerminalExecution<'_> {
             structural_arguments,
             handler.storage_arguments(boundary),
         )?;
-        bind_structural_arguments(
+        bind_active_structural_arguments(
             &boundary_declaration.structural_parameters,
             &boundary_arguments.values,
+            &self.program.structural_types(),
+            &self.structural_cases,
         )?;
         validate_boundary_requirements(boundary_declaration, |index| {
             boundary_arguments.values.get(index)

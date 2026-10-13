@@ -6807,3 +6807,15 @@ fail/calls/closed_constructor_unused_divergence_unknown rejected 2055ms expected
 	specification call `Point::zero` is not denotational: the selected machine is not unconditionally terminating
 fail/calls/closed_constructor_unused_mutual_divergence_unknown rejected 1753ms expected @197e7e7ec2b9
 	specification call `Point::zero` is not denotational: the selected machine is not unconditionally terminating
+fail/providers/carry_external_issuance_unadmitted rejected 294ms expected @3e583b96cb82
+	external machine `issue` cannot directly admit carry permission `Carry::AcrossSuspend`; publish it on an owner-authorized boundary trait requirement and satisfy that requirement through the provider
+fail/providers/linear_provider_carry_forgetting rejected 890ms expected @3e583b96cb82
+	call to `park` may suspend while `forgotten` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/providers/linear_provider_stronger_nominal_result rejected 774ms expected @3e583b96cb82
+	machine `Provider::issue` state `issue` does not satisfy trait `Flow` machine `issue`: expected return `Box<Token>`, got `Box<Token in Token::Marked>`
+fail/providers/linear_structural_provider_duplicate rejected 517ms expected @3e583b96cb82
+	cannot use `issued` in machine `Harness::duplicate` state `duplicate` (statement 2) after `issued` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `issued` first
+fail/providers/linear_structural_provider_missing_disposition rejected 867ms expected @3e583b96cb82
+	linear value `issued` reaches scope exit without being consumed or transferred
+pass/providers/linear_structural_provider_pure_exit checked 9369ms check-target:linux_x86_64 @3e583b96cb82
+pass/providers/linear_structural_provider_return_exit checked 10925ms check-target:linux_x86_64 @3e583b96cb82
