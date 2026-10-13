@@ -7,10 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# W2-17 scoped observations: wire qualification; prior rows preserved.
-# prior context: {"cpus": 10, "jobs": "3", "load1_end": 11.93, "load1_start": 7.22, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
-# prior context: {"cpus": 10, "jobs": "3", "load1_end": 4.25, "load1_start": 4.19, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
-# context: {"cpus": 5, "jobs": "4", "load1_end": 0.23, "load1_start": 0.08, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "3", "load1_end": 7.13, "load1_start": 7.23, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 835ms expected @a9ae30e1c334+wt
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -2401,6 +2398,13 @@ fail/generics/static_callable_local_type_argument_wrong_value rejected 828ms exp
 	argument `value` for state `Routine` expects `Context`, got `integer literal`
 fail/generics/static_callable_unused_local_type_argument_missing rejected 819ms expected @a9ae30e1c334+wt
 	call `Routine` has an invalid static type argument correspondence
+fail/generics/static_requirement_record_blocking_ceiling rejected 1313ms expected @b338d531fce8
+	machine `wrap` omits `blocks;` from its published contract, but its body may block
+fail/generics/static_requirement_record_public_requires rejected 2291ms expected @b338d531fce8
+	cannot prove requires contract for call calculate from wrap: value > 0.0 (needs fact `value > 0.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+	cannot prove requires contract for call calculate from wrap$specialized$7aca5590afe02521$0: value > 0.0 (needs fact `value > 0.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/generics/static_requirement_record_wrong_conformance rejected 594ms expected @b338d531fce8
+	generic machine `wrap` cannot bind `Operations` to conformance `Integer`: expected a complete `Arithmetic` implementation with the instantiated trait arguments
 fail/generics/structured_const_ineligible_float_field rejected 20ms expected @a9ae30e1c334+wt
 	const argument for `Indexed::I` is invalid at this index site: `f64` is not eligible as a const index: runtime floating/text identity is not canonical structural data
 fail/generics/structured_const_rat_unreduced rejected 57ms expected @a9ae30e1c334+wt
@@ -4716,8 +4720,7 @@ pass/comptime/selected_float_array_length_exit checked 21625ms check-target:maco
 pass/comptime/selected_float_array_length_layout_query_exit checked 8492ms check-target:macos_arm64 @b016b7e0a226
 pass/concurrency/boundary_suspension_inline_completion_exit checked 11498ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/concurrency/runtime_array_loan_suspension_exit checked 10498ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/concurrency/runtime_retained_reference_boundary_exit incomplete 1995ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @af6b0f221559+wt
-	`Main::main` has no executable body: this compiler does not lower a state of it yet (statement sequence: returned carrier releases)
+pass/concurrency/runtime_retained_reference_boundary_exit checked 4943ms check-target:macos_arm64 @46b51224f047+wt
 pass/concurrency/runtime_returned_carrier_suspension_exit checked 10790ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/concurrency/runtime_suspension_repeated_actual_exit checked 11619ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/concurrency/runtime_zero_extent_carry_exit checked 12265ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5469,6 +5472,7 @@ pass/generics/runtime_nested_array_extent_binder_exit checked 5585ms check-targe
 pass/generics/runtime_nested_generic_instantiations_exit checked 12950ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/runtime_qualified_closed_equation_exit checked 5819ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/generics/runtime_selected_operator_body_exit checked 12237ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/generics/runtime_static_requirement_complex_composition_exit checked 17350ms check-target:macos_arm64 @b338d531fce8
 pass/generics/runtime_symbolic_receiver_extent_exit checked 11324ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/runtime_value_generic_subject_exit checked 12414ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/static_callable_local_type_argument_exit checked 11056ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5834,8 +5838,7 @@ pass/ownership/runtime_local_subslice_element_window_exit checked 11233ms check-
 pass/ownership/runtime_mutable_selector_window_exit checked 10846ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_nested_borrowed_consumption_exit checked 11482ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_nested_projected_claim_return_exit checked 11063ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/ownership/runtime_owned_carried_loan_extract_transform_exit incomplete 5768ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	`Main::main` calls `extract`; `extract` has no executable body: this compiler does not lower its declaration of it yet (service reach)
+pass/ownership/runtime_owned_carried_loan_extract_transform_exit checked 5953ms check-target:macos_arm64 @46b51224f047+wt
 pass/ownership/runtime_owned_parameter_restoration_exit checked 11625ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_partial_linear_record_case_cleanup_exit checked 10927ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_projected_constructor_operands_exit checked 11655ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6526,8 +6529,7 @@ pass/text/runtime_element_guard_bounds_parse_exit checked 11540ms check-target:m
 pass/text/runtime_inline_byte_case_values_exit checked 3383ms check-target:macos_arm64 @4dc4eabb2a0d+wt
 pass/text/runtime_later_arm_guard_reads_exit checked 12030ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/runtime_mixed_byte_field_equality_exit checked 11442ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/text/runtime_mutable_string_parameter_concat_write_line incomplete 5817ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	`Main::main` has no executable body: this compiler does not lower a state of it yet (state graph: state signature: parameter custody shape: qualified non-linear parameter)
+pass/text/runtime_mutable_string_parameter_concat_write_line checked 5844ms check-target:macos_arm64 @46b51224f047+wt
 pass/text/runtime_number_to_decimal_exit checked 11709ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/runtime_owned_string_byte_view_exit checked 11252ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/runtime_param_domain_forward_exit checked 11252ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6691,13 +6693,3 @@ run/stores/runtime_float_indexed_call_result_exit checked 8854ms check-target:ma
 run/stores/runtime_float_store_selector_snapshot_exit checked 8082ms check-target:macos_arm64 @589aedee8ebc+wt
 run/variant_decimal_runtime_division checked 11419ms check-target:linux_x86_64 @a9ae30e1c334+wt
 run/variant_record_normalization_repeats checked 13906ms check-target:linux_x86_64 @a9ae30e1c334+wt
-
-# W2-13: scoped closed scalar requirement composition qualification.
-pass/generics/runtime_static_requirement_complex_composition_exit checked 17350ms check-target:macos_arm64 @b338d531fce8
-fail/generics/static_requirement_record_blocking_ceiling rejected 1313ms expected @b338d531fce8
-	machine `wrap` omits `blocks;` from its published contract, but its body may block
-fail/generics/static_requirement_record_public_requires rejected 2291ms expected @b338d531fce8
-	cannot prove requires contract for call calculate from wrap: value > 0.0 (needs fact `value > 0.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-	cannot prove requires contract for call calculate from wrap$specialized$7aca5590afe02521$0: value > 0.0 (needs fact `value > 0.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/generics/static_requirement_record_wrong_conformance rejected 594ms expected @b338d531fce8
-	generic machine `wrap` cannot bind `Operations` to conformance `Integer`: expected a complete `Arithmetic` implementation with the instantiated trait arguments

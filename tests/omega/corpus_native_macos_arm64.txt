@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "3", "load1_end": 13.04, "load1_start": 12.27, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "3", "load1_end": 7.04, "load1_start": 7.13, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -660,6 +660,7 @@ pass/comptime/runtime_const_array_length_transitive_exit built 635ms exit:70
 pass/comptime/runtime_const_measured_recursion_exit built 838ms exit:70 @090ae6660c7+wt
 pass/comptime/selected_float_array_length_exit built 19703ms exit:70 @4ffd613e37f1
 pass/comptime/selected_float_array_length_layout_query_exit built 14634ms exit:70 @b016b7e0a226
+pass/concurrency/runtime_retained_reference_boundary_exit built 4878ms exit:0 @46b51224f047+wt
 pass/concurrency/suspend_after_last_use_compile checked 203ms
 pass/concurrency/suspend_explicit_parameter_after_last_use checked 985ms @9beb2be72f2d+wt
 pass/constants/runtime_scoped_const_exit built 579ms exit:70
@@ -1419,6 +1420,7 @@ pass/ownership/runtime_generic_linear_case_restore_exit built 3656ms exit:0 @736
 pass/ownership/runtime_known_case_scalar_call_exit built 1656ms exit:0 @a2adbadfe3b3+wt
 pass/ownership/runtime_linear_case_payload_forward_exit built 1664ms exit:0 @332ced10410b+wt
 pass/ownership/runtime_nested_projected_claim_return_exit built 1631ms exit:0 @cd27c16e2c35
+pass/ownership/runtime_owned_carried_loan_extract_transform_exit built 5887ms exit:42 @46b51224f047+wt
 pass/ownership/runtime_repeated_linear_result_forwarding_exit built 1508ms exit:0 @6605065c28a7
 pass/ownership/runtime_retained_alias_referent_transform_exit built 4837ms exit:42 @9dd545defbc0
 pass/ownership/runtime_selected_reference_local_exit built 7447ms exit:0 @4a00cf9908d9+wt
@@ -1852,7 +1854,7 @@ pass/text/runtime_decimal_scalar_across_output_exit built 14077ms exit:70 stdout
 pass/text/runtime_element_guard_bounds_parse_exit built 1706ms exit:70 @954364ed064e
 pass/text/runtime_later_arm_guard_reads_exit built 1892ms exit:70 @954364ed064e
 pass/text/runtime_mixed_byte_field_equality_exit built 2672ms exit:70 @11b293f8af86+wt
-pass/text/runtime_mutable_string_parameter_concat_write_line built 1528ms exit:77 stdout:match @047fd5361962+wt
+pass/text/runtime_mutable_string_parameter_concat_write_line built 5944ms exit:77 stdout:match @46b51224f047+wt
 pass/text/runtime_number_to_decimal_exit built 4388ms exit:70 @d6b32df9b098
 pass/text/runtime_owned_string_byte_view_exit built 3811ms exit:70 @4ffed225fc45+wt
 pass/text/runtime_param_domain_forward_exit built 789ms exit:70 @7f80f93fd214+wt
