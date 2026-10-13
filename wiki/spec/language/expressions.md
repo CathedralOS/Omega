@@ -323,6 +323,37 @@ result-type-directed operator selection. The same collection-parameter rule
 applies to a static range-slicing machine; existing core collection adaptations
 remain valid.
 
+### Borrowed range access
+
+For core collections, a bare range `items[start..end]` forms a shared view
+when received as a reference. Creating a mutable subrange requires explicit
+`&mut items[start..end]`. The source must already permit exclusive access;
+the spelling cannot grant mutation through a shared ancestor. This rule,
+`bare-range-reference-access`, applies uniformly to local initializers, call
+arguments, state transfers, returned values and constructed fields. An expected
+`&mut [T]` type never inserts the mutable borrow, including on a local declaration.
+
+```omega
+let shared: &[u8] = view[2..4];
+let writable: &mut [u8] = &mut view[2..4];
+// Rejected: let writable: &mut [u8] = view[2..4];
+```
+
+The examples are alternative borrows; simultaneous overlapping loans still
+obey ordinary compatibility rules. The result retains its exact backing,
+extent, access and lifetime. This adds no result-type-directed operator
+selection and does not change the declared result of an ordinary selected
+machine. Collection-parameter adaptation above is distinct from creating a
+mutable result view.
+
+An existing mutable reference may still be forwarded under ordinary argument,
+move and reborrow rules: `process(writable)` need not spell `&mut` again merely
+because the parameter expects `&mut [u8]`. The explicit-new-loan rule does not
+copy an exclusive reference or extend its lifetime. Bounds and loan obligations
+are unchanged, including for empty ranges.
+
+### Range endpoints
+
 `a..b` is exclusive; `a..=b` is inclusive. Open forms are `a..`, `..b`, and `..`.
 Omitted endpoints use zero and collection length. Inclusive ranges normalize
 to `a..(b+1)`: exclusive end validity is `b <= len`, inclusive end validity is

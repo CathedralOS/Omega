@@ -3470,9 +3470,16 @@ of a check the same flow already performed, not the check itself.
   constant-recipe failure still masks its intended obligation; resolve it without
   repinning to that failure. Its portable recipe dependency remains with
   **PROVIDER-SELECTION-AFTER-TERMINAL**; target-selected folds must not become
-  checking inputs. `shared_subslice_state_cannot_lend_mutable` rejects again (`e678c5aaea1`);
-  only the declaration-binding half of `bare-range-reference-access` in
-  `OWNER_QUESTIONS.md` remains OWNER-BLOCKED, not the remaining qualification.
+  checking inputs. `shared_subslice_state_cannot_lend_mutable` rejects again (`e678c5aaea1`).
+  Remove declaration-only implicit mutable range formation under
+  [explicit mutable range access](wiki/spec/language/expressions.md#borrowed-range-access).
+  Migrate mutable range initializers to `&mut collection[start..end]`, including
+  `samples/cli/probes/subslice_element_ops`; normalize access before freezing,
+  without receiving-site exceptions. Acceptance: explicit mutable subranges
+  execute and existing mutable references forward unchanged; bare ranges reject
+  at mutable local, call, state, return and field destinations, and shared
+  backing never grants mutable access. Retain the existing shared-range refusal
+  controls and bounds/loan checks. This is settled implementation work.
   Keep portable callback refinement with
   **PSI-TARGET-FAMILIES**. Full qualification must retain the portable callback's
   first-member-only guarantee refusal and the inverted-distance

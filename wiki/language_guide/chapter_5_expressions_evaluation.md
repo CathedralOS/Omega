@@ -290,6 +290,33 @@ Text ranges count bytes. Character and grapheme indexing need separate
 operations. See [range formation](../spec/language/expressions.md#indexing-and-ranges)
 and [collection bounds](../spec/language/numeric_values.md#collection-bounds).
 
+### Creating And Forwarding Mutable Views
+
+Creating a mutable subrange explicitly requests a mutable borrow:
+
+```omega
+machine clear(window: &mut [u8])
+requires window.len > 0
+{
+    window[0] = 0;
+}
+
+machine edit(view: &mut [u8])
+requires view.len >= 4
+{
+    let middle: &mut [u8] = &mut view[2..4];
+    clear(middle); // Forward the existing mutable reference.
+}
+```
+
+Without `&mut`, the range is a shared view. Writing
+`let middle: &mut [u8] = view[2..4];` rejects: the annotation does not request
+a mutable borrow implicitly. The same rule applies when passing a range
+directly, returning it, transferring it to a state or storing it in a field.
+Neither form can exceed the backing's authority or bypass overlapping-loan
+checks. Local type annotations remain explicit; this borrowing decision does
+not introduce annotation-free `let` declarations.
+
 ## Numeric Semantics
 
 Machine integer arithmetic is Exact by default: each operation must be proved

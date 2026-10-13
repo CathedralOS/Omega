@@ -59,8 +59,13 @@ length check is a defensive check, not a substitute for verified bounds.
 A subslice uses a structural operation-result place with the same borrowed-byte
 type and no claims or qualifications. Shared descriptors are unrestricted;
 mutable descriptors are affine and retain exact mutable authority through
-every source link. Equal endpoints, including an empty suffix, still require
-both proof legs. The descriptor becomes available after its producer and can
+every source link. Source elaboration applies
+[explicit mutable range formation](../language/expressions.md#borrowed-range-access)
+before publishing this access: a receiving `&mut` annotation cannot upgrade a
+bare range. Forwarding an already mutable descriptor preserves its ordinary
+custody, not a new source-spelling requirement. Equal endpoints, including an
+empty suffix, still require both proof legs. The descriptor becomes available
+after its producer and can
 be passed whole, measured, read, or subsliced again under that access. Its
 disposal debt belongs to the descriptor; it never owns the borrowed backing.
 Primitive byte predicates are reconstructed from the exact source of a
