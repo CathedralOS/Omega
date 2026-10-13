@@ -403,6 +403,39 @@ class GateCliTests(unittest.TestCase):
 
 
 class RunHistoryTests(unittest.TestCase):
+    def test_program_discovery_is_explicit_and_full_gate_still_includes_controls(self):
+        samples = ["samples/cli/app", "samples/cli/probes/gap",
+                   "samples/cli/app/controls/invalid_case"]
+        with tempfile.TemporaryDirectory() as directory:
+            for flags, expected, scope in (([], samples, "all"),
+                                            (["--programs-only"], samples[:1], "programs")):
+                with self.subTest(scope=scope):
+                    arguments = ["sample_native_gate.py", "--cli", "omega", "--jobs", "1",
+                                 "--history-dir", directory, *flags]
+                    def result(_cli, sample, _target, _timeout):
+                        return {"sample": sample, "state": "pass", "detail": "", "seconds": 0}
+                    with patch.object(sys, "argv", arguments), \
+                            patch.object(gate, "discover", return_value=samples), \
+                            patch.object(gate, "cli_staleness", return_value=""), \
+                            patch.object(gate, "timed_measure", side_effect=result) as measure, \
+                            contextlib.redirect_stdout(io.StringIO()):
+                        self.assertEqual(gate.main(), 0)
+                    self.assertEqual([call.args[1] for call in measure.call_args_list], sorted(expected))
+                    records = [gate.json.loads(path.read_text()) for path in Path(directory).glob("*.json")]
+                    self.assertTrue(any(record["scope"] == scope and
+                                        [row["sample"] for row in record["results"]] == sorted(expected)
+                                        for record in records))
+
+    def test_failure_is_flushed_before_the_aggregate_run_finishes(self):
+        failure = {"sample": "samples/cli/app", "state": "no-native-build",
+                   "detail": "short", "diagnostic": "complete refusal"}
+        with patch.object(gate, "measure", return_value=failure), \
+                patch("builtins.print") as report:
+            gate.timed_measure("omega", failure["sample"], "macos_arm64", 10)
+        report.assert_called_once_with(
+            "sample_native_gate: no-native-build: samples/cli/app: complete refusal",
+            file=sys.stderr, flush=True)
+
     def test_main_creates_result_parents_and_preserves_the_gate_verdict(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "reports/nested/results.json"

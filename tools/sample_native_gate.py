@@ -52,6 +52,11 @@ in `diagnostic`; the short form cuts the construct name off long lowering
 refusals. Every run is also recorded under `--history-dir` (default
 `build/sample-gate-runs/`) with its revision, target and summary, so the pass
 rate has a history to compare against.
+
+`--programs-only` selects application work without probe/control trees. Its
+completed record feeds the default work queue but does not establish full
+release coverage. Unexpected failures are printed immediately, before the
+remaining projects finish; a final run record is written only at completion.
 """
 
 import argparse
@@ -69,7 +74,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from corpus_gate import host_target
-from sample_projects import ROOT, discover as discover_projects, project_at, rejection_verdict
+from sample_projects import ROOT, discover as discover_projects, project_at, rejection_verdict, work_kind
 
 # Freestanding targets have no host oracle: a UEFI image cannot run on the
 # development host, so scoring it against `Expected exit` would report a
@@ -87,6 +92,7 @@ PROGRAM_ENTRY_BINDING = re.compile(r"\b([a-z][a-z0-9_]*)::ProgramEntry\b")
 COMMENT = re.compile(r"//[^\n]*|/\*.*?\*/", re.S)
 # Console rows and the scored `detail` stay short; `diagnostic` keeps the rest.
 DETAIL_LIMIT = 110
+NONFAILURE_STATES = ("pass", "checked", "rejected", "no-oracle", "not-host-runnable")
 
 
 def discover(root, filters=()):
@@ -207,6 +213,12 @@ def timed_measure(cli, sample, target, timeout):
         times, _phases.times = _phases.times, None
     result["seconds"] = round(time.monotonic() - start, 2)
     result["phases"] = {phase: round(seconds, 2) for phase, seconds in sorted(times.items())}
+    if result["state"] not in NONFAILURE_STATES:
+        # Do not wait for hundreds of unrelated probes before exposing work.
+        # Aggregate results and the completed run record remain authoritative.
+        print(f"sample_native_gate: {result['state']}: {sample}: "
+              f"{result.get('diagnostic') or result.get('detail', '')}",
+              file=sys.stderr, flush=True)
     return result
 
 
@@ -512,6 +524,9 @@ def main():
     parser.add_argument("--target", default=host_target(),
                         help="defaults to this host's target")
     parser.add_argument("--filter", help="comma-separated path fragments")
+    parser.add_argument("--programs-only", action="store_true",
+                        help="discover application work without probe/control trees; "
+                             "not a full release gate")
     parser.add_argument("--jobs", type=int, default=4)
     parser.add_argument("--timeout", type=int, default=300, help="seconds per CLI call")
     parser.add_argument("--write-results", metavar="PATH")
@@ -535,6 +550,8 @@ def main():
 
     wanted = [fragment.strip() for fragment in (arguments.filter or "").split(",") if fragment.strip()]
     samples = discover("samples", wanted)
+    if arguments.programs_only:
+        samples = [sample for sample in samples if work_kind(sample) == "program"]
     if not samples:
         print("sample_native_gate: nothing selected", file=sys.stderr)
         return 2
@@ -603,8 +620,7 @@ def main():
             json.dump(results, document, indent=1)
     if arguments.history_dir:
         record_run(arguments, started, results, buckets, passed, len(scored), timing, staleness)
-    failures = [result for result in results if result["state"] not in
-                ("pass", "checked", "rejected", "no-oracle", "not-host-runnable")]
+    failures = [result for result in results if result["state"] not in NONFAILURE_STATES]
     return 1 if failures else 0
 
 
@@ -721,6 +737,7 @@ def record_run(arguments, started, results, buckets, passed, scored, timing=None
         "jobs": getattr(arguments, "jobs", None),
         "timeout": getattr(arguments, "timeout", None),
         "filter": arguments.filter or "",
+        "scope": "programs" if getattr(arguments, "programs_only", False) else "all",
         "summary": {
             "passed": passed,
             "scored": scored,

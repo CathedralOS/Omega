@@ -540,12 +540,20 @@ python3 tools/sample_native_gate.py --filter cli/ --jobs 8 --timeout 900 < /dev/
 python3 tools/sample_native_gate.py --cli <existing-omega> --filter cli/games
 ```
 
-`python3 tools/sample_queue.py` reads the latest unfiltered run record and lists
+For work selection, `python3 tools/sample_native_gate.py --programs-only`
+omits the same probe/control trees the work queue excludes. It retains
+host exclusions and missing-oracle reports. This is application discovery,
+not release acceptance: the unfiltered default gate still checks every project.
+Unexpected failures print immediately as they finish, before the aggregate
+report. Only a completed run writes a queue record; an interrupted run is not
+complete coverage.
+
+`python3 tools/sample_queue.py` reads the latest unfiltered application or full run record and lists
 the samples that do not yet run, smallest first with each refusal: the work
 queue of [the sample loop](../AGENTS.md#the-sample-loop). After the work it
 lists, apart, samples whose README cites `OWNER_QUESTIONS.md` (waiting on that
 decision) and programs with no oracle (nothing defines them running). `--all`
-adds probes and invalid controls.
+adds probes and invalid controls and therefore requires a full gate record.
 
 The corpus gate executes fixtures with `input.txt` as stdin (absent means an
 empty stream); the sample gate does the same for a project carrying

@@ -85,6 +85,28 @@ class SampleQueueTests(unittest.TestCase):
             self.assertEqual(Path(queue_module.latest_record()).name,
                              "20261001T000000Z-macos_arm64.json")
 
+    def test_application_record_does_not_claim_probe_coverage(self):
+        runs = self.root / "runs"
+        runs.mkdir()
+        (runs / "20261001T000000Z-macos_arm64.json").write_text('{"filter": null}')
+        (runs / "20261002T000000Z-macos_arm64.json").write_text(
+            '{"filter": "", "scope": "programs"}')
+        (runs / "20261003T000000Z-macos_arm64.json").write_text(
+            '{"filter": "cli/app", "scope": "programs"}')
+        (runs / "20261004T000000Z-macos_arm64.json").write_text(
+            '{"filter": "", "scope": "unknown"}')
+        with patch.object(queue_module, "RUNS", runs):
+            self.assertEqual(Path(queue_module.latest_record()).name,
+                             "20261002T000000Z-macos_arm64.json")
+            self.assertEqual(Path(queue_module.latest_record(include_all=True)).name,
+                             "20261001T000000Z-macos_arm64.json")
+
+    def test_explicit_application_record_cannot_satisfy_all(self):
+        record = self.root / "programs.json"
+        record.write_text('{"filter": "", "scope": "programs", "results": []}')
+        with patch.object(queue_module.sys, "argv", ["sample_queue.py", "--all", "--record", str(record)]):
+            self.assertEqual(queue_module.main(), 2)
+
 
 
 if __name__ == "__main__":

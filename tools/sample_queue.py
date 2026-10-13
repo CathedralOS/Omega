@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The sample loop's work queue: failing samples, smallest first.
 
-Reads the latest unfiltered `tools/sample_native_gate.py` run record (from the
+Reads the latest complete, unfiltered application or full gate run record (from the
 main checkout's `build/sample-gate-runs/`, shared by every worktree, or
 `--record PATH`) and lists the sample programs that do not yet run on that
 run's target, ordered by their own source size so the next piece of work is
@@ -41,6 +41,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import sample_native_gate  # noqa: E402
+from sample_projects import work_kind  # noqa: E402
 
 RUNS = Path(sample_native_gate.shared_runs_directory())
 OWNER_QUESTION = re.compile(r"OWNER_QUESTIONS\.md")
@@ -49,9 +50,13 @@ FAILING = ("no-native-build", "oracle-failed", "error", "timeout", "check-fail",
            "rejection-failed", "discovery-error")
 
 
-def latest_record():
-    """The newest run that measured every sample. A filtered run is newer but
-    partial: taking it would drop every sample outside its filter."""
+def latest_record(include_all=False):
+    """Newest complete application coverage, or full coverage for --all.
+
+    Filtered runs cannot replace it: they omit applications outside their
+    filter. Application-only runs cover the work queue, not probes/controls.
+    Legacy records without an explicit scope are full gate runs.
+    """
     candidates = set(glob.glob(str(RUNS / "*.json")))
     candidates.update(glob.glob(str(ROOT / "build" / "sample-gate-runs" / "*.json")))
     for path in sorted(candidates, key=os.path.basename, reverse=True):
@@ -59,7 +64,9 @@ def latest_record():
             record = json.loads(Path(path).read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
-        if not record.get("filter"):
+        scope = record.get("scope", "all")
+        if not record.get("filter") and scope in ("all", "programs") \
+                and (not include_all or scope == "all"):
             return path
     return None
 
@@ -103,16 +110,6 @@ def source_lines(sample):
     return total
 
 
-def kind(sample):
-    parts = Path(sample).parts
-    if "probes" in parts:
-        return "probe"
-    if "controls" in parts or Path(sample).name.startswith("invalid") \
-            or Path(sample).name in ("intended_invalid", "out_of_bounds"):
-        return "control"
-    return "program"
-
-
 def commits_behind(revision):
     if not revision:
         return None
@@ -126,7 +123,7 @@ def queue(record, include_all=False):
     for result in record.get("results", []):
         if result.get("state") not in FAILING:
             continue
-        sample_kind = kind(result["sample"])
+        sample_kind = work_kind(result["sample"])
         refusal = result.get("diagnostic") or result.get("detail", "")
         if sample_kind == "program":
             question = owner_question(result["sample"])
@@ -156,13 +153,19 @@ def main():
     parser.add_argument("--json", action="store_true", help="print rows as JSON")
     arguments = parser.parse_args()
 
-    path = arguments.record or latest_record()
+    path = arguments.record or latest_record(arguments.all)
     if not path:
-        print("sample_queue: no gate run recorded; run python3 tools/sample_native_gate.py first",
+        command = "python3 tools/sample_native_gate.py" + ("" if arguments.all else " --programs-only")
+        print(f"sample_queue: no gate run recorded; run {command} first",
               file=sys.stderr)
         return 2
     record = json.loads(Path(path).read_text(encoding="utf-8"))
+    if arguments.all and record.get("scope", "all") != "all":
+        print("sample_queue: --all requires a full gate record including probes and controls",
+              file=sys.stderr)
+        return 2
     rows = queue(record, arguments.all)
+    has_work = any(row["kind"] == "program" for row in rows)
     if arguments.limit is not None:
         rows = rows[:arguments.limit]
     if arguments.json:
@@ -172,13 +175,14 @@ def main():
     behind = commits_behind(record.get("revision"))
     summary = record.get("summary", {})
     print(f"sample_queue: run {os.path.basename(path)} on {record.get('target', '?')}, "
+          f"scope {record.get('scope', 'all')}, "
           f"{summary.get('passed', '?')}/{summary.get('scored', '?')} samples meet their oracle"
           + (f", {behind} commits behind HEAD" if behind else ""))
     if behind and behind > 50:
         print("sample_queue: the record is old; rerun python3 tools/sample_native_gate.py",
               file=sys.stderr)
-    if not any(row["kind"] == "program" for row in rows):
-        print("sample_queue: every sample runs; write a harder one (AGENTS.md, the sample loop)")
+    if not has_work:
+        print("sample_queue: no unblocked application failures in this record")
     headings = {"waiting": "waiting on an owner decision (not work until answered):",
                 "no oracle": "no oracle (give it one, or move a check-only program to tests/omega/):"}
     shown = None

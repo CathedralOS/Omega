@@ -22,6 +22,23 @@ ROLES = ("program", "example", "library-consumer", "library", "check-only", "int
 REJECTION_FILES = ("expected_diagnostic.txt", "expected_error.txt", "expected.txt")
 
 
+def work_kind(sample: str) -> str:
+    """Work-queue taxonomy, separate from a project's compilation role.
+
+    Discovery and queue consumption must omit the same probe/control trees.
+    A program without a host entry or oracle still needs reporting; neither
+    absence licenses silently dropping it from application discovery.
+    """
+    parts = Path(sample).parts
+    if "probes" in parts:
+        return "probe"
+    name = Path(sample).name
+    if "controls" in parts or name.startswith("invalid") \
+            or name in ("intended_invalid", "out_of_bounds"):
+        return "control"
+    return "program"
+
+
 @dataclass(frozen=True)
 class Project:
     directory: Path
