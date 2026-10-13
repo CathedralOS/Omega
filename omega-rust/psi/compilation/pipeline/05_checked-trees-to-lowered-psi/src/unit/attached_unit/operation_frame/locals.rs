@@ -1109,7 +1109,7 @@ impl OperationFrame<'_, '_> {
                 )?;
                 crate::unit::unit_cleanup::bind_consumed_claims(
                     &mut action,
-                    cleanup,
+                    &cleanup.consumed_claims,
                     self.calls.claims.bindings(),
                 )?;
                 Ok(action)

@@ -663,7 +663,7 @@ pub(super) fn emit(
                 )?;
                 crate::unit::unit_cleanup::bind_consumed_claims(
                     &mut action,
-                    cleanup,
+                    &cleanup.consumed_claims,
                     scalar_calls.claims.bindings(),
                 )?;
                 Ok(action)

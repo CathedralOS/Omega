@@ -236,7 +236,11 @@ pub(super) fn for_exit_regions(
                 &catalogs.scalar_calls.requirement_counts,
                 &mut catalogs.scalar_calls.next_call_obligation,
             )?;
-            crate::unit::unit_cleanup::bind_consumed_claims(&mut action, cleanup, claims.bindings)?;
+            crate::unit::unit_cleanup::bind_consumed_claims(
+                &mut action,
+                &cleanup.consumed_claims,
+                claims.bindings,
+            )?;
             Ok(action)
         },
     )?;

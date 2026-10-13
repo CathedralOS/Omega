@@ -385,16 +385,17 @@ pub(crate) fn lower_nominal_cleanup_action(
 /// Resolve only the claim names retained by checked disposition selection.
 /// Calls and constructions may have forwarded them before this edge; the
 /// current invocation namespace remains their sole executable identity owner.
+/// Every nominal cleanup action binds its consumed claims here, whether the
+/// roster is the checked plan's or one a prepared edge retained.
 pub(crate) fn bind_consumed_claims(
     action: &mut NominalAffineCleanup,
-    cleanup: &CheckedUnitNominalAffineCleanupPlan,
+    consumed_claims: &[language_semantics::PermissionClaimIdentity],
     bindings: &[(
         language_semantics::PermissionClaimIdentity,
         semantic_vocabulary::ClaimId,
     )],
 ) -> Result<(), LoweringError> {
-    action.consumed_claims = cleanup
-        .consumed_claims
+    action.consumed_claims = consumed_claims
         .iter()
         .map(|identity| crate::terminal_identities::lookup_claim_id(bindings, *identity))
         .collect::<Result<Vec<_>, _>>()?;
@@ -519,15 +520,7 @@ pub(crate) fn emit_prepared_cleanup_regions(
                         // their allocator rather than an unbounded counter.
                         &mut || calls.allocate_requirement(),
                     )?;
-                    action.consumed_claims = consumed_claims
-                        .iter()
-                        .map(|identity| {
-                            crate::terminal_identities::lookup_claim_id(
-                                calls.claims.bindings(),
-                                *identity,
-                            )
-                        })
-                        .collect::<Result<Vec<_>, _>>()?;
+                    bind_consumed_claims(&mut action, consumed_claims, calls.claims.bindings())?;
                     CleanupRegion {
                         selected_region: None,
                         conditions: conditions.clone(),
