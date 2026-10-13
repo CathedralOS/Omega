@@ -303,6 +303,7 @@ impl ExplicitApplication<'_> {
                 application_commitment: application.commitment,
                 declaring_trait: row.declaring_trait,
                 requirement: row.requirement,
+                contract_signature: SymbolHandle::invalid(),
                 realization_machine: row.realization_machine,
                 realization_state: row.realization_state,
             }),

@@ -8,6 +8,7 @@
 //! own determined provider tuples. Neither view is an admission or an instance.
 
 mod closed_operands;
+mod conformance_scopes;
 mod machine_selections;
 mod payloads;
 mod requirement_instances;
@@ -21,6 +22,15 @@ use crate::{TypedTrees, data, signature, types};
 use symbols::SymbolHandle;
 
 impl TypedTrees {
+    /// Read every prepared callable's declaration scope without replacing the
+    /// authored roster. Contract occurrence readers need both: applied facts
+    /// retain fresh formal symbols and their own substituted result carrier.
+    pub fn prepared_callable_signatures(&self) -> impl Iterator<Item = &signature::StateSignature> {
+        self.applied_callable_signatures
+            .iter()
+            .map(|(_, prepared)| &prepared.signature)
+    }
+
     /// Project declaration-owned application rows with the declaration roster.
     /// Backing arenas are not checking roots: a private evaluation projection
     /// cannot retain an instance obligation after removing its known source

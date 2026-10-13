@@ -8,9 +8,7 @@ use diagnostics::Diagnostic;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::data::TypeParameterKind;
 use typed_trees::machine::GenericConformanceBound;
-use typed_trees::type_identity::{
-    AppliedTypeIdentityScope, IndexIdentityArgument, applied_type_identity,
-};
+use typed_trees::type_identity::{AppliedTypeIdentityScope, IndexIdentityArgument};
 use typed_trees::types::TypeReferenceHandle;
 
 use super::conformance_applications::{
@@ -265,23 +263,19 @@ fn validate_binding(
         .collect::<Vec<_>>();
     // Compare the declared application under its complete caller-owned tuple.
     // Rendered commitment payloads do not substitute for exact local identity.
-    let actual_arguments = program
-        .type_reference_table
-        .type_reference_handles(implementation.arguments)
-        .iter()
-        .map(|argument| {
-            applied_type_identity(
-                program.typed_program(),
-                *argument,
-                owner,
-                &[AppliedTypeIdentityScope {
-                    declaration: implementation.symbol,
-                    arguments: &actuals,
-                    lifetimes: &lifetimes,
-                }],
-            )
-        })
-        .collect::<Option<Vec<_>>>();
+    let actual_arguments = super::conformance_applications::applied_trait_argument_identities(
+        program,
+        application.trait_definition,
+        program
+            .type_reference_table
+            .type_reference_handles(implementation.arguments),
+        owner,
+        &[AppliedTypeIdentityScope {
+            declaration: implementation.symbol,
+            arguments: &actuals,
+            lifetimes: &lifetimes,
+        }],
+    );
     if application.trait_definition != carrier.base
         || !actual_arguments.is_some_and(|actual| actual == expected_arguments)
     {

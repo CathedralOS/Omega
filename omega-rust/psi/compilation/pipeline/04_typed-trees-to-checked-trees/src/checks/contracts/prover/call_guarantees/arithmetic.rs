@@ -424,7 +424,31 @@ fn bind_occurrences(
         };
         bindings.push(ScopedArithmeticBinding {
             binder,
-            value: value(occurrence, primitive)?,
+            value: match binder {
+                ScopedArithmeticBinder::Symbol(symbol)
+                    if program
+                        .data_type_parameter_by_symbol(symbol)
+                        .is_some_and(|parameter| {
+                            matches!(
+                                parameter.kind,
+                                typed_trees::data::TypeParameterKind::Const { .. }
+                            )
+                        }) =>
+                {
+                    // A captured static binder is one immutable declaration,
+                    // not a storage observation at the call/return frontier.
+                    // Goal and premises share its exact generational identity;
+                    // unrelated same-spelled binders remain distinct atoms.
+                    ScopedArithmeticValue::Atom {
+                        identity: format!("\0static-parameter:{symbol:?}"),
+                        unsigned: matches!(
+                            primitive,
+                            typed_trees::unsigned_integer_primitive_pattern!()
+                        ),
+                    }
+                }
+                _ => value(occurrence, primitive)?,
+            },
         });
     }
     let mut arguments = Vec::new();

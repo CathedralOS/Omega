@@ -1,2 +1,2 @@
-requires `value <= 8`, which the requirement does not require
+requires `value <= 8`, which the requirement does not imply
 does not guarantee its `ensures result == value`

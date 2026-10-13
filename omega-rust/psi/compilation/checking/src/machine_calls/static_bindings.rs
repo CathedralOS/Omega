@@ -377,9 +377,7 @@ fn conformance_arguments_match(
     bound: &GenericConformanceBound,
     application: &typed_trees::typed_trees::ClosedConformanceApplication,
 ) -> bool {
-    use typed_trees::type_identity::{
-        AppliedTypeIdentityScope, IndexIdentityArgument, applied_type_identity,
-    };
+    use typed_trees::type_identity::{AppliedTypeIdentityScope, IndexIdentityArgument};
 
     let substitutions = bindings
         .iter()
@@ -453,19 +451,15 @@ fn conformance_arguments_match(
         lexical_owner,
         &[machine_scope],
     );
-    let actual = program
-        .type_reference_table
-        .type_reference_handles(conformance.arguments)
-        .iter()
-        .map(|reference| {
-            applied_type_identity(
-                program.typed_program(),
-                *reference,
-                lexical_owner,
-                &[actual_scope],
-            )
-        })
-        .collect::<Option<Vec<_>>>();
+    let actual = crate::conformance_applications::applied_trait_argument_identities(
+        program,
+        application.trait_definition,
+        program
+            .type_reference_table
+            .type_reference_handles(conformance.arguments),
+        lexical_owner,
+        &[actual_scope],
+    );
     required
         .zip(actual)
         .is_some_and(|(required, actual)| required == actual)

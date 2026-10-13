@@ -354,6 +354,39 @@ pub(crate) fn validate_const_data_argument(
         return;
     };
 
+    // A resolved named value retains its declaration's carrier. Its spelling
+    // is diagnostic payload, not a literal or a forwarded binder. Reuse exact
+    // const admission without evaluating the initializer in this application.
+    if symbol.is_valid()
+        && let Some(declaration) = program.const_declaration_by_symbol(*symbol)
+    {
+        let admission =
+            if !type_references_match(program, declaration.declared_type, parameter_type) {
+                Err(format!(
+                    "named constant `{name}` has type `{}`, expected `{}`",
+                    type_reference_label(program, declaration.declared_type),
+                    type_reference_label(program, parameter_type)
+                ))
+            } else if let Some(encoding) = declaration
+                .evaluated_value
+                .as_ref()
+                .and_then(|value| value.encoding())
+            {
+                validate_exact_const_value_encoding(program, parameter_type, encoding)
+            } else {
+                Err(format!(
+                    "named constant `{name}` has no evaluated const value"
+                ))
+            };
+        if let Err(reason) = admission {
+            diagnostics.push(Diagnostic::error(format!(
+                "const parameter `{}` of `{base_name}` has an invalid named value: {reason}",
+                parameter.name
+            )));
+        }
+        return;
+    }
+
     if let Some(value) = CanonicalConstValue::from_atom(name.as_str()) {
         if exact_structured_const_carrier_is_eligible(program, parameter_type, &mut Vec::new()) {
             if let Err(reason) =

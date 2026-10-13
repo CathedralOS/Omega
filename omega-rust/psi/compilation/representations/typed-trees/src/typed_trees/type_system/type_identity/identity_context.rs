@@ -780,6 +780,25 @@ pub(crate) fn normalize_index_expression(
                 "target",
                 &context.name(program, call.target_symbol, call.target.as_str()),
             ))
+            .chain({
+                // Executable specialization may erase the live operand list.
+                // Contract identity still distinguishes the complete authored
+                // application; equal targets alone do not identify one fact.
+                let arguments = crate::references::StaticArgumentCall::Expression(expression, call)
+                    .arguments(program);
+                (!arguments.is_empty()).then(|| {
+                    compound(
+                        "static-arguments",
+                        arguments.iter().map(|argument| {
+                            substitution::index_argument(
+                                program,
+                                super::IndexIdentityArgument::StaticArgument(argument),
+                                context,
+                            )
+                        }),
+                    )
+                })
+            })
             .chain(
                 call.receiver
                     .is_valid()

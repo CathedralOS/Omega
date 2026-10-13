@@ -1,0 +1,2 @@
+module first;
+pub proposition valid(value: u32);

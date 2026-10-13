@@ -107,6 +107,30 @@ pub fn applied_type_identity(
     )
 }
 
+/// Identify a value-role operand under its supplying telescope. A named const
+/// and its canonical literal denote the same value; neither is a nominal type.
+/// Carrier and width admission remain the receiving declaration's obligation.
+pub fn applied_index_identity(
+    program: &TypedTrees,
+    argument: IndexIdentityArgument<'_>,
+    lexical_owner: SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+) -> Option<NormalizedTypeIdentity> {
+    let invalid = Cell::new(false);
+    let identity = substitution::index_argument(
+        program,
+        argument,
+        &TypeIdentityContext {
+            application_scopes: scopes,
+            application_owner: lexical_owner,
+            invalid_application: Some(&invalid),
+            invalid_index_argument: Some(&invalid),
+            ..TypeIdentityContext::default()
+        },
+    );
+    (!invalid.get()).then_some(program_intern_type_identity(program, identity))
+}
+
 /// Exact application identity for publication. Nominals retain package owners;
 /// regions retain their supplying declaration kind, overload and ordinal.
 /// This is not a loan, provider admission, or a generic coverage theorem.
@@ -306,6 +330,29 @@ pub fn normalized_expression_identity(
             ..TypeIdentityContext::default()
         },
     )
+}
+
+/// Proof correspondence needs a complete projection, unlike a diagnostic
+/// descriptor. In particular, unresolved static evidence cannot compare equal
+/// merely because both operands rendered the same unsupported marker.
+pub fn try_normalized_index_identity(
+    program: &TypedTrees,
+    argument: IndexIdentityArgument<'_>,
+    binders: &[(SymbolHandle, String)],
+    application_scopes: &[AppliedTypeIdentityScope<'_>],
+) -> Option<String> {
+    let invalid = Cell::new(false);
+    let identity = substitution::index_argument(
+        program,
+        argument,
+        &TypeIdentityContext {
+            binders,
+            application_scopes,
+            invalid_index_argument: Some(&invalid),
+            ..TypeIdentityContext::default()
+        },
+    );
+    (!invalid.get()).then_some(identity)
 }
 
 /// One request for a normalized type identity: the type reference, the

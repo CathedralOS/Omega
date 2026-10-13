@@ -259,7 +259,28 @@ impl CallableApplication {
                     application.arguments = program
                         .expression_table
                         .insert_expression_handles(arguments);
-                    application.proposition = self.symbol(application.proposition);
+                    if let Some((_, replacement)) = self
+                        .types
+                        .iter()
+                        .rev()
+                        .find(|(symbol, _)| *symbol == application.proposition)
+                    {
+                        // The selected proposition belongs to the caller's
+                        // telescope, just like its supplied type operands.
+                        // Freshening alone leaves the receiving proposition
+                        // binder attached to already-substituted arguments.
+                        let crate::types::TypeReferenceNode::Named { symbol, name } =
+                            program.type_reference_table.type_reference(*replacement)
+                        else {
+                            return Err(
+                                "applied callable proposition head needs a named proposition operand",
+                            );
+                        };
+                        application.proposition = *symbol;
+                        application.name = name.clone();
+                    } else {
+                        application.proposition = self.symbol(application.proposition);
+                    }
                     for argument in &mut application.binder_arguments {
                         if let Some((_, replacement)) = self
                             .types

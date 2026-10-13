@@ -423,7 +423,7 @@ pub(crate) fn selected_call_contract<'program>(
     if let Some(dispatch) = &call.static_requirement_dispatch {
         let definition = program.trait_definition_by_symbol(dispatch.declaring_trait)?;
         return program
-            .trait_machine_signature_by_symbol(definition, dispatch.requirement)
+            .trait_machine_signature_by_symbol(definition, dispatch.contract_symbol())
             .map(SelectedCallContract::Signature);
     }
     selected_contract_by_symbol(program, call.target_symbol).or_else(|| {
@@ -494,9 +494,7 @@ fn signature_by_symbol(
     program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<&StateSignature> {
-    program
-        .trait_machine_signature(symbol)
-        .map(|(_, signature)| signature)
+    crate::selected_requirement_signature(program, symbol).map(|(_, signature)| signature)
 }
 
 pub(super) fn owner_symbol(owner: &SelectedCallContract<'_>) -> SymbolHandle {

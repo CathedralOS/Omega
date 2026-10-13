@@ -1,4 +1,4 @@
-//! Close declared boundary families before immutable checking and planning.
+//! Close applied public requirements before immutable checking and planning.
 //!
 //! The public signature owns the roster, independently of selected providers
 //! or observed calls. Each complete tuple goes through the ordinary retained
@@ -13,15 +13,20 @@ use typed_trees::finite_family::FamilyProbe;
 use typed_trees::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
 use typed_trees::{TypedTrees, expression::StaticMachineArgument};
 
-pub(crate) fn instantiate_boundary_requirement_families(
+pub(crate) fn instantiate_requirement_applications(
     program: &mut TypedTrees,
 ) -> Result<(), Vec<Diagnostic>> {
+    program
+        .prepare_closed_conformance_scopes()
+        .map_err(|message| vec![Diagnostic::error(message)])?;
+    // Closed named maps introduce source scopes after initial callable setup.
+    // Their logical signatures must exist before publishing closed instances.
+    program
+        .prepare_applied_callable_signatures()
+        .map_err(|message| vec![Diagnostic::error(message)])?;
     let demands = demands::collect(program);
     for demand in demands {
         let requirement = demand.requirement;
-        let trait_arguments = program
-            .materialize_trait_application_arguments(&demand.environment)
-            .map_err(|message| vec![Diagnostic::error(message)])?;
         let has_outer_operands = {
             let scope = demand.environment.scope(program).ok_or_else(|| {
                 vec![Diagnostic::error(
@@ -39,8 +44,14 @@ pub(crate) fn instantiate_boundary_requirement_families(
             // This publishes a logical requirement under the retained source
             // telescope, not an executable provider. Regional correspondence
             // is qualified later and travels with the exact candidate.
-            !trait_arguments.is_empty() || !scope.declaration.lifetime_parameters.is_empty()
+            !program.trait_type_parameters(scope.declaration).is_empty()
+                || !scope.declaration.lifetime_parameters.is_empty()
         };
+        // Invalid source operands must reach their owning admission diagnostic.
+        // Materialization is meaningful only after the scope has exact custody.
+        let trait_arguments = program
+            .materialize_trait_application_arguments(&demand.environment)
+            .map_err(|message| vec![Diagnostic::error(message)])?;
         let (_, signature) = program
             .trait_machine_signature(requirement)
             .ok_or_else(|| {

@@ -479,6 +479,16 @@ pub(crate) fn validate_applied_trait_signature(
         )));
     }
 
+    crate::proof_contracts::contract_entailment::check_contract_refinement(
+        program,
+        callable_machine,
+        callable_state,
+        actual_parameters,
+        &actual_type_parameters,
+        application,
+        requirement,
+        diagnostics,
+    );
     validate_trait_effect_ceiling(
         program,
         service_reaches,

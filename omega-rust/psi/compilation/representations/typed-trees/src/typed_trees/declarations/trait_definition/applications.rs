@@ -42,11 +42,35 @@ impl TypedTrees {
                     .iter()
                     .filter_map(|edge| AppliedTraitScope::from_conformance(self, edge)),
             )
+            .chain(self.machines().iter().flat_map(|machine| {
+                machine.conformance_bounds.iter().filter_map(move |bound| {
+                    AppliedTraitScope::new(
+                        self,
+                        self.trait_definition_by_symbol(bound.trait_symbol)?,
+                        TraitApplicationArguments {
+                            lexical_owner: machine.symbol,
+                            enclosing_data_applications: &[],
+                            arguments: &bound.arguments,
+                            lifetimes: &[],
+                        },
+                    )
+                })
+            }))
             .chain(
                 self.traits()
                     .iter()
                     .filter(|declaration| self.trait_type_parameters(declaration).is_empty())
                     .map(AppliedTraitScope::abstract_scope),
+            )
+            .chain(
+                self.machine_specializations
+                    .iter()
+                    .flat_map(|specialization| {
+                        specialization
+                            .conformance_applications
+                            .iter()
+                            .filter_map(|application| application.trait_scope.scope(self))
+                    }),
             )
             .chain(source_fields::service_application_roots(self))
             .collect()
@@ -183,6 +207,44 @@ pub struct AppliedTraitScope<'program> {
 }
 
 impl<'program> AppliedTraitScope<'program> {
+    /// Compose a selected named map's own telescope before its declared trait
+    /// application. The simultaneous frames prevent map operands from being
+    /// captured by equally spelled trait binders, including inherited edges.
+    pub fn from_conformance_application(
+        program: &'program TypedTrees,
+        conformance: &super::Conformance,
+        application: TraitApplicationArguments<'_>,
+    ) -> Option<Self> {
+        let parameters = program.conformance_type_parameters(conformance);
+        if parameters.len() != application.arguments.len()
+            || conformance.lifetime_parameters.len() != application.lifetimes.len()
+        {
+            return None;
+        }
+        let mut scope = Self::from_conformance(program, conformance)?;
+        for start in &mut scope.substitution_scope_starts {
+            *start += parameters.len();
+        }
+        scope.substitution_scope_starts.insert(0, 0);
+        scope.substitutions.splice(
+            0..0,
+            parameters
+                .iter()
+                .zip(application.arguments)
+                .map(|(parameter, actual)| (parameter.symbol, *actual)),
+        );
+        scope.region_scopes.insert(
+            0,
+            AppliedDeclarationRegionScope::new(
+                conformance.symbol,
+                &conformance.lifetime_parameters,
+                application.lifetimes,
+            ),
+        );
+        scope.argument_owner = application.lexical_owner;
+        Some(scope)
+    }
+
     /// Decode a named map's declaration-relative lifetime ordinals. This
     /// constructs an inspection scope, not conformance admission.
     pub fn from_conformance(

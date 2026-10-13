@@ -499,7 +499,7 @@ fn instantiated_parameter_proposition(
         program
             .trait_definition_by_symbol(dispatch.declaring_trait)
             .and_then(|definition| {
-                program.trait_machine_signature_by_symbol(definition, dispatch.requirement)
+                program.trait_machine_signature_by_symbol(definition, dispatch.contract_symbol())
             })
             .map(|requirement| program.state_signature_parameters(requirement))?
     } else {

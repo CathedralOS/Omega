@@ -7,7 +7,7 @@ use typed_trees::{
     data::TypeParameterKind,
     type_identity::{
         AppliedTypeIdentityScope, IndexIdentityArgument, NormalizedTypeIdentity,
-        applied_type_identity,
+        applied_index_identity, applied_type_identity,
     },
 };
 use typed_trees::{expression::StaticMachineArgument, machine::GenericConformanceBound};
@@ -63,12 +63,7 @@ pub(crate) fn applied_bound_argument_identities(
     let carrier = crate::refinement_fit::resolve_bound_carrier(program, bound.trait_symbol);
     let identity = |arguments: &[typed_trees::types::TypeReferenceHandle],
                     scopes: &[AppliedTypeIdentityScope<'_>]| {
-        arguments
-            .iter()
-            .map(|argument| {
-                applied_type_identity(program.typed_program(), *argument, owner, scopes)
-            })
-            .collect()
+        applied_trait_argument_identities(program, carrier.base, arguments, owner, scopes)
     };
     if let Some((refinement, base)) = carrier
         .refinement
@@ -107,4 +102,36 @@ pub(crate) fn applied_bound_argument_identities(
     } else {
         identity(&bound.arguments, scopes)
     }
+}
+
+/// The receiving telescope decides whether syntax denotes a type or a value.
+/// Both required and selected applications must use that same role before
+/// comparison, including a const supplied through a named implementation map.
+pub(crate) fn applied_trait_argument_identities(
+    program: &dyn crate::CheckingInput,
+    declaration: symbols::SymbolHandle,
+    arguments: &[typed_trees::types::TypeReferenceHandle],
+    owner: symbols::SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+) -> Option<Vec<NormalizedTypeIdentity>> {
+    let definition = program.trait_definition_by_symbol(declaration)?;
+    let parameters = program.trait_type_parameters(definition);
+    if parameters.len() != arguments.len() {
+        return None;
+    }
+    parameters
+        .iter()
+        .zip(arguments)
+        .map(|(parameter, argument)| match parameter.kind {
+            TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
+                applied_index_identity(
+                    program.typed_program(),
+                    IndexIdentityArgument::TypeReference(*argument),
+                    owner,
+                    scopes,
+                )
+            }
+            _ => applied_type_identity(program.typed_program(), *argument, owner, scopes),
+        })
+        .collect()
 }

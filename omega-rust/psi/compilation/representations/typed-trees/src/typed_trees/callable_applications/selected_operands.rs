@@ -132,6 +132,52 @@ impl TypedTrees {
 }
 
 impl CallableApplication {
+    /// A supplied value can be retained as an expression or by its declaration.
+    /// Copy evaluated constants, but preserve an open value binder's exact
+    /// caller identity. Never apply the receiving telescope to either payload.
+    pub(super) fn selected_value_expression(
+        program: &mut TypedTrees,
+        reference: types::TypeReferenceHandle,
+    ) -> Result<expression::ExpressionHandle, &'static str> {
+        if let Some(literal) = program.static_const_literal_from_type_reference(reference) {
+            return Ok(program
+                .expression_table
+                .insert(expression::ExpressionNode::Integer(literal)));
+        }
+        match program
+            .type_reference_table
+            .type_reference(reference)
+            .clone()
+        {
+            types::TypeReferenceNode::ConstExpression(value) => {
+                Ok(program.expression_table.insert_copy(value))
+            }
+            types::TypeReferenceNode::Named { symbol, name } if symbol.is_valid() => {
+                if let Some(declaration) = program.const_declaration_by_symbol(symbol) {
+                    if declaration.evaluated_value.is_some()
+                        && declaration.materialized_initializer.is_valid()
+                    {
+                        let initializer = declaration.materialized_initializer;
+                        return Ok(program.expression_table.insert_copy(initializer));
+                    }
+                } else if !program
+                    .data_type_parameter_by_symbol(symbol)
+                    .is_some_and(|parameter| parameter.kind.is_const_or_value())
+                {
+                    return Err(
+                        "callable expression argument does not name a const or value declaration",
+                    );
+                }
+                Ok(program
+                    .expression_table
+                    .insert_tree(&expression::Expression::Name(
+                        expression::NamePath::resolved_from_iter([name], symbol, symbol),
+                    )))
+            }
+            _ => Err("nominal callable expression application needs an expression-valued argument"),
+        }
+    }
+
     pub(super) fn selected_argument_reference(
         program: &mut TypedTrees,
         selected: &expression::StaticMachineArgument,

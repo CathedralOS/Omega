@@ -47,7 +47,7 @@ pub(crate) fn build_contract_call_facts(
             let contract_target = call_site
                 .as_ref()
                 .and_then(validation::CallSite::static_requirement_dispatch)
-                .map(|dispatch| (dispatch.declaring_trait, dispatch.requirement))
+                .map(|dispatch| (dispatch.declaring_trait, dispatch.contract_symbol()))
                 .unwrap_or(contract_owner);
             append_contract_call(
                 contract_facts,
@@ -329,26 +329,10 @@ pub(crate) fn contract_target_from_state_symbol(
         return Some((target_state_symbol, target_state_symbol));
     }
 
-    for machine in program.machines() {
-        if let Ok(Some(requirement)) =
-            validation::named_conformance_target_requirement(program, machine, target_state_symbol)
-        {
-            return Some((
-                requirement.application.declaration.symbol,
-                requirement.signature.symbol,
-            ));
-        }
-    }
-
-    // A call through a trait-typed receiver targets a trait machine signature
-    // rather than a machine state; the owning trait stands in for the machine
-    // so the signature's requires/ensures contracts attach to the call.
-    if let Some(target_trait) = program.traits().iter().find(|trait_definition| {
-        program
-            .trait_machine_signature_by_symbol(trait_definition, target_state_symbol)
-            .is_some()
-    }) {
-        return Some((target_trait.symbol, target_state_symbol));
+    if let Some((declaration, signature)) =
+        validation::selected_requirement_signature(program, target_state_symbol)
+    {
+        return Some((declaration.symbol, signature.symbol));
     }
 
     None

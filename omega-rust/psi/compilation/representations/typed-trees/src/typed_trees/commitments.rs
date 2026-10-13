@@ -89,9 +89,13 @@ digest_commitment! {
     MachineTemplateCommitment
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default)]
 pub struct ClosedConformanceApplication {
     pub declaration: symbols::SymbolHandle,
+    /// Derived exact source application, prepared before checking. The zero
+    /// scope is unavailable, not permission to recover operands from report
+    /// strings. Local arena handles do not contribute portable authority.
+    pub trait_scope: crate::trait_definition::RetainedTraitScope,
     /// Exact ordered source-resolved arguments retained for structural policy
     /// projection. This added tree does not participate in the historical
     /// application report or commitment; equal legacy coordinates cannot
@@ -114,6 +118,27 @@ pub struct ClosedConformanceApplication {
     /// encoding. The separately retained resolved argument tree is not hashed.
     pub commitment: ClosedConformanceApplicationCommitment,
 }
+
+impl PartialEq for ClosedConformanceApplication {
+    fn eq(&self, other: &Self) -> bool {
+        // Preparation attaches an arena-local scope to the same application.
+        // A freshly reconstructed selection must still match its prepared row.
+        self.declaration == other.declaration
+            && self.arguments == other.arguments
+            && self.lifetime_arguments == other.lifetime_arguments
+            && self.type_arguments == other.type_arguments
+            && self.const_arguments == other.const_arguments
+            && self.machine_arguments == other.machine_arguments
+            && self.trait_definition == other.trait_definition
+            && self.trait_lifetime_arguments == other.trait_lifetime_arguments
+            && self.trait_arguments == other.trait_arguments
+            && self.rows == other.rows
+            && self.report_fingerprint == other.report_fingerprint
+            && self.commitment == other.commitment
+    }
+}
+
+impl Eq for ClosedConformanceApplication {}
 
 /// One exact const argument retained by a checked conformance application.
 /// Evaluated values exclude diagnostic display; caller binders retain both
@@ -190,8 +215,21 @@ pub struct StaticRequirementDispatch {
     pub application_commitment: ClosedConformanceApplicationCommitment,
     pub declaring_trait: symbols::SymbolHandle,
     pub requirement: symbols::SymbolHandle,
+    /// Applied public contract, distinct from the authored selection-row key.
+    /// Zero until mutable preparation joins its complete committed application.
+    pub contract_signature: symbols::SymbolHandle,
     pub realization_machine: symbols::SymbolHandle,
     pub realization_state: symbols::SymbolHandle,
+}
+
+impl StaticRequirementDispatch {
+    pub fn contract_symbol(&self) -> symbols::SymbolHandle {
+        if self.contract_signature.is_valid() {
+            self.contract_signature
+        } else {
+            self.requirement
+        }
+    }
 }
 
 /// Whether `specialization` was made from the template that a ProviderPlan's

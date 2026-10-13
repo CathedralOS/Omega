@@ -1,0 +1,3 @@
+const Upper: u32 = 100;
+data Wrong { value: Upper; }
+machine main() {}

@@ -20,10 +20,9 @@ pub(super) fn collect(program: &TypedTrees) -> Vec<Demand> {
         // Inventory retains regions; preparation establishes operand closure.
         // Neither operation admits a selected provider or runtime installation.
         root.visit(program, &mut |scope| {
-            if scope.declaration.is_boundary
-                && !scopes
-                    .iter()
-                    .any(|existing| existing.same_application(program, scope))
+            if !scopes
+                .iter()
+                .any(|existing| existing.same_application(program, scope))
             {
                 scopes.push(scope.clone());
             }

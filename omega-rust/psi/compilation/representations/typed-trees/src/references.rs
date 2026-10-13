@@ -656,6 +656,7 @@ pub fn visit_closed_conformance(
     retained: &mut impl TypedReferences,
     application: &crate::typed_trees::ClosedConformanceApplication,
 ) {
+    application.trait_scope.visit_references(program, retained);
     for argument in &application.const_arguments {
         use crate::typed_trees::ClosedConformanceConstArgument;
         let (parameter, argument) = match argument {
@@ -1299,6 +1300,7 @@ fn visit_call_expression(
         visit_symbol(retained, dispatch.realization_machine);
         visit_symbol(retained, dispatch.realization_state);
         visit_symbol(retained, dispatch.requirement);
+        visit_symbol(retained, dispatch.contract_signature);
         visit_symbol(retained, dispatch.declaring_trait);
     }
     if retained.call_arguments(program, StaticArgumentCall::Expression(expression, call)) {
@@ -1371,6 +1373,9 @@ fn visit_statement(
                 );
             }
             if let Some(dispatch) = &call.static_requirement_dispatch {
+                visit_symbol(retained, dispatch.requirement);
+                visit_symbol(retained, dispatch.contract_signature);
+                visit_symbol(retained, dispatch.declaring_trait);
                 visit_symbol(retained, dispatch.realization_machine);
                 visit_symbol(retained, dispatch.realization_state);
             }

@@ -532,6 +532,7 @@ fn selected_call_target(
                     application_commitment: meaning.application.commitment,
                     declaring_trait: meaning.row.declaring_trait,
                     requirement: meaning.row.requirement,
+                    contract_signature: SymbolHandle::invalid(),
                     realization_machine: meaning.row.realization_machine,
                     realization_state: meaning.row.realization_state,
                 }),

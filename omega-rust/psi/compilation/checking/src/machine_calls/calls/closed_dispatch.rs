@@ -33,6 +33,22 @@ pub fn closed_requirement_dispatch_is_valid(
     let [application] = applications.as_slice() else {
         return false;
     };
+    if dispatch.contract_signature.is_valid() {
+        let Some(closed) = program.closed_requirement_application(dispatch.contract_signature)
+        else {
+            return false;
+        };
+        let Some(scope) = application.trait_scope.scope(program) else {
+            return false;
+        };
+        if closed.declaring_trait != dispatch.declaring_trait
+            || closed.template != dispatch.requirement
+            || !program.requirement_application_matches_scope(dispatch.contract_signature, &scope)
+        {
+            return false;
+        }
+    }
+    let requirement = dispatch.requirement;
     let Some(application_trait) = program.trait_definition_by_symbol(application.trait_definition)
     else {
         return false;
@@ -64,7 +80,7 @@ pub fn closed_requirement_dispatch_is_valid(
     if program
         .trait_machine_signatures(declaration)
         .iter()
-        .filter(|signature| signature.symbol == dispatch.requirement)
+        .filter(|signature| signature.symbol == requirement)
         .count()
         != 1
     {
@@ -80,16 +96,14 @@ pub fn closed_requirement_dispatch_is_valid(
         .as_slice()
         .iter()
         .filter(|row| {
-            row.declaring_trait == dispatch.declaring_trait
-                && row.requirement == dispatch.requirement
+            row.declaring_trait == dispatch.declaring_trait && row.requirement == requirement
         })
         .collect::<Vec<_>>();
     let application_rows = application
         .rows
         .iter()
         .filter(|row| {
-            row.declaring_trait == dispatch.declaring_trait
-                && row.requirement == dispatch.requirement
+            row.declaring_trait == dispatch.declaring_trait && row.requirement == requirement
         })
         .collect::<Vec<_>>();
     let ([selected_row], [application_row]) =

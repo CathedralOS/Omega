@@ -1017,3 +1017,6 @@ pass/termination/runtime_projected_extent_fill_exit built 5302ms exit:0 interpre
 pass/arithmetic/relative_midpoint_values_exit built 5494ms exit:0 interpreter-exit:0 interpreter:agrees @4c1d863a7eae+wt
 pass/arithmetic/collection_result_bound_exit built 5468ms exit:0 interpreter-exit:0 interpreter:agrees @3b72a3521c0e+wt
 pass/borrows/collection_element_loans_exit built 5544ms exit:0 interpreter-exit:0 interpreter:agrees @3b72a3521c0e+wt
+pass/traits/applied_contract_arithmetic_refinement built 17056ms exit:0 interpreter-exit:0 interpreter:agrees @f3014db3f225+wt
+pass/traits/generic_map_applied_contract_exit built 16958ms exit:0 interpreter-exit:0 interpreter:agrees @f3014db3f225+wt
+pass/traits/named_contract_arithmetic_refinement built 16696ms exit:0 interpreter-exit:0 interpreter:agrees @f3014db3f225+wt

@@ -397,12 +397,24 @@ fn invocation<'program>(
         CallSite::Statement(call) => call.target_symbol,
         CallSite::TransitionNamed { path, .. } => path.symbol,
     };
-    let callable = match &site {
-        CallSite::TransitionNamed { .. } => validation::find_state(program, target)
-            .filter(|(machine, _)| machine.symbol == caller.machine_symbol)
-            .map(|(machine, state)| Callable::Machine { machine, state })
-            .or_else(|| Callable::resolve(program, target))?,
-        _ => Callable::resolve(program, target)?,
+    let callable = if let Some(dispatch) = site.static_requirement_dispatch() {
+        if !validation::closed_requirement_dispatch_is_valid(
+            program,
+            caller.machine_symbol,
+            target,
+            dispatch,
+        ) {
+            return None;
+        }
+        Callable::resolve(program, dispatch.contract_symbol())?
+    } else {
+        match &site {
+            CallSite::TransitionNamed { .. } => validation::find_state(program, target)
+                .filter(|(machine, _)| machine.symbol == caller.machine_symbol)
+                .map(|(machine, state)| Callable::Machine { machine, state })
+                .or_else(|| Callable::resolve(program, target))?,
+            _ => Callable::resolve(program, target)?,
+        }
     };
     Some(Invocation {
         site,
@@ -424,12 +436,14 @@ fn ordinary_arguments(
         CallSite::Expression { call, .. } => {
             call.machine_arguments.is_empty()
                 && call.evidence_arguments.is_empty()
-                && call.static_requirement_dispatch.is_none()
+                && (call.static_requirement_dispatch.is_none()
+                    || matches!(invocation.callable, Callable::Requirement { .. }))
         }
         CallSite::Statement(call) => {
             call.machine_arguments.is_empty()
                 && call.evidence_arguments.is_empty()
-                && call.static_requirement_dispatch.is_none()
+                && (call.static_requirement_dispatch.is_none()
+                    || matches!(invocation.callable, Callable::Requirement { .. }))
         }
         CallSite::TransitionNamed {
             evidence_arguments, ..

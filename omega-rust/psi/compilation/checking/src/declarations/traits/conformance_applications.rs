@@ -22,7 +22,10 @@ use typed_trees::typed_trees::{
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
 mod forwarding;
-pub(crate) use forwarding::{applied_bound_argument_identities, validate_forwarded_argument};
+pub(crate) use forwarding::{
+    applied_bound_argument_identities, applied_trait_argument_identities,
+    validate_forwarded_argument,
+};
 
 pub fn validate_conformance_applications(
     program: &dyn crate::CheckingInput,
@@ -348,6 +351,7 @@ pub fn close_conformance_application(
     );
     Ok(ClosedConformanceApplication {
         declaration: conformance.symbol,
+        trait_scope: Default::default(),
         arguments: supplied.into(),
         lifetime_arguments,
         type_arguments,

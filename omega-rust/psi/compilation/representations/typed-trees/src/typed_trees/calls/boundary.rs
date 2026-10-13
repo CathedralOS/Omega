@@ -20,7 +20,7 @@ pub fn called_boundary_signature<'program>(
     let (declaration, signature) = if let Some(dispatch) = &call.static_requirement_dispatch {
         let declaration = program.trait_definition_by_symbol(dispatch.declaring_trait)?;
         let signature =
-            program.trait_machine_signature_by_symbol(declaration, dispatch.requirement)?;
+            program.trait_machine_signature_by_symbol(declaration, dispatch.contract_symbol())?;
         (declaration, signature)
     } else {
         program.trait_machine_signature(call.target_symbol)?

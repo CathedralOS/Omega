@@ -267,7 +267,7 @@ pub fn prepare_typed_trees(
     // not a separate path for nested Binding carriers.
     validation::resolve_dynamic_call_targets(&mut program)?;
     crate::monomorphization::instantiate_dynamic_slots(&mut program)?;
-    crate::monomorphization::instantiate_boundary_requirement_families(&mut program)?;
+    crate::monomorphization::instantiate_requirement_applications(&mut program)?;
     Ok((
         program.into(),
         TypedPreparation {

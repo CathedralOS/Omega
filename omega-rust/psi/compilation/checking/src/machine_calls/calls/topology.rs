@@ -173,13 +173,8 @@ pub fn call_target_parameters(
         return Some(program.operator_parameters(operator));
     }
 
-    program
-        .traits()
-        .iter()
-        .find_map(|trait_definition| {
-            program.trait_machine_signature_by_symbol(trait_definition, target_state_symbol)
-        })
-        .map(|signature| program.state_signature_parameters(signature))
+    super::selected_requirement_signature(program, target_state_symbol)
+        .map(|(_, signature)| program.state_signature_parameters(signature))
 }
 
 /// The generic declaration context that owns a call target's formal

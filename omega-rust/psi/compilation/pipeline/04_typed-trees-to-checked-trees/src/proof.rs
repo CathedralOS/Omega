@@ -191,6 +191,18 @@ pub(crate) fn build_proof_facts(
             &mut evidence_terms,
         );
     }
+    // Applied contracts need their own signature identity: using the authored
+    // template as owner would combine facts from distinct const/type tuples.
+    // Keep authored rows as well, since generic declarations are still checked.
+    for application in program.closed_requirement_applications() {
+        append_state_signature_contract_facts(
+            program,
+            application.declaring_trait,
+            std::slice::from_ref(application.signature),
+            &mut contract_facts,
+            &mut evidence_terms,
+        );
+    }
     for operator in program.all_operators() {
         append_operator_declaration_contract_facts(program, operator, &mut contract_facts);
     }

@@ -85,3 +85,42 @@ fn extent_cast_visits_target_owner_and_rejects_unknown_policy() {
     );
     assert_eq!(owners.depth, 0);
 }
+
+#[test]
+fn extent_static_operands_visit_nested_type_and_selection_owners() {
+    let nominal = format!(
+        "nominal(package-owner(32:{}),path(Selected))",
+        "ab".repeat(32)
+    );
+    let escaped = nominal
+        .replace('\\', "\\\\")
+        .replace('(', "\\(")
+        .replace(')', "\\)")
+        .replace(',', "\\,");
+    let identity = format!(
+        "array(compiler-type(atom(u8)),const-expression(call(target(count),static-arguments({nominal},static-application(const-name({escaped}),integer(7))),integer(3))))"
+    );
+    let mut owners = Owners {
+        allowed: Some([0xab; 32]),
+        ..Default::default()
+    };
+    assert_eq!(
+        visit_type_identity_package_owners(&identity, &mut owners),
+        Ok(())
+    );
+    assert_eq!(owners.seen, vec![[0xab; 32], [0xab; 32]]);
+    assert_eq!(owners.depth, 0);
+    let mut unknown = Owners::default();
+    assert_eq!(
+        visit_type_identity_package_owners(&identity, &mut unknown),
+        Err(TypeIdentityVisitError::UnknownPackage)
+    );
+    assert_eq!(unknown.depth, 0);
+    assert_eq!(
+        visit_type_identity_package_owners(
+            &identity.replace("integer(7)", "hidden-owner(7)"),
+            &mut owners
+        ),
+        Err(TypeIdentityVisitError::MalformedIdentity)
+    );
+}

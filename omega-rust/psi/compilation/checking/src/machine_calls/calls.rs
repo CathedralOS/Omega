@@ -37,7 +37,9 @@ pub(crate) mod dynamic_requirement;
 mod expression_scanning;
 mod generic_bounds;
 mod generic_requirement;
-pub use generic_requirement::named_conformance_target_requirement;
+pub use generic_requirement::{
+    named_conformance_target_requirement, selected_requirement_signature,
+};
 mod inline_assembly;
 mod machine_parameter_arguments;
 mod type_arguments;
@@ -377,12 +379,10 @@ fn requirement_call_result_type(
         return (signature.type_parameters.is_empty() && signature.return_type.is_valid())
             .then_some(signature.return_type);
     }
-    let parent = program.symbols.get(target).parent;
-    let definition = program.trait_definition_by_symbol(parent)?;
-    if !definition.type_parameters.is_empty() {
+    let (definition, signature) = selected_requirement_signature(program, target)?;
+    if !definition.type_parameters.is_empty() && signature.symbol == target {
         return None;
     }
-    let signature = program.trait_machine_signature_by_symbol(definition, target)?;
     if !signature.type_parameters.is_empty() || !signature.return_type.is_valid() {
         return None;
     }

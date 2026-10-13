@@ -363,18 +363,9 @@ impl CallableApplication {
                         .rev()
                         .find(|(binder, _)| *binder == path.head_symbol)
                     {
-                        let types::TypeReferenceNode::ConstExpression(value) = program
-                            .type_reference_table
-                            .type_reference(*argument)
-                            .clone()
-                        else {
-                            return Err(
-                                "nominal callable expression application needs an expression-valued argument",
-                            );
-                        };
                         // The replacement belongs to the caller, not the
                         // declaration: copy it without applying this telescope.
-                        let replacement = program.expression_table.insert_copy(value);
+                        let replacement = Self::selected_value_expression(program, *argument)?;
                         Some(program.expression_table.expression(replacement).clone())
                     } else {
                         None

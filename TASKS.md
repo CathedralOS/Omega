@@ -353,12 +353,10 @@ helper that passes does not close an item.
     customers use the shared native and Terminal execution routes. Keep their
     result/output agreement while extending the remaining slot contracts;
     no selector-specific execution adapter is needed.
-  - Requirement contracts hold at selector calls: checking discharges the
-    requirement's `requires` against the slot's operands and imports its
-    `ensures` (`pass/traits/runtime_dyn_requirement_contract_exit`), and a
-    closed-row member must restate each non-law conclusion and add no premise
-    (`contract_entailment/contract_refinement.rs`). That correspondence is
-    exact spelling, not entailment, and does not unfold proposition premises.
+  - Remaining requirement-contract work: implication beyond exact fact
+    correspondence, transparent proposition aliases and supported integer
+    arithmetic. Preserve the requirement's public contract at
+    selector calls independently of stronger implementation guarantees.
   - Next: suspending requirements, returned borrows and finite-family selector
     calls (which keep their requirement targets, unslotted) decline at planning.
     Returned borrows need public input-relative origin contracts; private

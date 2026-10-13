@@ -71,7 +71,20 @@ pub(super) fn expression(
                 grammar::name_atom(reader, "target", visitor)?;
                 while reader.next(b',') {
                     reader.expect(b',')?;
-                    expression(reader, visitor)?;
+                    if reader.starts("static-arguments(") {
+                        scoped(visitor, |visitor| {
+                            reader.tag()?;
+                            reader.expect(b'(')?;
+                            static_argument(reader, visitor)?;
+                            while reader.next(b',') {
+                                reader.expect(b',')?;
+                                static_argument(reader, visitor)?;
+                            }
+                            reader.expect(b')')
+                        })?;
+                    } else {
+                        expression(reader, visitor)?;
+                    }
                 }
             }
             "cast" => {
@@ -91,6 +104,52 @@ pub(super) fn expression(
         }
         reader.expect(b')')
     })
+}
+
+/// Static call operands use the existing type/index grammars. Visit nested
+/// selected declarations too: opaque payload text would hide package owners.
+fn static_argument(
+    reader: &mut Reader<'_>,
+    visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
+) -> Result {
+    if reader.starts("static-application(") {
+        return scoped(visitor, |visitor| {
+            reader.tag()?;
+            reader.expect(b'(')?;
+            expression(reader, visitor)?;
+            while reader.next(b',') {
+                reader.expect(b',')?;
+                if reader.starts("lifetime(") {
+                    reader.opaque("lifetime", visitor)?;
+                } else {
+                    static_argument(reader, visitor)?;
+                }
+            }
+            reader.expect(b')')
+        });
+    }
+    if [
+        "unit",
+        "nominal(",
+        "compiler-type(",
+        "ref(",
+        "ref-mut(",
+        "ref-write(",
+        "slice(",
+        "array(",
+        "constrained(",
+        "generic(",
+        "named(",
+        "dynamic-trait(",
+        "index-expression(",
+    ]
+    .iter()
+    .any(|tag| reader.starts(tag))
+    {
+        grammar::type_identity(reader, visitor)
+    } else {
+        expression(reader, visitor)
+    }
 }
 
 fn embedded_operation(

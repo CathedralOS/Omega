@@ -548,11 +548,10 @@ fn call_site_symbols(
 }
 
 /// The non-boundary trait requirement signature the checked call selected, or
-/// None. `target_symbol` retains that selection exactly: its parent is the
-/// declaring trait and its identity is the signature symbol, so no receiver
-/// spelling is needed to pick the signature. Boundary traits stay on their
-/// own rung, generic traits and signatures without closed `Type` binders stay
-/// opaque, and a target that names a real machine state belongs to the
+/// None. The shared selection query rejoins trait-owned signatures and evidence
+/// children with their applied contracts. A selector is not runtime storage.
+/// Boundary traits stay on their own route; a raw generic trait signature
+/// without an application stays opaque. A real machine state belongs to its
 /// internal callee summary.
 pub(super) fn requirement_signature_by_target(
     program: &dyn crate::CheckingInput,
@@ -564,19 +563,24 @@ pub(super) fn requirement_signature_by_target(
     {
         return None;
     }
-    let parent = program.symbols.get(target_symbol).parent;
-    let mut definitions = program
-        .traits()
-        .iter()
-        .filter(|definition| definition.symbol == parent);
-    let definition = definitions.next()?;
-    if definitions.next().is_some() {
+    let (definition, signature) = crate::selected_requirement_signature(program, target_symbol)?;
+    if definition.is_boundary
+        || (!definition.type_parameters.is_empty()
+            && signature.symbol == target_symbol
+            && program
+                .closed_requirement_application(target_symbol)
+                .is_none())
+    {
         return None;
     }
-    requirement_signature_in_trait(program, definition, |signature| {
-        signature.symbol == target_symbol
-            && program.symbols.name(target_symbol) == signature.name.as_str()
-    })
+    program
+        .state_signature_type_parameters(signature)
+        .iter()
+        .all(|parameter| {
+            parameter.symbol.is_valid()
+                && matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+        })
+        .then_some(signature)
 }
 
 /// The unique requirement `choose` selects on a non-boundary, non-generic

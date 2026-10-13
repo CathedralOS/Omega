@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 5, "jobs": "1", "load1_end": 0.9, "load1_start": 0.78, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 2.95, "load1_start": 2.95, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 835ms expected @a9ae30e1c334+wt
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -3194,7 +3194,8 @@ fail/proofs/proposition_const_operand_extent_rejected rejected 836ms expected @a
 	machine `inspect` requires contract proposition `valid` argument 1 does not match parameter `value` type `&[u8; Length]`
 fail/proofs/proposition_reference_operand_depth_rejected rejected 882ms expected @a9ae30e1c334+wt
 	machine `inspect` requires contract proposition `valid` argument 1 does not match parameter `value` type `&Type`
-fail/proofs/proposition_relation_inherited_law_rejected rejected 1291ms expected @a9ae30e1c334+wt
+fail/proofs/proposition_relation_inherited_law_rejected rejected 481ms expected @f3014db3f225+wt
+	machine `related_reflexive` realizes `Reflexive::reflexive` but requires `different`, which the requirement does not imply; callers of the requirement prove only its own `requires`
 	machine `related_reflexive` satisfies `Reflexive::reflexive` but proves no ensures matching proposition law `proposition:fact:related(value,value)` after trait-family substitution
 fail/proofs/quotient_congruence_substituted_rejected rejected 1482ms expected @a9ae30e1c334+wt
 	`Quotient::lift` has compiler-derived direct-terminal relations RA=[0:equivalent] and RR=equivalent plus exact representative telescope `representative`(Representative)->Representative plus checked unconditional termination of `representative` plus checked pure representative effect summary plus exact theorem `equivalent_symmetric`(Representative, Representative)[static-bindings:0] plus expected exact theorem-schema=[parameters:2, relations:1, legality:2, applications:2, conclusion:1] (verification failed: the selected theorem's requires fact count does not exactly match all relation and representative-legality premises) plus checked theorem termination summary plus checked pure theorem effect summary plus checked crash-free theorem routes plus exact forward transport `representative_transports`(Representative, Representative)[static-bindings:0] plus transport-schema=[parameters:2, public-Q:2, representative-P:2] plus checked forward-transport termination summary plus checked pure forward-transport effect summary plus checked crash-free forward-transport routes plus exact direct-lift-runtime=[0] plus exact Q=[dependent:1, fixed:0] plus exact P=[dependent:1, fixed:0] (canonical Terminal correspondence unavailable: the complete correspondence certificate is absent) and complete transition-free single-state normal-result coverage through the exact result root, but executable quotient operations are not admitted until complete operation/static correspondence, exact selected theorem schema verification, general precondition implication and adapted lift arguments, fixed representative call obligations, canonical Terminal correspondence are independently checked
@@ -3349,6 +3350,9 @@ fail/providers/occurrence_region_binding_conflicting_inputs rejected 42ms expect
 	call to `entry` has conflicting ordinary borrow constraints for an erased lifetime
 fail/providers/ordinary_exit_name_preserves_return_obligations rejected 1225ms expected @1e469c9b15bb
 	cannot prove ensures contract for exit from impossible at statement 1: false
+fail/providers/primitive_reference_contract_refinement rejected 997ms expected @f3014db3f225+wt
+	machine `NarrowReader::read` realizes `Reader::read` but requires `value <= 8`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+	machine `UnpromisedReader::read` realizes `Reader::read` but does not guarantee its `ensures result == value`; callers of the requirement assume it
 fail/providers/provider_result_private_qualification rejected 2181ms expected @20ad71d6e3a6+wt
 	machine `TokenMintProvider::issue` state `issue` does not satisfy trait `TokenMint` machine `issue`: expected return `Token`, got `Token[in Token::Issued]`
 fail/providers/provider_selection_fabricated_activation rejected 2725ms expected @a9ae30e1c334+wt
@@ -3984,10 +3988,13 @@ fail/traits/applied_conformance_unrelated_result_region rejected 4767ms expected
 	machine `read` state `entry` does not satisfy trait `Reading` machine `read`: conformance borrow contract: unimplemented: callable returned-source relation is ambiguous or incomplete
 fail/traits/applied_nominal_callback_proposition_tag_rejected rejected 1271ms expected @a9ae30e1c334+wt
 	machine parameter `Callback` of provider machine `visit` for trait requirement `Visitor::visit` does not refine `Callback`: its requires facts are not a conservative refinement
+fail/traits/captured_const_contract_distinct_binders rejected 1330ms expected @f3014db3f225+wt
+	cannot prove ensures contract for exit from Wrong::identity at statement 0: result <= Maximum
 fail/traits/conformance_item_missing_member rejected 19ms expected @a9ae30e1c334+wt
 	closed conformance `PointShape satisfies Shape` is incomplete: missing `Shape::code`
-fail/traits/conformance_phantom_foreign_captured_operand rejected 253ms expected @619f89e4fed6+wt
+fail/traits/conformance_phantom_foreign_captured_operand rejected 1067ms expected @f3014db3f225+wt
 	conformance `Mapped satisfies Reader` parameter `Value` uses undeclared lifetime argument `'same' in `Marker`; declare it in the owner's generic parameter list
+	requirement `Reader::read` has no prepared contract for its exact trait application
 fail/traits/conformance_unused_lifetime_foreign_scope rejected 188ms expected @a9ae30e1c334+wt
 	conformance application `ReadingMap<'foreign>` supplies undeclared lifetime argument `'foreign'; declare it in the lexical owner's lifetime telescope
 fail/traits/conformance_unused_lifetime_header_undeclared rejected 175ms expected @a9ae30e1c334+wt
@@ -3996,6 +4003,10 @@ fail/traits/conformance_unused_lifetime_undeclared rejected 170ms expected @a9ae
 	conformance application `ReadingMap<'undeclared>` supplies undeclared lifetime argument `'undeclared'; declare it in the lexical owner's lifetime telescope
 fail/traits/contextual_static_machine_nominal_authority rejected 753ms expected @a9ae30e1c334+wt
 	static machine argument `wrong` for nominal parameter `Selected` retains 0 authored satisfaction row(s) for exact requirement `Expected::test`; exactly one is required and structural coincidence establishes none
+fail/traits/contract_call_distinct_static_arguments rejected 913ms expected @f3014db3f225+wt
+	machine `identity` realizes `Bounded::take` but requires `below<Right>(input)`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+fail/traits/contract_proposition_distinct_declarations rejected 479ms expected @f3014db3f225+wt
+	machine `Restricted::accept` realizes `Accept::accept` but requires `second::valid`, which the requirement does not imply; callers of the requirement prove only its own `requires`
 fail/traits/data_in_implementation_argument rejected 166ms expected @a9ae30e1c334+wt
 	trait `Concrete` parent `Consumer` cannot bind implementation `Reader`: expected an explicitly named implementation, not a data argument
 fail/traits/data_subject_implementation_retired rejected 0ms expected @a9ae30e1c334+wt
@@ -4005,8 +4016,12 @@ fail/traits/default_row_foreign_captured_operand rejected 115ms expected @619f89
 	machine `Mapped::Reader::read` state `read` return type uses undeclared lifetime argument `'same' in `Marker`; declare it in the owner's generic parameter list
 fail/traits/dyn_data_carrier_selector_retired rejected 0ms expected @a9ae30e1c334+wt
 	tests/omega/fail/traits/dyn_data_carrier_selector_retired/main.omg:13:33: `dyn Data::Implementation` is retired; name the trait application (`dyn Trait<Data>`) and select an implementation with `Implementation as dyn Trait<Data>`
-fail/traits/dyn_finite_family_narrowed_provider rejected 1435ms expected @b7aaf37278ea+wt
-	machine `Item::code` realizes `Shape::code` but requires `Width == 16 || Width == 32`, which the requirement does not require; callers of the requirement prove only its own `requires`
+fail/traits/dyn_finite_family_narrowed_provider rejected 3203ms expected @f3014db3f225+wt
+	machine `Item::code` realizes `Shape::code` but requires `Width == 16 || Width == 32`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+	machine `Item::code` realizes `Shape::code` but requires `Width == 16 || Width == 32`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+	machine `Item::code` realizes `Shape::code` but requires `Width == 16 || Width == 32`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+	machine `Item::code` realizes `Shape::code` but requires `Width == 16 || Width == 32`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+	machine `Item::code` realizes `Shape::code` but requires `Width == 16 || Width == 32`, which the requirement does not imply; callers of the requirement prove only its own `requires`
 fail/traits/dyn_finite_family_non_member rejected 263ms expected @e6088bf995e6
 	dynamic family call `Shape::code` requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
 fail/traits/dyn_finite_family_unproved_membership rejected 820ms expected @b7aaf37278ea+wt
@@ -4019,8 +4034,8 @@ fail/traits/dyn_selector_receiver_call rejected 872ms expected @a9ae30e1c334+wt
 	a `dyn Shape` selector is a dispatch operand, not a receiver; call `Shape::code(selector, ...)`
 fail/traits/dyn_selector_reentry_unranked rejected 1557ms expected @a9ae30e1c334+wt
 	machine call cycle: `Loop::walk`, `rewalk` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
-fail/traits/dyn_selector_requirement_precondition_unproven rejected 1571ms expected @a9ae30e1c334+wt
-	cannot prove requires contract for call dyn Shrink<1 argument>::shrink from probe: 200 >= 3 && 200 <= 100 (needs fact `value >= 3 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/traits/dyn_selector_requirement_precondition_unproven rejected 1586ms expected @f3014db3f225+wt
+	cannot prove requires contract for call dyn Shrink<1 argument>::shrink from probe: 200 >= 3 && 200 <= 100 (needs fact `value >= 3 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/traits/dyn_selector_self_reentry_unranked rejected 830ms expected @a9ae30e1c334+wt
 	machine call cycle: `Loop::walk` can re-enter itself through a selector call; termination across runtime implementation selection is not yet ranked
 fail/traits/dyn_selector_wrong_application rejected 1291ms expected @a9ae30e1c334+wt
@@ -4031,8 +4046,8 @@ fail/traits/dyn_structural_result_missing_disposition rejected 1570ms expected @
 	linear value `token` reaches scope exit without being consumed or transferred
 fail/traits/dyn_structural_result_reuse_input rejected 1155ms expected @a9ae30e1c334+wt
 	cannot use `token` in machine `probe` state `entry` (statement 3) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
-fail/traits/dyn_structural_result_unpromised_domain rejected 1701ms expected @a9ae30e1c334+wt
-	cannot prove requires contract for call consume from probe: Factory.dyn Factory::make(Plain as dyn Factory) in Token::Issued
+fail/traits/dyn_structural_result_unpromised_domain rejected 1585ms expected @f3014db3f225+wt
+	cannot prove requires contract for call consume from probe: Factory.dyn Factory::make(Plain as dyn Factory) in Token::Issued in state `entry`
 fail/traits/equatable_field_not_equatable rejected 37ms expected @a9ae30e1c334+wt
 	conformance `PlayerEquality satisfies Equatable<Player>`: field `pos` of `Player` is not Equatable: add `PosEquality satisfies Equatable<Pos> { }`
 fail/traits/equatable_missing_conformance_suggested rejected 40ms expected @a9ae30e1c334+wt
@@ -4049,6 +4064,8 @@ fail/traits/evidence_binder_subject_retired rejected 4ms expected @a9ae30e1c334+
 	tests/omega/fail/traits/evidence_binder_subject_retired/main.omg:8:28: a conformance has no data subject; write the evidence binder as `Order satisfies Trait<Data>`
 fail/traits/evidence_binder_wrong_trait_arguments rejected 749ms expected @a9ae30e1c334+wt
 	generic machine `apply` cannot bind `Operations` to conformance `GaugeIncrement`: expected a complete `Incrementable` implementation with the instantiated trait arguments
+fail/traits/evidence_member_guarantee_identity rejected 1575ms expected @f3014db3f225+wt
+	cannot prove ensures contract for exit from selected at statement 0: result <= 50
 fail/traits/exact_application_keeps_invocation_binders rejected 1315ms expected @a9ae30e1c334+wt
 	machine `identity` does not satisfy trait `Identity` machine `identity`: expected 0 callable generic parameter(s), got 1
 	machine `identity` does not satisfy trait `Marker` machine `identity`: expected 0 callable generic parameter(s), got 1
@@ -4061,9 +4078,13 @@ fail/traits/exact_edge_application_cannot_quantify_invocations rejected 1418ms e
 	machine `Reader::transform` does not satisfy trait `Transform` machine `transform`: expected 1 callable generic parameter(s), got 0
 fail/traits/exact_edge_invocation_kind_mismatch rejected 1359ms expected @a9ae30e1c334+wt
 	machine `Reader::read` does not satisfy trait `Readable` machine `read`: callable generic parameter 0 has incompatible kinds (`Value` versus `Width`)
+fail/traits/exact_law_stronger_precondition rejected 1252ms expected @f3014db3f225+wt
+	machine `circular` realizes `Reflexive::reflexive` but requires `related`, which the requirement does not imply; callers of the requirement prove only its own `requires`
 fail/traits/exact_requirement_edge_wrong_data_rejected rejected 1357ms expected @a9ae30e1c334+wt
 	machine `Counter::increment` state `increment` does not satisfy trait `Incrementable` machine `increment` parameter `counter`: expected `&mut Counter`, got `&mut Other`
 	machine `Counter::increment` state `increment` does not satisfy trait `Incrementable` machine `increment` parameter `counter`: expected `&mut Counter`, got `&mut Other`
+fail/traits/exact_requirement_stronger_precondition rejected 1236ms expected @f3014db3f225+wt
+	machine `only_nonzero` realizes `Accept::accept` but requires `value > 0`, which the requirement does not imply; callers of the requirement prove only its own `requires`
 fail/traits/explicit_implementation_binder_trait_arguments rejected 185ms expected @a9ae30e1c334+wt
 	`Order` is bound as `Ranked<T>`, not the `Ranked<Card>` this call of `Ranked::compare` names
 fail/traits/explicit_implementation_const_identity rejected 163ms expected @a9ae30e1c334+wt
@@ -4072,7 +4093,8 @@ fail/traits/explicit_implementation_const_in_type_argument rejected 161ms expect
 	trait `Invalid` parent `Consumer` cannot bind implementation `Reader`: conformance `SelectedReading` parameter `Value` requires a type argument, but `7` has another static category
 fail/traits/explicit_implementation_inherited_trait_arguments rejected 133ms expected @a9ae30e1c334+wt
 	`CardDescending` implements `Descending<Card>`, not the `Ranked<Gem>` this call of `Ranked::compare` names
-fail/traits/explicit_implementation_invocation_region_mismatch rejected 849ms expected @a9ae30e1c334+wt
+fail/traits/explicit_implementation_invocation_region_mismatch rejected 498ms expected @f3014db3f225+wt
+	Uses cannot bind implementation `Reader`: `SelectedReading<<structural type>>` must select a complete `Reading` implementation with the instantiated trait arguments
 	Uses cannot bind implementation `Reader`: `SelectedReading<<structural type>>` must select a complete `Reading` implementation with the instantiated trait arguments
 fail/traits/explicit_implementation_missing_const_argument rejected 167ms expected @a9ae30e1c334+wt
 	trait `Incomplete` parent `Consumer` cannot bind implementation `Reader`: generic conformance `SelectedReading` requires 2 explicit non-lifetime argument(s), got 1; expected subject and trait shape never fill its own telescope
@@ -4120,10 +4142,16 @@ fail/traits/inherited_region_application_result_ambiguity rejected 1317ms expect
 	closed conformance `Ambiguous satisfies Diamond` cannot instantiate inherited row `Reading::read`
 fail/traits/inherited_region_application_telescope_ambiguity rejected 1411ms expected @a9ae30e1c334+wt
 	closed conformance `Ambiguous satisfies Diamond` cannot instantiate inherited row `Reading::read`
-fail/traits/member_omits_requirement_ensures rejected 1432ms expected @a9ae30e1c334+wt
-	machine `Grow::shrink` realizes `Shrink::shrink` but does not guarantee its `ensures result <= value`; callers of the requirement assume it, so state it as the member's own `ensures`
-fail/traits/member_requires_beyond_requirement rejected 1252ms expected @a9ae30e1c334+wt
-	machine `Strict::shrink` realizes `Shrink::shrink` but requires `value <= 50`, which the requirement does not require; callers of the requirement prove only its own `requires`
+fail/traits/member_omits_requirement_ensures rejected 1053ms expected @f3014db3f225+wt
+	machine `Grow::shrink` realizes `Shrink::shrink` but does not guarantee its `ensures result <= value`; callers of the requirement assume it
+fail/traits/member_requires_beyond_requirement rejected 977ms expected @f3014db3f225+wt
+	machine `Strict::shrink` realizes `Shrink::shrink` but requires `value <= 50`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+fail/traits/named_const_argument_carrier rejected 1173ms expected @f3014db3f225+wt
+	const parameter `Limit` of `Threshold` has an invalid named value: named constant `Upper` has type `u64`, expected `u32`
+fail/traits/named_const_as_field_type rejected 435ms expected @f3014db3f225+wt
+	data `Wrong` field `value` references unknown data type `Upper`
+fail/traits/named_const_in_type_slot rejected 1148ms expected @f3014db3f225+wt
+	conformance `Wrong satisfies Container` parameter `Value` references unknown data type `Upper`
 fail/traits/nested_trait_callback_unknown_type_rejected rejected 860ms expected @a9ae30e1c334+wt
 	machine-parameter requirement `Callback` state `Callback` parameter `value` references unknown data type `Missing`
 fail/traits/nominal_invocation_type_argument_not_reselected rejected 723ms expected @a9ae30e1c334+wt
@@ -4136,6 +4164,10 @@ fail/traits/owned_row_captured_region_not_invocation rejected 353ms expected @21
 	machine `Reader::read` state `read` does not satisfy trait `Reading` machine `read`: conformance borrow contract: fresh invocation lifetime telescope is not universally refined
 fail/traits/prepared_callable_wrong_member_source rejected 239ms expected @992d27dd3135+wt
 	machine `flip` state `entry` does not satisfy trait `Flipping` machine `flip`: conformance borrow contract: callable returned view has a different input-source relation
+fail/traits/proposition_premise_unrelated_precondition rejected 1142ms expected @f3014db3f225+wt
+	machine `Restricted::accept` realizes `Accept::accept` but requires `value > 0`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+fail/traits/requirement_application_guarantee_identity rejected 1129ms expected @f3014db3f225+wt
+	machine `wide` realizes `Bound::produce` but does not guarantee its `ensures result <= 50`; callers of the requirement assume it
 fail/traits/resultless_float_law_false_identity rejected 40370ms expected @a9ae30e1c334+wt
 	machine `false_identity` cannot prove ensures contract proof fact `first == second` from the requires contract
 fail/traits/self_type_retired rejected 938ms expected @a9ae30e1c334+wt
@@ -6851,6 +6883,7 @@ pass/time/runtime_time_host_virtual_exit checked 13948ms @a9ae30e1c334+wt
 pass/time/static_duration_accessors checked 14893ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/applied_callable_law_equality_exit checked 11957ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/traits/applied_conformance_captured_fresh_regions_exit checked 11214ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/traits/applied_contract_arithmetic_refinement checked 17262ms check-target:macos_arm64 @f3014db3f225+wt
 pass/traits/applied_nominal_callback_closed_local_types_exit checked 11588ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/applied_nominal_callback_local_types_exit checked 11029ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/applied_nominal_callback_proposition_contract checked 1763ms @a9ae30e1c334+wt
@@ -6858,6 +6891,7 @@ pass/traits/applied_nominal_callback_scopes_exit checked 11261ms check-target:ma
 pass/traits/applied_qualified_signature_region_scope_exit checked 10523ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/boundary_trait_effects_host_call checked 10528ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/conformance_unused_lifetime_scope_exit checked 11299ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/traits/contract_proposition_alias_correspondence checked 1696ms @f3014db3f225+wt
 pass/traits/default_row_captured_invocation_regions_exit checked 2765ms check-target:macos_arm64 @21c44dfab69b
 pass/traits/default_row_domain_region_scopes checked 485ms @21c44dfab69b
 pass/traits/default_row_mixed_captured_operand checked 470ms @eee96af606fc+wt
@@ -6870,15 +6904,18 @@ pass/traits/equatable_mixed_shape_equality_exit checked 11458ms check-target:mac
 pass/traits/equatable_record_equality_exit checked 12150ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/equatable_string_field_equality_exit checked 11427ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/exact_edge_application_and_invocation_parameters checked 11943ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/traits/generic_map_applied_contract_exit checked 17273ms check-target:macos_arm64 @f3014db3f225+wt
 pass/traits/generic_reference_forwarding_exit checked 11636ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/generic_trait_parent_binds_requirement checked 1614ms @a9ae30e1c334+wt
 pass/traits/implementation_argument_category_collision checked 7729ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/implementation_argument_mixed_telescope checked 1561ms @a9ae30e1c334+wt
 pass/traits/implementation_argument_region_mapping checked 1680ms @a9ae30e1c334+wt
 pass/traits/inherited_region_application_identity_exit checked 10560ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/traits/named_contract_arithmetic_refinement checked 15852ms check-target:macos_arm64 @f3014db3f225+wt
 pass/traits/nominal_generic_reference_forwarding_exit checked 11241ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/nominal_machine_binder_static_dispatch checked 11071ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/prepared_callable_nested_borrow_paths_exit checked 3390ms check-target:macos_arm64 @992d27dd3135+wt
+pass/traits/renamed_invocation_contract_binders checked 4765ms @f3014db3f225+wt
 pass/traits/resultless_law_float_equality_exit checked 24646ms check-target:macos_arm64 @9c4d1c444502
 pass/traits/ring_requirement_satisfies_exit checked 5521ms check-target:macos_arm64 @b7248b14be49
 pass/traits/runtime_dyn_array_result_exit checked 10602ms check-target:macos_arm64 @a9ae30e1c334+wt

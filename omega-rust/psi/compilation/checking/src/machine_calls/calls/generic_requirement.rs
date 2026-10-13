@@ -7,6 +7,54 @@ use super::{
     WritableRoots, argument_matches_carrier, declared_place_type, declared_reference_access,
     validate_call_arguments,
 };
+
+/// The public signature of a retained requirement selection. An evidence child
+/// is not itself a trait declaration: rejoin its declaring machine's bound and
+/// complete application before exposing formals or guarantees. All consumers
+/// see the same substituted contract; none may replace it with a provider body.
+pub fn selected_requirement_signature(
+    program: &dyn crate::CheckingInput,
+    target: symbols::SymbolHandle,
+) -> Option<(
+    &typed_trees::trait_definition::TraitDefinition,
+    &typed_trees::signature::StateSignature,
+)> {
+    if let Some(selected) = program.trait_machine_signature(target) {
+        return Some(selected);
+    }
+    if !target.is_valid() {
+        return None;
+    }
+    let binder = program.symbols.get(target).parent;
+    if !binder.is_valid()
+        || program.symbols.get(binder).kind != symbols::SymbolKind::ConformanceParameter
+    {
+        return None;
+    }
+    let machine = program.machine_by_symbol(program.symbols.get(binder).parent)?;
+    // Ordinary call admission reports malformed or ambiguous evidence bounds.
+    // This read-only query supplies no contract when that admission cannot join.
+    let requirement = named_conformance_target_requirement(program, machine, target).ok()??;
+    let application = &requirement.application;
+    let signature = program
+        .closed_requirement_applications()
+        .find(|closed| {
+            closed.template == requirement.signature.symbol
+                && closed.local_arguments.is_empty()
+                && program
+                    .requirement_application_matches_scope(closed.signature.symbol, application)
+        })
+        .map(|closed| closed.signature)
+        .or_else(|| program.applied_callable_signature(application, requirement.signature.symbol))
+        .or_else(|| {
+            (application.substitutions.is_empty()
+                && application.declaration.lifetime_parameters.is_empty()
+                && requirement.signature.type_parameters.is_empty())
+            .then_some(requirement.signature)
+        })?;
+    Some((application.declaration, signature))
+}
+
 /// The requirement already selected its trait telescope. Raw signature handles
 /// still name that telescope (`&mut Message`, not the caller's `&mut M`), so a
 /// stored reference must compare under its bound rather than against raw ids.

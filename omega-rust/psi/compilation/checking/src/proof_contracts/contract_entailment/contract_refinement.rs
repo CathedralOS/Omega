@@ -1,234 +1,293 @@
-//! Closed-row contract refinement: an implementation member honors the
-//! complete machine contract of the requirement it realizes
-//! (wiki/spec/language/machines.md#substitution).
+//! A selected implementation accepts every input its requirement permits.
 //!
-//! A caller that reaches a member through its requirement, such as a
-//! selector call or a call routed through the requirement, proves only the
-//! requirement's `requires` and assumes its `ensures`. So the member may
-//! demand no premise the requirement lacks, and must guarantee every
-//! conclusion the requirement states. A machine that also declares the exact
-//! edge `satisfies Trait::requirement` already owes the requirement's whole
-//! contract through that edge, as an inherited obligation, so its conclusions
-//! need no restatement. Laws, the result-free equalities and
-//! proposition applications, keep their own entailment judgment in
-//! `law_conformance`; this rule covers every other expression and membership
-//! conjunct by exact correspondence. A requirement conclusion must reappear
-//! among the member's own `ensures`, which its exits prove, and each member
-//! premise must reappear among the requirement's `requires`. Formals compare
-//! by position, so a member may rename them.
+//! Signature matching calls this judgment for exact satisfaction edges and
+//! named maps alike. Requirement premises entail implementation premises;
+//! implementation guarantees entail requirement guarantees. Law conclusions
+//! retain their independent law judgment, and exact edges inherit guarantees
+//! which their bodies must prove. Neither exempts implementation premises.
 //!
-//! Exact correspondence is deliberately weaker than entailment: a member that
-//! proves a stronger conclusion must still state the requirement's spelling.
-//! Proposition applications are not unfolded here. A requirement premise such
-//! as `Relation(left, right)` may mean the member's `a == b` once the
-//! conformance binds `Relation`, so a requirement with any proposition premise
-//! leaves the member's premises unchecked. A law requirement, one whose every
-//! conclusion is a law, likewise leaves its members' premises to the law
-//! judgment. Both constrain proof evidence rather than the runtime operands a
-//! selector call passes.
+//! Applied signatures own trait substitution. Canonical declaration projection
+//! owns exact fact identity, with formal symbols bound by position. The existing
+//! scoped integer prover supplies implication beyond exact correspondence;
+//! unknown implication refuses, rather than comparing diagnostic spellings.
 
 use super::law_conformance::term_mentions_variable;
 use super::structural_terms::structural_term;
-use super::{RESULT_BINDER, StateSignature, TraitDefinition};
+use super::{
+    RESULT_BINDER, ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
+    ScopedArithmeticHypothesis, ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
+    scoped_arithmetic_implication_for_declaration,
+};
+use crate::proof_contracts::contract_structure::{
+    CorrespondenceFact, callable_binders, correspondence_fact, generic_binders,
+};
 use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
-use typed_trees::proposition::ProofSubstitutions;
-use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
+use typed_trees::signature::{
+    SignatureContract, SignatureContractKind, StateParameter, StateSignature,
+};
+use typed_trees::trait_definition::AppliedTraitScope;
+use typed_trees::types::TypeReferenceHandle;
 
-/// Validate that `machine`, realizing `requirement` through a closed row,
-/// refines the requirement's contract.
 pub(crate) fn check_contract_refinement(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
-    trait_definition: &TraitDefinition,
+    entry: &typed_trees::state::State,
+    member_parameters: &[StateParameter],
+    invocation_parameters: &[typed_trees::data::TypeParameter],
+    application: &AppliedTraitScope<'_>,
     requirement: &StateSignature,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(entry) = program.machine_states(machine).first() else {
-        return;
+    let trait_definition = application.declaration;
+    let requirement_name = format!("{}::{}", trait_definition.name, requirement.name);
+    let applied = program.applied_callable_signature(application, requirement.symbol);
+    let requirement = match applied {
+        Some(applied) => applied,
+        None if requirement.type_parameters.is_empty()
+            && application.substitutions.is_empty()
+            && trait_definition.lifetime_parameters.is_empty() =>
+        {
+            requirement
+        }
+        None => {
+            diagnostics.push(Diagnostic::error(format!(
+                "requirement `{requirement_name}` has no prepared contract for its exact trait application"
+            )));
+            return;
+        }
     };
     let required_parameters = program.state_signature_parameters(requirement);
-    let member_parameters = program.state_parameters(entry);
-    // The signature check reports an arity mismatch; no position map exists.
     if required_parameters.len() != member_parameters.len() {
+        // Signature correspondence owns the arity diagnostic.
         return;
     }
-    let required_contracts = program.state_signature_contracts(requirement);
-    let member_contracts = program
-        .machine_contracts(machine)
-        .iter()
-        .chain(program.state_contracts(entry));
-    let required = Conjuncts::collect(program, required_contracts.iter(), required_parameters);
-    let member = Conjuncts::collect(program, member_contracts, member_parameters);
-    let requirement_name = format!("{}::{}", trait_definition.name, requirement.name);
+    let required = ContractFacts::collect(
+        program,
+        requirement.symbol,
+        program.state_signature_contracts(requirement).iter(),
+        required_parameters,
+        requirement.return_type,
+        program.state_signature_type_parameters(requirement),
+    );
+    let member = ContractFacts::collect(
+        program,
+        machine.symbol,
+        program
+            .machine_contracts(machine)
+            .iter()
+            .chain(program.state_contracts(entry)),
+        member_parameters,
+        entry.return_type,
+        invocation_parameters,
+    );
     let owes_through_edge = program
         .machine_trait_conformances(machine)
         .iter()
-        .any(|edge| edge.requirement_symbol == requirement.symbol);
-
+        .any(|edge| {
+            edge.requirement_symbol == requirement.symbol
+                && AppliedTraitScope::from_machine_conformance(
+                    program.typed_program(),
+                    machine,
+                    edge,
+                )
+                .is_some_and(|edge| edge.same_application(program.typed_program(), application))
+        });
     for conclusion in &required.ensures {
         if owes_through_edge
             || conclusion.law_checked
-            || member
-                .ensures
-                .iter()
-                .any(|stated| stated.key == conclusion.key)
+            || entailed(program, &member.ensures, &member, conclusion, &required)
         {
             continue;
         }
         diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` realizes `{requirement_name}` but does not guarantee its `ensures {}`; callers of the requirement assume it, so state it as the member's own `ensures`",
-            machine.name,
-            render(program, conclusion, required_parameters, member_parameters),
+            "machine `{}` realizes `{requirement_name}` but does not guarantee its `ensures {}`; callers of the requirement assume it",
+            machine.name, render(program, &conclusion.fact),
         )));
     }
-    if required.proposition_premises || required.laws_only {
-        return;
-    }
     for premise in &member.requires {
-        if required
-            .requires
-            .iter()
-            .any(|stated| stated.key == premise.key)
-        {
+        if entailed(program, &required.requires, &required, premise, &member) {
             continue;
         }
         diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` realizes `{requirement_name}` but requires `{}`, which the requirement does not require; callers of the requirement prove only its own `requires`",
-            machine.name,
-            render(program, premise, member_parameters, member_parameters),
+            "machine `{}` realizes `{requirement_name}` but requires `{}`, which the requirement does not imply; callers of the requirement prove only its own `requires`",
+            machine.name, render(program, &premise.fact),
         )));
     }
 }
 
-/// One contract's conjuncts, keyed by their spelling with formals replaced by
-/// positional placeholders.
-struct Conjuncts {
+struct ContractFacts {
+    owner: SymbolHandle,
+    bindings: Vec<ScopedArithmeticBinding>,
     requires: Vec<Conjunct>,
     ensures: Vec<Conjunct>,
-    proposition_premises: bool,
-    /// Every conclusion is a law-checked equality or a proposition
-    /// application, and there is at least one.
-    laws_only: bool,
 }
 
 struct Conjunct {
-    expression: ExpressionHandle,
-    /// The domain a membership conjunct names, spelled after its value.
-    membership_domain: Option<symbols::SymbolHandle>,
-    key: String,
-    /// A result-free equality the law judgment already enforces.
+    fact: ProofFact,
+    identity: Option<CorrespondenceFact>,
     law_checked: bool,
 }
 
-impl Conjuncts {
+impl ContractFacts {
     fn collect<'a>(
         program: &dyn crate::CheckingInput,
+        owner: SymbolHandle,
         contracts: impl Iterator<Item = &'a SignatureContract>,
         parameters: &[StateParameter],
+        result: TypeReferenceHandle,
+        generics: &[typed_trees::data::TypeParameter],
     ) -> Self {
-        let placeholders = parameters
-            .iter()
-            .enumerate()
-            .map(|(position, parameter)| {
-                (
-                    parameter.symbol,
-                    parameter.name.as_str().to_owned(),
-                    format!("#{position}"),
-                )
-            })
-            .collect::<Vec<_>>();
-        let mut conjuncts = Self {
+        let binders = callable_binders(&generic_binders(generics), parameters);
+        let mut facts = Self {
+            owner,
+            bindings: Vec::new(),
             requires: Vec::new(),
             ensures: Vec::new(),
-            proposition_premises: false,
-            laws_only: false,
         };
-        let mut proposition_conclusions = 0usize;
+        for (position, parameter) in parameters.iter().enumerate() {
+            facts.bind_integer(
+                program,
+                ScopedArithmeticBinder::Symbol(parameter.symbol),
+                parameter.type_reference,
+                format!("\0contract-parameter:{position}"),
+            );
+        }
+        facts.bind_integer(
+            program,
+            ScopedArithmeticBinder::Result,
+            result,
+            "\0contract-result".to_owned(),
+        );
         for contract in contracts {
-            let premise = match contract.kind {
-                SignatureContractKind::Requires => true,
-                SignatureContractKind::Ensures => false,
+            let target = match contract.kind {
+                SignatureContractKind::Requires => &mut facts.requires,
+                SignatureContractKind::Ensures => &mut facts.ensures,
                 _ => continue,
             };
-            if premise
-                && program
-                    .proof_facts
-                    .span_or_empty(contract.facts)
-                    .iter()
-                    .any(|fact| matches!(fact, ProofFact::Proposition(_)))
-            {
-                conjuncts.proposition_premises = true;
-            }
-            let target = if premise {
-                &mut conjuncts.requires
-            } else {
-                &mut conjuncts.ensures
-            };
             for fact in program.proof_facts.span_or_empty(contract.facts) {
+                let mut conjuncts = Vec::new();
                 match fact {
                     ProofFact::Expression(expression) => {
-                        let mut split = Vec::new();
-                        split_conjuncts(program, *expression, &mut split);
-                        target.extend(split.into_iter().map(|expression| Conjunct {
-                            expression,
-                            membership_domain: None,
-                            key: program.render_proof_expression(
-                                expression,
-                                ProofSubstitutions::ByParameter(&placeholders),
-                            ),
-                            law_checked: is_law_conjunct(program, expression),
-                        }));
+                        split_conjuncts(program, *expression, &mut conjuncts)
                     }
-                    ProofFact::Membership(membership) => target.push(Conjunct {
-                        expression: membership.value,
-                        membership_domain: Some(membership.domain_symbol),
-                        key: format!(
-                            "{} in {:?}",
-                            program.render_proof_expression(
-                                membership.value,
-                                ProofSubstitutions::ByParameter(&placeholders),
-                            ),
-                            membership.semantic_domain,
-                        ),
-                        law_checked: false,
-                    }),
-                    ProofFact::Proposition(_) => {
-                        if !premise {
-                            proposition_conclusions += 1;
-                        }
-                    }
+                    _ => conjuncts.push(fact.clone()),
+                }
+                for fact in conjuncts {
+                    let law_checked = match &fact {
+                        ProofFact::Expression(expression) => is_law_conjunct(program, *expression),
+                        ProofFact::Proposition(_) => true,
+                        ProofFact::Membership(_) => false,
+                    };
+                    target.push(Conjunct {
+                        identity: correspondence_fact(program, &fact, &binders),
+                        fact,
+                        law_checked,
+                    });
                 }
             }
         }
-        conjuncts.laws_only = conjuncts.ensures.len() + proposition_conclusions > 0
-            && conjuncts
-                .ensures
-                .iter()
-                .all(|conclusion| conclusion.law_checked);
-        conjuncts
+        facts
     }
+
+    fn bind_integer(
+        &mut self,
+        program: &dyn crate::CheckingInput,
+        binder: ScopedArithmeticBinder,
+        reference: TypeReferenceHandle,
+        identity: String,
+    ) {
+        let Some(primitive) = program
+            .primitive_type_reference(reference)
+            .filter(|primitive| primitive.is_fixed_integer())
+        else {
+            return;
+        };
+        self.bindings.push(ScopedArithmeticBinding {
+            binder,
+            value: ScopedArithmeticValue::Atom {
+                identity,
+                unsigned: matches!(
+                    primitive,
+                    typed_trees::unsigned_integer_primitive_pattern!()
+                ),
+            },
+        });
+    }
+
+    fn expression(&self, expression: ExpressionHandle) -> ScopedArithmeticExpression {
+        ScopedArithmeticExpression {
+            owner: self.owner,
+            expression,
+            bindings: self.bindings.clone(),
+        }
+    }
+}
+
+fn entailed(
+    program: &dyn crate::CheckingInput,
+    premises: &[Conjunct],
+    premise_scope: &ContractFacts,
+    goal: &Conjunct,
+    goal_scope: &ContractFacts,
+) -> bool {
+    if let Some(identity) = &goal.identity
+        && premises
+            .iter()
+            .any(|premise| premise.identity.as_ref() == Some(identity))
+    {
+        return true;
+    }
+    let ProofFact::Expression(expression) = goal.fact else {
+        return false;
+    };
+    if matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::Boolean(true)
+    ) {
+        return true;
+    }
+    let hypotheses = premises
+        .iter()
+        .filter_map(|premise| {
+            let ProofFact::Expression(expression) = premise.fact else {
+                return None;
+            };
+            Some(ScopedArithmeticHypothesis {
+                proposition: premise_scope.expression(expression),
+                holds: true,
+            })
+        })
+        .collect::<Vec<_>>();
+    matches!(
+        scoped_arithmetic_implication_for_declaration(
+            program,
+            goal_scope.owner,
+            &hypotheses,
+            &goal_scope.expression(expression)
+        ),
+        StrictArithmeticImplicationJudgment::Proven
+    )
 }
 
 fn split_conjuncts(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
-    out: &mut Vec<ExpressionHandle>,
+    output: &mut Vec<ProofFact>,
 ) {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Atomic(atomic) => split_conjuncts(program, atomic.value, out),
+        ExpressionNode::Atomic(atomic) => split_conjuncts(program, atomic.value, output),
         ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::And => {
-            split_conjuncts(program, binary.left, out);
-            split_conjuncts(program, binary.right, out);
+            split_conjuncts(program, binary.left, output);
+            split_conjuncts(program, binary.right, output);
         }
-        _ => out.push(expression),
+        _ => output.push(ProofFact::Expression(expression)),
     }
 }
 
-/// The law judgment enforces an equality whose sides both read as structural
-/// terms and neither names the result.
 fn is_law_conjunct(program: &dyn crate::CheckingInput, expression: ExpressionHandle) -> bool {
     let Some(binary) = program.expression_table.binary_node(expression) else {
         return false;
@@ -248,28 +307,14 @@ fn is_law_conjunct(program: &dyn crate::CheckingInput, expression: ExpressionHan
     }
 }
 
-/// Spell a conjunct in the member's formal names.
-fn render(
-    program: &dyn crate::CheckingInput,
-    conjunct: &Conjunct,
-    authored: &[StateParameter],
-    member: &[StateParameter],
-) -> String {
-    let names = authored
-        .iter()
-        .zip(member)
-        .map(|(authored, member)| {
-            (
-                authored.symbol,
-                authored.name.as_str().to_owned(),
-                member.name.as_str().to_owned(),
-            )
-        })
-        .collect::<Vec<_>>();
-    let value = program
-        .render_proof_expression(conjunct.expression, ProofSubstitutions::ByParameter(&names));
-    match conjunct.membership_domain {
-        Some(domain) => format!("{value} in {}", program.symbols.display_path(domain, "::")),
-        None => value,
+fn render(program: &dyn crate::CheckingInput, fact: &ProofFact) -> String {
+    match fact {
+        ProofFact::Expression(expression) => program.expression_table.display_name(*expression),
+        ProofFact::Membership(membership) => format!(
+            "{} in {}",
+            program.expression_table.display_name(membership.value),
+            program.symbols.display_path(membership.domain_symbol, "::")
+        ),
+        ProofFact::Proposition(application) => application.name.as_str().to_owned(),
     }
 }

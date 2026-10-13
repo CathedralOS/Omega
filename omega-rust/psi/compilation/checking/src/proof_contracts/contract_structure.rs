@@ -13,6 +13,9 @@ use symbols::SymbolHandle;
 use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
 use typed_trees::type_identity::{TypeIdentityRequest, normalized_expression_identity};
 
+mod correspondence;
+pub(crate) use correspondence::{CorrespondenceFact, correspondence_fact};
+
 /// Bind generic declarations by their authored position and exact symbol.
 pub fn generic_binders(
     parameters: &[typed_trees::data::TypeParameter],
@@ -192,27 +195,55 @@ pub fn declared_fact(
     binders: &[(SymbolHandle, String)],
     content_conservation: &[crate::ContentConservationSourcePlan],
 ) -> DeclaredContractFact {
+    project_declared_fact(program, fact, binders, content_conservation, |expression| {
+        Some(normalized_expression_identity(program, expression, binders))
+    })
+    .expect("checked proposition application must have a normalized formula")
+}
+
+fn try_declared_fact(
+    program: &dyn crate::CheckingInput,
+    fact: &typed_trees::domain::ProofFact,
+    binders: &[(SymbolHandle, String)],
+    content_conservation: &[crate::ContentConservationSourcePlan],
+) -> Option<DeclaredContractFact> {
+    project_declared_fact(program, fact, binders, content_conservation, |expression| {
+        typed_trees::type_identity::try_normalized_index_identity(
+            program.typed_program(),
+            typed_trees::type_identity::IndexIdentityArgument::Expression(expression),
+            binders,
+            &[],
+        )
+    })
+}
+
+// Descriptive publication and proof correspondence share the fact structure.
+// The latter supplies a fallible expression projection at every nested value;
+// wrapping an incomplete call in membership/proposition syntax grants nothing.
+fn project_declared_fact(
+    program: &dyn crate::CheckingInput,
+    fact: &typed_trees::domain::ProofFact,
+    binders: &[(SymbolHandle, String)],
+    content_conservation: &[crate::ContentConservationSourcePlan],
+    expression_identity: impl Fn(typed_trees::expression::ExpressionHandle) -> Option<String>,
+) -> Option<DeclaredContractFact> {
     use typed_trees::domain::ProofFact;
-    match fact {
+    Some(match fact {
         ProofFact::Expression(expression) => {
             if let Some(conservation) = content_conservation
                 .iter()
                 .find(|candidate| candidate.source_expression == *expression)
             {
-                return DeclaredContractFact::ContentConservation(
+                return Some(DeclaredContractFact::ContentConservation(
                     language_semantics::content::content_conservation_plan_bytes(
                         &conservation.plan,
                     ),
-                );
+                ));
             }
-            DeclaredContractFact::Expression(normalized_expression_identity(
-                program,
-                *expression,
-                binders,
-            ))
+            DeclaredContractFact::Expression(expression_identity(*expression)?)
         }
         ProofFact::Membership(membership) => DeclaredContractFact::Membership {
-            value: normalized_expression_identity(program, membership.value, binders),
+            value: expression_identity(membership.value)?,
             domain: symbol_identity(program, membership.domain_symbol, binders),
             arguments: program
                 .type_reference_table
@@ -232,37 +263,32 @@ pub fn declared_fact(
                 .iter()
                 .map(|argument| {
                     if let Some(literal) = &argument.const_literal {
-                        return literal
-                            .value_bignum()
-                            .expect("checked proposition const must be an integer")
-                            .to_string();
+                        return literal.value_bignum().map(|value| value.to_string());
                     }
                     let identity = symbol_identity(program, argument.symbol, binders);
                     if let Some(projection) = &argument.evidence_projection {
-                        format!("{identity}.{}", projection.member)
+                        Some(format!("{identity}.{}", projection.member))
                     } else {
-                        identity
+                        Some(identity)
                     }
                 })
-                .collect::<Vec<_>>();
+                .collect::<Option<Vec<_>>>()?;
             let argument_labels = program
                 .expression_table
                 .expression_handles(application.arguments)
                 .iter()
-                .map(|argument| normalized_expression_identity(program, *argument, binders))
-                .collect::<Vec<_>>();
-            let formula = program
-                .normalize_proposition_application(
-                    application,
-                    Some(typed_trees::proposition::PropositionLabels {
-                        binder_labels: &binder_labels,
-                        argument_labels: &argument_labels,
-                    }),
-                )
-                .expect("checked proposition application must have a normalized formula");
+                .map(|argument| expression_identity(*argument))
+                .collect::<Option<Vec<_>>>()?;
+            let formula = program.normalize_proposition_application(
+                application,
+                Some(typed_trees::proposition::PropositionLabels {
+                    binder_labels: &binder_labels,
+                    argument_labels: &argument_labels,
+                }),
+            )?;
             DeclaredContractFact::Proposition(formula.identity_label())
         }
-    }
+    })
 }
 
 fn symbol_identity(

@@ -78,6 +78,10 @@ pub(super) fn top_level_type_symbol_for_source(
             SymbolKind::Data,
             SymbolKind::Machine,
             SymbolKind::Trait,
+            // Named application operands share this syntax with type leaves.
+            // Retain value identity here; the selected binder's kind and
+            // carrier are checked after resolution, not guessed from spelling.
+            SymbolKind::Const,
         ],
         name.source_span(),
         |_| true,

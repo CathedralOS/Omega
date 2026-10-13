@@ -212,6 +212,20 @@ impl<'program> Engine<'program> {
         &self,
         expression: ExpressionHandle,
     ) -> Option<typed_trees::types::TypeReferenceHandle> {
+        if let Some(parameters) =
+            crate::proof_contracts::contract_results::source_contract_parameters(
+                self.program,
+                self.source_owner,
+                expression,
+            )
+        {
+            return crate::parameter_expression_result_type_reference(
+                self.program,
+                self.source_owner,
+                parameters,
+                expression,
+            );
+        }
         if let Some(domain) = self.program.domain_definition(self.source_owner) {
             return crate::value_custody::expression_types::domain_expression_result_type_reference(
                 self.program,

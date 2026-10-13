@@ -157,7 +157,13 @@ fn contract_occurrence_owner(
         // Spelling is only the reserved-form discriminator. The full
         // expression handle must belong to this owning ensures clause;
         // another callable with an equal result type is not an owner.
-        if !owns_result(program, callable, return_type, parameters, contract) {
+        if !owns_result(
+            program,
+            callable,
+            return_type,
+            program.state_parameters.span_or_empty(parameters),
+            contract,
+        ) {
             return None;
         }
         if owner.is_some_and(|candidate| candidate != (callable, return_type)) {
@@ -166,6 +172,25 @@ fn contract_occurrence_owner(
         owner = Some((callable, return_type));
     }
     owner
+}
+
+/// Applied facts keep their declaration symbol but have fresh formal rows.
+/// Rejoin the exact occurrence to that retained roster, not the template's
+/// same-symbol signature or a type guessed from its substituted proof value.
+pub(crate) fn source_contract_parameters(
+    program: &dyn crate::CheckingInput,
+    owner: symbols::SymbolHandle,
+    expression: ExpressionHandle,
+) -> Option<&[StateParameter]> {
+    let parameters = if let Some(memos) = crate::frozen_program::frozen_program_memos(program) {
+        memos
+            .contract_occurrences
+            .get_or_init(|| std::sync::Arc::new(ContractOccurrenceIndex::of(program)))
+            .parameters(owner, expression)?
+    } else {
+        ContractOccurrenceIndex::of(program).parameters(owner, expression)?
+    };
+    Some(program.state_parameters.span_or_empty(parameters))
 }
 
 /// Every callable contract in the order owner resolution visits them:
@@ -180,7 +205,7 @@ fn callable_contracts(
     Item = (
         symbols::SymbolHandle,
         TypeReferenceHandle,
-        &[StateParameter],
+        arena::HandleSpan<StateParameter>,
         &SignatureContract,
     ),
 > + '_ {
@@ -189,28 +214,28 @@ fn callable_contracts(
         Some((
             machine.symbol,
             entry.return_type,
-            program.state_parameters(entry),
+            entry.parameters,
             program.machine_contracts(machine),
         ))
     });
-    let requirements = program.traits().iter().flat_map(|definition| {
-        program
-            .trait_machine_signatures(definition)
-            .iter()
-            .map(|signature| {
-                (
-                    signature.symbol,
-                    signature.return_type,
-                    program.state_signature_parameters(signature),
-                    program.state_signature_contracts(signature),
-                )
-            })
-    });
+    let requirements = program
+        .traits()
+        .iter()
+        .flat_map(|definition| program.trait_machine_signatures(definition))
+        .chain(program.prepared_callable_signatures())
+        .map(|signature| {
+            (
+                signature.symbol,
+                signature.return_type,
+                signature.parameters,
+                program.state_signature_contracts(signature),
+            )
+        });
     let operators = program.operators().iter().map(|operator| {
         (
             operator.symbol,
             operator.return_type,
-            program.operator_parameters(operator),
+            operator.parameters,
             program.operator_contracts(operator),
         )
     });
@@ -284,11 +309,32 @@ fn owns_result(
 /// for every expression node the ascending positions of the contracts that
 /// reach it.
 pub(crate) struct ContractOccurrenceIndex {
-    contracts: Vec<(symbols::SymbolHandle, TypeReferenceHandle, bool)>,
+    contracts: Vec<(
+        symbols::SymbolHandle,
+        TypeReferenceHandle,
+        bool,
+        arena::HandleSpan<StateParameter>,
+    )>,
     containing: symbols::SymbolKeyMap<ExpressionHandle, Vec<u32>>,
 }
 
 impl ContractOccurrenceIndex {
+    fn parameters(
+        &self,
+        owner: symbols::SymbolHandle,
+        expression: ExpressionHandle,
+    ) -> Option<arena::HandleSpan<StateParameter>> {
+        let mut parameters = None;
+        for position in self.containing.get(&expression)? {
+            let (callable, _, _, candidate) = self.contracts[*position as usize];
+            if callable != owner || parameters.is_some_and(|prior| prior != candidate) {
+                return None;
+            }
+            parameters = Some(candidate);
+        }
+        parameters
+    }
+
     fn of(program: &dyn crate::CheckingInput) -> Self {
         let mut contracts = Vec::new();
         let mut containing = symbols::SymbolKeyMap::<ExpressionHandle, Vec<u32>>::default();
@@ -301,7 +347,14 @@ impl ContractOccurrenceIndex {
             contracts.push((
                 callable,
                 return_type,
-                owns_result(program, callable, return_type, parameters, contract),
+                owns_result(
+                    program,
+                    callable,
+                    return_type,
+                    program.state_parameters.span_or_empty(parameters),
+                    contract,
+                ),
+                parameters,
             ));
         }
         Self {
@@ -313,7 +366,7 @@ impl ContractOccurrenceIndex {
     fn declaration_owner(&self, expression: ExpressionHandle) -> Result<symbols::SymbolHandle, ()> {
         let mut owner = symbols::SymbolHandle::default();
         for position in self.containing.get(&expression).into_iter().flatten() {
-            let (callable, _, _) = self.contracts[*position as usize];
+            let (callable, _, _, _) = self.contracts[*position as usize];
             if !callable.is_valid() || (owner.is_valid() && owner != callable) {
                 return Err(());
             }
@@ -335,7 +388,7 @@ impl ContractOccurrenceIndex {
             .iter()
             .filter(|position| with_root.binary_search(position).is_ok())
         {
-            let (callable, return_type, owns_result) = self.contracts[*position as usize];
+            let (callable, return_type, owns_result, _) = self.contracts[*position as usize];
             if !owns_result {
                 return None;
             }

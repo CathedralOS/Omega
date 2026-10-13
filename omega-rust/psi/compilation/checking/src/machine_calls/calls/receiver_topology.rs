@@ -193,10 +193,9 @@ pub fn resolve_state_call_target(
             .symbols
             .child_handles(receiver_symbol)
             .is_some_and(|mut children| children.any(|child| child == target_symbol))
-        && let Ok(Some(requirement)) =
-            crate::named_conformance_target_requirement(program, machine, target_symbol)
+        && let Some((_, signature)) = super::selected_requirement_signature(program, target_symbol)
     {
-        return requirement.signature.symbol;
+        return signature.symbol;
     }
     // A selector call's trait receiver is a namespace, not storage; its slot
     // is the callable the call graph keeps (see `instantiate_dynamic_slots`).
