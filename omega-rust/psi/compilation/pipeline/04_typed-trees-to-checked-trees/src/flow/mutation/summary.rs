@@ -265,7 +265,13 @@ fn propagate_state_mutation_summaries(
                     let run = owner.map_or(TargetRun::Whole, |(_, machine_symbol)| {
                         target_run(program, machine_symbol, state.state_symbol, borrow, call)
                     });
-                    (call, summary_index_from(states, call.target_symbol), run)
+                    // A declaration can own a state identity without owning a body.
+                    // Its admitted frame belongs to the shared resolver, not
+                    // the (necessarily incomplete) structured body summary.
+                    let body_summary = validation::find_state(program, call.target_symbol)
+                        .filter(|(machine, _)| machine.body_is_present)
+                        .and_then(|_| summary_index_from(states, call.target_symbol));
+                    (call, body_summary, run)
                 })
                 .collect::<Vec<_>>()
         })

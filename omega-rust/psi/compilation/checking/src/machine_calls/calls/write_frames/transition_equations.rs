@@ -39,17 +39,15 @@ pub(super) fn append_cycle_frame_edge(
     }
     match program.statement_table.transition_target(target) {
         TransitionTargetNode::Terminal | TransitionTargetNode::Value(_) => Some(()),
-        TransitionTargetNode::Named {
-            path, arguments, ..
-        } => {
-            let target = program
-                .machine_states(machine)
-                .iter()
-                .find(|candidate| candidate.symbol == path.symbol)
-                .or_else(|| {
-                    let members = program.statement_table.name_path_members(path.members);
-                    matches!(members, [member] if member.is_self_receiver()).then_some(source)
-                })?;
+        TransitionTargetNode::Named { arguments, .. } => {
+            // Equation construction and cycle discovery must resolve the same
+            // destination. In particular, a resolved tail invocation of this
+            // machine substitutes its actuals into the entry-state frame, not
+            // the current state's namespace. This is only a may-write equation;
+            // finite substitutions, call admission and loans remain separate.
+            let target = super::transition_topology::named_transition_target_state(
+                program, machine, source, target,
+            )?;
             edges.push(CycleFrameEdge {
                 target: target.symbol,
                 arguments: program

@@ -57,7 +57,9 @@ pub(super) fn exit_return_call<'facts>(
                     // Both borrows name the same immutable table occurrence;
                     // equal targets in sibling arms are not interchangeable.
                     std::ptr::eq(path, selected)
-                        && call.target_symbol == path.symbol
+                        && call.target_symbol
+                            == validation::call_target_state(program, path.symbol)
+                                .map_or(path.symbol, |state| state.symbol)
                         && crate::proof::contract_target_from_state_symbol(program, path.symbol)
                             .is_some_and(|(owner, _)| owner != exit.machine_symbol)
                 }

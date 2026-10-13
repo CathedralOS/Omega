@@ -10,16 +10,22 @@ pub(super) fn collect_transition_target_borrow_calls(
         TransitionTargetNode::Named {
             arguments, path, ..
         } => {
+            // Borrow consumers join executable callee states, not declaration
+            // heads. Keep the authored path in the call occurrence so machine
+            // invocation remains distinct from an internal state transfer.
+            // Signature-only targets retain their exact declaration identity.
+            let target_symbol = validation::call_target_state(collection.program, path.symbol)
+                .map_or(path.symbol, |state| state.symbol);
             let accesses = collection.collect_transition_target_argument_accesses(
                 collection
                     .program
                     .statement_table
                     .expression_handles(*arguments),
-                path.symbol,
+                target_symbol,
             );
             collection.append_borrow_call(
                 path.head_symbol,
-                path.symbol,
+                target_symbol,
                 path.members.count() > 1,
                 accesses,
             );

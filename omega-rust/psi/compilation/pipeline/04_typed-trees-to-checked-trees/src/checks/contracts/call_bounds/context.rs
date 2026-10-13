@@ -136,7 +136,9 @@ fn prove(
             evidence_arguments,
             ..
         } => {
-            path.symbol == call.target_symbol
+            validation::call_target_state(program, path.symbol)
+                .map_or(path.symbol, |state| state.symbol)
+                == call.target_symbol
                 && (path.head_symbol == path.symbol
                     || path.head_symbol == caller.machine_symbol
                     || is_data_namespace(program, path.head_symbol))

@@ -8,6 +8,15 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 10, "jobs": "3", "load1_end": 7.13, "load1_start": 7.23, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# W2-17 scoped observations: wire qualification; prior rows preserved.
+# prior context: {"cpus": 10, "jobs": "3", "load1_end": 11.93, "load1_start": 7.22, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# prior context: {"cpus": 10, "jobs": "3", "load1_end": 4.25, "load1_start": 4.19, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 5, "jobs": "4", "load1_end": 0.23, "load1_start": 0.08, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "3", "load1_end": 4.25, "load1_start": 4.19, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "4", "load1_end": 5.67, "load1_start": 5.67, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "4", "load1_end": 1.91, "load1_start": 1.91, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "3", "load1_end": 31.22, "load1_start": 33.41, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 5, "jobs": "2", "load1_end": 1.24, "load1_start": 0.63, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 835ms expected @a9ae30e1c334+wt
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -774,6 +783,11 @@ fail/borrows/stored_reference_shared_cohort_live_source_write rejected 5253ms ex
 	statement 5 mutates `main.cell.value` while local borrow `message` is still active (borrowed at statement 2; its last use is at statement 6)
 fail/borrows/stored_returned_reference_live_source_write rejected 5492ms expected @a9ae30e1c334+wt
 	statement 2 mutates `value` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+fail/borrows/tail_recursive_mutation_retires_field_bound rejected 1343ms expected @0a951af3f8e9+wt
+	cannot prove requires contract for call require_bound from main: work.count <= 8 (needs fact `work.count <= 8` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/borrows/tail_recursive_write_conflicts_with_live_sibling_loan rejected 981ms expected @0a951af3f8e9+wt
+	state `fill` receives `work` while local borrow `observed` is still active (borrowed at statement 2; its last use is at statement 4)
+	statement 3 mutates `work.stable.value` while local borrow `observed` is still active (borrowed at statement 2; its last use is at statement 4)
 fail/borrows/view_local_backing_write_while_stored rejected 2577ms expected @a9ae30e1c334+wt
 	statement 2 mutates `main.buffer[0]` while local borrow `out_line` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrows/view_local_forward_before_store rejected 2896ms expected @a9ae30e1c334+wt
@@ -4275,6 +4289,9 @@ pass/borrows/runtime_stored_reference_leaf_match_join_retirement_exit checked 10
 pass/borrows/runtime_stored_reference_leaf_residual_retirement_exit checked 11260ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_stored_reference_shared_cohort_retirement_exit checked 11123ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_tail_expression_views_exit checked 11242ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_tail_recursive_disjoint_field_fact_exit checked 27956ms check-target:macos_arm64 @0a951af3f8e9+wt
+pass/borrows/runtime_tail_recursive_nested_field_frame_exit checked 32157ms check-target:macos_arm64 @0a951af3f8e9+wt
+pass/borrows/runtime_tail_recursive_numeric_disjoint_field_fact_exit checked 21655ms check-target:macos_arm64 @0a951af3f8e9+wt
 pass/borrows/runtime_unit_call_mutable_view_local_exit checked 10996ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_whole_referent_case_store_exit checked 11135ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_whole_referent_payload_case_store_exit checked 11130ms check-target:macos_arm64 @a9ae30e1c334+wt

@@ -54,8 +54,10 @@ pub(crate) fn rejoin_call_accesses<'program>(
             super::collect_call_argument_accesses
         }
         CallSite::TransitionNamed { path, .. } => {
+            let target = validation::call_target_state(program, path.symbol)
+                .map_or(path.symbol, |state| state.symbol);
             if source.authored_expression.is_valid()
-                || path.symbol != source.target_symbol
+                || target != source.target_symbol
                 || path.head_symbol != source.receiver_symbol
                 || (path.members.count() > 1) != source.has_receiver
             {

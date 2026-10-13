@@ -1,0 +1,21 @@
+// Expected exit: 64.
+// Expected output contains: error invalid input
+use omega_language_std::console;
+use io::input;
+use io::output;
+use model::kriging;
+machine main() reaches Console {
+    let mut raw: Raw;
+    let accepted: bool = block read(&mut raw);
+    transition accepted { true -> validate(&raw) false -> invalid() }
+    state validate(raw: &Raw) {
+        let mut problem: Problem;
+        transition decode(raw, &mut problem) { true -> calculate(&mut problem) false -> invalid() }
+    }
+    state calculate(problem: &mut Problem) {
+        transition solve(problem) { true -> report(problem) false -> singular() }
+    }
+    state report(problem: &Problem) { emit(problem); Console::exit_process(0); }
+    state singular() { Console::write_line("status singular-system"); Console::exit_process(2); }
+    state invalid() { Console::write_line("error invalid input"); Console::exit_process(64); }
+}

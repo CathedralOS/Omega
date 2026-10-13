@@ -1,0 +1,3 @@
+// Intended rejection: covariance index equals fixed extent.
+data Covariance { entries: [f64; 64]; }
+machine invalid(covariance: &Covariance) -> f64 { covariance.entries[64] }

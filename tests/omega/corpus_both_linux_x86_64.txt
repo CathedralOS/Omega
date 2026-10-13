@@ -38,6 +38,9 @@ pass/borrows/runtime_indexed_stored_reference_call built 4968ms exit:0 interpret
 pass/borrows/runtime_mutable_primitive_reference_exit built 6934ms exit:0 interpreter-exit:0 interpreter:agrees @944fb1232f17
 pass/borrows/runtime_record_primitive_reference_capture_exit built 5943ms exit:0 interpreter-exit:0 interpreter:agrees @3f342b86d6b4
 pass/borrows/runtime_selected_reference_record_helper_exit built 149859ms exit:0 interpreter-exit:0 interpreter:agrees @1b12798e27f4
+pass/borrows/runtime_tail_recursive_disjoint_field_fact_exit built 21884ms exit:0 interpreter-exit:0 interpreter:agrees @0a951af3f8e9+wt
+pass/borrows/runtime_tail_recursive_nested_field_frame_exit built 20070ms exit:0 interpreter-exit:0 interpreter:agrees @0a951af3f8e9+wt
+pass/borrows/runtime_tail_recursive_numeric_disjoint_field_fact_exit built 19391ms exit:0 interpreter-exit:0 interpreter:agrees @0a951af3f8e9+wt
 pass/borrows/static_record_reference_return_exit built 4895ms exit:0 interpreter-exit:0 interpreter:agrees @ceb70d0df240+wt
 pass/calls/runtime_std_math_sin_cos_exit built 35272ms exit:70 interpreter-exit:70 interpreter:agrees @5c5bb7a1c2c2+wt
 pass/calls/scalar_local_record_view_call_exit built 38194ms exit:70 interpreter-exit:70 interpreter:agrees @1b12798e27f4

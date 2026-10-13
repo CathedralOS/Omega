@@ -111,11 +111,8 @@ fn build_state_plan(
         // the same composed roster, so the edge row names whichever state
         // the transition actually transfers to. Anything else has no
         // composed edge and keeps the omitted-edge behavior.
-        let target = match validation::activation_target_state_index(
-            program,
-            machine,
-            path.symbol,
-        ) {
+        let target = match validation::activation_target_state_index(program, machine, path.symbol)
+        {
             Some(target_index) => &program.machine_states(machine)[target_index],
             None => match validation::find_machine_by_entry_state(program, path.symbol) {
                 Some((_, entry)) => entry,
@@ -136,7 +133,8 @@ fn build_state_plan(
                     statement_index: source_index,
                     target_symbol,
                     ..
-                } if source_index == statement_index && target_symbol == path.symbol
+                } if source_index == statement_index && target_symbol == validation::call_target_state(program, path.symbol)
+                    .map_or(path.symbol, |state| state.symbol)
             )
         }) {
             let Some(root) = event.root.as_symbol() else {

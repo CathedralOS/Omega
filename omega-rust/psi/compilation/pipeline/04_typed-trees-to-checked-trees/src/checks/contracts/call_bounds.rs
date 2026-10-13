@@ -92,7 +92,9 @@ fn prove(
             evidence_arguments,
             ..
         } => {
-            if path.symbol != call.target_symbol || !evidence_arguments.is_empty() {
+            let target = validation::call_target_state(program, path.symbol)
+                .map_or(path.symbol, |state| state.symbol);
+            if target != call.target_symbol || !evidence_arguments.is_empty() {
                 return None;
             }
             validation::find_state(program, call.target_symbol)

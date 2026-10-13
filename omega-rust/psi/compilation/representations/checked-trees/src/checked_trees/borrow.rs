@@ -173,6 +173,9 @@ pub struct BorrowCallFact {
     pub statement_index: usize,
     pub call_ordinal: usize,
     pub receiver_symbol: SymbolHandle,
+    /// Exact executable callee state, or the resolved signature declaration
+    /// when no body is available. The source occurrence separately retains
+    /// whether this is an ordinary invocation or an internal state transfer.
     pub target_symbol: SymbolHandle,
     pub has_receiver: bool,
     pub accesses: HandleSpan<BorrowArgumentAccessFact>,

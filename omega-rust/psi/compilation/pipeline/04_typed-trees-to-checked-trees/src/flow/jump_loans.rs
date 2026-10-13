@@ -154,16 +154,20 @@ pub(super) fn target_run(
     let Some(target) = find_state_in_machine(program, machine_symbol, call.target_symbol) else {
         return TargetRun::Whole;
     };
-    if !matches!(
-        find_call_site(
-            program,
-            machine_symbol,
-            state_symbol,
-            call.statement_index,
-            call.call_ordinal
-        ),
-        Some(CallSite::TransitionNamed { .. })
-    ) {
+    let Some(CallSite::TransitionNamed { path, .. }) = find_call_site(
+        program,
+        machine_symbol,
+        state_symbol,
+        call.statement_index,
+        call.call_ordinal,
+    ) else {
+        return TargetRun::Whole;
+    };
+    // The callee state's identity is a summary coordinate. A machine-named
+    // invocation still holds incoming loans through completion, even when its
+    // entry belongs to this same machine and native recursion uses a backedge.
+    // Only an authored local-state transfer closes the source state scope.
+    if program.machine_by_symbol(path.symbol).is_some() {
         return TargetRun::Whole;
     }
     let caller = find_state_in_machine(program, machine_symbol, state_symbol);
