@@ -33,6 +33,10 @@ checked bodies and do not participate in Build provider selection.
 Compiler-catalog semantic primitives are automatic. Target defaults still
 supply boundary float implementations; overrides must satisfy the canonical
 arithmetic contract, not choose a different meaning for `+`.
+Selection alone contributes no service reach. Boundary requirements declare
+their rows explicitly; omitted reach on a pure numeric requirement is empty.
+Checked providers must fit that row, while imported or assumed implementations
+retain their trust and physical-authority findings independently of reach.
 
 `Build::select_provider<Slot, Provider>(builder)` is ordinary typed vocabulary. Slot
 resolves to one exact boundary trait or package-qualified same-path boundary-

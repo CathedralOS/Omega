@@ -11,6 +11,8 @@ status was zero, cleanup ran, or an application protocol succeeded.
 Core owns the canonical `ProcessExit` boundary trait and its exact
 `ProcessExit::exit_process(return_code: i32)` requirement. It owns the declaration
 and semantic identity, not process management or platform implementation.
+The requirement explicitly declares `reaches ProcessExit`; that contribution
+does not arise implicitly from its containing boundary trait.
 Psi recognizes the exact admitted canonical requirement, including package and
 contract identity; a matching path, method spelling, or ordinary user declaration
 does not acquire its meaning.

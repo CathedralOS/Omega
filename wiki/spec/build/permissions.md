@@ -8,6 +8,15 @@ receiving policy separately checks the dangerous authority exercised by selected
 physical mechanisms. None of these
 axes substitutes for another.
 
+A boundary requirement contributes only its explicitly declared service row,
+not the name of its containing provider interface. Core-critical and
+root-registered services are always surfaced by
+[package audit policy](../packages/review.md#critical-service-audit-policy).
+That policy neither replaces physical-mechanism classification nor grants
+receiver permission. An empty abstract row cannot hide a selected mechanism's
+filesystem or hardware authority; classification and admitted trust remain
+independently visible.
+
 The receiver selects the policy's versioned package, exact dependency closure
 and concrete configuration independently of the offered program, as specified
 for [PCC admission](../proofs/publication.md#receiver-owned-requirements).

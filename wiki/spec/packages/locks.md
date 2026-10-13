@@ -18,6 +18,13 @@ supplied terminal permissions, and accepted restricted build requests, scoped
 to their reviewed purpose, execution profile, and product target where applicable.
 Every retained row preserves its complete readable meaning, not only a digest.
 
+The critical service projection includes the exact core catalog identity and
+root-selected custom service identities under
+[audit policy](review.md#critical-service-audit-policy), plus accepted findings
+for those services. Keep policy selection separate from acceptance and authority
+grants. This does not serialize every noncritical reach row or a complete audit
+report; a policy change invalidates reuse of acceptance under the previous inputs.
+
 Each accepted package occurrence also retains a compiler input identity and its
 exact semantic bindings: role, package owner, declaration path, normalized schema
 digest, optional selected-provider-plan digest, and explicit terminal permissions.

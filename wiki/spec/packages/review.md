@@ -86,6 +86,65 @@ joins may evolve with the compiler. Neither format stability nor an additional
 consumer alone justifies another IR. Later validation may repeat a useful
 invariant without making the later representation the only permissible source.
 
+## Critical service audit policy
+
+Every explicit service reach is propagated and available in the full report.
+Criticality selects mandatory highlighting and acceptance obligations, not
+which effects exist. A provider interface is not critical merely because it
+is a boundary trait or requires Build selection.
+
+The standard critical set is a fixed catalog of exact `omega::core` service
+identities: `FilesystemContentRead`, `FilesystemContentWrite`,
+`FilesystemMetadataQuery`, `FilesystemMetadataMutation`, `DirectoryEnumeration`,
+`FilesystemNamespaceMutation`, `ProcessInput`, `ProcessOutput`, `ProcessExit`,
+`MachineControl`, `PortIo`, `InterruptControl`, `InterruptEntry` and
+`RootMemoryAccess`. These identify the existing authority categories, not new
+physical mechanisms. Capability-only declarations may be empty boundary traits;
+they need no provider simply to be named in `reaches`. Match canonical declaration
+identities, including ownership, never their spelling. A same-named package
+declaration cannot acquire core classification. The corresponding physical
+authority classes remain independently reported even when no abstract core
+service was declared; `ProcessExit` corresponds to process termination.
+
+The consuming root can add an exact custom boundary-trait identity:
+
+```omega
+Build::audit_service<MotorControl>(builder);
+```
+
+This compiler-owned Build operation takes the activation's original mutable
+Build value explicitly and adds the selected identity to the root's critical
+audit set. It is policy configuration, not acceptance or provider selection.
+Only executed root configuration or helpers acting with its delegated Build
+value can add entries; a dependency's own build cannot select the consumer's
+policy. Duplicate registrations are idempotent. Additions combine by union;
+no call removes a core or previously registered identity. Matching uses
+normalized reach including boundary parents. Ordinary traits, strings and
+unresolved identities reject. Registered services remain restrictable through
+ordinary service exclusions; registration is not required to use those exclusions.
+
+Install, update and explicit review prominently surface core-critical and
+root-registered reach with exact callable/package ownership, transitive call
+context, target/purpose and accepted-versus-candidate state. New or widened
+critical findings require project acceptance under the existing comparison
+rules; unchanged accepted findings remain visible without recurring approval.
+Unregistered custom reach stays in the full report. Checked-body reach and a
+conservative public ceiling remain distinguishable, including overdeclaration.
+
+Root audit selections enter the exact review/acceptance inputs. Registration
+itself accepts no finding, grants no runtime or build-host authority, and cannot
+relax inherited restrictions. Removing a root registration by editing source
+is a review-visible policy change, not a way to reuse an earlier acceptance.
+Policy evaluation obeys existing pre-effect Build admission: auditing never
+executes an unaccepted action to discover whether it should be accepted.
+
+Selected mechanisms retain their independent physical-authority classifications
+and foreign/assumed-supply trust findings. Empty reach or an unregistered wrapper
+cannot hide filesystem writes, device access or an assumed binding. Unknown
+authority remains unknown/rejected as required above, not benign. A checked
+pure numeric provider has no service effect merely due to selection; an opaque
+numeric provider may still carry a trust finding.
+
 ## Semantic identity
 
 - Package-owned declarations carry exact package ownership, not import aliases
@@ -154,8 +213,10 @@ slack with exact callable/service ownership, not an invented body observation.
 A bodyless guarantee is an explicit accepted claim; a claim-free boundary symbol
 is not. Retain the complete published envelope as a distinct trust finding.
 Authority establishment, provider guarantees, executable mechanisms, assumptions,
-and ABI compatibility are independent axes. Classifications come from admitted
-compiler-owned metadata on exact nominals, never package-controlled names.
+and ABI compatibility are independent axes. Core and physical classifications
+come from admitted compiler-owned metadata on exact identities, never
+package-controlled names. Custom critical-service additions come only from the
+root audit selections above and do not reclassify physical mechanisms.
 
 Each package-owned bodyless external realization, including an unused private
 leaf, has a separate executable-supply trust row. Its self-contained key binds

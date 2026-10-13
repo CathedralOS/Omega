@@ -110,16 +110,18 @@ boundary trait Readable {
         path: [u8]::Utf8,
         out: &mut Vec<u8>
     ) -> ReadResult
+      reaches Readable;
       suspends;
 }
 ```
 
 The caller proves input requirements. Checked realizations prove their
-guarantees; opaque realizations require admitted guarantees. The boundary trait
-contributes its own service identity automatically; additional `reaches` members
-name other services. `suspends` separately permits parking.
+guarantees; opaque realizations require admitted guarantees. The requirement
+explicitly names `Readable` in its reach row. The boundary trait's name is not
+added automatically; omission would mean an empty requirement row. `suspends`
+separately permits parking.
 
-Calling a statically selected window provider reaches its window service.
+Calling a window requirement declaring window-service reach contributes that row.
 Whether its code came from a DLL is a provider fact. Calling an explicit runtime
 loader additionally reaches `DynamicLibraryLoading` and still needs admission
 for the loaded implementation. API visibility, crossings, and possible behavior
@@ -336,6 +338,34 @@ preservation; boundary-trait identity neither grants nor forbids that permission
 Services are exact boundary-trait identities, not a built-in numeric list or
 names recognized by spelling. Inheritance adds parent services and `+` means
 set union, never a choice between target providers.
+
+Provider interfaces and capabilities need not have the same name. A Windows
+filesystem read requirement can declare `reaches FilesystemContentRead`; its
+caller then reaches that core capability, not `WindowsFilesystemHost` merely
+because that trait supplied the implementation. A pure floating-point boundary
+can have empty reach. Checked implementations must satisfy these contracts;
+foreign implementation assumptions remain separately auditable.
+
+All declared reaches propagate, including library-defined ones. Core-critical
+capabilities are always highlighted in package audits. To give a custom driver
+the same treatment, the consuming root can write:
+
+```omega
+boundary trait MotorControl {
+    machine set_speed(speed: u32)
+        reaches MotorControl;
+}
+
+// In root build configuration, with its original Build value:
+Build::audit_service<MotorControl>(builder);
+```
+
+This adds a critical audit identity; it grants no authority and accepts no
+finding. Unregistered custom reach remains in the full report and can still be
+restricted with `Build::exclude_service`. Dependencies cannot suppress core
+warnings or hide underlying physical operations behind an unregistered wrapper.
+See [critical service audit policy](../spec/packages/review.md#critical-service-audit-policy)
+for the fixed core catalog and install/update acceptance rules.
 
 Checked bodies publish the reach contributed by their declarations and calls,
 including when exported. For example, with a Console binding in entry state:

@@ -12,7 +12,8 @@ cleanup rules. A generic allocation does not promise an ordinary `&mut T`;
 non-RAM backing may require a [placed view](placed_access.md).
 
 Using already-held storage need not reach a provider. Acquiring fresh backing
-through a boundary contributes that service's reach and its evidence. A strategy
+through a boundary contributes the requirement's explicit reach and its evidence.
+The boundary's name alone contributes no reach. A strategy
 may offer a fallible request preserving unchanged state on rejection and an
 infallible request whose caller proves the exact aligned capacity requirement.
 Neither route grants storage authority from a number alone.

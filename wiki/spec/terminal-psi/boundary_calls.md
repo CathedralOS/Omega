@@ -216,12 +216,14 @@ all internal call-graph dependencies. Equal service sets do not merge distinct
 requirements. Do not replace the row with Boolean formulas or a caller-selected
 implementation.
 
-The boundary declaration retains fixed nominal service and synchronous-invocation
+The boundary declaration retains explicitly declared fixed service and synchronous-invocation
 contributions separately from that bound. Its published ceiling is their normalized
-union. Installation substitutes only the bound: a boundary's own service remains
+union. Installation substitutes only the bound: an explicitly declared service remains
 concrete even when the selected provider is quiet or the same service also occurs
 in the bound. Neither widening the bound nor subtracting it from the flattened
 ceiling reconstructs this distinction.
+The requirement/trait identity remains a selection and call-identity key; it
+does not enter service reach unless explicitly named in a reach clause.
 
 Installation verifies the selected concrete operation row is contained in the
 bound and substitutes it through the complete root closure. Preselection

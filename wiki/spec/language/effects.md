@@ -15,10 +15,13 @@ in [values](../resources/authority.md); implementation trust is recorded by
 | `blocks;` | May occupy its worker while waiting. |
 | `crashes Cause` with route guards | May leave without a successor or cleanup under a covered guard. |
 
-Boundary traits contribute nominal service identities automatically; ordinary
-traits do not. A call contributes its boundary service even if that operation
-authors no additional `reaches` members. A wake operation may reach a scheduler
-without suspending. Mutation through ordinary borrows adds no service identity;
+Boundary traits supply identities that may be named in `reaches`; declaring or
+calling one does not implicitly add its identity. A boundary call contributes
+its requirement's explicit reach row, with boundary-parent closure. Omission
+on a bodyless requirement means empty, exactly like a memberless clause; it
+does not mean "reach the containing trait". Ordinary traits are not service
+identities. A wake operation may reach a scheduler without suspending.
+Mutation through ordinary borrows adds no service identity;
 its access and write frame follow [structural access](../terminal-psi/structural_access.md).
 
 A checked body directly invoking a boundary operation must declare the reached
@@ -26,15 +29,48 @@ service in `reaches`, including for a receiver-free static boundary call. Ordina
 machine calls propagate reach automatically: a wrapper need not repeat its
 callees' declarations. This applies to private and exported checked bodies alike.
 Omitting `reaches` does not promise empty transitive reach or permit undeclared
-direct boundary use. Authored members remain conservative contributions to the
+direct service use. A direct call whose requirement has empty reach needs no
+service declaration. Authored members remain conservative contributions to the
 published row; they cannot mask additional transitive reach. A memberless clause
 contributes no members and is not a prohibition on callees' reach.
 
 Bodyless trait requirements and opaque boundaries publish declared reach ceilings;
 omission there is empty. A selected implementation must fit its requirement.
+An empty row is not permission for a checked provider to hide its calls.
+Foreign and assumed supplies retain their separate trust admission and physical
+authority classifications. Pure arithmetic may have a selected boundary
+implementation without acquiring an arithmetic-service reach.
 Reach declarations and propagation grant no capability or provider authority.
 Reach prohibitions, including negation or Boolean restriction syntax, are outside
 this contract; `reaches` does not double as a no-effects assertion.
+
+### Implementation boundaries and capability identities
+
+An OS-specific provider interface is not itself a mandatory service effect.
+For example, Windows and POSIX read requirements can both explicitly reach
+the core-owned `FilesystemContentRead` identity; writes reach
+`FilesystemContentWrite`. Their family interface names enter the row only if
+explicitly named, never merely because provider selection uses those traits.
+Ordinary portable helpers propagate the declared capability rows.
+
+A package can define its own boundary-trait identity and explicitly name it
+in an operation's row, including the containing trait itself:
+
+```omega
+boundary trait MotorControl {
+    machine set_speed(speed: u32)
+        reaches MotorControl;
+}
+```
+
+A boundary trait used only as a service identity need not have callable
+requirements. Naming it in a row creates neither a provider-selection demand
+nor a `Binding` value. Actual boundary calls still need their own selected
+implementation and applicable authority. All service identities propagate by
+the same rules, regardless of whether
+[package audit policy](../packages/review.md#critical-service-audit-policy)
+marks them critical. Audit registration changes presentation and acceptance,
+not reach, inheritance, authority or attenuation.
 
 Suspension, blocking, and crashes retain their independent rules. On published
 surfaces omitted `suspends` means never parks, omitted `blocks` means never blocks
@@ -52,8 +88,8 @@ dependent contracts, not a `budget` or quantitative service member.
 
 ## Process-exit reach
 
-The canonical core [ProcessExit boundary](process_exit.md) contributes ordinary
-`reaches ProcessExit` demand. Calls and providers propagate it through the same
+The canonical core [ProcessExit requirement](process_exit.md) explicitly declares
+`reaches ProcessExit`. Calls and providers propagate it through the same
 conservative ceilings as other services. The ceiling permits exit; actual
 domain-bound capability authority is still required. Console I/O alone grants
 neither, and importing core or selecting a provider creates no authority.
@@ -135,8 +171,9 @@ A product-level absence claim must retain exact selections, complete entry/call
 coverage and independently checked evidence. Opaque or open calls retain their
 contract conservatively unless stronger applicable evidence exists. No optional
 optimization, provider choice alone, or caller permission can rewrite a public
-summary. An actual boundary invocation retains its abstract service identity even
-when a silent realization performs no physical I/O.
+summary. An actual boundary invocation retains its explicit abstract reach row
+even when a silent realization performs no physical I/O. Its requirement identity
+remains separately available for provider selection and audit, even with empty reach.
 
 ## Static callback reach dependencies
 
@@ -204,8 +241,10 @@ Bodyful machines infer these edges, including forwarding through local helpers;
 exported implementations check them against their published ceiling. Bodyless
 omission permits no synchronous entry.
 
-An invoked handler contributes its boundary identity and selected concrete
-operational envelope to the current invocation. Durable registration instead
+An invoked handler retains its exact identity in the synchronous call graph and
+contributes its explicit reach and selected concrete operational envelope to the
+current invocation; the handler's trait name is not an additional reach member.
+Durable registration instead
 establishes a future external root; it adds no synchronous edge or handler reach
 to registration unless registration also invokes that handler. Root admission
 separately checks the concrete envelope. The realized synchronous graph across

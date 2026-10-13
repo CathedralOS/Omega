@@ -38,11 +38,12 @@ The root supplies finite sets of exact exclusions. Their meanings are distinct:
 | Exclusion kind | Required absence |
 | --- | --- |
 | Crash cause | No possible semantic outcome of that cause, initially `Trap` or `Abort`. |
-| Abstract service | No possible invocation of the exact boundary service, using the existing nominal identity and boundary-parent closure. |
+| Abstract service | No possible service contribution naming that exact identity in a reached boundary requirement or primitive operation, including boundary-parent closure. |
 | Physical authority class | No selected mechanism exercises the named terminal class under the shared mechanism-classification semantics. |
 
-An abstract Console invocation still counts when its selected Console provider
-is silent. An ordinary no-op logger that never invokes Console can satisfy a
+An operation explicitly reaching Console still counts when its selected provider
+is silent. Merely calling a trait named Console does not manufacture that row.
+An ordinary no-op logger that never invokes a Console-reaching operation can satisfy a
 Console exclusion, even when its public contract conservatively permits Console.
 Likewise, removing physical filesystem access does not erase a Readable service
 invocation. Physical class exclusions use
@@ -149,7 +150,7 @@ Reconstruct a sound conservative account of possible behavior from the selected
 semantic operations, closed calls and verified realization evidence. Declarations
 remain the contract-checking baseline; absence checking may use stronger facts
 only when independently justified for the exact selected composition. A direct
-abstract boundary invocation retains its service identity even when native
+abstract boundary invocation retains its explicitly declared service row even when native
 lowering erases the call. Native instruction scanning, a producer-written empty
 row, and a test run cannot establish semantic absence.
 

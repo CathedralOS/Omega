@@ -107,7 +107,8 @@ the spec requires that: "Raw handle types are per family (`PosixDescriptor`,
    trait selected beneath its portable implementation.** `Filesystem.host`
    stays `Binding<FilesystemHost>`, where `FilesystemHost` holds only the
    portable operations. A target's selected portable implementation reaches
-   its exact `PosixFilesystemHost` or `WindowsFilesystemHost` boundary trait;
+   the explicit capability row of its selected `PosixFilesystemHost` or
+   `WindowsFilesystemHost` requirements (not an implicit family service);
    one named implementation supplies that family. Provider selection already
    admits exact boundary traits, so a target selects only the family it has —
    no sentinel rows, no per-family carrier and no new language surface. It
@@ -137,87 +138,7 @@ twin. The verified member classification, call-site confinement and the ten
 Rust consumers the split moves stay on **FILESYSTEM-PLATFORM-SERVICES** in
 `TASKS.md`; that work is ordinary implementation once this is answered.
 
-### Q2 - Which service does a migrated boundary operation reach?
-
-Named decision: `boundary-trait-requirement-service-row`.
-
-**Customer:** the library leg of **TOP-LEVEL-BOUNDARY-REQUIREMENTS** in
-`TASKS.md`, which asks for every retired `boundary requirement` and
-`boundary operator` row to become a boundary-trait requirement "preserving
-exact contracts, ... reach". 39 of the library's 253 rows have moved: 38
-core collection and blocking-executor rows have no callers, and `alloc`'s
-`Vec::close` has one fail fixture, which now declares the new service.
-`core/task.omg`'s 2 generic rows wait on a Rust checker fence. The other 212
-rows cannot move without breaking a contract another document fixes:
-
-1. 84 raw platform rows in 12 `source/library/std/targets/*` files, for
-   example `LinuxClockWait::poll(...) reaches Clock`,
-   `WindowsConsoleIo::read(...) reaches Console blocks` and the 64
-   `PosixFilesystemDarwin`/`PosixFilesystemLinux` rows reaching
-   `PosixFilesystemHost`. Portable providers call them from bodies that
-   satisfy `Clock::sleep reaches Clock`, `Console::read_byte reaches Console`,
-   `TimeHost::*` and `PosixFilesystemHost::*`.
-2. `InterruptMaskGuard::restore reaches MachineControl` and
-   `InterruptAcknowledgement::complete reaches PortIo` in
-   `core/interrupt.omg`, called from interrupt roots that satisfy
-   `InterruptEntry::enter reaches <= MachineControl + PortIo`.
-3. The 126 named float operations and conversions in
-   `core/float_operations.omg` (`F32::negate`, `I32::from_f64 ... in
-   Trapping`), which declare no reach and are called from ordinary
-   arithmetic code.
-
-**Existing rules:** [effects](wiki/spec/language/effects.md#declarations):
-"Boundary traits contribute nominal service identities automatically ... A
-call contributes its boundary service even if that operation authors no
-additional `reaches` members", and `reaches A` covers A and its boundary
-parents, not its children. [Substitution](wiki/spec/language/machines.md#substitution):
-a provider's row must be a subset of the requirement ceiling. The retired
-forms had no service of their own: a call reached exactly the declared row.
-Moving a row into `boundary trait LinuxClockWait` therefore adds
-`LinuxClockWait` to the portable provider's reach, which `Clock::sleep`
-cannot admit, and naming it in the portable ceiling contradicts
-[platform services](wiki/spec/build/platform_services.md) ("Raw handle types
-... never appear in the portable API"). [Interrupt obligations](wiki/spec/build/interrupt_obligations.md#completion-reach-and-lifetime)
-puts completion "beneath `MachineControl + PortIo`", which an
-`InterruptCompletion` identity is not. Nothing says whether float
-arithmetic, which "Target defaults still supply" as boundary
-implementations ([provider selection](wiki/spec/build/provider_selection.md)),
-should make every caller reach a float service. The Rust reference compiler
-implements the effects rule as written: migrating only `WindowsConsoleIo`
-and the macOS `ClockNativeProvider::poll` row makes std reject with 9
-diagnostics, among them "machine `ClockNativeProvider::sleep` state `sleep`
-does not satisfy trait `Clock` machine `sleep`: service `DarwinClockWait` is
-not allowed by the trait requirement", and a two-row interrupt probe
-rejects with "publishes service reach `MachineControl + PortIo` but its
-checked body reaches undeclared services `InterruptCompletion +
-InterruptMaskRestore`". The first candidate of
-`portable-service-per-family-binding-carrier` depends on the same answer.
-
-**Decision needed:**
-
-1. **Recommended: an authored row replaces the trait's own identity.** A
-   boundary-trait requirement that writes `reaches ...` publishes exactly
-   that row; one that writes none contributes its trait's identity as today,
-   and `reaches;` publishes the empty row. Every migrated row keeps its
-   contract, raw traits stay selectable beneath portable services, and the
-   collection and float traits state their empty row. Cost: a call to a
-   boundary trait no longer always reaches that trait.
-2. **Keep the automatic identity and let a raw trait name the service it
-   serves**, so calls reach the portable service instead of the raw trait's
-   identity. This needs a new declaration clause and a rule for traits that
-   serve several services.
-3. **Keep the automatic identity and widen the ceilings:** portable
-   requirements and the interrupt entry bound admit target-selected raw
-   services through abstract rows, and float and collection operations leave
-   boundary traits for the compiler-supplied primitive catalog. This changes
-   platform services, interrupt obligations and the float provider model.
-
-The storage and view traits moved here (`ArrayAccess`, `SliceAccess`,
-`VecAccess`, `FixedVecAccess`, `PointerArithmetic`, `BoundedQueueAccess`)
-have no callers, so their service identity is unobserved today; the answer
-decides whether their rows declare `reaches;`.
-
-### Q3 - How does source call a requirement through a `Binding<R>`?
+### Q2 - How does source call a requirement through a `Binding<R>`?
 
 Named decision: `binding-receiver-call-form`.
 
@@ -266,7 +187,7 @@ The Rust reference compiler accepts the dot form by unwrapping a
    compiler; two candidates reject. No receiver is written, but selection
    depends on the context's shape rather than the call.
 
-### Q4 - What does `==` between data values mean in a proof fact?
+### Q3 - What does `==` between data values mean in a proof fact?
 
 Named decision: `proof-fact-data-equality`.
 
@@ -318,7 +239,7 @@ synthesis, which recursive Nat cannot join").
    core `Identity(a, b)` proposition or another token), and `==` keeps one
    meaning everywhere. The eight files' theorems are respelled.
 
-### Q5 - How does a Build select its core-only discovery entry?
+### Q4 - How does a Build select its core-only discovery entry?
 
 Named decision: `build-discovery-entry-phase`.
 

@@ -2106,7 +2106,7 @@ then independent claimed restoration slices -> final closure.
   **BUILD-EVALUATES-ONCE**, pre-effect admission and all-target authored rows;
   do not retain a feature/fixture-specific Build evaluator.
   Discovery/default-source phase selection is **OWNER-BLOCKED** on
-  [build-discovery-entry-phase](OWNER_QUESTIONS.md#q5---how-does-a-build-select-its-core-only-discovery-entry):
+  [build-discovery-entry-phase](OWNER_QUESTIONS.md#q4---how-does-a-build-select-its-core-only-discovery-entry):
   the same free Build entry mixes discovery with work needing the resolved
   graph, with no defined entry/phase boundary. This blocks that subfrontier
   only; Terminal/mutable-slot/accounting and immutable resolver joins remain
@@ -5433,7 +5433,7 @@ wait for Cathedral's instruction coverage. The interpreter is
   - Default builds and anonymous owners
     ([spec](wiki/spec/build/declarations.md#default-builds-and-anonymous-owner-identity)):
     The interpreted discovery/default-source prerequisite references
-    [build-discovery-entry-phase](OWNER_QUESTIONS.md#q5---how-does-a-build-select-its-core-only-discovery-entry);
+    [build-discovery-entry-phase](OWNER_QUESTIONS.md#q4---how-does-a-build-select-its-core-only-discovery-entry);
     other owner/identity/resolution joins remain engineering.
     `omega-rust/omega/packages/compilation-inputs/src/source_imports/frontier.rs`
     leaves loose roots without package identity. Derive the versioned anonymous
@@ -5716,6 +5716,17 @@ wait for Cathedral's instruction coverage. The interpreter is
   The corpus native leg records `console_exit_process_exit`'s result; it must
   print its console line and exit 70.
 
+  - Implement [critical service audit policy](wiki/spec/packages/review.md#critical-service-audit-policy):
+    core's exact critical service catalog plus root `Build::audit_service<R>`
+    selections, not blanket danger for provider-interface names. Carry policy
+    inputs and exact critical findings through install/update review and compact
+    lock acceptance; unregistered reach stays in the full report. Reuse existing
+    comparison and physical-authority classification. Test a checked pure float
+    provider (no new service effect), direct/wrapped filesystem write (always
+    surfaced), custom MotorControl before/after root registration, and same-spelled
+    foreign declarations. A dependency cannot suppress the core set, self-approve
+    findings or gain authority; changed root policy cannot reuse stale acceptance.
+
   - Linux x86-64 filesystem: `omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement/canonical_filesystem_host.rs`
     mints positional syscall rows, and Linux calling plans exist, but no direct
     syscall realization or admitted `ToolchainSettled` execution variant
@@ -5744,7 +5755,9 @@ wait for Cathedral's instruction coverage. The interpreter is
   mechanism/contract classification within its permissions; unknown,
   duplicate, conflicting, cyclic or substituted classifications and violated
   physical exclusions reject. Explicit empty classes, service reach and review
-  identity stay. No synthesized receiver-policy file.
+  identity stay. Core-critical and root-registered service findings survive
+  wrappers and install/update lock round trips without granting authority;
+  unregistered reach remains inspectable. No synthesized receiver-policy file.
 
 - **FILESYSTEM-PLATFORM-SERVICES.** (new-scope)
   Implement [platform services](wiki/spec/build/platform_services.md) for the
@@ -6215,12 +6228,20 @@ wait for Cathedral's instruction coverage. The interpreter is
   separate retirement of `MachineSupplyMode::Boundary`.
 
   Frontier: the library's 39 caller-free collection, blocking-executor and
-  `Vec::close` rows are boundary-trait requirements. Its 84 std raw platform
-  rows, 2 interrupt rows and 126 float rows wait on the owner decision
-  `boundary-trait-requirement-service-row`: a migrated call reaches its
-  trait's own service, which the portable `Clock`, `Console`, `TimeHost` and
-  `PosixFilesystemHost` ceilings and `InterruptEntry::enter`'s bound do not
-  admit. `core/task.omg`'s generic `request_cancel` and `finish` wait on stage
+  `Vec::close` rows are boundary-trait requirements. Migrate the remaining
+  84 std raw platform, 2 interrupt and 126 float rows under
+  [explicit boundary reach](wiki/spec/language/effects.md#implementation-boundaries-and-capability-identities).
+  Remove automatic containing-trait contributions from checking, call summaries,
+  installation substitution, Terminal evidence, exclusions and both compilers.
+  Requirements without a reach clause have an empty row; no omitted-versus-empty
+  compatibility mode. Supply core's critical capability declarations and put
+  explicit rows on critical operations and portable contracts, including
+  filesystem facets and ProcessExit; preserve interrupt MachineControl/PortIo
+  bounds and pure numeric rows. Migrate existing boundary declarations and
+  callers that relied on automatic self reach, not just the retired forms.
+  Checked providers cannot hide actual callees; physical authority and foreign
+  trust findings remain with **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW**.
+  `core/task.omg`'s generic `request_cancel` and `finish` wait on stage
   04's borrow-elision fence (`checks/borrows/elision/templates.rs`), which
   rejects a direct call to a generic trait requirement with a
   template-dependent result carrier unless static machine arguments close
@@ -6232,7 +6253,10 @@ wait for Cathedral's instruction coverage. The interpreter is
   unselected, ambiguous, substituted, unauthorized and cross-package lookalike
   implementations reject. A parser fail fixture pins the retired spelling, and
   repository search finds it only in that rejection fixture and historical
-  records.
+  records. Windows/POSIX requirements propagate the same declared filesystem
+  capability without implicit family reach; pure float selection adds none;
+  explicit custom reach propagates through helpers and exclusions. A checked
+  provider reaching outside an empty/narrow requirement rejects.
 
 - **BUILD-ADMISSION-CHECKPOINT.** Complete command-level
   [restricted-build acceptance](wiki/spec/packages/acceptance.md#restricted-build-acceptance)

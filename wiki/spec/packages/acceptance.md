@@ -79,7 +79,9 @@ version 4 lock; missing compiler identity and bindings are never inferred.
 4. Resolve required decisions for that exact comparison.
 5. Publish the declaration/lock pair with interruption recovery.
 
-New dangerous authority or explicit trust-bearing assumptions require acceptance.
+New dangerous authority, critical service reach under the
+[core-plus-root audit policy](review.md#critical-service-audit-policy), or
+explicit trust-bearing assumptions require acceptance.
 Fully checked candidates without blocking findings need no approval ceremony.
 Capability/assumption changes, including removals, use the comparison policy;
 source replacements and root-role changes also require decisions. Rebuildable

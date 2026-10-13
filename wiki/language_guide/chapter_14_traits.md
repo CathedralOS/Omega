@@ -723,9 +723,10 @@ Trait machine requirements carry the same separate ceilings as other exported
 machines. `reaches` names reachable boundary traits such as `Readable` or
 `Writable`; `invokes` names boundary bindings the current invocation may enter
 before returning; `suspends`, `blocks`, and `crashes` publish operational possibilities. An
-ordinary trait is not automatically a service member: it may state a service-
-reach ceiling for its machines, but only a boundary trait contributes a service
-identity. Omission on a trait requirement means an empty service row,
+ordinary trait is not a service identity. Boundary traits may be named in
+`reaches`, but calling their requirements contributes only the explicitly
+declared row, not the containing trait's name. Omission on a trait requirement
+means an empty service row,
 never-suspends, never-blocks, or no route for the omitted crash cause on the
 corresponding axis.
 

@@ -24,6 +24,19 @@ provider covers its complete schema.
    the raw service for that target. All translation between the portable shape
    and the OS shape happens here.
 
+Raw requirements explicitly declare the capability identities their operations
+reach. Filesystem reads, writes, metadata queries/mutations, directory enumeration
+and namespace mutations use the corresponding core service identities; a
+multi-purpose operation declares their conservative union. Platform family names
+are provider-selection identities, not automatically added service effects.
+Pure error translation or arithmetic does not acquire service reach merely
+because its implementation is selected. Checked providers must fit the declared
+rows; foreign supply and exercised physical authority remain separately audited.
+The exact operation classifications in
+[filesystem authority](permissions.md#portable-filesystem-control-and-lifecycle-authority)
+still govern locking, durability, release and other operations; grouping an
+operation under a filesystem interface does not turn it into content access.
+
 ## Zero-initialized portable shapes
 
 Portable inputs and results are ZII-shaped:
