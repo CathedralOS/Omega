@@ -1,13 +1,23 @@
 #!/usr/bin/env python3
 """The sample loop's work queue: failing samples, smallest first.
 
-Reads the latest `tools/sample_native_gate.py` run record (from
-`build/sample-gate-runs/`, or `--record PATH`) and lists the sample programs
-that do not yet run on that run's target, ordered by their own source size so
-the next piece of work is the easiest to trace. Each row carries the gate's
-refusal. The record's revision is compared with this checkout's HEAD; a record
-from an older revision may list samples that already run, so rerun the gate
-when it is far behind.
+Reads the latest unfiltered `tools/sample_native_gate.py` run record (from the
+main checkout's `build/sample-gate-runs/`, shared by every worktree, or
+`--record PATH`) and lists the sample programs that do not yet run on that
+run's target, ordered by their own source size so the next piece of work is
+the easiest to trace. Each row carries the gate's refusal. The record's
+revision is compared with this checkout's HEAD; a record from an older
+revision may list samples that already run, so rerun the gate when it is far
+behind.
+
+Only work a session can finish is listed as work. Two kinds of failing program
+are listed after it instead:
+
+- waiting: the sample's README cites `OWNER_QUESTIONS.md`; it runs once the
+  owner answers, and the README line says which question.
+- no oracle: the program states no `Expected exit` or `Expected output
+  contains`, so nothing defines it running. Give it an oracle, or move a
+  check-only program into `tests/omega/` as a fixture.
 
 Probes (`samples/**/probes/`) and invalid controls (`controls/`) are not
 sample programs; `--all` includes them after the programs.
@@ -23,20 +33,54 @@ import argparse
 import glob
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-RUNS = ROOT / "build" / "sample-gate-runs"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import sample_native_gate  # noqa: E402
+
+RUNS = Path(sample_native_gate.shared_runs_directory())
+OWNER_QUESTION = re.compile(r"OWNER_QUESTIONS\.md")
 # Results that mean the sample does not yet run with its authored result.
 FAILING = ("no-native-build", "oracle-failed", "error", "timeout", "check-fail",
            "rejection-failed", "discovery-error")
 
 
 def latest_record():
-    records = sorted(glob.glob(str(RUNS / "*.json")))
-    return records[-1] if records else None
+    """The newest run that measured every sample. A filtered run is newer but
+    partial: taking it would drop every sample outside its filter."""
+    candidates = set(glob.glob(str(RUNS / "*.json")))
+    candidates.update(glob.glob(str(ROOT / "build" / "sample-gate-runs" / "*.json")))
+    for path in sorted(candidates, key=os.path.basename, reverse=True):
+        try:
+            record = json.loads(Path(path).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not record.get("filter"):
+            return path
+    return None
+
+
+def owner_question(sample):
+    """The README line that cites an owner question, or None."""
+    readme = ROOT / sample / "README.md"
+    if not readme.is_file():
+        return None
+    for line in readme.read_text(encoding="utf-8", errors="ignore").splitlines():
+        if OWNER_QUESTION.search(line):
+            return line.strip()
+    return None
+
+
+def has_oracle(sample):
+    entry = ROOT / sample / "main.omg"
+    if not entry.is_file():
+        return True
+    exit_code, output = sample_native_gate.oracle(str(ROOT / sample))
+    return exit_code is not None or output is not None
 
 
 def source_lines(sample):
@@ -83,16 +127,23 @@ def queue(record, include_all=False):
         if result.get("state") not in FAILING:
             continue
         sample_kind = kind(result["sample"])
-        if sample_kind != "program" and not include_all:
+        refusal = result.get("diagnostic") or result.get("detail", "")
+        if sample_kind == "program":
+            question = owner_question(result["sample"])
+            if question:
+                sample_kind, refusal = "waiting", question
+            elif not has_oracle(result["sample"]):
+                sample_kind = "no oracle"
+        if sample_kind in ("probe", "control") and not include_all:
             continue
         rows.append({
             "sample": result["sample"],
             "kind": sample_kind,
             "lines": source_lines(result["sample"]),
             "state": result["state"],
-            "refusal": result.get("diagnostic") or result.get("detail", ""),
+            "refusal": refusal,
         })
-    order = {"program": 0, "probe": 1, "control": 2}
+    order = {"program": 0, "waiting": 1, "no oracle": 2, "probe": 3, "control": 4}
     return sorted(rows, key=lambda row: (order[row["kind"]], row["lines"], row["sample"]))
 
 
@@ -126,10 +177,15 @@ def main():
     if behind and behind > 50:
         print("sample_queue: the record is old; rerun python3 tools/sample_native_gate.py",
               file=sys.stderr)
-    if not rows:
+    if not any(row["kind"] == "program" for row in rows):
         print("sample_queue: every sample runs; write a harder one (AGENTS.md, the sample loop)")
-        return 0
+    headings = {"waiting": "waiting on an owner decision (not work until answered):",
+                "no oracle": "no oracle (give it one, or move a check-only program to tests/omega/):"}
+    shown = None
     for row in rows:
+        if row["kind"] in headings and row["kind"] != shown:
+            print(f"sample_queue: {headings[row['kind']]}")
+        shown = row["kind"]
         refusal = " ".join(row["refusal"].split())[:150]
         print(f"{row['lines']:6d}  {row['sample']}  [{row['state']}{'' if row['kind'] == 'program' else ', ' + row['kind']}]")
         print(f"        {refusal}")

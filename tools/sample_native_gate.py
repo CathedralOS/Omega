@@ -492,6 +492,18 @@ def measure(cli, sample, target, timeout):
     return {"sample": sample, "state": "pass", "detail": ""}
 
 
+def shared_runs_directory():
+    """Run records live in the main checkout's `build/sample-gate-runs/`, shared
+    by every worktree of the repository: agents work in worktrees, and a record
+    written inside one was invisible to `tools/sample_queue.py` in all others."""
+    completed = subprocess.run(
+        ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+        cwd=os.path.dirname(os.path.abspath(__file__)), capture_output=True, text=True)
+    if completed.returncode != 0 or not completed.stdout.strip():
+        return os.path.join("build", "sample-gate-runs")
+    return os.path.join(os.path.dirname(completed.stdout.strip()), "build", "sample-gate-runs")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cli",
@@ -503,8 +515,10 @@ def main():
     parser.add_argument("--jobs", type=int, default=4)
     parser.add_argument("--timeout", type=int, default=300, help="seconds per CLI call")
     parser.add_argument("--write-results", metavar="PATH")
-    parser.add_argument("--history-dir", default=os.path.join("build", "sample-gate-runs"),
-                        help="directory receiving one dated record per run; empty disables")
+    parser.add_argument("--history-dir", default=shared_runs_directory(),
+                        help="directory receiving one dated record per run (default: the "
+                             "main checkout's build/sample-gate-runs, shared by every "
+                             "worktree); empty disables")
     arguments = parser.parse_args()
     started = datetime.datetime.now(datetime.timezone.utc)
     if arguments.cli is None:

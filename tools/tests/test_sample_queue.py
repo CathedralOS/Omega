@@ -25,7 +25,7 @@ class SampleQueueTests(unittest.TestCase):
         directory = self.root / path
         directory.mkdir(parents=True)
         (directory / "build.omg").write_text("machine build() {}\n" * 50)
-        (directory / "main.omg").write_text("// line\n" * lines)
+        (directory / "main.omg").write_text("// Expected exit: 0.\n" + "// line\n" * (lines - 1))
         return path
 
     def record(self, *rows):
@@ -59,6 +59,32 @@ class SampleQueueTests(unittest.TestCase):
         self.assertEqual([row["sample"] for row in queue_module.queue(record)], [program])
         everything = queue_module.queue(record, include_all=True)
         self.assertEqual([row["kind"] for row in everything], ["program", "probe", "control"])
+
+    def test_owner_gated_and_oracle_less_programs_follow_the_work(self):
+        gated = self.sample("samples/cli/gated", 10)
+        (self.root / gated / "README.md").write_text(
+            "# gated\n\nWaiting on [OWNER_QUESTIONS.md Q1](x).\n")
+        oracle_less = self.sample("samples/gui/app", 10)
+        (self.root / oracle_less / "main.omg").write_text("// a window\n" * 10)
+        work = self.sample("samples/cli/work", 90)
+        rows = queue_module.queue(self.record(
+            (gated, "no-native-build", "refusal"),
+            (oracle_less, "no-native-build", "refusal"),
+            (work, "no-native-build", "refusal")))
+        self.assertEqual([(row["sample"], row["kind"]) for row in rows],
+                         [(work, "program"), (gated, "waiting"),
+                          (oracle_less, "no oracle")])
+        self.assertIn("OWNER_QUESTIONS.md Q1", rows[1]["refusal"])
+
+    def test_latest_record_skips_a_newer_filtered_run(self):
+        runs = self.root / "runs"
+        runs.mkdir()
+        (runs / "20261001T000000Z-macos_arm64.json").write_text('{"filter": null}')
+        (runs / "20261002T000000Z-macos_arm64.json").write_text('{"filter": "cli/"}')
+        with patch.object(queue_module, "RUNS", runs):
+            self.assertEqual(Path(queue_module.latest_record()).name,
+                             "20261001T000000Z-macos_arm64.json")
+
 
 
 if __name__ == "__main__":

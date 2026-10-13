@@ -520,8 +520,9 @@ unoptimized dev binary, and 31 projects took 66 s with the optimized CLI
 against 436 s with the dev build, with identical results. The build is
 incremental and leaves `target/debug/omega` alone. An explicit `--cli` older
 than the checkout's last compiler change draws a warning, and the run record
-marks it stale. Each run is recorded under `build/sample-gate-runs/` with
-per-sample and per-phase times. Programs run from a scratch directory under
+marks it stale. Each run is recorded under the main checkout's
+`build/sample-gate-runs/`, shared by every worktree, with per-sample and
+per-phase times. Programs run from a scratch directory under
 their own ignored `build/`, so files they write stay out of the checkout. A
 failure caused by this checkout's stale package state (an accepted lock or
 review left by an interrupted run or another compiler build) is measured once
@@ -539,10 +540,12 @@ python3 tools/sample_native_gate.py --filter cli/ --jobs 8 --timeout 900 < /dev/
 python3 tools/sample_native_gate.py --cli <existing-omega> --filter cli/games
 ```
 
-`python3 tools/sample_queue.py` reads the latest run record and lists the
-samples that do not yet run, smallest first with each refusal: the work queue
-of [the sample loop](../AGENTS.md#the-sample-loop). `--all` adds probes and
-invalid controls.
+`python3 tools/sample_queue.py` reads the latest unfiltered run record and lists
+the samples that do not yet run, smallest first with each refusal: the work
+queue of [the sample loop](../AGENTS.md#the-sample-loop). After the work it
+lists, apart, samples whose README cites `OWNER_QUESTIONS.md` (waiting on that
+decision) and programs with no oracle (nothing defines them running). `--all`
+adds probes and invalid controls.
 
 The corpus gate executes fixtures with `input.txt` as stdin (absent means an
 empty stream); the sample gate does the same for a project carrying
