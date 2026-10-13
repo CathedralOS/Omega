@@ -1,1 +1,0 @@
-The mixed scalar record is valid at construction; assigning0 to the Positive count must refuse at its receiving field despite read-geometry admission.

@@ -1,1 +1,0 @@
-Frozen refusal: a synthetic return capture may not manufacture a positive predicate for zero.
