@@ -41,23 +41,6 @@ pub(super) fn append(
                     .is_some_and(|(owner, signature)| {
                         typed.trait_requirement_callable_identity_text(owner, signature)
                             == plan.identities.text(row.requirement_identity)
-                            // The selected declaration owns the already checked
-                            // substitution. Comparing its unapplied pattern
-                            // schema with caller regions would discard that
-                            // judgment. An unrelated application supplies no row.
-                            && check_facts.provider_closed_requirements.iter().any(|fact| {
-                                fact.template == application.template
-                                    && fact.closed_requirement == application.signature.symbol
-                                    && fact.receiving_application
-                                        == application.trait_application_identity
-                                    && fact.selecting_declaration
-                                        == selecting_map.map_or(provider.symbol, |map| map.symbol)
-                                    && typed.requirement_realization_matches(
-                                        fact.closed_requirement,
-                                        provider.symbol,
-                                        fact.provider,
-                                    )
-                            })
                     })
             })
             .collect::<Vec<_>>();
@@ -70,6 +53,11 @@ pub(super) fn append(
             // instead owned by the concrete machine that carries the edge.
             // Counting body-only facts would turn those independent maps into
             // duplicate instances of this one selected requirement.
+            // Join once: a direct satisfaction is owned by its checked concrete
+            // instance, not the authored template selected by the plan. Testing
+            // template ownership in an earlier filter loses valid instances.
+            // The recorded receiving application retains the checked region
+            // substitution; an unapplied pattern schema cannot replace it.
             let matches = check_facts
                 .provider_closed_requirements
                 .iter()
@@ -86,6 +74,9 @@ pub(super) fn append(
                         )
                 })
                 .collect::<Vec<_>>();
+            if matches.is_empty() {
+                continue;
+            }
             let [fact] = matches.as_slice() else {
                 diagnostics.push(diagnostics::Diagnostic::error(format!(
                     "selected provider plan `{}` resolves requirement family coordinate to {} exact checked realization instances; exactly one must serve it",
