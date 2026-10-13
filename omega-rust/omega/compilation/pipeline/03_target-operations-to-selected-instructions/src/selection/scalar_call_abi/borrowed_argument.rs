@@ -118,6 +118,7 @@ pub(super) fn validate_borrowed_argument(
                     root,
                     &semantic.path,
                     semantic.access,
+                    Some(target.structural_type),
                     &signature.structural_types,
                 )?;
             let shape =
@@ -260,6 +261,7 @@ pub(super) fn validate_borrowed_argument(
                 view_type,
                 &semantic.path,
                 semantic.access,
+                Some(target.structural_type),
                 &signature.structural_types,
             )?;
                 if target.root_structural_type != view_type
@@ -326,6 +328,7 @@ pub(super) fn validate_borrowed_argument(
                     joined.structural_type,
                     &semantic.path,
                     semantic.access,
+                    Some(target.structural_type),
                     &signature.structural_types,
                 )?;
             if target.root_structural_type != joined.structural_type
@@ -584,6 +587,7 @@ fn projected_loan_shape(
             root.structural_type,
             &semantic.path,
             semantic.access,
+            Some(target.structural_type),
             &signature.structural_types,
         )?;
     let shape = crate::structural_inputs::structural_reference_input::internal_borrow_shape(

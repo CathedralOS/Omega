@@ -107,6 +107,33 @@ reject writes outside the field predicates;
 `fail/borrows/reference_array_field_requires_declared_predicate` prevents a
 same-named unbounded field from supplying the borrowed-read guarantee.
 
+## Audited scalar field loans and selector ordering
+
+These customers retain eight historical scalar positions without changing
+their carriers, reference operations or authored results.
+
+| Customer and original snapshot | Historical positions | Canonical clauses | Count |
+| --- | --- | --- | --- |
+| `pass/borrows/runtime_bounded_and_shared_field_loans_exit`, `cb389d2a167` | `Main.position`, `reset.position`, `replace.position` | data `where position <= 1`; both formals use `requires position <= 1` and `ensures position <= 1` | 3 |
+| `fail/borrow/bounded_reference_store_preserves_range`, `cb389d2a167` | the same three declarations | the same clauses; the original reset-to-2 operation still rejects | 3 |
+| `pass/borrows/runtime_reference_initializer_selector_before_later_write_exit`, `61726859ba2` | `Cursor.row`, `Cursor::advance.result` | data `where row < 2`; `ensures result < 4` | 2 |
+
+The first program still observes position 1 and writes -17 to array slot 1
+before reset changes position to 0; native and Terminal exit 0. The matrix
+program still selects row 1 before the column-selector call changes the row
+to 0; native and Terminal exit 70. The negative reset preserves its assignment
+of 2 and now refuses the normal-return guarantee rather than a retired
+store-enforced parameter type.
+
+An arrival requirement alone cannot preserve a mutable field at handback.
+The checked selected callee's return guarantee must imply the field's
+standing bound. Local loans retain the same original field identity, and
+normal-return guarantees cannot reuse facts invalidated by a nested write.
+Disjoint sibling predicates do not prohibit a write-only field projection;
+facts that mention the selected field, including predicate-call arguments,
+remain fences. The runtime local-loan control temporarily writes 2 then
+restores 0, distinguishing handback from per-store parameter restrictions.
+
 ## Audited core layout fields
 
 The 13 common-field suffixes in `source/library/core/layout.omg` at

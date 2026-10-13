@@ -1,0 +1,3 @@
+data Main { position: u64 [0..=1]; }
+machine replace(position: &mut u64) { position = 2; }
+machine test(main: &mut Main) { replace(&mut main.position); }

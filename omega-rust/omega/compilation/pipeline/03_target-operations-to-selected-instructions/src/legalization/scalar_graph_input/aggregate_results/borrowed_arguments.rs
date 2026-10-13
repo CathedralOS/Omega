@@ -222,6 +222,7 @@ pub(in crate::legalization::scalar_graph_input) fn reconstruct_at_owner(
             root,
             &argument.path,
             argument.access,
+            Some(destination.structural_type),
             &plan.structural_types,
         )
         .ok_or(LegalizationError::custody())?;

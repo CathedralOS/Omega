@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "3", "load1_end": 6.69, "load1_start": 6.82, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "4", "load1_end": 5.7, "load1_start": 5.23, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 835ms expected @a9ae30e1c334+wt
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -309,8 +309,8 @@ fail/borrow/borrow_carrying_field_reassignment_invalidated rejected 1750ms expec
 	statement 2 mutates `second` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrow/bounded_reference_cannot_lend_unrestricted_mutable rejected 959ms expected @a9c11ff574b9+wt
 	argument `position` for state `entry` expects `&mut u64`, got `named value`
-fail/borrow/bounded_reference_store_preserves_range rejected 947ms expected @a9c11ff574b9+wt
-	cannot prove assignment value `2` satisfies bounded target `position` in `reset.entry`; expected 0..=1
+fail/borrow/bounded_reference_store_preserves_range rejected 1547ms expected @5b32c4eb36ff+wt
+	cannot prove ensures contract for exit from reset at statement 1: position <= 1
 fail/borrow/lifetime_argument_arity rejected 863ms expected @a9ae30e1c334+wt
 	data `PairView` expected 2 lifetime arguments but got 1
 fail/borrow/method_view_receiver_unrelated_field_write rejected 2845ms expected @9c4d1c444502+wt
@@ -326,6 +326,18 @@ fail/borrow/opaque_write_only_boundary rejected 831ms expected @a9ae30e1c334+wt
 	machine `write` state `entry` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
 fail/borrow/persistent_borrow_storage_requires_outlives rejected 1580ms expected @a9ae30e1c334+wt
 	assignment stores a borrow-carrying value in persistent field `stored` of machine `Cell::set$specialized$dcbb8209abdb6016$0`; persistent loans must be propagated through graph-state transitions before this write can be admitted
+fail/borrow/scalar_field_declared_range_requires_handback rejected 162ms expected @5b32c4eb36ff+wt
+	machine `test` cannot lend restricted field `position` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+fail/borrow/scalar_field_local_loan_requires_handback rejected 162ms expected @5b32c4eb36ff+wt
+	machine `test` cannot lend restricted field `position` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+fail/borrow/scalar_reborrow_does_not_preserve_arrival_bound rejected 550ms expected @5b32c4eb36ff+wt
+	cannot prove ensures contract for exit from replace at statement 1: position <= 1
+fail/borrow/scalar_reference_rebinding_does_not_prove_original_handback rejected 539ms expected @5b32c4eb36ff+wt
+	cannot prove ensures contract for exit from replace at statement 2: position <= 1; no exact incoming reference origin for position
+fail/borrow/scalar_reference_result_does_not_preserve_mutated_bound rejected 542ms expected @5b32c4eb36ff+wt
+	cannot prove index `change(&mut position)` is within length 2 in test::entry
+fail/borrow/scalar_reference_result_uses_returned_argument rejected 535ms expected @5b32c4eb36ff+wt
+	cannot prove index `select(&position, &other)` is within length 2 in test::entry
 fail/borrow/static_byte_state_loan_cannot_write rejected 3500ms expected @a9ae30e1c334+wt
 	machine `main` state `damage` assignment cannot write `bytes` because it is not mutable in this state (if `bytes` is undeclared -- a typo -- no such field or local exists)
 fail/borrow/stored_write_only_observation rejected 846ms expected @a9ae30e1c334+wt
@@ -364,6 +376,8 @@ fail/borrow/write_only_exclusive_replacement_new_backing_conflict rejected 318ms
 	statement 5 mutates `main.right.value` while local borrow `held` is still active (borrowed at statement 4; its last use is at statement 7)
 fail/borrow/write_only_exclusive_replacement_old_child_conflict rejected 307ms expected @6ede3322eb88+wt
 	statement 6 mutates `main.left.value` while local borrow `child` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/borrow/write_only_field_predicate_dependency rejected 164ms expected @5b32c4eb36ff+wt
+	machine `test` state `entry` forms `&write` from an unsupported projection or computed expression; the current checked slice supports explicit attenuation of a whole parameter, an exact direct-reborrow local, or a content-independent path through eligible relevant record fields and proven-in-bounds fixed-array indexes with non-observing selectors whose declared `&write` referee carries exactly the same type
 fail/borrow/write_only_implicit_attenuation rejected 801ms expected @a9ae30e1c334+wt
 	argument `value` for state `entry` requires explicit write-only attenuation; pass `&write ...` (a bare value or `&mut ...` does not establish the no-read contract)
 fail/borrow/write_only_index_missing_bounds rejected 1492ms expected @a9ae30e1c334+wt
@@ -383,6 +397,8 @@ fail/borrow/write_only_nominal_cleanup_replacement rejected 245ms expected @6abc
 fail/borrow/write_only_observation rejected 850ms expected @a9ae30e1c334+wt
 	machine `observe` state `entry` reads write-only parameter `source`; `&write` permits replacement or exact `&write` forwarding, never observation
 	machine `observe_record` state `entry` reads field `code` from write-only parameter `source`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
+fail/borrow/write_only_predicate_argument_dependency rejected 162ms expected @5b32c4eb36ff+wt
+	machine `test` state `entry` forms `&write` from an unsupported projection or computed expression; the current checked slice supports explicit attenuation of a whole parameter, an exact direct-reborrow local, or a content-independent path through eligible relevant record fields and proven-in-bounds fixed-array indexes with non-observing selectors whose declared `&write` referee carries exactly the same type
 fail/borrow/write_only_reference_aggregate_conditional_replacement_loan rejected 341ms expected @992d27dd3135+wt
 	machine `replace` stores a borrowed value without a complete normal-exit backing relation
 	call stores a borrowed value without a complete destination/backing relation
@@ -3120,8 +3136,8 @@ fail/recast/recast_size_mismatch_rejected rejected 2821ms expected @a9ae30e1c334
 	machine `Main::main` state `main`: a recast re-views the SAME bytes, so the shapes must agree on size (§5b rule 1) -- source `i64` is 8 bytes, target `f32` is 4 bytes
 fail/recast/reference_let_pun_requires_recast rejected 871ms expected @a9ae30e1c334+wt
 	machine `Bits::implicit_pun` state `implicit_pun`: reference initializer type `i64` must match the stated `&f32`; re-viewing a place's bytes under another shape is spelled `&x as &f32` (§5b recast)
-fail/recast/restricted_field_mutable_call_cannot_erase_invariant rejected 21971ms expected @a9ae30e1c334+wt
-	terminal-artifact production failed: Optimization(InvalidSemantic(MalformedStructuralFoundation("structural path must retain structural custody")))
+fail/recast/restricted_field_mutable_call_cannot_erase_invariant rejected 1011ms expected @5b32c4eb36ff+wt
+	machine `main` cannot lend restricted field `value` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 fail/recast/scalar_parameter_view_footprint_rejected rejected 836ms expected @a9ae30e1c334+wt
 	machine `inspect` state `entry`: a recast re-views the SAME bytes, so the shapes must agree on size (§5b rule 1) -- source `f32` is 4 bytes, target `u64` is 8 bytes
 fail/recast/shared_parameter_view_mutable_call_rejected rejected 870ms expected @a9ae30e1c334+wt
@@ -4022,7 +4038,7 @@ pass/borrows/runtime_affine_local_case_return_exit checked 11337ms check-target:
 pass/borrows/runtime_affine_local_scalar_exit checked 11079ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_array_primitive_reference_capture_exit checked 10285ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_boundary_range_view_exit checked 10239ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/borrows/runtime_bounded_and_shared_field_loans_exit checked 5029ms check-target:macos_arm64 @a9c11ff574b9+wt
+pass/borrows/runtime_bounded_and_shared_field_loans_exit checked 5289ms check-target:macos_arm64 @5b32c4eb36ff+wt
 pass/borrows/runtime_byte_view_element_loan_exit checked 11161ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_byte_view_element_reference_calls_exit checked 10364ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_captured_primitive_reference_exit checked 11029ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -4091,7 +4107,7 @@ pass/borrows/runtime_reference_aggregate_call_result_replacement_exit checked 26
 pass/borrows/runtime_reference_aggregate_projected_replacement_exit checked 2693ms check-target:macos_arm64 @b886c487061b+wt
 pass/borrows/runtime_reference_array_pressure_exit checked 11385ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_reference_call_scalar_snapshot_exit checked 5051ms check-target:macos_arm64 @a9c11ff574b9+wt
-pass/borrows/runtime_reference_initializer_selector_before_later_write_exit checked 11132ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_reference_initializer_selector_before_later_write_exit checked 6499ms check-target:macos_arm64 @5b32c4eb36ff+wt
 pass/borrows/runtime_reference_local_constructor_leaf_retirement_exit checked 11055ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_reference_record_array_field_read_exit checked 11130ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_reference_record_call_completion_exit checked 11118ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -4104,6 +4120,7 @@ pass/borrows/runtime_returned_nested_reference_array_bounded_read_exit checked 1
 pass/borrows/runtime_returned_reference_array_bounded_read_exit checked 11224ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_returned_reference_array_restoration_exit checked 11147ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_returned_reference_constructor_leaf_retirement_exit checked 11094ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_scalar_field_local_loan_handback_exit checked 5340ms check-target:macos_arm64 @8009e85cf177
 pass/borrows/runtime_selected_indexed_reference_exit checked 3820ms check-target:macos_arm64 @5e5835ccaddc+wt
 pass/borrows/runtime_selected_reference_child_retirement_exit checked 11137ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_selected_reference_nested_restoration_exit checked 10335ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -4137,6 +4154,7 @@ pass/borrows/runtime_whole_referent_case_store_exit checked 11135ms check-target
 pass/borrows/runtime_whole_referent_payload_case_store_exit checked 11130ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_whole_referent_record_store_exit checked 11077ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_whole_referent_scalar_store_exit checked 11181ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_write_only_disjoint_field_predicates_exit checked 5289ms check-target:macos_arm64 @5b32c4eb36ff+wt
 pass/borrows/same_initializer_disjoint_source_move checked 1596ms @a9ae30e1c334+wt
 pass/borrows/shared_recast_loan_member_read checked 10958ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/static_byte_case_state_loan_compile checked 11166ms check-target:macos_arm64 @a9ae30e1c334+wt

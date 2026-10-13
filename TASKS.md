@@ -1596,6 +1596,11 @@ defines the complete product bar.
     reference arrays/records, constructor transfers, shared cohorts and case
     retirement retain field predicates and bare-local facts. Invalid field
     and index stores and a same-named unbounded field must still reject.
+    Keep the [eight-position scalar-loan inventory](wiki/drafts/designs/range_suffix_migration.md#audited-scalar-field-loans-and-selector-ordering),
+    its exit-0 field-loan and exit-70 matrix-selector witnesses, and the
+    reset-to-2 handback refusal. Borrowed field predicates must survive local
+    aliasing and checked normal return; disjoint write-only sibling projections
+    must not erase predicates that constrain the selected storage.
     Continue with the nonliteral/indexed writes and consumer transports above;
     this does not close the complete field/case migration.
   - Guarded immutable-local, guarded-field, nested-call-result and

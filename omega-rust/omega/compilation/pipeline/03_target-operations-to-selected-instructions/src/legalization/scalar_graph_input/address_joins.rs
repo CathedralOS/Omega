@@ -90,6 +90,7 @@ pub(in crate::legalization) fn call_argument(
             parameter.structural_type,
             &semantic.path,
             semantic.access,
+            Some(destination.structural_type),
             &plan.structural_types,
         )
         .ok_or(LegalizationError::custody())?;

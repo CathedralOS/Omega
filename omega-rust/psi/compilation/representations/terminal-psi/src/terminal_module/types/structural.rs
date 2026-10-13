@@ -442,6 +442,37 @@ impl StructuralFieldType {
             .and_then(Self::from_leaf_shape)
     }
 
+    /// A nonescaping call loan presents the existing field's carrier, not a
+    /// detached value with its predicate erased. Psi checks writable handback
+    /// against that predicate; geometry consumers preserve its original path.
+    /// Shared view descriptors keep their actual two-word presentation.
+    pub fn borrowed_presentation_type(
+        &self,
+        access: crate::StructuralAccess,
+        expected: Option<&StructuralTypeDeclaration>,
+    ) -> Option<Self> {
+        if expected.is_some_and(|expected| expected.scalar_restriction.as_ref() == Some(self)) {
+            return self.canonical_leaf_type();
+        }
+        if access == crate::StructuralAccess::SharedBorrow {
+            return match self.byte_sequence_carrier() {
+                Some(ByteSequenceCarrier::BorrowedView {
+                    access: Some(crate::StructuralAccess::SharedBorrow),
+                }) => Some(Self::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: None,
+                })),
+                _ => self.shared_observation_type(),
+            };
+        }
+        if access == crate::StructuralAccess::Owned {
+            return None;
+        }
+        match self {
+            Self::BoundedInteger(_) | Self::RefinedScalar(_) => self.shared_observation_type(),
+            _ => self.canonical_leaf_type(),
+        }
+    }
+
     pub fn leaf_copy_type(&self) -> Option<Self> {
         self.leaf_copy_shape().and_then(Self::from_leaf_shape)
     }

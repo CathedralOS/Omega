@@ -16,12 +16,23 @@ pub(super) fn report_argument_bounds(
     current_machine: &Machine,
     current_state: Option<&State>,
     value_environment: &ValueEnvironment,
+    prior_statements: &[typed_trees::statement::StatementNode],
     argument: ExpressionHandle,
     parameter: &StateParameter,
     target_name: &str,
     retains_float_result_policy: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    report_referent_handback(
+        program,
+        current_machine,
+        current_state,
+        prior_statements,
+        argument,
+        parameter,
+        target_name,
+        diagnostics,
+    );
     let Some(parameter_primitive) = program.primitive_type_reference(parameter.type_reference)
     else {
         return;
@@ -109,5 +120,123 @@ pub(super) fn report_argument_bounds(
                 diagnostics,
             );
         }
+    }
+}
+
+/// Lending a restricted scalar field keeps the parent's invariant at handback.
+/// Its ordinary carrier is not a new unrestricted owner. Use declaration-owned
+/// bounds and the selected callee's checked normal-return guarantees; neither
+/// an arrival precondition nor a lucky caller value promises the final value.
+fn report_referent_handback(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: Option<&State>,
+    prior_statements: &[typed_trees::statement::StatementNode],
+    argument: ExpressionHandle,
+    parameter: &StateParameter,
+    target_name: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(shell) = crate::reference_shell(program, parameter.type_reference) else {
+        return;
+    };
+    if !shell.access.is_exclusive() || program.primitive_type_reference(shell.referee).is_none() {
+        return;
+    }
+    let Some(state) = state else {
+        return;
+    };
+    let target = program
+        .expression_table
+        .borrow_expression(argument)
+        .map_or(argument, |borrow| borrow.target);
+    let Some(mut place) = crate::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        prior_statements.len(),
+        target,
+    ) else {
+        return;
+    };
+    if place.segments.is_empty()
+        && let Some(root) = place.root.as_symbol()
+        && let Some(statement) = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .get(prior_statements.len())
+        && let Some(frames) = crate::CallFrameResolver::new(program)
+        && let Some((root, segments)) =
+            frames.local_reference_origin_before_statement(machine, statement, root)
+    {
+        place.root = facts::PlaceRoot::Symbol(root);
+        place.segments = segments;
+    }
+    let Some(facts::PlaceSegment::Field {
+        symbol: field_symbol,
+    }) = place.segments.last()
+    else {
+        return;
+    };
+    let field_symbol = *field_symbol;
+    let Some((definition, field)) = program.any_field_owner(field_symbol) else {
+        return;
+    };
+    let independent = crate::declarations::data_queries::data_field_is_where_independent(
+        program, definition, field,
+    );
+    let declared =
+        arithmetic_domains::enforced_declared_range_interval(program, field.type_reference);
+    let has_declared_range =
+        arithmetic_domains::declares_bracketed_range(program, field.type_reference);
+    if independent && !has_declared_range {
+        return;
+    }
+    let where_interval =
+        crate::proof_contracts::default_domains::data_where_field_intervals(program, definition)
+            .and_then(|mut bounds| {
+                if let Some(variant) = program.data_members(definition).iter().find_map(|member| {
+                    let typed_trees::data::DataMember::Variant(variant) = member else {
+                        return None;
+                    };
+                    program
+                        .data_payload_fields(variant)
+                        .iter()
+                        .any(|payload| payload.symbol == field_symbol)
+                        .then_some(variant)
+                }) {
+                    bounds.extend(
+                        crate::proof_contracts::default_domains::case_where_field_intervals(
+                            program, variant,
+                        )?,
+                    );
+                }
+                bounds
+                    .into_iter()
+                    .filter(|(symbol, _, _)| *symbol == field_symbol)
+                    .map(|(_, low, high)| arithmetic_domains::Interval { low, high })
+                    .reduce(arithmetic_domains::Interval::intersect)
+            });
+    let required = if has_declared_range && declared.is_none() {
+        None
+    } else if independent {
+        declared
+    } else {
+        where_interval
+            .map(|interval| declared.map_or(interval, |declared| interval.intersect(declared)))
+    };
+    let returned = arithmetic_domains::normal_return_referent_interval(program, parameter);
+    let preserved = required.zip(returned).is_some_and(|(required, returned)| {
+        required
+            .low
+            .is_none_or(|minimum| returned.low.is_some_and(|value| value >= minimum))
+            && required
+                .high
+                .is_none_or(|maximum| returned.high.is_some_and(|value| value <= maximum))
+    });
+    if !preserved {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` cannot lend restricted field `{}` to `{target_name}`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate",
+            machine.name, field.name,
+        )));
     }
 }

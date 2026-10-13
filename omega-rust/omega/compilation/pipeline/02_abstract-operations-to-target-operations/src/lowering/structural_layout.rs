@@ -91,6 +91,7 @@ pub(super) fn reference_referent_projection(
         root,
         path,
         requested,
+        None,
         declarations,
         &mut shapes,
         &mut active,
@@ -1015,7 +1016,7 @@ fn projection_path(
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
-    leaf_type: fn(&StructuralFieldType) -> Option<StructuralFieldType>,
+    leaf_type: impl Fn(&StructuralFieldType) -> Option<StructuralFieldType>,
 ) -> Result<(StructuralTypeId, ValueShape, u32), LoweringError> {
     let (selected, shape, offset, indices) = storage_projection_path(
         structural_type,
@@ -1039,7 +1040,7 @@ fn storage_projection_path(
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
-    leaf_type: fn(&StructuralFieldType) -> Option<StructuralFieldType>,
+    leaf_type: impl Fn(&StructuralFieldType) -> Option<StructuralFieldType>,
 ) -> Result<RuntimeProjection, LoweringError> {
     let (selected, shape, offset, indices) =
         runtime_storage_projection(structural_type, path, declarations, cache, active)?;
@@ -1065,7 +1066,7 @@ impl ProjectedStorage<'_> {
         self,
         root: StructuralTypeId,
         declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-        leaf_type: fn(&StructuralFieldType) -> Option<StructuralFieldType>,
+        leaf_type: impl Fn(&StructuralFieldType) -> Option<StructuralFieldType>,
     ) -> Result<StructuralTypeId, LoweringError> {
         let leaf = match self {
             Self::Declaration(identity) => return Ok(identity),
@@ -1349,12 +1350,14 @@ pub(super) fn runtime_leaf_copy_projection(
 }
 
 /// Borrowed call geometry retains the original field's physical storage.
-/// Shared observations may present its scalar carrier without transferring
-/// the field invariant; exclusive loans keep canonical writable endpoints.
+/// Scalar loans present their carrier without transferring the field invariant:
+/// Psi checked its preservation on writable handback. This layout query keeps
+/// the actual field address; it grants no store or predicate evidence.
 pub(super) fn runtime_borrowed_projection(
     structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
     access: StructuralAccess,
+    expected: Option<StructuralTypeId>,
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
@@ -1362,29 +1365,14 @@ pub(super) fn runtime_borrowed_projection(
     let regions = reference_projection_regions(structural_type, path, declarations).ok_or(
         LoweringError::UnsupportedStructuralReference(structural_type),
     )?;
+    let expected = expected.and_then(|expected| declarations.get(&expected).copied());
     let (selected, shape, offset, leaf_indices) = runtime_projection_with_leaf_type(
         regions.root,
         regions.path,
         declarations,
         cache,
         active,
-        if access == StructuralAccess::SharedBorrow {
-            |field| {
-                // A shared stored view lends its descriptor in place. Its
-                // internal access belongs to the field's loan; the formal's
-                // carrier describes the same two words without that binder.
-                match field.byte_sequence_carrier() {
-                    Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
-                        access: Some(StructuralAccess::SharedBorrow),
-                    }) => Some(StructuralFieldType::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView { access: None },
-                    )),
-                    _ => field.shared_observation_type(),
-                }
-            }
-        } else {
-            StructuralFieldType::canonical_leaf_type
-        },
+        |field| field.borrowed_presentation_type(access, expected),
     )?;
     let indices = regions
         .pointer_slots
@@ -1401,7 +1389,7 @@ fn runtime_projection_with_leaf_type(
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
-    leaf_type: fn(&StructuralFieldType) -> Option<StructuralFieldType>,
+    leaf_type: impl Fn(&StructuralFieldType) -> Option<StructuralFieldType>,
 ) -> Result<RuntimeProjection, LoweringError> {
     // Byte carriers have primitive leaves rather than an element type handle.
     // Resolve the same endpoint used by primitive reads/stores, then rejoin its

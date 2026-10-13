@@ -76,7 +76,10 @@ pub(super) fn store_destination(
             if matches.next().is_some()
                 || owner == machine.entry
                 || parameter.position as usize != position
-                || parameter.access != StructuralAccess::MutableBorrow
+                // Named-state write-only arrivals retain store authority just
+                // as mutable arrivals do; neither permits descriptor reseating.
+                || !matches!(parameter.access,
+                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow)
                 || machine
                     .structural_parameters
                     .iter()

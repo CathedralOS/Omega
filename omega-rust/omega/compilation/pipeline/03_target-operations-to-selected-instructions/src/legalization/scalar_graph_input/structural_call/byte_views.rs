@@ -152,6 +152,7 @@ pub(super) fn argument(
                 root.structural_type,
                 &actual.path,
                 actual.access,
+                Some(formal.structural_type),
                 &plan.structural_types,
             )
         && selected == formal.structural_type

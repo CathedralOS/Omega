@@ -105,11 +105,12 @@ pub fn structural_borrowed_storage_projection<'types>(
     path: &[StructuralPathSegment],
     access: terminal_psi::StructuralAccess,
 ) -> Option<StructuralStorageProjection> {
-    if access == terminal_psi::StructuralAccess::SharedBorrow
-        && let Some(endpoint) = terminal_semantics::shared_primitive_projection_declaration(
+    if access != terminal_psi::StructuralAccess::Owned
+        && let Some(endpoint) = terminal_semantics::borrowed_primitive_projection_declaration(
             declarations.clone(),
             root,
             path,
+            None,
         )
     {
         return Some(StructuralStorageProjection::Endpoint(endpoint));

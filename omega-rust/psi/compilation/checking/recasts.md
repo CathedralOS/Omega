@@ -97,13 +97,13 @@ views use this route. A view justified only by contextual facts, such as a
 observation instead of claiming that every source-carrier representation is
 valid at the target. The source recast fact owner makes that distinction;
 Terminal independently reconstructs the total carrier relation.
-A record field whose Terminal declaration retains a restriction (a bound or
-predicate from its type or its owner's `where` facts, or an atomic cell) has
-no borrowed shape. Stage 04 forms no reference carrier at it, whether through
-a `let` capture (`control/reference_captures.rs`) or a shared place-borrow
-value, and whatever the view's totality. Its shared and mutable loans and
-views keep the place observation: reads transport the field invariant and
-writes re-prove it.
+A record field's restriction stays on its Terminal declaration, including
+bounds or predicates from its type and its owner's `where` facts. Shared
+scalar reference formation retains the original source and evaluated
+selectors, rather than manufacturing an owned bounded scalar. Mutable loans
+and views keep the place observation: reads transport the field invariant and
+writes or normal-return handback re-prove it. Atomic cells retain their
+separate access protocol and cannot supply an ordinary scalar reference.
 
 A shared scalar call argument keeps the same original owner and field path,
 with shared access and the formal's exact scalar carrier. Terminal, native
@@ -113,6 +113,15 @@ stays with the field. A bare writable scalar formal cannot use this observation
 to erase the receiving field's invariant; atomic fields keep their distinct
 access protocol. Qualifiers, bounds, overlapping loans and reference crossings
 remain independently checked.
+
+Writable scalar field loans whose standing predicates are independent literal
+integer bounds use the selected callee's checked normal-return guarantees to
+preserve those bounds. Arrival requirements alone do not suffice. A local
+capture retains its original field for the same handback check. Coupled and
+unprojected predicates remain fenced. Native and Terminal loan presentation
+share the original field address and the receiving scalar carrier; neither
+manufactures an owned unrestricted field or a predicate-free store authority.
+An exact restricted referee retains its complete declaration instead.
 
 Record re-views passed to ordinary or boundary calls retain their supplying
 storage beside the logical referee. Locals and anonymous argument formations

@@ -5,7 +5,7 @@
 use super::super::{
     TypeReferenceHandle, direct_write_only_root, fixed_discardable_write_only_array_shape,
 };
-use super::{ExpressionHandle, ExpressionNode, WriteOnlyRoot, bare_field, write_only_record};
+use super::{ExpressionHandle, ExpressionNode, WriteOnlyRoot, bare_field, write_only_record_shape};
 
 /// Resolve a borrowed place while checking every selector for observation.
 /// Calls and persistent captures evaluate the same content-independent address.
@@ -63,14 +63,20 @@ pub(in crate::value_custody::write_only_borrows) fn projected<'roots>(
                 let field = if attached_root {
                     super::field(program, root, projection)?
                 } else {
-                    let owner = write_only_record(program, referee)?;
-                    crate::value_custody::places::exact_data_member_field(
+                    let owner = write_only_record_shape(program, referee)?;
+                    let field = crate::value_custody::places::exact_data_member_field(
                         program,
                         owner,
                         member.member_symbol,
                         member.member.as_str(),
                         None,
-                    )?
+                    )?;
+                    if !crate::declarations::data_queries::data_field_is_where_independent(
+                        program, owner, field,
+                    ) {
+                        return None;
+                    }
+                    field
                 };
                 if field.relevance.is_erased() {
                     return None;

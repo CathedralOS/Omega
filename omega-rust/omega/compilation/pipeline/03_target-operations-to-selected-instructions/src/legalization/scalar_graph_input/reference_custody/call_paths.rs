@@ -211,6 +211,7 @@ pub(super) fn observe_reference_custody(
                     referent,
                     &argument.path[position + 1..],
                     argument.access,
+                    None,
                     types,
                 )
                 .is_none()

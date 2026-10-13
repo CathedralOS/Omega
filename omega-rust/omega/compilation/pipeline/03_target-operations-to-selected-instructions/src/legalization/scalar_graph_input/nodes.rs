@@ -604,6 +604,7 @@ pub(super) fn validate(
                             parameter.access,
                             terminal_psi::StructuralAccess::Owned
                                 | terminal_psi::StructuralAccess::MutableBorrow
+                                | terminal_psi::StructuralAccess::WriteOnlyBorrow
                         ) && optimized
                             .blocks
                             .iter()

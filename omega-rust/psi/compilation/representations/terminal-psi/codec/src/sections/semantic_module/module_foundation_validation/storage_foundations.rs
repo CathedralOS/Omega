@@ -152,10 +152,11 @@ pub(super) fn validate_establish_reference(
     // field; exclusive formation still requires the complete storage type.
     let observed = (source.access == terminal_psi::StructuralAccess::SharedBorrow)
         .then(|| {
-            terminal_semantics::shared_primitive_projection_declaration(
+            terminal_semantics::borrowed_primitive_projection_declaration(
                 module.structural_types.iter(),
                 source_type,
                 &source.path,
+                None,
             )
         })
         .flatten();

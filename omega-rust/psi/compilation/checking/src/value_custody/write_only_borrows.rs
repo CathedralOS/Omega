@@ -300,13 +300,37 @@ fn closed_write_only_data_by_symbol(
     program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<&DataDefinition> {
+    let definition = closed_write_only_data_shape_by_symbol(program, symbol)?;
+    definition.where_facts.is_empty().then_some(definition)
+}
+
+/// Shape is independent of standing predicates. Whole-value replacement
+/// still uses the fact-free judgment above; projection instead proves that
+/// the selected field is outside every parent predicate's dependencies.
+fn closed_write_only_data_shape_by_symbol(
+    program: &dyn crate::CheckingInput,
+    symbol: SymbolHandle,
+) -> Option<&DataDefinition> {
     let definition = crate::declarations::data_queries::data_definition_by_symbol(program, symbol)?;
     (definition.supply_mode == language_semantics::DataSupplyMode::CheckedShape
         && definition.lifetime_parameters.is_empty()
         && program.data_type_parameters(definition).is_empty()
         && definition.quotient.is_none()
-        && definition.where_facts.is_empty()
         && !definition.zero_gated)
+        .then_some(definition)
+}
+
+fn write_only_record_shape(
+    program: &dyn crate::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> Option<&DataDefinition> {
+    let symbol = program
+        .type_reference_table
+        .type_reference(type_reference)
+        .as_named_symbol()?;
+    let definition = closed_write_only_data_shape_by_symbol(program, symbol)?;
+    (DataDefinition::shape_kind_from_members(program.data_members(definition))
+        == DataShapeKind::Record)
         .then_some(definition)
 }
 
@@ -413,7 +437,8 @@ fn whole_root_replacement_is_admitted(
 }
 
 /// Resolve `root.record_field...leaf`, where every receiver is an admitted
-/// plain record and every selected field is relevant and unconstrained, through
+/// closed record and every selected field is relevant and independent of its
+/// parent's predicates, through
 /// the same non-observing projection walk that receiver dispatch, projected
 /// subloans, and local formation share — restricted here to member hops. This
 /// is a content-independent place judgment: expression traversal rejects

@@ -38,6 +38,7 @@ pub(super) fn analyze(
                 selected_const_call_result(walk, expression),
                 declared_return_range(walk, call),
                 inferred_return_range(walk, call),
+                returned_referent_range(walk, expression, call),
             ]
             .into_iter()
             .flatten()
@@ -48,6 +49,86 @@ pub(super) fn analyze(
             .unwrap_or(NEUTRAL)
         });
     with_result_carrier(walk, expression, analysis)
+}
+
+/// Observing a readable scalar-reference result reads the returned storage.
+/// The ordinary result-origin relation chooses its formal; the captured call
+/// operands choose the caller storage. Neither the helper's name nor a
+/// same-typed argument proves that relation. Preserve an incoming bound only
+/// when the complete call frame cannot write the selected referent.
+fn returned_referent_range(
+    walk: &ExpressionWalk,
+    expression: ExpressionHandle,
+    call: &TableCallExpression,
+) -> Option<Analysis> {
+    let program = walk.program;
+    let result = crate::reference_shell(program, call_return_type(program, call)?)?;
+    if !result.access.is_readable() {
+        return None;
+    }
+    let primitive = program.primitive_type_reference(result.referee)?;
+    let callee = crate::machine_calls::calls::callee_entry_contract(program, call.target_symbol)?;
+    let frames = crate::CallFrameResolver::new(program)?;
+    let (_, selected_state) =
+        crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)?;
+    let returned = frames.reference_result_origins(selected_state.symbol)?;
+    let actuals = frames.expression_call_write_origins(walk.machine, expression)?;
+    let writes = frames.expression_may_write_paths(walk.machine, expression)?;
+    let arguments = program.expression_table.expression_handles(call.arguments);
+    let mut interval = None;
+    for source in returned {
+        if !source.segments.is_empty()
+            || source.collection_coarse
+            || !source.recasts.is_empty()
+            || source.representation.is_some()
+        {
+            return None;
+        }
+        let position = callee
+            .parameters
+            .iter()
+            .position(|parameter| parameter.symbol == source.root)?;
+        let position = position.checked_add(callee.leading_operands)?;
+        let origins = actuals.arguments.get(position)?.as_ref()?;
+        if origins.is_empty()
+            || origins.iter().any(|origin| {
+                origin.collection_coarse
+                    || !origin.recasts.is_empty()
+                    || origin.representation.is_some()
+                    || writes
+                        .iter()
+                        .any(|written| crate::frame_paths_overlap(written, &origin.path))
+            })
+        {
+            return None;
+        }
+        let mut actual = *arguments.get(position)?;
+        if let Some(borrow) = program.expression_table.borrow_expression(actual) {
+            if !borrow.access.is_readable() {
+                return None;
+            }
+            actual = borrow.target;
+        }
+        let mut diagnostics = Vec::new();
+        let analysis = walk
+            .with_destination(None, ArithmeticDomain::Exact)
+            .analyze(
+                actual,
+                &mut diagnostics,
+                &mut super::ArithmeticDecisions::default(),
+            );
+        if !diagnostics.is_empty() || analysis.primitive != Some(primitive) {
+            return None;
+        }
+        interval = Some(interval.map_or(analysis.interval, |previous: Interval| {
+            previous.union(analysis.interval)
+        }));
+    }
+    Some(Analysis {
+        interval: interval?,
+        primitive: Some(primitive),
+        domain: Some(program.arithmetic_domain_for_type_reference(result.referee)),
+    })
 }
 
 /// Decision 17 is operand-driven: a call whose callee declares a qualified

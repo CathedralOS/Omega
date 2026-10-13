@@ -48,7 +48,7 @@ pub(super) fn validate(
                     parameter.place == destination.place() && &parameter.placement == placement
                 })
         }
-        // A mutable arrival is admitted by its access, not its transport: a
+        // A writable arrival is admitted by its access, not its transport: a
         // byte view arrives as its backing pointer or descriptor rather than
         // an address join, and selection resolves the store through the same
         // geometry's pointer slots.
@@ -57,7 +57,11 @@ pub(super) fn validate(
             target_operations::TargetStructuralArgumentSource::BlockParameter { block, place },
         ) => {
             *place == parameter.place
-                && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
+                && matches!(
+                    parameter.access,
+                    terminal_psi::StructuralAccess::MutableBorrow
+                        | terminal_psi::StructuralAccess::WriteOnlyBorrow
+                )
                 && optimized.blocks.iter().any(|entry| {
                     entry.id == *block && entry.structural_parameters.contains(parameter)
                 })

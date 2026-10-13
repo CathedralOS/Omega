@@ -136,6 +136,7 @@ pub(in crate::legalization) fn argument_at(
                 root,
                 &semantic.path,
                 semantic.access,
+                Some(destination_parameter.structural_type),
                 &plan.structural_types,
             )
             .is_some_and(|(selected, _, _)| selected == destination_parameter.structural_type)

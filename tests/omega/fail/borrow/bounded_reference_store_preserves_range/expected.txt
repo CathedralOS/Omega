@@ -1,1 +1,2 @@
-cannot prove assignment value `2` satisfies bounded target `position`
+cannot prove ensures contract for exit from reset
+position <= 1

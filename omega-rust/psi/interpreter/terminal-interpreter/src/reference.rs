@@ -340,10 +340,11 @@ impl TerminalExecution<'_> {
             let root_type = self.live_structural_type(source.place)?;
             let observed = (source.access == StructuralAccess::SharedBorrow)
                 .then(|| {
-                    terminal_semantics::shared_primitive_projection_declaration(
+                    terminal_semantics::borrowed_primitive_projection_declaration(
                         self.program.structural_types().values(),
                         root_type,
                         &source.path,
+                        None,
                     )
                 })
                 .flatten();
@@ -687,6 +688,7 @@ impl TerminalExecution<'_> {
         place: PlaceId,
         path: &[StructuralPathSegment],
         access: StructuralAccess,
+        expected: StructuralTypeId,
     ) -> Result<
         (
             TerminalStructuralValue,
@@ -698,11 +700,7 @@ impl TerminalExecution<'_> {
             place,
             path,
             access,
-            if access == StructuralAccess::SharedBorrow {
-                terminal_psi::StructuralFieldType::shared_observation_type
-            } else {
-                terminal_psi::StructuralFieldType::canonical_leaf_type
-            },
+            self.borrowed_projection_leaf(expected, access),
         )
         .map(|projected| (projected.value, projected.primitive_storage))
     }
@@ -715,8 +713,13 @@ impl TerminalExecution<'_> {
         argument: &StructuralArgument,
         expected: StructuralTypeId,
     ) -> Result<(TerminalStructuralValue, Option<AggregateBacking>), TerminalInterpretError> {
-        let (mut value, tip) =
-            self.resolve_live_view_projection(argument.place, &argument.path, argument.access)?;
+        let projected = self.resolve_live_projection_with_leaf_type(
+            argument.place,
+            &argument.path,
+            argument.access,
+            self.borrowed_projection_leaf(expected, argument.access),
+        )?;
+        let (mut value, tip) = (projected.value, projected.view_tip);
         let backing = if let Some(AggregateViewTip::Aggregate { view, backing }) = tip {
             if argument.access == StructuralAccess::Owned
                 || expected != view.structural_type
@@ -734,6 +737,28 @@ impl TerminalExecution<'_> {
             None
         };
         Ok((value, backing))
+    }
+
+    /// The receiving declaration selects a loan presentation, not its backing.
+    /// Keep an exact restricted referee exact; a bare scalar formal presents
+    /// only the carrier while Psi owns the original field's handback predicate.
+    fn borrowed_projection_leaf(
+        &self,
+        expected: StructuralTypeId,
+        access: StructuralAccess,
+    ) -> fn(&terminal_psi::StructuralFieldType) -> Option<terminal_psi::StructuralFieldType> {
+        let preserve_restriction = self
+            .program
+            .structural_types()
+            .get(&expected)
+            .is_some_and(|declaration| declaration.scalar_restriction.is_some());
+        if preserve_restriction || access == StructuralAccess::Owned {
+            terminal_psi::StructuralFieldType::canonical_leaf_type
+        } else if access == StructuralAccess::SharedBorrow {
+            |field| field.borrowed_presentation_type(StructuralAccess::SharedBorrow, None)
+        } else {
+            |field| field.borrowed_presentation_type(StructuralAccess::MutableBorrow, None)
+        }
     }
 
     /// Resolve a live projection and, when its final run crosses into an

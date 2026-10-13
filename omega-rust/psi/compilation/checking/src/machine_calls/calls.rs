@@ -541,6 +541,7 @@ pub(crate) fn validate_call_arguments(
                 current_machine,
                 current_state,
                 value_environment,
+                prior_statements,
                 *argument,
                 parameter,
                 target_name,

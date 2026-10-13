@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "3", "load1_end": 6.48, "load1_start": 6.69, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "4", "load1_end": 3.04, "load1_start": 2.71, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -179,6 +179,7 @@ pass/borrows/returned_record_projected_call_exit built 1243ms exit:70 @011fd400e
 pass/borrows/runtime_affine_local_case_return_exit built 1865ms exit:42 @5b34dbe4df3d+wt
 pass/borrows/runtime_affine_local_scalar_exit built 885ms exit:42 @48008365d839
 pass/borrows/runtime_array_primitive_reference_capture_exit built 3524ms exit:0 @9beb2be72f2d+wt
+pass/borrows/runtime_bounded_and_shared_field_loans_exit built 5304ms exit:0 @5b32c4eb36ff+wt
 pass/borrows/runtime_byte_view_element_loan_exit built 1300ms exit:70 @c5248fcf82a0+wt
 pass/borrows/runtime_byte_view_element_reference_calls_exit built 1392ms exit:0 @d1ebe54629b8
 pass/borrows/runtime_captured_primitive_reference_exit built 2519ms exit:70 @9beb2be72f2d+wt
@@ -222,7 +223,7 @@ pass/borrows/runtime_recursive_shared_array_read_exit built 2356ms exit:70 @6d05
 pass/borrows/runtime_reentered_mutable_array_loan_exit built 1705ms exit:70 @98f54226c10c
 pass/borrows/runtime_reference_aggregate_call_result_replacement_exit built 4426ms exit:0 @af6b0f221559+wt
 pass/borrows/runtime_reference_array_pressure_exit built 2056ms exit:70 @a195e6cdf066+wt
-pass/borrows/runtime_reference_initializer_selector_before_later_write_exit built 2594ms exit:70 @ebf381240e20+wt
+pass/borrows/runtime_reference_initializer_selector_before_later_write_exit built 6488ms exit:70 @5b32c4eb36ff+wt
 pass/borrows/runtime_reference_local_constructor_leaf_retirement_exit built 1162ms exit:70 @104c2da31081
 pass/borrows/runtime_reference_record_array_field_read_exit built 1171ms exit:70 @104c2da31081
 pass/borrows/runtime_reference_record_call_completion_exit built 1159ms exit:70 @104c2da31081
@@ -235,6 +236,7 @@ pass/borrows/runtime_returned_nested_reference_array_bounded_read_exit built 235
 pass/borrows/runtime_returned_reference_array_bounded_read_exit built 1712ms exit:70 @6ba9c43af356+wt
 pass/borrows/runtime_returned_reference_array_restoration_exit built 1759ms exit:70 @b5d8c6882a8b+wt
 pass/borrows/runtime_returned_reference_constructor_leaf_retirement_exit built 1177ms exit:70 @104c2da31081
+pass/borrows/runtime_scalar_field_local_loan_handback_exit built 5304ms exit:0 @5b32c4eb36ff+wt
 pass/borrows/runtime_selected_reference_record_helper_exit built 16799ms exit:0 @af6b0f221559+wt
 pass/borrows/runtime_shared_carrier_storage_observation_exit built 5346ms exit:0 @759f6dbf1dfa
 pass/borrows/runtime_shared_qualified_view_cycle_exit built 1799ms exit:70 @954364ed064e
@@ -262,6 +264,7 @@ pass/borrows/runtime_whole_referent_case_store_exit built 1291ms exit:70 @6ec9ff
 pass/borrows/runtime_whole_referent_payload_case_store_exit built 1289ms exit:70 @6ec9ff444c14+wt
 pass/borrows/runtime_whole_referent_record_store_exit built 1395ms exit:70 @6ec9ff444c14+wt
 pass/borrows/runtime_whole_referent_scalar_store_exit built 1098ms exit:70 @6ec9ff444c14+wt
+pass/borrows/runtime_write_only_disjoint_field_predicates_exit built 5304ms exit:0 @5b32c4eb36ff+wt
 pass/borrows/same_initializer_disjoint_source_move checked 609ms @9beb2be72f2d+wt
 pass/borrows/shared_recast_loan_member_read built 746ms exit:0 @d629c0d993ca+wt
 pass/borrows/static_carrier_bounded_reference_read_exit built 1158ms exit:70 @104c2da31081

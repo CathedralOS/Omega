@@ -29,6 +29,7 @@ mod assignments;
 mod bigint_interval;
 mod bitwise;
 mod call_result_bounds;
+pub(crate) use call_result_bounds::normal_return_referent_interval;
 mod cast_ranges;
 mod dispatch_environments;
 pub(crate) use dispatch_environments::dispatch_arm_environments;
@@ -54,6 +55,7 @@ mod operand_reports;
 mod ordered_values;
 mod place_paths;
 mod range_constraints;
+pub(crate) use range_constraints::declares_bracketed_range;
 mod return_ranges;
 mod selected_scalar_intervals;
 pub use bigint_interval::{

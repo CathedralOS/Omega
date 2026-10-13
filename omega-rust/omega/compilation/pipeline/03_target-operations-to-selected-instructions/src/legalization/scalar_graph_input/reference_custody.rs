@@ -650,10 +650,11 @@ fn direct_storage_type(
         return None;
     }
     if source.access == StructuralAccess::SharedBorrow
-        && let Some(observed) = terminal_semantics::shared_primitive_projection_declaration(
+        && let Some(observed) = terminal_semantics::borrowed_primitive_projection_declaration(
             types.iter(),
             structural_type,
             &source.path,
+            None,
         )
     {
         return Some(observed);

@@ -1780,7 +1780,12 @@ pub(crate) fn reference_projection(
         path = &path[crossing + 1..];
     }
     let geometry = reference_geometry(initial_root, initial_path, declarations, |root, path| {
-        runtime_projection_with_leaf_type(root, path, declarations, borrowed_leaf_type(access))
+        runtime_projection_with_leaf_type(
+            root,
+            path,
+            declarations,
+            borrowed_leaf_type(access, None),
+        )
     })?;
     let scalar_descriptor = geometry.pointer_slots.last()?.scalar_descriptor;
     Some(ReferenceProjection {
@@ -1807,19 +1812,9 @@ pub(crate) fn project(
 
 fn borrowed_leaf_type(
     access: terminal_psi::StructuralAccess,
-) -> fn(&StructuralFieldType) -> Option<StructuralFieldType> {
-    if access == terminal_psi::StructuralAccess::SharedBorrow {
-        |field| match field.byte_sequence_carrier() {
-            Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
-                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-            }) => Some(StructuralFieldType::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView { access: None },
-            )),
-            _ => field.shared_observation_type(),
-        }
-    } else {
-        StructuralFieldType::canonical_leaf_type
-    }
+    expected: Option<&StructuralTypeDeclaration>,
+) -> impl Fn(&StructuralFieldType) -> Option<StructuralFieldType> + Copy + '_ {
+    move |field| field.borrowed_presentation_type(access, expected)
 }
 
 /// Byte-carrier leaves resolve to the standalone declaration a leaf copy of
@@ -2089,10 +2084,17 @@ pub(crate) fn runtime_borrowed_projection(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
     access: terminal_psi::StructuralAccess,
+    expected: Option<StructuralTypeId>,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<(StructuralTypeId, u32, Vec<RuntimeElement>)> {
+    let expected = expected.and_then(|expected| find_structural_type(declarations, expected));
     let geometry = reference_geometry(root, path, declarations, |root, path| {
-        runtime_projection_with_leaf_type(root, path, declarations, borrowed_leaf_type(access))
+        runtime_projection_with_leaf_type(
+            root,
+            path,
+            declarations,
+            borrowed_leaf_type(access, expected),
+        )
     })?;
     Some((geometry.selected, geometry.byte_offset, geometry.elements))
 }
@@ -2101,7 +2103,7 @@ fn runtime_projection_with_leaf_type(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
     declarations: &[StructuralTypeDeclaration],
-    leaf_type: fn(&StructuralFieldType) -> Option<StructuralFieldType>,
+    leaf_type: impl Fn(&StructuralFieldType) -> Option<StructuralFieldType>,
 ) -> Option<(StructuralTypeId, u32, Vec<RuntimeElement>)> {
     let (storage, offset, elements) = runtime_storage_projection(root, path, declarations)?;
     let selected = match &*storage {

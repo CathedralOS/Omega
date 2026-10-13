@@ -87,12 +87,18 @@ pub fn state_reference_parameter_binding_is_stable(
     state: &State,
     parameter: symbols::SymbolHandle,
 ) -> bool {
-    if !program.state_parameters(state).iter().any(|candidate| {
+    let Some(declaration) = program.state_parameters(state).iter().find(|candidate| {
         candidate.symbol == parameter
             && type_reference_is_reference(program, candidate.type_reference)
-    }) {
+    }) else {
         return false;
-    }
+    };
+    // A scalar reborrow exposes the referent, not the descriptor slot.
+    // Writes through it retire value facts but cannot change this invocation's
+    // storage identity. Explicit reference-valued replacement below still
+    // loses that identity; nested reference storage retains the exposure fence.
+    let scalar_referent = crate::reference_shell(program, declaration.type_reference)
+        .and_then(|shell| program.primitive_type_reference(shell.referee));
     let is_binding = |expression| {
         let source = super::FrameSourcePlace::from_expression(program, expression);
         source.root == parameter && source.segments.is_empty()
@@ -112,16 +118,108 @@ pub fn state_reference_parameter_binding_is_stable(
             {
                 return false;
             }
+            if let Some(call) = statement.as_call() {
+                let contract = super::super::callee_entry_contract(program, call.target_symbol);
+                return program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .enumerate()
+                    .all(|(position, argument)| {
+                        let expected = contract.as_ref().and_then(|contract| {
+                            let position = position.checked_sub(contract.leading_operands)?;
+                            Some(contract.parameters.get(position)?.type_reference)
+                        });
+                        !expression_exposes_reference_slot(
+                            program,
+                            *argument,
+                            expected,
+                            scalar_referent,
+                            &is_binding,
+                        )
+                    });
+            }
             !super::statement_value_expression_roots(program, statement)
                 .into_iter()
                 .any(|expression| {
-                    super::local_aliases::expression_has_exclusive_borrow(
+                    expression_exposes_reference_slot(
                         program,
                         expression,
+                        None,
+                        scalar_referent,
                         &is_binding,
                     )
                 })
         })
+}
+
+/// Distinguish lending a scalar referent from lending the reference slot that
+/// points at it. Only a selected scalar-reference formal establishes the former;
+/// an unknown consumer or a reference-to-reference formal keeps the exposure
+/// fence. Nested operands are checked under their own receiving declarations.
+fn expression_exposes_reference_slot(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    expected: Option<typed_trees::types::TypeReferenceHandle>,
+    scalar_referent: Option<typed_trees::types::PrimitiveType>,
+    is_binding: &impl Fn(ExpressionHandle) -> bool,
+) -> bool {
+    if !program.expression_table.expression_is_valid(expression) {
+        return false;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Borrow(borrow)
+            if borrow.access.is_exclusive() && is_binding(borrow.target) =>
+        {
+            let receiving_scalar = expected
+                .and_then(|expected| crate::reference_shell(program, expected))
+                .and_then(|shell| program.primitive_type_reference(shell.referee));
+            scalar_referent.is_none() || scalar_referent != receiving_scalar
+        }
+        ExpressionNode::Call(call) => {
+            if expression_exposes_reference_slot(
+                program,
+                call.receiver,
+                None,
+                scalar_referent,
+                is_binding,
+            ) {
+                return true;
+            }
+            let contract = super::super::callee_entry_contract(program, call.target_symbol);
+            program
+                .expression_table
+                .expression_handles(call.arguments)
+                .iter()
+                .enumerate()
+                .any(|(position, argument)| {
+                    let expected = contract.as_ref().and_then(|contract| {
+                        let position = position.checked_sub(contract.leading_operands)?;
+                        Some(contract.parameters.get(position)?.type_reference)
+                    });
+                    expression_exposes_reference_slot(
+                        program,
+                        *argument,
+                        expected,
+                        scalar_referent,
+                        is_binding,
+                    )
+                })
+        }
+        node => {
+            let mut exposed = false;
+            crate::expression_traversal::children(program, node, |child| {
+                exposed |= expression_exposes_reference_slot(
+                    program,
+                    child,
+                    None,
+                    scalar_referent,
+                    is_binding,
+                );
+            });
+            exposed
+        }
+    }
 }
 
 /// A pure terminal reference expression transports its referent but cannot

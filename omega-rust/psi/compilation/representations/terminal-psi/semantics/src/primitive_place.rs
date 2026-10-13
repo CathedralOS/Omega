@@ -179,26 +179,40 @@ pub fn primitive_read_requirement<'a>(
     crate::scalar_field_requirement(restriction, result)
 }
 
-/// The unique primitive carrier observed through a shared loan of original
+/// The unique primitive carrier presented through a loan of original
 /// storage. Restricted fields keep their declaration-owned predicate and exact
-/// path; unlike a writable projection, their observed scalar needs no owned
-/// leaf type. Bounds, selected cases, reference access and loan custody remain
-/// independent obligations of the call. Atomic fields grant no such endpoint.
-pub fn shared_primitive_projection_declaration<'a>(
+/// path; presenting that storage does not manufacture an owned leaf type.
+/// Psi checks the declared receiving predicate again at writable handback,
+/// using the selected callee's normal-return guarantees, not arrival facts.
+/// Bounds, selected cases, reference access and loan custody remain separate
+/// obligations. Atomic fields grant no such endpoint.
+pub fn borrowed_primitive_projection_declaration<'a>(
     declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
+    expected: Option<StructuralTypeId>,
 ) -> Option<StructuralTypeId> {
     // A whole declared scalar keeps its exact type. An inline field presents
     // its observation carrier instead: the existence of a bounded declaration
     // elsewhere must not change a plain shared call's contract.
+    let expected = expected.and_then(|expected| {
+        declarations
+            .clone()
+            .find(|declaration| declaration.id == expected)
+    });
     let tip = walk_primitive_projection(
         declarations.clone(),
         root,
         path,
-        |field| match field.shared_observation_shape()? {
-            StructuralTypeShape::PrimitiveScalar(scalar) => Some(scalar),
-            _ => None,
+        |field| {
+            if expected.is_some_and(|expected| expected.scalar_restriction.as_ref() == Some(field))
+            {
+                return field.scalar_type();
+            }
+            match field.shared_observation_shape()? {
+                StructuralTypeShape::PrimitiveScalar(scalar) => Some(scalar),
+                _ => None,
+            }
         },
         |_| {},
     )?;
@@ -208,6 +222,13 @@ pub fn shared_primitive_projection_declaration<'a>(
         return Some(declaration.id);
     }
     let scalar = tip.primitive_scalar()?;
+    if let Some(expected) = expected
+        && expected.scalar_restriction.is_some()
+        && crate::primitive_read_field(declarations.clone(), root, path)
+            .is_some_and(|field| expected.scalar_restriction.as_ref() == Some(&field.field_type))
+    {
+        return Some(expected.id);
+    }
     let mut matching = declarations.filter(|declaration| {
         declaration.shape == StructuralTypeShape::PrimitiveScalar(scalar)
             && declaration.scalar_restriction.is_none()

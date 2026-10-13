@@ -1147,20 +1147,21 @@ fn validate_structural_arguments(
         if owned_byte_view_presentation(module, machine, argument, expected) {
             continue;
         }
-        // Shared primitive loans observe the original field; its restriction
-        // remains with that field rather than becoming an owned scalar type.
-        // Independent semantic validation still checks access and live loans.
-        let shared_endpoint = (argument.access == terminal_psi::StructuralAccess::SharedBorrow
-            && expected.access == terminal_psi::StructuralAccess::SharedBorrow)
+        // Primitive loans present the original storage, never an owned scalar.
+        // Psi owns source predicate preservation at writable handback; this
+        // representation boundary checks carrier, access and exact coordinates.
+        let borrowed_endpoint = (argument.access == expected.access
+            && argument.access != terminal_psi::StructuralAccess::Owned)
             .then(|| {
-                terminal_semantics::shared_primitive_projection_declaration(
+                terminal_semantics::borrowed_primitive_projection_declaration(
                     module.structural_types.iter(),
                     actual_type,
                     &argument.path,
+                    Some(expected.structural_type),
                 )
             })
             .flatten();
-        let actual_type = match shared_endpoint {
+        let actual_type = match borrowed_endpoint {
             Some(endpoint) => endpoint,
             None => validate_structural_path(module, actual_type, &argument.path)?,
         };

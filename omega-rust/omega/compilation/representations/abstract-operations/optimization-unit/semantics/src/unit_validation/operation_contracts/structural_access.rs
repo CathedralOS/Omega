@@ -437,13 +437,14 @@ where
         if borrowed_owner_expected && !bounded_owner_presentation {
             return false;
         }
-        let actual_type = if argument.access == terminal_psi::StructuralAccess::SharedBorrow
-            && parameter.access == terminal_psi::StructuralAccess::SharedBorrow
+        let actual_type = if argument.access == parameter.access
+            && argument.access != terminal_psi::StructuralAccess::Owned
         {
-            terminal_semantics::shared_primitive_projection_declaration(
+            terminal_semantics::borrowed_primitive_projection_declaration(
                 types.values().copied(),
                 source.structural_type,
                 &argument.path,
+                Some(parameter.structural_type),
             )
         } else {
             None

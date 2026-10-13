@@ -70,7 +70,10 @@ pub(in crate::lowering) fn lower_write_only_primitive_store(
             }
             if let Some(entry) = function.block_entries.iter().find(|entry| {
                 entry.structural_parameters.contains(parameter)
-                    && parameter.access == StructuralAccess::MutableBorrow
+                    && matches!(
+                        parameter.access,
+                        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                    )
             }) {
                 // Arrival identity and write permission are independent of
                 // transport: a byte-view arrival carries a descriptor, not an

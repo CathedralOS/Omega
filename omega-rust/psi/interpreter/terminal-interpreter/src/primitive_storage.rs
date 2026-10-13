@@ -315,6 +315,7 @@ impl TerminalExecution<'_> {
                 argument.place,
                 &argument.path,
                 argument.access,
+                parameter.structural_type,
             )?;
             let value = projected.0;
             if value.structural_type != parameter.structural_type {
@@ -1325,9 +1326,16 @@ impl TerminalExecution<'_> {
         let shape = if shared_view {
             field.field_type.shared_observation_shape()
         } else {
+            // A call loan retains the original field endpoint while presenting
+            // the receiving scalar declaration. Its handback predicate was
+            // checked by Psi; storage identity does not require manufacturing
+            // an owned restricted scalar declaration for a bare formal.
+            let types = self.program.structural_types();
+            let expected = types.get(&view.structural_type).ok_or_else(malformed)?;
             let selected = field
                 .field_type
-                .leaf_declaration(self.program.structural_types().values())
+                .borrowed_presentation_type(StructuralAccess::MutableBorrow, Some(expected))
+                .and_then(|leaf| leaf.leaf_declaration(types.values()))
                 .ok_or_else(malformed)?;
             if selected.id != view.structural_type {
                 return Err(malformed());

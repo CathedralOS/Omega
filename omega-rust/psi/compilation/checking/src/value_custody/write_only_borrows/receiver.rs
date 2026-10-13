@@ -1,7 +1,8 @@
 //! Rejoin a write-only receiver with its attached storage declaration.
 use super::{
     DataDefinition, DataShapeKind, Diagnostic, ExpressionHandle, ExpressionNode, Machine,
-    SymbolHandle, WriteOnlyRoot, closed_write_only_data_by_symbol, write_only_record,
+    SymbolHandle, WriteOnlyRoot, closed_write_only_data_by_symbol,
+    closed_write_only_data_shape_by_symbol, write_only_record_shape,
 };
 use typed_trees::data::DataField;
 use typed_trees::expression::TableNamePath;
@@ -27,7 +28,23 @@ pub(super) fn field<'program>(
     root: &WriteOnlyRoot,
     expression: ExpressionHandle,
 ) -> Option<&'program DataField> {
-    crate::exact_self_field(program, machine(program, root)?, expression)
+    let definition = projection_record(program, root)?;
+    let field = crate::exact_self_field(program, machine(program, root)?, expression)?;
+    crate::declarations::data_queries::data_field_is_where_independent(program, definition, field)
+        .then_some(field)
+}
+
+fn projection_record<'program>(
+    program: &'program dyn crate::CheckingInput,
+    root: &WriteOnlyRoot,
+) -> Option<&'program DataDefinition> {
+    let definition = closed_write_only_data_shape_by_symbol(
+        program,
+        machine(program, root)?.attached_data_symbol,
+    )?;
+    (DataDefinition::shape_kind_from_members(program.data_members(definition))
+        == DataShapeKind::Record)
+        .then_some(definition)
 }
 
 fn machine<'program>(
@@ -81,13 +98,15 @@ fn attached_field<'program>(
     if !symbol.is_valid() {
         return None;
     }
-    record(program, root)?;
-    crate::value_custody::places::exact_attached_field(
+    let definition = projection_record(program, root)?;
+    let field = crate::value_custody::places::exact_attached_field(
         program,
         machine(program, root)?,
         symbol,
         name,
-    )
+    )?;
+    crate::declarations::data_queries::data_field_is_where_independent(program, definition, field)
+        .then_some(field)
 }
 
 pub(super) fn validate_statement_call(

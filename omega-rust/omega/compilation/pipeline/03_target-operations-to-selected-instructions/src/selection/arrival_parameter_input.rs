@@ -37,7 +37,7 @@ pub(super) fn store_destination(
                 StructuralAccess::Owned => {
                     super::owned_block_home_input::store_destination(source, block, expected)
                 }
-                StructuralAccess::MutableBorrow => true,
+                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow => true,
                 _ => false,
             },
             _ => true,

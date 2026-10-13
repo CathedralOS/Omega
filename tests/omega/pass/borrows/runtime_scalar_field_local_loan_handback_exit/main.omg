@@ -1,0 +1,17 @@
+data Main where position <= 1 { position: u64; }
+machine replace(position: &mut u64)
+requires position <= 1
+ensures position <= 1
+{
+    // The arrival bound is not a store-enforced type. Restore it at handback.
+    position = 2;
+    position = 0;
+}
+machine Main::main(main: &mut Main) crashes Trap {
+    main.position = 1;
+    let selected: &mut u64 = &mut main.position;
+    replace(&mut selected);
+    transition main.position == 0 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}
