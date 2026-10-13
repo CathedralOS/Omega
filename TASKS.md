@@ -2054,11 +2054,20 @@ then independent claimed restoration slices -> final closure.
   selecting its scope; a minimal source file does not imply a trivial Build.
   Retire static syntax projection as a second Build language. Put project-role
   and dependency discovery operations in ordinary `omega::core` boundary
-  traits/machines with compiler/package-manager host implementations. An
-  explicit dependency-discovery entry compiled from the root plus core runs in
-  the Terminal interpreter and emits role/product/build dependency effects;
-  package management resolves that graph, then the ordinary Build entry
-  compiles and runs with its declared dependencies. Helpers and control flow are
+  traits/machines with compiler/package-manager host implementations. The
+  compiler constructs a core-only discovery program from the one Build entry
+  ([build declarations](wiki/spec/build/declarations.md)): the role and
+  dependency requests it makes, with the local helpers and control flow that
+  compute them. It runs in the Terminal interpreter against the
+  Build-discovery boundary and emits role/product/build dependency effects;
+  package management resolves that graph, then the complete Build entry is
+  checked with its dependencies, admitted and run once
+  ([execution order](wiki/spec/build/execution.md#admission-before-execution)).
+  `bind`, `select_provider`, `assume_binding_contract` and test registration
+  are admitted Build operations whose product operands resolve in the product
+  context ([scoped execution](wiki/spec/build/scoped_execution.md#selecting-product-declarations-without-executing-them));
+  they are not part of the discovery program, so the seed's
+  `Build::bind(..., Main::main)` calls run only in the complete Build. Helpers and control flow are
   ordinary checked Omega, not direct-call syntax recognized by Rust.
   A missing `build.omg` is compiler-constructed ordinary source for the same
   discovery/Build contracts, not a separate `BuildConfig::default()` semantic
@@ -2067,12 +2076,7 @@ then independent claimed restoration slices -> final closure.
   Product description queries do not execute product bodies. Preserve
   **BUILD-EVALUATES-ONCE**, pre-effect admission and all-target authored rows;
   do not retain a feature/fixture-specific Build evaluator.
-  Discovery/default-source phase selection is **OWNER-BLOCKED** on
-  [build-discovery-entry-phase](OWNER_QUESTIONS.md#q1---what-does-a-non-discovery-build-call-do-while-discovery-runs):
-  the same free Build entry mixes discovery with work needing the resolved
-  graph, with no defined entry/phase boundary. This blocks that subfrontier
-  only; Terminal/mutable-slot/accounting and immutable resolver joins remain
-  engineering. Preserve the seed and invalid acceptance below.
+  Preserve the seed and invalid acceptance below.
   Owners: `omega-rust/omega/compilation/build-evaluation/src/`, Psi compile-time
   admission, exact Build catalog contracts and Terminal lowering/adapters.
   Acceptance on Windows and macOS: `mbx check -p omega`; ordinary source check
@@ -5329,9 +5333,9 @@ wait for Cathedral's instruction coverage. The interpreter is
 
   - Default builds and anonymous owners
     ([spec](wiki/spec/build/declarations.md#default-builds-and-anonymous-owner-identity)):
-    The interpreted discovery/default-source prerequisite references
-    [build-discovery-entry-phase](OWNER_QUESTIONS.md#q1---what-does-a-non-discovery-build-call-do-while-discovery-runs);
-    other owner/identity/resolution joins remain engineering.
+    The interpreted discovery/default-source prerequisite is the constructed
+    core-only discovery program above; owner/identity/resolution joins are
+    engineering.
     `omega-rust/omega/packages/compilation-inputs/src/source_imports/frontier.rs`
     leaves loose roots without package identity. Derive the versioned anonymous
     content record before build execution; keep supplied package/core owners;

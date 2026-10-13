@@ -105,13 +105,15 @@ Here `configure_products` is an ordinary helper from the local
 or an output sink receives those values instead of the whole builder. Passing
 the whole builder is deliberate authority delegation, not the library default.
 
-Discovery parses the root's imports without resolving or executing them, extracts
-both dependency sets, resolves their immutable closures, then checks and admits
-the build entry and its helpers. A top-of-file import may therefore refer to a
-build dependency declared later in the entry. Package/dependency discovery cannot
-call imported helpers, evaluate a dependency-dependent path, or read generated
-source. Source location/selector arguments retain the existing direct-projection
-restrictions; no extra discovery-time evaluator is introduced.
+Discovery runs the core-only discovery program the compiler constructs from the
+entry ([build declarations](declarations.md)) without resolving the root's
+imports, obtains both dependency sets, resolves their immutable closures, then
+checks and admits the complete build entry and its helpers. A top-of-file import
+may therefore refer to a build dependency declared later in the entry.
+Package/dependency discovery cannot call imported helpers, evaluate a
+dependency-dependent path, or read generated source. Product-selection
+operations below are admitted Build operations, not part of the discovery
+program.
 
 The build can be split across ordinary imported source files. Only the selected
 root declares its role and dependency sets; imported helpers do not become build
@@ -597,7 +599,7 @@ and mutation tests; this document does not claim that interface implemented.
 The exact sequencing is:
 
 ```text
-direct root/dependency/output-mode discovery
+core-only interpreted root/dependency/output-mode discovery
   -> dependency-purpose closure and immutable input capture
   -> host build checking + frozen authored product selection frontier
   -> build admission and execution using only those inputs/descriptions
@@ -617,7 +619,8 @@ dependency or input frontier by serializing a new manifest as output.
 | Case | Required result |
 | --- | --- |
 | Top-of-file import of a directly declared build dependency | Discovery succeeds before import resolution; helpers execute only after admission. |
-| Dependency declaration hidden in a helper or conditional | Reject during discovery without executing it. |
+| Dependency declaration computed by a local helper or control flow | Discovered by the core-only discovery program. |
+| Dependency declaration computed through imported or dependency code | Reject during discovery without executing that code. |
 | Local multi-file build helper | Checked in the build context with exact Build vocabulary and normal visibility. |
 | Product-only entry/provider selected from a build with no host import of that implementation | Exact designated product operand resolves; no target code executes on the host. |
 | Same alias names different host and product packages | Ordinary calls select only the host package; product operands select only the product package. No fallback. |
