@@ -477,24 +477,33 @@ crashes Trap
     let role: UseRole = Checker::role_of(checker, handle);
     let flows: bool = role == UseRole::Value || role == UseRole::Borrow || role == UseRole::Exclusive;
     transition flows {
-        true -> adapted(typing, handle, expression, adaptation, role)
+        true -> adapted(syntax, typing, handle, expression, adaptation, role)
         _ -> answer(Hold::Released)
     }
 
     // Only a value taken or lent can carry a loan into what holds it.
-    state adapted(typing: &Typing, handle: u64 in Trapping, expression: Expression, adaptation: Adaptation, role: UseRole) -> Hold {
+    state adapted(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, expression: Expression, adaptation: Adaptation, role: UseRole) -> Hold {
         transition adaptation {
             Adaptation::SharedLend -> answer(Hold::Shared { place: handle })
             Adaptation::Read -> answer(Hold::Released)
-            _ -> written(typing, handle, expression, role)
+            _ -> written(syntax, typing, handle, expression, role)
         }
     }
 
-    state written(typing: &Typing, handle: u64 in Trapping, expression: Expression, role: UseRole) -> Hold {
-        let unary: bool = expression.kind == ExpressionKind::Unary;
-        transition unary {
-            true -> borrowed(typing, handle, expression, role)
+    state written(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, expression: Expression, role: UseRole) -> Hold {
+        transition expression.kind {
+            ExpressionKind::Unary -> borrowed(typing, handle, expression, role)
+            ExpressionKind::Cast -> recast(syntax, typing, expression, role)
             _ -> passed(typing, handle, expression, role)
+        }
+    }
+
+    // A recast `operand as &T` lends what its operand lends, as a value.
+    state recast(syntax: &SyntaxTrees, typing: &Typing, expression: Expression, role: UseRole) -> Hold {
+        let operand: Expression = SyntaxTrees::expression(syntax, expression.left);
+        transition operand.kind == ExpressionKind::Unary {
+            true -> borrowed(typing, expression.left, operand, role)
+            _ -> passed(typing, expression.left, operand, UseRole::Value)
         }
     }
 

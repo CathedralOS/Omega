@@ -832,8 +832,20 @@ crashes Trap
     }
 
     // `value as Type`: the shared type grammar reads the target, `in Domain`
-    // included.
+    // included. Prefix operators bind tightest
+    // (wiki/spec/language/expressions.md#operator-declarations),
+    // so a pending borrow or negation reduces first: `&x as &T` casts the
+    // borrow.
     state cast(parser: &mut Parser, input: &TokenStream) {
+        let base: u64 in Trapping = Parser::frame_operator_base(parser);
+        Parser::reduce_until(parser, input, base, 11);
+        transition parser.output.accepted {
+            true -> cast_target(parser, input)
+            _ -> done()
+        }
+    }
+
+    state cast_target(parser: &mut Parser, input: &TokenStream) {
         Parser::take_current(parser, input);
         Parser::parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedCastType);
         transition parser.output.accepted {

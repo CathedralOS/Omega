@@ -1,5 +1,6 @@
 use psi::checking::arithmetic;
 use psi::checking::checker;
+use psi::checking::recasts;
 use psi::checking::constructions;
 use psi::checking::contracts;
 use psi::checking::domains;
@@ -263,7 +264,7 @@ crashes Trap
     ) {
         transition checking {
             true -> cast_qualification(checker, syntax, resolution, typing, handle, expression, type_handle, row, integer)
-            _ -> cast(checker, typing, handle, expression, row, integer, checking)
+            _ -> cast(checker, syntax, typing, handle, expression, row, integer, checking)
         }
     }
 
@@ -280,10 +281,22 @@ crashes Trap
     ) {
         let operand: Value = Checker::value_at(checker, expression.left);
         Checker::require_qualification(checker, syntax, resolution, typing, type_handle, expression.left, operand, expression.source_span);
-        transition { _ -> cast(checker, typing, handle, expression, row, integer, true) }
+        transition { _ -> cast(checker, syntax, typing, handle, expression, row, integer, true) }
     }
 
-    state cast(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, expression: Expression, row: TypeRow, integer: bool, checking: bool) {
+    state cast(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, expression: Expression, row: TypeRow, integer: bool, checking: bool) {
+        transition row.kind == TypeKind::Reference {
+            true -> recast(checker, syntax, typing, handle, expression, row, checking)
+            _ -> scalar_cast(checker, typing, handle, expression, row, integer, checking)
+        }
+    }
+
+    state recast(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, expression: Expression, row: TypeRow, checking: bool) {
+        Checker::check_recast(checker, syntax, typing, expression, row, checking);
+        transition { _ -> typed(checker, handle, row) }
+    }
+
+    state scalar_cast(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, expression: Expression, row: TypeRow, integer: bool, checking: bool) {
         transition integer {
             true -> conversion(checker, typing, handle, expression, row, checking)
             _ -> typed(checker, handle, row)

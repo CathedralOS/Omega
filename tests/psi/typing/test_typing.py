@@ -658,7 +658,7 @@ def main() -> None:
         "anonymous-fraction-rejects-at-a-cast",
         b"machine f() -> u8 { (7 / 2) as u8 }",
         "AnonymousFraction",
-        b"(7 / 2) as u8",
+        b"7 / 2) as u8",
     )
     rejected(
         program,
@@ -752,6 +752,47 @@ def main() -> None:
         b"data P { x: u8; }\nmachine f(a: P, b: P) -> bool { a == b }",
         "UnsupportedEquality",
         b"a == b",
+    )
+    # A reference target is a recast (wiki/spec/layouts/recasts.md): the
+    # operand is a reference the target's access does not exceed, and both
+    # referents are scalars of one width; checking judges representations.
+    accepted(
+        program,
+        "recasts-view-scalars-of-one-width",
+        b"data M { rate: f32; half: i16; flag: bool; wide: u64; }\n"
+        b"machine f(m: &mut M, r: &u32) -> bool {\n"
+        b"    let bits: &u32 = &m.rate as &u32;\n    let wide: &u16 = &m.half as &u16;\n"
+        b"    let byte: &u8 = &m.flag as &u8;\n    let writable: &mut u32 = &mut m.rate as &mut u32;\n"
+        b"    let signed: &i32 = r as &i32;\n    let narrowed: &f64 = &m.wide as &f64;\n    true\n}",
+        ((b"&m.rate as &u32", "&u32"), (b"&mut m.rate as &mut u32", "&mut u32"), (b"r as &i32", "&i32"), (b"&m.wide as &f64", "&f64")),
+    )
+    rejected(
+        program,
+        "a-recast-keeps-the-width",
+        b"data M { rate: f32; }\nmachine f(m: &M) { let bits: &u64 = &m.rate as &u64; }",
+        "InvalidCast",
+        b"&m.rate as &u64",
+    )
+    rejected(
+        program,
+        "a-recast-does-not-escalate-access",
+        b"data M { rate: f32; }\nmachine f(m: &M) { let bits: &mut u32 = &m.rate as &mut u32; }",
+        "InvalidCast",
+        b"&m.rate as &mut u32",
+    )
+    rejected(
+        program,
+        "a-recast-keeps-its-polarity",
+        b"data M { rate: f32; }\nmachine f(m: &mut M) { let bits: &u32 = &mut m.rate as &u32; }",
+        "InvalidCast",
+        b"&mut m.rate as &u32",
+    )
+    rejected(
+        program,
+        "a-recast-needs-a-reference",
+        b"data M { rate: f32; }\nmachine f(m: &M) { let bits: &u32 = m.rate as &u32; }",
+        "InvalidCast",
+        b"m.rate as &u32",
     )
     rejected(
         program,

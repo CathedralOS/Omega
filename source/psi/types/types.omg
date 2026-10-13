@@ -778,3 +778,34 @@ crashes Trap
         row
     }
 }
+
+// The bytes a builtin scalar occupies: Booleans and 8-bit integers one,
+// 16-bit integers two, 32-bit integers and `f32` four, 64-bit integers and
+// `f64` eight; zero for any other type.
+pub machine TypeTable::carrier_width(row: TypeRow) -> u64 in Trapping {
+    transition row.kind == TypeKind::Builtin {
+        true -> builtin(row.builtin)
+        _ -> width(0)
+    }
+
+    state builtin(builtin: BuiltinType) -> u64 in Trapping {
+        transition builtin {
+            BuiltinType::Bool -> width(1)
+            BuiltinType::U8 -> width(1)
+            BuiltinType::I8 -> width(1)
+            BuiltinType::U16 -> width(2)
+            BuiltinType::I16 -> width(2)
+            BuiltinType::U32 -> width(4)
+            BuiltinType::I32 -> width(4)
+            BuiltinType::F32 -> width(4)
+            BuiltinType::U64 -> width(8)
+            BuiltinType::I64 -> width(8)
+            BuiltinType::F64 -> width(8)
+            _ -> width(0)
+        }
+    }
+
+    state width(bytes: u64 in Trapping) -> u64 in Trapping {
+        bytes
+    }
+}

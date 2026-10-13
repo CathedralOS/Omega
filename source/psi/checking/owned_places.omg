@@ -149,6 +149,26 @@ crashes Trap
             ExpressionKind::Name -> named(resolution, node)
             ExpressionKind::Index -> base(syntax, resolution, typing, expression.left, through, depth)
             ExpressionKind::Field -> field_step(syntax, resolution, typing, expression.left, through, depth, field)
+            ExpressionKind::Cast -> recast(syntax, resolution, typing, expression, through, depth)
+            _ -> answer(0)
+        }
+    }
+
+    // A recast views its operand's storage: `&place as &T` roots at the
+    // place, and a recast reference value at the reference's place.
+    state recast(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression, through: bool, depth: u64 in Trapping) -> u64 in Trapping {
+        let operand: Expression = SyntaxTrees::expression(syntax, expression.left);
+        let borrow: bool = operand.kind == ExpressionKind::Unary
+            && (operand.operator == OperatorKind::Borrow || operand.operator == OperatorKind::BorrowMutable);
+        transition borrow && depth < 64 {
+            true -> step(syntax, resolution, typing, operand.left, through, depth + 1)
+            _ -> recast_reference(syntax, resolution, typing, expression.left, through, depth)
+        }
+    }
+
+    state recast_reference(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, operand: u64 in Trapping, through: bool, depth: u64 in Trapping) -> u64 in Trapping {
+        transition depth < 64 {
+            true -> step(syntax, resolution, typing, operand, through, depth + 1)
             _ -> answer(0)
         }
     }

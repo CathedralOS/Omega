@@ -560,6 +560,7 @@ machine CheckingHarness::diagnostic_tag(value: CheckDiagnosticCode) -> u8 {
         CheckDiagnosticCode::OverlappingArguments -> tag(19)
         CheckDiagnosticCode::LoanConflict -> tag(20)
         CheckDiagnosticCode::LoanEscapes -> tag(21)
+        CheckDiagnosticCode::RepresentationUnproven -> tag(22)
     }
 
     state tag(number: u8) -> u8 {

@@ -1324,7 +1324,9 @@ crashes Trap
 // anonymous value lands at a fixed-integer target; anything casts to its own
 // type, or to another qualification of its carrier, which checking proves
 // when the target's domain is declared
-// (wiki/spec/language/domains.md#exact-coercion-and-erasure).
+// (wiki/spec/language/domains.md#exact-coercion-and-erasure). A reference
+// target is a recast, which views the operand's storage under another shape
+// (wiki/spec/layouts/recasts.md).
 machine Typer::type_cast(typer: &mut Typer, index: u64 in Trapping, expression: Expression)
 crashes Trap
 {
@@ -1334,10 +1336,42 @@ crashes Trap
     Typer::record_scalar_read(typer, expression.left, source);
     let target_integer: bool = Typer::integer_type(typer, target);
     let source_integer: bool = Typer::integer_type(typer, source);
+    let target_row: TypeRow = TypeTable::row(&typer.output.types, target);
     Typing::set_expression_type(&mut typer.output, index, target);
-    transition source == target {
-        true -> done()
-        _ -> converted(typer, index, expression, source, target, source_integer, target_integer)
+    transition target_row.kind == TypeKind::Reference {
+        true -> recast(typer, expression, written, target_row)
+        _ -> plain(typer, index, expression, source, target, source_integer, target_integer)
+    }
+
+    state plain(typer: &mut Typer, index: u64 in Trapping, expression: Expression, source: u64 in Trapping, target: u64 in Trapping, source_integer: bool, target_integer: bool) {
+        transition source == target {
+            true -> done()
+            _ -> converted(typer, index, expression, source, target, source_integer, target_integer)
+        }
+    }
+
+    // A recast's operand is a reference of the target's access (`&x as &T`
+    // or `&mut x as &mut T`), and both referents are the one type or scalars
+    // of one width; checking judges their representations.
+    state recast(typer: &mut Typer, expression: Expression, written: u64 in Trapping, target_row: TypeRow) {
+        let given: TypeRow = TypeTable::row(&typer.output.types, written);
+        transition given.kind == TypeKind::Reference {
+            true -> recast_referents(typer, expression, given, target_row)
+            _ -> invalid(typer, expression)
+        }
+    }
+
+    state recast_referents(typer: &mut Typer, expression: Expression, given: TypeRow, target_row: TypeRow) {
+        let source_referent: TypeRow = TypeTable::row(&typer.output.types, given.inner);
+        let target_referent: TypeRow = TypeTable::row(&typer.output.types, target_row.inner);
+        let source_width: u64 in Trapping = TypeTable::carrier_width(source_referent);
+        let target_width: u64 in Trapping = TypeTable::carrier_width(target_referent);
+        let polarity: bool = target_row.access == given.access;
+        let scalar: bool = source_width > 0 && source_width == target_width;
+        transition polarity && (scalar || given.inner == target_row.inner) {
+            true -> done()
+            _ -> invalid(typer, expression)
+        }
     }
 
     state converted(

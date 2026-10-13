@@ -17,6 +17,7 @@ DIAGNOSTICS = (
     "DomainUnproven", "CrashNotDeclared", "GuaranteeUnproven", "RankUnproven",
     "ProgressUnproven", "UseAfterMove", "MoveOutOfBorrow", "LinearUnconsumed",
     "LinearOverwritten", "OverlappingArguments", "LoanConflict", "LoanEscapes",
+    "RepresentationUnproven",
 )
 
 
@@ -2869,6 +2870,70 @@ def main() -> None:
         b"machine four(x: u64)\nrequires x == 4\n{}\n"
         b"machine run() {\n    let mut holder: Holder = Holder { count: 0, flag: 0 };\n"
         b"    holder.count = touch(&mut holder);\n    four(holder.count);\n}",
+    )
+
+    # A recast's representations (recasts.omg): same-width integers and
+    # floats view each other either way, a Boolean views as a byte shared
+    # only, a byte views as a Boolean only as a field its data's `where`
+    # facts bound to zero or one, a qualified source views shared only and
+    # a qualified target is unsupported.
+    accepted(
+        program,
+        "scalar-recasts-share-every-bit-pattern",
+        b"data M { rate: f32; half: i16; flag: bool; }\n"
+        b"machine f(m: &mut M) -> bool {\n"
+        b"    let bits: &mut u32 = &mut m.rate as &mut u32;\n    let wide: &u16 = &m.half as &u16;\n"
+        b"    let byte: &u8 = &m.flag as &u8;\n    true\n}",
+    )
+    accepted(
+        program,
+        "a-bounded-byte-field-views-as-a-boolean",
+        b"data Byte where value >= 0 && value <= 1 { value: u8; }\n"
+        b"machine read(byte: &mut Byte) -> bool {\n"
+        b"    let flag: &bool = &byte.value as &bool;\n    let writable: &mut bool = &mut byte.value as &mut bool;\n    true\n}",
+    )
+    rejected(
+        program,
+        "a-local-byte-never-views-as-a-boolean",
+        b"machine f() -> bool { let x: u8 = 1; let flag: &bool = &x as &bool; true }",
+        "RepresentationUnproven",
+        b"&x as &bool",
+    )
+    rejected(
+        program,
+        "an-unbounded-byte-field-never-views-as-a-boolean",
+        b"data Byte { value: u8; }\nmachine read(byte: &Byte) -> bool { let flag: &bool = &byte.value as &bool; true }",
+        "RepresentationUnproven",
+        b"&byte.value as &bool",
+    )
+    rejected(
+        program,
+        "a-boolean-never-views-as-a-mutable-byte",
+        b"data M { flag: bool; }\nmachine f(m: &mut M) { let bits: &mut u8 = &mut m.flag as &mut u8; }",
+        "RepresentationUnproven",
+        b"&mut m.flag as &mut u8",
+    )
+    accepted(
+        program,
+        "a-qualified-source-views-shared",
+        b"domain u8::Small(value) requires value < 8;\ndata P { v: u8 in Small; }\n"
+        b"machine f(p: &P) { let signed: &i8 = &p.v as &i8; }",
+    )
+    rejected(
+        program,
+        "a-qualified-source-never-views-mutably",
+        b"domain u8::Small(value) requires value < 8;\ndata P { v: u8 in Small; }\n"
+        b"machine f(p: &mut P) { let signed: &mut i8 = &mut p.v as &mut i8; }",
+        "RepresentationUnproven",
+        b"&mut p.v as &mut i8",
+    )
+    rejected(
+        program,
+        "a-recast-argument-holds-its-operand",
+        b"data M { raw: i32; }\nmachine take(a: &mut u32, b: i32) {}\n"
+        b"machine f(m: &mut M) { take(&mut m.raw as &mut u32, m.raw); }",
+        "OverlappingArguments",
+        b"m.raw!2",
     )
 
     # The product's own psi package, each module under source/psi as

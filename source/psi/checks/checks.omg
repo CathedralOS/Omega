@@ -58,6 +58,9 @@ pub data CheckDiagnosticCode [copy] {
     case LoanConflict;
     // An exit returning a loan of storage the body owns.
     case LoanEscapes;
+    // A recast's target representation does not follow from its source's
+    // (checking/recasts.omg).
+    case RepresentationUnproven;
 }
 
 pub data CheckDiagnostic [copy] {

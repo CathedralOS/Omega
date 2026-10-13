@@ -363,14 +363,24 @@ crashes Trap
     transition adaptation {
         Adaptation::SharedLend -> answer(Hold::Shared { place: argument })
         Adaptation::Read -> answer(Hold::Released)
-        _ -> lent(typing, argument, expression)
+        _ -> lent(syntax, typing, argument, expression)
     }
 
-    state lent(typing: &Typing, argument: u64 in Trapping, expression: Expression) -> Hold {
-        let unary: bool = expression.kind == ExpressionKind::Unary;
-        transition unary {
-            true -> borrowed(typing, argument, expression)
+    state lent(syntax: &SyntaxTrees, typing: &Typing, argument: u64 in Trapping, expression: Expression) -> Hold {
+        transition expression.kind {
+            ExpressionKind::Unary -> borrowed(typing, argument, expression)
+            ExpressionKind::Cast -> recast(syntax, typing, argument, expression)
             _ -> referenced(typing, argument)
+        }
+    }
+
+    // A recast `operand as &T` holds what its operand lends: a borrow's
+    // place, or a reference value's referent.
+    state recast(syntax: &SyntaxTrees, typing: &Typing, argument: u64 in Trapping, expression: Expression) -> Hold {
+        let operand: Expression = SyntaxTrees::expression(syntax, expression.left);
+        transition operand.kind == ExpressionKind::Unary {
+            true -> borrowed(typing, expression.left, operand)
+            _ -> referenced(typing, expression.left)
         }
     }
 

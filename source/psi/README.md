@@ -492,7 +492,10 @@ index lies in `0..len`, a range slice's start is at most its exclusive end
 and that end at most the length (an inclusive end is a valid index, not
 negative), an Exact (unqualified) operation's result fits its
 carrier, an `as` conversion's value fits its target whatever the target's
-policy (`as` never changes the denoted value), a divisor is nonzero and a
+policy (`as` never changes the denoted value), a recast `reference as &T` views
+scalars whose representations the target's admit, a shared view one way
+and a mutable view both ([`checking/recasts.omg`](checking/recasts.omg)),
+a divisor is nonzero and a
 shift count
 below the width ([`checking/arithmetic.omg`](checking/arithmetic.omg)); a
 Trapping operation that may leave its carrier, and a crash statement, is a
