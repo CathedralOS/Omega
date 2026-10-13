@@ -36,3 +36,20 @@ use the POSIX service, accumulate short transfers until EOF, and close the
 descriptor before decoding. Missing, truncated, and oversized files fail with
 exit 1. Interactive rendering, navigation, and normal close require a desktop
 session that permits observation and input.
+
+## Current failure (macOS ARM64, 2026-10-13)
+
+Package review and the whole-package check succeed: the local `Gui`,
+`Input`, `Clock` and file-service slots select their named maps, whose rows
+bind the library's `macos_arm64` machine families. Native realization then
+stops in Omega's physical pipeline with
+`SourceCustodyMismatch { machine: 79, operation: 3714 }` from
+`omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/selection/construction/scalar_graph/normalized_foreign/descriptor_input.rs:25`,
+where `descriptor_input_guard_for_call` refuses with
+`descriptor input argument has no exact structural type` for an AAPCS64
+normalized foreign call placed as `(i32, u64, u64, ...)` -- the POSIX `read`
+shape the file service installs. The guard's reason is discarded by
+`map_err(|_| custody())` at that line, so the CLI reports only the custody
+identity; reproduce the reason by logging it there. Realization of this
+foreign-descriptor input is the remaining gap; it is not a provider-selection
+or checking defect.

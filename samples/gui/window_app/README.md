@@ -34,3 +34,12 @@ Rendering, focus-gated input, and normal close behavior require observation in
 an interactive desktop session. A process that merely stays alive does not
 establish that acceptance. `window_demo` provides the bounded 60-frame check
 of the shared window API.
+
+## Status (macOS ARM64, 2026-10-13)
+
+Package review, the whole-package check and the native build succeed with the
+shared library window families selected through the local `Gui`, `Input` and
+`Clock` maps. The sample documents no exit oracle by design, so the sample
+gate builds it without launching it (`no-oracle`); rendering, focus-gated
+input and normal close still require a desktop session that permits
+observation.
