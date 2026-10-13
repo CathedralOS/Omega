@@ -1571,6 +1571,8 @@ fail/contracts/shift_result_negative_wrapping_count rejected 444ms expected @f70
 fail/contracts/shift_result_wrong_count rejected 445ms expected @f70cef10b430
 fail/contracts/state_write_retires_overlapping_guard_conjunct rejected 613ms expected @a036414cf2c9
 	cannot prove requires contract for call pop from Main::main: main.b.count >= 1 && main.b.count <= 4 (needs fact `stack.count >= 1 && stack.count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `second`
+fail/contracts/target_named_fact_preserved rejected 157ms expected @eca66ed24a79+wt
+	machine `probe` state `entry` value call to `offset` violates required fact `macos_arm64 >= 0`: the instantiated fact is structurally false (`-1 >= 0`)
 fail/contracts/undischarged_contract_entailment rejected 1869ms expected @1f63ee648905+wt
 	checked machine `unchecked_claim` cannot establish proposition ensure `boolean:min_u64(right, 0) >= 1` in state `entry`; require it, cite a checked/accepted proof that ensures it, or supply its declared evidence
 fail/control_flow/arm_pattern_missing_field rejected 2806ms expected @a9ae30e1c334+wt
@@ -3490,6 +3492,8 @@ fail/providers/scalar_membership_boundary_issuer rejected 780ms expected @8d82e5
 	cannot prove requires contract for call accept from bad: 128 in u32::Issued in state `entry`
 fail/providers/service_nonboundary_requirement_rejected rejected 829ms expected @a9ae30e1c334+wt
 	data `Main` field `service` uses an invalid routed service carrier: `Binding<Local>` requires a boundary trait; ordinary traits are local interfaces
+fail/providers/target_contract_requires_preserved rejected 1475ms expected @eca66ed24a79+wt
+	cannot prove requires contract for call absolute from Main::main: -2147483648 > -2147483648 (needs fact `value > -2147483648` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
 fail/providers/via_signature_mismatch_rejected rejected 1339ms expected @a9ae30e1c334+wt
 	machine `exit_leaf` state `entry` does not satisfy trait `Process` machine `exit` parameter `code`: expected `i32`, got `u32`
 fail/providers/via_with_body_rejected rejected 801ms expected @a9ae30e1c334+wt
@@ -6739,6 +6743,7 @@ pass/providers/specialized_mixed_structural_fixed_operator_hosted_native checked
 pass/providers/specialized_mixed_structural_result_operator_hosted_native checked 11332ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/specialized_structural_fixed_operator_hosted_native checked 10708ms @a9ae30e1c334+wt
 pass/providers/specialized_structural_fixed_operator_terminal_custody checked 11484ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/providers/target_contract_adjacency_exit checked 5079ms check-target:macos_arm64 @eca66ed24a79+wt
 pass/providers/target_family_entry checked 9609ms @5041ef1af684+wt
 pass/providers/token_machine_family_override_exit checked 11111ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/unreached_console_provider_rows checked 4648ms check-target:macos_arm64 @e3e4be8878bd

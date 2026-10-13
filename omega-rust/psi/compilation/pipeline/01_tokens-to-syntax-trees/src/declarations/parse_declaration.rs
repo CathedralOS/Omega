@@ -13,6 +13,7 @@ use crate::declarations::data::{parse_boundary_data_definition, parse_data_defin
 use crate::declarations::machines::parse_machine;
 use crate::input::token_cursor::{Input, ParseResult};
 use syntax_trees::SyntaxTrees;
+use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{Item, MathematicalDefinition};
 use tokens::{KeywordKind, PunctuationKind};
 
@@ -23,6 +24,51 @@ use tokens::{KeywordKind, PunctuationKind};
 pub(crate) enum ParsedDeclaration {
     Item(Item),
     Mathematical(MathematicalDefinition),
+}
+
+/// Contract semicolons also terminate bodyless declarations. Identify the next
+/// declaration by its head, not by target spelling: a target-named value in a
+/// proof fact is still an expression unless a machine head follows it.
+pub(crate) fn starts_following_item(input: Input<'_, '_>) -> bool {
+    if input.at_keyword(KeywordKind::Pub) {
+        let after = Input::new(input.source_id, input.tokens.get(1..).unwrap_or_default());
+        return starts_following_item(after);
+    }
+    if input.at_keyword(KeywordKind::Machine)
+        || input.at_keyword(KeywordKind::Data)
+        || input.at_keyword(KeywordKind::Use)
+        || target_machine_prefix(input).is_some()
+    {
+        return true;
+    }
+    if !input.at_contextual("boundary") {
+        return false;
+    }
+    let after = Input::new(input.source_id, input.tokens.get(1..).unwrap_or_default());
+    after.at_keyword(KeywordKind::Machine)
+        || after.at_keyword(KeywordKind::Data)
+        || after.at_contextual("requirement")
+        || after.at_contextual("operator")
+        || after.at_contextual("trait")
+}
+
+/// Shared by declaration dispatch and contract lookahead. Consume only the
+/// target/modifier prefix; the machine parser still owns the complete head.
+fn target_machine_prefix<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+) -> Option<(Identifier, bool, Input<'tokens, 'source>)> {
+    if !input.at_identifier_then_contextual("machine")
+        && !input.at_identifier_then_contextual("boundary")
+    {
+        return None;
+    }
+    let (target, mut rest) = input.take_identifier().ok()?;
+    let boundary = rest.at_contextual("boundary");
+    if boundary {
+        rest = rest.take_contextual("boundary").ok()?;
+    }
+    rest.at_keyword(KeywordKind::Machine)
+        .then_some((target, boundary, rest))
 }
 
 pub(crate) fn parse_item<'tokens, 'source>(
@@ -313,45 +359,21 @@ fn parse_declared_item<'tokens, 'source>(
         return Ok((Item::Trait(item), rest));
     }
 
-    // Identifier-led TARGET-SCOPED boundary machine --
-    // `<target> boundary machine Path(..);`. Compiler-catalog leaves retain
-    // both facts independently: `boundary` says that the bodyless declaration
-    // is irreducible, while the target name participates in catalog lookup.
-    if input.at_identifier_then_contextual("boundary") {
-        let (target, input) = input.take_identifier()?;
-        let input = input.take_contextual("boundary")?;
+    // Target-scoped ordinary and boundary machines share the same head grammar.
+    // Dispatch uses the same prefix probe as a preceding contract's terminator.
+    if let Some((target, boundary, input)) = target_machine_prefix(input) {
         let input = input.take_keyword(KeywordKind::Machine, "machine")?;
         let (mut machine, rest) = parse_machine(syntax_trees, input)?;
-        machine.boundary = true;
+        machine.boundary = boundary;
         machine.authored_target = Some(target.clone());
         machine.target = Some(target);
         if machine.service_reach_is_installation_bound
-            && (!machine.bodyless || !machine.satisfies.is_empty())
+            && (!boundary || !machine.bodyless || !machine.satisfies.is_empty())
         {
             return Err(rest.error_here(
                 "`reaches <= Bound` is legal only on a top-level bodyless `boundary machine` requirement, not on a checked body or realization",
             ));
         }
-        return Ok((Item::Machine(machine), rest));
-    }
-
-    // Identifier-led TARGET-SCOPED machine -- `<target> machine Path(..) {..}`
-    // (fs portable-contract settle 2026-07-18): a per-target implementation of
-    // a portable contract signature. The machine parses
-    // ordinarily and carries its target for the pre-resolution filter. Sits
-    // BELOW the contextual-led items so `boundary machine ...` (the exported
-    // callable) never reads `boundary` as a target name.
-    if input.at_identifier_then_contextual("machine") {
-        let (target, input) = input.take_identifier()?;
-        let input = input.take_keyword(KeywordKind::Machine, "machine")?;
-        let (mut machine, rest) = parse_machine(syntax_trees, input)?;
-        if machine.service_reach_is_installation_bound {
-            return Err(rest.error_here(
-                "`reaches <= Bound` is legal only on a top-level bodyless `boundary machine` requirement",
-            ));
-        }
-        machine.authored_target = Some(target.clone());
-        machine.target = Some(target);
         return Ok((Item::Machine(machine), rest));
     }
 

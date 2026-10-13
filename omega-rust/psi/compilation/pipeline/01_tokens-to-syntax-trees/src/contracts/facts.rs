@@ -316,7 +316,8 @@ pub(crate) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
             // unconsumed for parse_machine's bodyless path. Only the
             // machine-contract call site opts in.
             if machine_final_semicolon
-                && (starts_machine_contract_following_item(after) || after.tokens.is_empty())
+                && (crate::declarations::parse_declaration::starts_following_item(after)
+                    || after.tokens.is_empty())
             {
                 break;
             }
@@ -334,35 +335,6 @@ pub(crate) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
     let facts = HandleSpan::from_parts_or_empty(fact_start, fact_count);
 
     Ok(((facts, token_count), input))
-}
-
-/// A bodyless callable declaration owns its final semicolon even when the
-/// following root item carries `pub` and/or `boundary` prefixes. Looking only
-/// for a direct `machine`/`data` keyword made consecutive declarations parse as
-/// one machine whose clauses continued into the next item.
-pub(super) fn starts_machine_contract_following_item(input: Input<'_, '_>) -> bool {
-    if input.at_keyword(tokens::KeywordKind::Pub) {
-        let after_pub = Input::new(input.source_id, input.tokens.get(1..).unwrap_or_default());
-        return starts_machine_contract_following_item(after_pub);
-    }
-
-    if input.at_keyword(tokens::KeywordKind::Machine)
-        || input.at_keyword(tokens::KeywordKind::Data)
-        || input.at_keyword(tokens::KeywordKind::Use)
-    {
-        return true;
-    }
-
-    if !input.at_contextual("boundary") {
-        return false;
-    }
-
-    let after_boundary = Input::new(input.source_id, input.tokens.get(1..).unwrap_or_default());
-    after_boundary.at_keyword(tokens::KeywordKind::Machine)
-        || after_boundary.at_keyword(tokens::KeywordKind::Data)
-        || after_boundary.at_contextual("requirement")
-        || after_boundary.at_contextual("operator")
-        || after_boundary.at_contextual("trait")
 }
 
 fn range_membership_expression(

@@ -1773,6 +1773,7 @@ pass/providers/service_fused_root checked 9747ms @5041ef1af684+wt
 pass/providers/service_fused_root_establishment built 256ms
 pass/providers/specialized_mixed_structural_result_operator_hosted_native built 1756ms exit:0 @c9b4ecc7551a
 pass/providers/specialized_structural_fixed_operator_terminal_custody built 370ms
+pass/providers/target_contract_adjacency_exit built 5198ms exit:0 @eca66ed24a79+wt
 pass/providers/target_family_entry checked 9695ms @5041ef1af684+wt
 pass/providers/token_machine_family_override_exit built 676ms exit:70
 pass/providers/unreached_console_provider_rows built 4695ms @e3e4be8878bd
