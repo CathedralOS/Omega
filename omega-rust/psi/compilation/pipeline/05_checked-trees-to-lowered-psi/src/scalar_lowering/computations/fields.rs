@@ -300,7 +300,9 @@ pub(crate) struct Binding {
     element_path: Vec<terminal_psi::StructuralPathSegment>,
     /// Element-view observations retain their separate invariant contract.
     bounded_leaf: bool,
-    field: StructuralFieldId,
+    /// The declared scalar field, or `None` when the path's last literal
+    /// element is the scalar itself and the read is a primitive path read.
+    field: Option<StructuralFieldId>,
     scalar_type: ScalarType,
     /// The carrier the observed leaf declares. It equals `scalar_type` except
     /// through a typed record view whose field re-views an equal-width
@@ -1073,6 +1075,45 @@ pub(crate) fn prepare(
             }
             // A mixed carrier's common field reads like a record's; its
             // payload fields arrive through the `Case` step above.
+            let scalar_type = terminal_scalar_type(node.primitive_type)?;
+            let leaf_scalar_type = terminal_scalar_type(leaf_primitive)?;
+            // A zero field means the walk's last literal element already
+            // selected the scalar: its declaration is that primitive carrier.
+            if !field.is_valid() {
+                if typed_overlay.is_some()
+                    || !matches!(declaration.shape,
+                        StructuralTypeShape::PrimitiveScalar(actual) if actual == leaf_scalar_type)
+                {
+                    return unsupported("element observation does not end at its scalar element");
+                }
+                bindings.push(Binding {
+                    symbol: *field,
+                    subject: subject.clone(),
+                    receiver: if receiver_value.is_valid() {
+                        Some(structural_values::Storage::reserve(
+                            checked,
+                            *receiver_value,
+                            next_place,
+                        )?)
+                    } else {
+                        None
+                    },
+                    loan_source,
+                    byte_overlay: None,
+                    carrier_path,
+                    path,
+                    runtime_index,
+                    view_container,
+                    element_path: element_suffix,
+                    bounded_leaf: false,
+                    primitive_path,
+                    observation_root_type,
+                    field: None,
+                    scalar_type,
+                    leaf_scalar_type,
+                });
+                continue;
+            }
             let fields = match selected_case_fields {
                 Some(fields) => fields,
                 None => declaration
@@ -1086,8 +1127,6 @@ pub(crate) fn prepare(
                 .ok_or(LoweringError::Unsupported(
                 "record read has no declared field identity",
             ))?;
-            let scalar_type = terminal_scalar_type(node.primitive_type)?;
-            let leaf_scalar_type = terminal_scalar_type(leaf_primitive)?;
             let bounded_leaf =
                 terminal_semantics::scalar_field_requires_evidence(&retained.field_type);
             primitive_path.push(terminal_psi::StructuralPathSegment::Field(
@@ -1161,7 +1200,7 @@ pub(crate) fn prepare(
                 bounded_leaf,
                 primitive_path,
                 observation_root_type,
-                field: retained.id,
+                field: Some(retained.id),
                 scalar_type,
                 leaf_scalar_type,
             });
@@ -1535,8 +1574,9 @@ fn observe(
         primitive_path.split_last()
         && let Some((terminal_psi::StructuralPathSegment::Case(case), prefix)) =
             carrier.split_last()
+        && let Some(field) = binding.field
         && let Some(payload) =
-            bindings.established_case_payload(source, prefix, *case, binding.field, scalar_type)?
+            bindings.established_case_payload(source, prefix, *case, field, scalar_type)?
     {
         return Ok(payload);
     }
@@ -1650,8 +1690,9 @@ fn observe(
         field_path = Some(prepared.path);
     }
     let leaf_type = binding.leaf_scalar_type;
+    let field = binding.field;
     let leaf = match leaf_type {
-        _ if crosses_reference || canonical_path.is_none() => {
+        _ if crosses_reference || canonical_path.is_none() || field.is_none() => {
             LoweredDirectExpression::PrimitiveRead {
                 source: read_source,
                 path: read_path,
@@ -1664,7 +1705,9 @@ fn observe(
                 path: field_path.ok_or(LoweringError::Unsupported(
                     "record field observation lost its canonical source path",
                 ))?,
-                field: binding.field,
+                field: field.ok_or(LoweringError::Unsupported(
+                    "record field observation lost its declared field",
+                ))?,
             }),
         },
         ScalarType::Integer(_) => LoweredDirectExpression::StructuralField {
@@ -1672,7 +1715,9 @@ fn observe(
             path: field_path.ok_or(LoweringError::Unsupported(
                 "record field observation lost its canonical source path",
             ))?,
-            field: binding.field,
+            field: field.ok_or(LoweringError::Unsupported(
+                "record field observation lost its declared field",
+            ))?,
             scalar_type: leaf_type,
         },
         ScalarType::IeeeFloat(_) => LoweredDirectExpression::PrimitiveRead {

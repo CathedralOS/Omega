@@ -217,8 +217,9 @@ pub enum CheckedScalarComputationKind {
         source_expression: typed_trees::expression::ExpressionHandle,
         subject: CheckedUnitStructuralArgumentPlan,
     },
-    /// Read one scalar field at its authored evaluation point without moving
-    /// the containing owner or assigning it a scalar parameter position.
+    /// Read one scalar field, or one literal element of a scalar array, at its
+    /// authored evaluation point without moving the containing owner or
+    /// assigning it a scalar parameter position.
     StructuralField {
         source_expression: typed_trees::expression::ExpressionHandle,
         /// Exact receiver occurrence before place normalization. Zero for a
@@ -228,14 +229,18 @@ pub enum CheckedScalarComputationKind {
         /// Root storage carrier after borrowed ingress has been resolved.
         source_type: typed_trees::types::TypeReferenceHandle,
         /// The checked path retains stored-reference crossings and ends at the
-        /// dereferenced declaration owning the final field.
+        /// dereferenced declaration owning the final field, or at the scalar
+        /// element itself when `field` is zero.
         subject: CheckedUnitStructuralArgumentPlan,
         /// Evaluated structural dependency. Zero observes existing storage;
         /// otherwise the complete value is established once before the read
         /// and its temporary is retired only after the observation completes.
         receiver_value: super::structural_values::CheckedStructuralValueHandle,
+        /// The final scalar field. Zero when the subject path's last literal
+        /// `FixedIndex` already selects the scalar element.
         field: SymbolHandle,
-        /// Exact final field identity, appended to the checked subject path.
+        /// Exact final field identity, appended to the checked subject path;
+        /// the default identity when `field` is zero.
         field_identity: CheckedMemberIdentity,
     },
     /// Observe an established structural operand without consuming its owner.

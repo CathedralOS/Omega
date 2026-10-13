@@ -1,6 +1,10 @@
 //! Field observation consumes either established storage or a complete evaluated
 //! receiver. Both keep the same declared projection; a fresh receiver is an
 //! ordinary structural value dependency, never just its selected initializer.
+//! A literal element of a fresh receiver's scalar array is observed the same
+//! way: the receiver has no storage for an indexed read to name, so its
+//! completed value supplies the element. Established storage keeps its
+//! indexed-read selection, which also serves runtime selectors.
 use super::{
     Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind, ExpressionHandle,
     ExpressionNode,
@@ -15,11 +19,15 @@ impl Builder<'_, '_> {
         &self,
         expression: ExpressionHandle,
     ) -> Option<validation::StructuralScalarField> {
-        if !matches!(
-            self.program.expression_table.expression(expression),
-            ExpressionNode::Member(_)
-        ) {
-            return None;
+        let element = match self.program.expression_table.expression(expression) {
+            ExpressionNode::Member(_) => false,
+            ExpressionNode::Indexed(_) => true,
+            _ => return None,
+        };
+        if element {
+            return self
+                .structural_receiver_scalar(expression)
+                .filter(|field| field.receiver_value.is_valid());
         }
         if !self.declaration_parameters.is_empty() {
             return validation::structural_scalar_field_in_parameters(
@@ -29,6 +37,13 @@ impl Builder<'_, '_> {
                 expression,
             );
         }
+        self.structural_receiver_scalar(expression)
+    }
+
+    fn structural_receiver_scalar(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<validation::StructuralScalarField> {
         validation::structural_scalar_field(
             self.program,
             self.machine,
@@ -125,34 +140,31 @@ impl Builder<'_, '_> {
             }
             _ => return None,
         };
-        Some(
-            self.insert(
-                field.primitive_type,
-                CheckedScalarComputationKind::StructuralField {
-                    source_expression: expression,
-                    receiver_expression: self
-                        .program
-                        .expression_table
-                        .member_node(expression)
-                        .map(|member| member.receiver)
-                        .unwrap_or_default(),
-                    source_type: field.type_reference,
-                    receiver_value,
-                    subject: CheckedUnitStructuralArgumentPlan {
-                        source,
-                        path: field.path,
-                        type_identity: validation::structural_type_identity(
-                            self.program,
-                            field.carrier_type_reference,
-                            &[],
-                            &[],
-                        ),
-                        access: CheckedStructuralAccess::SharedBorrow,
-                    },
-                    field: field.field,
-                    field_identity: field.field_identity,
+        Some(self.insert(
+            field.primitive_type,
+            CheckedScalarComputationKind::StructuralField {
+                source_expression: expression,
+                receiver_expression: match self.program.expression_table.expression(expression) {
+                    ExpressionNode::Member(member) => member.receiver,
+                    ExpressionNode::Indexed(indexed) => indexed.collection,
+                    _ => ExpressionHandle::invalid(),
                 },
-            ),
-        )
+                source_type: field.type_reference,
+                receiver_value,
+                subject: CheckedUnitStructuralArgumentPlan {
+                    source,
+                    path: field.path,
+                    type_identity: validation::structural_type_identity(
+                        self.program,
+                        field.carrier_type_reference,
+                        &[],
+                        &[],
+                    ),
+                    access: CheckedStructuralAccess::SharedBorrow,
+                },
+                field: field.field,
+                field_identity: field.field_identity,
+            },
+        ))
     }
 }

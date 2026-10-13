@@ -452,6 +452,7 @@ pass/calls/runtime_borrowed_float_formal_exchange_exit built 6432ms exit:70 @0fb
 pass/calls/runtime_boundary_computed_selector_order_exit built 2770ms exit:70 @cba4afbf6f2f+wt
 pass/calls/runtime_boundary_loop_projected_subslice_exit built 1367ms exit:70 @6197860b335c+wt
 pass/calls/runtime_boundary_projected_mutable_subslice_exit built 957ms exit:70 @6197860b335c+wt
+pass/calls/runtime_call_result_element_guard_exit built 11626ms exit:70 @dd191203ff08+wt
 pass/calls/runtime_call_statement_before_state_return_exit built 1440ms exit:42 @63377f7122bb+wt
 pass/calls/runtime_case_payload_indexed_calls_exit built 2820ms exit:70 @9beb2be72f2d+wt
 pass/calls/runtime_case_payload_scalar_array_read_exit built 1647ms exit:0 @a1228b9c89cd+wt

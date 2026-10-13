@@ -257,6 +257,35 @@ pub fn place_has_builtin_coordinates(
     builtin_coordinates(program, machine, state, expression, 0)
 }
 
+/// A value spine (a fresh call or constructor result) has no place type for
+/// `place_has_builtin_coordinates` to name. Its walker supplies the collection
+/// carrier it reached, and the same `[]` spelling and bound authentication
+/// decide whether this selection is the builtin element coordinate.
+pub fn value_element_has_builtin_coordinate(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: Option<&State>,
+    occurrence: ExpressionHandle,
+    collection: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    let Some(indexed) = program.expression_table.indexed_node(occurrence) else {
+        return false;
+    };
+    if program.expression_table.range_node(indexed.index).is_some() {
+        return false;
+    }
+    let operands = [
+        Some(collection),
+        declared_place_type_raw(program, machine, state, indexed.index),
+    ];
+    typed_trees::operator::builtin_index_read_is_spelled(
+        program,
+        machine.symbol,
+        occurrence,
+        &operands,
+    ) && crate::has_builtin_bound_expression_meaning(program, machine, state, indexed.index)
+}
+
 /// The element type when `symbol` names a state parameter whose declared
 /// type is a mutable view over bytes (`&mut [u8]`). Other collection shapes
 /// and other access permissions have no builtin byte-write geometry.

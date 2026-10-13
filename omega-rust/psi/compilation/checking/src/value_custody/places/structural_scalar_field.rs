@@ -42,12 +42,16 @@ pub struct StructuralScalarField {
     pub statement_ordinal: u32,
     /// Whole storage declaration, before any field projection.
     pub type_reference: TypeReferenceHandle,
-    /// Data declaration containing the final scalar field or selected payload.
+    /// Data declaration containing the final scalar field or selected payload,
+    /// or the fixed array holding a final scalar element.
     pub carrier_type_reference: TypeReferenceHandle,
     /// Declared case and carrier-field identities, literal fixed-array
     /// selections and stored-reference crossings in authored order, excluding
-    /// the final scalar field.
+    /// the final scalar field. A final literal element is the path's last
+    /// `FixedIndex` instead.
     pub path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+    /// The final scalar field. Zero when the path itself ends at a scalar
+    /// element of a fixed array; the identity is then the default.
     pub field: SymbolHandle,
     pub field_identity: checked_trees::CheckedMemberIdentity,
     pub primitive_type: PrimitiveType,
@@ -287,23 +291,45 @@ pub fn structural_scalar_field(
                 receiver = member.receiver;
             }
             ExpressionNode::Indexed(indexed) => {
-                steps.push(Step::Element(indexed.index));
+                steps.push(Step::Element {
+                    occurrence: receiver,
+                    index: indexed.index,
+                });
                 receiver = indexed.collection;
             }
             _ => break,
         }
     }
-    let Some(Step::Member(leaf)) = steps.first().copied() else {
-        return None;
-    };
+    let leaf = steps.first().copied()?;
     let local = source(receiver)?;
     // A literal element selection is a coordinate only when `[]` keeps its
-    // builtin meaning along the whole place spine.
-    if steps.iter().any(|step| matches!(step, Step::Element(_)))
-        && !builtin_place_coordinates(program, machine, state, expression)
+    // builtin meaning along the whole place spine. A fresh receiver's spine
+    // starts at a value, which names no place type: each of its selections is
+    // authenticated at the collection carrier this walk reaches instead.
+    let fresh = local.receiver_value.is_valid();
+    let scope = scope(program, machine, state);
+    if !fresh
+        && steps
+            .iter()
+            .any(|step| matches!(step, Step::Element { .. }))
+        && !scope.is_some_and(|(machine, state)| {
+            super::place_has_builtin_coordinates(program, machine, Some(state), expression)
+        })
     {
         return None;
     }
+    let value_coordinate = |occurrence, collection| {
+        !fresh
+            || scope.is_some_and(|(machine, state)| {
+                super::value_element_has_builtin_coordinate(
+                    program,
+                    machine,
+                    Some(state),
+                    occurrence,
+                    collection,
+                )
+            })
+    };
     let mut carrier = local.type_reference;
     let mut path = Vec::new();
     // Every step is resolved under its own declaration. Reusing only the final
@@ -314,7 +340,7 @@ pub fn structural_scalar_field(
             Step::Member(member) => member,
             // The checker's place facts fold a constant selector to its
             // element; a runtime selector is not a field path.
-            Step::Element(index) => {
+            Step::Element { occurrence, index } => {
                 let TypeReferenceNode::FixedArray {
                     element_type,
                     length: typed_trees::types::FixedArrayLength::Literal(length),
@@ -322,6 +348,9 @@ pub fn structural_scalar_field(
                 else {
                     return None;
                 };
+                if !value_coordinate(*occurrence, carrier) {
+                    return None;
+                }
                 let index = program
                     .expression_table
                     .constant_integer_value(*index)
@@ -345,27 +374,57 @@ pub fn structural_scalar_field(
         carrier = field.type_reference;
     }
     carrier = readable_projection_carrier(program, carrier, &mut path)?;
+    let leaf = match leaf {
+        Step::Member(leaf) => leaf,
+        // A literal element of a scalar array is the observation itself: the
+        // same constant selection an intermediate step takes, ending at its
+        // element's declared scalar carrier.
+        Step::Element { occurrence, index } => {
+            let TypeReferenceNode::FixedArray {
+                element_type,
+                length: typed_trees::types::FixedArrayLength::Literal(length),
+            } = program.type_reference_table.type_reference(carrier)
+            else {
+                return None;
+            };
+            if !value_coordinate(occurrence, carrier) {
+                return None;
+            }
+            let index = program
+                .expression_table
+                .constant_integer_value(index)
+                .and_then(|index| u64::try_from(index).ok())?;
+            if usize::try_from(index).ok()? >= *length {
+                return None;
+            }
+            let primitive_type =
+                observable_scalar(realized_scalar_carrier(program, *element_type)?)?;
+            path.push(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+                index,
+            ));
+            return Some(StructuralScalarField {
+                root: local.root,
+                receiver_value: local.receiver_value,
+                statement_ordinal: local.statement_ordinal,
+                type_reference: local.type_reference,
+                carrier_type_reference: carrier,
+                path,
+                field: SymbolHandle::invalid(),
+                field_identity: checked_trees::CheckedMemberIdentity::default(),
+                primitive_type,
+                domain: program.arithmetic_domain_for_type_reference(
+                    program
+                        .type_reference_table
+                        .dereferenced_type_reference(*element_type),
+                ),
+            });
+        }
+    };
     let declaration_carrier = crate::peel_declared_constraints(program, carrier);
     let record = program.closed_data_definition(declaration_carrier)?;
     let field = selected_member_field(program, declaration_carrier, record, leaf, &mut path)?;
-    let primitive_type = realized_scalar_carrier(program, field.type_reference)?;
-    if !matches!(
-        primitive_type,
-        PrimitiveType::Bool
-            | PrimitiveType::I8
-            | PrimitiveType::I16
-            | PrimitiveType::I32
-            | PrimitiveType::I64
-            | PrimitiveType::U8
-            | PrimitiveType::U16
-            | PrimitiveType::U32
-            | PrimitiveType::U64
-            | PrimitiveType::F32
-            | PrimitiveType::F64
-            | PrimitiveType::Selector
-    ) {
-        return None;
-    }
+    let primitive_type =
+        observable_scalar(realized_scalar_carrier(program, field.type_reference)?)?;
     Some(StructuralScalarField {
         root: local.root,
         receiver_value: local.receiver_value,
@@ -385,6 +444,26 @@ pub fn structural_scalar_field(
                 .dereferenced_type_reference(field.type_reference),
         ),
     })
+}
+
+/// The scalar carriers a structural observation reads; an address is not one.
+fn observable_scalar(primitive_type: PrimitiveType) -> Option<PrimitiveType> {
+    matches!(
+        primitive_type,
+        PrimitiveType::Bool
+            | PrimitiveType::I8
+            | PrimitiveType::I16
+            | PrimitiveType::I32
+            | PrimitiveType::I64
+            | PrimitiveType::U8
+            | PrimitiveType::U16
+            | PrimitiveType::U32
+            | PrimitiveType::U64
+            | PrimitiveType::F32
+            | PrimitiveType::F64
+            | PrimitiveType::Selector
+    )
+    .then_some(primitive_type)
 }
 
 /// Stored descriptors contribute explicit crossings to the checked path. Root
@@ -492,32 +571,34 @@ fn selected_member_field<'program>(
 #[derive(Clone, Copy)]
 enum Step<'a> {
     Member(&'a typed_trees::expression::TableMemberExpression),
-    Element(ExpressionHandle),
+    Element {
+        occurrence: ExpressionHandle,
+        index: ExpressionHandle,
+    },
 }
 
-/// The exact authored machine and state, when each symbol names exactly one,
-/// asked whether the place spine keeps builtin coordinates.
-fn builtin_place_coordinates(
+/// The exact authored machine and state, when each symbol names exactly one:
+/// the scope in which a selection's builtin coordinate meaning is decided.
+fn scope(
     program: &dyn crate::CheckingInput,
     machine: SymbolHandle,
     state: SymbolHandle,
-    expression: ExpressionHandle,
-) -> bool {
+) -> Option<(&typed_trees::machine::Machine, &typed_trees::state::State)> {
     let mut machines = program
         .machines()
         .iter()
         .filter(|owner| owner.symbol == machine);
     let (Some(machine), None) = (machines.next(), machines.next()) else {
-        return false;
+        return None;
     };
     let mut states = program
         .machine_states(machine)
         .iter()
         .filter(|owner| owner.symbol == state);
     let (Some(state), None) = (states.next(), states.next()) else {
-        return false;
+        return None;
     };
-    super::place_has_builtin_coordinates(program, machine, Some(state), expression)
+    Some((machine, state))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

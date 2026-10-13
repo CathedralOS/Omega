@@ -4857,6 +4857,7 @@ pass/calls/runtime_boundary_computed_selector_order_exit checked 11100ms check-t
 pass/calls/runtime_boundary_loop_projected_subslice_exit checked 11119ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_boundary_projected_mutable_subslice_exit checked 10940ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_call_carrier_partition_exit checked 10447ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/runtime_call_result_element_guard_exit checked 11242ms check-target:macos_arm64 @dd191203ff08+wt
 pass/calls/runtime_call_statement_before_state_return_exit checked 11213ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_case_payload_indexed_calls_exit checked 11075ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_case_payload_scalar_array_read_exit checked 11140ms check-target:macos_arm64 @a9ae30e1c334+wt
