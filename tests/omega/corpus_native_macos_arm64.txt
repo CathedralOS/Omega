@@ -1324,6 +1324,7 @@ pass/generics/declared_range_endpoint_inference built 4327ms exit:70 @bed5f45e91
 pass/generics/erased_static_arguments_keep_lexical_scope_exit built 1382ms exit:0 @e31dda2664298bc891b76cde9f607ecf2a1f5973
 pass/generics/foreign_case_membership_dispatch_exit built 1066ms exit:70 @c49da64f85d3
 pass/generics/foreign_case_payload_reads_exit built 1056ms exit:70 @3119e8d23b09
+pass/generics/forwarded_slice_result_local_receipt checked 1721ms @82646dcce47b+wt
 pass/generics/generic_callback_schema checked 9883ms @5041ef1af684+wt
 pass/generics/generic_data_instantiation checked 153ms
 pass/generics/generic_seq_consuming_map_filter checked 3001ms @fcc053dc7014+wt

@@ -1,1 +1,1 @@
-terminal expression expects `&[Output]`
+expects `&[Output]`, got `call expression`

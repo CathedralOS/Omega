@@ -944,6 +944,73 @@ pub(crate) fn validate_expression_type_handle(
     }
 }
 
+/// A reference received into storage the program names -- a local, a
+/// transition's returned value -- keeps the type it was delivered with. A
+/// call occurrence's applied result and a named binding's declared reference
+/// are complete types; they owe the declared destination the same carrier
+/// correspondence a call argument owes its formal: referent and element
+/// identities, nested access, nominal owners and extents. A destination
+/// annotation, including the result context a compiler capture is typed from,
+/// never becomes the value's type merely by being written.
+///
+/// A reference formed at the store -- a borrow, a recast, a range window, a
+/// literal -- takes its carrier from that formation, which reference access,
+/// recast and domain-weakening validation judge. A call with no applied
+/// result keeps only its declaration's own binders, which cannot be compared
+/// with the caller's. Neither is judged here.
+pub(crate) fn report_reference_carrier_mismatch(
+    program: &dyn crate::CheckingInput,
+    value: ExpressionHandle,
+    destination: TypeReferenceHandle,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if crate::value_custody::reference_access::is_reference_destination(program, destination)
+        && delivered_reference_mismatch(program, value, destination)
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "{owner} expects `{}`, got `{}`",
+            program.display_type_reference_with_constraints(destination),
+            expression_type_name_handle(program, value)
+        )));
+    }
+}
+
+fn delivered_reference_mismatch(
+    program: &dyn crate::CheckingInput,
+    value: ExpressionHandle,
+    destination: TypeReferenceHandle,
+) -> bool {
+    if let Some(dispatch) = program.expression_table.match_node(value) {
+        return program
+            .expression_table
+            .match_arms(dispatch.arms)
+            .iter()
+            .any(|arm| delivered_reference_mismatch(program, arm.value, destination));
+    }
+    let delivered = match program.expression_table.expression(value) {
+        ExpressionNode::Call(_) => program
+            .expression_table
+            .constructed_value_type_reference(value),
+        ExpressionNode::Name(path) => {
+            named_value_type_reference(program, path).unwrap_or_else(TypeReferenceHandle::invalid)
+        }
+        _ => return false,
+    };
+    delivered.is_valid()
+        && matches!(
+            program.type_reference_table.type_reference(delivered),
+            TypeReferenceNode::Reference { .. }
+        )
+        && !reference_values::value_carrier_matches_reference(
+            program,
+            delivered,
+            destination,
+            &[],
+            &[],
+        )
+}
+
 pub(crate) fn expression_type_name_handle(
     program: &dyn crate::CheckingInput,
     argument: ExpressionHandle,

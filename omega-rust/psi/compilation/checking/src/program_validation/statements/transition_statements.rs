@@ -150,6 +150,16 @@ pub(super) fn validate(
                         diagnostics,
                     );
                 }
+                expression_types::report_reference_carrier_mismatch(
+                    program,
+                    *return_expression,
+                    state.return_type,
+                    &format!(
+                        "machine `{}` state `{state_name}` return value",
+                        machine.name
+                    ),
+                    diagnostics,
+                );
                 // Nominal guard: `-> Foo { transition { _ -> (self.bar) } }`
                 // returns a `Bar` as a `Foo`.
                 expression_types::report_data_type_conflict(

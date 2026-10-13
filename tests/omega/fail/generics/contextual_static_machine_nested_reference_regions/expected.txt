@@ -1,1 +1,1 @@
-call result has conflicting lifetime operands
+does not refine `Callback`: callable type does not preserve its region identity

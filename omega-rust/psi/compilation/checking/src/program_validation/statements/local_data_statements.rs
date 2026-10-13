@@ -159,6 +159,16 @@ pub(super) fn validate(
                     }
                 };
                 diagnostics.push(Diagnostic::error(format!("{owner} {reason}")));
+            } else {
+                // One refused store reports one reason: an access refusal
+                // already explains a delivered reference of the wrong access.
+                expression_types::report_reference_carrier_mismatch(
+                    program,
+                    local_data.initial_value,
+                    local_data.type_reference,
+                    &owner,
+                    diagnostics,
+                );
             }
         }
         expression_types::report_data_type_conflict(

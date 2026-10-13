@@ -2507,8 +2507,8 @@ fail/generics/contextual_static_machine_lifetime_overflow rejected 2798ms expect
 	nested machine lifetime arguments do not match its complete declared telescope
 fail/generics/contextual_static_machine_nested_fresh_result_access_escalation rejected 5195ms expected @a9ae30e1c334+wt
 	machine `Inner` returns a view whose access cannot be supplied by matching input `item`
-fail/generics/contextual_static_machine_nested_reference_regions rejected 2890ms expected @a9ae30e1c334+wt
-	call result has conflicting lifetime operands
+fail/generics/contextual_static_machine_nested_reference_regions rejected 1074ms expected @82646dcce47b+wt
+	machine argument `collapsed` for `apply` does not refine `Callback`: callable type does not preserve its region identity
 fail/generics/contextual_static_machine_open_const_type_bound rejected 726ms expected @a9ae30e1c334+wt
 	generic machine `accepts` has a call tuple that does not satisfy its authored type bounds
 fail/generics/contextual_static_machine_phantom_region_not_fresh rejected 3448ms expected @a9ae30e1c334+wt
@@ -2568,8 +2568,8 @@ fail/generics/forwarded_const_argument_conflicts_with_explicit_selection rejecte
 	generic machine `FixedBuffer::select` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `FixedBuffer<2>::total` state `FixedBuffer<2>::total::total`
 fail/generics/forwarded_slice_argument_element_mismatch rejected 159ms expected @71e65af3059c+wt
 	argument `items` for state `entry` expects `&[Element]`, got `named value`
-fail/generics/forwarded_slice_result_element_mismatch rejected 120ms expected @71e65af3059c+wt
-	machine `wrong` state `entry` terminal expression expects `&[Output]`, got `named value`
+fail/generics/forwarded_slice_result_element_mismatch rejected 146ms expected @82646dcce47b+wt
+	machine `wrong` state `entry` local `__hoist_14` expects `&[Output]`, got `call expression`
 fail/generics/generic_carrier_equation_index_conflict rejected 16ms expected @a9ae30e1c334+wt
 	generic data `Box` where equation binds `Index` to 8 but its explicit argument is 9
 fail/generics/generic_carrier_equation_mismatch rejected 15ms expected @a9ae30e1c334+wt
@@ -2611,6 +2611,8 @@ fail/generics/index_equality_selected_boolean_relation rejected 1372ms expected 
 fail/generics/indexed_domain_capacity_invalid_initializer rejected 814ms expected @a9ae30e1c334+wt
 	construction of `DomainBytes<u64 in AtMost<256>, 256>` field `length` cannot be proven within its declared range `-9223372036854775808..=256`; constrain the value, construct with a literal in range, or widen the field
 	`as ... in AtMost<256>` cannot mint: a `AtMost<256>` domain fact is FALSE at this value -- the predicate obligation is owed (decision 19's "predicate obligation not discharged" class)
+fail/generics/local_slice_result_element_mismatch rejected 238ms expected @82646dcce47b+wt
+	machine `wrong` state `entry` local `viewed` expects `&[Output]`, got `call expression`
 fail/generics/machine_bound_violated_at_call rejected 750ms expected @a9ae30e1c334+wt
 	generic machine `Main::copy_it` has a concrete specialization tuple that does not satisfy its authored type bounds
 fail/generics/machine_equation_constructor_binder_carrier_constructed rejected 2642ms expected @a9ae30e1c334+wt
@@ -2692,6 +2694,9 @@ fail/generics/structured_const_ineligible_float_field rejected 20ms expected @a9
 	const argument for `Indexed::I` is invalid at this index site: `f64` is not eligible as a const index: runtime floating/text identity is not canonical structural data
 fail/generics/structured_const_rat_unreduced rejected 57ms expected @a9ae30e1c334+wt
 	const argument for `RatIndexed::R` is invalid at this index site: `Rat` index numerator magnitude and denominator must be gcd-reduced
+fail/generics/transition_value_slice_element_mismatch rejected 168ms expected @82646dcce47b+wt
+	machine `wrong` state `entry` return value expects `&[Output]`, got `named value`
+	machine `wrong` state `entry` return value expects `&[Output]`, got `named value`
 fail/generics/value_binder_used_as_nested_type rejected 3433ms expected @a9ae30e1c334+wt
 	data `Invalid` field `nested` generic argument uses value parameter `Count` as a type; const and runtime value parameters supply values, not types
 fail/generics/value_generic_runtime_static_length rejected 191ms expected @a9ae30e1c334+wt
@@ -6036,6 +6041,7 @@ pass/generics/declared_range_endpoint_inference checked 21278ms check-target:mac
 pass/generics/erased_static_arguments_keep_lexical_scope_exit checked 15185ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/foreign_case_membership_dispatch_exit checked 13819ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/foreign_case_payload_reads_exit checked 16573ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/generics/forwarded_slice_result_local_receipt checked 1822ms @82646dcce47b+wt
 pass/generics/generic_callback_schema checked 9793ms @5041ef1af684+wt
 pass/generics/generic_data_instantiation checked 1641ms @a9ae30e1c334+wt
 pass/generics/generic_seq_consuming_map_filter checked 2806ms @fcc053dc7014+wt
