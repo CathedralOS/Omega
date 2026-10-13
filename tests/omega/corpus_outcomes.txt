@@ -513,6 +513,16 @@ fail/borrows/imported_range_retains_backing_loan rejected 580ms expected @71e65a
 	statement 1 mutates `main.bytes` while local borrow `view` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 fail/borrows/incoming_carrier_duplicate_exclusive_leaf rejected 1724ms expected @a9ae30e1c334+wt
 	machine `duplicate` returns `carrier` as mutable more than once
+fail/borrows/indexed_exclusive_primitive_loan_preserves_field_invariant rejected 996ms expected @1b12798e27f4
+	cannot prove assignment value `2` satisfies bounded target `selected_value` in `change.entry`; expected 0..=1
+fail/borrows/indexed_shared_primitive_loan_cannot_mutate rejected 783ms expected @1b12798e27f4
+	mutable argument `selected_value` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
+fail/borrows/indexed_shared_primitive_loan_frozen_selector_retains_backing rejected 2323ms expected @1b12798e27f4
+	statement 4 mutates `main.cells[1].value` while local borrow `copied_value` is still active (borrowed at statement 2; its last use is at statement 5)
+fail/borrows/indexed_shared_primitive_loan_missing_bound rejected 2518ms expected @1b12798e27f4
+	cannot prove index `column` is within length 3 in read::entry
+fail/borrows/indexed_shared_primitive_loan_retains_backing rejected 1995ms expected @1b12798e27f4
+	statement 4 mutates `main.rows[__hoist_14].cells[__hoist_15].value` while local borrow `copied_value` is still active (borrowed at statement 1; its last use is at statement 5)
 fail/borrows/local_array_borrow_operand_read rejected 1818ms expected @a9ae30e1c334+wt
 	state `stamp` receives `samples` as both mutable and read-only
 fail/borrows/local_case_subject_carried_alias_write rejected 446ms expected @04dde76a664b+wt
@@ -4002,11 +4012,14 @@ pass/borrows/runtime_forwarded_reference_array_bounded_read_exit checked 11052ms
 pass/borrows/runtime_forwarded_view_field_domain_exit checked 11335ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_guarded_local_byte_loan_exit checked 5846ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/borrows/runtime_index_mut_loan_write_exit checked 10934ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_indexed_bounded_primitive_loan_write_exit checked 19829ms check-target:macos_arm64 @1b12798e27f4
 pass/borrows/runtime_indexed_carrier_bounded_reference_read_exit checked 11096ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_indexed_carrier_reference_read_exit checked 11117ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_indexed_primitive_loan_current_selector_exit checked 21679ms check-target:macos_arm64 @1b12798e27f4
 pass/borrows/runtime_indexed_reference_array_bounded_read_exit checked 11161ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_indexed_reference_call_regions checked 10482ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_indexed_scalar_descriptor_call checked 10433ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_indexed_shared_primitive_loan_call_exit checked 20445ms check-target:macos_arm64 @1b12798e27f4
 pass/borrows/runtime_indexed_stored_reference_call checked 10457ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_measured_range_record_domains_exit checked 10402ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_mixed_static_dynamic_loan_header_exit checked 5848ms check-target:macos_arm64 @589aedee8ebc+wt

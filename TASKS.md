@@ -2559,7 +2559,12 @@ crash and native exit behavior.
     `expression_preparation/bindings/` and
     `scalar_lowering/computations/fields.rs`. Reuse the shared source-place
     and view-narrowing operations; do not add local-specific call or range routes.
-  - Remaining: qualify every acceptance route on Ubuntu and Windows.
+  - Qualified on Linux x86_64: indexed shared primitive loans through named
+    locals, copies, scalar-result and Unit calls, including mixed state formals
+    and mutable selectors captured at formation. Native and captured Terminal
+    agree for the 16 affected runtime controls; bounds, shared-write, backing
+    lifetime and constrained exclusive-store refusals remain enforced.
+  - Remaining: qualify the other acceptance routes on Ubuntu and Windows.
     Runtime-indexed shared constrained-field reads also need cross-host
     execution under **PLACED-ACCESS-NATIVE-OPS**; retain the
     [unchanged authored witness](tests/omega/pass/layouts/runtime_indexed_restricted_field_read/README.md).
