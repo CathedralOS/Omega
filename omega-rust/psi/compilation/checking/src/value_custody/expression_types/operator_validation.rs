@@ -11,11 +11,24 @@ pub(crate) fn validate_binary_operand_types(
     program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: Option<&typed_trees::state::State>,
+    expression: ExpressionHandle,
     operator: typed_trees::expression::BinaryOperator,
     left: ExpressionHandle,
     right: ExpressionHandle,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    if let Some(state) = state {
+        let operands = [left, right].map(|operand| {
+            super::expression_result_type_reference(program, machine, state, operand)
+        });
+        super::float_operations::validate_binary_float_formats(
+            program,
+            state.symbol,
+            expression,
+            &operands,
+            diagnostics,
+        );
+    }
     report_cross_class_binary_operands(program, machine, state, left, right, diagnostics);
     report_invalid_text_operator(program, machine, state, operator, left, right, diagnostics);
     report_non_bool_logical_operands(program, machine, state, operator, left, right, diagnostics);

@@ -38,6 +38,15 @@ pub(crate) fn validate_total_specification_arithmetic(
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    if let Some(state) = state {
+        crate::value_custody::expression_types::validate_float_expression_formats(
+            program,
+            state.symbol,
+            expression,
+            &|operand| crate::expression_result_type_reference(program, machine, state, operand),
+            diagnostics,
+        );
+    }
     // The ordinary branch-sensitive walk owns integer formation for every
     // policy, including nonzero divisors under Wrapping and Saturating. Run it
     // before admitting this fact into `environment`: an operation cannot use
@@ -851,6 +860,13 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
                 continue;
             }
             seen.push(*expression);
+            crate::value_custody::expression_types::validate_float_expression_formats(
+                program,
+                bindings.owner_symbol,
+                *expression,
+                &|operand| abstract_specification_result_type(program, bindings, operand),
+                diagnostics,
+            );
             abstract_shift_count::validate(
                 program,
                 *expression,

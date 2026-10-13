@@ -734,6 +734,7 @@ fn scan_expression_calls_at_position(
                 program,
                 machine,
                 Some(state),
+                expression,
                 binary.operator,
                 binary.left,
                 binary.right,

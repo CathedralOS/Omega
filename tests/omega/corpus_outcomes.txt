@@ -1890,6 +1890,12 @@ fail/expressions/token_bound_machine_duplicate_shape_rejected rejected 17ms expe
 	`Wrapped::plus` binds the fixed operator token `+` already bound by `Wrapped::add` for the same owner and operand shape (Wrapped, Wrapped); a second spelling needs a distinct operand shape or a separate owner
 fail/expressions/token_bound_machine_foreign_family_rejected rejected 19ms expected @a9ae30e1c334+wt
 	`Wrapped::add` binds the fixed operator token `+` but no operand names its semantic home `Wrapped` (u8#7, u8#7); a closed family's direct token bindings belong to the owner of a participating operand
+fail/float/authored_heterogeneous_float_operator_requires rejected 472ms expected @f7d5743143af
+	cannot prove requires contract for call equal_formats from invalid: negative >= 0.0 (needs fact `left >= 0.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/float/boundary_call_guard_wrong_argument rejected 2266ms expected @f7d5743143af
+	argument `value` for state `from_i32` expects `i32`, got `float literal`
+fail/float/boundary_call_guard_wrong_format rejected 1735ms expected @f7d5743143af
+	builtin `==` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
 fail/float/builtin_operand_borrow_conflict_rejected rejected 4002ms expected @9c4d1c444502
 	state `F64::maximum` receives `main.values` as both mutable and read-only
 	state `F64::maximum` receives `main.values` as both mutable and read-only
@@ -1979,6 +1985,18 @@ fail/float/local_initializer_range_unproven rejected 204ms expected @9c4d1c44450
 	cannot prove initializer `value` satisfies the bounded value of machine `forwarded` state `entry` local `bounded`; expected 0..=0.5
 fail/float/mathematical_generic_ieee_equality_requires_non_nan rejected 849ms expected @1b12798e27f4
 	cannot prove ensures contract for exit from invalid at statement 0: reflexive<f32>(value)
+fail/float/mixed_float_comparison_formats rejected 153ms expected @f7d5743143af
+	builtin `==` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
+	builtin `<` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
+	builtin `==` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
+	builtin `>=` cannot combine `f32` and `f64`; a landed float retains its format, so changing format requires an explicit conversion
+	builtin `!=` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
+	builtin `<=` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
+fail/float/mixed_float_contract_formats rejected 157ms expected @f7d5743143af
+	builtin `<` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
+	builtin `!=` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
+	builtin `>=` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
+	builtin `<` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
 fail/float/named_argument_format_rejected rejected 194ms expected @9c4d1c444502
 	argument `value` for state `entry` delivers a `f64` value to a `f32` parameter; a landed float retains its format, so changing format requires an explicit conversion
 fail/float/named_boundary_transition_shadowed_namespace rejected 1870ms expected @0755e2c06ec1
@@ -5195,6 +5213,8 @@ pass/filesystem/wrapper_open_with_exit rejected 11928ms check-target:macos_arm64
 pass/float/admitted_float_conversion_crash checked 33720ms check-target:macos_arm64 @9c4d1c444502
 pass/float/admitted_float_lower_boundary_crash checked 33599ms check-target:macos_arm64 @9c4d1c444502
 pass/float/admitted_numeric_imports_preserve_semantics checked 41383ms check-target:macos_arm64 @9c4d1c444502
+pass/float/authored_heterogeneous_float_operator checked 1328ms @f7d5743143af
+pass/float/boundary_call_guard_result checked 12047ms check-target:macos_arm64 @f7d5743143af
 pass/float/build_runtime_semantics_twins_windows_x64 checked 252038ms check-target:windows_x86_64 @4ffd613e37f1
 pass/float/build_runtime_semantics_twins_x86_baseline checked 251785ms check-target:linux_x86_64 @4ffd613e37f1
 pass/float/builtin_extrema_field_store_exit checked 33249ms check-target:macos_arm64 @9c4d1c444502
@@ -5205,6 +5225,7 @@ pass/float/computed_comparison_literal_landing_exit checked 32379ms check-target
 pass/float/computed_float_bare_literal_comparison checked 29624ms check-target:macos_arm64 @9c4d1c444502
 pass/float/constructor_requirement_result_policy_exit checked 29175ms check-target:macos_arm64 @9c4d1c444502
 pass/float/data_where_float_field_restored_exit checked 28777ms check-target:macos_arm64 @9c4d1c444502
+pass/float/explicit_float_comparison_formats checked 4321ms @f7d5743143af
 pass/float/f32_arg_const_arith_landed_exit checked 28206ms check-target:macos_arm64 @9c4d1c444502
 pass/float/f32_per_operation_rounding_exit checked 46604ms check-target:macos_arm64 @1b12798e27f4
 pass/float/finite_core_domain_range_discharge checked 27869ms check-target:macos_arm64 @9c4d1c444502

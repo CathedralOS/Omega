@@ -52,8 +52,10 @@ use typed_trees::types::{
 // shares that walk's live value facts; it never replays guards or initializers.
 mod cast_validation;
 mod float_coercions;
+mod float_operations;
 mod match_dispatch;
 mod operator_validation;
+pub(crate) use float_operations::validate_float_expression_formats;
 
 // Store checks on a value delivered to a declared place, parameter, field or
 // element, and the float format check `value_classification` runs for them.
