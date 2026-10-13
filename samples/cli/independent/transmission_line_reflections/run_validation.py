@@ -38,20 +38,43 @@ def main():
     elif options.route=='invalid':
         output=run('invalid_bounds',['--check',str(ROOT/'controls/invalid_bounds/main.omg')],expected=1)
         assert b'cannot prove index' in output.stderr+output.stdout,'wrong-reason rejection'
-    else:
-        prefix=['run']+(['--both'] if options.route=='both' else [])
+    elif options.route=='native':
         for identifier in range(6):
             for horizon in [1,7,24]:
-                name=f'{options.route}_case_{identifier}_horizon_{horizon}'
-                output=run(name,prefix+[root],f'{identifier} {horizon}\n'.encode())
+                name=f'native_case_{identifier}_horizon_{horizon}'
+                run(name,['run',root],f'{identifier} {horizon}\n'.encode())
                 validate(identifier,horizon,logs/f'{name}.stdout')
-                if options.route=='both':
-                    assert b'interp exit: 0' in output.stderr,'Terminal execution declined/failed'
         fixture=json.loads((ROOT/'data/invalid_inputs.json').read_text())
-        invalid=[bytes.fromhex(value) for value in fixture['inputs_hex']]
-        for index,text in enumerate(invalid):
-            output=run(f'{options.route}_invalid_{index}',prefix+[root],text,64)
+        for index,text in enumerate(bytes.fromhex(value) for value in fixture['inputs_hex']):
+            output=run(f'native_invalid_{index}',['run',root],text,64)
             assert output.stdout==fixture['expected_stdout'].encode()
-            if options.route=='both': assert b'interp exit: 64' in output.stderr
+    else:
+        # One compilation: `omega run --both --inputs` runs every case natively
+        # and replays it through the Terminal reference, writing both streams.
+        inputs=logs/'both_inputs';inputs.mkdir(parents=True,exist_ok=True)
+        for stale in inputs.glob('*.stdin'): stale.unlink()
+        expected_exits={}
+        for identifier in range(6):
+            for horizon in [1,7,24]:
+                name=f'case_{identifier}_horizon_{horizon}'
+                (inputs/f'{name}.stdin').write_bytes(f'{identifier} {horizon}\n'.encode())
+                expected_exits[name]=0
+        fixture=json.loads((ROOT/'data/invalid_inputs.json').read_text())
+        for index,value in enumerate(fixture['inputs_hex']):
+            (inputs/f'invalid_{index}.stdin').write_bytes(bytes.fromhex(value))
+            expected_exits[f'invalid_{index}']=64
+        cases=logs/'both';run('both',['run','--both','--inputs',str(inputs),'--outputs',str(cases),root])
+        rows={row[0]:row for row in (line.split('\t') for line in (cases/'results.tsv').read_text().splitlines()[1:])}
+        for name,expected in expected_exits.items():
+            _,native,verdict,interpreter=rows[name]
+            assert verdict=='agrees' and int(native)==expected==int(interpreter),rows[name]
+            for stream in ('','terminal.'):
+                output=(cases/f'{name}.{stream}stdout')
+                if expected==0:
+                    identifier,horizon=(int(part) for part in name.split('_')[1::2])
+                    validate(identifier,horizon,output)
+                else:
+                    assert output.read_bytes()==fixture['expected_stdout'].encode(),name
+            results.append({'name':name,'exit':expected})
     print(f'completed {options.route}: {len(results)} sequential checks')
 if __name__=='__main__': main()

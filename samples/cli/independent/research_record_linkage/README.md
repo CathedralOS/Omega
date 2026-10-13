@@ -87,9 +87,10 @@ python3 samples/cli/independent/research_record_linkage/validate.py --executable
 ```
 
 The validator compares all native stdout bytes, empty stderr and authored exits
-for every valid and invalid fixture. The public runtime observer below captures
-all 39 Terminal stdout/stderr streams and semantic exits independently. CLI
-termination agreement alone does not establish full output coverage.
+for every valid and invalid fixture. `validate.py --terminal --omega OMEGA`
+compiles once with `omega run --both --input ...` over all 39 fixtures and
+checks every native and Terminal stdout/stderr stream and exit independently.
+CLI termination agreement alone does not establish full output coverage.
 
 ## Separate intended-invalid source
 
@@ -126,20 +127,6 @@ and retained corrections. Current source, native and captured Terminal
 qualification passes on the exact producer identified in VALIDATION.md; the
 scientific oracle and thresholds remain unchanged.
 
-Direct Terminal output is captured by validation/terminal_capture.rs through
-the public admitted product runtime and checked by validation/check_capture.py.
-All39input streams must match every expected byte and authored exit; CLI exit
-agreement alone is not full Terminal output coverage.
-
-Link the private observer against the exact compiled CLI dependency closure:
-
-```text
-python3 -B validation/build_capture.py --omega ABSOLUTE_OMEGA --omega-sha256 COMPILER_HASH --output ABSOLUTE_CAPTURE
-ABSOLUTE_CAPTURE ABSOLUTE_SAMPLE_ROOT ABSOLUTE_CAPTURE_DIRECTORY
-python3 -B validation/check_capture.py ABSOLUTE_CAPTURE_DIRECTORY
-```
-
-The linker matches the public CLI byte for byte to its build unit, then follows
-its recorded dependency fingerprints. Every linked library and observer source
-hash is recorded. It never selects libraries by timestamps or whichever
-duplicate appears first, and it does not rebuild compiler dependencies.
+Direct Terminal output for all 39 input streams comes from
+`validate.py --terminal --omega OMEGA`; every expected byte and authored exit
+must match for both engines.

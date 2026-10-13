@@ -54,13 +54,13 @@ input bound, malformed/nonfinite tokens and capacity. Validate the actual source
 control `model/intended_invalid.omg` (documented under `controls/intended_invalid`) violates the panel bound and must
 fail checking for that proof obligation.
 
-After retaining the native executable, run
-`python validation/run.py --native /absolute/path/to/application` from this
-sample. The private observation consumer in `validation/terminal.rs`
-prepares the ordinary accepted package, retains the exact compiled Terminal
-artifact and captures every case's actual stdout, stderr and exit. Validate
-those streams with `python validation/run.py --terminal build/validation/terminal-api`.
-Build it with `python validation/build_terminal.py --omega /absolute/path/to/omega`; it links the exact compiler libraries instead of rebuilding a nested Cargo workspace. Package review and acceptance use normal tool decisions and do not grant
+Validate both engines with `python validation/run.py --omega /absolute/path/to/omega`
+from this sample after `omega update`: it compiles once with
+`omega run --both --inputs data`, runs every case natively, replays it
+through the Terminal reference, and checks both engines' streams and exits
+against the oracle and each other. `python validation/run.py --native
+/absolute/path/to/application` checks an already built executable alone.
+Package review and acceptance use normal tool decisions and do not grant
 unrequested host authority.
 
 The input scanner passes its seven values through a shared slice stored in a

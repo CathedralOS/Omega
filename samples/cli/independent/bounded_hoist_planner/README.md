@@ -65,13 +65,13 @@ run. Absolute/relative tolerances are both zero. Inputs cover flat corridors,
 forced dips and rises, step-limited ascents and descents, tied optima, narrow
 bounds, exact/infeasible ends, EOF, and malformed records.
 `validate.py` checks fixture hashes, exact stdout, stderr and exit codes and writes
-actual stdout/stderr under ignored `build/validation-{native,both,terminal}`.
-It never accepts packages or regenerates expected data. `--route terminal`
-uses the public Terminal runtime through the linked harness in `validation/`
-and compares real stdout/stderr/exit, not only termination.
-Program stderr must be empty. When executing through `omega run`, validation
-also requires the CLI's exact native exit report, plus its interpreter exit
-report for `--both`; unexpected stderr fails validation.
+actual stdout/stderr under ignored `build/validation-{native,both}`.
+It never accepts packages or regenerates expected data. `--route both`
+compiles once with `omega run --both --inputs data` and compares each case's
+real native and Terminal stdout, stderr and exit, not only termination.
+Program stderr must be empty. When executing through `omega run`, the native
+route also requires the CLI's exact native exit report; unexpected stderr fails
+validation.
 
 The separate [intended-invalid source](controls/intended_invalid/main.omg)
 is a complete dependency-free package source that writes index four of a
@@ -98,8 +98,6 @@ python3 "$sample/validate.py" --omega "$omega_binary" --route native
 # Or compile once and pass the exact artifact path from the compiler report:
 # python3 "$sample/validate.py" --executable "$reported_artifact" --route native
 python3 "$sample/validate.py" --omega "$omega_binary" --route both
-python3 "$sample/validation/build_terminal.py" --omega "$omega_binary" --output "$sample/build/terminal-harness"
-python3 "$sample/validate.py" --route terminal --terminal-harness "$sample/build/terminal-harness"
 "$omega_binary" --check --target linux_x86_64 --build-dir "$sample/build/invalid" "$sample/controls/intended_invalid/main.omg"
 ```
 

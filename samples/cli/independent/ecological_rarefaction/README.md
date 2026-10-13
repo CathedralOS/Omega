@@ -66,31 +66,15 @@ the pre-execution oracle. Fixtures cover zero/full depth, singleton communities,
 unequal abundance, absent species, permutation, repeated queries, total and
 simultaneous species/query capacity, EOF, whitespace, and line-length limits.
 
-The runner validates the actual native output and the separately retained
-`terminal.stdout` and `terminal.stderr` from `run --both --keep` against all
-frozen counts and moment pairs. It checks normalization and moments exactly,
+The runner validates the actual native output and the Terminal reference's
+`<case>.terminal.stdout` and `<case>.terminal.stderr` against all frozen
+counts and moment pairs. It checks normalization and moments exactly,
 plus their numerical values within 1e-10. Exit agreement alone is insufficient.
 Raw streams and command exits remain under ignored `build/validation`.
 `controls/richness_bound` must be refused for indexing bin 13 of a 13-bin array;
 a parse failure or unrelated rejection does not satisfy this control.
 
-For a full fixture replay with one compilation, `validation/capture.rs` uses the
-public complete-project preparation, native-product compilation and Terminal
-runtime APIs. It retains the producer's exact artifact and provider provisions
-and creates a fresh isolated Terminal domain per input; it constructs no IR or
-scientific results. After the one compiler build finishes, the shared linker
-verifies the CLI bytes against its Cargo/mbx unit output and traverses its exact
-dependency fingerprints. It rejects ambiguous or stale artifacts; timestamps
-do not select a compiler closure. The receipt records all linked-library hashes.
-The capture source uses the CLI's 10,000,000 fuel allowance and worker stack.
-
-Run from the repository root, with a fresh capture output directory:
-
-```sh
-python3 tools/link_terminal_sponsor.py --omega /absolute/path/to/omega --source samples/cli/independent/ecological_rarefaction/validation/capture.rs --output /absolute/path/to/terminal-capture
-/absolute/path/to/terminal-capture samples/cli/independent/ecological_rarefaction/main.omg /absolute/path/to/captures
-python3 samples/cli/independent/ecological_rarefaction/validate.py --omega /absolute/path/to/omega --route captured --captures /absolute/path/to/captures
-```
-
-Require capture exit 0 before validating its files. Both this capture path and
-the public `run --both --keep` path are numerical acceptance routes.
+`--route terminal` replays every fixture with one compilation through
+`omega run --both --inputs data`, which runs each case natively and through
+the Terminal reference and writes both engines' streams; both must satisfy the
+frozen oracle.

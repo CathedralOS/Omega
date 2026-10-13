@@ -1,5 +1,10 @@
-"""Run the already-built Omega application sequentially against frozen oracles.
+"""Run the Omega application against frozen oracles.
 Usage: python3 validation/validate.py /absolute/path/to/native-application
+       python3 validation/validate.py --omega /absolute/path/to/omega
+
+The second form compiles once with `omega run --both --inputs`, which runs
+every fixture, invalid input and tiny case natively and through the Terminal
+reference; both engines' stdout, stderr and exit must match.
 """
 import hashlib
 import json
@@ -14,7 +19,40 @@ def execute(binary, label, source, expected, code):
         raise AssertionError((label,observed.returncode,observed.stdout.decode(errors='replace'),observed.stderr))
     return observed.stdout
 
-if __name__=='__main__':
+def both(omega):
+    """Every case through one compilation and both engines."""
+    artifact=ROOT/'build'/'validation'
+    inputs=artifact/'both_inputs'; cases=artifact/'both'
+    inputs.mkdir(parents=True,exist_ok=True)
+    for stale in inputs.glob('*.stdin'): stale.unlink()
+    expected={}
+    for name in FIXTURES:
+        (inputs/f'{name}.stdin').write_bytes((ROOT/'data'/f'{name}.in').read_bytes())
+        expected[name]=((ROOT/'data'/f'{name}.expected').read_bytes(),0)
+    for name in INVALID:
+        (inputs/f'invalid_{name}.stdin').write_bytes((ROOT/'data'/f'invalid_{name}.in').read_bytes())
+        expected['invalid_'+name]=(b'INVALID_INPUT\n',64)
+    for number,source in enumerate(tiny_inputs()):
+        (inputs/f'tiny_{number:03d}.stdin').write_text(source)
+        expected[f'tiny_{number:03d}']=(render(simulate(*parse(source))).encode(),0)
+    run=subprocess.run([str(Path(omega).resolve()),'run','--both','--inputs',str(inputs),
+                        '--outputs',str(cases),str(ROOT/'main.omg')],
+                       stdin=subprocess.DEVNULL,capture_output=True,timeout=3600)
+    (artifact/'both.cli.stderr').write_bytes(run.stderr)
+    assert run.returncode==0,run.stderr.decode(errors='replace')[-2000:]
+    rows={row[0]:row for row in (line.split('\t') for line in (cases/'results.tsv').read_text().splitlines()[1:])}
+    assert set(rows)==set(expected),(len(rows),len(expected))
+    for name,(stdout,code) in expected.items():
+        _,native,verdict,interpreter=rows[name]
+        assert verdict=='agrees' and int(native)==code==int(interpreter),rows[name]
+        for stream in ('','terminal.'):
+            assert (cases/f'{name}.{stream}stdout').read_bytes()==stdout,(name,stream)
+            assert (cases/f'{name}.{stream}stderr').read_bytes()==b'',(name,stream)
+    print(f'{len(expected)} cases verified natively and through the Terminal reference')
+
+if __name__=='__main__' and sys.argv[1:2]==['--omega']:
+    both(sys.argv[2])
+elif __name__=='__main__':
     binary=str(Path(sys.argv[1]).resolve())
     artifact=ROOT/'build'/'validation'
     artifact.mkdir(parents=True,exist_ok=True)

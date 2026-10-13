@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Check frozen lattice outputs against actual native or captured Terminal runs."""
+"""Check frozen lattice outputs against actual native and Terminal runs.
+
+`--route terminal --omega PATH` compiles once with `omega run --both --inputs
+data`, which runs every fixture natively and through the Terminal reference.
+"""
 import argparse
 import hashlib
 import json
@@ -14,7 +18,6 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--route', choices=['native', 'terminal', 'invalid'], required=True)
     parser.add_argument('--executable', type=Path)
-    parser.add_argument('--sponsor', type=Path)
     parser.add_argument('--omega', type=Path)
     options = parser.parse_args()
     data = ROOT / 'data'
@@ -38,30 +41,24 @@ def main():
         assert b'cannot prove index `9` is within length 9' in observed.stderr, observed.stderr
         records.append({'command': command, 'exit': observed.returncode, 'intended_diagnostic': True})
     elif options.route == 'terminal':
-        if options.sponsor is None:
-            parser.error('--route terminal requires --sponsor')
-        inputs = output / 'inputs'
-        inputs.mkdir(exist_ok=True)
-        for ordinal, fixture in enumerate(fixtures):
-            (inputs / f'{ordinal:02}.stdin').write_bytes(fixture.read_bytes())
-        captures = output / 'captures'
-        command = [str(options.sponsor.resolve()), str(ROOT), str(inputs), str(captures), '19']
-        observed = subprocess.run(command, input=b'', capture_output=True, timeout=600)
-        (output / 'sponsor.stdout').write_bytes(observed.stdout)
-        (output / 'sponsor.stderr').write_bytes(observed.stderr)
+        if options.omega is None:
+            parser.error('--route terminal requires --omega')
+        cases = output / 'cases'
+        command = [str(options.omega.resolve()), 'run', '--both', '--inputs', str(data), '--outputs', str(cases), str(ROOT / 'main.omg')]
+        observed = subprocess.run(command, input=b'', capture_output=True, timeout=1800)
+        (output / 'cli.stderr').write_bytes(observed.stderr)
         assert observed.returncode == 0, observed.stderr
-        rows = (captures / 'records.tsv').read_text().splitlines()
+        rows = {row[0]: row for row in (line.split('\t') for line in (cases / 'results.tsv').read_text().splitlines()[1:])}
         assert len(rows) == len(fixtures) == 19
-        for ordinal, (fixture, row) in enumerate(zip(fixtures, rows)):
-            name, exit_text = row.split('\t')
-            assert name == f'{ordinal:02}'
-            stdout, stderr = captures / f'{name}.stdout', captures / f'{name}.stderr'
+        for fixture in fixtures:
+            _, native, verdict, interpreter = rows[fixture.stem]
             expected_exit = 64 if fixture.stem.startswith('invalid-') else 0
-            assert int(exit_text) == expected_exit, fixture.name
-            assert stdout.read_bytes() == fixture.with_suffix('.stdout').read_bytes(), fixture.name
-            assert stderr.read_bytes() == b'', fixture.name
-            assert (inputs / f'{name}.stdin').read_bytes() == fixture.read_bytes()
-            records.append({'case': fixture.stem, 'exit': int(exit_text), 'stdout': str(stdout), 'stderr': str(stderr), 'input_sha256': hashlib.sha256(fixture.read_bytes()).hexdigest(), 'captured_public_terminal': True})
+            assert verdict == 'agrees' and int(native) == expected_exit == int(interpreter), rows[fixture.stem]
+            for stream in ('', 'terminal.'):
+                stdout, stderr = cases / f'{fixture.stem}.{stream}stdout', cases / f'{fixture.stem}.{stream}stderr'
+                assert stdout.read_bytes() == fixture.with_suffix('.stdout').read_bytes(), (fixture.name, stream)
+                assert stderr.read_bytes() == b'', (fixture.name, stream)
+            records.append({'case': fixture.stem, 'exit': expected_exit, 'input_sha256': hashlib.sha256(fixture.read_bytes()).hexdigest(), 'native_and_terminal': True})
     else:
         if options.executable is None:
             parser.error('--route native requires --executable')

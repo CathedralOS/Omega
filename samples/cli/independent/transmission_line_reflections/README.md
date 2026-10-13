@@ -104,17 +104,11 @@ artifacts. Package acceptance denied by the executor is recorded without retry.
 For the full matrix, `run_validation.py --route native --omega COMPILER
 --executable VERIFIED_NATIVE --executable-sha256 HASH` executes one native
 artifact sequentially for all 18 valid variants and 11 malformed inputs.
-`validation/build_capture.py` links the observation consumer against the already
-built compiler's matching rmeta and rlib outputs. When the target contains several
-build variants, capture `mbx build -p omega --release --message-format=json` and
-pass `--receipt RECEIPT --omega-sha256 VERIFIED_COMPILER_HASH`; the helper selects
-only that production build's dependencies and verifies its executable hash.
-After preparing the corresponding
-29 `.stdin` fixtures, `build/terminal_capture ROOT INPUT_DIRECTORY OUTPUT_DIRECTORY
-BUILD_DIRECTORY` produces native/Terminal once and executes fresh zero-backed
-Terminal instances for the whole matrix. Each captured `.stdout` is checked by
-`validate.py`; each `.exit` is checked independently. This validates full Terminal
-records rather than treating the CLI's exit comparison as output equivalence.
+`run_validation.py --route both --omega COMPILER` compiles once with
+`omega run --both --inputs` over all 29 inputs, then checks every native and
+Terminal `.stdout` with `validate.py` and each engine's exit independently. This
+validates full Terminal records rather than treating the CLI's exit comparison
+as output equivalence.
 The exact exercised invocations and any denied routes are in the evidence record.
 
 Three complete reproductions at the recorded baseline justified bounded repairs:

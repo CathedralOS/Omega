@@ -36,11 +36,9 @@ been established. No old package decisions or lock files are transferred.
 
 For qualification, compile the accepted application once through the ordinary
 native route, then supply that exact executable to
-`validate.py --route native --executable PATH`. The public SDK sponsor in
-`validation/terminal_capture.rs` captures the retained Terminal artifact and
-actual stdout, stderr, and exit for the same 19 inputs. Link it against the
-exact compiler dependency closure with `tools/link_terminal_sponsor.py`, then
-run `validate.py --route terminal --sponsor PATH`. Run the separate refusal with
+`validate.py --route native --executable PATH`. `validate.py --route terminal
+--omega PATH` compiles once with `omega run --both --inputs data` and checks
+both engines' actual stdout, stderr, and exit for the same 19 inputs. Run the separate refusal with
 `validate.py --route invalid --omega PATH`. The validator checks every frozen
 file, exact stream, exit, case count, and intended diagnostic; it never accepts
 package decisions or regenerates expected results.

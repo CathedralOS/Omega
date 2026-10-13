@@ -99,14 +99,16 @@ omega --check --target linux_x86_64 samples/cli/independent/mold_front_vent_anal
 omega --target linux_x86_64 samples/cli/independent/mold_front_vent_analysis/main.omg
 omega run --both --keep samples/cli/independent/mold_front_vent_analysis/main.omg < samples/cli/independent/mold_front_vent_analysis/data/merging.in
 python3 samples/cli/independent/mold_front_vent_analysis/validation/validate.py /absolute/path/to/published/mold_front_vent_analysis
+python3 samples/cli/independent/mold_front_vent_analysis/validation/validate.py --omega /absolute/path/to/omega
 omega --check --target linux_x86_64 samples/cli/independent/mold_front_vent_analysis/controls/out_of_bounds/main.omg
 ```
 
 Use the corresponding built executable on Windows and `python` if that is the
 Python 3 command. Build metadata binds Linux x86-64/ARM64, macOS x86-64/ARM64 and
-Windows x86-64, while execution evidence covers only the measured host. `--both`
-compares process termination; it does not independently compare stdout. Report
-that distinction unless using the exact-output Terminal validation harness.
+Windows x86-64, while execution evidence covers only the measured host. A single
+`omega run --both` compares process termination only. `validate.py --omega`
+instead compiles once with `omega run --both --inputs` and compares every
+case's native and Terminal stdout, stderr and exit against the oracle.
 
 The separate intended-invalid control must reject for `cannot prove index` at
 `arrival[16]`, with no unrelated errors. Its bounds rule is documented in

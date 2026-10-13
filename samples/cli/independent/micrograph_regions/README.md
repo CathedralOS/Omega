@@ -70,34 +70,11 @@ python3 "$SAMPLE/validate.py" --omega "$OMEGA" --mode native --native-executable
 python3 "$SAMPLE/validate.py" --omega "$OMEGA" --mode both
 ```
 
-Run one compiler execution at a time. `--both` uses finite redirected stdin,
-compares native termination with the produced Terminal artifact, and must report
-`interp exit: <expected>`; a declined comparison does not pass validation.
-The checker and native/Terminal validation are separate requirements. The CLI
-comparison does not compare output streams. The private validation harness uses
-`compiler::runtime::execute` with the normal prepared native report's exact
-Terminal artifact and retained provisions, and checks buffered Terminal stdout,
-stderr and exact exit for every frozen case. It does not recheck trees or rerun
-Build per case. Each execution receives its own isolated runtime instance.
-
-Build this validation tool after the compiler build has completed. For a verified
-mbx release build, reuse its exact recorded Rust dependency closure:
-
-```sh
-python3 "$SAMPLE/validation/build_terminal.py" --omega "$OMEGA" --output "$SAMPLE/build/ind23-terminal-validation"
-TERMINAL_HARNESS="$SAMPLE/build/ind23-terminal-validation"
-python3 "$SAMPLE/validate.py" --omega "$OMEGA" --mode terminal --terminal-harness "$TERMINAL_HARNESS"
-```
-
-The link helper checks the CLI output hash against its build-unit receipt and
-selects exact libraries using the recorded dependency fingerprints. It supplies
-both full `.rmeta` metadata and corresponding `.rlib` code, as the pinned toolchain
-requires. Its build receipt records the command and every library SHA-256.
-A matching mbx CLI build receipt is required: build the compiler with
-`mbx build -p omega --release --locked -j 2` before linking the validator.
-The validator is a directly linked private tool, with no separate Cargo project.
-Build only one Rust project at a time. The harness is validation only; the
-standalone Omega application has no Rust helper at runtime.
+Run one compiler execution at a time. `--mode both` compiles once with
+`omega run --both --input ...` over every frozen case, which runs each case
+natively and through the produced Terminal artifact; it checks both engines'
+stdout, stderr and exact exit, so agreement on termination alone does not pass.
+The checker and native/Terminal validation are separate requirements.
 
 `expected/frozen.json` freezes input and stdout SHA-256 identities before Omega
 execution. `reference.py` constructs an independent union-find oracle, differing
@@ -112,7 +89,7 @@ checkerboards, opposite row edges, a width-one image, and six deterministic
 random variants. Twelve invalid runtime cases exercise bounds, truncation,
 trailing input, lexical failures and the token limit. Reports compare every
 label, area, centroid numerator/denominator and bounding-box coordinate.
-Artifacts and receipts go under ignored `build/validation/{native,both,terminal}/`.
+Artifacts and receipts go under ignored `build/validation/{native,both}/`.
 
 The repository generic native sample gate supplies EOF and checks the documented
 empty-input rejection (exit 2). The private validator above supplies the full

@@ -1,4 +1,9 @@
-"""Run exact authored oracles sequentially; never rebuild or rewrite expectations."""
+"""Run exact authored oracles; never rebuild or rewrite expectations.
+
+`--mode both` compiles once with `omega run --both --input ...`, which runs
+every case natively and through the Terminal reference and writes each
+engine's streams; both must match the oracle.
+"""
 import argparse
 import hashlib
 import json
@@ -13,9 +18,8 @@ def digest(data):
 def main():
     arguments = argparse.ArgumentParser()
     arguments.add_argument('--omega', required=True, type=Path)
-    arguments.add_argument('--mode', choices=['native','both','terminal'], required=True)
+    arguments.add_argument('--mode', choices=['native','both'], required=True)
     arguments.add_argument('--case', action='append')
-    arguments.add_argument('--terminal-harness', type=Path)
     arguments.add_argument('--native-executable', type=Path)
     options = arguments.parse_args()
     binary = options.omega.resolve()
@@ -25,18 +29,15 @@ def main():
     results = ROOT/'build/validation'/options.mode
     results.mkdir(parents=True,exist_ok=True)
     records=[]
-    if options.mode == 'terminal':
-        assert options.terminal_harness and not options.case, 'Terminal validation requires a harness and runs every frozen case'
-        assert (ROOT/'expected/cases.tsv').read_text() == ''.join(f"{case['name']}\t{case['exit']}\n" for case in frozen['cases'])
-        for case in frozen['cases']:
-            assert digest((ROOT/'data'/f"{case['name']}.txt").read_bytes()) == case['input_sha256']
-            assert digest((ROOT/'expected'/f"{case['name']}.stdout.txt").read_bytes()) == case['stdout_sha256']
-        command = [str(options.terminal_harness.resolve()), str(ROOT)]
-        completed = subprocess.run(command, capture_output=True, timeout=600)
-        (results/'harness.stdout.log').write_bytes(completed.stdout)
-        (results/'harness.stderr.log').write_bytes(completed.stderr)
-        print(completed.stdout.decode(), end='', flush=True)
+    statuses = {}
+    if options.mode == 'both':
+        selected = [case['name'] for case in frozen['cases'] if not options.case or case['name'] in options.case]
+        cases = results/'cases'
+        command = [str(binary),'run','--both'] + [part for name in selected for part in ('--input', str(ROOT/'data'/f'{name}.txt'))] + ['--outputs', str(cases), str(ROOT/'main.omg')]
+        completed = subprocess.run(command, stdin=subprocess.DEVNULL, capture_output=True, timeout=1800)
+        (results/'cli.stderr.log').write_bytes(completed.stderr)
         assert completed.returncode == 0, completed.stderr.decode(errors='replace')
+        statuses = {row[0]: row for row in (line.split('\t') for line in (cases/'results.tsv').read_text().splitlines()[1:])}
     for case in frozen['cases']:
         name=case['name']
         if options.case and name not in options.case:
@@ -45,11 +46,15 @@ def main():
         expected=(ROOT/'expected'/f'{name}.stdout.txt').read_bytes()
         assert digest(input_bytes)==case['input_sha256'], f'input altered: {name}'
         assert digest(expected)==case['stdout_sha256'], f'oracle altered: {name}'
-        command=[str(binary),'run']+(['--both'] if options.mode=='both' else [])+[str(ROOT/'main.omg')]
-        if options.mode == 'terminal':
-            command = [str(options.terminal_harness.resolve()), str(ROOT)]
-            completed = subprocess.CompletedProcess(command, int((results/f'{name}.exit.txt').read_text()),
-                (results/f'{name}.stdout.txt').read_bytes(), (results/f'{name}.stderr.txt').read_bytes())
+        command=[str(binary),'run',str(ROOT/'main.omg')]
+        if options.mode == 'both':
+            _, native, verdict, interpreter = statuses[name]
+            assert verdict == 'agrees' and native == interpreter, (name, statuses[name])
+            cases = results/'cases'
+            completed = subprocess.CompletedProcess(['omega run --both --input'], int(native),
+                (cases/f'{name}.stdout').read_bytes(), (cases/f'{name}.stderr').read_bytes())
+            assert (cases/f'{name}.terminal.stdout').read_bytes() == completed.stdout, f'{name}: Terminal stdout differs'
+            assert (cases/f'{name}.terminal.stderr').read_bytes() == b'', f'{name}: Terminal stderr'
         else:
             if options.native_executable:
                 assert options.mode == 'native', 'direct executable is native validation only'
@@ -58,12 +63,9 @@ def main():
         (results/f'{name}.stdout.txt').write_bytes(completed.stdout)
         (results/f'{name}.stderr.txt').write_bytes(completed.stderr)
         assert completed.returncode==case['exit'], (name,completed.returncode,completed.stderr.decode(errors='replace'))
-        if options.mode == 'terminal' or options.native_executable:
+        if options.mode == 'both' or options.native_executable:
             assert completed.stderr == b'', f'{name}: unexpected program stderr'
         assert completed.stdout==expected, f'{name}: stdout mismatch; see {results}'
-        if options.mode=='both':
-            assert b'DECLINED' not in completed.stderr, f'{name}: comparison declined'
-            assert f"interp exit: {case['exit']}\n".encode() in completed.stderr, f'{name}: no affirmative Terminal agreement'
         if case['exit']==0:
             lines=completed.stdout.splitlines(keepends=True)
             header_end=4
@@ -78,8 +80,6 @@ def main():
     receipt={'binary':str(binary),'binary_sha256':digest(binary.read_bytes()),'oracle_sha256':digest((ROOT/'expected/frozen.json').read_bytes()),'mode':options.mode,'results':records}
     if options.native_executable:
         receipt['native_executable_sha256'] = digest(options.native_executable.read_bytes())
-    if options.terminal_harness:
-        receipt['terminal_harness_sha256'] = digest(options.terminal_harness.read_bytes())
     (results/'receipt.json').write_text(json.dumps(receipt,indent=2)+'\n')
     print(f'{len(records)} cases verified')
 

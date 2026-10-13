@@ -1,4 +1,10 @@
-"""Qualify numerical streams and runtime refusals against the frozen oracle."""
+"""Qualify numerical streams and runtime refusals against the frozen oracle.
+
+`--native PATH` runs an already built application once per case. `--omega
+PATH` compiles once with `omega run --both --inputs`, which runs every case
+natively and replays it through the Terminal reference; both engines' streams
+are checked against the oracle and against each other.
+"""
 import argparse
 import json
 import subprocess
@@ -8,15 +14,24 @@ import sys
 sys.dont_write_bytecode = True
 from check_output import ROOT, ORACLE, frozen, check, relationships
 parser = argparse.ArgumentParser()
-parser.add_argument('--native', type=Path)
-parser.add_argument('--terminal', type=Path)
+engines = parser.add_mutually_exclusive_group(required=True)
+engines.add_argument('--native', type=Path)
+engines.add_argument('--omega', type=Path)
 arguments = parser.parse_args()
 frozen()
 outputs = {}
 records = []
-destination = ROOT/'build/validation/native'
-if arguments.native:
-    destination.mkdir(parents=True, exist_ok=True)
+destination = ROOT/'build/validation'/('native' if arguments.native else 'cases')
+destination.mkdir(parents=True, exist_ok=True)
+statuses = {}
+if arguments.omega:
+    result = subprocess.run(
+        [str(arguments.omega.resolve()), 'run', '--both', '--inputs', str(ROOT/'data'),
+         '--outputs', str(destination), str(ROOT/'main.omg')],
+        stdin=subprocess.DEVNULL, capture_output=True, timeout=1800)
+    assert result.returncode == 0, result.stderr.decode(errors='replace')
+    rows = [line.split('\t') for line in (destination/'results.tsv').read_text().splitlines()[1:]]
+    statuses = {row[0]: row for row in rows}
 for name in ORACLE['cases']:
     if arguments.native:
         result = subprocess.run([str(arguments.native.resolve())], input=(ROOT/'data'/f'{name}.stdin').read_bytes(), capture_output=True, timeout=60)
@@ -25,11 +40,12 @@ for name in ORACLE['cases']:
         (destination/f'{name}.stderr').write_bytes(result.stderr)
         assert result.stderr == b'', (name, result.stderr)
     else:
-        destination = arguments.terminal
-        output = (destination/f'{name}.stdout').read_bytes()
-        rows = dict(line.split('\t') for line in (destination/'records.tsv').read_text().splitlines()[1:])
-        code = int(rows[name])
-        assert (destination/f'{name}.stderr').read_bytes() == b''
+        _, native, verdict, interpreter = statuses[name]
+        assert verdict == 'agrees' and native == interpreter, (name, statuses[name])
+        output, code = (destination/f'{name}.stdout').read_bytes(), int(native)
+        assert (destination/f'{name}.terminal.stdout').read_bytes() == output, name
+        assert (destination/f'{name}.stderr').read_bytes() == b'', name
+        assert (destination/f'{name}.terminal.stderr').read_bytes() == b'', name
     check(name, output, code)
     outputs[name] = output
     records.append(dict(case=name, exit=code))
