@@ -24,12 +24,6 @@ fn custody(
     checked.facts.reference_custody.custody(reference)
 }
 
-/// Whether closed aggregate construction of this type carries real reference
-/// leaves.
-pub(crate) fn is_reference_record(checked: &CheckedTrees, reference: TypeReferenceHandle) -> bool {
-    custody(checked, reference).is_reference_record
-}
-
 /// Custody of a materialized carrier of this type.
 pub(crate) fn result_multiplicity(
     checked: &CheckedTrees,

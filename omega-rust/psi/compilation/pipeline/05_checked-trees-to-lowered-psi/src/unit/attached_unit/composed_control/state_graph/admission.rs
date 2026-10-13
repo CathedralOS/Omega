@@ -1,14 +1,15 @@
-//! Admit a composed graph from its plan: the shapes its emitter lowers,
-//! each state's parameter custody, claim transport across edges, and the
-//! boundaries its calls name. Stage 04 resolved every terminator and edge
-//! from the authored transitions, so admission does not rejoin them to
-//! source: a closed-sum dispatch's subject custody and arms were judged by
-//! its planner (`state_graph::closed_sum`) and are lowered as planned.
+//! Admit a composed graph from its plan: the route limits of its emitter
+//! (a closed checked body without attachments), and the derivations the
+//! emitter reads back — the live state mask, each position's authored owner,
+//! entry aliases, claim transport, exclusive handoffs and the boundaries its
+//! calls name. Stage 04 judged every state's parameter custody, entry claims,
+//! edge transfers and closed-sum dispatch when it built the plan; lowering
+//! lowers that plan and does not re-derive those judgments from source
+//! (see the lowering ruling in TASKS.md, "Lowering simplification").
 use super::super::super::{CheckedBoundaryMachinePlan, Multiplicity, unsupported};
 use super::super::{CheckedTrees, LoweringError};
 use super::{
-    CheckedComposedUnitControlMachinePlan, claims, edges, entry_aliases, exclusive_handoffs,
-    topology,
+    CheckedComposedUnitControlMachinePlan, claims, entry_aliases, exclusive_handoffs, topology,
 };
 use crate::unit::attached_unit::call_closure::BoundaryIdentity;
 
@@ -101,163 +102,6 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
     // entry successor closure never execute: their custody rows cannot
     // disqualify the route and emission prunes them.
     let live = topology::live(plan)?;
-    for (state_index, ((owner, source), state)) in authored.iter().zip(&plan.states).enumerate() {
-        crate::unit::attached_unit::claims::validate_entry_claims(
-            checked,
-            owner.symbol,
-            source,
-            &state.structural_parameters,
-            &state.entry_claims,
-        )?;
-        let source_parameters = checked.state_parameters(source);
-        // Erased bindings own no plan entry.
-        let retained_parameters = source_parameters
-            .iter()
-            .filter(|parameter| !parameter.relevance.is_erased())
-            .count();
-        if state.structural_parameters.len() + state.scalar_parameters.len() != retained_parameters
-            || state
-                .structural_parameters
-                .windows(2)
-                .any(|pair| pair[0].position >= pair[1].position)
-        {
-            return unsupported("Unit graph signature dropped or duplicated a parameter");
-        }
-        for parameter in &state.structural_parameters {
-            let source = source_parameters.get(parameter.position as usize).ok_or(
-                LoweringError::Unsupported("Unit graph view parameter position is invalid"),
-            )?;
-            if validation::structural_result_projected_qualifications(
-                &checked.typed,
-                source.type_reference,
-            )
-            .ok()
-            .as_ref()
-                != Some(&parameter.projected_qualifications)
-            {
-                return unsupported(
-                    "Unit graph projected parameter qualifications differ from source",
-                );
-            }
-            if !live[state_index] {
-                // An unreachable state's parameter custody rows never
-                // execute: they cannot disqualify the route.
-                continue;
-            }
-            if let Some(carrier) = checked
-                .service_parameter_shape(source.type_reference)
-                .map_err(LoweringError::InvalidServiceParameterShape)?
-            {
-                // Service authority comes from this state's exact source receipt,
-                // never from an empty storage shape. Ordinary edge custody still
-                // checks which existing occurrence supplies the next state.
-                crate::unit::attached_unit::parameters::validate_service_parameter(
-                    parameter, &carrier,
-                )?;
-                let mut shapes = checked
-                    .facts
-                    .flow
-                    .terminal_unit_effects
-                    .structural_types
-                    .iter()
-                    .filter(|shape| shape.identity == parameter.type_identity);
-                if !matches!(
-                    shapes.next().map(|shape| &shape.shape),
-                    Some(checked_trees::CheckedUnitStructuralTypeShape::BindingCarrier)
-                ) || shapes.next().is_some()
-                {
-                    return unsupported(
-                        "Unit graph Binding lost its exact nonconstructible carrier",
-                    );
-                }
-                continue;
-            }
-            if parameter.access == checked_trees::CheckedStructuralAccess::Owned {
-                // State parameters receive established values. The complete
-                // type below retains nested byte predicates; this storage
-                // classifier grants neither construction nor copy permission.
-                // Binding mutability permits writes to this received owner; it
-                // does not change the edge's owned transfer into the state.
-                // Each write or reborrow retains its checked place access.
-                if source.is_const
-                    || parameter.binding_carrier.is_some()
-                    || validation::structural_result_qualifications(
-                        &checked.typed,
-                        source.type_reference,
-                    )
-                    .ok()
-                    .as_ref()
-                        != Some(&parameter.qualifications)
-                    || checked.type_multiplicity(source.type_reference) != parameter.multiplicity
-                    || validation::stored_structural_type_identity(
-                        &checked.typed,
-                        source.type_reference,
-                        &[],
-                        &[],
-                    ) != parameter.type_identity
-                    || (parameter.multiplicity != Multiplicity::Linear
-                        && !validation::has_contents(
-        &checked.typed,
-        source.type_reference,
-        &[],
-        validation::ContentsRequirement::StructuralConstruction
-    )
-                        && !validation::has_contents(
-        &checked.typed,
-        source.type_reference,
-        &[],
-        validation::ContentsRequirement::CleanupOwned
-    )
-                        && !crate::content_classes::plain_owned_with_represented_constraints(checked,
-                            crate::unit::attached_unit::parameters::structural_carrier_type(
-                                checked,
-                                source.type_reference,
-                            )?)
-                        // A carrier of plain fields and shared views arrives
-                        // whole — a move under the edge's own transfer for an
-                        // affine descriptor, a copy for an unrestricted one —
-                        // and its views keep their source loans' lineage.
-                        && !validation::has_contents(
-        &checked.typed,
-        crate::unit::attached_unit::parameters::structural_carrier_type(
-                                checked,
-                                source.type_reference,
-                            )?,
-        &[],
-        validation::ContentsRequirement::OwnedOrSharedView
-    )
-                        && !crate::reference_custody::is_reference_record(
-                            checked,
-                            source.type_reference,
-                        ))
-                {
-                    return unsupported(
-                        "Unit graph owned parameter differs from exact source custody",
-                    );
-                }
-                let mut shapes = checked
-                    .facts
-                    .flow
-                    .terminal_unit_effects
-                    .structural_types
-                    .iter()
-                    .filter(|shape| shape.identity == parameter.type_identity);
-                if shapes.next().is_none() || shapes.next().is_some() {
-                    return unsupported("Unit graph owned parameter type missing or duplicated");
-                }
-                continue;
-            }
-            borrowed_parameter(source, parameter)?;
-        }
-        for successor in state.successors() {
-            let target = plan
-                .state(successor.target_state)
-                .ok_or(LoweringError::Unsupported(
-                    "Unit graph successor target is missing",
-                ))?;
-            edges::admit_transfers(state, successor, target)?;
-        }
-    }
     // Dead states are authored and shape-checked above but never execute:
     // their parameter, claim, and call rows have no producing edge, so the
     // emitted graph prunes to the entry state's successor closure.
@@ -284,59 +128,6 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
     // Every live state's calls take the one call admission; internal Unit
     // targets' signatures come from the closure that emits this graph.
     let boundaries = super::super::admission::admit_calls(checked, &states)?;
-    for (boundary, _) in &boundaries {
-        if boundary.machine == boundary.state {
-            // Static trait signatures have no runtime provider receiver.
-            if boundary.attachment_type_identity.is_some() {
-                return unsupported("Unit graph static trait boundary acquired an attachment");
-            }
-        } else {
-            let (owner, _) = crate::declarations::state_declaration(checked, boundary.state)?;
-            // A qualified top-level requirement such as `Float::add` names a
-            // semantic namespace, not a data attachment, and stage 04's
-            // `build_boundary_machine` retains no attachment identity for it.
-            // Only an attached name that resolves to a data definition is an
-            // authored nominal owner that the boundary must retain.
-            let owner_has_data_attachment = owner.attached_data.as_ref().is_some_and(|name| {
-                checked
-                    .data_definitions()
-                    .iter()
-                    .any(|data| data.name == *name)
-            });
-            if owner.symbol != boundary.machine
-                || owner_has_data_attachment != boundary.attachment_type_identity.is_some()
-            {
-                return unsupported("Unit graph boundary attachment lost its authored owner");
-            }
-            if let Some(retained) = &boundary.attachment_type_identity {
-                let data = checked
-                    .data_definition_by_symbol(owner.attached_data_symbol)
-                    .ok_or(LoweringError::Unsupported(
-                        "Unit graph boundary has no resolved nominal owner",
-                    ))?;
-                let identity = if owner.attached_data_application.is_valid() {
-                    checked.normalized_type_identity(owner.attached_data_application)
-                } else if let Some(application) = data.generic_instance {
-                    checked.normalized_type_identity(application)
-                } else {
-                    checked
-                        .normalized_nominal_type_identity(data.symbol)
-                        .ok_or(LoweringError::Unsupported(
-                            "Unit graph boundary has no normalized nominal owner",
-                        ))?
-                };
-                if identity != *retained {
-                    return unsupported(
-                        "Unit graph boundary attachment disagrees with its authored nominal identity",
-                    );
-                }
-            }
-        }
-        // Result multiplicity does not choose a graph execution route. Every
-        // structural call retains its checked receiving frontier; emission
-        // binds those actual returned claims, including linear children of
-        // an affine carrier, rather than inventing boundary issuance.
-    }
     Ok(AdmittedGraph {
         live,
         authored,
@@ -345,28 +136,4 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
         exclusive_handoffs,
         boundaries,
     })
-}
-
-/// The emitter requires an unrestricted, non-provider view with binding
-/// mutability matching its loan access. Qualification forwarding belongs to
-/// stage 04's graph producer, before this checked plan exists; lowering must
-/// not walk its predecessors and re-decide that source admission.
-fn borrowed_parameter(
-    source: &checked_trees::signature::StateParameter,
-    parameter: &checked_trees::CheckedUnitStructuralParameterPlan,
-) -> Result<(), LoweringError> {
-    let exclusive = matches!(
-        parameter.access,
-        checked_trees::CheckedStructuralAccess::MutableBorrow
-            | checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
-    );
-    if source.is_mutable != exclusive {
-        return unsupported(
-            "Unit graph borrowed parameter binding mutability is not its loan access",
-        );
-    }
-    if parameter.multiplicity != Multiplicity::Unrestricted || parameter.binding_carrier.is_some() {
-        return unsupported("Unit graph borrowed parameter carries owned or provider custody");
-    }
-    Ok(())
 }

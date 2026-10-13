@@ -52,19 +52,6 @@ pub(crate) fn structural_carrier_type(
     }
 }
 
-/// A routed Binding parameter keeps its occurrence receipt and a multiplicity its
-/// access can carry.
-pub(in crate::unit::attached_unit) fn validate_service_parameter(
-    parameter: &checked_trees::CheckedUnitStructuralParameterPlan,
-    carrier: &checked_trees::CheckedServiceParameterCarrier,
-) -> Result<(), LoweringError> {
-    if parameter.binding_carrier.is_none() {
-        return unsupported("Binding parameter lost its source receipt");
-    }
-    service_parameter_multiplicity(carrier.access)?;
-    Ok(())
-}
-
 /// A borrowed Binding is an ordinary reference parameter, not an owned affine
 /// binding. Provider storage never changes source access or multiplicity.
 fn service_parameter_multiplicity(

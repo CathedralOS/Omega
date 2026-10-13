@@ -402,51 +402,6 @@ pub(super) fn lower_owned_operand_claims(
     Ok(claims)
 }
 
-pub(super) fn validate_entry_claims(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    state: &checked_trees::state::State,
-    parameters: &[CheckedUnitStructuralParameterPlan],
-    claims: &[CheckedUnitEntryClaimPlan],
-) -> Result<(), LoweringError> {
-    let events = checked
-        .facts
-        .flow
-        .ownership
-        .permissions
-        .iter()
-        .map(|(_, event)| event)
-        .filter(|event| {
-            event.machine_symbol == machine
-                && event.state_symbol == state.symbol
-                && event.source == language_semantics::PermissionEventSource::StateEntry
-                && event.kind == language_semantics::PermissionEventKind::Establish
-                && event.access == language_semantics::PermissionAccess::Owned
-                && event.multiplicity == Multiplicity::Linear
-                && event.obligation_live
-        })
-        .collect::<Vec<_>>();
-    if events.len() != claims.len() {
-        return unsupported("structural graph entry claim roster disagrees with checked ownership");
-    }
-    for claim in claims {
-        let parameter =
-            parameters
-                .get(claim.parameter_index as usize)
-                .ok_or(LoweringError::Unsupported(
-                    "structural graph entry claim parameter missing",
-                ))?;
-        if checked
-            .state_parameters(state)
-            .get(parameter.position as usize)
-            .is_none()
-        {
-            return unsupported("structural graph entry claim source missing");
-        }
-    }
-    Ok(())
-}
-
 pub(super) fn lower_unit_entry_claims(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     machine: symbols::SymbolHandle,
