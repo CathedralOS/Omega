@@ -4064,8 +4064,8 @@ fail/termination/selected_result_rank_arrival_unguarded rejected 1696ms expected
 	cannot prove requires contract for call observe from countdown: remaining - 1 >= 0 && remaining - 1 <= 9 (needs fact `value >= 0 && value <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 	cannot prove requires contract for call countdown from countdown: reader.observe(remaining - 1) >= 0 && reader.observe(remaining - 1) <= 9 (needs fact `remaining >= 0 && remaining <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 	terminating machine countdown: cannot prove rank range `0..=9` for the rank produced by the selected view
-fail/termination/self_call_rank_reset_before_descent rejected 1610ms expected @a9ae30e1c334+wt
-	terminating machine reset: cannot prove strict rank decrease on a recurrent arrival: the transition from `reset` to `step` is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+fail/termination/self_call_rank_reset_before_descent rejected 625ms expected @1727c70d2f7e+wt
+	machine call cycle: `reset` -- an internal arrival lacks its source component nonincrease result; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/termination/shift_result_rank_mask_preserves rejected 445ms expected @f70cef10b430
 fail/termination/shift_result_rank_replaced_count rejected 441ms expected @f70cef10b430
 fail/termination/shift_result_rank_zero_count rejected 448ms expected @f70cef10b430
@@ -6674,10 +6674,11 @@ pass/proofs/runtime_mutable_ranked_accumulator_exit checked 11998ms check-target
 pass/proofs/runtime_nat_structural_recursion_exit checked 11942ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/runtime_ranked_accumulator_early_exit checked 11627ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/runtime_ranked_accumulator_guarantee_exit checked 12061ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/proofs/runtime_ranked_intermediary_accumulator_exit checked 11368ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/proofs/runtime_ranked_forwarding_state_recursion_exit checked 6774ms check-target:macos_arm64 @1727c70d2f7e+wt
+pass/proofs/runtime_ranked_intermediary_accumulator_exit checked 6663ms check-target:macos_arm64 @1727c70d2f7e+wt
 pass/proofs/runtime_sequential_ranked_components_exit checked 11517ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/runtime_sequential_relational_accumulator_exit checked 11587ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/proofs/runtime_two_state_accumulator_exit checked 12459ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/proofs/runtime_two_state_accumulator_exit checked 6334ms check-target:macos_arm64 @1727c70d2f7e+wt
 pass/proofs/scalar_state_return_keeps_byte_class checked 1677ms @a9ae30e1c334+wt
 pass/proofs/short_circuit_rhs_entry_bound checked 30697ms check-target:macos_arm64 @5b35eda9b8d6
 pass/proofs/stride_pair_telescope checked 9821ms @5041ef1af684+wt

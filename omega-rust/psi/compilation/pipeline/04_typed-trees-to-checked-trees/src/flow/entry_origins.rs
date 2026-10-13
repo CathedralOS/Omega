@@ -159,10 +159,11 @@ fn parameter_edges<'program>(
                 else {
                     continue;
                 };
-                let Some(target_index) = states
-                    .iter()
-                    .position(|state| state.symbol == path.symbol)
-                    .or_else(|| (path.symbol == machine.symbol).then_some(0))
+                // A machine-entry target is a recursive invocation whose
+                // activation owns fresh formals, not an arrival carrying this
+                // activation's values: only subordinate states join the edges.
+                let Some(target_index) =
+                    validation::internal_state_index(program, machine, path.symbol)
                 else {
                     continue;
                 };

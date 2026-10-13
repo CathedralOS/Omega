@@ -1700,10 +1700,11 @@ pass/proofs/runtime_mutable_ranked_accumulator_exit built 955ms exit:70 @6571128
 pass/proofs/runtime_nat_structural_recursion_exit built 573ms exit:70
 pass/proofs/runtime_ranked_accumulator_early_exit built 578ms exit:70
 pass/proofs/runtime_ranked_accumulator_guarantee_exit built 821ms exit:70
-pass/proofs/runtime_ranked_intermediary_accumulator_exit built 985ms exit:70 @3d0c6d42c3e9+wt
+pass/proofs/runtime_ranked_forwarding_state_recursion_exit built 6739ms exit:70 @1727c70d2f7e+wt
+pass/proofs/runtime_ranked_intermediary_accumulator_exit built 6659ms exit:70 @1727c70d2f7e+wt
 pass/proofs/runtime_sequential_ranked_components_exit built 894ms exit:70 @3ed38434a87f+wt
 pass/proofs/runtime_sequential_relational_accumulator_exit built 888ms exit:70 @abeaf0e29f04+wt
-pass/proofs/runtime_two_state_accumulator_exit built 1153ms exit:70 @ccbf3802c51a+wt
+pass/proofs/runtime_two_state_accumulator_exit built 5797ms exit:70 @1727c70d2f7e+wt
 pass/proofs/stride_pair_telescope checked 9920ms @5041ef1af684+wt
 pass/providers/bare_byte_array_boundary_argument built 1411ms exit:0 @bed5f45e9185+wt
 pass/providers/binding_param_capability checked 9566ms @5041ef1af684+wt

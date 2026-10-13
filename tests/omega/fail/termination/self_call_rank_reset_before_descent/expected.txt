@@ -1,1 +1,1 @@
-terminating machine reset: cannot prove rank range `0..=5` for the rank produced by the selected view
+an internal arrival lacks its source component nonincrease result

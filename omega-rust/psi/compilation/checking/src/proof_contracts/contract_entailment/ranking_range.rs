@@ -990,9 +990,10 @@ fn prove_edge(
     {
         return None;
     }
-    if matches!(premises, RankingRangePremises::InitialEntry)
-        && (state.symbol != root.symbol || root_has_incoming_transition(program, machine, root))
-    {
+    // The source state graph never revisits the root: a machine-entry target
+    // is a recursive invocation (`internal_state_index` admits subordinate
+    // states only), ranked by the call-component judgment with its own entry.
+    if matches!(premises, RankingRangePremises::InitialEntry) && state.symbol != root.symbol {
         return None;
     }
     let (entry_parameters, destination) = match &context {
@@ -1841,36 +1842,6 @@ fn comparison_proven(
         BinaryOperator::NotEqual => prove(left.sub(right), 1) || prove(right.sub(left), 1),
         _ => false,
     }
-}
-
-/// Initial-entry precision is safe only when no local edge can revisit the
-/// root. Check exact primary and continuation named targets.
-fn root_has_incoming_transition(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    root: &State,
-) -> bool {
-    use typed_trees::statement::TransitionTargetNode;
-
-    program.machine_states(machine).iter().any(|state| {
-        program
-            .statement_table
-            .statements(state.statement_nodes)
-            .iter()
-            .any(|statement| {
-                let Some(transition) = statement.as_transition() else {
-                    return false;
-                };
-                transition.targets().any(|target| {
-                    match program.statement_table.transition_target(target) {
-                        TransitionTargetNode::Named { path, .. } => {
-                            path.symbol == root.symbol || path.symbol == machine.symbol
-                        }
-                        _ => false,
-                    }
-                })
-            })
-    })
 }
 
 fn validate_mapping(
