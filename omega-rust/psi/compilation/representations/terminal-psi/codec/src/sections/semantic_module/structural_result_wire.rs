@@ -44,13 +44,13 @@ pub(crate) fn validate_reference_sources(
                     "reference result source must identify a formal ingress",
                 );
             };
+            let endpoint =
+                crate::sections::semantic_module::module_foundation_validation::validate_reference_origin_family(
+                    module, parameter.structural_type, &source.path,
+                )?;
             if *access != source.access
-                || *referent
-                    != crate::sections::semantic_module::module_foundation_validation::validate_reference_origin_family(
-                        module,
-                        parameter.structural_type,
-                        &source.path,
-                    )?
+                || (source.extent == semantic_vocabulary::ReferenceOriginExtent::Projected
+                    && *referent != endpoint)
             {
                 return crate::codec_error::malformed(
                     "reference result source has mismatched referent or access",
@@ -108,6 +108,10 @@ pub(crate) fn encode_function_result(
         for source in &reference.sources {
             writer.id(source.place);
             super::structural_signature_wire::encode_structural_access(writer, source.access);
+            writer.u8(match source.extent {
+                semantic_vocabulary::ReferenceOriginExtent::Projected => 1,
+                semantic_vocabulary::ReferenceOriginExtent::WithinRegion => 2,
+            });
             encode_reference_origin_path(writer, "reference source path", &source.path)?;
         }
     }
@@ -130,6 +134,13 @@ pub(crate) fn decode_function_result(
                     Ok(terminal_psi::ReferenceOriginSource {
                         place: reader.id("PlaceId")?,
                         access: super::structural_signature_wire::decode_structural_access(reader)?,
+                        extent: match reader.u8()? {
+                            1 => semantic_vocabulary::ReferenceOriginExtent::Projected,
+                            2 => semantic_vocabulary::ReferenceOriginExtent::WithinRegion,
+                            tag => {
+                                return Err(CodecError::InvalidTag("ReferenceOriginExtent", tag));
+                            }
+                        },
                         path: decode_reference_origin_path(reader)?,
                     })
                 })?,

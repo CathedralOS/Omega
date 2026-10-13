@@ -8,12 +8,45 @@ use terminal_psi::{
     StructuralTypeShape,
 };
 
+mod call_results;
+mod result_regions;
+pub use call_results::{
+    ReferenceCallContract, ReferenceCallResult, ReferenceCallSource, bind_reference_call_results,
+};
+pub use result_regions::{ReferenceLeaf, reference_leaves, validate_dynamic_reference_regions};
+
 /// The exact supplying permission and the relation below it. All consumers use
 /// this split; none evaluate a callee's selector in the caller's value namespace.
 pub struct ReferenceOriginBinding<'origin> {
     pub source: terminal_psi::StructuralArgument,
     pub suffix: &'origin [ReferenceOriginProjection],
     pub endpoint: StructuralTypeId,
+    pub extent: semantic_vocabulary::ReferenceOriginExtent,
+}
+
+impl ReferenceOriginBinding<'_> {
+    /// Only a projected stored descriptor can transfer an existing carrier.
+    /// Regions and element families form descendants even with an empty suffix.
+    pub fn transfers_existing<'types>(
+        &self,
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+        access: terminal_psi::StructuralAccess,
+    ) -> bool {
+        self.extent == semantic_vocabulary::ReferenceOriginExtent::Projected
+            && self.suffix.is_empty()
+            && matches!(
+                access,
+                terminal_psi::StructuralAccess::Owned
+                    | terminal_psi::StructuralAccess::SharedBorrow
+            )
+            && self.source.path.split_last().is_some_and(|(last, prefix)| {
+                *last == StructuralPathSegment::Referent
+                    && crate::runtime_structural_path_tip(types, root, prefix).is_some_and(|row| {
+                        matches!(row.shape, StructuralTypeShape::Reference { .. })
+                    })
+            })
+    }
 }
 
 pub fn bind_reference_origin<'types, 'origin>(
@@ -52,6 +85,148 @@ pub fn bind_reference_origin<'types, 'origin>(
         source,
         suffix: &origin.path[split..],
         endpoint,
+        extent: origin.extent,
+    })
+}
+
+/// A private return may narrow a public input region, but cannot gain a
+/// pointee merely because its descriptor is stored inside that region.
+/// This compares admitted provenance coordinates, not runtime footprints:
+/// formation and completion still authenticate bounds, codecs and lineage.
+pub fn reference_origin_refines<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    actual: &terminal_psi::ReferenceOriginSource,
+    allowed: &terminal_psi::ReferenceOriginSource,
+) -> bool {
+    use ReferenceOriginProjection::{Element, Exact};
+    use semantic_vocabulary::ReferenceOriginExtent::{Projected, WithinRegion};
+    if actual.place != allowed.place
+        || actual.access != allowed.access
+        || reference_origin_type(types.clone(), root, &actual.path).is_none()
+        || reference_origin_type(types.clone(), root, &allowed.path).is_none()
+    {
+        return false;
+    }
+    let prefix_matches = actual.path.len() >= allowed.path.len()
+        && allowed
+            .path
+            .iter()
+            .zip(&actual.path)
+            .all(|(expected, observed)| {
+                expected == observed
+                    || matches!(
+                        (expected, observed),
+                        (Element, Exact(StructuralPathSegment::FixedIndex(_)))
+                    )
+            });
+    if !prefix_matches {
+        return false;
+    }
+    match allowed.extent {
+        Projected => actual.extent == Projected && actual.path.len() == allowed.path.len(),
+        WithinRegion => {
+            for (position, projection) in actual.path.iter().enumerate().skip(allowed.path.len()) {
+                if !matches!(
+                    projection,
+                    Exact(StructuralPathSegment::Referent | StructuralPathSegment::FixedIndex(_))
+                        | Element
+                ) {
+                    continue;
+                }
+                let Some(endpoint) =
+                    reference_origin_type(types.clone(), root, &actual.path[..position])
+                else {
+                    return false;
+                };
+                let Some(declaration) = types.clone().find(|row| row.id == endpoint) else {
+                    return false;
+                };
+                match projection {
+                    Exact(StructuralPathSegment::Referent) => {
+                        // An ending marker at ordinary storage is not a pointer
+                        // crossing. Every real crossing needs its own input region.
+                        if position + 1 != actual.path.len()
+                            || matches!(declaration.shape, StructuralTypeShape::Reference { .. })
+                        {
+                            return false;
+                        }
+                    }
+                    _ if descriptor_region(&declaration.shape)
+                        && position != allowed.path.len() =>
+                    {
+                        // Indexing a stored view crosses into external backing,
+                        // unlike indexing an inline fixed array. Only a public
+                        // region selecting that view already supplies its backing.
+                        return false;
+                    }
+                    _ => {}
+                }
+            }
+            if actual.extent == WithinRegion
+                && actual.path.len() > allowed.path.len()
+                && reference_origin_type(types.clone(), root, &actual.path)
+                    .and_then(|endpoint| types.clone().find(|row| row.id == endpoint))
+                    .is_some_and(|row| descriptor_region(&row.shape))
+            {
+                return false;
+            }
+            true
+        }
+    }
+}
+
+fn descriptor_region(shape: &StructuralTypeShape) -> bool {
+    matches!(
+        shape,
+        StructuralTypeShape::ElementView { .. }
+            | StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                    | terminal_psi::ByteSequenceCarrier::BoundedView { .. }
+            )
+    )
+}
+
+/// Normalize private formal places to the structural argument lane before
+/// comparing a realization with the requirement. Public alternatives describe
+/// possible sources; a row returning only an empty case need not exercise them.
+pub fn reference_result_refines_regions<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    parameters: &[terminal_psi::StructuralParameterDeclaration],
+    result: &terminal_psi::StructuralResultDeclaration,
+    regions: &[terminal_psi::TerminalDynamicReferenceRegion],
+) -> bool {
+    result.reference_sources.iter().all(|mapping| {
+        !mapping.sources.is_empty()
+            && mapping.sources.iter().all(|source| {
+                let Some((argument_index, parameter)) = parameters
+                    .iter()
+                    .enumerate()
+                    .find(|(_, parameter)| parameter.place == source.place)
+                else {
+                    return false;
+                };
+                regions.iter().any(|region| {
+                    region.argument_index as usize == argument_index
+                        && region.path == mapping.path
+                        && reference_origin_refines(
+                            types.clone(),
+                            parameter.structural_type,
+                            source,
+                            &terminal_psi::ReferenceOriginSource {
+                                place: parameter.place,
+                                path: region
+                                    .source_path
+                                    .iter()
+                                    .cloned()
+                                    .map(ReferenceOriginProjection::Exact)
+                                    .collect(),
+                                extent: semantic_vocabulary::ReferenceOriginExtent::WithinRegion,
+                                access: region.access,
+                            },
+                        )
+                })
+            })
     })
 }
 

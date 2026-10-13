@@ -22,6 +22,7 @@ pub(super) use projected_affine::transfers_owned_storage;
 mod permission_events;
 mod permission_schedule;
 mod selected_cleanup;
+mod selected_evaluation;
 pub(crate) use permission_events::prepare_permission_events;
 mod projected_affine;
 mod temporary_results;

@@ -33,21 +33,33 @@ impl SelectedCleanup {
         selected: &[typed_trees::expression::ExpressionHandle],
         places: &[LinearPlace],
         remaining: &RemainingCustody,
+        routes: &super::selected_evaluation::ExpressionRoutes,
+        calls: &[checked_trees::FlowCallFact],
         events: &[FlowPermissionEventFact],
         establishments: &[StorageEstablishment],
         ownership: &mut FlowOwnershipFacts,
         output: &mut ContextualCleanupFacts,
     ) -> Result<(), diagnostics::Diagnostic> {
         let mut prefix = remaining.clone();
+        let mut selection = super::selected_evaluation::SelectedEvaluation::new();
         for (ordinal, event) in events.iter().enumerate() {
             if event.access != PermissionAccess::Owned {
                 continue;
             }
+            selection.enter(
+                routes.event(event, calls),
+                &mut prefix,
+                |current, sibling| {
+                    current.join(sibling);
+                    Ok(())
+                },
+            )?;
             let path = ownership.segments.span_or_empty(event.segments).to_vec();
             for establishment in establishments
                 .iter()
                 .filter(|entry| entry.event_ordinal == ordinal)
             {
+                self.retire_transferred(routes, calls, &events[..ordinal], ownership)?;
                 let destination = &establishment.destination;
                 let mut retired = Vec::new();
                 for (index, owner) in self.owners.iter().enumerate() {
@@ -191,6 +203,18 @@ impl SelectedCleanup {
             let reserved = before_transfer
                 .as_ref()
                 .is_some_and(|remaining| remaining.is_reserved(event.root));
+            // This prefix follows the permission producer's selected edge.
+            // Known absence is an invalid use, not missing cleanup evidence;
+            // do not let the later custody-gap diagnostic hide a second move.
+            if (established.iter().any(|place| place.ever_established) || reserved)
+                && before_transfer
+                    .as_ref()
+                    .is_some_and(|remaining| !remaining.is_present(event.root, &path))
+            {
+                let message = "owned region is unavailable at this selected transfer: it was already transferred or has not been established";
+                return Err(diagnostics::Diagnostic::error(message)
+                    .with_source_span(source_gap(program, event, message).source_span));
+            }
             if established.is_empty()
                 || !(established.iter().any(|place| place.ever_established) || reserved)
                 || if carrier {
@@ -227,6 +251,58 @@ impl SelectedCleanup {
                 remaining: before_transfer.expect("selected transfer retained its exact prefix"),
             });
         }
+        self.retire_transferred(routes, calls, events, ownership)
+    }
+
+    /// A candidate represents custody retained by some predecessor, not an
+    /// obligation to invent a skipped predecessor. Remove it only when this
+    /// evaluation consumed its whole region on every route. This may-presence
+    /// join is deliberately distinct from ordinary must-have availability;
+    /// partial child moves cannot prove absence of their enclosing owner.
+    fn retire_transferred(
+        &mut self,
+        routes: &super::selected_evaluation::ExpressionRoutes,
+        calls: &[checked_trees::FlowCallFact],
+        events: &[FlowPermissionEventFact],
+        ownership: &FlowOwnershipFacts,
+    ) -> Result<(), diagnostics::Diagnostic> {
+        if self.owners.is_empty() {
+            return Ok(());
+        }
+        let mut present = vec![true; self.owners.len()];
+        let mut selection = super::selected_evaluation::SelectedEvaluation::new();
+        let join = |current: &mut Vec<bool>, sibling: &Vec<bool>| {
+            for (current, sibling) in current.iter_mut().zip(sibling) {
+                *current |= *sibling;
+            }
+            Ok(())
+        };
+        for event in events
+            .iter()
+            .filter(|event| event.access == PermissionAccess::Owned)
+        {
+            selection.enter(routes.event(event, calls), &mut present, join)?;
+            let path = ownership.segments.span_or_empty(event.segments);
+            for (owner, present) in self.owners.iter().zip(&mut present) {
+                if owner.root == event.root && owner.path.starts_with(path) {
+                    match event.kind {
+                        PermissionEventKind::Transfer => *present = false,
+                        PermissionEventKind::Establish | PermissionEventKind::Restore => {
+                            *present = true;
+                        }
+                        // Cleanup acts on its contextual complement, not
+                        // necessarily the whole named path. In particular a
+                        // containing replacement's ordinary drop excludes
+                        // this retained selected region; it cannot prove
+                        // the region already died.
+                        PermissionEventKind::Consume | PermissionEventKind::AffineDrop => {}
+                    }
+                }
+            }
+        }
+        selection.enter(&[], &mut present, join)?;
+        let mut presence = present.into_iter();
+        self.owners.retain(|_| presence.next().unwrap_or(true));
         Ok(())
     }
 

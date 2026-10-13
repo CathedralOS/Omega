@@ -792,16 +792,12 @@ fn owned_argument(
     }
     let mut shapes = ShapeCollector::new(program);
     for reference in [selected_type, target.type_reference] {
-        // Linear claims and nominal cleanup stay explicit obligations of the
-        // consuming call: the operand transfers them with its storage.
-        let contents = if crate::checks::type_carries_linear_obligation(program, reference) {
-            validation::ContentsRequirement::LinearOwned
-        } else {
-            validation::ContentsRequirement::CleanupOwned
-        };
+        // A call consumes established storage, not cleanup-free contents.
+        // Shape collection below retains reference descriptors as leaves;
+        // the exact call's ownership and loan events authorize their transfer.
+        // Requiring CleanupOwned here discarded otherwise valid carriers only
+        // when their consuming call was nested inside a scalar computation.
         if program.primitive_type_reference(reference).is_some()
-            || !(validation::is_closed_primitive_array_type(program, reference)
-                || validation::has_contents(program, reference, &[], contents))
             || structural_access_for_type_reference(program, reference)?
                 != CheckedStructuralAccess::Owned
             || !parameter_qualifications(program, &mut shapes, reference, &[])?.is_empty()

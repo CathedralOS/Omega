@@ -70,12 +70,16 @@ pub struct TargetReferenceResult {
 pub struct TargetReferenceOrigin {
     pub root: PlaceId,
     pub path: Vec<terminal_psi::ReferenceOriginProjection>,
+    pub extent: semantic_vocabulary::ReferenceOriginExtent,
 }
 
 impl TargetReferenceOrigin {
     /// Only exact origins can name a stored descriptor resource. A family
     /// retains possible backing, not a usable load/store address.
     pub fn exact_path(&self) -> Option<Vec<StructuralPathSegment>> {
+        if self.extent != semantic_vocabulary::ReferenceOriginExtent::Projected {
+            return None;
+        }
         self.path
             .iter()
             .map(|projection| match projection {

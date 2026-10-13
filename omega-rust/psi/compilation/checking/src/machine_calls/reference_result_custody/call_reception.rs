@@ -31,9 +31,8 @@ pub fn record_call_reception(
         .expression_table
         .call_node(expression)
         .ok_or("reference reception has no authored call")?;
-    let destination = program
-        .state_by_symbol(call.target_symbol)
-        .ok_or("reference reception has no destination state")?;
+    let return_type = crate::call_target_return_type(program, call.target_symbol)
+        .ok_or("reference reception has no destination result contract")?;
     // The checked call row carries this occurrence's actual capture: which
     // authored construct receives the result. Replaying the typed
     // `local.initial_value` re-derives a node preparation may already have
@@ -62,7 +61,7 @@ pub fn record_call_reception(
         .ok_or("reference result has no complete captured origin paths")?;
     let returned: Vec<_> = record_carrier_sources(
         program,
-        destination.return_type,
+        return_type,
         CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
             symbol: state.symbol,
         },

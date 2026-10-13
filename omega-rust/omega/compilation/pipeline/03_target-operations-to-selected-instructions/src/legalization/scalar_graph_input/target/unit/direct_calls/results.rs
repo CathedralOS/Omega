@@ -98,7 +98,11 @@ pub(super) fn validate(
                     }
                     reference_custody::reference_results(
                         caller,
-                        callee,
+                        Some(callee),
+                        terminal_semantics::ReferenceCallContract::Machine {
+                            parameters: &callee.structural_parameters,
+                            sources: &declaration.reference_sources,
+                        },
                         structural_arguments,
                         expected_result,
                         *psi_operation,
@@ -124,14 +128,20 @@ pub(super) fn validate(
                         || !requirement.matches_operation_result(
                             &terminal_psi::OperationResult::Structural(expected_result.clone()),
                         )
-                        || terminal_psi::structural_type_has_borrowed_storage_by(
-                            |id| plan.structural_type(id),
-                            expected_result.structural_type,
-                        )
                     {
                         return Err(LegalizationError::custody());
                     }
-                    Vec::new()
+                    reference_custody::reference_results(
+                        caller,
+                        None,
+                        terminal_semantics::ReferenceCallContract::Requirement(requirement),
+                        structural_arguments,
+                        expected_result,
+                        *psi_operation,
+                        custody,
+                        &plan.structural_types,
+                    )
+                    .map_err(|error| error.attributed(caller.machine, Some(*psi_operation)))?
                 }
                 _ => return Err(LegalizationError::custody()),
             };

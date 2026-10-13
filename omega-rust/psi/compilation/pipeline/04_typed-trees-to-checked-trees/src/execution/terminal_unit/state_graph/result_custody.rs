@@ -393,12 +393,12 @@ pub(super) fn account(
             |arm: &CheckedConditionalReturnArm,
              uses: &[(usize, &CheckedUnitStructuralArgumentPlan)]| {
                 matches!(arm, CheckedConditionalReturnArm::Crash { .. })
-                    || arm
-                        .operation_dependencies()
-                        .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-                        .any(|operation| {
-                            terminator_call_consumes_result(operation, result.binding_ordinal)
-                        })
+                    || arm.definite_call_transfers(
+                        &facts.values,
+                        state.symbol,
+                        operation,
+                        result_local,
+                    ) == 1
                     || uses
                         .iter()
                         .any(|(_, argument)| construction_owns_result(argument, operations.len()))
@@ -552,9 +552,25 @@ pub(super) fn account(
                 })
                 .sum::<usize>()
                 + if occurrence_end.is_none() {
-                    entry_guard.as_ref().map_or(0, |guard| {
+                    let guard_transfers = entry_guard.as_ref().map_or(0, |guard| {
                         guard.definite_call_transfers(&facts.values, operation, result_local)
-                    })
+                    });
+                    // Scalar completion retains an entire exit computation,
+                    // not an operation dependency. Count its selected path
+                    // once, using the same query as operands and guards.
+                    guard_transfers
+                        + match terminator {
+                            CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
+                                completion,
+                            } => completion.definite_call_transfers(
+                                &facts.values,
+                                &facts.flow.guarded_exits,
+                                state.symbol,
+                                operation,
+                                result_local,
+                            ),
+                            _ => 0,
+                        }
                 } else {
                     0
                 }

@@ -215,14 +215,10 @@ impl ReferenceCallEffects {
                 return Err(fail());
             }
             let roots = match &actual.root {
-                ReferenceOrigin::Alternatives { place, paths } => paths
+                ReferenceOrigin::Alternatives { origins, .. } => origins
                     .iter()
-                    .map(|path| {
-                        ReferenceOrigin::IngressLeaf(ReferenceOriginIdentity {
-                            place: *place,
-                            path: path.clone(),
-                        })
-                    })
+                    .cloned()
+                    .map(ReferenceOrigin::IngressLeaf)
                     .collect::<Vec<_>>(),
                 root => vec![root.clone()],
             };

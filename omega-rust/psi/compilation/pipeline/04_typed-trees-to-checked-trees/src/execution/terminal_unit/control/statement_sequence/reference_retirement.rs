@@ -272,7 +272,7 @@ impl Retirement<'_> {
                 // receiving binding, not the root-only call release roster.
                 // This is disposal order, not new reborrow authority.
                 return call.structural_result().is_some_and(|result| {
-                    local_carrier_loans(
+                    carrier_loans(
                         self.facts,
                         self.machine,
                         self.state.symbol,
@@ -292,7 +292,7 @@ impl Retirement<'_> {
                 checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { result, .. },
             ) = operation
             {
-                if !local_carrier_loans(
+                if !carrier_loans(
                     self.facts,
                     self.machine,
                     self.state.symbol,
@@ -492,6 +492,34 @@ impl Retirement<'_> {
         self.holder_retired_following(handle, &mut Vec::new())
     }
 
+    /// Calls can publish receiving loans through results or stored effects.
+    /// The supplying occurrence, not the syntactic placement of the call,
+    /// identifies which receivers must finish before its backing may retire.
+    fn call_receivers_retired(
+        &self,
+        supplier: arena::Handle<BorrowLoanFact>,
+        statement_index: u32,
+        structural_result: bool,
+        active: &mut Vec<arena::Handle<BorrowLoanFact>>,
+    ) -> bool {
+        if statement_index >= self.statement_index {
+            return false;
+        }
+        let mut found_receiver = false;
+        let retired = self
+            .transported_loans
+            .iter()
+            .filter(|(_, candidate)| *candidate == supplier)
+            .filter(|(receiver, _)| {
+                self.facts.borrow.loans.get(*receiver).statement_index == statement_index as usize
+            })
+            .all(|(receiver, _)| {
+                found_receiver = true;
+                self.holder_retired_following(*receiver, active)
+            });
+        retired && (!structural_result || found_receiver)
+    }
+
     fn holder_retired_following(
         &self,
         handle: arena::Handle<BorrowLoanFact>,
@@ -651,22 +679,6 @@ impl Retirement<'_> {
                     statement_index,
                     structural_result,
                 } => {
-                    if statement_index >= self.statement_index {
-                        return false;
-                    }
-                    let mut found_receiver = false;
-                    let retired = self
-                        .transported_loans
-                        .iter()
-                        .filter(|(_, supplier)| *supplier == handle)
-                        .filter(|(receiver, _)| {
-                            self.facts.borrow.loans.get(*receiver).statement_index
-                                == statement_index as usize
-                        })
-                        .all(|(receiver, _)| {
-                            found_receiver = true;
-                            self.holder_retired_following(*receiver, active)
-                        });
                     // A structural result may carry the consumed descriptor
                     // onward, so only the producer's complete receiving
                     // occurrences close this holder. A call returning none
@@ -674,7 +686,12 @@ impl Retirement<'_> {
                     // occurrence it still publishes (a stored reference
                     // effect) must retire, and no receiver means the call
                     // itself retired the holder.
-                    if !retired || (structural_result && !found_receiver) {
+                    if !self.call_receivers_retired(
+                        handle,
+                        statement_index,
+                        structural_result,
+                        active,
+                    ) {
                         return false;
                     }
                     continue;
@@ -1046,7 +1063,10 @@ pub(super) fn local_reference_loans(
     result: &CheckedUnitStructuralResultBindingPlan,
     results: &Results,
 ) -> Option<arena::HandleSpan<BorrowLoanFact>> {
-    let loans = local_carrier_loans(facts, machine, state, result, results)?;
+    let loans = carrier_loans(facts, machine, state, result, results)?;
+    if loans.is_empty() {
+        return None;
+    }
     facts
         .borrow
         .loan_group(loans)?
@@ -1054,10 +1074,11 @@ pub(super) fn local_reference_loans(
         .then_some(loans)
 }
 
-/// Retained occurrences of this exact local establishment, whether stored
+/// Retained occurrences of this exact storage establishment, whether stored
 /// at the root or beneath record/array paths. The path-specific retirement
-/// owner still decides how each descriptor ends.
-fn local_carrier_loans(
+/// owner still decides how each descriptor ends. An empty proven roster is
+/// distinct from a missing or ambiguous producer relationship.
+fn carrier_loans(
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -1065,9 +1086,13 @@ fn local_carrier_loans(
     results: &Results,
 ) -> Option<arena::HandleSpan<BorrowLoanFact>> {
     let mut roots = results.iter().filter(|(binding, _)| binding == result);
-    let (_, facts::PlaceRoot::Symbol(owner)) = roots.next()? else {
+    let (_, owner) = roots.next()?;
+    if !matches!(
+        owner,
+        facts::PlaceRoot::Symbol(_) | facts::PlaceRoot::Expression(_)
+    ) {
         return None;
-    };
+    }
     if roots.next().is_some() {
         return None;
     }
@@ -1081,8 +1106,7 @@ fn local_carrier_loans(
     if states.next().is_some() {
         return None;
     }
-    let loans = facts
+    facts
         .borrow
-        .local_loans(borrowing, *owner, result.statement_index as usize)?;
-    (!loans.is_empty()).then_some(loans)
+        .storage_loans(borrowing, *owner, result.statement_index as usize)
 }

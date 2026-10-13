@@ -226,6 +226,15 @@ pub(crate) fn build_dynamic_slot_plans(
         else {
             continue;
         };
+        let Ok(result_reference_sources) =
+            validation::reference_result_custody::declared_return_sources(
+                program,
+                &slot.parameters,
+                slot.return_type,
+            )
+        else {
+            continue;
+        };
         plans.push(checked_trees::CheckedDynamicSlotPlan {
             slot: slot.symbol,
             interface_identity: slot.interface_identity.clone(),
@@ -238,6 +247,7 @@ pub(crate) fn build_dynamic_slot_plans(
             scalar_parameters,
             result,
             result_claim_paths,
+            result_reference_sources,
         });
     }
     plans

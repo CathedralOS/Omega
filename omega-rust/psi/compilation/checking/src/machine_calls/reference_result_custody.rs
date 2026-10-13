@@ -29,7 +29,10 @@ pub use stored_carrier_sources::{StoredCarrierSource, stored_carrier_sources};
 mod call_reception;
 pub use call_reception::{RecordCallReception, record_call_reception};
 mod captured_returns;
+mod declared_returns;
+pub use declared_returns::returned_sources as declared_return_sources;
 mod origin_paths;
+pub use captured_returns::call_sources as call_return_sources;
 pub use captured_returns::returned_sources as captured_return_sources;
 
 // An owned formal has a compact type DAG but its returned-origin roster is
@@ -2160,7 +2163,7 @@ fn active_record_loans(
     )
 }
 
-/// The call's reference-record destination state + its returned leaf
+/// The call's reference-record destination parameters and its returned leaf
 /// sources — `None` when the call does not return a reference record.
 /// Callers then require each source's complete active leaf group, filtered per site.
 fn reference_record_call_sources<'program>(
@@ -2168,15 +2171,16 @@ fn reference_record_call_sources<'program>(
     facts: &CheckFacts,
     call: &typed_trees::expression::TableCallExpression,
 ) -> Option<(
-    &'program typed_trees::state::State,
+    &'program [typed_trees::signature::StateParameter],
     Vec<checked_trees::CheckedReturnedReferencePlan>,
 )> {
-    let destination = program.state_by_symbol(call.target_symbol)?;
-    if !is_reference_record(program, destination.return_type) {
+    let return_type = crate::call_target_return_type(program, call.target_symbol)?;
+    let parameters = crate::call_target_parameters(program, call.target_symbol)?;
+    if !is_reference_record(program, return_type) {
         return None;
     }
-    let sources = captured_returns::returned_sources(program, facts, destination)?;
-    Some((destination, sources))
+    let sources = captured_returns::call_sources(program, facts, call.target_symbol)?;
+    Some((parameters, sources))
 }
 
 /// Returned leaves not installed in a local stay in the call's temporary
@@ -2196,7 +2200,7 @@ pub fn transient_call_record_loans(
     let Some(call) = program.expression_table.call_node(expression) else {
         return false;
     };
-    let Some((destination, sources)) = reference_record_call_sources(program, facts, call) else {
+    let Some((parameters, sources)) = reference_record_call_sources(program, facts, call) else {
         return false;
     };
     let Some(flow) = state_flow(facts, machine, state.symbol) else {
@@ -2208,7 +2212,7 @@ pub fn transient_call_record_loans(
     let Some(occurrence) = calls.iter().find(|occurrence| {
         occurrence.authored_expression == expression
             && occurrence.statement_index == statement_index as usize
-            && occurrence.target_symbol == destination.symbol
+            && occurrence.target_symbol == call.target_symbol
     }) else {
         return false;
     };
@@ -2222,8 +2226,7 @@ pub fn transient_call_record_loans(
             .filter(|source| residual_paths.contains(&source.path))
             .all(|source| {
                 let parameter_index = source.source.parameter_index;
-                let Some(parameter) = program
-                    .state_parameters(destination)
+                let Some(parameter) = parameters
                     .iter()
                     .filter(|parameter| is_mutable_structural_parameter(program, parameter))
                     .nth(parameter_index as usize)
@@ -2644,17 +2647,15 @@ pub fn result_loans(
             .statement_at(state, call.statement_index)
             .and_then(typed_trees::statement::StatementNode::as_local_data)
             .is_some_and(|local| local.initial_value == call.authored_expression)
-        && program
-            .state_by_symbol(call.target_symbol)
-            .is_some_and(|target| {
-                crate::reference_shell(program, target.return_type).is_some_and(|shell| {
-                    matches!(
-                        shell.access,
-                        language_semantics::ReferenceAccess::Shared
-                            | language_semantics::ReferenceAccess::Mutable
-                    )
-                })
+        && crate::call_target_return_type(program, call.target_symbol).is_some_and(|return_type| {
+            crate::reference_shell(program, return_type).is_some_and(|shell| {
+                matches!(
+                    shell.access,
+                    language_semantics::ReferenceAccess::Shared
+                        | language_semantics::ReferenceAccess::Mutable
+                )
             })
+        })
     {
         return Some(arena::HandleSpan::empty());
     }
@@ -2684,8 +2685,8 @@ pub fn result_loans(
     {
         return None;
     }
-    let destination = program.state_by_symbol(call.target_symbol)?;
-    let shell = crate::reference_shell(program, destination.return_type)?;
+    let return_type = crate::call_target_return_type(program, call.target_symbol)?;
+    let shell = crate::reference_shell(program, return_type)?;
     let expected_kind = match shell.access {
         language_semantics::ReferenceAccess::Shared => checked_trees::BorrowAccessKind::Read,
         language_semantics::ReferenceAccess::Mutable => checked_trees::BorrowAccessKind::Mutable,

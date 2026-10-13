@@ -158,6 +158,14 @@ fn validate_dynamic_catalog(
             return Err(invalid());
         }
         for (ordinal, slot) in interface.slots.iter().enumerate() {
+            terminal_semantics::validate_dynamic_reference_regions(types.values().copied(), slot)
+                .map_err(
+                |reason| OptimizationUnitValidationError::DynamicReferenceContract {
+                    interface: interface.id,
+                    slot: slot.slot,
+                    reason,
+                },
+            )?;
             if usize::try_from(slot.slot).ok() != Some(ordinal)
                 || slot.declaring_trait_identity == terminal_psi::TerminalIdentityIndex::ABSENT
                 || slot.requirement_identity == terminal_psi::TerminalIdentityIndex::ABSENT
@@ -184,10 +192,6 @@ fn validate_dynamic_catalog(
                 }
                 terminal_psi::BoundaryMachineResult::Structural(result) => {
                     if !types.contains_key(&result.structural_type)
-                        || terminal_psi::structural_type_has_borrowed_storage_by(
-                            |id| types.get(&id).copied(),
-                            result.structural_type,
-                        )
                         || match result.multiplicity {
                             terminal_psi::StructuralMultiplicity::Unrestricted => {
                                 !slot.result_claim_paths.is_empty()
@@ -310,10 +314,14 @@ fn validate_dynamic_catalog(
                     slot.result.scalar() == Some(result.scalar_type)
                 }
                 abstract_operations::AbstractFunctionResult::Structural(result) => {
-                    result.reference_sources.is_empty()
-                        && slot.result.matches_machine_result(
-                            &terminal_psi::TerminalMachineResult::Structural(result.clone()),
-                        )
+                    terminal_semantics::reference_result_refines_regions(
+                        types.values().copied(),
+                        &function.structural_parameters,
+                        result,
+                        &slot.result_reference_regions,
+                    ) && slot.result.matches_machine_result(
+                        &terminal_psi::TerminalMachineResult::Structural(result.clone()),
+                    )
                 }
             } && terminal_semantics::result_claim_paths_match_returns(
                 &slot.result_claim_paths,

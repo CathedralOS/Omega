@@ -20,6 +20,59 @@ use symbols::SymbolKind;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TableAssignment};
 
+/// Captured replacement of one storage subtree. Unselected siblings belong to
+/// the inventory at installation, not the inventory before RHS evaluation.
+pub(in crate::machine_calls::calls::write_frames) struct AssignmentOrigins {
+    local: StoredLocalOrigins,
+    segments: Vec<PlaceSegment>,
+    forget_overlapping_moves: bool,
+    /// An untracked indexed carrier still has declared sibling inventory.
+    /// Missing runtime origins cannot turn those siblings into absent leaves.
+    declared_inventory: Option<StoredLocalOrigins>,
+}
+
+impl AssignmentOrigins {
+    pub(in crate::machine_calls::calls::write_frames) fn install(
+        self,
+        inference: &mut FrameInference,
+        stored: &mut Vec<StoredLocalOrigins>,
+    ) {
+        let mut replacement = self.local;
+        if let Some(previous) = stored
+            .iter()
+            .find(|local| local.local_symbol == replacement.local_symbol)
+            .or(self.declared_inventory.as_ref())
+        {
+            replacement.references.extend(
+                previous
+                    .references
+                    .iter()
+                    .filter(|leaf| !prefix_matches(&self.segments, &leaf.local_segments))
+                    .cloned(),
+            );
+            replacement.cases.extend(
+                previous
+                    .cases
+                    .iter()
+                    .filter(|case| !prefix_matches(&self.segments, case))
+                    .cloned(),
+            );
+            replacement.moves.extend(
+                previous
+                    .moves
+                    .iter()
+                    .filter(|moved| {
+                        !prefix_matches(&self.segments, &moved.local_segments)
+                            && !(self.forget_overlapping_moves
+                                && prefix_matches(&moved.local_segments, &self.segments))
+                    })
+                    .cloned(),
+            );
+        }
+        super::record_replacement_local(inference, stored, replacement);
+    }
+}
+
 /// Ordinary and cyclic effect walks use the same assignment-origin transfer.
 /// No replacement means the existing frontier survives; a failed required
 /// replacement must make the effect walk opaque.
@@ -36,7 +89,7 @@ pub(in crate::machine_calls::calls::write_frames) fn assignment_origins(
     inference: &mut FrameInference,
     include_shared: bool,
     replaces_alias: bool,
-) -> Option<Option<StoredLocalOrigins>> {
+) -> Option<Option<AssignmentOrigins>> {
     let replaces_stored = (!replaces_alias
         && (super::assignment_replaces_case_binding(program, assignment, stored, aliases)
             || (include_shared
@@ -64,10 +117,9 @@ pub(in crate::machine_calls::calls::write_frames) fn assignment_origins(
     .map(Some)
 }
 
-/// The complete stored record for the assignment target's root binding.
-/// Returns the spliced record so the caller can expand the write through the
-/// pre-state before installing the post-state. Any failure leaves the walk
-/// opaque rather than keeping stale declared rows beside observed ones.
+/// Capture the destination subtree and its new origins against the entry
+/// inventory. Installation splices only that subtree after RHS effects, so an
+/// RHS write to a sibling survives and cannot redirect the captured store.
 #[allow(clippy::too_many_arguments)]
 fn assigned_stored_origins(
     program: &dyn crate::CheckingInput,
@@ -80,7 +132,7 @@ fn assigned_stored_origins(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     include_shared: bool,
-) -> Option<StoredLocalOrigins> {
+) -> Option<AssignmentOrigins> {
     let source = binding_source(program, assignment.target, aliases)?;
     if !source.root.is_valid() || !source.builtin_coordinates {
         return None;
@@ -142,15 +194,19 @@ fn assigned_stored_origins(
             storage_type,
             include_shared,
         )?;
-        let mut replaced = established.cloned().unwrap_or_else(|| inventory.clone());
+        let declared_inventory = established.is_none().then(|| inventory.clone());
         // Frame paths deliberately forget element identity. Forget evidence for
         // every element the same path may name. The full type inventory is
         // necessary: the new value may introduce a reference-bearing case
         // absent from the overwritten value's selected-case rows.
         let collection = &source.segments[..collection_depth];
-        replaced
-            .references
-            .retain(|leaf| !prefix_matches(collection, &leaf.local_segments));
+        let mut replaced = StoredLocalOrigins {
+            local_symbol: source.root,
+            references: Vec::new(),
+            cases: Vec::new(),
+            moves: Vec::new(),
+            symbolic: false,
+        };
         for mut leaf in inventory
             .references
             .into_iter()
@@ -159,15 +215,12 @@ fn assigned_stored_origins(
             leaf.origin = None;
             replaced.references.push(leaf);
         }
-        replaced
-            .cases
-            .retain(|case| !prefix_matches(collection, case));
-        replaced.moves.retain(|moved| {
-            !prefix_matches(collection, &moved.local_segments)
-                && !prefix_matches(&moved.local_segments, collection)
+        return Some(AssignmentOrigins {
+            local: replaced,
+            segments: collection.to_vec(),
+            forget_overlapping_moves: true,
+            declared_inventory,
         });
-        replaced.symbolic = false;
-        return Some(replaced);
     }
     // A move row owns its whole subtree. A replacement strictly inside that
     // subtree cannot split the transport it describes. Collection writes splice
@@ -215,25 +268,13 @@ fn assigned_stored_origins(
             )
         },
     )?;
-    let mut replaced = established.cloned().unwrap_or_else(|| StoredLocalOrigins {
+    let mut replaced = StoredLocalOrigins {
         local_symbol: source.root,
         references: Vec::new(),
         cases: Vec::new(),
         moves: Vec::new(),
         symbolic: false,
-    });
-    // The replacement owns its destination subtree. Declared alternatives
-    // beneath it describe the overwritten value, never the new one.
-    replaced
-        .references
-        .retain(|leaf| !prefix_matches(&source.segments, &leaf.local_segments));
-    replaced
-        .cases
-        .retain(|case| !prefix_matches(&source.segments, case));
-    replaced
-        .moves
-        .retain(|moved| !prefix_matches(&source.segments, &moved.local_segments));
-    replaced.symbolic = false;
+    };
     let (target_path, precision) =
         coordinate_storage_path(program, program.symbols.name(source.root), &source.segments);
     for leaf in leaves.references {
@@ -272,5 +313,10 @@ fn assigned_stored_origins(
         moved.local_segments = segments;
         replaced.moves.push(moved);
     }
-    Some(replaced)
+    Some(AssignmentOrigins {
+        local: replaced,
+        segments: source.segments,
+        forget_overlapping_moves: false,
+        declared_inventory: None,
+    })
 }

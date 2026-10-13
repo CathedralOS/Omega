@@ -146,24 +146,24 @@ pub(super) fn access_reference_custody(
                 if further_crossing {
                     dependencies.push(carrier.root.clone());
                     let candidates = match &carrier.root {
-                        ReferenceOrigin::Primitive(place) => vec![(*place, Vec::new())],
+                        ReferenceOrigin::Primitive(place) => vec![super::ReferenceOriginIdentity {
+                            place: *place,
+                            path: Vec::new(),
+                            extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
+                        }],
                         ReferenceOrigin::IngressLeaf(identity) => {
-                            vec![(identity.place, identity.path.clone())]
+                            vec![identity.clone()]
                         }
-                        ReferenceOrigin::Alternatives { place, paths } => {
-                            paths.iter().map(|path| (*place, path.clone())).collect()
-                        }
+                        ReferenceOrigin::Alternatives { origins, .. } => origins.clone(),
                     };
-                    for (place, path) in candidates {
+                    for origin in candidates {
                         // An ingress leaf can name an opaque permission rather
                         // than concrete storage. Only an exact referent contract
                         // may become the cursor for another stored descriptor.
                         let cursor = super::storage_cursor(
                             function,
                             structural_types,
-                            super::ReferenceOriginIdentity { place, path }
-                                .exact_identity()
-                                .ok_or_else(invalid_opaque)?,
+                            origin.exact_identity().ok_or_else(invalid_opaque)?,
                             referent,
                         )
                         .ok_or_else(invalid_opaque)?;
@@ -302,28 +302,37 @@ pub(super) fn descriptor_storage_available(
         else {
             return false;
         };
-        let conflicts = |root_place, root_path: &[terminal_psi::ReferenceOriginProjection]| {
-            structural_source_contract(function, root_place).and_then(|signature| {
-                terminal_semantics::reference_origin_type(
-                    structural_types.values().copied(),
-                    signature.structural_type,
-                    root_path,
-                )
-            }) == Some(referent)
-                && origins_overlap(
-                    &ReferenceOrigin::IngressLeaf(super::ReferenceOriginIdentity {
-                        place: root_place,
-                        path: root_path.to_vec(),
-                    }),
-                    &storage,
-                )
-        };
+        let conflicts =
+            |root_place, root_path: &[terminal_psi::ReferenceOriginProjection], extent| {
+                (extent == semantic_vocabulary::ReferenceOriginExtent::WithinRegion
+                    || structural_source_contract(function, root_place).and_then(|signature| {
+                        terminal_semantics::reference_origin_type(
+                            structural_types.values().copied(),
+                            signature.structural_type,
+                            root_path,
+                        )
+                    }) == Some(referent))
+                    && origins_overlap(
+                        &ReferenceOrigin::IngressLeaf(super::ReferenceOriginIdentity {
+                            place: root_place,
+                            path: root_path.to_vec(),
+                            extent,
+                        }),
+                        &storage,
+                    )
+            };
         !match &loan.root {
-            ReferenceOrigin::Primitive(place) => conflicts(*place, &[]),
-            ReferenceOrigin::IngressLeaf(identity) => conflicts(identity.place, &identity.path),
-            ReferenceOrigin::Alternatives { place, paths } => {
-                paths.iter().any(|path| conflicts(*place, path))
+            ReferenceOrigin::Primitive(place) => conflicts(
+                *place,
+                &[],
+                semantic_vocabulary::ReferenceOriginExtent::Projected,
+            ),
+            ReferenceOrigin::IngressLeaf(identity) => {
+                conflicts(identity.place, &identity.path, identity.extent)
             }
+            ReferenceOrigin::Alternatives { origins, .. } => origins
+                .iter()
+                .any(|origin| conflicts(origin.place, &origin.path, origin.extent)),
         }
     })
 }

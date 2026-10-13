@@ -119,6 +119,7 @@ pub(crate) fn validate_function(
         function,
         functions,
         structural_types,
+        &unit.dynamic_dispatch,
     )?;
     byte_concatenation::validate(
         function,

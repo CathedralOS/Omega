@@ -266,8 +266,13 @@ pub fn prepare_typed_trees(
     // of the caller's exact application. This is the ordinary dependency order,
     // not a separate path for nested Binding carriers.
     validation::resolve_dynamic_call_targets(&mut program)?;
+    let signature_type_start = program.type_reference_table.type_reference_count();
     crate::monomorphization::instantiate_dynamic_slots(&mut program)?;
     crate::monomorphization::instantiate_requirement_applications(&mut program)?;
+    // The public signatures above own newly instantiated carrier occurrences.
+    // Complete their field views just as for source types, without revisiting
+    // the unchanged source roster or electing a private realization's fields.
+    data_applications::elaborate_new_types(&mut program, signature_type_start)?;
     Ok((
         program.into(),
         TypedPreparation {

@@ -60,27 +60,18 @@ pub(crate) fn filter_reassigned_borrow_loans(
     source: arena::HandleSpan<FlowConstraintRef>,
     borrow: &BorrowFacts,
     program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
     reassigned_place: Option<CanonicalPlace>,
     statement_index: usize,
     statement: &typed_trees::statement::StatementNode,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> arena::HandleSpan<FlowConstraintRef> {
-    if matches!(statement, typed_trees::statement::StatementNode::Call(_)) {
-        let machine = program.machines().iter().find(|machine| {
-            program.machine_states(machine).iter().any(|state| {
-                program
-                    .statement_table
-                    .statement_at(state, statement_index)
-                    .is_some_and(|candidate| std::ptr::eq(candidate, statement))
-            })
-        });
-        let effects = machine.and_then(|machine| {
-            call_frames.and_then(|frames| frames.stored_reference_effects(machine, statement))
-        });
-        let Some(effects) = effects else {
-            return source;
-        };
-        return reference_spans::filter_constraint_refs(constraint_refs, source, |constraint| {
+    // Completed calls replace slots regardless of their result type or where
+    // the invocation appears. Then apply any enclosing assignment's store.
+    let source = if let Some(effects) =
+        call_frames.and_then(|frames| frames.stored_reference_effects(machine, statement))
+    {
+        reference_spans::filter_constraint_refs(constraint_refs, source, |constraint| {
             let FlowConstraintKind::BorrowLoan { loan } = constraint.kind else {
                 return true;
             };
@@ -88,7 +79,8 @@ pub(crate) fn filter_reassigned_borrow_loans(
             let replaced = active.statement_index < statement_index
                 && effects.iter().any(|effect| {
                     !effect.retains_incoming
-                        && active.owner_symbol == effect.destination.local_symbol
+                        && active.storage_owner
+                            == facts::PlaceRoot::Symbol(effect.destination.local_symbol)
                         && borrow_owner_path_overlaps_place(
                             program,
                             borrow.loan_owner_path(active),
@@ -103,8 +95,10 @@ pub(crate) fn filter_reassigned_borrow_loans(
                 });
             }
             !replaced
-        });
-    }
+        })
+    } else {
+        source
+    };
     let Some(place) = reassigned_place else {
         return source;
     };

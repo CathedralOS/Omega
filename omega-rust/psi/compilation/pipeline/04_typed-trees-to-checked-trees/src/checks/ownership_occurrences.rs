@@ -6,12 +6,20 @@ use validation::CanonicalPlace;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, MatchPattern};
 use typed_trees::statement::StatementNode;
 
-/// Distinct arms of the same selection cannot both execute. An occurrence
-/// after their join has no branch token and may follow any of their loans.
+/// One binary decision in an expression. Match patterns carry the failed
+/// prefix, not their eventual arm: a later pattern cannot execute after an
+/// earlier arm succeeds. An occurrence after the join has no branch token.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) struct EvaluationBranch {
     expression: ExpressionHandle,
-    alternative: usize,
+    decision: usize,
+    selected: bool,
+}
+
+impl EvaluationBranch {
+    pub(super) fn same_decision(self, other: Self) -> bool {
+        self.expression == other.expression && self.decision == other.decision
+    }
 }
 
 pub(super) struct StatementOccurrence {
@@ -25,9 +33,9 @@ pub(super) struct StatementOccurrence {
 
 pub(super) fn routes_compatible(left: &[EvaluationBranch], right: &[EvaluationBranch]) -> bool {
     left.iter().all(|left| {
-        right.iter().all(|right| {
-            left.expression != right.expression || left.alternative == right.alternative
-        })
+        right
+            .iter()
+            .all(|right| !left.same_decision(*right) || left.selected == right.selected)
     })
 }
 
@@ -111,8 +119,8 @@ pub(super) fn statement_steps_at_evaluation(
         StatementNode::LocalData(local) => order.expression(local.initial_value, false),
         StatementNode::Expression(expression) => order.expression(*expression, false),
         StatementNode::Assignment(assignment) => {
-            order.expression(assignment.value, false);
             order.selectors(assignment.target, false);
+            order.expression(assignment.value, false);
         }
         StatementNode::Call(call) => {
             if let Some(receiver) = crate::flow::canonical_receiver_place_for_call_site(
@@ -142,7 +150,11 @@ pub(super) fn statement_steps_at_evaluation(
         }
         StatementNode::AssemblyFact(fact) => order.expression(fact.expression, false),
         StatementNode::Transition(transition) => {
-            if let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
+            if !matches!(
+                evaluation,
+                Some(checked_trees::FlowPermissionEvaluation::TransitionTarget(_))
+            ) && let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard
+            {
                 order.expression(guard, false);
             }
             for (alternative, target) in [transition.target, transition.continuation]
@@ -152,14 +164,22 @@ pub(super) fn statement_steps_at_evaluation(
                 if !target.is_valid() {
                     continue;
                 }
+                if evaluation.is_some_and(|evaluation| {
+                    evaluation != checked_trees::FlowPermissionEvaluation::TransitionTarget(target)
+                }) {
+                    continue;
+                }
                 let conditional = evaluation
                     != Some(checked_trees::FlowPermissionEvaluation::TransitionTarget(
                         target,
                     ));
-                order.route.push(EvaluationBranch {
-                    expression: ExpressionHandle::invalid(),
-                    alternative,
-                });
+                if conditional {
+                    order.route.push(EvaluationBranch {
+                        expression: ExpressionHandle::invalid(),
+                        decision: 0,
+                        selected: alternative == 0,
+                    });
+                }
                 match program.statement_table.transition_target(target) {
                     typed_trees::statement::TransitionTargetNode::Value(value) => {
                         order.expression(*value, conditional)
@@ -178,7 +198,9 @@ pub(super) fn statement_steps_at_evaluation(
                     }
                     _ => {}
                 }
-                order.route.pop();
+                if conditional {
+                    order.route.pop();
+                }
             }
         }
     }
@@ -351,21 +373,33 @@ impl StatementOrder<'_> {
             }
             ExpressionNode::Match(dispatch) => {
                 self.expression(dispatch.subject, conditional);
-                for (alternative, (_, arm)) in
-                    super::multiplicity::reachable_arms(self.program, dispatch.arms)
-                        .into_iter()
-                        .enumerate()
-                {
+                let prefix = self.route.len();
+                let arms = super::multiplicity::reachable_arms(self.program, dispatch.arms);
+                for (decision, (_, arm)) in arms.iter().enumerate() {
                     if let MatchPattern::Value(pattern) = arm.pattern {
-                        self.expression(pattern, true);
+                        self.expression(pattern, conditional || decision != 0);
                     }
-                    self.route.push(EvaluationBranch {
-                        expression,
-                        alternative,
-                    });
-                    self.expression(arm.value, true);
-                    self.route.pop();
+                    // Exhaustiveness is checked before ownership. The last
+                    // reachable arm is the remaining route, not a new branch
+                    // with a fabricated unmatched successor.
+                    if decision + 1 < arms.len() {
+                        self.route.push(EvaluationBranch {
+                            expression,
+                            decision,
+                            selected: true,
+                        });
+                        self.expression(arm.value, true);
+                        self.route.pop();
+                        self.route.push(EvaluationBranch {
+                            expression,
+                            decision,
+                            selected: false,
+                        });
+                    } else {
+                        self.expression(arm.value, conditional || decision != 0);
+                    }
                 }
+                self.route.truncate(prefix);
             }
             ExpressionNode::Binary(binary) => {
                 self.expression(binary.left, conditional);
@@ -385,7 +419,17 @@ impl StatementOrder<'_> {
                         &[],
                     );
                     if left != Some(!evaluate_when) {
+                        if left.is_none() {
+                            self.route.push(EvaluationBranch {
+                                expression,
+                                decision: 0,
+                                selected: evaluate_when,
+                            });
+                        }
                         self.expression(binary.right, conditional || left.is_none());
+                        if left.is_none() {
+                            self.route.pop();
+                        }
                     }
                 } else {
                     self.expression(binary.right, conditional);

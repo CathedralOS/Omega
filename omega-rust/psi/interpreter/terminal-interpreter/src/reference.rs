@@ -76,6 +76,7 @@ pub(crate) struct ReferenceBacking {
     aggregate_view: Option<AggregateViewRegion>,
     primitive_storage: Option<crate::primitive_storage::PrimitiveStorage>,
     suffix: Vec<terminal_psi::ReferenceOriginProjection>,
+    extent: semantic_vocabulary::ReferenceOriginExtent,
     element_view: Option<crate::element_views::ElementView>,
     access: StructuralAccess,
 }
@@ -1242,7 +1243,9 @@ impl TerminalExecution<'_> {
                         source,
                     )
                     .map_err(|reason| TerminalInterpretError::UnsupportedSemanticVariant(reason))?;
-                    if binding.endpoint != referent_type {
+                    if binding.extent == semantic_vocabulary::ReferenceOriginExtent::Projected
+                        && binding.endpoint != referent_type
+                    {
                         return Err(malformed());
                     }
                     let path = binding.source.path.as_slice();
@@ -1265,11 +1268,14 @@ impl TerminalExecution<'_> {
                         _ => None,
                     };
                     let expected = projected.value;
-                    if terminal_semantics::reference_origin_type(
+                    let endpoint = terminal_semantics::reference_origin_type(
                         self.program.structural_types().values(),
                         view.map_or(expected.structural_type, |view| view.structural_type),
                         binding.suffix,
-                    ) != Some(referent_type)
+                    );
+                    if endpoint.is_none()
+                        || (binding.extent == semantic_vocabulary::ReferenceOriginExtent::Projected
+                            && endpoint != Some(referent_type))
                         || !expected.qualifications.is_empty()
                     {
                         return Err(malformed());
@@ -1287,7 +1293,9 @@ impl TerminalExecution<'_> {
                             .flatten()
                     });
                     backings.push(ReferenceBacking {
-                        element_view: if !binding.suffix.is_empty()
+                        element_view: if (!binding.suffix.is_empty()
+                            || binding.extent
+                                == semantic_vocabulary::ReferenceOriginExtent::WithinRegion)
                             && matches!(
                                 self.program
                                     .structural_types()
@@ -1303,6 +1311,7 @@ impl TerminalExecution<'_> {
                         aggregate_view: view,
                         primitive_storage,
                         suffix: binding.suffix.to_vec(),
+                        extent: binding.extent,
                         access: source.access,
                     });
                 }

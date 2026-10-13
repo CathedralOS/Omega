@@ -9,9 +9,11 @@
 
 use crate::{
     CheckedByteSequenceValue, CheckedByteSequenceValuePlan, CheckedCallScalarArgument,
-    CheckedElementViewRegion, CheckedScalarCaseConstruction, CheckedScalarComputationHandle,
+    CheckedConditionalReturnArm, CheckedElementViewRegion, CheckedGuardedExitPlans,
+    CheckedScalarBranchDestination, CheckedScalarCaseConstruction, CheckedScalarComputationHandle,
     CheckedScalarComputationKind, CheckedScalarComputationStructuralArgument,
-    CheckedScalarDispatchPattern, CheckedScalarStoreValue, CheckedStoreValue,
+    CheckedScalarDispatchPattern, CheckedScalarExpressionRole, CheckedScalarReturnPlan,
+    CheckedScalarStateTerminator, CheckedScalarStoreValue, CheckedStoreValue,
     CheckedStructuralAccess, CheckedStructuralRecordFieldValue, CheckedStructuralValueCall,
     CheckedStructuralValueHandle, CheckedStructuralValueKind, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
@@ -110,7 +112,165 @@ struct CallTransfers<'facts> {
     expression: typed_trees::expression::ExpressionHandle,
 }
 
+impl CheckedScalarReturnPlan {
+    /// A scalar exit evaluates its retained guard and selected returned value.
+    /// Those computations can consume structural owners even though the
+    /// completed result is scalar. A returned binding was evaluated earlier
+    /// by the ordinary operation sequence and contributes no second transfer.
+    pub fn definite_call_transfers(
+        &self,
+        values: &CheckedValueFacts,
+        exits: &CheckedGuardedExitPlans,
+        state: SymbolHandle,
+        producer: &CheckedUnitEffectOperationPlan,
+        local: SymbolHandle,
+    ) -> usize {
+        let Self::Exits(completion) = self else {
+            return 0;
+        };
+        let Some(transfers) = CallTransfers::for_producer(values, producer, local) else {
+            return 0;
+        };
+        transfers.scalar_exits(state, exits, &completion.terminator)
+    }
+}
+
+impl CheckedConditionalReturnArm {
+    /// The arm's computations and invocation share the same transfer query as
+    /// ordinary statements. Dependency enumeration alone omits scalar roots
+    /// and flattens selective computations into apparently unconditional calls.
+    pub fn definite_call_transfers(
+        &self,
+        values: &CheckedValueFacts,
+        state: SymbolHandle,
+        producer: &CheckedUnitEffectOperationPlan,
+        local: SymbolHandle,
+    ) -> usize {
+        let Some(transfers) = CallTransfers::for_producer(values, producer, local) else {
+            return 0;
+        };
+        match self {
+            Self::Scalar {
+                statement_ordinal, ..
+            } => transfers.scalar_at(
+                state,
+                *statement_ordinal,
+                CheckedScalarExpressionRole::Return,
+            ),
+            Self::Structural(operation) => transfers.operation(operation),
+            Self::Call {
+                operands,
+                operation,
+            } => {
+                operands
+                    .iter()
+                    .map(|operand| transfers.operation(operand))
+                    .sum::<usize>()
+                    + transfers.operation(operation)
+            }
+            Self::Crash { .. } | Self::Unit { .. } => 0,
+        }
+    }
+}
+
 impl<'facts> CallTransfers<'facts> {
+    fn scalar_at(
+        &self,
+        state: SymbolHandle,
+        statement: u32,
+        role: CheckedScalarExpressionRole,
+    ) -> usize {
+        self.values
+            .scalar_computations
+            .root_at(state, statement, role)
+            .map_or(0, |root| self.computation(root.root))
+    }
+
+    fn scalar_destination(
+        &self,
+        state: SymbolHandle,
+        destination: &CheckedScalarBranchDestination,
+    ) -> Option<usize> {
+        match destination {
+            CheckedScalarBranchDestination::Return {
+                statement_ordinal,
+                is_continuation,
+            } => Some(self.scalar_at(
+                state,
+                *statement_ordinal,
+                if *is_continuation {
+                    CheckedScalarExpressionRole::ContinuationReturn
+                } else {
+                    CheckedScalarExpressionRole::Return
+                },
+            )),
+            // An edge needs its own transfer accounting; a scalar completion
+            // cannot claim that a jump consumed this owner. Abnormal exits
+            // have no normal custody successor and are absent from the meet.
+            CheckedScalarBranchDestination::Jump(_) => Some(0),
+            CheckedScalarBranchDestination::Crash { .. } => None,
+        }
+    }
+
+    fn scalar_exits(
+        &self,
+        state: SymbolHandle,
+        exits: &CheckedGuardedExitPlans,
+        terminator: &CheckedScalarStateTerminator,
+    ) -> usize {
+        match terminator {
+            CheckedScalarStateTerminator::Return { statement_ordinal } => self.scalar_at(
+                state,
+                *statement_ordinal,
+                CheckedScalarExpressionRole::Return,
+            ),
+            CheckedScalarStateTerminator::Conditional {
+                guard_statement_ordinal,
+                when_true,
+                when_false,
+            } => [
+                self.scalar_destination(state, when_true),
+                self.scalar_destination(state, when_false),
+            ]
+            .into_iter()
+            .flatten()
+            .min()
+            .map_or(0, |selected| {
+                self.scalar_at(
+                    state,
+                    *guard_statement_ordinal,
+                    CheckedScalarExpressionRole::Guard,
+                ) + selected
+            }),
+            CheckedScalarStateTerminator::Guarded { arms, fallback } => {
+                let mut prefix = 0;
+                let mut minimum = None;
+                for arm in exits.exits.span_or_empty(*arms) {
+                    prefix += self.scalar_at(
+                        state,
+                        arm.guard_statement_ordinal,
+                        CheckedScalarExpressionRole::Guard,
+                    );
+                    if let Some(transfers) = self.scalar_destination(state, &arm.destination) {
+                        let transfers = prefix + transfers;
+                        minimum = Some(
+                            minimum.map_or(transfers, |previous: usize| previous.min(transfers)),
+                        );
+                    }
+                }
+                if let Some(transfers) = fallback
+                    .as_ref()
+                    .and_then(|fallback| self.scalar_destination(state, fallback))
+                {
+                    let transfers = prefix + transfers;
+                    minimum = Some(minimum.map_or(transfers, |previous| previous.min(transfers)));
+                }
+                minimum.unwrap_or(0)
+            }
+            CheckedScalarStateTerminator::Jump(_) | CheckedScalarStateTerminator::Crash { .. } => 0,
+        }
+    }
+
     fn for_producer(
         values: &'facts CheckedValueFacts,
         producer: &'facts CheckedUnitEffectOperationPlan,

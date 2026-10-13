@@ -164,12 +164,6 @@ pub(super) fn validate_call_dynamic(
         return malformed("dynamic result claim paths are not canonical");
     }
     if let Some(result) = operation.result.structural() {
-        if terminal_psi::structural_type_has_borrowed_storage_by(
-            |identity| module.structural_type(identity),
-            result.structural_type,
-        ) {
-            return malformed("dynamic result requires normalized public reference origins");
-        }
         validate_structural_call_result_declaration(module, machine, operation, result)?;
         validate_result_claim_shape(module, result)?;
     }
@@ -243,8 +237,13 @@ pub(super) fn validate_call_dynamic(
             return malformed("dynamic row result disagrees with its slot");
         }
         if let Some(result) = callee.result.structural() {
-            if !result.reference_sources.is_empty() {
-                return malformed("dynamic result requires normalized public reference origins");
+            if !terminal_semantics::reference_result_refines_regions(
+                module.structural_types.iter(),
+                &callee.structural_parameters,
+                result,
+                &shape.result_reference_regions,
+            ) {
+                return malformed("dynamic row returned origins exceed its public input regions");
             }
             if !terminal_semantics::result_claim_paths_match_returns(
                 &shape.result_claim_paths,

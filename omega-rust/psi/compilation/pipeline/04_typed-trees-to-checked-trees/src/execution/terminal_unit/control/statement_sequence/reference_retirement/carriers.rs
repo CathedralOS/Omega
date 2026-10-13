@@ -115,7 +115,7 @@ impl Retirement<'_> {
         {
             return true;
         }
-        if let Some(loans) = super::local_carrier_loans(
+        if let Some(loans) = super::carrier_loans(
             self.facts,
             self.machine,
             self.state.symbol,
@@ -151,10 +151,39 @@ impl Retirement<'_> {
                     // can retain its parents. Follow that receiving occurrence
                     // before declaring the transferred descriptor settled.
                     Destination::Call {
-                        statement_index, ..
+                        statement_index,
+                        structural_result,
                     } => {
                         if *statement_index >= self.statement_index {
                             return false;
+                        }
+                        if !structural_result {
+                            // Scalar operand calls are retained computations,
+                            // not standalone operations. Consumption ends the
+                            // descriptor; any stored receiving loans still
+                            // retain their exact supplying occurrence.
+                            return super::carrier_loans(
+                                self.facts,
+                                self.machine,
+                                self.state.symbol,
+                                result,
+                                self.results,
+                            )
+                            .is_some_and(|loans| {
+                                self.facts
+                                    .borrow
+                                    .loan_group(loans)
+                                    .is_some_and(|mut group| {
+                                        group.all(|(supplier, _)| {
+                                            self.call_receivers_retired(
+                                                supplier,
+                                                *statement_index,
+                                                false,
+                                                &mut Vec::new(),
+                                            )
+                                        })
+                                    })
+                            });
                         }
                         let mut found = false;
                         let retired = self

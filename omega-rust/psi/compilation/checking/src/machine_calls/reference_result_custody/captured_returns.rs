@@ -28,6 +28,14 @@ pub fn returned_sources(
     Captures { program, facts }.returned(state, &mut Vec::new())
 }
 
+pub fn call_sources(
+    program: &dyn crate::CheckingInput,
+    facts: &CheckFacts,
+    target: SymbolHandle,
+) -> Option<Vec<CheckedReturnedReferencePlan>> {
+    Captures { program, facts }.target_sources(target, &mut Vec::new())
+}
+
 /// Actual captures can remove inactive formal case slots, never create loans.
 pub(super) fn call_result_paths(
     program: &dyn crate::CheckingInput,
@@ -43,6 +51,22 @@ struct Captures<'capture> {
 }
 
 impl Captures<'_> {
+    fn target_sources(
+        &self,
+        target: SymbolHandle,
+        active: &mut Vec<SymbolHandle>,
+    ) -> Option<Vec<CheckedReturnedReferencePlan>> {
+        if let Some(slot) = self.program.dynamic_slot_by_symbol(target) {
+            return super::declared_returns::returned_sources(
+                self.program,
+                &slot.parameters,
+                slot.return_type,
+            )
+            .ok();
+        }
+        self.returned(crate::call_target_state(self.program, target)?, active)
+    }
+
     fn returned(
         &self,
         state: &typed_trees::state::State,
@@ -527,6 +551,7 @@ impl Captures<'_> {
             return Some(vec![CheckedReferenceOriginSourcePlan {
                 parameter_index,
                 path,
+                extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
                 type_identity: leaf.source.type_identity,
                 access: leaf.source.access,
             }]);
@@ -584,6 +609,7 @@ impl Captures<'_> {
                     let source = CheckedReferenceOriginSourcePlan {
                         parameter_index,
                         path: complete,
+                        extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
                         type_identity: leaf.source.type_identity,
                         access: leaf.source.access,
                     };
@@ -594,7 +620,31 @@ impl Captures<'_> {
                 return (!output.is_empty()).then_some(output);
             }
         }
-        None
+        // Loan formation can capture an input region without a public typed
+        // subprojection, notably for a bodyless call's returned descriptor.
+        // Keep the captured region as a region: inventing an element or field
+        // here would pretend the public signature selected a private address.
+        // The original loan/root/access joins above remain mandatory, and
+        // completion must check the actual returned footprint's containment.
+        let (suffix, mut endpoint) = self.origin_path(selected, &segments)?;
+        path.extend(suffix);
+        if path.is_empty()
+            && stored_loan_parts(self.program, parameter.type_reference).is_none()
+            && crate::reference_shell(self.program, parameter.type_reference)
+                .is_some_and(|shell| shell.referee == endpoint)
+        {
+            // A view formal presents its descriptor, not a bare unsized slice.
+            // With no subprojection, keep the same endpoint identity as its
+            // declared region and executable argument presentation.
+            endpoint = parameter.type_reference;
+        }
+        Some(vec![CheckedReferenceOriginSourcePlan {
+            parameter_index,
+            path,
+            extent: semantic_vocabulary::ReferenceOriginExtent::WithinRegion,
+            type_identity: self.program.normalized_type_identity(endpoint),
+            access: leaf.source.access,
+        }])
     }
 
     /// The complete body relation refines a lifetime loan's storage region.
@@ -697,8 +747,8 @@ impl Captures<'_> {
         call: &checked_trees::FlowCallFact,
         active: &mut Vec<SymbolHandle>,
     ) -> Option<Vec<Vec<CheckedUnitStructuralPathSegment>>> {
-        let destination = self.program.state_by_symbol(call.target_symbol)?;
-        let sources = self.returned(destination, active)?;
+        let parameters = crate::call_target_parameters(self.program, call.target_symbol)?;
+        let sources = self.target_sources(call.target_symbol, active)?;
         let operands = self
             .facts
             .flow
@@ -708,9 +758,7 @@ impl Captures<'_> {
         let mut paths = Vec::new();
         for source in sources {
             let parameter_index = source.source.parameter_index;
-            let (position, parameter) = self
-                .program
-                .state_parameters(destination)
+            let (position, parameter) = parameters
                 .iter()
                 .enumerate()
                 .filter(|(_, parameter)| is_mutable_structural_parameter(self.program, parameter))

@@ -65,7 +65,7 @@ fn encode_unit(bytes: &mut CanonicalBytes, unit: &PsiOptimizationUnit) {
     // Preserve direct-only identities. The extension binds the complete row
     // roster, including trap slots and implementations not selected locally.
     if !unit.dynamic_dispatch.interfaces.is_empty() || !unit.dynamic_dispatch.tables.is_empty() {
-        bytes.bytes(b"omega.psi-optimization-dynamic-dispatch.v2\0");
+        bytes.bytes(b"omega.psi-optimization-dynamic-dispatch.v3\0");
         bytes.slice(&unit.dynamic_dispatch.interfaces, |bytes, interface| {
             bytes.u32(interface.id);
             bytes.u32(interface.identity.0);
@@ -90,6 +90,12 @@ fn encode_unit(bytes: &mut CanonicalBytes, unit: &PsiOptimizationUnit) {
                 encode_boundary_result(bytes, &slot.result);
                 bytes.slice(&slot.result_claim_paths, |bytes, path| {
                     bytes.slice(path, encode_structural_path_segment);
+                });
+                bytes.slice(&slot.result_reference_regions, |bytes, region| {
+                    bytes.slice(&region.path, encode_structural_path_segment);
+                    bytes.u32(region.argument_index);
+                    bytes.slice(&region.source_path, encode_structural_path_segment);
+                    encode_access(bytes, region.access);
                 });
             });
         });
@@ -454,6 +460,10 @@ fn encode_structural_result(bytes: &mut CanonicalBytes, result: &StructuralResul
         bytes.slice(&reference.path, encode_structural_path_segment);
         bytes.slice(&reference.sources, |bytes, source| {
             bytes.id(source.place);
+            bytes.u8(match source.extent {
+                semantic_vocabulary::ReferenceOriginExtent::Projected => 1,
+                semantic_vocabulary::ReferenceOriginExtent::WithinRegion => 2,
+            });
             bytes.slice(&source.path, |bytes, projection| match projection {
                 terminal_psi::ReferenceOriginProjection::Exact(segment) => {
                     encode_structural_path_segment(bytes, segment)

@@ -2,6 +2,7 @@
 //! contents their current bodies replace. This records backing provenance only;
 //! loan permissions and historical identities stay with the independent audits.
 use super::*;
+use abstract_operations::call_source;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use std::borrow::Cow;
 use terminal_semantics::descriptor_lifetimes::descriptor_path;

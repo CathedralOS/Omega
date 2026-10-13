@@ -83,7 +83,6 @@ pub(super) fn append_state_borrow_facts(
             machine.symbol,
             statement,
             &current_loans,
-            call_frames,
         ) {
             let segments = arenas.access_segments.insert_many(returned.place.segments);
             let owner_path = arenas.owner_segments.insert_many(returned.owner_path);
@@ -100,6 +99,15 @@ pub(super) fn append_state_borrow_facts(
                 },
             );
         }
+        let replacement = super::loans::capture_replacement(
+            program,
+            machine,
+            state,
+            statement_index,
+            statement,
+            call_frames,
+            &current_loans,
+        );
         let pending_loans = statement_borrow_loans(
             program,
             state,
@@ -108,14 +116,14 @@ pub(super) fn append_state_borrow_facts(
             statement,
             &current_loans,
             call_frames,
+            replacement.as_ref(),
         );
         retire_replaced_carrier_loans(
             program,
             machine,
-            state,
-            statement_index,
             statement,
             call_frames,
+            replacement.as_ref(),
             &mut current_loans,
         );
         append_carrier_loans(
@@ -284,89 +292,33 @@ fn grouped_carrier_loans(mut loans: Vec<StatementBorrowLoan>) -> Vec<StatementBo
 fn retire_replaced_carrier_loans(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    statement_index: usize,
     statement: &typed_trees::statement::StatementNode,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    replacement: Option<&super::loans::CarrierReplacement>,
     current: &mut Vec<StateLoanTracker>,
 ) {
-    if matches!(statement, typed_trees::statement::StatementNode::Call(_)) {
-        if let Some(effects) =
-            call_frames.and_then(|frames| frames.stored_reference_effects(machine, statement))
-        {
-            // The same exact effects retire flow loans and install replacement
-            // loans. Keeping old origins in this formation roster would revive
-            // them when a later projection captures the replaced field.
-            current.retain(|loan| {
-                !effects.iter().any(|effect| {
-                    !effect.retains_incoming
-                        && loan.storage_owner
-                            == facts::PlaceRoot::Symbol(effect.destination.local_symbol)
-                        && super::loans::place_path_matches_owner_prefix(
-                            program,
-                            &effect.destination.local_segments,
-                            &loan.owner_path,
-                        )
-                })
-            });
-        }
-        return;
+    if let Some(effects) =
+        call_frames.and_then(|frames| frames.stored_reference_effects(machine, statement))
+    {
+        // The same exact effects retire flow loans and install replacement
+        // loans. Keeping old origins in this formation roster would revive
+        // them when a later projection captures the replaced field.
+        current.retain(|loan| {
+            !effects.iter().any(|effect| {
+                !effect.retains_incoming
+                    && loan.storage_owner
+                        == facts::PlaceRoot::Symbol(effect.destination.local_symbol)
+                    && super::loans::place_path_matches_owner_prefix(
+                        program,
+                        &effect.destination.local_segments,
+                        &loan.owner_path,
+                    )
+            })
+        });
     }
-    let Some(assignment) = statement.as_assignment() else {
-        return;
-    };
-    let writes_referent =
-        if validation::declared_place_type_raw(program, machine, Some(state), assignment.target)
-            .is_some_and(|reference| validation::reference_shell(program, reference).is_some())
-        {
-            let Some(replaces_binding) = call_frames.and_then(|frames| {
-                frames.assignment_replaces_reference_binding(machine, statement)
-            }) else {
-                return;
-            };
-            !replaces_binding
-        } else {
-            false
-        };
-    let Some(target) = super::accesses::borrow_access_place(
-        program,
-        state.symbol,
-        statement_index,
-        assignment.target,
-        machine.symbol,
-    ) else {
-        return;
-    };
-    let destinations = super::loans::store_destination_places(
-        program,
-        state,
-        target.clone(),
-        writes_referent,
-        current.iter().map(|loan| {
-            (
-                loan.storage_owner,
-                loan.owner_path.as_slice(),
-                loan.place.incoming_reference,
-                loan.place.root,
-                loan.place.segments.as_slice(),
-            )
-        }),
-    );
-    let [destination] = destinations.as_slice() else {
-        // A may-alias target cannot identify the replaced descriptor slot.
-        return;
-    };
-    current.retain(|loan| {
-        loan.storage_owner != destination.root
-            || (writes_referent
-                && destination == &target
-                && loan.owner_path.len() == target.segments.len())
-            || !super::loans::place_path_matches_owner_prefix(
-                program,
-                &destination.segments,
-                &loan.owner_path,
-            )
-    });
+    if let Some(replacement) = replacement {
+        current.retain(|loan| !replacement.replaces(program, loan.storage_owner, &loan.owner_path));
+    }
 }
 
 /// Entry permissions precede statement loans: carrying a descriptor into this

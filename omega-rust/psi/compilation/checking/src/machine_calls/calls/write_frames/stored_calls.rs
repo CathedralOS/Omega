@@ -5,7 +5,9 @@
 //! closed. Rows retain each slot's declared access alongside provenance;
 //! checked stores still own permission and predicate authority.
 
+mod expression_effects;
 pub(super) mod retention;
+pub(super) use expression_effects::statement_effects;
 
 use super::caller_aliases::{LocalWriteOrigin, LocalWriteSource};
 use super::place_paths::{FramePathPrecision, FramePlaceOrigin, FrameSourcePlace};
@@ -94,11 +96,32 @@ pub(super) fn call_effects(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) -> Option<Vec<SlotEffect>> {
-    let (callee, state) = super::machine_state_by_symbol(program, call.target_symbol)?;
+    invocation_effects(
+        program,
+        machine,
+        call.target_symbol,
+        program.statement_table.expression_handles(call.arguments),
+        call.machine_arguments.is_empty(),
+        context,
+        symbols,
+        inference,
+    )
+}
+
+fn invocation_effects(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    target: SymbolHandle,
+    arguments: &[ExpressionHandle],
+    machine_arguments_empty: bool,
+    context: &CollectedStatementPrefix,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+) -> Option<Vec<SlotEffect>> {
+    let (callee, state) = super::machine_state_by_symbol(program, target)?;
     let parameters = program.state_parameters(state);
-    let arguments = program.statement_table.expression_handles(call.arguments);
     if (parameters.len() != arguments.len())
-        || !call.machine_arguments.is_empty()
+        || !machine_arguments_empty
         || !program.machine_type_parameters(callee).is_empty()
         || !callee.body_is_present
         || callee.supply_mode != language_semantics::MachineSupplyMode::CheckedBody

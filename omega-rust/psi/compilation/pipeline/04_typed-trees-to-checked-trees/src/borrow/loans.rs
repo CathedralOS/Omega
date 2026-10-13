@@ -57,7 +57,9 @@ mod aggregate;
 mod owner_paths;
 mod returned_carriers;
 pub(crate) use returned_carriers::{call_reference_sources, returned_body_source_mismatch};
+mod replacement;
 mod stored_calls;
+pub(in crate::borrow) use replacement::{CarrierReplacement, capture_replacement};
 pub(crate) mod types;
 
 use types::{is_reference_type, reference_borrow_access_kind};
@@ -211,7 +213,6 @@ pub(super) fn returned_value_loans(
     machine_symbol: SymbolHandle,
     statement: &StatementNode,
     loan_trackers: &[StateLoanTracker],
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Vec<StatementBorrowLoan> {
     use checked_trees::statement::{TransitionExit, TransitionTargetNode};
 
@@ -308,14 +309,13 @@ pub(super) fn returned_value_loans(
         _ => return Vec::new(),
     };
     returned_value.initial_value = expression;
-    statement_borrow_loans(
+    value_borrow_loans(
         program,
         state,
         statement_index,
         machine_symbol,
         &StatementNode::LocalData(returned_value),
         loan_trackers,
-        call_frames,
     )
 }
 
@@ -327,6 +327,41 @@ pub(super) fn statement_borrow_loans(
     statement: &StatementNode,
     loan_trackers: &[StateLoanTracker],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    replacement: Option<&CarrierReplacement>,
+) -> Vec<StatementBorrowLoan> {
+    let mut loans = stored_calls::loans(
+        program,
+        state,
+        machine_symbol,
+        statement,
+        call_frames,
+        loan_trackers,
+    );
+    // These rows describe the statement's final receiving slots, not every
+    // intermediate descriptor generation. The enclosing store overwrites RHS
+    // slot effects only within its captured subtree. Independently captured
+    // children retain their own storage owners and loan ancestry.
+    if let Some(replacement) = replacement {
+        loans.retain(|loan| !replacement.replaces(program, loan.storage_owner, &loan.owner_path));
+    }
+    loans.extend(value_borrow_loans(
+        program,
+        state,
+        statement_index,
+        machine_symbol,
+        statement,
+        loan_trackers,
+    ));
+    loans
+}
+
+fn value_borrow_loans(
+    program: &dyn ::validation::CheckingInput,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    machine_symbol: SymbolHandle,
+    statement: &StatementNode,
+    loan_trackers: &[StateLoanTracker],
 ) -> Vec<StatementBorrowLoan> {
     match statement {
         StatementNode::Assignment(assignment) => assignment_borrow_loans(
@@ -368,15 +403,8 @@ pub(super) fn statement_borrow_loans(
                 loan_trackers,
             )
         }
-        StatementNode::Call(_) => stored_calls::loans(
-            program,
-            state,
-            machine_symbol,
-            statement,
-            call_frames,
-            loan_trackers,
-        ),
-        StatementNode::RootBinding(_)
+        StatementNode::Call(_)
+        | StatementNode::RootBinding(_)
         | StatementNode::AssemblyFact(_)
         | StatementNode::Expression(_)
         | StatementNode::Transition(_) => Vec::new(),

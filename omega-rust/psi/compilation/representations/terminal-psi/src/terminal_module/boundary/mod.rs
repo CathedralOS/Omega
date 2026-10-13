@@ -26,7 +26,8 @@ pub use declarations::{
 };
 pub use dynamic_dispatch::{
     TerminalDynamicClaimPath, TerminalDynamicDispatchCatalog, TerminalDynamicInterface,
-    TerminalDynamicSlot, TerminalDynamicStructuralFormal, TerminalDynamicTable,
+    TerminalDynamicReferenceRegion, TerminalDynamicSlot, TerminalDynamicStructuralFormal,
+    TerminalDynamicTable,
 };
 pub use providers::{
     ProviderCandidateConformance, ProviderParameterRefinement, ProviderRefinement,

@@ -134,19 +134,40 @@ fn check_stored_output_relations(
             diagnostics.push(Diagnostic::error(format!("machine `{}` stores a borrowed value without a complete normal-exit backing relation", machine.name)));
         }
         for state in program.machine_states(machine) {
-            for statement in program.statement_table.statements(state.statement_nodes) {
-                let Some(call) = statement.as_call() else {
-                    continue;
-                };
-                let requires_relation = validation::call_target_state(program, call.target_symbol)
-                    .and_then(|target| program.machine_holding_state(target.symbol))
-                    .is_some_and(|callee| obligated.contains(&callee.symbol));
+            let calls = facts
+                .flow
+                .control
+                .states
+                .iter()
+                .filter(|(_, flow)| {
+                    flow.machine_symbol == machine.symbol && flow.state_symbol == state.symbol
+                })
+                .flat_map(|(_, flow)| facts.flow.control.calls.span_or_empty(flow.calls));
+            let calls = calls.collect::<Vec<_>>();
+            for (statement_index, statement) in program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .enumerate()
+            {
+                // The normalized roster includes calls inside operands and
+                // selected patterns. A missing summary cannot erase their
+                // installed loans merely because the outer result is scalar.
+                let requires_relation = calls.iter().any(|call| {
+                    call.statement_index == statement_index
+                        && validation::call_target_state(program, call.target_symbol)
+                            .and_then(|target| program.machine_holding_state(target.symbol))
+                            .is_some_and(|callee| obligated.contains(&callee.symbol))
+                });
                 if requires_relation
                     && frames
                         .and_then(|frames| frames.stored_reference_effects(machine, statement))
                         .is_none()
                 {
-                    diagnostics.push(Diagnostic::error("call stores a borrowed value without a complete destination/backing relation"));
+                    diagnostics.push(Diagnostic::error(format!(
+                        "machine `{}` state `{}` statement {statement_index}: call stores a borrowed value without a complete destination/backing relation",
+                        machine.name, state.name,
+                    )));
                 }
             }
         }

@@ -25,6 +25,7 @@ pub enum ReferenceOriginProjection {
 pub struct ReferenceOriginSource {
     pub place: PlaceId,
     pub path: Vec<ReferenceOriginProjection>,
+    pub extent: semantic_vocabulary::ReferenceOriginExtent,
     pub access: StructuralAccess,
 }
 
@@ -32,6 +33,7 @@ impl From<StructuralArgument> for ReferenceOriginSource {
     fn from(argument: StructuralArgument) -> Self {
         Self {
             place: argument.place,
+            extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
             path: argument
                 .path
                 .into_iter()
@@ -46,6 +48,9 @@ impl ReferenceOriginSource {
     /// Exact origins can be resolved as ordinary projections. A family has no
     /// single address and must instead be joined to a captured returned loan.
     pub fn exact_argument(&self) -> Option<StructuralArgument> {
+        if self.extent != semantic_vocabulary::ReferenceOriginExtent::Projected {
+            return None;
+        }
         Some(StructuralArgument {
             place: self.place,
             path: self

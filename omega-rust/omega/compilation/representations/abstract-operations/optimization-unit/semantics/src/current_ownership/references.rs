@@ -61,14 +61,19 @@ fn projected_origin(
             .cloned()
             .map(terminal_psi::ReferenceOriginProjection::Exact)
             .collect::<Vec<_>>(),
+        semantic_vocabulary::ReferenceOriginExtent::Projected,
     )
 }
 
 fn projected_origin_family(
     origin: &ReferenceOrigin,
     suffix: &[terminal_psi::ReferenceOriginProjection],
+    extent: semantic_vocabulary::ReferenceOriginExtent,
 ) -> ReferenceOrigin {
-    if suffix.is_empty() {
+    // Projected origins can narrow to a region at a call. Further operations
+    // project the actual carrier and its parents, not that public envelope:
+    // a returned record field need not be a field of the supplying slice.
+    if suffix.is_empty() && extent == semantic_vocabulary::ReferenceOriginExtent::Projected {
         return origin.clone();
     }
     match origin {
@@ -76,23 +81,30 @@ fn projected_origin_family(
             ReferenceOrigin::IngressLeaf(ReferenceOriginIdentity {
                 place: *place,
                 path: suffix.to_vec(),
+                extent,
             })
         }
         ReferenceOrigin::IngressLeaf(identity) => {
             let mut identity = identity.clone();
-            identity.path.extend_from_slice(suffix);
+            if identity.extent == semantic_vocabulary::ReferenceOriginExtent::Projected {
+                identity.path.extend_from_slice(suffix);
+                identity.extent = extent;
+            }
             ReferenceOrigin::IngressLeaf(identity)
         }
-        ReferenceOrigin::Alternatives { place, paths } => {
-            let mut paths = paths.clone();
-            for path in &mut paths {
-                path.extend_from_slice(suffix);
+        ReferenceOrigin::Alternatives { place, origins } => {
+            let mut origins = origins.clone();
+            for origin in &mut origins {
+                if origin.extent == semantic_vocabulary::ReferenceOriginExtent::Projected {
+                    origin.path.extend_from_slice(suffix);
+                    origin.extent = extent;
+                }
             }
-            paths.sort();
-            paths.dedup();
+            origins.sort();
+            origins.dedup();
             ReferenceOrigin::Alternatives {
                 place: *place,
-                paths,
+                origins,
             }
         }
     }
@@ -109,14 +121,16 @@ fn origins_overlap(left: &ReferenceOrigin, right: &ReferenceOrigin) -> bool {
         ReferenceOrigin::IngressLeaf(identity) => {
             terminal_semantics::reference_origin_paths_may_overlap(path, &identity.path)
         }
-        ReferenceOrigin::Alternatives { paths, .. } => paths
+        ReferenceOrigin::Alternatives { origins, .. } => origins
             .iter()
-            .any(|other| terminal_semantics::reference_origin_paths_may_overlap(path, other)),
+            .any(|other| terminal_semantics::reference_origin_paths_may_overlap(path, &other.path)),
     };
     match left {
         ReferenceOrigin::Primitive(_) => true,
         ReferenceOrigin::IngressLeaf(identity) => overlaps_path(&identity.path),
-        ReferenceOrigin::Alternatives { paths, .. } => paths.iter().any(|path| overlaps_path(path)),
+        ReferenceOrigin::Alternatives { origins, .. } => {
+            origins.iter().any(|origin| overlaps_path(&origin.path))
+        }
     }
 }
 
@@ -184,12 +198,9 @@ pub(super) fn borrows_owned_storage(
     match &reference.root {
         ReferenceOrigin::Primitive(root) => *root == place,
         ReferenceOrigin::IngressLeaf(identity) => ingress(identity.clone()),
-        ReferenceOrigin::Alternatives { place: root, paths } => paths.iter().any(|path| {
-            ingress(ReferenceOriginIdentity {
-                place: *root,
-                path: path.clone(),
-            })
-        }),
+        ReferenceOrigin::Alternatives { origins, .. } => {
+            origins.iter().any(|origin| ingress(origin.clone()))
+        }
     }
 }
 
@@ -372,8 +383,8 @@ fn check_region_access_with(
                 && match &reference.root {
                     ReferenceOrigin::Primitive(_) => true,
                     ReferenceOrigin::IngressLeaf(identity) => overlaps_origin(&identity.path),
-                    ReferenceOrigin::Alternatives { paths, .. } => {
-                        paths.iter().any(|path| overlaps_origin(path))
+                    ReferenceOrigin::Alternatives { origins, .. } => {
+                        origins.iter().any(|origin| overlaps_origin(&origin.path))
                     }
                 })
     }) {
@@ -969,6 +980,7 @@ fn establish_constructor<'a>(
 pub(super) fn apply_operation(
     function: &PsiOptimizationFunction,
     functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
+    dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     borrowed_sources: &BorrowedReferenceSources,
     call_effects: &call_effects::ReferenceCallEffects,
@@ -1812,10 +1824,24 @@ pub(super) fn apply_operation(
             if let Some(identity) = &transferred {
                 moved.insert(identity.clone());
             }
-            vec![(
-                Vec::new(),
-                vec![(source.clone(), transferred.is_some(), Vec::new())],
-            )]
+            vec![terminal_semantics::ReferenceCallResult {
+                path: Vec::new(),
+                sources: vec![terminal_semantics::ReferenceCallSource {
+                    source: source.clone(),
+                    transfers_existing: transferred.is_some(),
+                    suffix: Vec::new(),
+                    extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
+                    endpoint: reference_source_type(function, structural_types, source)
+                        .ok_or_else(|| {
+                            invalid(
+                                function,
+                                block,
+                                Some(node),
+                                "reference formation has no source type",
+                            )
+                        })?,
+                }],
+            }]
         }
         O::CallStructural {
             callee,
@@ -1823,59 +1849,37 @@ pub(super) fn apply_operation(
             result: AbstractStructuralCallResult::Structural { result, .. },
             ..
         } if contains_reference(structural_types, result.structural_type) => {
-            let callee = callee
-                .machine()
-                .and_then(|machine| functions.get(&machine))
-                .ok_or_else(|| {
-                    invalid(
-                        function,
-                        block,
-                        Some(node),
-                        "reference call target is absent",
-                    )
-                })?;
-            let declaration = callee.result.structural().ok_or_else(|| {
-                invalid(
-                    function,
-                    block,
-                    Some(node),
-                    "reference call target has no structural result",
-                )
-            })?;
-            declaration
-                .reference_sources
-                .iter()
-                .map(|mapping| {
-                    let candidates = mapping
-                        .sources
-                        .iter()
-                        .map(|formal| {
-                            crate::unit_validation::references::formal_reference_source(
-                                structural_types,
-                                callee,
-                                formal,
-                            )
-                            .and_then(|projected| {
-                                call_source(
-                                    &callee.structural_parameters,
-                                    structural_arguments,
-                                    &projected.source,
-                                )
-                                .map(|source| (source, projected.transfers, projected.suffix))
-                            })
-                            .ok_or_else(|| {
-                                invalid(
-                                    function,
-                                    block,
-                                    Some(node),
-                                    "reference call source mapping is absent",
-                                )
-                            })
-                        })
-                        .collect::<Result<Vec<_>, _>>()?;
-                    Ok((mapping.path.clone(), candidates))
-                })
-                .collect::<Result<Vec<_>, _>>()?
+            let fail = |reason| invalid(function, block, Some(node), reason);
+            let contract = match callee {
+                abstract_operations::AbstractCallTarget::Machine(machine) => {
+                    let callee = functions
+                        .get(machine)
+                        .ok_or_else(|| fail("reference call target is absent"))?;
+                    let declaration = callee
+                        .result
+                        .structural()
+                        .ok_or_else(|| fail("reference call target has no structural result"))?;
+                    terminal_semantics::ReferenceCallContract::Machine {
+                        parameters: &callee.structural_parameters,
+                        sources: &declaration.reference_sources,
+                    }
+                }
+                abstract_operations::AbstractCallTarget::Dynamic {
+                    interface, slot, ..
+                } => {
+                    let requirement = dynamic_dispatch
+                        .interface(*interface)
+                        .and_then(|interface| interface.slots.get(*slot as usize))
+                        .ok_or_else(|| fail("reference call requirement is absent"))?;
+                    terminal_semantics::ReferenceCallContract::Requirement(requirement)
+                }
+            };
+            terminal_semantics::bind_reference_call_results(
+                structural_types.values().copied(),
+                contract,
+                structural_arguments,
+            )
+            .map_err(fail)?
         }
         _ => Vec::new(),
     };
@@ -1911,7 +1915,11 @@ pub(super) fn apply_operation(
         let mut established = Vec::with_capacity(sources.len());
         let mut roots = Vec::new();
         let mut identities = BTreeSet::new();
-        for (path, candidates) in sources {
+        for terminal_semantics::ReferenceCallResult {
+            path,
+            sources: candidates,
+        } in sources
+        {
             let expected = leaf_referent(structural_types, result.structural_type, &path)
                 .ok_or_else(|| {
                     invalid(
@@ -1932,7 +1940,14 @@ pub(super) fn apply_operation(
                     )
                 })?;
             let mut alternatives = Vec::with_capacity(candidates.len());
-            for (source, transfers_existing, suffix) in candidates {
+            for terminal_semantics::ReferenceCallSource {
+                source,
+                transfers_existing,
+                suffix,
+                extent,
+                ..
+            } in candidates
+            {
                 let compatible = reference_source_type(function, structural_types, &source)
                     .and_then(|root| {
                         if suffix.is_empty() {
@@ -1962,7 +1977,10 @@ pub(super) fn apply_operation(
                                 result.structural_type,
                             )
                         }
-                        _ => actual == expected,
+                        _ => {
+                            extent == semantic_vocabulary::ReferenceOriginExtent::WithinRegion
+                                || actual == expected
+                        }
                     });
                 if !compatible
                     || !leaf_access_within(
@@ -2019,8 +2037,10 @@ pub(super) fn apply_operation(
                         live,
                         &source,
                     )?;
-                    if !suffix.is_empty() {
-                        let projected = projected_origin_family(&root, &suffix);
+                    if !suffix.is_empty()
+                        || extent == semantic_vocabulary::ReferenceOriginExtent::WithinRegion
+                    {
+                        let projected = projected_origin_family(&root, &suffix, extent);
                         if parent == ReferenceParent::Root(root.clone()) {
                             parent = ReferenceParent::Root(projected.clone());
                         }
@@ -2214,26 +2234,26 @@ fn combine_alternative_origins(
         return Ok((root, parent));
     }
     let place = origin_place(&root);
-    let mut paths = Vec::new();
+    let mut origins = Vec::new();
     for (origin, origin_parent) in std::iter::once((root, parent)).chain(alternatives) {
         if origin_parent != ReferenceParent::Root(origin.clone()) || origin_place(&origin) != place
         {
             return Err(invalid());
         }
         match origin {
-            ReferenceOrigin::IngressLeaf(identity) => paths.push(identity.path),
+            ReferenceOrigin::IngressLeaf(identity) => origins.push(identity),
             ReferenceOrigin::Alternatives {
-                paths: alternatives,
+                origins: alternatives,
                 ..
-            } => paths.extend(alternatives),
+            } => origins.extend(alternatives),
             ReferenceOrigin::Primitive(_) => return Err(invalid()),
         }
     }
-    paths.sort();
-    if paths.windows(2).any(|pair| pair[0] == pair[1]) {
+    origins.sort();
+    if origins.windows(2).any(|pair| pair[0] == pair[1]) {
         return Err(invalid());
     }
-    let root = ReferenceOrigin::Alternatives { place, paths };
+    let root = ReferenceOrigin::Alternatives { place, origins };
     Ok((root.clone(), ReferenceParent::Root(root)))
 }
 
@@ -2335,7 +2355,14 @@ pub(super) fn transfer_return(
                 "reference return origin family is unavailable",
             )
         })?;
-        if sources.is_empty() || sources.iter().any(|source| !mapping.sources.contains(source))
+        if sources.is_empty() || sources.iter().any(|source| {
+            let Some(parameter) = function.structural_parameter(source.place) else {
+                return true;
+            };
+            !mapping.sources.iter().any(|allowed| terminal_semantics::reference_origin_refines(
+                structural_types.values().copied(), parameter.structural_type, source, allowed,
+            ))
+        })
             || matches!(&reference.parent, ReferenceParent::Root(root) if *root != reference.root)
             || live.iter().any(|child| matches!(&child.parent, ReferenceParent::Reference(identity) if identity == &reference.identity))
         {
@@ -2399,18 +2426,21 @@ fn return_origin_family(
 ) -> Option<Vec<terminal_psi::ReferenceOriginSource>> {
     use terminal_psi::ReferenceOriginProjection::{Element, Exact};
     use terminal_psi::StructuralPathSegment::{Referent, RuntimeIndex};
-    let empty = Vec::new();
-    let (place, paths) = match origin {
-        ReferenceOrigin::IngressLeaf(identity) => {
-            (identity.place, std::slice::from_ref(&identity.path))
-        }
-        ReferenceOrigin::Alternatives { place, paths } => (*place, paths.as_slice()),
-        ReferenceOrigin::Primitive(place) => (*place, std::slice::from_ref(&empty)),
+    let primitive = ReferenceOriginIdentity {
+        place: origin_place(origin),
+        path: Vec::new(),
+        extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
     };
-    let parameter = function.structural_parameter(place)?;
-    let mut sources = Vec::with_capacity(paths.len());
-    for path in paths {
-        let mut path = path
+    let origins = match origin {
+        ReferenceOrigin::IngressLeaf(identity) => std::slice::from_ref(identity),
+        ReferenceOrigin::Alternatives { origins, .. } => origins.as_slice(),
+        ReferenceOrigin::Primitive(_) => std::slice::from_ref(&primitive),
+    };
+    let mut sources = Vec::with_capacity(origins.len());
+    for origin in origins {
+        let parameter = function.structural_parameter(origin.place)?;
+        let mut path = origin
+            .path
             .iter()
             .map(|segment| match segment {
                 Exact(RuntimeIndex { .. }) => Element,
@@ -2422,7 +2452,9 @@ fn return_origin_family(
             parameter.structural_type,
             &path,
         )?;
-        if endpoint != expected {
+        if origin.extent == semantic_vocabulary::ReferenceOriginExtent::Projected
+            && endpoint != expected
+        {
             if !matches!(types.get(&endpoint).map(|declaration| &declaration.shape),
                 Some(terminal_psi::StructuralTypeShape::Reference { referent, access: supplied })
                     if *referent == expected && crate::unit_validation::references::access_covers(*supplied, access))
@@ -2432,8 +2464,9 @@ fn return_origin_family(
             path.push(Exact(Referent));
         }
         sources.push(terminal_psi::ReferenceOriginSource {
-            place,
+            place: origin.place,
             path,
+            extent: origin.extent,
             access,
         });
     }
@@ -2442,8 +2475,9 @@ fn return_origin_family(
     Some(sources)
 }
 
-/// Individual exits prove membership; their union proves that no declared
-/// alternative was invented. The CFG owner supplies only reachable returns.
+/// Individual exits prove membership. Their union accounts for precise private
+/// alternatives; public region allowances need not all execute. The CFG owner
+/// supplies only reachable returns.
 pub(super) fn validate_return_coverage(
     function: &PsiOptimizationFunction,
     observed: &[terminal_psi::StructuralReferenceResultSource],
@@ -2457,7 +2491,13 @@ pub(super) fn validate_return_coverage(
             .filter(|returned| returned.path == mapping.path)
             .flat_map(|returned| returned.sources.iter().cloned())
             .collect::<BTreeSet<_>>();
-        if sources.into_iter().collect::<Vec<_>>() != mapping.sources {
+        // Precise private summaries still account for every reachable origin.
+        // A region is a public allowance, not a claim that every possibility
+        // executes (an implementation may return only the empty case).
+        if mapping.sources.iter().any(|source| {
+            source.extent == semantic_vocabulary::ReferenceOriginExtent::Projected
+                && !sources.contains(source)
+        }) {
             return Err(invalid(
                 function,
                 function.entry,

@@ -348,6 +348,7 @@ pub(super) fn validate_current_ownership_cfg(
             super::references::apply_operation(
                 function,
                 functions,
+                dynamic_dispatch,
                 structural_types,
                 pins.reference_sources(),
                 &call_accesses.references,

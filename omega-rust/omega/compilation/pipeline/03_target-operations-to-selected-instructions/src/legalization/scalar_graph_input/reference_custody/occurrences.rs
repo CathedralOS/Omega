@@ -25,9 +25,21 @@ pub(in crate::legalization) struct OccurrenceIdentity {
 pub(super) enum OccurrenceFormation {
     Parameter,
     Operation(OperationId),
+    ResidentJoin(BlockId),
 }
 
 impl OccurrenceIdentity {
+    pub(super) fn resident_join(
+        block: BlockId,
+        location: &(PlaceId, Vec<StructuralPathSegment>),
+    ) -> Self {
+        Self {
+            place: location.0,
+            path: location.1.clone(),
+            formation: OccurrenceFormation::ResidentJoin(block),
+        }
+    }
+
     pub(super) fn parameter(location: &(PlaceId, Vec<StructuralPathSegment>)) -> Self {
         Self {
             place: location.0,
@@ -55,6 +67,11 @@ pub(super) enum CarrierContract {
         result: StructuralOperationResult,
     },
     Parameter(StructuralParameterDeclaration),
+    ResidentJoin {
+        block: BlockId,
+        place: PlaceId,
+        structural_type: StructuralTypeId,
+    },
 }
 
 impl CarrierContract {
@@ -62,6 +79,9 @@ impl CarrierContract {
         match self {
             Self::Operation { result, .. } => result.structural_type,
             Self::Parameter(parameter) => parameter.structural_type,
+            Self::ResidentJoin {
+                structural_type, ..
+            } => *structural_type,
         }
     }
 
@@ -71,6 +91,15 @@ impl CarrierContract {
         place: PlaceId,
     ) -> bool {
         match self {
+            Self::ResidentJoin {
+                block,
+                place: resident,
+                structural_type,
+            } => {
+                *resident == place
+                    && function.block(*block).is_some()
+                    && resident_type(function, place) == Some(*structural_type)
+            }
             Self::Operation { operation, result } => {
                 result.place == place
                     && function.structural_places.iter().any(|declaration| {
@@ -114,6 +143,27 @@ impl CarrierContract {
             }
         }
     }
+}
+
+/// The slot is already declared storage; a joined loan cannot declare its own
+/// home by supplying a convenient type in its custody row.
+pub(super) fn resident_type(
+    function: &PsiOptimizationFunction,
+    place: PlaceId,
+) -> Option<StructuralTypeId> {
+    function
+        .structural_parameter(place)
+        .or_else(|| {
+            function
+                .block_structural_parameters()
+                .find(|row| row.place == place)
+        })
+        .map(|parameter| parameter.structural_type)
+        .or_else(|| {
+            super::super::structural_case::source_result(function, place)
+                .ok()
+                .map(|(_, result)| result.structural_type)
+        })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -227,7 +277,7 @@ pub(super) fn merge_arrivals(
         if existing == incoming {
             continue;
         }
-        let Some(parameter) = function
+        let parameter = function
             .block(target)
             .and_then(|block| {
                 block
@@ -235,15 +285,27 @@ pub(super) fn merge_arrivals(
                     .iter()
                     .find(|parameter| parameter.place == key.0)
             })
-            .filter(|parameter| parameter.access == StructuralAccess::Owned)
-        else {
+            .filter(|parameter| parameter.access == StructuralAccess::Owned);
+        let (identity, contract) = if let Some(parameter) = parameter {
+            (
+                OccurrenceIdentity::parameter(key),
+                CarrierContract::Parameter(parameter.clone()),
+            )
+        } else if matches!(&existing.contract, CarrierContract::ResidentJoin { block, place, .. }
+            if *block == target && *place == key.0)
+            && existing.contract.matches_declaration(function, key.0)
+        {
+            (
+                OccurrenceIdentity::resident_join(target, key),
+                existing.contract.clone(),
+            )
+        } else {
             // Nonselected metadata can arrive at different worklist times.
             // Defer rather than union it; convergence still requires equality.
             return Ok(None);
         };
-        let contract = CarrierContract::Parameter(parameter.clone());
-        if existing.identity != OccurrenceIdentity::parameter(key)
-            || incoming.identity != OccurrenceIdentity::parameter(key)
+        if existing.identity != identity
+            || incoming.identity != identity
             || existing.contract != contract
             || incoming.contract != contract
             || existing.referent != incoming.referent
@@ -335,6 +397,16 @@ pub(super) fn re_home_bound_leaves(
         leaf.contract = CarrierContract::Parameter(parameter);
         custody.leaves.insert(destination, leaf);
     }
+    remap_parents(custody, &identities);
+    Ok(())
+}
+
+/// Only live occurrences are selected. Retired keys keep their generation;
+/// their parent links follow an independently selected live ancestor.
+pub(super) fn remap_parents(
+    custody: &mut Custody,
+    identities: &[(OccurrenceIdentity, OccurrenceIdentity)],
+) {
     for leaf in custody.leaves.values_mut().chain(
         custody
             .retired
@@ -349,5 +421,4 @@ pub(super) fn re_home_bound_leaves(
         leaf.parents.sort();
         leaf.parents.dedup();
     }
-    Ok(())
 }

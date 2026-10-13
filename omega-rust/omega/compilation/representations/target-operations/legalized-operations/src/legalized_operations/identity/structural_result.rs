@@ -82,7 +82,7 @@ mod tests {
             bytes
         };
         let original = identity(&result);
-        for mutation in 0..9 {
+        for mutation in 0..10 {
             let mut changed = result.clone();
             match mutation {
                 0 => changed.reference_sources.clear(),
@@ -106,6 +106,10 @@ mod tests {
                 8 => changed.reference_sources[0].sources[0]
                     .path
                     .push(terminal_psi::ReferenceOriginProjection::Element),
+                9 => {
+                    changed.reference_sources[0].sources[0].extent =
+                        semantic_vocabulary::ReferenceOriginExtent::WithinRegion
+                }
                 _ => unreachable!(),
             }
             assert_ne!(identity(&changed), original, "custody mutation {mutation}");

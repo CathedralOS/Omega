@@ -15,7 +15,7 @@ pub(in crate::checks::multiplicity) fn append_borrow(
     facts: &mut CheckFacts,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
-    statement_index: usize,
+    consumer: PermissionEventSource,
     evaluation: checked_trees::FlowPermissionEvaluation,
     owners: &[TemporaryOwner],
     places: &mut [crate::checks::multiplicity::linear_obligations::LinearPlace],
@@ -27,7 +27,7 @@ pub(in crate::checks::multiplicity) fn append_borrow(
         TemporaryConsumption::Borrow { access, borrowed_path } => Some((owner, *access, borrowed_path)),
         TemporaryConsumption::OwnedTransfer => None,
     }).filter(|(owner, _, _)| {
-        matches!(owner.consumer, PermissionEventSource::Call { statement_index: index, .. } if index == statement_index)
+        owner.consumer == consumer
             && owner.evaluation == evaluation
     }) {
         let root = facts::PlaceRoot::Expression(owner.expression);
@@ -35,7 +35,7 @@ pub(in crate::checks::multiplicity) fn append_borrow(
         if super::super::owned_cleanup::claim_receipts(
             program, owner.type_reference, root, &[], places, &[],
         ).is_none() {
-            let PermissionEventSource::Call { target_symbol, .. } = owner.consumer else { continue; };
+            let PermissionEventSource::Call { target_symbol, statement_index, .. } = owner.consumer else { continue; };
             diagnostics.push(Diagnostic::error(format!(
                 "cannot automatically dispose borrowed temporary `{}` after call `{}` at statement {}: every contained linear obligation needs its owner-authorized terminal disposition",
                 program.normalized_type_identity_text(owner.type_reference),

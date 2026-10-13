@@ -356,7 +356,7 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
             let realization = module.machine(id).ok_or(LoweringError::Unsupported(
                 "dynamic table row names a machine outside the lowered closure",
             ))?;
-            if !realizes_slot(realization, slot) {
+            if !realizes_slot(realization, slot, &module.structural_types) {
                 return unsupported("implementation row does not realize its slot's call shape");
             }
             rows.push(Some(id));
@@ -456,6 +456,46 @@ fn lower_slot(
         _ => return unsupported("nonstructural dynamic result carries claims"),
     };
     result_claim_paths.sort();
+    let mut result_reference_regions = Vec::new();
+    for reference in &plan.result_reference_sources {
+        if reference.source.extent != semantic_vocabulary::ReferenceOriginExtent::WithinRegion {
+            return unsupported("dynamic result contract contains a private precise origin");
+        }
+        let terminal_psi::BoundaryMachineResult::Structural(result) = &result else {
+            return unsupported("nonstructural dynamic result carries reference origins");
+        };
+        let formal = structural_parameters
+            .get(reference.source.parameter_index as usize)
+            .ok_or(LoweringError::Unsupported(
+                "dynamic result region has no structural input",
+            ))?;
+        let source_path =
+            crate::expression_preparation::bindings::structural_paths::lower_reference_origin_path(
+                identities,
+                checked,
+                &reference.source.path,
+                formal.structural_type,
+                structural_types,
+            )?
+            .into_iter()
+            .map(|projection| match projection {
+                terminal_psi::ReferenceOriginProjection::Exact(segment) => Ok(segment),
+                terminal_psi::ReferenceOriginProjection::Element => unsupported(
+                    "dynamic result input region requires an exact supplying descriptor",
+                ),
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
+        result_reference_regions.push(terminal_psi::TerminalDynamicReferenceRegion {
+            path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
+                identities, &reference.path, result.structural_type, structural_types,
+            )?,
+            argument_index: reference.source.parameter_index,
+            source_path,
+            access: crate::expression_preparation::bindings::structural_paths::terminal_access(reference.source.access),
+        });
+    }
+    result_reference_regions.sort();
+    result_reference_regions.dedup();
     Ok(TerminalDynamicSlot {
         slot,
         declaring_trait_identity: identities
@@ -471,12 +511,17 @@ fn lower_slot(
         entry_claim_paths,
         result,
         result_claim_paths,
+        result_reference_regions,
     })
 }
 
 /// Whether one lowered implementation takes exactly the slot's formals and
 /// returns exactly its result.
-fn realizes_slot(machine: &terminal_psi::TerminalMachine, slot: &TerminalDynamicSlot) -> bool {
+fn realizes_slot(
+    machine: &terminal_psi::TerminalMachine,
+    slot: &TerminalDynamicSlot,
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
+) -> bool {
     let scalars_match = machine.parameters.len() == slot.scalar_parameters.len()
         && machine
             .parameters
@@ -495,10 +540,14 @@ fn realizes_slot(machine: &terminal_psi::TerminalMachine, slot: &TerminalDynamic
                     && parameter.multiplicity == expected.multiplicity
             });
     let result_matches = slot.result.matches_machine_result(&machine.result)
-        && machine
-            .result
-            .structural()
-            .is_none_or(|result| result.reference_sources.is_empty())
+        && machine.result.structural().is_none_or(|result| {
+            terminal_semantics::reference_result_refines_regions(
+                structural_types.iter(),
+                &machine.structural_parameters,
+                result,
+                &slot.result_reference_regions,
+            )
+        })
         && terminal_semantics::result_claim_paths_match_returns(
             &slot.result_claim_paths,
             machine

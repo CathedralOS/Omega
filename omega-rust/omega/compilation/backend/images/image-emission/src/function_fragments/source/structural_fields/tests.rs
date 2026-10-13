@@ -1002,6 +1002,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
                     path: Vec::new(),
                     origins: vec![target_operations::TargetReferenceOrigin {
                         root,
+                        extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
                         path: holder_path
                             .iter()
                             .cloned()
@@ -1055,6 +1056,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
         .origins
         .push(target_operations::TargetReferenceOrigin {
             root,
+            extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
             path: vec![terminal_psi::ReferenceOriginProjection::Exact(
                 StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(18)),
             )],

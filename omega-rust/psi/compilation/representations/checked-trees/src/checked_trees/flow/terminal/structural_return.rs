@@ -49,6 +49,9 @@ pub struct CheckedReturnedReferencePlan {
 pub struct CheckedReferenceOriginSourcePlan {
     pub parameter_index: u32,
     pub path: Vec<CheckedReferenceOriginProjection>,
+    pub extent: semantic_vocabulary::ReferenceOriginExtent,
+    /// Type of the selected source endpoint. For a region relation this need
+    /// not equal the result referent's type.
     pub type_identity: TypeIdentityId,
     pub access: super::CheckedStructuralAccess,
 }

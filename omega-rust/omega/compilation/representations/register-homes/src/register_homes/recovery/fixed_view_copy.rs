@@ -142,6 +142,7 @@ pub enum FixedViewCopyDecodeError {
     UnknownIndirectPointer(u8),
     UnknownStructuralMultiplicity(u8),
     UnknownStructuralAccess(u8),
+    UnknownReferenceOriginExtent(u8),
     UnknownStructuralTypeShape(u8),
     UnknownByteSequenceCarrier(u8),
     UnknownBindingRelevance(u8),

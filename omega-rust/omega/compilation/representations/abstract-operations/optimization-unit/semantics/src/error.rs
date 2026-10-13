@@ -25,6 +25,11 @@ pub enum OptimizationUnitValidationError {
     PrunedProviderMachine(MachineId),
     DuplicateBoundaryMachine(BoundaryMachineId),
     DynamicDispatchCatalogMismatch,
+    DynamicReferenceContract {
+        interface: u32,
+        slot: u32,
+        reason: &'static str,
+    },
     DuplicateService(ServiceId),
     InvalidServiceIdentity(ServiceId),
     InvalidServiceParent {

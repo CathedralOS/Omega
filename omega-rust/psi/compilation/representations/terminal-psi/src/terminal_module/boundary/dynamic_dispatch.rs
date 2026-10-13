@@ -60,6 +60,20 @@ pub struct TerminalDynamicSlot {
     /// Canonical possible result claims, by typed relative path. Every row
     /// realizes this roster under its own private returning claim identities.
     pub result_claim_paths: Vec<Vec<StructuralPathSegment>>,
+    /// Requirement-owned returned-borrow regions. These contain no private
+    /// callee place identities and grant no permission to form a reference.
+    pub result_reference_regions: Vec<TerminalDynamicReferenceRegion>,
+}
+
+/// One result leaf may borrow within the selected input region. The region's
+/// endpoint type can differ from the leaf's referent type; each implementation
+/// supplies its own checked descriptor, access, bounds and origin refinement.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TerminalDynamicReferenceRegion {
+    pub path: Vec<StructuralPathSegment>,
+    pub argument_index: u32,
+    pub source_path: Vec<StructuralPathSegment>,
+    pub access: StructuralAccess,
 }
 
 impl TerminalDynamicSlot {

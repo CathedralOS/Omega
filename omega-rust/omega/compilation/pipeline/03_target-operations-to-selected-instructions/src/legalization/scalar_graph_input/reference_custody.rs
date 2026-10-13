@@ -12,9 +12,9 @@
 //! roots describe possible storage, never a runtime address to choose here.
 //! Shared descriptor copies retain that roster without consuming the source:
 //! each new carrier has its own release identity but the same immediate parents.
-//! Owned edges select an actual receiving parameter occurrence. Its admitted
-//! formations, roots and parents converge before entries are returned; ordinary
-//! surviving leaves still agree exactly on every arrival, including backedges.
+//! Owned edges select a receiving parameter occurrence; reconverging stores
+//! select the current occurrence of their independently established resident
+//! slot. Admitted formations, roots and parents converge before entries return.
 //! Ingress slots retain Case/Field guards, not simultaneous grants for inactive
 //! alternatives. Construction and transport use resident descriptors. Source
 //! dominance scopes storage at joins before comparing surviving custody; this
@@ -40,6 +40,7 @@ use terminal_psi::{
 mod borrowed_arrivals;
 mod descriptor_backing;
 mod occurrences;
+mod resident_joins;
 mod retirements;
 mod stored_calls;
 use occurrences::{
@@ -90,16 +91,24 @@ impl Root {
                 .cloned()
                 .map(terminal_psi::ReferenceOriginProjection::Exact)
                 .collect::<Vec<_>>(),
+            semantic_vocabulary::ReferenceOriginExtent::Projected,
         )
     }
 
-    fn projected_family(&self, suffix: &[terminal_psi::ReferenceOriginProjection]) -> Self {
-        if suffix.is_empty() {
+    fn projected_family(
+        &self,
+        suffix: &[terminal_psi::ReferenceOriginProjection],
+        extent: semantic_vocabulary::ReferenceOriginExtent,
+    ) -> Self {
+        if suffix.is_empty() && extent == semantic_vocabulary::ReferenceOriginExtent::Projected {
             return self.clone();
         }
         let mut origins = self.origins();
         for origin in &mut origins {
-            origin.path.extend_from_slice(suffix);
+            if origin.extent == semantic_vocabulary::ReferenceOriginExtent::Projected {
+                origin.path.extend_from_slice(suffix);
+                origin.extent = extent;
+            }
         }
         if origins.len() == 1
             && let Some(path) = origins[0].exact_path()
@@ -115,10 +124,12 @@ impl Root {
         match self {
             Self::Place(root) => vec![target_operations::TargetReferenceOrigin {
                 root: *root,
+                extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
                 path: Vec::new(),
             }],
             Self::Ingress(root, path) => vec![target_operations::TargetReferenceOrigin {
                 root: *root,
+                extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
                 path: path
                     .iter()
                     .cloned()
@@ -910,53 +921,6 @@ fn normalized_direct_source(
     }
 }
 
-/// Substitute a callee's formal result-source mapping into the caller's actual
-/// argument at the same structural-parameter position.
-
-/// The formal origin a callee result mapping names: a borrowed primitive
-/// parameter or an ingress leaf path under an owned or shared carrier.
-fn formal_origin(
-    function: &PsiOptimizationFunction,
-    types: &[StructuralTypeDeclaration],
-    source: &StructuralArgument,
-) -> Option<Root> {
-    let parameter = function.structural_parameter(source.place)?;
-    let path = terminal_semantics::reference_source_storage_path(
-        types.iter(),
-        parameter.structural_type,
-        &source.path,
-    );
-    if path.is_empty()
-        && matches!(
-            parameter.access,
-            terminal_psi::reading_borrow_pair_pattern!()
-        )
-    {
-        Some(Root::Place(source.place))
-    } else if let Some((StructuralPathSegment::Referent, path)) = path.split_last()
-        && matches!(
-            parameter.access,
-            StructuralAccess::Owned | StructuralAccess::SharedBorrow
-        )
-    {
-        Some(Root::Ingress(source.place, path.to_vec()))
-    } else if direct_storage_type(
-        function,
-        types,
-        &StructuralArgument {
-            place: source.place,
-            path: path.to_vec(),
-            access: source.access,
-        },
-    )
-    .is_some()
-    {
-        Some(Root::Ingress(source.place, path.to_vec()))
-    } else {
-        None
-    }
-}
-
 fn access_covers(authority: StructuralAccess, requested: StructuralAccess) -> bool {
     authority == requested
         || authority == StructuralAccess::Owned
@@ -1129,28 +1093,31 @@ fn call_arguments(
                         _ => None,
                     })
                     .ok_or_else(|| invalid())?;
-                // Abstract callee ingress promises independently available
-                // leaves. A type cannot describe an unknown suspended parent
-                // or a parent/child pair packed into the same incoming record.
-                if custody
-                    .leaves
-                    .values()
-                    .any(|child| custody.descends_from(child, &leaf.identity))
-                    || (argument.access == StructuralAccess::Owned
-                        && moved
-                            .insert((argument.place, carrier_path.clone()), leaf.clone())
-                            .is_some())
+                let supplied = if access_covers(argument.access, permission) {
+                    permission
+                } else {
+                    argument.access
+                };
+                // Shared observations coexist with shared descendants, as on
+                // a direct descriptor crossing. Exclusive or owned ingress
+                // still cannot abstract away a suspended parent occurrence.
+                if custody.leaves.iter().any(|((carrier, path), child)| {
+                    custody.descends_from(child, &leaf.identity)
+                        && (argument.access == StructuralAccess::Owned
+                            || !shared_source_compatible(
+                                function, custody, types, carrier, path, supplied,
+                            ))
+                }) || (argument.access == StructuralAccess::Owned
+                    && moved
+                        .insert((argument.place, carrier_path.clone()), leaf.clone())
+                        .is_some())
                 {
                     return Err(invalid());
                 }
                 normalized.push((
                     argument_position,
                     vec![leaf.root.clone()],
-                    if access_covers(argument.access, permission) {
-                        permission
-                    } else {
-                        argument.access
-                    },
+                    supplied,
                     CallRegion::Referent,
                     Some((argument.place, carrier_path.clone())),
                 ));
@@ -1263,7 +1230,7 @@ fn commit_argument_moves(
 /// leaf roster the target row must carry.
 fn call_results(
     function: &PsiOptimizationFunction,
-    callee_function: &PsiOptimizationFunction,
+    contract: terminal_semantics::ReferenceCallContract<'_>,
     types: &[StructuralTypeDeclaration],
     result: &StructuralOperationResult,
     psi_operation: OperationId,
@@ -1274,10 +1241,12 @@ fn call_results(
     if !contains_reference(types, result.structural_type) {
         return Ok(Vec::new());
     }
-    let callee_result = callee_function
-        .result
-        .structural()
-        .ok_or_else(|| invalid())?;
+    let mappings = terminal_semantics::bind_reference_call_results(
+        types.iter(),
+        contract,
+        structural_arguments,
+    )
+    .map_err(|reason| LegalizationError::ReferenceResult { reason })?;
     if custody
         .leaves
         .keys()
@@ -1292,52 +1261,37 @@ fn call_results(
     // instead of imposing a second, unguarded identity-overlap policy.
     let mut established = Vec::new();
     let mut reference_results = Vec::new();
-    for mapping in &callee_result.reference_sources {
+    for mapping in mappings {
         let expected =
             leaf_referent(types, result.structural_type, &mapping.path).ok_or_else(|| invalid())?;
-        validate_result_sources(mapping, result.structural_type, types)?;
+        let result_access = leaf_type(types, result.structural_type, &mapping.path)
+            .and_then(|leaf| find_structural_type(types, leaf))
+            .and_then(|declaration| match declaration.shape {
+                StructuralTypeShape::Reference { access, .. } => Some(access),
+                _ => None,
+            })
+            .ok_or_else(invalid)?;
+        if mapping.sources.is_empty() {
+            return Err(invalid());
+        }
         let mut candidates = Vec::with_capacity(mapping.sources.len());
-        for formal in &mapping.sources {
-            let parameter = callee_function
-                .structural_parameter(formal.place)
-                .ok_or_else(invalid)?;
-            let binding = terminal_semantics::bind_reference_origin(
-                types.iter(),
-                parameter.structural_type,
-                formal,
-            )
-            .map_err(|_| invalid())?;
-            let formal = &binding.source;
-            let source = call_source(
-                &callee_function.structural_parameters,
-                structural_arguments,
-                formal,
-            )
-            .ok_or_else(|| invalid())?;
-            if reference_source_type(function, custody, types, &source).and_then(|root| {
-                terminal_semantics::reference_origin_type(types.iter(), root, binding.suffix)
-            }) != Some(expected)
+        for binding in &mapping.sources {
+            let source = &binding.source;
+            if !access_covers(source.access, result_access) {
+                return Err(invalid());
+            }
+            if reference_source_type(function, custody, types, source)
+                .and_then(|root| {
+                    terminal_semantics::reference_origin_type(types.iter(), root, &binding.suffix)
+                })
+                .is_none_or(|endpoint| {
+                    binding.extent == semantic_vocabulary::ReferenceOriginExtent::Projected
+                        && endpoint != expected
+                })
             {
                 return Err(invalid());
             }
-            let leaf = if binding.suffix.is_empty()
-                && matches!(
-                    formal_origin(callee_function, types, formal),
-                    Some(Root::Ingress(place, path))
-                        if callee_function.structural_parameter(place)
-                            .and_then(|parameter| {
-                                leaf_type(types, parameter.structural_type, &path)
-                            })
-                            .and_then(|leaf| {
-                                find_structural_type(types, leaf)
-                            })
-                            .is_some_and(|declaration| {
-                                matches!(
-                                    declaration.shape,
-                                    StructuralTypeShape::Reference { .. }
-                                )
-                            })
-                ) {
+            let leaf = if binding.transfers_existing {
                 // An owned-carrier ingress mapping relocates one of the leaves the
                 // moved arguments just transferred; the leaf keeps its identity,
                 // root and parent, and lands at the declared result path.
@@ -1360,8 +1314,8 @@ fn call_results(
                 };
                 leaf.clone()
             } else {
-                let (root, parents) = normalized_source(function, custody, types, &source)?;
-                let root = root.projected_family(binding.suffix);
+                let (root, parents) = normalized_source(function, custody, types, source)?;
+                let root = root.projected_family(&binding.suffix, binding.extent);
                 let (backing, backing_parents) = descriptor_backing::capture(
                     function,
                     custody,
@@ -1408,32 +1362,6 @@ fn call_results(
         custody.leaves.insert(key, leaf);
     }
     Ok(reference_results)
-}
-
-fn validate_result_sources(
-    mapping: &terminal_psi::StructuralReferenceResultSource,
-    result_type: StructuralTypeId,
-    types: &[StructuralTypeDeclaration],
-) -> Result<StructuralAccess, LegalizationError> {
-    if mapping.sources.is_empty() {
-        return Err(invalid());
-    }
-    let result_access = leaf_type(types, result_type, &mapping.path)
-        .and_then(|leaf| find_structural_type(types, leaf))
-        .and_then(|declaration| match declaration.shape {
-            StructuralTypeShape::Reference { access, .. } => Some(access),
-            _ => None,
-        })
-        .ok_or(invalid())?;
-    if mapping
-        .sources
-        .iter()
-        .any(|formal| !access_covers(formal.access, result_access))
-        || mapping.sources.windows(2).any(|pair| pair[0] >= pair[1])
-    {
-        return Err(invalid());
-    }
-    Ok(result_access)
 }
 
 /// Alternatives retain one returned permission, not independently live loans.
@@ -2177,36 +2105,43 @@ pub(in crate::legalization) fn apply(
             structural_arguments,
             ..
         } => {
-            let callee_function = match callee {
-                abstract_operations::AbstractCallTarget::Machine(machine) => Some(
-                    unit.functions
+            let (callee_function, result_contract) = match callee {
+                abstract_operations::AbstractCallTarget::Machine(machine) => {
+                    let callee = unit
+                        .functions
                         .iter()
                         .find(|function| function.machine == *machine)
-                        .ok_or_else(|| invalid())?,
-                ),
+                        .ok_or_else(invalid)?;
+                    let result = callee.result.structural().ok_or_else(invalid)?;
+                    (
+                        Some(callee),
+                        terminal_semantics::ReferenceCallContract::Machine {
+                            parameters: &callee.structural_parameters,
+                            sources: &result.reference_sources,
+                        },
+                    )
+                }
                 abstract_operations::AbstractCallTarget::Dynamic { .. } => {
                     let abstract_operations::AbstractCallSignature::Requirement(requirement) =
                         super::call_signature::signature(*callee, plan)?
                     else {
                         return Err(invalid());
                     };
-                    // The slot owns the completed result contract. It supplies no
-                    // private returned-loan origins, so this route may consume input
-                    // reference custody but cannot establish borrowed result storage.
                     if !requirement.matches_operation_result(
                         &terminal_psi::OperationResult::Structural(result.clone()),
-                    ) || terminal_psi::structural_type_has_borrowed_storage_by(
-                        |id| find_structural_type(types, id),
-                        result.structural_type,
                     ) {
                         return Err(invalid());
                     }
-                    None
+                    (
+                        None,
+                        terminal_semantics::ReferenceCallContract::Requirement(requirement),
+                    )
                 }
             };
             call_transition(
                 function,
                 callee_function,
+                Some(result_contract),
                 types,
                 Some(result),
                 *psi_operation,
@@ -2229,6 +2164,7 @@ pub(in crate::legalization) fn apply(
             call_transition(
                 function,
                 callee_function,
+                None,
                 types,
                 None,
                 *psi_operation,
@@ -2305,16 +2241,20 @@ fn transfer_return_custody(
                 let Some(endpoint) = terminal_semantics::reference_origin_type(
                     types.iter(), parameter.structural_type, &path,
                 ) else { return false; };
-                if endpoint != leaf.referent {
+                if origin.extent == semantic_vocabulary::ReferenceOriginExtent::Projected && endpoint != leaf.referent {
                     if !find_structural_type(types, endpoint).is_some_and(|declaration|
                         matches!(declaration.shape, StructuralTypeShape::Reference { referent, access: supplied }
                             if referent == leaf.referent && access_covers(supplied, access)))
                     { return false; }
                     path.push(ReferenceOriginProjection::Exact(StructuralPathSegment::Referent));
                 }
-                mapping.sources.contains(&terminal_psi::ReferenceOriginSource {
+                let actual = terminal_psi::ReferenceOriginSource {
                     place: origin.root, path, access,
-                })
+                    extent: origin.extent,
+                };
+                mapping.sources.iter().any(|allowed| terminal_semantics::reference_origin_refines(
+                    types.iter(), parameter.structural_type, &actual, allowed,
+                ))
             })
         };
         let admitted = declared(&leaf.root);
@@ -2555,9 +2495,10 @@ fn borrowed_sources(
 }
 
 /// Compute entries from actual incoming edges, never dominator storage alone.
-/// Each changed selected arrival replays its dependent block. Only owned
-/// parameter occurrences may accumulate formations; all other leaves agree
-/// exactly. Final entries equal the complete merge of every incoming edge.
+/// Each changed selected arrival replays its dependent block. Owned parameter
+/// bindings and independently established resident slots select their current
+/// occurrence without forgetting predecessor formations. Final entries equal
+/// the complete merge of every incoming edge.
 pub(in crate::legalization) fn block_entry_states(
     function: &PsiOptimizationFunction,
     native: &target_operations::TargetOperationPlan,
@@ -2689,49 +2630,21 @@ pub(in crate::legalization) fn block_entry_states(
             // Compare current predecessor outputs with one another, not with
             // an older provisional entry. Upstream selection may enlarge the
             // roster even when this block has just one predecessor.
-            let mut incoming = final_arrivals
+            let incoming = final_arrivals
                 .iter()
                 .flatten()
-                .filter(|(_, candidate, _)| *candidate == target);
-            let (_, _, first) = incoming.next().ok_or_else(invalid)?;
-            let mut complete = first.clone();
-            let mut consistent = true;
-            for (_, _, arrival) in incoming {
-                if merge_arrivals(
-                    function,
-                    target,
-                    types,
-                    &mut complete.leaves,
-                    &arrival.leaves,
-                )?
-                .is_none()
-                    || retirements::merge(&mut complete.retired, &arrival.retired).is_none()
-                {
-                    consistent = false;
-                    break;
-                }
-            }
-            if consistent {
-                for (_, _, arrival) in final_arrivals
-                    .iter()
-                    .flatten()
-                    .filter(|(_, candidate, _)| *candidate == target)
-                {
-                    borrowed_arrivals::merge(&mut complete, arrival)?;
-                }
-            }
+                .filter(|(_, candidate, _)| *candidate == target)
+                .map(|(_, _, arrival)| arrival.clone());
             let target_position = *positions.get(&target).ok_or_else(invalid)?;
-            if !consistent {
+            let Some(complete) = resident_joins::merge(function, target, types, incoming)? else {
                 // Keep the previous state provisional while other predecessors
                 // propagate. Never replay a queued stale, nonselected roster.
                 deferred.insert(target);
                 pending.retain(|position| *position != target_position);
                 queued[target_position] = false;
                 continue;
-            }
+            };
             let was_deferred = deferred.remove(&target);
-            complete.prune_retired();
-            complete.validate_occurrences()?;
             let changed = entries.get(&target).is_none_or(|entry| {
                 entry.leaves != complete.leaves
                     || entry.retired != complete.retired
@@ -2750,29 +2663,13 @@ pub(in crate::legalization) fn block_entry_states(
         return Err(invalid());
     }
     for block in blocks.iter().filter(|block| block.id != function.entry) {
-        let mut arrivals = final_arrivals
+        let arrivals = final_arrivals
             .iter()
             .flatten()
-            .filter(|(_, target, _)| *target == block.id);
-        let (_, _, first) = arrivals.next().ok_or_else(invalid)?;
-        let mut complete = first.clone();
-        for (_, _, arrival) in arrivals {
-            if merge_arrivals(
-                function,
-                block.id,
-                types,
-                &mut complete.leaves,
-                &arrival.leaves,
-            )?
-            .is_none()
-                || retirements::merge(&mut complete.retired, &arrival.retired).is_none()
-            {
-                return Err(invalid());
-            }
-            borrowed_arrivals::merge(&mut complete, arrival)?;
-        }
-        complete.prune_retired();
-        complete.validate_occurrences()?;
+            .filter(|(_, target, _)| *target == block.id)
+            .map(|(_, _, arrival)| arrival.clone());
+        let complete =
+            resident_joins::merge(function, block.id, types, arrivals)?.ok_or_else(invalid)?;
         if entries.get(&block.id).is_none_or(|entry| {
             entry.leaves != complete.leaves
                 || entry.retired != complete.retired
@@ -2945,7 +2842,8 @@ pub(in crate::legalization) fn referent_argument(
 /// unchanged; the scratch transition never uses producer-owned target rows.
 pub(in crate::legalization) fn reference_results(
     caller: &PsiOptimizationFunction,
-    callee: &PsiOptimizationFunction,
+    callee: Option<&PsiOptimizationFunction>,
+    contract: terminal_semantics::ReferenceCallContract<'_>,
     arguments: &[StructuralArgument],
     result: &StructuralOperationResult,
     psi_operation: OperationId,
@@ -2955,7 +2853,8 @@ pub(in crate::legalization) fn reference_results(
     let mut returned = custody.clone();
     call_transition(
         caller,
-        Some(callee),
+        callee,
+        Some(contract),
         types,
         Some(result),
         psi_operation,
@@ -2970,6 +2869,7 @@ pub(in crate::legalization) fn reference_results(
 fn call_transition(
     caller: &PsiOptimizationFunction,
     callee: Option<&PsiOptimizationFunction>,
+    result_contract: Option<terminal_semantics::ReferenceCallContract<'_>>,
     types: &[StructuralTypeDeclaration],
     result: Option<&StructuralOperationResult>,
     operation: OperationId,
@@ -2979,11 +2879,12 @@ fn call_transition(
     let moved = call_arguments(caller, types, custody, arguments)?;
     let stored = stored_calls::stage(caller, callee, types, custody, arguments, operation, &moved)?;
     commit_argument_moves(custody, &moved);
-    let results = match (callee, result) {
-        (Some(callee), Some(result)) => call_results(
-            caller, callee, types, result, operation, arguments, custody, &moved,
+    let results = match (result_contract, result) {
+        (Some(contract), Some(result)) => call_results(
+            caller, contract, types, result, operation, arguments, custody, &moved,
         )?,
-        _ => Vec::new(),
+        (None, None) => Vec::new(),
+        _ => return Err(invalid()),
     };
     stored_calls::commit(
         caller,

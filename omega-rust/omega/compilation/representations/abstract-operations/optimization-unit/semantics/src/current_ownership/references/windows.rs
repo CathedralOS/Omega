@@ -85,10 +85,10 @@ pub(super) fn transfer(
                     .exact_identity()
                     .ok_or_else(|| fail("window reference origin has no exact storage cursor"))?,
             ],
-            ReferenceOrigin::Alternatives { place, paths } => paths
+            ReferenceOrigin::Alternatives { origins, .. } => origins
                 .into_iter()
-                .map(|path| {
-                    super::ReferenceOriginIdentity { place, path }
+                .map(|origin| {
+                    origin
                         .exact_identity()
                         .ok_or_else(|| fail("window reference origin has no exact storage cursor"))
                 })

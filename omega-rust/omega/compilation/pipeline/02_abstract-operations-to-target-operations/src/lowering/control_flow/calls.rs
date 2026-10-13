@@ -295,26 +295,23 @@ fn land_result(
         AbstractStructuralCallResult::Structural { result, .. } => {
             let result_home =
                 structural_home.ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-            let (callee_result, reference_results) = match declaration {
+            let reference_results = super::references::call_results(
+                function,
+                declaration,
+                types,
+                result,
+                call.structural_arguments,
+                live,
+                moved,
+            )?;
+            let callee_result = match declaration {
                 AbstractCallSignature::Machine(callee) => {
                     let result_declaration = callee
                         .result
                         .structural()
                         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-                    let references = super::references::call_results(
-                        function,
-                        callee,
-                        types,
-                        result,
-                        call.structural_arguments,
-                        live,
-                        moved,
-                    )?;
-                    (
-                        target_operations::TargetStructuralResultContract::Machine(
-                            result_declaration.clone(),
-                        ),
-                        references,
+                    target_operations::TargetStructuralResultContract::Machine(
+                        result_declaration.clone(),
                     )
                 }
                 AbstractCallSignature::Requirement(requirement) => {
@@ -323,19 +320,8 @@ fn land_result(
                     else {
                         return Err(LoweringError::unsupported_control_flow(function.machine));
                     };
-                    // Public reference-origin coordinates are not yet part of the
-                    // dynamic contract. No private implementation can supply them.
-                    if terminal_psi::structural_type_has_borrowed_storage_by(
-                        |id| types.get(&id).copied(),
-                        result.structural_type,
-                    ) {
-                        return Err(LoweringError::unsupported_control_flow(function.machine));
-                    }
-                    (
-                        target_operations::TargetStructuralResultContract::Requirement(
-                            result_declaration.clone(),
-                        ),
-                        Vec::new(),
+                    target_operations::TargetStructuralResultContract::Requirement(
+                        result_declaration.clone(),
                     )
                 }
             };

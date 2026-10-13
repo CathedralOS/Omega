@@ -48,6 +48,34 @@ pub(super) fn elaborate(program: &mut TypedTrees) -> Result<(), Vec<diagnostics:
         elaborate_value_fields(program, reference, &mut Vec::new());
     }
     elaborate_projected_fields(program);
+    finalize_produced_types(program, type_start)
+}
+
+/// Signature instantiation can append applications after source projections
+/// have been resolved. Prepare those exact occurrences before freezing, so
+/// lifetime and storage queries read one field telescope. A layout-equivalent
+/// closed instance cannot supply another occurrence's lexical regions.
+pub(super) fn elaborate_new_types(
+    program: &mut TypedTrees,
+    first_type: usize,
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    let type_start = program.type_reference_table.type_reference_count();
+    let applications = program
+        .type_reference_table
+        .type_reference_rows()
+        .filter(|(reference, _)| reference.arena_index() as usize > first_type)
+        .map(|(reference, _)| reference)
+        .collect::<Vec<_>>();
+    for reference in applications {
+        elaborate_value_fields(program, reference, &mut Vec::new());
+    }
+    finalize_produced_types(program, type_start)
+}
+
+fn finalize_produced_types(
+    program: &mut TypedTrees,
+    type_start: usize,
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let produced = program
         .type_reference_table
         .type_reference_rows()

@@ -31,11 +31,13 @@ mod identity;
 mod ieee_float_comparison_operation;
 mod proposition;
 mod qualified_scalar_type;
+mod reference_origins;
 mod scalar_refinement;
 mod structural_places;
 
 pub use ieee_float_comparison_operation::IeeeFloatComparisonOperation;
 pub use qualified_scalar_type::QualifiedScalarType;
+pub use reference_origins::ReferenceOriginExtent;
 pub use scalar_refinement::{ScalarRefinement, ScalarRefinementError};
 
 pub use authored_storage::{

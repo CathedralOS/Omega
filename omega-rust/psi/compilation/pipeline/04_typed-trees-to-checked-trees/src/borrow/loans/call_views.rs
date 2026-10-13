@@ -292,6 +292,12 @@ fn call_view_signature(
     typed_trees::types::TypeReferenceHandle,
     Option<&typed_trees::signature::StateSignature>,
 )> {
+    if let Some(slot) = program.dynamic_slot_by_symbol(target_symbol) {
+        // The instantiated requirement roster includes the scalar selector,
+        // exactly like the call's operands. Loan attribution retains those
+        // ordinals; only executable custody normalizes the structural lane.
+        return Some((&slot.parameters, slot.return_type, None));
+    }
     if let Some(target_state) = program.state_by_symbol(target_symbol) {
         return Some((
             program.state_parameters(target_state),

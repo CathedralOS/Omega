@@ -1,5 +1,5 @@
-//! A Unit call can install a reference in a caller-owned field even though it
-//! returns no value. Its body-derived slot relation supplies the same exact
+//! A call can install a reference in caller-owned storage independently of its
+//! result value. Its body-derived slot relation supplies the same exact
 //! owner/backing pairs as an assignment; type shape alone supplies no loan.
 
 use super::{StatementBorrowLoan, owner_path_from_place_segments};

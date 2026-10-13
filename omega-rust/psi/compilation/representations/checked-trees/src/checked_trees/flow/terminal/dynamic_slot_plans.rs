@@ -37,6 +37,8 @@ pub struct CheckedDynamicSlotPlan {
     pub result: CheckedBoundaryMachineResultPlan,
     /// Public possible result claim frontier; implementation identities remain private.
     pub result_claim_paths: Vec<Vec<crate::CheckedUnitStructuralPathSegment>>,
+    /// Public result/input lifetime regions, indexed only by structural formals.
+    pub result_reference_sources: Vec<crate::CheckedReturnedReferencePlan>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

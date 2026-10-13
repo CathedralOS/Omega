@@ -105,6 +105,10 @@ pub enum LoweringError {
         site: optimization_core::CompilerCheckSite,
     },
     UnsupportedOperationInUnitFunction(MachineId),
+    InvalidReferenceResult {
+        machine: MachineId,
+        reason: &'static str,
+    },
     DuplicateNativeCallbackArgument(OperationId),
     MultipleNativeCallbackArguments,
     UnknownNativeCallbackArgument(OperationId),

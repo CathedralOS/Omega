@@ -421,6 +421,7 @@ mod tests {
                         entry_claim_paths: Vec::new(),
                         result: terminal_psi::BoundaryMachineResult::Unit,
                         result_claim_paths: Vec::new(),
+                        result_reference_regions: Vec::new(),
                     })
                     .collect(),
             }],

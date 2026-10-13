@@ -15,7 +15,7 @@ pub(in crate::checks::multiplicity) fn append_owned_transfer(
     facts: &mut CheckFacts,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
-    statement_index: usize,
+    consumer: PermissionEventSource,
     evaluation: checked_trees::FlowPermissionEvaluation,
     owners: &[TemporaryOwner],
     places: &mut [crate::checks::multiplicity::linear_obligations::LinearPlace],
@@ -24,7 +24,7 @@ pub(in crate::checks::multiplicity) fn append_owned_transfer(
 ) {
     for owner in owners.iter().filter(|owner| {
         matches!(owner.consumption, TemporaryConsumption::OwnedTransfer)
-            && matches!(owner.consumer, PermissionEventSource::Call { statement_index: index, .. } if index == statement_index)
+            && owner.consumer == consumer
             && owner.evaluation == evaluation
     }) {
         let root = facts::PlaceRoot::Expression(owner.expression);

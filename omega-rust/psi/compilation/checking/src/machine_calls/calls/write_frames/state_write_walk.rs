@@ -607,23 +607,20 @@ fn walk_state_write_prefix_inner(
         // frozen-binding opacity fence does not apply to it.
         let wire_codec_call = matches!(statement, StatementNode::Call(call)
             if wire_codecs::is_wire_codec_call(program, call));
-        let stored_call_effects = if let Some(call) = statement.as_call() {
-            super::stored_calls::call_effects(
-                program,
-                machine,
-                call,
-                &CollectedStatementPrefix {
-                    isolated_locals: isolated_local_roots.clone(),
-                    aliases: local_alias_origins.clone(),
-                    divergent: divergent_alias_origins.clone(),
-                    stored: stored.clone(),
-                },
-                symbols,
-                inference,
-            )
-        } else {
-            None
-        };
+        let stored_call_effects = super::stored_calls::statement_effects(
+            program,
+            machine,
+            state,
+            statement,
+            &CollectedStatementPrefix {
+                isolated_locals: isolated_local_roots.clone(),
+                aliases: local_alias_origins.clone(),
+                divergent: divergent_alias_origins.clone(),
+                stored: stored.clone(),
+            },
+            symbols,
+            inference,
+        );
         if !wire_codec_call && let Some(call) = statement.as_call() {
             stored_origins::retire_private_call_argument_cases(
                 program,
@@ -772,6 +769,12 @@ fn walk_state_write_prefix_inner(
                             &locals,
                         )?;
                     }
+                    install_statement_call_effects(
+                        program,
+                        inference,
+                        &mut stored,
+                        stored_call_effects.as_deref(),
+                    );
                     continue;
                 }
             }
@@ -844,6 +847,7 @@ fn walk_state_write_prefix_inner(
                 }
             }
         }
+        let mut assignment_replacement = None;
         match statement {
             StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => {}
             StatementNode::Assignment(assignment) => {
@@ -923,6 +927,12 @@ fn walk_state_write_prefix_inner(
                             &stored,
                         );
                     }
+                    install_statement_call_effects(
+                        program,
+                        inference,
+                        &mut stored,
+                        stored_call_effects.as_deref(),
+                    );
                     continue;
                 }
                 let relative = stable_assignment_target_path(
@@ -950,11 +960,9 @@ fn walk_state_write_prefix_inner(
                     parameters,
                     &locals,
                 )?;
-                // The write itself expanded through the pre-state evidence;
-                // only later statements see the replacement's own origins.
-                if let Some(replacement) = replacement {
-                    stored_origins::record_replacement_local(inference, &mut stored, replacement);
-                }
+                // The write target and returned origins are captured before
+                // RHS effects. Install the final store after those effects.
+                assignment_replacement = replacement;
             }
             StatementNode::Call(nested_call) => {
                 let nested_receiver_members = program
@@ -1132,12 +1140,6 @@ fn walk_state_write_prefix_inner(
                         .iter()
                         .any(|root| program.symbols.name(local.local_symbol) == root)
                 });
-                if let Some(effects) = &stored_call_effects {
-                    super::stored_calls::apply(program, &mut stored, effects);
-                    for record in &stored {
-                        inference.record_local(record);
-                    }
-                }
             }
             StatementNode::Transition(transition) => {
                 if matches!(query, Some(StateWriteQuery::OriginTransfer { .. })) {
@@ -1273,6 +1275,15 @@ fn walk_state_write_prefix_inner(
                 locals.push(local.name.as_str().to_owned());
             }
         }
+        install_statement_call_effects(
+            program,
+            inference,
+            &mut stored,
+            stored_call_effects.as_deref(),
+        );
+        if let Some(replacement) = assignment_replacement {
+            replacement.install(inference, &mut stored);
+        }
     }
 
     (query.is_none()
@@ -1281,6 +1292,23 @@ fn walk_state_write_prefix_inner(
             Some(StateWriteQuery::Complete | StateWriteQuery::OriginTransfer { .. })
         ))
     .then_some(StateWritePrefix { written, stored })
+}
+
+/// Every completed statement path publishes its operand effects, including a
+/// descriptor rebind that needs no stored-subtree replacement. Destinations and
+/// returned aliases have already been captured from their evaluation inputs.
+fn install_statement_call_effects(
+    program: &dyn crate::CheckingInput,
+    inference: &mut FrameInference,
+    stored: &mut Vec<StoredLocalOrigins>,
+    effects: Option<&[super::stored_calls::SlotEffect]>,
+) {
+    if let Some(effects) = effects {
+        super::stored_calls::apply(program, stored, effects);
+        for record in stored {
+            inference.record_local(record);
+        }
+    }
 }
 
 /// Record a queried storage assignment for `paths`, then write each into the

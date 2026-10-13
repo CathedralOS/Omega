@@ -190,6 +190,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             *active_constraints,
             borrow,
             program,
+            machine,
             reassigned_place,
             statement_index,
             statement,

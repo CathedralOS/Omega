@@ -92,6 +92,10 @@ pub(super) fn encode_reference_origin(
     origin: &terminal_psi::ReferenceOriginSource,
 ) {
     crate::codec_bytes::push_encoded(bytes, origin.place.get().to_le_bytes());
+    bytes.push(match origin.extent {
+        semantic_vocabulary::ReferenceOriginExtent::Projected => 1,
+        semantic_vocabulary::ReferenceOriginExtent::WithinRegion => 2,
+    });
     encode_len(bytes, origin.path.len());
     for projection in &origin.path {
         match projection {

@@ -40,20 +40,52 @@ pub(crate) fn apply_recorded_state_entry_events(
 }
 
 pub(crate) fn apply_recorded_statement_events(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     statement_index: usize,
     evaluation: checked_trees::FlowPermissionEvaluation,
     events: &[&FlowPermissionEventFact],
-    segments: &arena::Arena<facts::PlaceSegment>,
     places: &mut [LinearPlace],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let segments = &facts.flow.ownership.segments;
+    let routes = super::super::selected_evaluation::ExpressionRoutes::new(
+        program,
+        machine,
+        state,
+        statement_index,
+        evaluation,
+        &facts.operators,
+    );
+    let calls = facts
+        .flow
+        .control
+        .states
+        .iter()
+        .find(|(_, flow)| {
+            flow.machine_symbol == machine.symbol && flow.state_symbol == state.symbol
+        })
+        .map_or(&[][..], |(_, flow)| {
+            facts.flow.control.calls.span_or_empty(flow.calls)
+        });
+    let mut selected = super::super::selected_evaluation::SelectedEvaluation::new();
+    let mut current = places.to_vec();
+    let join = |current: &mut Vec<LinearPlace>, sibling: &Vec<LinearPlace>| {
+        super::super::selected_evaluation::join_places(current, sibling)
+    };
     for event in events.iter().copied().filter(|event| {
         permission_event_statement_index(event.source) == Some(statement_index)
             && event.evaluation == evaluation
             && event.kind != PermissionEventKind::AffineDrop
     }) {
+        if let Err(diagnostic) = selected.enter(routes.event(event, calls), &mut current, join) {
+            diagnostics.push(diagnostic);
+            return;
+        }
         let event_path = segments.span_or_empty(event.segments);
-        let Some(place) = places
+        let Some(place) = current
             .iter_mut()
             .find(|place| place.root == event.root && place.path.as_slice() == event_path)
         else {
@@ -119,6 +151,11 @@ pub(crate) fn apply_recorded_statement_events(
             PermissionEventKind::AffineDrop => {}
         }
     }
+    if let Err(diagnostic) = selected.enter(&[], &mut current, join) {
+        diagnostics.push(diagnostic);
+        return;
+    }
+    places.clone_from_slice(&current);
 }
 
 pub(crate) fn permission_event_statement_index(source: PermissionEventSource) -> Option<usize> {

@@ -167,10 +167,13 @@ pub(crate) fn validate_linear_permission_events(
                             diagnostics.push(diagnostic);
                         }
                         apply_recorded_statement_events(
+                            program,
+                            facts,
+                            machine,
+                            state,
                             statement,
                             evaluation,
                             &events,
-                            &facts.flow.ownership.segments,
                             places,
                             &mut diagnostics,
                         );

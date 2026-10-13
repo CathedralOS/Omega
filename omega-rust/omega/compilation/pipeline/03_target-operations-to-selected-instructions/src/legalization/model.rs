@@ -88,6 +88,9 @@ pub enum LegalizationError {
     ReferenceCompletion {
         reason: terminal_semantics::ReferenceCompletionError,
     },
+    ReferenceResult {
+        reason: &'static str,
+    },
 }
 
 impl std::fmt::Display for LegalizationError {

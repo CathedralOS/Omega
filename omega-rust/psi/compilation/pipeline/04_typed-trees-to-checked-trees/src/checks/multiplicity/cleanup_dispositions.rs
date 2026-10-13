@@ -32,6 +32,38 @@ pub(super) struct StorageEstablishment {
 }
 
 impl RemainingCustody {
+    /// Ordinary post-selection availability is the intersection. Selected
+    /// cleanup retains the exact skipped-path frontier separately; this join
+    /// never turns possible custody into unconditional disposal authority.
+    pub(super) fn join(&mut self, sibling: &Self) {
+        for (root, path) in &sibling.excluded {
+            self.remove(*root, path);
+        }
+        for (root, frontier) in &mut self.constructing {
+            if let Some((_, other)) = sibling
+                .constructing
+                .iter()
+                .find(|(candidate, _)| candidate == root)
+            {
+                let mut common = Vec::new();
+                for path in &frontier.established {
+                    if other.contains(path) {
+                        common.push(path.clone());
+                    } else {
+                        common.extend(
+                            other
+                                .established
+                                .iter()
+                                .filter(|child| child.starts_with(path))
+                                .cloned(),
+                        );
+                    }
+                }
+                frontier.established = common;
+            }
+        }
+    }
+
     /// Reserve a deferred owned local without inventing a valid whole value.
     pub(super) fn reserve(
         &mut self,
@@ -222,6 +254,47 @@ impl RemainingCustody {
             selected,
             &[],
         );
+    }
+
+    /// Replay the statement from its entry custody, joining expression paths
+    /// before its receiving write. A conditional restoration cannot erase a
+    /// sibling's removal merely because its event appears later in the roster.
+    pub(super) fn observe_evaluation(
+        &mut self,
+        program: &dyn validation::CheckingInput,
+        routes: &super::selected_evaluation::ExpressionRoutes,
+        calls: &[checked_trees::FlowCallFact],
+        events: &[FlowPermissionEventFact],
+        segments: &Arena<PlaceSegment>,
+        output: &mut ContextualCleanupFacts,
+        establishments: &[StorageEstablishment],
+    ) -> Result<(), diagnostics::Diagnostic> {
+        let mut selected = super::selected_evaluation::SelectedEvaluation::new();
+        let join = |current: &mut Self, sibling: &Self| {
+            current.join(sibling);
+            Ok(())
+        };
+        for (ordinal, event) in events.iter().enumerate() {
+            selected.enter(routes.event(event, calls), self, join)?;
+            let receiving = establishments
+                .iter()
+                .filter(|establishment| establishment.event_ordinal == ordinal)
+                .map(|establishment| StorageEstablishment {
+                    event_ordinal: 0,
+                    destination: establishment.destination.clone(),
+                })
+                .collect::<Vec<_>>();
+            self.observe_ordinary(
+                program,
+                std::slice::from_ref(event),
+                segments,
+                output,
+                FlowClaimJoinExit::default(),
+                &receiving,
+                false,
+            );
+        }
+        selected.enter(&[], self, join)
     }
 
     #[allow(clippy::too_many_arguments)]

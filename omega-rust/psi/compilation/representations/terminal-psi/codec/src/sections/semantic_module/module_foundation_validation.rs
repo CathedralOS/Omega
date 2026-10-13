@@ -153,6 +153,15 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
         structural_type_foundations::validate_type_shape(module, declaration, &attachment_storage)?;
     }
     validate_structural_type_graph(module)?;
+    for interface in &module.dynamic_dispatch.interfaces {
+        for slot in &interface.slots {
+            terminal_semantics::validate_dynamic_reference_regions(
+                module.structural_types.iter(),
+                slot,
+            )
+            .map_err(CodecError::MalformedStructuralFoundation)?;
+        }
+    }
     declaration_foundations::validate_domains(module)?;
     declaration_foundations::validate_services(module)?;
     for boundary in &module.boundary_machines {

@@ -64,6 +64,16 @@ pub(super) fn encode_dynamic_dispatch(
             for path in &slot.result_claim_paths {
                 encode_structural_path(writer, "dynamic result claim path", path)?;
             }
+            writer.len(
+                "dynamic result reference regions",
+                slot.result_reference_regions.len(),
+            )?;
+            for region in &slot.result_reference_regions {
+                encode_structural_path(writer, "dynamic result reference path", &region.path)?;
+                writer.u32(region.argument_index);
+                encode_structural_path(writer, "dynamic result input region", &region.source_path)?;
+                encode_structural_access(writer, region.access);
+            }
         }
     }
     writer.len("dynamic tables", catalog.tables.len())?;
@@ -125,6 +135,14 @@ pub(super) fn decode_dynamic_dispatch(
                     })?,
                     result: decode_call_result(reader)?,
                     result_claim_paths: decode_counted(reader, decode_structural_path)?,
+                    result_reference_regions: decode_counted(reader, |reader| {
+                        Ok(terminal_psi::TerminalDynamicReferenceRegion {
+                            path: decode_structural_path(reader)?,
+                            argument_index: reader.u32()?,
+                            source_path: decode_structural_path(reader)?,
+                            access: decode_structural_access(reader)?,
+                        })
+                    })?,
                 })
             })?,
         })

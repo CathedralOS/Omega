@@ -182,6 +182,7 @@ pub(crate) fn lower_reference_result_sources(
             )?;
             let source = terminal_psi::ReferenceOriginSource {
                 place: parameter.place,
+                extent: reference.source.extent,
                 path,
                 access: crate::expression_preparation::bindings::structural_paths::terminal_access(reference.source.access),
             };

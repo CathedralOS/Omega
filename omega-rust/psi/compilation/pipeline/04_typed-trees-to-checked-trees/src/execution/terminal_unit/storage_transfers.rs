@@ -14,6 +14,8 @@ type Results = [(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)];
 use checked_trees::{BorrowLoanOwnerSegment as OwnerSegment, CheckedStructuralValueHandle};
 use typed_trees::data::DataMember;
 
+mod computations;
+
 type Path = Vec<CheckedUnitStructuralPathSegment>;
 
 pub(in crate::execution::terminal_unit) struct Transfer {
@@ -57,6 +59,26 @@ impl Transfers {
     fn append(&mut self, other: Self) {
         self.possible.extend(other.possible);
         self.definite.extend(other.definite);
+    }
+
+    fn alternatives(alternatives: Vec<Self>) -> Self {
+        let definite = alternatives
+            .iter()
+            .flat_map(|arm| &arm.definite)
+            .filter(|path| {
+                alternatives
+                    .iter()
+                    .all(|arm| arm.definite.iter().any(|covered| path.starts_with(covered)))
+            })
+            .cloned()
+            .collect();
+        Self {
+            definite,
+            possible: alternatives
+                .into_iter()
+                .flat_map(|arm| arm.possible)
+                .collect(),
+        }
     }
 }
 
@@ -231,6 +253,7 @@ impl Query<'_> {
         active: &mut Vec<CheckedStructuralValueHandle>,
     ) -> Option<Transfers> {
         let mut output = Transfers::default();
+        output.append(self.operation_computations(operation)?);
         // A checked store names its receiving storage independently of the
         // producer. External storage has no retiring holder in this activation.
         if let Some(call) = operation.call() {
@@ -485,10 +508,14 @@ impl Query<'_> {
                         ),
                     ));
                     owner_path.push(OwnerSegment::Field(field.field));
-                    let checked_trees::CheckedStructuralRecordFieldValue::Structural(child) =
-                        field.value
-                    else {
-                        continue;
+                    let child = match field.value {
+                        checked_trees::CheckedStructuralRecordFieldValue::Structural(child) => {
+                            child
+                        }
+                        checked_trees::CheckedStructuralRecordFieldValue::Scalar(operand) => {
+                            output.append(self.computation(operand)?);
+                            continue;
+                        }
                     };
                     if selection.starts_with(&relative) {
                         // The result selects within this field: its container
@@ -542,7 +569,8 @@ impl Query<'_> {
                     output.append(self.value(*child, &[], result, &path, active)?);
                 }
             }
-            CheckedStructuralValueKind::Dispatch { arms, .. } => {
+            CheckedStructuralValueKind::Dispatch { subject, arms } => {
+                output.append(self.computation(*subject)?);
                 let alternatives = values
                     .dispatch_arms
                     .span(*arms)?
@@ -551,20 +579,45 @@ impl Query<'_> {
                     .collect::<Option<Vec<_>>>()?;
                 // Keep only source regions transferred on every arm. Taking
                 // the union here would end a parent on an unselected move.
-                output.definite = alternatives
-                    .iter()
-                    .flat_map(|arm| &arm.definite)
-                    .filter(|path| {
-                        alternatives
-                            .iter()
-                            .all(|arm| arm.definite.iter().any(|covered| path.starts_with(covered)))
-                    })
-                    .cloned()
-                    .collect();
-                output.possible = alternatives
-                    .into_iter()
-                    .flat_map(|arm| arm.possible)
-                    .collect();
+                output.append(Transfers::alternatives(alternatives));
+            }
+            CheckedStructuralValueKind::ScalarArray { elements } => {
+                for element in elements {
+                    output.append(self.computation(*element)?);
+                }
+            }
+            CheckedStructuralValueKind::ZeroedScalarArray { element, .. } => {
+                output.append(self.computation(*element)?)
+            }
+            CheckedStructuralValueKind::Case(case) => {
+                for field in self
+                    .facts
+                    .values
+                    .scalar_computations
+                    .case_fields
+                    .span(case.fields)?
+                {
+                    output.append(self.computation(field.value)?);
+                }
+            }
+            CheckedStructuralValueKind::Place(argument)
+            | CheckedStructuralValueKind::CopiedStructuralPlace {
+                source: argument, ..
+            }
+            | CheckedStructuralValueKind::Reference {
+                source: argument, ..
+            } => {
+                output.append(self.argument_computations(argument)?);
+            }
+            CheckedStructuralValueKind::BorrowedSliceView { source, region }
+            | CheckedStructuralValueKind::MutableSliceView { source, region } => {
+                output.append(self.argument_computations(source)?);
+                if let checked_trees::CheckedElementViewRegion::RepresentationBytes {
+                    start, ..
+                } = region
+                {
+                    output.append(self.computation(*start)?);
+                }
             }
             // Captures/copies keep their source custody; call arguments are
             // already represented by the retained operation call schedule.

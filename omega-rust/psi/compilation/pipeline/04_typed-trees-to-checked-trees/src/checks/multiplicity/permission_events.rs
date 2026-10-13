@@ -17,9 +17,7 @@ use crate::checks::multiplicity::linear_validation::{
 };
 use crate::checks::multiplicity::owned_selection;
 use crate::checks::multiplicity::temporary_results;
-use checked_trees::{
-    CheckFacts, ContextualCleanupFacts, FlowClaimJoinExit, FlowPermissionEventFact,
-};
+use checked_trees::{CheckFacts, ContextualCleanupFacts, FlowPermissionEventFact};
 use diagnostics::Diagnostic;
 use language_semantics::{
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
@@ -322,14 +320,18 @@ pub(crate) fn prepare_permission_events(
                         } else {
                             Vec::new()
                         };
-                        let before_remaining = if has_selected_move {
-                            remaining.clone()
-                        } else {
-                            RemainingCustody::default()
-                        };
                         let event_start = permission_events.len();
                         remaining.reserve(program, &statements[statement_index]);
-                        let storage_establishments = match apply_statement_permission_production(
+                        let before_remaining = remaining.clone();
+                        let routes = super::selected_evaluation::ExpressionRoutes::new(
+                            program,
+                            machine,
+                            state,
+                            statement_index,
+                            evaluation,
+                            &facts.operators,
+                        );
+                        let produced_storage = match apply_statement_permission_production(
                             program,
                             facts,
                             state_flow.machine_symbol,
@@ -347,6 +349,7 @@ pub(crate) fn prepare_permission_events(
                             &mut claim_identities,
                             &mut conditional_carrier_transfers,
                             selections,
+                            &mut cleanup_dispositions,
                         ) {
                             Ok(establishments) => establishments,
                             Err(diagnostic) => {
@@ -354,52 +357,50 @@ pub(crate) fn prepare_permission_events(
                                 return;
                             }
                         };
-                        temporary_results::append_owned_transfer(
-                            facts,
-                            machine.symbol,
-                            state.symbol,
-                            statement_index,
-                            evaluation,
-                            &temporary_owners,
-                            places,
-                            &mut permission_events,
-                            &mut conditional_carrier_transfers,
-                        );
-                        temporary_results::append_borrow(
-                            program,
-                            facts,
-                            machine.symbol,
-                            state.symbol,
-                            statement_index,
-                            evaluation,
-                            &temporary_owners,
-                            places,
-                            &mut permission_events,
-                            &mut selection_diagnostics,
-                            &mut cleanup_dispositions,
-                        );
                         if let Err(diagnostic) = selected_cleanup.observe(
                             program,
                             &selected,
                             &before_places,
                             &before_remaining,
+                            &routes,
+                            &calls,
                             &permission_events[event_start..],
-                            &storage_establishments,
+                            &produced_storage.establishments,
                             &mut facts.flow.ownership,
                             &mut cleanup_dispositions,
                         ) {
                             selection_diagnostics.push(diagnostic);
                             return;
                         }
-                        remaining.observe_ordinary(
+                        // The producer already retained canonical storage
+                        // moves and joined expression custody. Rebuilding it
+                        // from leaf claim events would resurrect transferred
+                        // transparent homes and schedule duplicate cleanup.
+                        let receiving = produced_storage
+                            .establishments
+                            .iter()
+                            .filter(|establishment| {
+                                establishment.event_ordinal >= produced_storage.evaluated_events
+                            })
+                            .map(|establishment| {
+                                super::cleanup_dispositions::StorageEstablishment {
+                                    event_ordinal: establishment.event_ordinal
+                                        - produced_storage.evaluated_events,
+                                    destination: establishment.destination.clone(),
+                                }
+                            })
+                            .collect::<Vec<_>>();
+                        if let Err(diagnostic) = remaining.observe_evaluation(
                             program,
-                            &permission_events[event_start..],
+                            &routes,
+                            &calls,
+                            &permission_events[event_start + produced_storage.evaluated_events..],
                             &facts.flow.ownership.segments,
                             &mut cleanup_dispositions,
-                            FlowClaimJoinExit::default(),
-                            &storage_establishments,
-                            false,
-                        );
+                            &receiving,
+                        ) {
+                            selection_diagnostics.push(diagnostic);
+                        }
                     }
                     super::permission_schedule::PermissionStep::Exit {
                         coordinate,
@@ -565,10 +566,13 @@ pub(crate) fn record_crash_frontier_lower_bounds(
                         return;
                     }
                     apply_recorded_statement_events(
+                        program,
+                        facts,
+                        machine,
+                        state,
                         statement,
                         evaluation,
                         &events,
-                        &facts.flow.ownership.segments,
                         places,
                         &mut ignored_diagnostics,
                     );

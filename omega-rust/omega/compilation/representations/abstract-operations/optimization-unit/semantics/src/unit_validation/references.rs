@@ -26,16 +26,20 @@ pub(crate) struct ReferenceIdentity {
 /// Provenance can name an element family at a call boundary. Carrier identity
 /// and parent resources remain exact executable paths; they never use this
 /// coordinate vocabulary to manufacture a descriptor or address.
+/// Region extent belongs to each alternative: a join cannot turn an unknown
+/// subregion into an exact descriptor resource just because its path is empty.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct ReferenceOriginIdentity {
     pub(crate) place: PlaceId,
     pub(crate) path: Vec<terminal_psi::ReferenceOriginProjection>,
+    pub(crate) extent: semantic_vocabulary::ReferenceOriginExtent,
 }
 
 impl From<ReferenceIdentity> for ReferenceOriginIdentity {
     fn from(identity: ReferenceIdentity) -> Self {
         Self {
             place: identity.place,
+            extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
             path: identity
                 .path
                 .into_iter()
@@ -47,6 +51,9 @@ impl From<ReferenceIdentity> for ReferenceOriginIdentity {
 
 impl ReferenceOriginIdentity {
     pub(crate) fn exact_identity(&self) -> Option<ReferenceIdentity> {
+        if self.extent != semantic_vocabulary::ReferenceOriginExtent::Projected {
+            return None;
+        }
         Some(ReferenceIdentity {
             place: self.place,
             path: self
@@ -75,10 +82,10 @@ pub(crate) enum ReferenceOrigin {
     /// An internal owned ingress assumes one existing permission per leaf.
     IngressLeaf(ReferenceOriginIdentity),
     /// One selected referent, conservatively suspending every possible path.
-    /// These paths belong to one permission carrier, not separate loans.
+    /// These origins belong to one permission carrier, not separate loans.
     Alternatives {
         place: PlaceId,
-        paths: Vec<Vec<terminal_psi::ReferenceOriginProjection>>,
+        origins: Vec<ReferenceOriginIdentity>,
     },
 }
 
@@ -101,85 +108,18 @@ pub(crate) fn contains_reference(
     terminal_psi::structural_type_contains_reference_by(|id| types.get(&id).copied(), root)
 }
 
-/// Exact declaration-order reference leaves of the supported owned shape.
-/// `maximum_leaves` bounds reconstruction exactly like the verified rule.
+/// Exact owned reference leaves, shared with requirement-region validation.
 pub(crate) fn leaf_paths(
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     root: StructuralTypeId,
     maximum_leaves: usize,
 ) -> Option<Vec<Vec<terminal_psi::StructuralPathSegment>>> {
-    let mut output = Vec::new();
-    let mut pending = vec![(root, Vec::new())];
-    while let Some((current, path)) = pending.pop() {
-        if !contains_reference(types, current) {
-            continue;
-        }
-        let declaration = types.get(&current)?;
-        let fields: Vec<_> = match &declaration.shape {
-            terminal_psi::StructuralTypeShape::Reference { .. } => {
-                if output.len() == maximum_leaves {
-                    return None;
-                }
-                output.push(path);
-                continue;
-            }
-            terminal_psi::StructuralTypeShape::Record { fields, .. } => fields.iter().collect(),
-            // Case payloads retain their established field identities;
-            // identical paths across cases are deduplicated below.
-            terminal_psi::StructuralTypeShape::Sum { cases } => {
-                cases.iter().flat_map(|case| &case.fields).collect()
-            }
-            terminal_psi::StructuralTypeShape::Mixed { fields, cases } => cases
-                .iter()
-                .flat_map(|case| &case.fields)
-                .chain(fields)
-                .collect(),
-            terminal_psi::StructuralTypeShape::FixedArray { element, length } => {
-                // Each pending subtree owes at least one live leaf. Empty
-                // arrays owe none; contains_reference already excludes them.
-                // Bound the worklist before expanding nested array products.
-                let count = usize::try_from(*length).ok()?;
-                if pending
-                    .len()
-                    .checked_add(output.len())?
-                    .checked_add(count)?
-                    > maximum_leaves
-                {
-                    return None;
-                }
-                for element_index in (0..*length).rev() {
-                    let mut child_path = path.clone();
-                    child_path.push(terminal_psi::StructuralPathSegment::FixedIndex(
-                        element_index,
-                    ));
-                    pending.push((*element, child_path));
-                }
-                continue;
-            }
-            // A runtime view has no declaration-owned leaf roster. Unknown
-            // containment must not silently discard permissions.
-            _ => return None,
-        };
-        for field in fields.into_iter().rev() {
-            if let Some(child) = field.field_type.as_structural() {
-                if !contains_reference(types, child) {
-                    continue;
-                }
-                if pending.len().checked_add(output.len())? >= maximum_leaves {
-                    return None;
-                }
-                let mut child_path = path.clone();
-                child_path.push(terminal_psi::StructuralPathSegment::Field(
-                    field.identity.clone(),
-                ));
-                pending.push((child, child_path));
-            }
-        }
-    }
-
-    output.sort();
-    output.dedup();
-    Some(output)
+    Some(
+        terminal_semantics::reference_leaves(types.values().copied(), root, maximum_leaves)?
+            .into_iter()
+            .map(|leaf| leaf.path)
+            .collect(),
+    )
 }
 
 /// A carrier identifies its declared referent, never ownership of that storage.
@@ -281,7 +221,25 @@ pub(crate) fn leaf_type(
     mut current: StructuralTypeId,
     fields: &[terminal_psi::StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
+    let mut payload_fields = None;
     for segment in fields {
+        if let terminal_psi::StructuralPathSegment::Case(case) = segment {
+            if payload_fields.is_some() {
+                return None;
+            }
+            let cases = types.get(&current)?.shape.sum_cases()?;
+            let mut matching = cases.iter().filter(|candidate| candidate.id == *case);
+            payload_fields = Some(matching.next()?.fields.as_slice());
+            if matching.next().is_some() {
+                return None;
+            }
+            continue;
+        }
+        if payload_fields.is_some()
+            && !matches!(segment, terminal_psi::StructuralPathSegment::Field(_))
+        {
+            return None;
+        }
         if let terminal_psi::StructuralPathSegment::RepresentationView {
             structural_type,
             stored_scalar,
@@ -318,51 +276,32 @@ pub(crate) fn leaf_type(
             return None;
         };
         let declaration = types.get(&current)?;
-        // Field segments name fields by identity; a sum or mixed payload keeps
-        // a segment legal while every matching case field resolves to one
-        // structural type.
-        let matching: Vec<&terminal_psi::StructuralFieldDeclaration> = match &declaration.shape {
-            terminal_psi::StructuralTypeShape::Record { fields, .. } => fields.iter().collect(),
-            terminal_psi::StructuralTypeShape::Sum { cases } => {
-                cases.iter().flat_map(|case| case.fields.iter()).collect()
-            }
-            terminal_psi::StructuralTypeShape::Mixed { fields, cases } => fields
+        // Case selection establishes the payload namespace. An unguarded
+        // field belongs only to the record's unconditional fields; scanning
+        // all cases would merge distinct leaves that reuse a field identity.
+        let selected_fields = payload_fields
+            .take()
+            .or_else(|| declaration.shape.direct_fields())?;
+        let field = terminal_psi::live_field(selected_fields, *identity)?;
+        current = match &field.field_type {
+            terminal_psi::StructuralFieldType::Structural(child) => *child,
+            // A scalar member names the catalog's matching primitive
+            // storage declaration; borrowing it carries that leaf type,
+            // not a reference formed at the member.
+            terminal_psi::StructuralFieldType::Scalar(scalar) => types
                 .iter()
-                .chain(cases.iter().flat_map(|case| case.fields.iter()))
-                .collect(),
+                .find(|(_, declaration)| {
+                    matches!(
+                        declaration.shape,
+                        terminal_psi::StructuralTypeShape::PrimitiveScalar(shape)
+                            if shape == *scalar
+                    )
+                })
+                .map(|(id, _)| *id)?,
             _ => return None,
         };
-        let mut resolved = None;
-        for field in matching {
-            if field.identity != *identity || field.relevance.is_erased() {
-                continue;
-            }
-            let child = match &field.field_type {
-                terminal_psi::StructuralFieldType::Structural(child) => *child,
-                // A scalar member names the catalog's matching primitive
-                // storage declaration; borrowing it carries that leaf type,
-                // not a reference formed at the member.
-                terminal_psi::StructuralFieldType::Scalar(scalar) => types
-                    .iter()
-                    .find(|(_, declaration)| {
-                        matches!(
-                            declaration.shape,
-                            terminal_psi::StructuralTypeShape::PrimitiveScalar(shape)
-                                if shape == *scalar
-                        )
-                    })
-                    .map(|(id, _)| *id)?,
-                _ => return None,
-            };
-            match resolved {
-                None => resolved = Some(child),
-                Some(previous) if previous != child => return None,
-                _ => {}
-            }
-        }
-        current = resolved?;
     }
-    Some(current)
+    payload_fields.is_none().then_some(current)
 }
 
 /// The access a reference type grants over its referent.
@@ -589,33 +528,13 @@ pub(crate) fn formal_origin(
     }
 }
 
-/// A returned mapping relocates an existing descriptor only when its
-/// formal origin selects a stored reference leaf. Borrowing plain storage
-/// creates a fresh descendant even when several leaves share that backing.
-pub(crate) fn formal_transfers_reference(
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
-    function: &PsiOptimizationFunction,
-    source: &terminal_psi::StructuralArgument,
-) -> bool {
-    matches!(
-        formal_origin(types, function, source),
-        Some(ReferenceOrigin::IngressLeaf(identity))
-            if structural_source_contract(function, identity.place)
-                .and_then(|signature| {
-                    identity.exact_identity().and_then(|identity| leaf_type(types, signature.structural_type, &identity.path))
-                })
-                .is_some_and(|leaf| reference_access(types, leaf).is_some())
-    )
-}
-
 /// Split a formal summary at the supplying exact permission. The suffix is a
 /// typed provenance relation over that permission, not an argument projection.
 /// Selecting another stored descriptor requires its exact resource identity;
 /// an element family cannot invent that identity.
 pub(crate) struct FormalReferenceSource {
-    pub(crate) source: terminal_psi::StructuralArgument,
-    pub(crate) suffix: Vec<terminal_psi::ReferenceOriginProjection>,
     pub(crate) endpoint: StructuralTypeId,
+    pub(crate) extent: semantic_vocabulary::ReferenceOriginExtent,
     pub(crate) transfers: bool,
 }
 
@@ -631,16 +550,18 @@ pub(crate) fn formal_reference_source(
         origin,
     )
     .ok()?;
+    let transfers = binding.transfers_existing(
+        types.values().copied(),
+        parameter.structural_type,
+        parameter.access,
+    );
     let source = binding.source;
     let endpoint = binding.endpoint;
     reference_source_type(function, types, &source)?;
     formal_origin(types, function, &source)?;
-    let suffix = binding.suffix.to_vec();
-    let transfers = suffix.is_empty() && formal_transfers_reference(types, function, &source);
     Some(FormalReferenceSource {
-        source,
-        suffix,
         endpoint,
+        extent: binding.extent,
         transfers,
     })
 }
@@ -678,6 +599,7 @@ pub(crate) fn validate_function_references(
     function: &PsiOptimizationFunction,
     functions: &BTreeMap<semantic_vocabulary::MachineId, &PsiOptimizationFunction>,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
 ) -> Result<(), OptimizationUnitValidationError> {
     let invalid = || catalog_mismatch(function);
     let is_reference = |structural_type| {
@@ -828,12 +750,13 @@ pub(crate) fn validate_function_references(
     if result.reference_sources.iter().any(|mapping| {
         mapping.sources.len() > 1
             || mapping.sources.iter().any(|source| {
-                source
-                    .path
-                    .contains(&terminal_psi::ReferenceOriginProjection::Element)
+                source.extent == semantic_vocabulary::ReferenceOriginExtent::WithinRegion
+                    || source
+                        .path
+                        .contains(&terminal_psi::ReferenceOriginProjection::Element)
             })
     }) {
-        validate_alternative_result_dependencies(function, functions, types)?;
+        validate_alternative_result_dependencies(function, functions, types, dynamic_dispatch)?;
     }
     let mut sources = BTreeMap::new();
     for (path, mapping) in paths.iter().zip(&result.reference_sources) {
@@ -866,7 +789,8 @@ pub(crate) fn validate_function_references(
                 .insert((formal.place, formal.path.clone()), shared_descendant)
                 .is_some_and(|previous_shared| !previous_shared || !shared_descendant)
                 || !function.structural_parameter(formal.place).is_some()
-                || projected.endpoint != expected_referent
+                || (projected.extent == semantic_vocabulary::ReferenceOriginExtent::Projected
+                    && projected.endpoint != expected_referent)
                 || !leaf_access_within(types, result.structural_type, path, formal.access)
             {
                 return Err(invalid());
@@ -883,6 +807,7 @@ fn validate_alternative_result_dependencies(
     function: &PsiOptimizationFunction,
     functions: &BTreeMap<semantic_vocabulary::MachineId, &PsiOptimizationFunction>,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
 ) -> Result<(), OptimizationUnitValidationError> {
     let invalid = || catalog_mismatch(function);
     let mut pending = vec![(function.machine, false)];
@@ -910,7 +835,26 @@ fn validate_alternative_result_dependencies(
             } = &node.operation
                 && contains_reference(types, result.structural_type)
             {
-                pending.push((callee.machine().ok_or_else(invalid)?, false));
+                match callee {
+                    abstract_operations::AbstractCallTarget::Machine(machine) => {
+                        pending.push((*machine, false));
+                    }
+                    abstract_operations::AbstractCallTarget::Dynamic {
+                        interface, slot, ..
+                    } => {
+                        // Every possible executable realization participates in
+                        // the dependency graph. No row supplies the public
+                        // contract or stands in for the others.
+                        for table in &dynamic_dispatch.tables {
+                            if table.interface == *interface {
+                                let row = table.rows.get(*slot as usize).ok_or_else(invalid)?;
+                                if let Some(machine) = row {
+                                    pending.push((*machine, false));
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }

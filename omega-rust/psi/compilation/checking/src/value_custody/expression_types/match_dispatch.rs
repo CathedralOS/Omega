@@ -3,7 +3,8 @@
 //! Result loans and owned transfers are established by their mandatory borrow
 //! and multiplicity passes. A second type-only source-shape gate cannot decide
 //! that custody: it rejected ordinary selected constructors before those passes
-//! could join their exact leaves. Pattern effects still keep their own admission.
+//! could join their exact leaves. Pattern and arm effects keep their selected
+//! evaluation order in those same mandatory ownership checks.
 
 use super::expression_result_type_reference as declared_value_type;
 use diagnostics::Diagnostic;
@@ -172,14 +173,6 @@ pub fn validate_match_dispatch(
         }
     }
     for arm in arms {
-        if selected_expression_transfers_owned(program, machine, state, arm.value)
-            || matches!(arm.pattern, MatchPattern::Value(pattern)
-                if selected_expression_transfers_owned(program, machine, state, pattern))
-        {
-            diagnostics.push(Diagnostic::error(
-                "match selected pattern or arm transfers owned input custody; branch-local transfer and cleanup joins are not supported yet",
-            ).with_source_span(arm.source_span));
-        }
         check_compatible_values(
             program,
             machine,
@@ -190,40 +183,6 @@ pub fn validate_match_dispatch(
             diagnostics,
         );
     }
-}
-
-/// Whether `value` is an exact projected place rooted at a reference carrier
-/// (`self.inventory` under `&mut self`, `x.slot` through `x: &Inventory`).
-/// Moving through such a place opens a borrowed-storage window the
-/// multiplicity checker owns -- the join receives a whole owned value on
-/// every agreeing edge while the hole stays with the caller's storage -- so
-/// the transfer is branch-local evidence, not the owned input custody or
-/// predecessor result custody this gate exists to reject. A bare reference
-/// root (no projection) moves the borrow itself and keeps every rejection.
-fn expression_moves_borrowed_place(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    expression: ExpressionHandle,
-) -> bool {
-    let mut expression = expression;
-    let mut projected = false;
-    loop {
-        let next = match program.expression_table.expression(expression) {
-            ExpressionNode::Member(member) => member.receiver,
-            ExpressionNode::Indexed(indexed) => indexed.collection,
-            _ => break,
-        };
-        projected = true;
-        expression = next;
-    }
-    projected
-        && declared_value_type(program, machine, state, expression).is_some_and(|reference| {
-            matches!(
-                program.type_reference_table.type_reference(reference),
-                typed_trees::types::TypeReferenceNode::Reference { .. }
-            )
-        })
 }
 
 fn is_scalar_value(
@@ -258,81 +217,6 @@ fn is_scalar_value(
         }
         _ => false,
     }
-}
-
-fn selected_expression_transfers_owned(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    root: ExpressionHandle,
-) -> bool {
-    let requires_transfer = |reference: TypeReferenceHandle| {
-        reference.is_valid()
-            && program.type_multiplicity(reference)
-                != language_semantics::Multiplicity::Unrestricted
-    };
-    crate::expression_traversal::visit_pre_order(program, vec![root], |_, node| {
-        match node {
-            ExpressionNode::Call(call) => {
-                let parameters = crate::machine_calls::calls::machine_state_by_symbol(
-                    program,
-                    call.target_symbol,
-                )
-                .map(|(_, state)| program.state_parameters(state))
-                .or_else(|| {
-                    typed_trees::operator::resolve_named_expression_call(program, call)
-                        .map(|operator| program.operator_parameters(operator))
-                });
-                let arguments = program.expression_table.expression_handles(call.arguments);
-                if let Some(parameters) = parameters {
-                    let supplied = parameters.iter().collect::<Vec<_>>();
-                    // An argument rooted at a reference carrier moves borrowed
-                    // storage, not the caller's owned custody -- the window
-                    // checker and its arm-agreement rule own that hole. Any
-                    // other transfer-requiring parameter still selects the
-                    // plain rejection.
-                    if supplied.len() == arguments.len()
-                        && supplied
-                            .iter()
-                            .zip(arguments.iter())
-                            .any(|(parameter, argument)| {
-                                requires_transfer(parameter.type_reference)
-                                    && !expression_moves_borrowed_place(
-                                        program, machine, state, *argument,
-                                    )
-                            })
-                    {
-                        return true;
-                    }
-                    if supplied.len() != arguments.len()
-                        && parameters
-                            .iter()
-                            .any(|parameter| requires_transfer(parameter.type_reference))
-                    {
-                        return true;
-                    }
-                }
-            }
-            ExpressionNode::Binary(binary) => {
-                if [binary.left, binary.right].iter().any(|operand| {
-                    declared_value_type(program, machine, state, *operand)
-                        .is_some_and(requires_transfer)
-                        && !expression_moves_borrowed_place(program, machine, state, *operand)
-                }) {
-                    return true;
-                }
-            }
-            ExpressionNode::Unary(unary)
-                if declared_value_type(program, machine, state, unary.operand)
-                    .is_some_and(requires_transfer)
-                    && !expression_moves_borrowed_place(program, machine, state, unary.operand) =>
-            {
-                return true;
-            }
-            _ => {}
-        }
-        false
-    })
 }
 
 /// A discriminant dispatch over a scalar-payload sum subject: every arm is

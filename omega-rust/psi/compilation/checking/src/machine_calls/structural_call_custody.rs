@@ -1133,19 +1133,11 @@ pub fn structural_call_custody(
         _ => None,
     };
     let (return_type, parameters, entry_state) = if let Some(slot) = dynamic_slot {
-        // A public slot has no callee-private formal places. Returned loans
-        // require a slot-relative origin contract before they can cross it.
-        if crate::machine_calls::reference_result_custody::has_borrowed_parts(
+        crate::machine_calls::reference_result_custody::declared_return_sources(
             program,
+            &slot.parameters,
             slot.return_type,
-        ) || crate::machine_calls::reference_result_custody::is_reference_record(
-            program,
-            slot.return_type,
-        ) {
-            return Err(
-                "dynamic structural result requires a public returned-loan origin contract",
-            );
-        }
+        )?;
         (slot.return_type, slot.parameters.as_slice(), *target_state)
     } else {
         let target = program
@@ -1364,47 +1356,17 @@ pub fn structural_call_custody(
     )?;
     let mut retained_reference_inputs = Vec::new();
     if crate::reference_result_custody::stored_loan_parts(program, return_type).is_some() {
-        // Return formation already captured the current descriptor origins,
-        // including copies and reassigned views. Consume that completed ledger
-        // instead of reconstructing a second relation from return syntax.
-        let borrowing = facts
-            .borrow
-            .states
-            .iter()
-            .find_map(|(_, row)| {
-                (row.machine_symbol == *target_machine && row.state_symbol == *target_state)
-                    .then_some(row)
-            })
-            .ok_or("reference result has no checked source state")?;
-        let sources = facts
-            .borrow
-            .returned_loans
-            .span(borrowing.returned_loans)
-            .ok_or("reference result has no captured input origins")?;
+        // Concrete bodies publish captures; public slots publish declared
+        // regions. Both normalize sources into the same structural argument
+        // lane, without importing a selected implementation's formal symbols.
+        let sources = crate::machine_calls::reference_result_custody::call_return_sources(
+            program,
+            facts,
+            *target_state,
+        )
+        .ok_or("reference result has no complete input origins")?;
         for source in sources {
-            let parameter_symbol = if source.incoming_reference.is_valid() {
-                facts
-                    .borrow
-                    .incoming_references
-                    .get(source.incoming_reference)
-                    .parameter_symbol
-            } else {
-                source
-                    .root
-                    .as_symbol()
-                    .ok_or("reference result origin is not a callee input")?
-            };
-            let parameter_index = parameters
-                .iter()
-                .filter(|parameter| {
-                    !parameter.is_const
-                        && program
-                            .primitive_type_reference(parameter.type_reference)
-                            .is_none()
-                })
-                .position(|parameter| parameter.symbol == parameter_symbol)
-                .and_then(|index| u32::try_from(index).ok())
-                .ok_or("reference result origin is not a structural callee input")?;
+            let parameter_index = source.source.parameter_index;
             let actual = structural_arguments
                 .get(parameter_index as usize)
                 .ok_or("reference result input is absent")?;

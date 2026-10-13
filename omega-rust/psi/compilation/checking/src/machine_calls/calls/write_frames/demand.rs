@@ -262,9 +262,13 @@ impl<'program> CallFrameResolver<'program> {
         machine: &Machine,
         statement: &StatementNode,
     ) -> Option<Vec<super::StoredReferenceEffect>> {
-        let Some(call) = statement.as_call() else {
+        if statement.as_call().is_none()
+            && !statement_value_expression_roots(self.program, statement)
+                .iter()
+                .any(|expression| expression_has_calls(self.program, *expression))
+        {
             return Some(Vec::new());
-        };
+        }
         let (state, _, index) = super::caller_aliases::caller_statement_at_site(
             self.program,
             machine,
@@ -280,10 +284,11 @@ impl<'program> CallFrameResolver<'program> {
             index,
             true,
         )?;
-        super::stored_calls::call_effects(
+        super::stored_calls::statement_effects(
             self.program,
             machine,
-            call,
+            state,
+            statement,
             &prefix,
             &self.tables.symbols,
             &mut FrameInference::for_state(state.symbol),
