@@ -746,6 +746,24 @@ impl DispatchSubject<'_> {
         variant: &'program typed_trees::data::DataVariant,
         subject_reads: &mut Vec<typed_trees::expression::ExpressionHandle>,
     ) -> Option<Option<&'program typed_trees::data::DataField>> {
+        // The cast judgment already established policy and interval membership.
+        // Forward its unchanged carrier through the same field transfer used by
+        // a bare payload; real numeric conversions and semantic domains remain
+        // opaque and must retain their ordinary computation/custody plans.
+        if let Some(operand) = crate::values::scalar::semantic_casts::same_carrier_operand(
+            program,
+            state.symbol,
+            argument,
+        ) {
+            return self.payload_field(
+                program,
+                state,
+                statement_index,
+                operand,
+                variant,
+                subject_reads,
+            );
+        }
         match self {
             Self::Place(subject) => {
                 let Some(place) = validation::contextual_canonical_place_from_expression(

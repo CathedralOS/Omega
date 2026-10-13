@@ -131,3 +131,28 @@ pub(crate) fn requires_custody(
         | ExpressionNode::Name(_) | ExpressionNode::String(_) | ExpressionNode::ZeroValue(_) => false,
     }
 }
+
+/// A checked value cast that changes arithmetic policy or interval qualification
+/// without changing the primitive carrier needs no payload conversion. Semantic
+/// domains and borrow recasts keep their separate custody and are never peeled.
+pub(crate) fn same_carrier_operand(
+    program: &dyn ::validation::CheckingInput,
+    state_symbol: symbols::SymbolHandle,
+    expression: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    let cast = program.expression_table.cast_node(expression)?;
+    if cast.form.is_recast()
+            || !cast.semantic_domain.is_empty()
+            // Membership checking already discharged numeric predicates.
+            // Range shells do not create payload operations; real semantic
+            // qualifications retain their separately checked custody below.
+            || has_declared_domains(program, cast.target_type)
+    {
+        return None;
+    }
+    let target = program.primitive_type_reference(cast.target_type)?;
+    let operand_type = result_type(program, state_symbol, cast.value)?;
+    (!has_declared_domains(program, operand_type)
+        && program.primitive_type_reference(operand_type) == Some(target))
+    .then_some(cast.value)
+}

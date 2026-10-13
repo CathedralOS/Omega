@@ -222,3 +222,4 @@ pass/float/runtime_absolute_return_sum_exit built 75985ms exit:70 interpreter-ex
 pass/float/runtime_absolute_shared_call_operands_exit built 75157ms exit:70 interpreter-exit:70 interpreter:agrees @07b6d5e126c9
 pass/float/runtime_nested_float_min_max_exit built 75430ms exit:70 interpreter-exit:70 interpreter:agrees @07b6d5e126c9
 pass/float/runtime_resultless_law_equality_custody_exit built 75060ms exit:70 interpreter-exit:70 interpreter:agrees @07b6d5e126c9
+pass/cases/runtime_case_payload_policy_cast_exit built 6240ms exit:0 interpreter-exit:0 interpreter:agrees @31988b31bfed+wt

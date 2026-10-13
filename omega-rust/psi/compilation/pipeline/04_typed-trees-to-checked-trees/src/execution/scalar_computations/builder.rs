@@ -303,9 +303,9 @@ impl Builder<'_, '_> {
             CheckedScalarComputationKind::Apply {
                 source_expression,
                 expression: CheckedScalarExpression::Boolean(Box::new(
-                    CheckedBooleanExpression::Not(Box::new(
-                        CheckedBooleanExpression::Parameter { position: 0 },
-                    )),
+                    CheckedBooleanExpression::Not(Box::new(CheckedBooleanExpression::Parameter {
+                        position: 0,
+                    })),
                 )),
                 operands,
             },
@@ -337,23 +337,7 @@ impl Builder<'_, '_> {
         &self,
         expression: ExpressionHandle,
     ) -> Option<ExpressionHandle> {
-        let Some(cast) = self.program.expression_table.cast_node(expression) else {
-            return None;
-        };
-        if cast.form.is_recast()
-            || !cast.semantic_domain.is_empty()
-            // Membership checking already discharged numeric predicates.
-            // Range shells do not create payload operations; real semantic
-            // qualifications retain their separately checked custody below.
-            || semantic_casts::has_declared_domains(self.program, cast.target_type)
-        {
-            return None;
-        }
-        let target = self.program.primitive_type_reference(cast.target_type)?;
-        let operand_type = semantic_casts::result_type(self.program, self.state, cast.value)?;
-        (!semantic_casts::has_declared_domains(self.program, operand_type)
-            && self.program.primitive_type_reference(operand_type) == Some(target))
-        .then_some(cast.value)
+        semantic_casts::same_carrier_operand(self.program, self.state, expression)
     }
 
     pub(super) fn expression(
