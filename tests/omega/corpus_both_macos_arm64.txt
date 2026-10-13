@@ -9,7 +9,7 @@
 # A `# context: {...}` line records the conditions of the --record run.
 pass/contracts/runtime_literal_view_extent_calls_exit built 5611ms exit:0 interpreter-exit:0 interpreter:agrees @81a0434130f9bfb47b3bec8ac9b47181a4ae96d2+wt
 # context: {"cpus": 10, "jobs": "4", "load1_end": 4.52, "load1_start": 3.19, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
-pass/arithmetic/closed_call_transition_return_proves_exact_sum_exit built 2645ms exit:112 interpreter-exit:112 interpreter:agrees @1152c1496b39
+pass/arithmetic/closed_call_transition_return_proves_exact_sum_exit built 7965ms exit:112 interpreter-exit:112 interpreter:agrees @97705f5a651d
 pass/arithmetic/full_width_integer_literals_compose_exit built 3129ms exit:0 interpreter-exit:0 interpreter:agrees @d0e40a213f35
 pass/arithmetic/qualified_cast_in_entry_body_exit built 1326ms exit:0 interpreter-exit:0 interpreter:agrees @2e29bd5fedcf
 pass/arithmetic/runtime_boolean_alias_shift_count_exit built 1814ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
@@ -241,6 +241,7 @@ pass/capabilities/acquires_through_helper_return built 3368ms exit:0 interpreter
 pass/capabilities/runtime_qualified_record_return_exit built 3402ms exit:0 interpreter-exit:0 interpreter:agrees @e8239f945e82+wt
 pass/collections/case_array_computed_index_match_exit built 3066ms exit:20 interpreter-exit:20 interpreter:agrees @0c36a0fe0b35
 pass/collections/policy_array_enum_element_dispatch_exit built 2571ms exit:0 interpreter-exit:0 interpreter:agrees @d0e40a213f35
+pass/collections/qualified_element_read_modify_write_retains_policy_exit built 6686ms exit:0 interpreter-exit:0 interpreter:agrees @97705f5a651d
 pass/collections/record_array_field_access_exit built 1498ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @3b6b4258b4af+wt
 pass/collections/runtime_array_child_membership_transport_exit built 1737ms exit:0 interpreter-exit:0 interpreter:agrees @1fb1b73fcfb5
 pass/collections/runtime_borrowed_element_float_guard_exit built 7353ms exit:70 interpreter-exit:70 interpreter:agrees @1152c1496b39

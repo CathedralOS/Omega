@@ -1,9 +1,15 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
+// The caller's sum is an Exact `i32`: `triple` erases its Wrapping
+// intermediate before returning, and `+ 100` is the caller's own Exact
+// addition. The field that receives it is Exact too -- a `i32 in Wrapping`
+// destination would select a policy implicitly at the store, which the
+// language refuses (numeric values, "Policy selection and erasure are
+// explicit"; pinned by fail/arithmetic/erased_policy_store_into_qualified_element).
 data Main {
     console: Binding<Console>;
-    s: i32 in Wrapping;
+    s: i32;
 }
 
 machine triple(x: i32 in Wrapping) -> i32 {
@@ -18,6 +24,6 @@ machine Main::main(main: &mut Main) reaches Console {
     main.s = triple(4) + 100;
     transition { _ -> done(main) }
     state done(main: &mut Main) {
-        main.console.exit_process(main.s as i32);
+        main.console.exit_process(main.s);
     }
 }

@@ -7,10 +7,11 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "3", "load1_end": 7.04, "load1_start": 7.13, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "3", "load1_end": 11.76, "load1_start": 11.65, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
+pass/arithmetic/closed_call_transition_return_proves_exact_sum_exit built 7307ms exit:112 @97705f5a651d
 pass/arithmetic/const_fold_unsigned_landed_ops_exit built 1124ms exit:70
 pass/arithmetic/constant_trapping_shift_value_overflow_traps built 1115ms exit:signal signal:5
 pass/arithmetic/exact_integer_cast_proven checked 176ms
@@ -587,6 +588,7 @@ pass/collections/nested_runtime_indexed_successor_argument_exit built 1531ms exi
 pass/collections/owned_array_scalar_comparisons checked 198ms
 pass/collections/policy_array_enum_element_dispatch_exit built 1358ms exit:0
 pass/collections/policy_array_literal_store_exit built 1164ms exit:52 @48008365d839
+pass/collections/qualified_element_read_modify_write_retains_policy_exit built 6619ms exit:0 @97705f5a651d
 pass/collections/record_array_field_access_exit built 4838ms exit:0 stdout:match @9dd545defbc0
 pass/collections/record_array_literal_field_store_exit built 1286ms exit:25 @48008365d839
 pass/collections/runtime_argmax_index_exit built 750ms exit:70

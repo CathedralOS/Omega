@@ -85,6 +85,8 @@ fail/arithmetic/dispatch_cast_wrong_arm rejected 812ms expected @a9ae30e1c334+wt
 	Exact integer cast in machine `narrow` state `entry` from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/arithmetic/divide_by_zero_rejected rejected 1959ms expected @a9ae30e1c334+wt
 	anonymous division by zero has no exact numeric value
+fail/arithmetic/erased_policy_store_into_qualified_element rejected 229ms expected @97705f5a651d
+	store in machine `main` state `entry` assignment implicitly converts `i32` to `i32 in Wrapping`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32 in Wrapping`)
 fail/arithmetic/exact_aggregate_divisor_unproven rejected 809ms expected @a9ae30e1c334+wt
 	partial exact division in array literal element of type `u32`: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
 	partial exact division in machine `quotient` state `entry` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
@@ -3987,8 +3989,7 @@ pass/arithmetic/anonymous_rational_arguments checked 1594ms @a9ae30e1c334+wt
 pass/arithmetic/anonymous_rational_integer_landing checked 1591ms @a9ae30e1c334+wt
 pass/arithmetic/bounded_assignment checked 1562ms @a9ae30e1c334+wt
 pass/arithmetic/call_surviving_return_exit checked 13025ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/arithmetic/closed_call_transition_return_proves_exact_sum_exit rejected 5154ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	store in machine `Main::main` state `main` assignment implicitly converts `i32` to `i32 in Wrapping`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32 in Wrapping`)
+pass/arithmetic/closed_call_transition_return_proves_exact_sum_exit checked 6759ms check-target:macos_arm64 @97705f5a651d
 pass/arithmetic/const_fold_unsigned_landed_ops_exit checked 14580ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/arithmetic/constant_trapping_shift_value_overflow_traps checked 13282ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/arithmetic/exact_integer_cast_proven checked 1628ms @a9ae30e1c334+wt
@@ -4663,6 +4664,7 @@ pass/collections/owned_array_scalar_comparisons checked 1654ms @a9ae30e1c334+wt
 pass/collections/owned_state_array_leaf_store_exit checked 12041ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/policy_array_enum_element_dispatch_exit checked 11077ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/policy_array_literal_store_exit checked 11605ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/collections/qualified_element_read_modify_write_retains_policy_exit checked 5432ms check-target:macos_arm64 @97705f5a651d
 pass/collections/record_array_field_access_exit checked 4847ms check-target:macos_arm64 @9dd545defbc0
 pass/collections/record_array_literal_field_store_exit checked 11725ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_argmax_index_exit checked 12194ms check-target:macos_arm64 @a9ae30e1c334+wt
