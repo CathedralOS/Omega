@@ -14,7 +14,7 @@ use super::{
     ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
     PrimitiveType, State, TypeReferenceNode, ValueEnvironment, declared_place_type_raw, place_path,
 };
-use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze;
+use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze_meaning;
 use crate::proof_contracts::arithmetic_domains::integer_ranges::{
     literal_interval, primitive_range,
 };
@@ -642,17 +642,12 @@ fn integer_meaning(
     // Reuse the arithmetic owner's operand-driven carrier/policy selection.
     // This query supplies no range proof; ordinary validation still owes all
     // formation diagnostics, and the empty environment contains no relations.
-    let analysis = analyze(
+    let analysis = analyze_meaning(
         program,
         machine,
         Some(state),
         expression,
-        &ValueEnvironment::new(),
-        None,
-        ArithmeticDomain::Exact,
         "ordered operand type",
-        false,
-        &mut Vec::new(),
     )
     .value;
     // Ordinary call arithmetic deliberately leaves an unconstrained result

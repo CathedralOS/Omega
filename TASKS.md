@@ -129,20 +129,6 @@ helper that passes does not close an item.
 
 ## Immediate product closure
 
-- **REGRESSION-GUARDED-TRAP-CEILING-OVERFLOW.** (new-scope) Main regression,
-  bisected 2026-10-13 on macos_arm64: the corpus runner's `omega-compile`
-  thread overflows its stack on
-  `tests/omega/pass/core/runtime_guarded_trapping_addition_exit` and
-  `tests/omega/fail/core/guarded_trap_ceiling_unbounded_addend_rejected`
-  (exit 134, no record). First bad commit d840c6ae901 (`psi: retain integer
-  quotient bounds through captured values`); e9d32814a23 checks both. Both
-  fixtures carry a guarded `crashes Trap` ceiling (`total > 200u8`,
-  `step > 55u8`) whose live integer judgment the commit routed through the
-  shared arithmetic engine. The full check leg aborts at these fixtures, so
-  every landing since has gated on partial corpus evidence; repair before
-  further proof-contract capability work. Command:
-  `OMEGA_CORPUS_FIXTURE_FILTER=pass/core/runtime_guarded_trapping_addition_exit <corpus_runner>`.
-
 - **CHECKED-PACKAGE-REUSE.** (new-scope) A dependent's check re-judges its
   dependencies' bodies: on Windows (opt-level 1, `90dcfa2bcbe`) a 10-line std
   program checks in 15.6 s, std's package step 5.8 s plus 7.1 s of Stage 05

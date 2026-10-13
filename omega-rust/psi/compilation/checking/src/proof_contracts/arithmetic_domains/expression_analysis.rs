@@ -174,6 +174,38 @@ pub(super) fn analyze(
     CheckedAnalysis { value, decisions }
 }
 
+/// A carrier/policy meaning query over `expression` with no flow facts: the
+/// walk an ordered-value operand or a relational range proof asks for the
+/// primitive and arithmetic domain of a composite. It declines body inference
+/// and trap coverage alike. Coverage would re-derive the machine's route
+/// complement and re-decide formation under it, and that formation judgment
+/// is what asked for this meaning in the first place (`proves_range` →
+/// `ordered_values::operand` → here), so a coverage-checking query recursed
+/// without bound on every guarded Trapping site. Ordinary validation still
+/// owes every formation diagnostic, including coverage, on its own walk.
+pub(super) fn analyze_meaning(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+    owner: &str,
+) -> CheckedAnalysis {
+    let mut decisions = ArithmeticDecisions::default();
+    let value = ExpressionWalk {
+        program,
+        machine,
+        state,
+        environment: &ValueEnvironment::new(),
+        target_primitive: None,
+        target_domain: ArithmeticDomain::Exact,
+        owner,
+        infer_call_bodies: false,
+        checks_trap_coverage: false,
+    }
+    .analyze(expression, &mut Vec::new(), &mut decisions);
+    CheckedAnalysis { value, decisions }
+}
+
 /// The facts every node of one expression walk shares: where it is, what flow
 /// facts hold, and which destination the enclosing statement names.
 #[derive(Clone, Copy)]
@@ -193,7 +225,9 @@ struct ExpressionWalk<'a> {
     /// Whether a Trapping operation must prove its trap fits the machine's
     /// published Trap ceiling. A coverage re-analysis under the route
     /// complement only asks whether one node forms; its nested operations
-    /// were already judged by the walk that reached them.
+    /// were already judged by the walk that reached them. A meaning query
+    /// (`analyze_meaning`) declines it too, because coverage re-enters the
+    /// range proof that issued the query.
     checks_trap_coverage: bool,
 }
 
