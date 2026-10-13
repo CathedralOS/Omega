@@ -1,0 +1,1 @@
+pub data Table { survival: [f64; 32]; }

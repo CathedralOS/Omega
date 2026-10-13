@@ -30,6 +30,8 @@ mod bigint_interval;
 mod bitwise;
 mod call_result_bounds;
 pub(crate) use call_result_bounds::normal_return_referent_interval;
+mod call_result_measures;
+pub use call_result_measures::normal_return_length_collection;
 mod cast_ranges;
 mod dispatch_environments;
 pub(crate) use dispatch_environments::dispatch_arm_environments;

@@ -40,6 +40,7 @@ impl RangeFacts<'_> {
         });
         let writes = (!self.expression_dependencies.is_empty()
             || !self.scalar_binding_dependencies.is_empty()
+            || !self.measured_results.is_empty()
             || self.has_descriptor_facts())
         .then(|| {
             crate::flow::statement_storage_writes(
@@ -153,6 +154,7 @@ impl RangeFacts<'_> {
             .filter(|_| {
                 !self.expression_dependencies.is_empty()
                     || !self.scalar_binding_dependencies.is_empty()
+                    || !self.measured_results.is_empty()
                     || self.has_descriptor_facts()
             })
             .and_then(|site| self.structured_call_writes(program, machine, state, site));

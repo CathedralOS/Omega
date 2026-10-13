@@ -53,7 +53,7 @@ pub(super) struct ScalarBindingDependency {
 /// Descriptor replacement or selector writes retire the relation without
 /// changing the captured scalar's own value facts; element writes do not.
 #[derive(Clone)]
-struct CapturedLength {
+pub(super) struct CapturedLength {
     collection: ExpressionHandle,
     descriptor: CanonicalPlace,
     selectors: Vec<CanonicalPlace>,
@@ -356,20 +356,38 @@ impl<'field> RangeFacts<'field> {
         label: &str,
     ) {
         use typed_trees::statement::StatementNode;
-        let Some(StatementNode::LocalData(local)) = program
+        let reference = match program
             .statement_table
             .statement_at(state, self.statement_index)
-        else {
-            return;
+        {
+            Some(StatementNode::LocalData(local))
+                if local.symbol == symbol
+                    && local.initial_value == source
+                    && local.name.as_str() == label =>
+            {
+                Some(local.type_reference)
+            }
+            Some(StatementNode::Assignment(assignment))
+                if assignment.value == source
+                    && validation::expression_traversal::single_segment_name_symbol(
+                        program,
+                        assignment.target,
+                    ) == Some(symbol) =>
+            {
+                super::super::types::expression_type_reference(
+                    program,
+                    machine,
+                    state,
+                    assignment.target,
+                )
+            }
+            _ => None,
         };
         if !symbol.is_valid()
-            || local.symbol != symbol
-            || local.initial_value != source
-            || local.name.as_str() != label
             || program.symbols.get(symbol).kind != symbols::SymbolKind::Local
             || program.symbols.get(symbol).parent != state.symbol
-            || !program
-                .primitive_type_reference(local.type_reference)
+            || !reference
+                .and_then(|reference| program.primitive_type_reference(reference))
                 .is_some_and(|primitive| primitive.is_integer())
         {
             return;
@@ -377,12 +395,14 @@ impl<'field> RangeFacts<'field> {
         let Some(place) = crate::flow::canonical_place_from_symbol(symbol) else {
             return;
         };
-        if self.scalar_binding_dependencies.iter().any(|row| {
+        let length = self.capture_length(program, machine, state, source);
+        if let Some(row) = self.scalar_binding_dependencies.iter_mut().find(|row| {
             row.machine == machine.symbol
                 && row.state == state.symbol
                 && row.label == label
                 && row.place == place
         }) {
+            row.length = length;
             return;
         }
         self.scalar_binding_dependencies
@@ -391,7 +411,7 @@ impl<'field> RangeFacts<'field> {
                 machine: machine.symbol,
                 state: state.symbol,
                 place,
-                length: self.capture_length(program, machine, state, source),
+                length,
             });
     }
 
@@ -405,6 +425,13 @@ impl<'field> RangeFacts<'field> {
     ) -> Option<ExpressionHandle> {
         if let Some(member) = validation::length_member(program, expression) {
             return Some(member.receiver);
+        }
+        if let Some((_, length)) = self
+            .measured_results
+            .iter()
+            .find(|(result, _)| *result == expression)
+        {
+            return Some(length.collection);
         }
         self.captured_length_collection(program, expression)
     }
@@ -444,7 +471,24 @@ impl<'field> RangeFacts<'field> {
                 .flatten()
             });
         }
+        if let Some((_, length)) = self
+            .measured_results
+            .iter()
+            .find(|(result, _)| *result == source)
+        {
+            return Some(length.clone());
+        }
         let collection = validation::length_member(program, source)?.receiver;
+        self.capture_collection_length(program, machine, state, collection)
+    }
+
+    fn capture_collection_length(
+        &self,
+        program: &dyn ::validation::CheckingInput,
+        machine: &Machine,
+        state: &State,
+        collection: ExpressionHandle,
+    ) -> Option<CapturedLength> {
         let reference =
             super::super::types::expression_type_reference(program, machine, state, collection)?;
         let reference = validation::unwrapped_type_reference(program, reference)?;
@@ -494,6 +538,17 @@ impl<'field> RangeFacts<'field> {
         program: &dyn ::validation::CheckingInput,
         writes: Option<&[CanonicalPlace]>,
     ) {
+        self.measured_results.retain(|(_, length)| {
+            !writes.is_none_or(|writes| {
+                writes.iter().any(|write| {
+                    super::invalidation::write_covers_place(program, write, &length.descriptor)
+                        || length
+                            .selectors
+                            .iter()
+                            .any(|read| places_overlap(program, read, write))
+                })
+            })
+        });
         for row in &mut self.scalar_binding_dependencies {
             let Some(length) = &row.length else {
                 continue;
@@ -514,6 +569,42 @@ impl<'field> RangeFacts<'field> {
             }) {
                 row.length = None;
             }
+        }
+    }
+
+    pub(in crate::checks::ranges) fn begin_result_measurement(
+        &mut self,
+        expression: ExpressionHandle,
+    ) {
+        self.measured_results
+            .retain(|(result, _)| *result != expression);
+    }
+
+    /// Capture when the measured argument finishes, before the next operand
+    /// executes. Subsequent argument/callee writes use ordinary invalidation.
+    pub(in crate::checks::ranges) fn capture_result_measurement(
+        &mut self,
+        program: &dyn ::validation::CheckingInput,
+        machine: &Machine,
+        state: &State,
+        expression: ExpressionHandle,
+        argument: ExpressionHandle,
+    ) {
+        let Some(call) = program.expression_table.call_node(expression) else {
+            return;
+        };
+        let Some(collection) = validation::normal_return_length_collection(program, call) else {
+            return;
+        };
+        let actual = match program.expression_table.expression(argument) {
+            ExpressionNode::Borrow(borrow) => borrow.target,
+            _ => argument,
+        };
+        if actual != collection {
+            return;
+        }
+        if let Some(length) = self.capture_collection_length(program, machine, state, collection) {
+            self.measured_results.push((expression, length));
         }
     }
 

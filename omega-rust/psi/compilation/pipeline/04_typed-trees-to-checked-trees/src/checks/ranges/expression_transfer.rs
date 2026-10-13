@@ -145,13 +145,30 @@ impl ExpressionTransfer<'_, '_> {
                 }
             }
             ExpressionNode::Call(call) => {
+                facts.begin_result_measurement(expression);
                 self.transfer(facts, call.receiver, sink);
+                if call.receiver.is_valid() {
+                    facts.capture_result_measurement(
+                        self.program,
+                        self.machine,
+                        self.state,
+                        expression,
+                        call.receiver,
+                    );
+                }
                 for argument in self
                     .program
                     .expression_table
                     .expression_handles(call.arguments)
                 {
                     self.transfer(facts, *argument, sink);
+                    facts.capture_result_measurement(
+                        self.program,
+                        self.machine,
+                        self.state,
+                        expression,
+                        *argument,
+                    );
                 }
                 sink.call_entry(facts, call);
                 let writes = self.call_frames.and_then(|frames| {

@@ -205,7 +205,7 @@ fn operand_interval(
     Some((interval, Some(parameter.type_reference)))
 }
 
-fn builtin(
+pub(super) fn builtin(
     program: &dyn crate::CheckingInput,
     scope: SymbolHandle,
     expression: ExpressionHandle,
