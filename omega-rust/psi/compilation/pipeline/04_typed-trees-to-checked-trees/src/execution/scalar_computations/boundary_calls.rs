@@ -145,7 +145,15 @@ impl Builder<'_, '_> {
         // statement calls. A parameter projection must retain its ordinary
         // input. Entry establishment and provider selection are independent
         // realization obligations, not implicit receiver attachment authority.
-        if call.receiver.is_valid() && !program.call_has_no_runtime_receiver_for_target(call) {
+        // Operand-directed checking may settle a declaration while the typed
+        // call retains its provisional zero target. Namespace classification
+        // must rejoin that checked identity, not interpret the qualifier as
+        // a runtime value merely because early selection was deferred.
+        let mut selected_call = call.clone();
+        selected_call.target_symbol = authored_target;
+        if call.receiver.is_valid()
+            && !program.call_has_no_runtime_receiver_for_target(&selected_call)
+        {
             let mut owners = program.traits().iter().filter(|owner| {
                 owner.is_boundary
                     && program

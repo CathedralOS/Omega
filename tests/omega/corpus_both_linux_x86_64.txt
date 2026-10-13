@@ -251,3 +251,7 @@ pass/calls/runtime_guarded_reference_return_before_crash_exit built 12117ms exit
 pass/calls/runtime_guarded_reference_return_crash built 11964ms exit:signal signal:4 stdout:match stderr:match interpreter:trapped interpreter-stdout:match interpreter-stderr:match terminal-target.linux_x86_64:trap terminal-target.linux_arm64:trap terminal-target.macos_arm64:trap terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match @0e06d190735e
 # e01calls: scoped exact1b127 producer rows; other published rows preserved.
 # historical-context (9462 measurement, not current): {"cpus": 5, "jobs": "1", "load1_end": 2.14, "load1_start": 2.09, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# W2-14: newly qualified rows; existing records preserved verbatim.
+pass/float/runtime_named_boundary_transition_exit built 11726ms exit:0 interpreter-exit:0 interpreter:agrees @0755e2c06ec1
+pass/operators/unqualified_boundary_transition checked 1909ms @0755e2c06ec1
+pass/structural/runtime_affine_local_successor_loans_exit built 6473ms exit:0 interpreter-exit:0 interpreter:agrees @0755e2c06ec1

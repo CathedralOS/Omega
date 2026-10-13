@@ -6554,3 +6554,20 @@ run/stores/runtime_float_indexed_call_result_exit checked 8854ms check-target:ma
 run/stores/runtime_float_store_selector_snapshot_exit checked 8082ms check-target:macos_arm64 @589aedee8ebc+wt
 run/variant_decimal_runtime_division checked 11419ms check-target:linux_x86_64 @a9ae30e1c334+wt
 run/variant_record_normalization_repeats checked 13906ms check-target:linux_x86_64 @a9ae30e1c334+wt
+# W2-14: newly qualified rows; existing records preserved verbatim.
+fail/float/named_boundary_transition_shadowed_namespace rejected 1870ms expected @0755e2c06ec1
+	authored Call declaration selection occurrence 8331 (`from_i32` in tests/omega/fail/float/named_boundary_transition_shadowed_namespace/main.omg) remained unresolved after successful checking (CheckedCall)
+fail/float/named_boundary_transition_wrong_arity rejected 534ms expected @0755e2c06ec1
+	machine `main` state `entry`: value call `F64.from_i32(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+fail/float/named_boundary_transition_wrong_operand rejected 518ms expected @0755e2c06ec1
+	argument `value` for state `from_i32` expects `i32`, got `bool`
+fail/float/named_boundary_transition_wrong_result rejected 535ms expected @0755e2c06ec1
+	machine `main` state `entry` stores the `f64` result of named operator `from_i32` into a `i32` return value; numeric representation changes require an explicit named conversion
+	store in machine `main` state `entry` return value implicitly converts `f64` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
+fail/operators/named_boundary_transition_requires rejected 736ms expected @0755e2c06ec1
+	cannot prove `value > 0` — the `requires` of `probe` (called `probe(value)`)
+fail/structural/affine_successor_duplicate_mutable_loan rejected 699ms expected @0755e2c06ec1
+	state `consume` receives `first` as mutable more than once
+pass/float/runtime_named_boundary_transition_exit checked 11907ms check-target:macos_arm64 @0755e2c06ec1
+pass/operators/unqualified_boundary_transition checked 1924ms @0755e2c06ec1
+pass/structural/runtime_affine_local_successor_loans_exit checked 6623ms check-target:macos_arm64 @0755e2c06ec1

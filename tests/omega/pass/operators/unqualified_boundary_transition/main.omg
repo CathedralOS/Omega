@@ -1,0 +1,4 @@
+boundary operator probe(value: i32) -> i32;
+machine caller(value: i32) -> i32 {
+    transition { _ -> probe(value) }
+}

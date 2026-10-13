@@ -716,12 +716,12 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                     });
                     let result_subject = |local_index: usize| {
                         // Loan the local's established home, independently of
-                        // its constructor. Call-owned operand temporaries and
-                        // results retired at return still cannot back an edge.
+                        // its constructor. Detached call-owned operands cannot
+                        // back an edge; normal-return cleanup remains scheduled.
                         let mut matches = operations.iter().filter(|operation| {
+                            // Automatic normal-return discard is future cleanup,
+                            // not retirement of this currently live local home.
                             !operand_owned_construction(operation)
-                                && !operation.discardable_structural_result()
-                                    .is_some_and(|(_, discard)| discard)
                         }).filter_map(CheckedUnitEffectOperationPlan::structural_result_binding)
                         .filter(|result| {
                             result.statement_index == local_index as u32
@@ -735,6 +735,9 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                     let local_subject = || {
                         let (index, local) =
                             program.state_local_declaration(source, root_symbol)?;
+                        // The ordered home query rejects detached results and
+                        // retains rebinding identity across this state edge.
+                        super::super::local_storage::source(program, source, operations, root_symbol)?;
                         Some((local, result_subject(index)?))
                     };
                     let loan_permitted = |root_access| match expected_access {
@@ -842,6 +845,10 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                         // successor's declared qualifications must imply them
                         // (argument presentation below). Checking proves each
                         // store through the loan preserves the domain.
+                        // Lending an enrolled live home does not copy/recast
+                        // its contents. Binding-backed fields retain their own
+                        // receipts; projected_loan_transfer rejoins the finite
+                        // declared shape and independently excludes references.
                         let mutable_local_loan = expected_access
                             == CheckedStructuralAccess::SharedBorrow
                             || ((local.is_mutable || !local.initial_value.is_valid())
@@ -849,12 +856,6 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                                     result.multiplicity,
                                     Multiplicity::Affine | Multiplicity::Unrestricted
                                 )
-                                && validation::has_contents(
-        program,
-        local.type_reference,
-        &[],
-        validation::ContentsRequirement::RepresentedOwned
-    )
                                 && !super::super::types::type_graph_requires_nominal_drop(
                                     program,
                                     local.type_reference,

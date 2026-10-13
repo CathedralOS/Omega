@@ -593,23 +593,24 @@ fn named_operator_use_fact(
             )
         })?;
     let path = program.operator_path_members(operator.name);
-    let [namespace, requirement] = path else {
-        return None;
-    };
-    let format = match namespace.as_str() {
-        "F32" => Some(FloatFormat::BINARY32),
-        "F64" => Some(FloatFormat::BINARY64),
-        "Float" => typed_trees::operator::primitive_float_binary_semantics(program, operator).map(
-            |(_, format)| match format {
-                numerics::literals::FloatFormat::F32 => FloatFormat::BINARY32,
-                numerics::literals::FloatFormat::F64 => FloatFormat::BINARY64,
-            },
-        ),
-        "I8" | "I16" | "I32" | "I64" | "U8" | "U16" | "U32" | "U64"
-            if matches!(requirement.as_str(), "from_f32" | "from_f64") =>
-        {
-            None
-        }
+    // Namespace shape classifies a numeric policy adapter; it does not
+    // determine whether an ordinary named operator use exists.
+    let format = match path {
+        [namespace, requirement] => match namespace.as_str() {
+            "F32" => Some(FloatFormat::BINARY32),
+            "F64" => Some(FloatFormat::BINARY64),
+            "Float" => typed_trees::operator::primitive_float_binary_semantics(program, operator)
+                .map(|(_, format)| match format {
+                    numerics::literals::FloatFormat::F32 => FloatFormat::BINARY32,
+                    numerics::literals::FloatFormat::F64 => FloatFormat::BINARY64,
+                }),
+            "I8" | "I16" | "I32" | "I64" | "U8" | "U16" | "U32" | "U64"
+                if matches!(requirement.as_str(), "from_f32" | "from_f64") =>
+            {
+                None
+            }
+            _ => None,
+        },
         _ => None,
     };
     let policy_adapter = match format {

@@ -120,8 +120,11 @@ pub(in crate::symbols) fn assign_transition_target_symbols(
 
     let (head_symbol, symbol) =
         resolve_state_scoped_members(symbols, machine.symbol, state_symbol, path);
+    // A failed member suffix does not erase its lexical receiver. Later
+    // callable selection must distinguish a value head from a declaration
+    // namespace, exactly as expression calls do.
+    named.head_symbol = head_symbol;
     if symbol.is_valid() {
-        named.head_symbol = head_symbol;
         named.symbol = symbol;
         return;
     }
