@@ -11,6 +11,10 @@ use typed_trees::types::PrimitiveType;
 /// lives in typed-trees so facts and producers share one vocabulary.
 pub use typed_trees::data::DataMemberIdentity as CheckedMemberIdentity;
 
+/// A fixed array's declared extent as the shared judgment knows it: the
+/// authored literal, or the retained recipe only a target closure fixes.
+pub use typed_trees::constant_recipes::DeclaredArrayExtent as CheckedExtent;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedTrivialAffineStructuralLocalPlan {
     pub declaration_ordinal: u32,
@@ -108,7 +112,7 @@ pub enum CheckedUnitStructuralTypeShape {
     /// which borrows this storage instead of owning it.
     FixedArray {
         element_type_identity: TypeIdentityId,
-        length: u64,
+        length: CheckedExtent,
     },
     /// A borrowed `&[T]` view: the contiguous elements of storage some other
     /// value owns, carrying its own extent as a stored runtime length. Fixed

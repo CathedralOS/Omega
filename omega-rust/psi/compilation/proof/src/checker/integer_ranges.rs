@@ -233,6 +233,11 @@ argument_obligation_range!(
     BoundedCallArgumentObligation
 );
 
+value_obligation_range!(
+    pub(crate) integer_range_for_state_return,
+    BoundedStateReturnObligation
+);
+
 fn anonymous_integer_argument_range(
     proof_plan: &ProofPlan,
     argument: ExpressionHandle,

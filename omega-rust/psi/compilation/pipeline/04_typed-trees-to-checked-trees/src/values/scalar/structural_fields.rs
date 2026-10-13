@@ -631,13 +631,19 @@ pub(crate) fn fixed_index_element_type(
 ) -> Option<TypeReferenceHandle> {
     let carrier = peeled_indexed_carrier(program, reference)?;
     match program.type_reference_table.type_reference(carrier) {
-        TypeReferenceNode::FixedArray { length, .. } => {
-            let typed_trees::types::FixedArrayLength::Literal(length) = length else {
-                return None;
-            };
-            (element_index < u64::try_from(*length).ok()?)
-                .then(|| validation::collection_element_type_reference(program, reference))?
-        }
+        TypeReferenceNode::FixedArray { length, .. } => match length {
+            typed_trees::types::FixedArrayLength::Literal(length) => (element_index
+                < u64::try_from(*length).ok()?)
+            .then(|| validation::collection_element_type_reference(program, reference))?,
+            // A recipe extent admits the element type; the index obligation
+            // against the closed extent is the range check's recorded row.
+            typed_trees::types::FixedArrayLength::ConstCall { .. }
+                if program.constant_recipe_for_array_length(carrier).is_valid() =>
+            {
+                validation::collection_element_type_reference(program, reference)
+            }
+            _ => None,
+        },
         // A slice declares the element, not its current extent. Resolving
         // this observation's type supplies no bounds proof; the authored
         // index still owes its ordinary live-length obligation.
@@ -658,8 +664,9 @@ pub(crate) fn runtime_index_element_type(
     let carrier = peeled_indexed_carrier(program, reference)?;
     match program.type_reference_table.type_reference(carrier) {
         TypeReferenceNode::FixedArray { length, .. } => {
-            matches!(length, typed_trees::types::FixedArrayLength::Literal(_))
-                .then(|| validation::collection_element_type_reference(program, reference))?
+            (matches!(length, typed_trees::types::FixedArrayLength::Literal(_))
+                || program.constant_recipe_for_array_length(carrier).is_valid())
+            .then(|| validation::collection_element_type_reference(program, reference))?
         }
         TypeReferenceNode::Slice { .. } => {
             validation::collection_element_type_reference(program, reference)

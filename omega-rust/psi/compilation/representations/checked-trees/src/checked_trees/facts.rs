@@ -11,6 +11,7 @@
 
 // `CheckFacts`, the root that holds every fact family.
 mod collection;
+mod constant_recipe_obligations;
 mod contextual_cleanup;
 
 // Machine contract and interface axes: contract and crash plans with
@@ -55,6 +56,7 @@ pub use accepted_template_identities::{
     CheckedAcceptedTemplateClassification, CheckedAcceptedTemplateIdentities,
     CheckedAcceptedTemplateIdentity,
 };
+pub use constant_recipe_obligations::{ConstantRecipeObligation, ConstantRecipeRequirement};
 pub use specialization_identities::{
     CheckedMachineSpecializationIdentity, CheckedSpecializationIdentities,
 };

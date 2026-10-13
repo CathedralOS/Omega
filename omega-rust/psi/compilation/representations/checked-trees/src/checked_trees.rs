@@ -53,9 +53,10 @@ pub use facts::{
 };
 
 pub use facts::{
-    CheckedStoredIntegerWrite, ContextualCleanupApplication, ContextualCleanupDisposition,
-    ContextualCleanupEntryRequirement, ContextualCleanupEntryRequirements, ContextualCleanupFacts,
-    DecidedCallRequires, ProvenAssignmentIndex, StoredIntegerWriteSite,
+    CheckedStoredIntegerWrite, ConstantRecipeObligation, ConstantRecipeRequirement,
+    ContextualCleanupApplication, ContextualCleanupDisposition, ContextualCleanupEntryRequirement,
+    ContextualCleanupEntryRequirements, ContextualCleanupFacts, DecidedCallRequires,
+    ProvenAssignmentIndex, StoredIntegerWriteSite,
 };
 
 pub use facts::{
@@ -113,7 +114,7 @@ pub use flow::{
     CheckedClosedSumPayloadTransferPlan, CheckedClosedSumSubjectKind,
     CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
     CheckedComposedUnitControlTerminatorPlan, CheckedConditionalReturnArm,
-    CheckedControlResultPlan, CheckedDynamicClaimPath, CheckedDynamicSlotPlan,
+    CheckedControlResultPlan, CheckedDynamicClaimPath, CheckedDynamicSlotPlan, CheckedExtent,
     CheckedGuardedExitPlans, CheckedGuardedJumpArmPlan, CheckedGuardedJumpFallbackPlan,
     CheckedGuardedJumpPlan, CheckedGuardedJumpReturnPlan, CheckedIndexedWriteDecisions,
     CheckedInitializedLocal, CheckedMemberIdentity, CheckedNaturalRankMeasure,

@@ -144,10 +144,9 @@ fn byte_field(
         Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
     ) || matches!(
         program.type_reference_table.type_reference(field.type_reference),
-        typed_trees::types::TypeReferenceNode::FixedArray {
-            element_type,
-            length: typed_trees::types::FixedArrayLength::Literal(_),
-        } if program.primitive_type_reference(*element_type) == Some(PrimitiveType::U8)
+        typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. }
+            if program.primitive_type_reference(*element_type) == Some(PrimitiveType::U8)
+                && program.declared_array_extent(field.type_reference).is_some()
     );
     if !bounded {
         return None;

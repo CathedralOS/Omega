@@ -99,7 +99,9 @@ pub(crate) fn build_affine_array_construction_prefix(
             element_type_identity: element,
             length,
         } if element == &element_type_identity
-            && usize::try_from(*length) == Ok(root_length)
+            && length
+                .literal()
+                .is_some_and(|length| usize::try_from(length) == Ok(root_length))
     ) || !matches!(
         shapes.types.get(&element_type_identity).map(|shape| &shape.shape),
         Some(CheckedUnitStructuralTypeShape::Record { fields, .. }) if fields.is_empty()

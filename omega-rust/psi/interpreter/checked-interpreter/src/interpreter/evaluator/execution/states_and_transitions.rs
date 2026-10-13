@@ -707,10 +707,15 @@ impl<'program> Evaluator<'program> {
                             self.const_argument_value_with_bindings(argument, bindings, 0)
                         }),
                     typed_trees::types::FixedArrayLength::ConstCall { name, .. } => {
-                        return unsupported(format!(
-                            "array length `{}` has an unresolved build-time evaluation dependency",
-                            name.as_str()
-                        ));
+                        match self.program.closed_fixed_array_length(type_reference) {
+                            Some(count) => Some(count),
+                            None => {
+                                return unsupported(format!(
+                                    "array length `{}` has an unresolved build-time evaluation dependency",
+                                    name.as_str()
+                                ));
+                            }
+                        }
                     }
                 };
                 if let Some(count) = count {

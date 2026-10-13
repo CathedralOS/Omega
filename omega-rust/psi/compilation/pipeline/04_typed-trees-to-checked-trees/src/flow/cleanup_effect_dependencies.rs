@@ -326,9 +326,8 @@ fn visit(
         TypeReferenceNode::FixedArray {
             element_type,
             length,
-        } => {
-            let length = program.closed_array_extent(length, substitutions)?;
-            visit_array(
+        } => match program.closed_array_extent(length, substitutions) {
+            Some(length) => visit_array(
                 program,
                 *element_type,
                 length,
@@ -339,8 +338,35 @@ fn visit(
                 leaves,
                 has_erased_obligations,
                 inactive_case,
-            )
-        }
+            ),
+            // A retained recipe fixes the extent only at target closure. The
+            // whole array still owes no cleanup when one element owes none
+            // and no custody endpoint names an element; any leaf would carry
+            // an extent the shared judgment cannot spell.
+            None if program
+                .constant_recipe_for_array_length(reference)
+                .is_valid()
+                && removed.is_empty() =>
+            {
+                let mut element_leaves = Vec::new();
+                let mut element_erased = false;
+                path.push(PlaceSegment::FixedIndex { index: 0 });
+                let visited = visit(
+                    program,
+                    *element_type,
+                    substitutions,
+                    &[],
+                    active,
+                    path,
+                    &mut element_leaves,
+                    &mut element_erased,
+                    inactive_case,
+                );
+                path.pop();
+                (visited.is_some() && element_leaves.is_empty() && !element_erased).then_some(())
+            }
+            None => None,
+        },
         TypeReferenceNode::Named { symbol, .. } => visit_owner(
             program,
             *symbol,

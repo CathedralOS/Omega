@@ -37,7 +37,7 @@ use crate::BuildTimeAdmissionPlan;
 
 /// Detached type-arena nodes retain their identity but do not own evaluation
 /// work. Snapshot only lengths reached from the current declaration roster.
-fn pending_array_lengths(
+pub(crate) fn pending_array_lengths(
     typed: &TypedTrees,
     domain: &EvaluationDomain,
 ) -> Vec<(

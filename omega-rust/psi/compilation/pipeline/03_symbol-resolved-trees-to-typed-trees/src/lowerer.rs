@@ -442,6 +442,8 @@ impl Lowerer<'_> {
             // Typing precedes every build-time evaluation deferral, so no
             // pending endpoint mark can exist here to carry forward.
             pending_const_range_endpoints: _,
+            constant_recipes: _,
+            constant_recipe_closure: _,
             type_identities,
         } = self.typed_trees;
 

@@ -58,10 +58,12 @@ impl TargetSelectors {
                     let collection = validation::unwrapped_type_reference(program, collection)?;
                     let literal_length =
                         match program.type_reference_table.type_reference(collection) {
-                            TypeReferenceNode::FixedArray {
-                                length: typed_trees::types::FixedArrayLength::Literal(length),
-                                ..
-                            } => Some(*length),
+                            TypeReferenceNode::FixedArray { .. } => program
+                                .declared_array_extent(collection)?
+                                .literal()
+                                .map(usize::try_from)
+                                .transpose()
+                                .ok()?,
                             // A slice's extent is live, not declared: no literal
                             // bound exists to check, and the emitted segment's
                             // Terminal obligation re-proves `index < extent`

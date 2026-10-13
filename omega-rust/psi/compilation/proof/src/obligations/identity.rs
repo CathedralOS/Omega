@@ -371,6 +371,16 @@ fn constraint_identity(constraint: &ProofConstraint) -> String {
         ProofConstraint::IntegerRange { minimum, maximum } => {
             compound("integer-range", [minimum.to_string(), maximum.to_string()])
         }
+        ProofConstraint::IntegerRangeRecipe { minimum, maximum } => {
+            let bound = |bound: &crate::obligations::RecipeRangeBound| match bound {
+                crate::obligations::RecipeRangeBound::Closed(value) => value.to_string(),
+                crate::obligations::RecipeRangeBound::Recipe { recipe, offset } => compound(
+                    "recipe",
+                    [recipe.arena_index().to_string(), offset.to_string()],
+                ),
+            };
+            compound("integer-range-recipe", [bound(minimum), bound(maximum)])
+        }
         ProofConstraint::IntegerRangeSymbolicMax {
             minimum,
             max_field,

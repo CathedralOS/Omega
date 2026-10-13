@@ -105,12 +105,31 @@ impl<'program> ProofPlan<'program> {
     }
 }
 
+/// One endpoint of a declared integer range whose other endpoint, or itself,
+/// is a retained constant recipe: closed where the shared judgment can read
+/// it, otherwise the recipe plus the inclusive offset its spelling implies.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RecipeRangeBound {
+    Closed(BigInt),
+    Recipe {
+        recipe: typed_trees::constant_recipes::ConstantRecipeHandle,
+        offset: i64,
+    },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProofConstraint {
     Named(Identifier),
     IntegerRange {
         minimum: numerics::bignum::BigInt,
         maximum: numerics::bignum::BigInt,
+    },
+    /// A declared range with a retained constant recipe at an endpoint
+    /// (`u64[0..=limit()]`). The bounded checks prove the value's own range
+    /// and record the comparison against the recipe for the target closure.
+    IntegerRangeRecipe {
+        minimum: RecipeRangeBound,
+        maximum: RecipeRangeBound,
     },
     /// R1 dependent range (`[0..=self.count]`): the maximum names a `self`
     /// FIELD's entry value plus a literal offset. Minted only for the
@@ -259,6 +278,27 @@ impl ProofConstraint {
                     minimum: minimum.clone(),
                     maximum,
                 });
+            }
+            // A rostered recipe endpoint stays symbolic; its closure fixes it.
+            let recipe_bound = |endpoint: ExpressionHandle, offset: i64| {
+                let recipe = program.constant_recipe_for_range_endpoint(endpoint);
+                recipe
+                    .is_valid()
+                    .then_some(RecipeRangeBound::Recipe { recipe, offset })
+            };
+            let minimum_bound = integer_bound
+                .clone()
+                .map(RecipeRangeBound::Closed)
+                .or_else(|| recipe_bound(minimum, 0));
+            let maximum_bound =
+                validation::closed_integer_range_maximum(program, maximum, end_inclusive)
+                    .map(RecipeRangeBound::Closed)
+                    .or_else(|| recipe_bound(maximum, if end_inclusive { 0 } else { -1 }));
+            if let (Some(minimum), Some(maximum)) = (minimum_bound, maximum_bound)
+                && (matches!(minimum, RecipeRangeBound::Recipe { .. })
+                    || matches!(maximum, RecipeRangeBound::Recipe { .. }))
+            {
+                return Some(Self::IntegerRangeRecipe { minimum, maximum });
             }
             // Symbolic proof atoms retain inclusive offsets, not executable
             // subtraction. Validation fences an unrepresentable offset first.

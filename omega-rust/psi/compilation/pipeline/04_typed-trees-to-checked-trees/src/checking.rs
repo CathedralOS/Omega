@@ -261,6 +261,7 @@ fn check_program(
     // The range checker bounds indexes with the intervals the same
     // arithmetic walk established; nothing after checking reads them.
     let expression_intervals = std::mem::take(&mut validated.validation_facts.expression_intervals);
+    let proof_recipe_obligations = std::mem::take(&mut validated.constant_recipe_obligations);
     let (mut facts, prepared_effects) = build_check_facts(
         &program,
         &validated.proof_plan,
@@ -300,6 +301,9 @@ fn check_program(
         &expression_intervals,
     )?;
     checks::validate_selected_cleanup_guarantees(&program, &facts)?;
+    facts
+        .constant_recipe_obligations
+        .extend(proof_recipe_obligations);
     crate::facts::refresh_realized_contract_envelopes(&mut facts);
 
     let mut facts = crate::execution::finalize_execution::finalize_execution(&program, facts)?;

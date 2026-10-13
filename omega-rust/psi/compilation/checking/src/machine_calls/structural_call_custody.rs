@@ -560,8 +560,18 @@ pub fn structural_qualification_contract(
                 element_type,
                 length,
             } => {
-                let typed_trees::types::FixedArrayLength::Literal(length) = length else {
-                    return Err("projected qualification array length is not literal");
+                // An element without qualification rows projects none at any
+                // extent; only a qualified element needs the literal count.
+                let length = match length {
+                    typed_trees::types::FixedArrayLength::Literal(length) => Some(*length),
+                    typed_trees::types::FixedArrayLength::ConstCall { .. }
+                        if program
+                            .constant_recipe_for_array_length(reference)
+                            .is_valid() =>
+                    {
+                        None
+                    }
+                    _ => return Err("projected qualification array length is not literal"),
                 };
                 let mut element_rows = Vec::new();
                 collect(
@@ -576,15 +586,20 @@ pub fn structural_qualification_contract(
                 if element_rows.is_empty() {
                     return Ok(());
                 }
+                let Some(length) = length else {
+                    return Err(
+                        "projected qualification array length is a constant recipe fixed at target closure",
+                    );
+                };
                 output
                     .try_reserve(
                         element_rows
                             .len()
-                            .checked_mul(*length)
+                            .checked_mul(length)
                             .ok_or("projected qualification count overflow")?,
                     )
                     .map_err(|_| "projected qualification storage exhausted")?;
-                for index in 0..*length {
+                for index in 0..length {
                     let index = u64::try_from(index)
                         .map_err(|_| "projected qualification index overflow")?;
                     for row in &element_rows {

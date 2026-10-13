@@ -24,7 +24,7 @@ pub use plan::{
     BinaryValueOperands, BoundedAssignmentObligation, BoundedCallArgumentObligation,
     BoundedInitializerObligation, BoundedStateReturnObligation,
     BoundedTransitionArgumentObligation, BoundedValueObligation, GuardedTransitionObligation,
-    ProofConstraint, ProofObligation, ProofObligationOwner, ProofPlan,
+    ProofConstraint, ProofObligation, ProofObligationOwner, ProofPlan, RecipeRangeBound,
 };
 pub(crate) use ranges::{
     float_range_from_constraints, integer_binary_range, integer_range_from_constraint_iter,

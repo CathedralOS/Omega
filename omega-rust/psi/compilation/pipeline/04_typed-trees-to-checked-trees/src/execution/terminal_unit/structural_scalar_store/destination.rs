@@ -593,12 +593,19 @@ impl<'a> Destination<'a> {
                     // An arithmetic-policy shell (`[Entity; 3] in Wrapping`)
                     // qualifies element operations, not the array's layout.
                     let array = validation::unwrapped_type_reference(program, carrier_type)?;
+                    // A recipe extent has no literal bound to check here, like
+                    // a slice's live extent; its index obligation is recorded.
                     let (element_type, length) =
                         match program.type_reference_table.type_reference(array) {
-                            TypeReferenceNode::FixedArray {
-                                element_type,
-                                length: typed_trees::types::FixedArrayLength::Literal(length),
-                            } => (*element_type, Some(*length)),
+                            TypeReferenceNode::FixedArray { element_type, .. } => (
+                                *element_type,
+                                program
+                                    .declared_array_extent(array)?
+                                    .literal()
+                                    .map(usize::try_from)
+                                    .transpose()
+                                    .ok()?,
+                            ),
                             TypeReferenceNode::Slice { element_type } => (*element_type, None),
                             _ => return None,
                         };

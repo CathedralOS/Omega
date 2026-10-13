@@ -17,6 +17,7 @@ pub mod typed_trees;
 pub use typed_trees::calls::{
     boundary, dynamic_traits, finite_family, service, signature, static_applications,
 };
+pub use typed_trees::constant_recipes;
 pub use typed_trees::control_flow::{machine, state, statement};
 pub use typed_trees::declaration_index;
 pub use typed_trees::declarations::{

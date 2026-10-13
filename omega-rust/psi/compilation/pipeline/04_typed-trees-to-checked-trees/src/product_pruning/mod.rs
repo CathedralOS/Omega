@@ -254,6 +254,16 @@ pub fn prune_checked_tree_product(
     let edges = collect_machine_edges(&checked.typed, &checked.facts, &index);
     let mut retained = interface_retention_set(&checked.typed, &checked.facts, &index);
     retained.extend(plan.roots().machines().iter().copied());
+    // A retained constant recipe applies its machine from a type position;
+    // the target closure executes that body after pruning.
+    retained.extend(
+        checked
+            .typed
+            .constant_recipes
+            .iter()
+            .map(|(_, recipe)| recipe.machine)
+            .filter(|machine| machine.is_valid()),
+    );
     retained.extend(
         checked
             .typed

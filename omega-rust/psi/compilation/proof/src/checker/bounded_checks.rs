@@ -32,7 +32,8 @@ use crate::checker::float_ranges::{
 use crate::checker::integer_ranges::{
     guarded_integer_range_for_assignment_with_context,
     guarded_integer_range_for_transition_argument, integer_range_for_call_argument,
-    integer_range_for_initializer, integer_range_from_constraints, type_constraints,
+    integer_range_for_initializer, integer_range_for_state_return, integer_range_from_constraints,
+    type_constraints,
 };
 use crate::checker::measurement::ProofPlanMeasurements;
 use crate::checker::named_constraints::{
@@ -45,6 +46,7 @@ use crate::obligations::{
     BoundedAssignmentObligation, BoundedCallArgumentObligation, BoundedInitializerObligation,
     BoundedStateReturnObligation, BoundedTransitionArgumentObligation, ProofPlan,
 };
+use crate::obligations::{IntegerRange, RecipeRangeBound};
 use diagnostics::Diagnostic;
 use numerics::bignum::BigInt;
 use typed_trees::expression::ExpressionNode;
@@ -56,6 +58,7 @@ pub(crate) fn check_bounded_assignment<'program>(
     context: &AssignmentRangeContext<'program>,
     seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
+    recipe_obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
     measurements: &mut ProofPlanMeasurements,
     derivations: Option<&mut DerivationConsultation<'_>>,
 ) -> Option<crate::obligations::IntegerRange> {
@@ -71,6 +74,23 @@ pub(crate) fn check_bounded_assignment<'program>(
     let diagnostics_before = diagnostics.len();
     let mut checked_range = None;
     check_assignment_named_constraints(proof_plan, obligation, diagnostics);
+    discharge_recipe_range(
+        proof_plan,
+        obligation.constraints,
+        guarded_integer_range_for_assignment_with_context(proof_plan, obligation, context),
+        obligation.value,
+        format!(
+            "assignment to `{}` in `{}.{}`",
+            proof_plan
+                .program
+                .expression_table
+                .display_name(obligation.target),
+            obligation.machine,
+            obligation.state
+        ),
+        diagnostics,
+        recipe_obligations,
+    );
 
     if let Some(target_range) =
         integer_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
@@ -296,10 +316,20 @@ pub(crate) fn check_bounded_initializer(
     obligation: &BoundedInitializerObligation,
     seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
+    recipe_obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
     measurements: &mut ProofPlanMeasurements,
     derivations: Option<&mut DerivationConsultation<'_>>,
 ) {
     check_initializer_named_constraints(proof_plan, obligation, diagnostics);
+    discharge_recipe_range(
+        proof_plan,
+        obligation.constraints,
+        integer_range_for_initializer(proof_plan, obligation),
+        obligation.value,
+        "initializer".to_owned(),
+        diagnostics,
+        recipe_obligations,
+    );
 
     if let Some(target_range) =
         integer_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
@@ -389,10 +419,20 @@ pub(crate) fn check_bounded_state_return<'program>(
     context: &AssignmentRangeContext<'program>,
     seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
+    recipe_obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
     measurements: &mut ProofPlanMeasurements,
     derivations: Option<&mut DerivationConsultation<'_>>,
 ) {
     check_return_named_constraints(proof_plan, obligation, diagnostics);
+    discharge_recipe_range(
+        proof_plan,
+        obligation.constraints,
+        integer_range_for_state_return(proof_plan, obligation),
+        obligation.value,
+        format!("return from `{}.{}`", obligation.machine, obligation.state),
+        diagnostics,
+        recipe_obligations,
+    );
 
     if let Some(target_range) =
         integer_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
@@ -470,10 +510,23 @@ pub(crate) fn check_bounded_call_argument(
     obligation: &BoundedCallArgumentObligation,
     seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
+    recipe_obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
     measurements: &mut ProofPlanMeasurements,
     derivations: Option<&mut DerivationConsultation<'_>>,
 ) {
     check_call_named_constraints(proof_plan, obligation, diagnostics);
+    discharge_recipe_range(
+        proof_plan,
+        obligation.constraints,
+        integer_range_for_call_argument(proof_plan, obligation),
+        obligation.argument,
+        format!(
+            "call argument for parameter `{}` of `{}`",
+            obligation.parameter, obligation.target
+        ),
+        diagnostics,
+        recipe_obligations,
+    );
 
     if let Some(target_range) =
         integer_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
@@ -621,10 +674,22 @@ pub(crate) fn check_bounded_transition_argument(
     obligation: &BoundedTransitionArgumentObligation,
     seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
+    recipe_obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
     measurements: &mut ProofPlanMeasurements,
     mut derivations: Option<&mut DerivationConsultation<'_>>,
 ) {
     check_transition_named_constraints(proof_plan, obligation, diagnostics);
+    discharge_recipe_range(
+        proof_plan,
+        obligation.constraints,
+        Some(guarded_integer_range_for_transition_argument(
+            proof_plan, obligation,
+        )),
+        obligation.argument,
+        "transition argument".to_owned(),
+        diagnostics,
+        recipe_obligations,
+    );
 
     if let Some(target_range) =
         integer_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
@@ -799,6 +864,85 @@ pub(crate) fn check_bounded_transition_argument(
                 obligation,
                 target_range,
             ));
+        }
+    }
+}
+
+/// Decide a declared range with a retained constant recipe at an endpoint.
+/// The value's own range is the judgment's evidence: a closed endpoint is
+/// compared here, a recipe endpoint becomes a recorded comparison the target
+/// closure discharges against the closed value. A value without a bounded
+/// range has nothing to compare and refuses now.
+fn discharge_recipe_range(
+    proof_plan: &ProofPlan,
+    constraints: arena::HandleSpan<crate::obligations::ProofConstraint>,
+    value_range: Option<IntegerRange>,
+    value: typed_trees::expression::ExpressionHandle,
+    description: String,
+    diagnostics: &mut Vec<Diagnostic>,
+    recipe_obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
+) {
+    for constraint in type_constraints(proof_plan, constraints) {
+        let crate::obligations::ProofConstraint::IntegerRangeRecipe { minimum, maximum } =
+            constraint
+        else {
+            continue;
+        };
+        let source_span = proof_plan.program.expression_table.source_span(value);
+        let Some(value_range) = value_range.as_ref() else {
+            diagnostics.push(
+                Diagnostic::error(format!(
+                    "cannot prove {description} has a bounded value to compare with its declared range fixed at target closure"
+                ))
+                .with_source_span(source_span),
+            );
+            return;
+        };
+        match minimum {
+            RecipeRangeBound::Closed(bound) => {
+                if value_range.minimum < *bound {
+                    diagnostics.push(
+                        Diagnostic::error(format!(
+                            "cannot prove {description} is at least {bound}; its value may be as low as {}",
+                            value_range.minimum
+                        ))
+                        .with_source_span(source_span),
+                    );
+                }
+            }
+            RecipeRangeBound::Recipe { recipe, offset } => {
+                recipe_obligations.push(checked_trees::ConstantRecipeObligation {
+                    recipe: *recipe,
+                    requirement: checked_trees::ConstantRecipeRequirement::AtMost(
+                        value_range.minimum.sub(&BigInt::from_i64(*offset)),
+                    ),
+                    source_span,
+                    description: format!("{description} (declared minimum)"),
+                });
+            }
+        }
+        match maximum {
+            RecipeRangeBound::Closed(bound) => {
+                if value_range.maximum > *bound {
+                    diagnostics.push(
+                        Diagnostic::error(format!(
+                            "cannot prove {description} is at most {bound}; its value may be as high as {}",
+                            value_range.maximum
+                        ))
+                        .with_source_span(source_span),
+                    );
+                }
+            }
+            RecipeRangeBound::Recipe { recipe, offset } => {
+                recipe_obligations.push(checked_trees::ConstantRecipeObligation {
+                    recipe: *recipe,
+                    requirement: checked_trees::ConstantRecipeRequirement::AtLeast(
+                        value_range.maximum.sub(&BigInt::from_i64(*offset)),
+                    ),
+                    source_span,
+                    description: format!("{description} (declared maximum)"),
+                });
+            }
         }
     }
 }

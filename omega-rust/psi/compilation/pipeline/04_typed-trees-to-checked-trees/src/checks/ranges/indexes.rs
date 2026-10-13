@@ -15,12 +15,23 @@ use super::facts::RangeFacts;
 /// decided only when all of its checks proved the index: a range window, an
 /// unsupported collection or a rejection decides nothing.
 #[derive(Default)]
-pub(super) struct IndexVerdicts(Vec<(ExpressionHandle, bool)>);
+pub(super) struct IndexVerdicts {
+    verdicts: Vec<(ExpressionHandle, bool)>,
+    /// Comparisons proved against a retained constant recipe's extent, for
+    /// the target closure to discharge against its closed value.
+    obligations: Vec<checked_trees::ConstantRecipeObligation>,
+}
 
 impl IndexVerdicts {
-    /// The occurrences every check proved, ordered by handle position.
-    pub(super) fn into_proven(self) -> Vec<ExpressionHandle> {
-        let mut verdicts = self.0;
+    /// The occurrences every check proved, ordered by handle position, beside
+    /// the recipe obligations those proofs depend on.
+    pub(super) fn into_parts(
+        self,
+    ) -> (
+        Vec<ExpressionHandle>,
+        Vec<checked_trees::ConstantRecipeObligation>,
+    ) {
+        let mut verdicts = self.verdicts;
         verdicts
             .sort_by_key(|(expression, _)| checked_trees::operators::handle_position(*expression));
         let mut proven: Vec<ExpressionHandle> = Vec::new();
@@ -36,7 +47,7 @@ impl IndexVerdicts {
                 proven.push(expression);
             }
         }
-        proven
+        (proven, self.obligations)
     }
 }
 
@@ -88,8 +99,9 @@ impl ExpressionTransferSink for IndexChecks<'_, '_, '_> {
             expression,
             indexed,
             self.diagnostics,
+            &mut self.verdicts.obligations,
         );
-        self.verdicts.0.push((
+        self.verdicts.verdicts.push((
             expression,
             verdict == self::validation::BoundsCheckResult::ProvenScalar,
         ));

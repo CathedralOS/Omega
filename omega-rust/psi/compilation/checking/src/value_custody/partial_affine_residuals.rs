@@ -132,7 +132,8 @@ fn validate_type(
             // Empty arrays contain no values whose cleanup eligibility can
             // constrain this complement. They retain their own exact shape,
             // just as an empty record does, without visiting an absent element.
-            if *length > 0 {
+            // A recipe extent may be nonempty, so its element is visited.
+            if length.literal() != Some(0) {
                 validate_type(types, *element_type_identity, active, complete)?;
             }
         }
@@ -294,7 +295,7 @@ fn visit_region(
                 let CheckedUnitStructuralPathSegment::FixedIndex(index) = path[0] else {
                     return None;
                 };
-                if index >= *length {
+                if !length.admits_fixed_index(index) {
                     return None;
                 }
                 touched.push(index);
@@ -303,14 +304,18 @@ fn visit_region(
                 let [CheckedUnitStructuralPathSegment::FixedIndex(index), ..] = *path else {
                     return None;
                 };
-                if *index >= *length {
+                if !length.admits_fixed_index(*index) {
                     return None;
                 }
                 touched.push(*index);
             }
             touched.sort_unstable();
             touched.dedup();
-            let untouched = usize::try_from(*length).ok()?.checked_sub(touched.len())?;
+            // The untouched complement counts elements, which a recipe extent
+            // only fixes at closure; partial moves out of such an array keep
+            // no residual plan here.
+            let length = length.literal()?;
+            let untouched = usize::try_from(length).ok()?.checked_sub(touched.len())?;
             if untouched > 0 {
                 // Counting each untouched element as one region is valid only
                 // for a maximal cleanup-free subtree. A case-dependent element
@@ -327,7 +332,7 @@ fn visit_region(
                 count = count.checked_add(untouched)?;
             }
             // Enumeration is needed only when writing the already-sized output.
-            let indexes = (0..if emit { *length } else { 0 })
+            let indexes = (0..if emit { length } else { 0 })
                 .rev()
                 .chain(touched.into_iter().rev().filter(|_| !emit));
             for index in indexes {

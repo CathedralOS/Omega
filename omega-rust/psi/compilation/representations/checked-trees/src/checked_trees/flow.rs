@@ -46,7 +46,7 @@ pub use self::terminal::{
     CheckedClosedSumSubjectKind, CheckedComposedUnitControlMachinePlan,
     CheckedComposedUnitControlStatePlan, CheckedComposedUnitControlTerminatorPlan,
     CheckedConditionalReturnArm, CheckedControlResultPlan, CheckedDynamicClaimPath,
-    CheckedDynamicSlotPlan, CheckedGuardedExitPlans, CheckedGuardedJumpArmPlan,
+    CheckedDynamicSlotPlan, CheckedExtent, CheckedGuardedExitPlans, CheckedGuardedJumpArmPlan,
     CheckedGuardedJumpFallbackPlan, CheckedGuardedJumpPlan, CheckedGuardedJumpReturnPlan,
     CheckedInitializedLocal, CheckedMemberIdentity, CheckedNaturalRankMeasure,
     CheckedNominalAffineUnitCleanupMachinePlan, CheckedNominalAffineUnitCleanupPlans,

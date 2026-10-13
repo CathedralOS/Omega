@@ -267,6 +267,18 @@ impl<'program> ShapeCollector<'program> {
         }
     }
 
+    /// A const actual's extent: its literal, or the recipe a still-pending
+    /// const-generic argument retains for the target closure.
+    fn const_length_extent(&self, reference: TypeReferenceHandle) -> Option<CheckedExtent> {
+        if let Some(value) = self.const_length_reference_value(reference) {
+            return u64::try_from(value).ok().map(CheckedExtent::Literal);
+        }
+        let recipe = self
+            .program
+            .constant_recipe_for_const_application(reference);
+        recipe.is_valid().then_some(CheckedExtent::Recipe(recipe))
+    }
+
     /// Register an admitted reference carrier with its declared access.
     /// Access selects the loan contract, not whether its descriptor exists.
     pub(in crate::execution::terminal_unit) fn add_reference_type(
@@ -641,18 +653,26 @@ impl<'program> ShapeCollector<'program> {
             // An element carrier spelled with a const parameter binds its
             // declared length at each application. Literal actuals resolve
             // here; an open binder keeps no numeric extent and declines.
+            // A rostered recipe keeps its symbolic extent in the plan; the
+            // target closure fixes it. An unrostered call is still pending
+            // evaluation and declines exactly as an open binder does.
             let Some(length) = (match length {
-                typed_trees::types::FixedArrayLength::Literal(value) => Some(*value),
+                typed_trees::types::FixedArrayLength::Literal(value) => {
+                    u64::try_from(*value).ok().map(CheckedExtent::Literal)
+                }
                 typed_trees::types::FixedArrayLength::ConstParameter { symbol, .. } => {
                     substitutions
                         .iter()
                         .rev()
                         .find(|(parameter, _)| parameter == symbol)
-                        .and_then(|(_, replacement)| {
-                            self.const_length_reference_value(*replacement)
-                        })
+                        .and_then(|(_, replacement)| self.const_length_extent(*replacement))
                 }
-                typed_trees::types::FixedArrayLength::ConstCall { .. } => None,
+                typed_trees::types::FixedArrayLength::ConstCall { .. } => {
+                    let recipe = self
+                        .program
+                        .constant_recipe_for_array_length(type_reference);
+                    recipe.is_valid().then_some(CheckedExtent::Recipe(recipe))
+                }
             }) else {
                 return None;
             };
@@ -693,7 +713,6 @@ impl<'program> ShapeCollector<'program> {
                 self.in_progress.remove(&identity);
                 return None;
             };
-            let length = u64::try_from(length).ok()?;
             self.types.insert(
                 identity,
                 CheckedUnitStructuralTypePlan {

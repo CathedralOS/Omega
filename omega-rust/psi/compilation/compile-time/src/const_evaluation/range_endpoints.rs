@@ -200,15 +200,15 @@ fn endpoint_stand_in(carrier: Option<PrimitiveType>, minimum: bool) -> (bool, &'
     }
 }
 
-pub(super) struct PendingEndpoint {
-    pub(super) expression: ExpressionHandle,
-    pub(super) root: ExpressionHandle,
+pub(crate) struct PendingEndpoint {
+    pub(crate) expression: ExpressionHandle,
+    pub(crate) root: ExpressionHandle,
     /// The resolved callee in the working tree: a plain machine, or the
     /// generic template of a static application, explicit or inferred.
-    pub(super) machine: symbols::SymbolHandle,
+    pub(crate) machine: symbols::SymbolHandle,
     /// The authored target is generic; the executable callee must be the
     /// prepared tree's specialized instance.
-    pub(super) static_application: bool,
+    pub(crate) static_application: bool,
 }
 
 struct EndpointRoot {
@@ -571,7 +571,7 @@ fn evaluate_endpoint(
     Ok(ExpressionNode::Integer(literal))
 }
 
-fn pending_endpoints(
+pub(crate) fn pending_endpoints(
     typed: &TypedTrees,
     domain: &EvaluationDomain,
 ) -> Result<Vec<PendingEndpoint>, Vec<Diagnostic>> {

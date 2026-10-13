@@ -112,6 +112,7 @@ pub(super) fn check_indexed_access(
     expression: ExpressionHandle,
     indexed: &TableIndexedExpression,
     diagnostics: &mut Vec<Diagnostic>,
+    obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
 ) -> BoundsCheckResult {
     // Bounds-from-operator seam: the `[]` / `[..]` obligation is sourced from
     // the governing boundary operator's `requires` contract and discharged by
@@ -170,6 +171,25 @@ pub(super) fn check_indexed_access(
             indexed.index,
             attribution,
             diagnostics,
+        )
+    } else if let Some(recipe) =
+        expression_type_reference(program, machine, state, indexed.collection)
+            .map(|reference| super::super::arrays::fixed_array_type_recipe(program, reference))
+            .filter(|recipe| recipe.is_valid())
+    {
+        // A retained recipe extent: the judgment proves the index's own
+        // bound and records the comparison against the closed extent.
+        check_recipe_extent_index(
+            program,
+            machine,
+            state,
+            facts,
+            indexed.collection,
+            indexed.index,
+            recipe,
+            attribution,
+            diagnostics,
+            obligations,
         )
     } else if let Some(extent) =
         expression_type_reference(program, machine, state, indexed.collection).and_then(
@@ -240,6 +260,125 @@ pub(super) fn check_indexed_access(
         BoundsCheckResult::ProvenRange
     } else {
         BoundsCheckResult::ProvenScalar
+    }
+}
+
+/// Prove an index or window against a fixed array whose extent is a retained
+/// constant recipe. The judgment establishes the index's own bounds exactly
+/// as it does against a literal length; the comparison with the extent is
+/// recorded for the target closure instead of decided here.
+#[allow(clippy::too_many_arguments)]
+fn check_recipe_extent_index(
+    program: &dyn ::validation::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    facts: &RangeFacts<'_>,
+    collection: ExpressionHandle,
+    index: ExpressionHandle,
+    recipe: typed_trees::constant_recipes::ConstantRecipeHandle,
+    attribution: Option<&str>,
+    diagnostics: &mut Vec<Diagnostic>,
+    obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
+) -> bool {
+    let recipe_name = program
+        .constant_recipes
+        .get(recipe)
+        .name
+        .as_str()
+        .to_owned();
+    let source_span = program.expression_table.source_span(index);
+    let index_label = program.expression_table.display_name(index);
+    let collection_label = program.expression_table.display_name(collection);
+    if let ExpressionNode::Range(range) = program.expression_table.expression(index) {
+        let reduced = zero_offset_reduced_range(program, range);
+        let Some((start, end)) = provable_range_bounds(program, facts, &reduced) else {
+            diagnostics.push(Diagnostic::error(with_attribution(
+                format!(
+                    "cannot prove subslice range `{index_label}` of `{collection_label}` is within the extent `{recipe_name}()` fixed at target closure",
+                ),
+                attribution,
+            )));
+            return false;
+        };
+        if start < 0 || end.is_some_and(|end| end < start) {
+            diagnostics.push(Diagnostic::error(with_attribution(
+                format!(
+                    "cannot prove subslice range `{index_label}` of `{collection_label}` has ordered non-negative endpoints",
+                ),
+                attribution,
+            )));
+            return false;
+        }
+        if let Some(end) = end {
+            obligations.push(checked_trees::ConstantRecipeObligation {
+                recipe,
+                requirement: checked_trees::ConstantRecipeRequirement::AtLeast(
+                    numerics::bignum::BigInt::from_i64(end),
+                ),
+                source_span,
+                description: format!("subslice range `{index_label}` of `{collection_label}`"),
+            });
+        }
+        return true;
+    }
+    // The tightest upper bound the judgment established for the index.
+    let interval = validation::expression_interval(facts.expression_intervals, index);
+    let declared_range = expression_enforced_declared_range(program, machine, state, index);
+    let (standing_low, standing_high) =
+        validation::standing_integer_bounds(program, machine, state, index).unwrap_or_default();
+    let (ensured_low, ensured_high) =
+        ensured_call_result_bounds(program, index).unwrap_or_default();
+    let carrier_maximum = expression_integer_carrier_maximum(program, machine, state, index)
+        .and_then(|maximum| i64::try_from(maximum).ok());
+    let upper_bound = [
+        expression_integer_value(program, facts, index),
+        interval.and_then(|interval| interval.high),
+        declared_range.map(|(_, high)| high),
+        ensured_high,
+        standing_high,
+        carrier_maximum,
+    ]
+    .into_iter()
+    .flatten()
+    .min();
+    let lower_bound_proven = expression_is_unsigned_integer(program, machine, state, index)
+        || expression_integer_value(program, facts, index).is_some_and(|value| value >= 0)
+        || interval.is_some_and(|interval| interval.low.is_some_and(|low| low >= 0))
+        || facts.non_negative_is_proven(&index_label)
+        || facts.non_negative_is_proven_via_ordering(&index_label)
+        || declared_range.is_some_and(|(low, _)| low >= 0)
+        || ensured_low.is_some_and(|low| low >= 0)
+        || standing_low.is_some_and(|low| low >= 0);
+    match upper_bound {
+        Some(high) if lower_bound_proven => {
+            obligations.push(checked_trees::ConstantRecipeObligation {
+                recipe,
+                requirement: checked_trees::ConstantRecipeRequirement::ExceedsBound(
+                    numerics::bignum::BigInt::from_i64(high),
+                ),
+                source_span,
+                description: format!("index `{index_label}` of `{collection_label}`"),
+            });
+            true
+        }
+        Some(_) => {
+            diagnostics.push(Diagnostic::error(with_attribution(
+                format!(
+                    "cannot prove index `{index_label}` of `{collection_label}` is non-negative"
+                ),
+                attribution,
+            )));
+            false
+        }
+        None => {
+            diagnostics.push(Diagnostic::error(with_attribution(
+                format!(
+                    "cannot prove index `{index_label}` of `{collection_label}` has an upper bound to compare with the extent `{recipe_name}()` fixed at target closure",
+                ),
+                attribution,
+            )));
+            false
+        }
     }
 }
 

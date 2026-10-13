@@ -188,7 +188,10 @@ pub(crate) fn check_checked_facts_recording(
         incoming_guards,
         mutation_summaries,
     ) {
-        Ok(proven) => facts.proven_scalar_indexes = proven,
+        Ok((proven, obligations)) => {
+            facts.proven_scalar_indexes = proven;
+            facts.constant_recipe_obligations.extend(obligations);
+        }
         Err(mut range_diagnostics) => diagnostics.append(&mut range_diagnostics),
     }
     indexed_writes::record(program, facts);

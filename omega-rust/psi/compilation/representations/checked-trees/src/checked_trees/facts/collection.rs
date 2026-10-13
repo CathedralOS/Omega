@@ -133,6 +133,9 @@ pub struct CheckFacts {
     /// its exact source-derived placement plan. These rows grant no runtime
     /// storage, accessor, provider, or ABI authority.
     pub placed_view_inputs: Vec<CheckedPlacedViewInput>,
+    /// Comparisons the judgment proved against retained constant recipes,
+    /// discharged by each target closure against its closed values.
+    pub constant_recipe_obligations: Vec<crate::ConstantRecipeObligation>,
 }
 
 /// One `AssignmentIndex { depth }` selector of the assignment at

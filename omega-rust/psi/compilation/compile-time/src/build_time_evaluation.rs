@@ -428,7 +428,7 @@ impl PreCheckEvaluation {
     /// Keep value-dependent work together until exact boundary execution is
     /// selected. Independent ordinary build inputs retain their early route.
     pub fn evaluate_or_defer(
-        self,
+        mut self,
         typed: &mut typed_trees::TypedTrees,
     ) -> Result<Option<Self>, Vec<diagnostics::Diagnostic>> {
         if const_lengths::evaluate_independent_lengths(
@@ -451,6 +451,17 @@ impl PreCheckEvaluation {
         {
             range_endpoints::defer_pending_endpoint_calls_in(typed, &self.domain)?;
             const_applications::defer_pending_const_applications(typed, &self.domain)?;
+            // A const-generic application of a recipe call becomes a symbolic
+            // instance whose extents carry the call. Its argument keeps the
+            // pending mark set above: the instance's recorded origin still
+            // spells the application, and no consumer may evaluate it early.
+            const_applications::realize_symbolic_applications(typed, &mut self.domain)?;
+            // The shared check admits exactly these positions as recipes and
+            // the target closure reads their values back by the same roster.
+            crate::const_evaluation::constant_recipes::retain_deferred_constant_recipes(
+                typed,
+                &self.domain,
+            )?;
             validation::resolve_selected_dynamic_call_targets(typed, self.domain.work())?;
             return Ok(Some(self));
         }
@@ -567,6 +578,9 @@ impl PreCheckEvaluation {
             self.wire_schema_frontier,
             &self.domain,
         )?;
+        // Every position this evaluation folded leaves the recipe roster;
+        // only still-symbolic positions remain for a later target closure.
+        typed.retain_symbolic_constant_recipes();
         // Placed-field accessor targets become available with their evaluated
         // plans. Publish the elaborated program with those calls already bound,
         // including for Build execution before the final checked-tree pass.

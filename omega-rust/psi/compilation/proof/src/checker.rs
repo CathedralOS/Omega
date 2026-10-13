@@ -67,7 +67,7 @@ use diagnostics::Diagnostic;
 macro_rules! check_obligations {
     (
         $obligation:ident, $plan:ident, $ranges:ident, $seed:ident,
-        $diagnostics:ident, $measurements:ident, $consultation:ident;
+        $diagnostics:ident, $recipes:ident, $measurements:ident, $consultation:ident;
         literal { $( $pat:pat => $body:block )* }
         ranged { $( $($rvariant:ident)|+ => $rfunc:ident ),* $(,)? }
         plain { $( $($variant:ident)|+ => $func:ident ),* $(,)? }
@@ -82,6 +82,7 @@ macro_rules! check_obligations {
                         &$ranges,
                         $seed,
                         &mut $diagnostics,
+                        &mut $recipes,
                         $measurements,
                         $consultation.as_mut(),
                     );
@@ -94,6 +95,7 @@ macro_rules! check_obligations {
                         obligation,
                         $seed,
                         &mut $diagnostics,
+                        &mut $recipes,
                         $measurements,
                         $consultation.as_mut(),
                     );
@@ -114,9 +116,17 @@ pub struct CheckedIntegerAssignment {
     pub range: crate::obligations::IntegerRange,
 }
 
+/// Everything this pass decided beyond pass/fail: completed integer store
+/// judgments, and the comparisons it proved against retained constant
+/// recipes for the target closure to discharge.
+pub struct ProofDecisions {
+    pub integer_assignments: Vec<CheckedIntegerAssignment>,
+    pub constant_recipe_obligations: Vec<checked_trees::ConstantRecipeObligation>,
+}
+
 pub fn check_proof_plan_with_decisions(
     proof_plan: &ProofPlan,
-) -> Result<Vec<CheckedIntegerAssignment>, Vec<Diagnostic>> {
+) -> Result<ProofDecisions, Vec<Diagnostic>> {
     let mut measurements = ProofPlanMeasurements::default();
     check_proof_plan_inner(proof_plan, &mut measurements, None)
 }
@@ -125,9 +135,10 @@ fn check_proof_plan_inner(
     proof_plan: &ProofPlan<'_>,
     measurements: &mut ProofPlanMeasurements,
     mut derivation_cache: Option<&mut ProofDerivationCache>,
-) -> Result<Vec<CheckedIntegerAssignment>, Vec<Diagnostic>> {
+) -> Result<ProofDecisions, Vec<Diagnostic>> {
     let started = std::time::Instant::now();
     let mut diagnostics = Vec::new();
+    let mut recipe_obligations = Vec::new();
     let range_context = AssignmentRangeContext::new(proof_plan);
     let mut checked_assignments = Vec::new();
 
@@ -152,7 +163,7 @@ fn check_proof_plan_inner(
         };
         check_obligations!(
             obligation, proof_plan, range_context, seed,
-            diagnostics, measurements, consultation;
+            diagnostics, recipe_obligations, measurements, consultation;
             literal {
                 ProofObligation::BoundedAssignment(obligation) => {
                     if let Some(range) = check_bounded_assignment(
@@ -161,6 +172,7 @@ fn check_proof_plan_inner(
                         &range_context,
                         seed,
                         &mut diagnostics,
+                        &mut recipe_obligations,
                         measurements,
                         consultation.as_mut(),
                     ) {
@@ -191,7 +203,10 @@ fn check_proof_plan_inner(
     measurements.emit_if_requested();
 
     if diagnostics.is_empty() {
-        Ok(checked_assignments)
+        Ok(ProofDecisions {
+            integer_assignments: checked_assignments,
+            constant_recipe_obligations: recipe_obligations,
+        })
     } else {
         Err(diagnostics)
     }

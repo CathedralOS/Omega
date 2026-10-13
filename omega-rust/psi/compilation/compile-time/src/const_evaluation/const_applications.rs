@@ -39,11 +39,11 @@ use typed_trees::{
 use crate::machine_execution::admission::{expression_children, require_closed_expression_custody};
 
 /// One `ConstExpression` retained in a declared const-generic argument slot.
-struct PendingConstApplication {
+pub(crate) struct PendingConstApplication {
     /// The `ConstExpression` type-reference node occupying the argument slot.
-    site: TypeReferenceHandle,
+    pub(crate) site: TypeReferenceHandle,
     /// Its retained authored root expression.
-    root: ExpressionHandle,
+    pub(crate) root: ExpressionHandle,
     /// The const parameter's declared carrier type, when the generic base
     /// resolves to a declaration with const parameters.
     destination: Option<TypeReferenceHandle>,
@@ -52,22 +52,22 @@ struct PendingConstApplication {
 /// One authored call reachable inside a pending const application. Call nodes
 /// cover both named machine calls and boundary-operator token uses; facts
 /// separate which uses actually require Omega's selected providers.
-struct PendingApplicationCall {
-    site: TypeReferenceHandle,
-    root: ExpressionHandle,
-    expression: ExpressionHandle,
+pub(crate) struct PendingApplicationCall {
+    pub(crate) site: TypeReferenceHandle,
+    pub(crate) root: ExpressionHandle,
+    pub(crate) expression: ExpressionHandle,
     /// The callee's working-tree machine, or invalid when the call names no
     /// ordinary machine (evidence, dispatch, and boundary-operator forms).
-    machine: SymbolHandle,
+    pub(crate) machine: SymbolHandle,
     /// Whether `machine` is a generic template requiring its prepared
     /// instance.
-    static_application: bool,
+    pub(crate) static_application: bool,
 }
 
 /// Pending const applications and the calls their evaluation must run.
-struct ConstApplicationPlan {
-    applications: Vec<PendingConstApplication>,
-    calls: Vec<PendingApplicationCall>,
+pub(crate) struct ConstApplicationPlan {
+    pub(crate) applications: Vec<PendingConstApplication>,
+    pub(crate) calls: Vec<PendingApplicationCall>,
 }
 
 /// Whether any retained const application can only execute once Omega
@@ -388,6 +388,101 @@ fn closed_argument(typed: &TypedTrees, reference: TypeReferenceHandle) -> bool {
     }
 }
 
+/// The ordinary zero-argument machine a const argument applies directly
+/// (`Data<limit()>`): the one argument shape a fixed-array extent can carry
+/// symbolically. Any other expression keeps the application open.
+fn direct_const_call(
+    typed: &TypedTrees,
+    root: ExpressionHandle,
+) -> Option<(SymbolHandle, Identifier)> {
+    let call = typed.expression_table.call_node(root)?;
+    if !typed
+        .expression_table
+        .expression_handles(call.arguments)
+        .is_empty()
+        || !call.machine_arguments.is_empty()
+    {
+        return None;
+    }
+    let (machine, static_application) =
+        crate::const_evaluation::range_endpoints::selected_endpoint_machine(typed, root)?;
+    if static_application || !machine.symbol.is_valid() {
+        return None;
+    }
+    Some((machine.symbol, machine.name.clone()))
+}
+
+/// Realize every retained const-generic application whose arguments are
+/// closed or direct recipe calls as a symbolic instance: the instance's
+/// array extents carry the recipe call, so the shared judgment, the index
+/// obligations and the target closure treat the application exactly as a
+/// retained array length. The site becomes the instance's `Named` node and
+/// the instance joins the evaluation domain; an argument of another shape
+/// stays pending and refuses as before.
+pub(crate) fn realize_symbolic_applications(
+    typed: &mut TypedTrees,
+    domain: &mut EvaluationDomain,
+) -> Result<(), Vec<Diagnostic>> {
+    loop {
+        let mut progress = false;
+        // An instance's recorded origin is bookkeeping, not an application
+        // site; rewriting it would detach the instance from its application.
+        let origins: Vec<TypeReferenceHandle> = typed
+            .data_definitions()
+            .iter()
+            .filter_map(|definition| definition.generic_instance)
+            .collect();
+        for site in domain.references(typed).type_references {
+            if origins.contains(&site) {
+                continue;
+            }
+            let TypeReferenceNode::Generic {
+                base_symbol,
+                arguments,
+                ..
+            } = typed.type_reference_table.type_reference(site)
+            else {
+                continue;
+            };
+            let base_symbol = *base_symbol;
+            let argument_handles = typed
+                .type_reference_table
+                .type_reference_handles(*arguments)
+                .to_vec();
+            let symbolic = |argument: &TypeReferenceHandle| {
+                matches!(
+                    typed.type_reference_table.type_reference(*argument),
+                    TypeReferenceNode::ConstExpression(root)
+                        if direct_const_call(typed, *root).is_some()
+                )
+            };
+            if !argument_handles.iter().any(symbolic)
+                || !argument_handles
+                    .iter()
+                    .all(|argument| closed_argument(typed, *argument) || symbolic(argument))
+            {
+                continue;
+            }
+            let Some((symbol, name)) = realize_data_instance(typed, site, base_symbol) else {
+                continue;
+            };
+            domain.include(symbol);
+            typed.type_reference_table.substitute_node(
+                site,
+                TypeReferenceNode::Named {
+                    symbol,
+                    name: Identifier::generated(name),
+                },
+            );
+            progress = true;
+            break;
+        }
+        if !progress {
+            return Ok(());
+        }
+    }
+}
+
 /// Rejoin or synthesize the concrete data instance a now-closed `Generic`
 /// site names, returning the instance symbol and its canonical spelling.
 /// `None` declines: the site stays `Generic` and checking owns the result.
@@ -530,12 +625,23 @@ fn substitute_member_type(
                 FixedArrayLength::Literal(_) => length,
                 FixedArrayLength::ConstParameter { symbol, .. } => {
                     let argument = bindings.get(&symbol).copied()?;
-                    let TypeReferenceNode::Named { name, .. } =
-                        typed.type_reference_table.type_reference(argument)
-                    else {
-                        return None;
-                    };
-                    FixedArrayLength::Literal(name.as_str().parse().ok()?)
+                    match typed.type_reference_table.type_reference(argument) {
+                        TypeReferenceNode::Named { name, .. } => {
+                            FixedArrayLength::Literal(name.as_str().parse().ok()?)
+                        }
+                        // A retained recipe argument keeps the instance's
+                        // extent symbolic: the same application, now in
+                        // array-length position, closes under the target.
+                        TypeReferenceNode::ConstExpression(root) => {
+                            let (machine, name) = direct_const_call(typed, *root)?;
+                            FixedArrayLength::ConstCall {
+                                machine,
+                                name,
+                                source_span: typed.expression_table.source_span(*root),
+                            }
+                        }
+                        _ => return None,
+                    }
                 }
                 FixedArrayLength::ConstCall { .. } => return None,
             };
@@ -595,6 +701,9 @@ fn substitute_member_type(
 fn argument_slug(typed: &TypedTrees, reference: TypeReferenceHandle) -> Option<String> {
     match typed.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Named { name, .. } => Some(name.as_str().to_owned()),
+        TypeReferenceNode::ConstExpression(root) => {
+            direct_const_call(typed, *root).map(|(_, name)| format!("{}()", name.as_str()))
+        }
         TypeReferenceNode::Generic {
             base_name,
             arguments,
@@ -650,6 +759,15 @@ fn closed_argument_eq(
         typed.type_reference_table.type_reference(left),
         typed.type_reference_table.type_reference(right),
     ) {
+        (TypeReferenceNode::ConstExpression(left), TypeReferenceNode::ConstExpression(right)) => {
+            match (
+                direct_const_call(typed, *left),
+                direct_const_call(typed, *right),
+            ) {
+                (Some((left, _)), Some((right, _))) => left == right,
+                _ => false,
+            }
+        }
         (
             TypeReferenceNode::Named {
                 symbol: left_symbol,
@@ -893,7 +1011,10 @@ fn expression_subtree(typed: &TypedTrees, root: ExpressionHandle) -> Vec<Express
 /// argument position and still carries authored calls. Positions under a
 /// domain constraint's own arguments are owned by `const_domain_facts`, so
 /// this scan descends only through type constructors.
-fn const_application_plan(typed: &TypedTrees, domain: &EvaluationDomain) -> ConstApplicationPlan {
+pub(crate) fn const_application_plan(
+    typed: &TypedTrees,
+    domain: &EvaluationDomain,
+) -> ConstApplicationPlan {
     let mut plan = ConstApplicationPlan {
         applications: Vec::new(),
         calls: Vec::new(),

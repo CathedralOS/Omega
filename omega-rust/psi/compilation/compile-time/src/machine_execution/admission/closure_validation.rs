@@ -279,10 +279,24 @@ fn machine_termination_violation(
             Some(TerminationGuarantee::Terminates { .. })
         );
     if !locally_terminates {
-        let violation = format!(
-            "machine call path `{}` has no ordinary checked `Terminates` guarantee",
-            path.join(" -> ")
-        );
+        // A requirement slot has no body by design: reaching it without a
+        // selected provider is a missing selection, not a termination defect.
+        let violation = if matches!(
+            machine.supply_mode,
+            MachineSupplyMode::Requirement
+                | MachineSupplyMode::TopLevelRequirement
+                | MachineSupplyMode::Boundary
+        ) {
+            format!(
+                "machine call path `{}` reaches a requirement that requires exact authored selection before evaluation; the evaluator cannot execute a bodyless requirement",
+                path.join(" -> ")
+            )
+        } else {
+            format!(
+                "machine call path `{}` has no ordinary checked `Terminates` guarantee",
+                path.join(" -> ")
+            )
+        };
         active.retain(|active_symbol| *active_symbol != machine_symbol);
         path.pop();
         return Some(violation);

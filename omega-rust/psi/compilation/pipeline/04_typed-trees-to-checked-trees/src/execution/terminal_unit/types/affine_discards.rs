@@ -311,7 +311,7 @@ fn projected_type(
                     length,
                 },
                 CheckedUnitStructuralPathSegment::FixedIndex(index),
-            ) if index < length => {
+            ) if length.admits_fixed_index(*index) => {
                 current = *element_type_identity;
                 path = remaining;
             }

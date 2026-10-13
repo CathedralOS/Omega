@@ -823,7 +823,13 @@ pub(crate) fn lower_unit_structural_type_roots(
                 length,
             } => StructuralTypeShape::FixedArray {
                 element: lookup_type_id(&type_ids, element_type_identity)?,
-                length: *length,
+                // Terminal production runs on a closed program copy: every
+                // recipe extent carries its value under this target capsule.
+                length: length
+                    .closed(&checked.typed)
+                    .ok_or(LoweringError::Unsupported(
+                        "fixed array extent is a constant recipe the target capsule has not closed",
+                    ))?,
             },
             CheckedUnitStructuralTypeShape::Sum { cases } => {
                 let mut case_identities = BTreeSet::new();

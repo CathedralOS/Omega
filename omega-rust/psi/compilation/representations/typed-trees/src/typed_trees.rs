@@ -36,6 +36,7 @@ pub use callable_applications::{
 };
 pub mod calls;
 mod commitments;
+pub mod constant_recipes;
 mod frozen;
 pub use frozen::FrozenTypedTrees;
 pub mod control_flow;
@@ -217,6 +218,13 @@ pub struct TypedTrees {
     /// unbounded range.
     pub pending_const_range_endpoints:
         std::collections::HashSet<crate::expression::ExpressionHandle>,
+    /// Constant positions whose evaluation waits for a selected realization.
+    /// The shared program keeps their authored symbolic nodes; checking
+    /// records what it needs from each; a closed copy carries the values.
+    pub constant_recipes: Arena<constant_recipes::RetainedConstantRecipe>,
+    /// Every recipe's value under this copy's target capsule. Empty in the
+    /// shared program: no consumer may guess a value the capsule has not fixed.
+    pub constant_recipe_closure: constant_recipes::ConstantRecipeClosure,
     /// Durable named-callable structural keys. Checked plans retain these
     /// handles across arena revisions; historical keys stay renderable.
     pub callable_identities: OwnedInterner<crate::type_identity::CallableIdentityTable>,
@@ -488,6 +496,8 @@ impl TypedTrees {
             declaration_indexes: declaration_index::DeclarationIndexes::default(),
             ranking_expression_custody: Vec::new(),
             pending_const_range_endpoints: std::collections::HashSet::new(),
+            constant_recipes: Arena::new(),
+            constant_recipe_closure: constant_recipes::ConstantRecipeClosure::default(),
             callable_identities: OwnedInterner::default(),
             callable_identity_memo: OwnedIndex::default(),
             type_identities: OwnedInterner::default(),

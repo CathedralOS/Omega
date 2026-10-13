@@ -47,6 +47,35 @@ pub(in crate::checks) fn fixed_array_type_length(
     }
 }
 
+/// The retained constant recipe of a fixed array's extent (`[T; call()]`),
+/// through reference and constraint shells; the invalid handle when the
+/// extent is a literal, an open binder, or an unrostered pending call.
+pub(in crate::checks) fn fixed_array_type_recipe(
+    program: &dyn ::validation::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> typed_trees::constant_recipes::ConstantRecipeHandle {
+    if bounded_byte_type_capacity(program, type_reference).is_some() {
+        return Default::default();
+    }
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::FixedArray {
+            length: FixedArrayLength::ConstCall { .. },
+            ..
+        } => program.constant_recipe_for_array_length(type_reference),
+        TypeReferenceNode::FixedArray { .. } => Default::default(),
+        TypeReferenceNode::Reference { referee, .. }
+        | TypeReferenceNode::Constrained {
+            base_type: referee, ..
+        } => fixed_array_type_recipe(program, *referee),
+        TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::Generic { .. }
+        | TypeReferenceNode::Named { .. }
+        | TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::Slice { .. }
+        | TypeReferenceNode::Unit => Default::default(),
+    }
+}
+
 /// The const-parameter identity of a fixed array's symbolic extent
 /// (`items: [u8; N]` inside a generic body) — the binder the index obligation
 /// must be discharged against. `ConstCall` survivors are not a binder (the

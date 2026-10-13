@@ -10,7 +10,7 @@ use super::{
     StateParameter, SymbolHandle, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 use checked_trees::{
-    CheckedStructuralPathQualification, CheckedUnitPartialAffineDiscardPlan,
+    CheckedExtent, CheckedStructuralPathQualification, CheckedUnitPartialAffineDiscardPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
 };
 use typed_trees::type_identity::TypeIdentityRequest;

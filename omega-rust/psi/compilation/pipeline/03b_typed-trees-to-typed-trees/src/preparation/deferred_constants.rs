@@ -1,6 +1,9 @@
 //! Settled checking consumes evaluated array lengths and range endpoints.
 //! Their authored calls may survive only in the preliminary checkpoint while
-//! the semantic evaluator retains the continuation that will replace them.
+//! the semantic evaluator retains the continuation that will replace them,
+//! or as rostered constant recipes the target closure fixes after the
+//! shared judgment: those positions stay symbolic by design, and checking
+//! records what it needs from each instead of refusing them.
 
 use diagnostics::Diagnostic;
 use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
@@ -27,6 +30,12 @@ pub(super) fn require_evaluated_constants(
             else {
                 return None;
             };
+            if program
+                .constant_recipe_for_array_length(*reference)
+                .is_valid()
+            {
+                return None;
+            }
             Some(
                 Diagnostic::error(format!(
                     "array length `{}` has an unresolved build-time evaluation dependency",
@@ -46,6 +55,12 @@ pub(super) fn require_evaluated_constants(
         .pending_const_range_endpoints
         .iter()
         .filter(|expression| references.expressions.contains(expression))
+        .filter(|expression| {
+            !program
+                .constant_recipe_for_range_endpoint(**expression)
+                .is_valid()
+        })
+        .filter(|expression| !program.constant_recipe_root_for_const_application(**expression))
         .map(|expression| {
             Diagnostic::error("range endpoint has an unresolved build-time evaluation dependency")
                 .with_source_span(program.expression_table.source_span(*expression))
