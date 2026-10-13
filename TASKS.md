@@ -3184,43 +3184,34 @@ crash and native exit behavior.
 
 - **MACOS-NATIVE-LOST-SUCCESSES.** (new-scope)
   Restore the macOS ARM64 corpus rows that met their authored check, build or
-  runtime oracle and no longer do. Every such check row now carries a
-  `regressed-from:` token (the 99 budget-exhausted `timeout` rows and the
-  dirty-tree `unexpected` fail rows from `a9ae30e1c334+wt` are re-measured),
-  so `python3 tools/corpus_gate.py --list-pinned-regressions` is the roster:
-  45 check rows at `e43babaccd7`, 33 `rejected` and 12 `incomplete`, in
-  clusters of at most three. Measure with `python3 tools/corpus_gate.py` and
-  `--native`, then route by cause, not by the revision that recorded a row.
+  runtime oracle and no longer do. Every such check row carries a
+  `regressed-from:` token, so `python3 tools/corpus_gate.py
+  --list-pinned-regressions` is the roster: 11 check rows at `261d656cb29`,
+  no cluster larger than the three omissions one lane holds. Measure with
+  `python3 tools/corpus_gate.py` and `--native`, then route by cause, not by
+  the revision that recorded a row.
 
-  - Owned elsewhere: the five `pass/calls/*membership_snapshot*` rows
-    ("Unit closure references an unlowered structural domain carrier") and
-    the `pass/ownership/{runtime_borrowed_case_result_restore,
-    runtime_generic_linear_case_restore}_exit` native `UnsupportedControlFlow`
-    losses have live lanes; `pass/proofs/{proof_inductive_gauss_sum,
-    runtime_inductive_gauss_sum_exit}` ("cannot prove the `terminates by`
-    ranking", a `u64 in Wrapping` subject) has a live lane under
-    **TERMINATION-RANKING-CHECKS**; `sysv_small_aggregate_import_compile` and
-    `win64_pointer_length_vs_descriptor_compile` (omitted at "statement
-    sequence: borrowed windows closed") belong to
-    **BORROWED-STORAGE-RESTORATION**; `interrupt_table_canary` and
-    `secondary_processor_canary` select providers but lack an executable
-    intrinsic, which **CHECKED-ASM-LABEL-CONTRACTS** owns;
-    `fail/calls/struct_constant_requires_argument_rejected` rejects for its
-    authored reason again (the constant application unfolds through its
-    tail expression).
-  - Unowned pairs: `pass/boundary/{later_state_requirement_scalar_result,
-    static_foreign_scalar_result_locals}_exit` ("call selects no
-    declaration"); `pass/calls/runtime_mutable_local_external_scalar_call_exit`
-    and `pass/host/runtime_descriptor_reference_record_prefix_exit` ("fragment
-    import lacks selected call custody"); `pass/collections/element_view_indexed_write`
-    and `pass/domains/slice_domain_validator` ("no closed native catalog
-    identity"); `pass/layouts/runtime_{encoded_physical_view,foreign_encoded_reference}_exit`
-    ("requires mutable source access"); `pass/layouts/runtime_plan_laid_{erased,value}_field_exit`
-    ("not build-time admissible"); `pass/proofs/{citation_requires_discharged,
-    proof_nat_structural_lemmas}` ("selects private machine");
-    `pass/proofs/ring_law_conformance` and `pass/traits/ring_requirement_satisfies_exit`
-    ("specification call is not denotational"). The remaining 17 are
-    singletons the roster names.
+  - Owned elsewhere: `interrupt_table_canary` and `secondary_processor_canary`
+    select providers but lack an executable intrinsic, which
+    **CHECKED-ASM-LABEL-CONTRACTS** owns;
+    `pass/layouts/runtime_plan_laid_{erased,value}_field_exit` ("not
+    build-time admissible") belong to the plan-laid item that names them;
+    `fail/calls/struct_constant_requires_argument_rejected` is
+    **STRUCT-CONSTANT-REQUIRES-REFUTATION-DRIFT**; the three stage 04/05
+    omissions `pass/concurrency/runtime_retained_reference_boundary_exit`,
+    `pass/text/runtime_mutable_string_parameter_concat_write_line` and
+    `pass/ownership/runtime_owned_carried_loan_extract_transform_exit` have a
+    live lane.
+  - Unowned singletons: `pass/arithmetic/closed_call_transition_return_proves_exact_sum_exit`
+    (implicit store conversion),
+    `pass/blockexec/blocking_executor_custody_claims_compile` (attached Unit
+    closure missing a checked plan), `pass/capabilities/windows_provides_import_exit`
+    (external evaluation not build-time admissible),
+    `pass/generics/open_computed_quantity_result` (const parameter
+    materialization), `pass/modules/same_name_requirement_field_calls_exit`
+    (Unit services with empty or duplicate canonical identities),
+    `pass/proofs/proposition_relation_hierarchy_compile` (conformance borrow
+    contract unimplemented).
   - Cross-host control: Linux records still reject
     `pass/text/local_bounded_text_case_result_loan_exit` and mark
     `local_bounded_text_scalar_loan_exit` incomplete, while macOS recorded
@@ -3231,7 +3222,6 @@ crash and native exit behavior.
   oracle and the corresponding host record is updated from that observation.
   Preserve negative checks and source oracles. Already recovered rows are
   regression controls, not new repair assignments.
-
 - **NATIVE-GOLDEN-LINUX-BOUND-UNMEASURED.**
   (split-of:NATIVE-GOLDEN-CANNOT-RECORD-A-REGRESSION)
   Record `tests/omega/corpus_native_linux_x86_64.txt` on a Linux host at
