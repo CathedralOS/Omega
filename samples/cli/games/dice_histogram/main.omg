@@ -60,7 +60,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state tally(main: &mut Main) {
         // Read-modify-write straight into the runtime-indexed element (`counts[v] += 1`).
         // The face `v` is proven `>= 0 && < 6` by the guard that reaches this state.
-        main.counts[main.v] = (main.counts[main.v] + 1) as i32;
+        main.counts[main.v] = main.counts[main.v] + 1;
         main.n = main.n + 1;
         transition { _ -> roll_loop(main) }
     }

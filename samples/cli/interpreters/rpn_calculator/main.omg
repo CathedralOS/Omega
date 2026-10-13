@@ -82,7 +82,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state push_token(main: &mut Main) {
-        main.stack[main.sp] = main.tok as i32;
+        main.stack[main.sp] = main.tok;
         main.sp = main.sp + 1;
         transition {
             _ -> advance(main)
@@ -154,7 +154,7 @@ machine Main::main(main: &mut Main) reaches Console {
 
     // Push the result back (sp points at the freed slot after the two pops).
     state op_push(main: &mut Main) {
-        main.stack[main.sp] = main.acc as i32;
+        main.stack[main.sp] = main.acc;
         main.sp = main.sp + 1;
         transition {
             _ -> advance(main)

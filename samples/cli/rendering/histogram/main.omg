@@ -76,7 +76,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bump(main: &mut Main) {
-        main.histogram[main.v] = (main.histogram[main.v] + 1) as i32;
+        main.histogram[main.v] = main.histogram[main.v] + 1;
         transition {
             _ -> advance(main)
         }

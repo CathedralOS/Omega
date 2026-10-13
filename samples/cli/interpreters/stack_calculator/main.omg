@@ -67,7 +67,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state add_read_a(main: &mut Main) {
         main.a = main.stack[main.sp];
         main.acc = main.a + main.b;              // compute into a temp (a binary value
-        main.stack[main.sp] = main.acc as i32;   // into an indexed target is unsupported)
+        main.stack[main.sp] = main.acc;          // into an indexed target is unsupported)
         main.sp = main.sp + 1;
         transition main.sp >= 0 && main.sp < 8 { true -> push_five(main) _ -> bad(main) }
     }
@@ -93,7 +93,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state mul_read_a(main: &mut Main) {
         main.a = main.stack[main.sp];
         main.acc = main.a * main.b;              // compute into a temp, then push
-        main.stack[main.sp] = main.acc as i32;
+        main.stack[main.sp] = main.acc;
         transition main.sp >= 0 && main.sp < 8 { true -> done(main) _ -> bad(main) }
     }
 
