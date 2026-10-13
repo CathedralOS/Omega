@@ -1,0 +1,41 @@
+{
+  "qualification_revision": "e143650054dc7b977f1bd1126da56abc9889efb4",
+  "compiler_source_revision": "c784626bd8981f911448670105c8ef5abd9003c3",
+  "compiler_sha256": "8220d2287c216f4b224d8a933e6480ae3504fe3330c45c4ad3c1e85618439e04",
+  "runner_sha256": "f9f7e371fc9c976e38075e4ddec18b45377e3e1325e46e9e59a93d94a47eb53c",
+  "oracle_sha256": "aa3f5cb9c83e269fba68e0cff2ca7e3285913990b21c370c9ac4d7e9d4d6c403",
+  "host": "linux_x86_64",
+  "toolchain": "nightly-2026-09-04",
+  "profile": "dev opt-level=1",
+  "numerical_cases_per_engine": 28,
+  "runtime_refusals_per_engine": 27,
+  "engines": [
+    "native",
+    "terminal"
+  ],
+  "maximum_coefficient_or_reconstruction_error": "1.000000000000000000000000000E-12",
+  "numerical_elapsed_seconds": 24.156,
+  "source_invalid_detail_bound": {
+    "exit": 1,
+    "diagnostic": "cannot prove index `64` is within length 64"
+  },
+  "preexecution_identities_sha256": "e62c89260a92fd0258d238aab89542d58d6415e6f2d1af4d88ba1a006e31b7dd",
+  "scope": "Linux execution only; later documentation leaves numerical source/oracles unchanged; current-main requalification completed with recorded c784 producer.",
+  "maximum_reported_energy_preshrink_parseval_error_per_scale": "1.25E-16",
+  "maximum_coefficient_derived_preshrink_parseval_error_per_scale": "1.418238486523E-12",
+  "integrated_main_revision": "c784626bd8981f911448670105c8ef5abd9003c3",
+  "main_change_evidence_reuse": "Fourteen incoming compiler/library/application commits at c784 were integrated; the affected compiler and runner were rebuilt and fresh normal preparation, smoke, all numerical/refusal captures and source-invalid checking were repeated. Later dd2 seismic sample and macOS test-record changes do not change exercised compiler, library or wavelet source.",
+  "focused_sample_gate": {
+    "runnable_passed": 1,
+    "intended_invalid_matched": 1,
+    "wall_seconds": 48
+  },
+  "rust_check": {
+    "packages": [
+      "omega",
+      "wavelet-transient-validation"
+    ],
+    "exit": 0,
+    "elapsed_seconds": 83
+  }
+}

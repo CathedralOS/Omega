@@ -2437,6 +2437,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
+name = "wavelet-transient-validation"
+version = "0.1.0"
+dependencies = [
+ "bounded-process",
+ "compiler",
+ "omega",
+ "package-manager",
+ "target",
+]
+
+[[package]]
 name = "winapi"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
