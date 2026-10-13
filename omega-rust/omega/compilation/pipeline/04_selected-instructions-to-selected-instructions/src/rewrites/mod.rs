@@ -276,10 +276,15 @@ pub(crate) fn rewrite_scan(
 
 /// The ceilings for a rewrite recovery cannot do without — a spill, split or
 /// rematerialization of one value. They grow with the rewritten function's
-/// extent: the rewrite scan plus every instruction and terminator operand and
-/// memory access the audit reads (`OptimizationWorkBudget::for_extent`). The
-/// audit's work is linear in that extent, so no function is too large to
-/// relieve, while work superlinear in it still exhausts the ceilings.
+/// extent: the rewrite scan plus every instruction and terminator operand,
+/// memory access and successor-edge transport the audit reads
+/// (`OptimizationWorkBudget::for_extent`). The audit's work is linear in that
+/// extent, so no function is too large to relieve, while work superlinear in
+/// it still exhausts the ceilings. Leaving the transports out capped the
+/// functions a required rewrite could process by their edge surface: the
+/// product typing harness's largest function carried 33,342 transports
+/// against 14,703 operands, and the fixed-occurrence audit's per-transport
+/// charge alone exceeded one reference extent's ceiling.
 pub(crate) fn required_rewrite_budget(
     plan: &SelectedInstructionPlan,
     function: &SelectedFunction,
@@ -298,8 +303,24 @@ pub(crate) fn required_rewrite_budget(
     })?;
     let extent = rewrite_scan(plan, function)?
         .checked_add(operands)?
-        .checked_add(function.memory_accesses.len())?;
+        .checked_add(function.memory_accesses.len())?
+        .checked_add(function_transports(function)?)?;
     Some(budget.for_extent(u64::try_from(extent).ok()?))
+}
+
+/// Every value a function's successor edges transport: each register and
+/// structural binding, and a structural case's tag with each of its
+/// payloads. An audit that reads the edges reads each of these once.
+pub(crate) fn function_transports(function: &SelectedFunction) -> Option<usize> {
+    function
+        .blocks
+        .iter()
+        .flat_map(|block| selected_instructions::terminator_successors(&block.terminator))
+        .try_fold(0usize, |total, successor| {
+            total
+                .checked_add(crate::rewrites::block_edges::edge_surface(successor))?
+                .checked_add(usize::from(successor.structural_case.is_some()))
+        })
 }
 
 /// One step per block plus one per instruction in one function — the

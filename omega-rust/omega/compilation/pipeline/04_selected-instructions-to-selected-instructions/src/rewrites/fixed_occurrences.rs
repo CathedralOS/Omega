@@ -108,22 +108,8 @@ pub fn materialize_selected_fixed_occurrences(
                 total.checked_add(instruction.operands.len())
             })
             .ok_or(FixedOccurrencesError::IdentityOverflow)?;
-        let transport_count = function
-            .blocks
-            .iter()
-            .flat_map(|block| selected_instructions::terminator_successors(&block.terminator))
-            .try_fold(0usize, |total, successor| {
-                total
-                    .checked_add(successor.bindings.len())?
-                    .checked_add(successor.structural_bindings.len())?
-                    .checked_add(
-                        successor
-                            .structural_case
-                            .as_ref()
-                            .map_or(0, |case| case.payloads.len() + 1),
-                    )
-            })
-            .ok_or(FixedOccurrencesError::IdentityOverflow)?;
+        let transport_count =
+            super::function_transports(function).ok_or(FixedOccurrencesError::IdentityOverflow)?;
         // Only a row containing a fixed operand can contribute a constrained
         // component. Its complete arity bounds tie closure's selected roster
         // before doing that work, including duplicates. Charge the selection
