@@ -13,15 +13,14 @@
 
 use super::{
     CheckedNominalAffineUnitCleanupMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralFieldType, CheckedUnitStructuralTypeShape, LoweringError, MachineId,
-    NominalAffineCleanup, PlaceId, PrimitiveType, Proposition, ScalarTerm, StructuralAffineDiscard,
-    StructuralTypeId, StructuralTypeShape, TerminalMachine, Terminator, lookup_machine_id,
-    lookup_type_id, lower_structural_path, lower_unit_closure, obligation_id, unsupported,
+    CheckedUnitStructuralTypeShape, LoweringError, MachineId, NominalAffineCleanup, PlaceId,
+    Proposition, ScalarTerm, StructuralAffineDiscard, StructuralTypeId, StructuralTypeShape,
+    TerminalMachine, Terminator, lookup_machine_id, lookup_type_id, lower_structural_path,
+    lower_unit_closure, obligation_id, unsupported,
 };
 use checked_trees::{CheckedUnitNominalAffineCleanupPlan, CheckedUnitStructuralArgumentSourcePlan};
 use symbols::SymbolHandle;
 pub(crate) mod contexts;
-mod custody;
 mod dispositions;
 pub(crate) use dispositions::outstanding_actions;
 mod ordered;
@@ -587,7 +586,6 @@ pub(super) fn finalize_nominal_cleanup_actions(
                 "nominal cleanup member was not emitted in the terminal closure",
             ))?;
         finalize_nominal_cleanup_machine(
-            checked,
             nominal,
             member,
             type_ids,
@@ -601,7 +599,6 @@ pub(super) fn finalize_nominal_cleanup_actions(
 }
 
 fn finalize_nominal_cleanup_machine(
-    checked: &CheckedTrees,
     nominal: &CheckedNominalAffineUnitCleanupMachinePlan,
     machine: &mut TerminalMachine,
     type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
@@ -611,8 +608,6 @@ fn finalize_nominal_cleanup_machine(
     next_obligation: &mut u64,
 ) -> Result<(), LoweringError> {
     let plan = &nominal.machine;
-    contexts::validate_requirements(checked, nominal)?;
-    custody::validate_checked_dispositions(checked, nominal)?;
     if let Some(identity) = plan.attachment_type_identity {
         lookup_type_id(type_ids, &identity)?;
     }

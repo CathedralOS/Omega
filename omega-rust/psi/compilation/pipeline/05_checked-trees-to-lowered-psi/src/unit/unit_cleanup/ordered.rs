@@ -50,8 +50,9 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
         }
     }
 
-    super::contexts::validate_requirements(checked, nominal)?;
-    super::custody::validate_checked_dispositions(checked, nominal)?;
+    // The nominal route lowers unconditional caller requirements only; a
+    // guarded contextual antecedent needs the edge cleanup plan.
+    super::contexts::validate_unconditional_contextual_requirements(checked, plan.machine)?;
 
     let mut roots = Vec::new();
     for cleanup in &nominal.cleanups {

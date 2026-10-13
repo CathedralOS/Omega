@@ -4,9 +4,8 @@
 //! action selects that signature, never a second Boolean-field contract lane.
 
 use super::{
-    CheckedNominalAffineUnitCleanupMachinePlan, CheckedTrees, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralTypeShape, LoweringError, PlaceId, PrimitiveType, Proposition, ScalarTerm,
-    StructuralTypeShape, SymbolHandle, unsupported,
+    CheckedTrees, LoweringError, PlaceId, Proposition, ScalarTerm, StructuralTypeShape,
+    SymbolHandle, unsupported,
 };
 use terminal_psi::{
     StructuralParameterDeclaration, StructuralTypeDeclaration, find_structural_type,
@@ -50,50 +49,6 @@ pub(crate) fn validate_unconditional_contextual_requirements(
         })
     {
         return unsupported("guarded contextual cleanup requires an exact edge cleanup plan");
-    }
-    Ok(())
-}
-
-pub(super) fn validate_requirements(
-    checked: &CheckedTrees,
-    nominal: &CheckedNominalAffineUnitCleanupMachinePlan,
-) -> Result<(), LoweringError> {
-    validate_unconditional_contextual_requirements(checked, nominal.machine.machine)?;
-    let field = |position: u32, identity: &checked_trees::CheckedMemberIdentity| {
-        let parameter = nominal
-            .machine
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.position == position)
-            .ok_or(LoweringError::Unsupported(
-                "contextual nominal cleanup caller requirement root is absent",
-            ))?;
-        let shape = checked_trees::checked_structural_type_by_identity(
-            &checked.facts.flow.terminal_unit_effects.structural_types,
-            parameter.type_identity,
-        )
-        .ok_or(LoweringError::Unsupported(
-            "contextual nominal cleanup receiver shape is absent",
-        ))?;
-        let valid = matches!(&shape.shape, CheckedUnitStructuralTypeShape::Record { fields, .. }
-            if fields.iter().any(|field| field.identity == *identity
-                && !field.relevance.is_erased()
-                && field.field_type == CheckedUnitStructuralFieldType::Scalar(PrimitiveType::Bool)));
-        if !valid {
-            return unsupported(
-                "contextual nominal cleanup requirement field is absent, erased, or non-Boolean",
-            );
-        }
-        Ok(())
-    };
-    for (index, requirement) in nominal.caller_requirements.iter().enumerate() {
-        field(
-            requirement.source_parameter_index,
-            &requirement.field_identity,
-        )?;
-        if nominal.caller_requirements[..index].contains(requirement) {
-            return unsupported("contextual nominal cleanup caller requirements are duplicated");
-        }
     }
     Ok(())
 }
@@ -145,7 +100,7 @@ pub(crate) fn prepare_signature(
     }
     let mut requires = Vec::new();
     if let Some(nominal) = nominal {
-        validate_requirements(checked, nominal)?;
+        validate_unconditional_contextual_requirements(checked, source)?;
         for requirement in &nominal.caller_requirements {
             let checked_parameter = nominal
                 .machine
