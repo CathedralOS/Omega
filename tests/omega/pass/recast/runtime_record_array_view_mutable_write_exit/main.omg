@@ -18,11 +18,13 @@ data Packet {
     entries: [Pair; 2];
 }
 
-data Main {
+data Main
+where k <= 4 && i <= 1,
+{
     console: Binding<Console>;
     bytes: [u8; 14];
-    k: u32 [0..=4];
-    i: u32 [0..=1];
+    k: u32;
+    i: u32;
 }
 
 machine Main::main(main: &mut Main) reaches Console {

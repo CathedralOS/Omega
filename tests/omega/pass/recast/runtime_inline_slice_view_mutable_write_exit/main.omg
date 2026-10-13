@@ -12,11 +12,13 @@ data Pair {
     high: u16;
 }
 
-data Main {
+data Main
+where k <= 4,
+{
     console: Binding<Console>;
     tail_bytes: [u8; 8];
     pair_bytes: [u8; 12];
-    k: u32 [0..=4];
+    k: u32;
 }
 
 machine Main::main(main: &mut Main) reaches Console {

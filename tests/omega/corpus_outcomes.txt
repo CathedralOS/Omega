@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "3", "load1_end": 31.22, "load1_start": 33.41, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "4", "load1_end": 1.91, "load1_start": 1.91, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 835ms expected @a9ae30e1c334+wt
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -3172,6 +3172,11 @@ fail/recast/recast_shared_record_where_strengthening_rejected rejected 5647ms ex
 	machine `Main::main` state `main`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `TightReading` are not representation-compatible
 fail/recast/recast_size_mismatch_rejected rejected 2821ms expected @a9ae30e1c334+wt
 	machine `Main::main` state `main`: a recast re-views the SAME bytes, so the shapes must agree on size (§5b rule 1) -- source `i64` is 8 bytes, target `f32` is 4 bytes
+fail/recast/recast_slice_where_invalid_indexed_store rejected 223ms expected @e382c49e4adb+wt
+	machine `write_invalid` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+	unsupported transition target `write_invalid`
+fail/recast/recast_slice_where_strengthening rejected 223ms expected @e382c49e4adb+wt
+	machine `Main::main` state `main`: slice recast `[TooNarrow]` does not preserve exact byte tiling and source-to-target fact implication; raw storage cannot establish element facts
 fail/recast/reference_let_pun_requires_recast rejected 871ms expected @a9ae30e1c334+wt
 	machine `Bits::implicit_pun` state `implicit_pun`: reference initializer type `i64` must match the stated `&f32`; re-viewing a place's bytes under another shape is spelled `&x as &f32` (§5b recast)
 fail/recast/restricted_field_mutable_call_cannot_erase_invariant rejected 1011ms expected @5b32c4eb36ff+wt

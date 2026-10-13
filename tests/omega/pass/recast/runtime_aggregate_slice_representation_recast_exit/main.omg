@@ -1,25 +1,31 @@
 // RUN CANARY (exit 70) + interpreter differential. A typed fixed array may be
 // re-viewed as an unsized slice of a differently named aggregate when every
 // repeated element preserves layout geometry and leaf representation facts.
-// The shared view weakens the integer range; the mutable view uses the exact
+// The shared view weakens the field predicate; the mutable view uses the exact
 // same bit-pattern set in both directions. The trailing bool leaves one byte
 // of native padding per element, so success also proves element stride rather
 // than densely repacking scalar leaves.
 use omega_language_std::console;
 use omega::language::core::binding;
 
-data Narrow {
-    signed_value: i16 [0..=100];
+data Narrow
+where signed_value >= 0 && signed_value <= 100,
+{
+    signed_value: i16;
     enabled: bool;
 }
 
-data Wide {
-    unsigned_value: u16 [0..=200];
+data Wide
+where unsigned_value <= 200,
+{
+    unsigned_value: u16;
     active: bool;
 }
 
-data Exact {
-    unsigned_value: u16 [0..=100];
+data Exact
+where unsigned_value <= 100,
+{
+    unsigned_value: u16;
     active: bool;
 }
 

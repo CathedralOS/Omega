@@ -1603,6 +1603,10 @@ defines the complete product bar.
     `pass/calls/runtime_mutable_call_before_transition_args_exit`, the
     `pass/recast/runtime_*_mutable_write_exit` family and the sample field
     migrations; reproduce before attributing failures to proposition checking.
+    Keep the [ten-position recast inventory](wiki/drafts/designs/range_suffix_migration.md#audited-recast-selectors-and-aggregate-leaves)
+    for captured byte offsets, nested indexed stores and shared/mutable leaf
+    facts. Its array-view controls must reject predicate strengthening and
+    out-of-range indexed writes; remaining recast customers and hosts stay open.
     Run `pass/float/named_integer_conversion_source_proofs_exit` (data `where`,
     exit 78) on Linux/Windows, keeping its invalid-write control.
     Constructor bounds now use the shared occurrence environment in

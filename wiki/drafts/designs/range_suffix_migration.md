@@ -134,6 +134,37 @@ facts that mention the selected field, including predicate-call arguments,
 remain fences. The runtime local-loan control temporarily writes 2 then
 restores 0, distinguishing handback from per-store parameter restrictions.
 
+## Audited recast selectors and aggregate leaves
+
+Seven runtime customers retain ten historical field positions. Paths below
+are under `tests/omega/pass/recast/`; snapshots retain the original suffixes.
+
+| Customer and original snapshot | Original fields | Canonical data predicates | Count |
+| --- | --- | --- | --- |
+| `runtime_inline_shared_slice_record_read_exit`, `feec5b2ac33` | `Main.k: u32 [0..=4]` | `Main where k <= 4` | 1 |
+| `runtime_inline_slice_view_mutable_write_exit`, `feec5b2ac33` | `Main.k: u32 [0..=4]` | `Main where k <= 4` | 1 |
+| `runtime_interior_slice_view_mutable_write_exit`, `7bba92b19f0` | `Main.k: u32 [0..=4]` | `Main where k <= 4` | 1 |
+| `runtime_inline_slice_recast_call_exit`, `feec5b2ac33` | `Main.offset: u32 [0..=2]` | `Main where offset <= 2` | 1 |
+| `runtime_offset_byte_recast_mutable_write_exit`, `83045e063d2` | `Main.k: u32 [0..=4]` | `Main where k <= 4` | 1 |
+| `runtime_record_array_view_mutable_write_exit`, `83045e063d2` | `Main.k: u32 [0..=4]`, `Main.i: u32 [0..=1]` | `Main where k <= 4 && i <= 1` | 2 |
+| `runtime_aggregate_slice_representation_recast_exit`, `83045e063d2` | `Narrow.signed_value: i16 [0..=100]`, `Wide.unsigned_value: u16 [0..=200]`, `Exact.unsigned_value: u16 [0..=100]` | `Narrow where signed_value >= 0 && signed_value <= 100`; `Wide where unsigned_value <= 200`; `Exact where unsigned_value <= 100` | 3 |
+
+All carriers remain unchanged and unsigned fields retain their carrier's zero
+floor. The original reference formations, state transfers, selector mutation,
+little-endian bytes, nested indexed stores, shared weakening and mutable
+representation equivalence remain in place. Each program's authored exit is
+70 in both native and Terminal execution. Reproduce after ordinary package
+review with `omega run --both <customer>/main.omg`.
+
+The aggregate customer retains its padded element stride and sign-changing
+leaf views. `fail/recast/recast_slice_where_strengthening` rejects a shared
+slice whose target demands a tighter leaf predicate; a fitting current zero
+does not establish representation compatibility. The paired
+`recast_slice_where_invalid_indexed_store` rejects an out-of-range write at
+a runtime selector despite valid geometry and equivalent mutable leaf sets.
+Existing invalid offsets, non-tiling suffixes, relational predicates and
+unequal mutable bounds retain their independent refusals.
+
 ## Audited core layout fields
 
 The 13 common-field suffixes in `source/library/core/layout.omg` at

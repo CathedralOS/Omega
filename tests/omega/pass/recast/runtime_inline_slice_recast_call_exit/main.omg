@@ -1,10 +1,12 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
-data Main {
+data Main
+where offset <= 2,
+{
     console: Binding<Console>;
     bytes: [u8; 6];
-    offset: u32 [0..=2];
+    offset: u32;
 }
 
 machine inspect(words: &[u16]) -> i32 {
