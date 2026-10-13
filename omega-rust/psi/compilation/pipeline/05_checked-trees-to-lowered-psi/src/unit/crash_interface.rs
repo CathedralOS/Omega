@@ -166,10 +166,18 @@ fn contract_scoped_scalar(expression: &CheckedScalarExpression) -> bool {
         | CheckedScalarExpression::RepresentationView { .. } => false,
         CheckedScalarExpression::Parameter { .. }
         | CheckedScalarExpression::ErasedParameter { .. }
-        | CheckedScalarExpression::StructuralParameterByteLength { .. }
         | CheckedScalarExpression::StructuralParameterField { .. }
         | CheckedScalarExpression::IntegerLiteral { .. }
         | CheckedScalarExpression::IeeeFloatLiteral { .. } => true,
+        CheckedScalarExpression::StructuralSequenceLength { root, path } => {
+            root.parameter().is_some()
+                && path.iter().all(|step| match step {
+                    checked_trees::CheckedScalarReadProjection::Static(_) => true,
+                    checked_trees::CheckedScalarReadProjection::RuntimeIndex(selector) => {
+                        contract_scoped_scalar(&selector.expression)
+                    }
+                })
+        }
         CheckedScalarExpression::StructuralParameterIndexedRead {
             index,
             element_path,

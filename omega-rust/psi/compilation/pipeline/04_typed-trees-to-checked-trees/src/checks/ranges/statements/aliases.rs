@@ -6,7 +6,7 @@ use super::super::facts::RangeFacts;
 mod remainder_bounds;
 
 /// Seeds every fact a freshly bound name inherits from its value: the captured
-/// integer-place identity, the ensured call result bounds, and the source
+/// integer-value identity, the ensured call result bounds, and the source
 /// place's proven index/range facts (`alias_index`, with `alias_collection`
 /// and a full-extent window parent when the value aliases a stable place).
 ///
@@ -29,7 +29,7 @@ pub(in crate::checks::ranges) fn seed_local_alias_facts(
         return;
     }
     facts.record_scalar_binding_dependency(program, machine, state, value, symbol, &target_label);
-    facts.alias_integer_place_value(program, machine, state, value, symbol, &target_label);
+    facts.alias_integer_value(program, machine, state, value, symbol, &target_label);
     // Capture store-enforced field bounds and immutable parameter contracts at
     // the binding point. They bound this value just as they bound a direct
     // index; later reassignment retires the local's ordinary range facts.
@@ -51,12 +51,11 @@ pub(in crate::checks::ranges) fn seed_local_alias_facts(
         // label (e.g. a `requires self.length - 1 < self.items.len` index
         // proof) transfer to the local. Collection facts do not transfer —
         // neither arithmetic nor a same-carrier value cast is a place.
-        let scalar_source = match program.expression_table.expression(value) {
-            ExpressionNode::Binary(_) => Some(value),
-            _ => super::super::types::same_carrier_integer_cast_source(
-                program, machine, state, value,
-            ),
-        };
+        // Pure computation snapshots, including arithmetic, were captured by
+        // alias_integer_value above. A same-carrier cast additionally preserves
+        // the operand's position facts, not just facts about the cast result.
+        let scalar_source =
+            super::super::types::same_carrier_integer_cast_source(program, machine, state, value);
         if let Some(source) = scalar_source {
             let source_label = program.expression_table.display_name(source);
             if !source_label.is_empty() && source_label != target_label {

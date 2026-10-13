@@ -1,0 +1,39 @@
+data Window<'input> { values: &'input [u32]; bytes: &'input [u8]; }
+data Group<'input> { windows: &'input [Window<'input>; 2]; }
+data Cursor { calls: u32 in Wrapping; trace: u32 in Wrapping; }
+
+machine select(cursor: &mut Cursor, digit: u32 in Wrapping) -> u64[0..2] {
+    cursor.calls = cursor.calls + 1;
+    cursor.trace = cursor.trace * 10 + digit;
+    1
+}
+
+machine literal(windows: &[Window]) -> u64 requires windows.len >= 2 {
+    windows[1].values.len
+}
+
+machine main() crashes Trap {
+    let short: [u32; 1] = [19];
+    let long: [u32; 3] = [31, 37, 41];
+    let short_bytes: [u8; 2] = [11, 13];
+    let long_bytes: [u8; 4] = [17, 19, 23, 29];
+    let windows: [Window; 2] = [
+        Window { values: &short[..], bytes: &short_bytes[..] },
+        Window { values: &long[..], bytes: &long_bytes[..] }
+    ];
+    let groups: [Group; 2] = [
+        Group { windows: &windows },
+        Group { windows: &windows }
+    ];
+    let mut cursor: Cursor = Cursor { calls: 0, trace: 0 };
+    let observed: u64 = groups[select(&mut cursor, 1)].windows[select(&mut cursor, 2)].values.len;
+    let fixed: u64 = literal(&windows[..]);
+    let byte_count: u64 = groups[1].windows[1].bytes.len;
+    transition observed == 3 && fixed == 3 && byte_count == 4
+        && cursor.calls == 2 && cursor.trace == 12 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

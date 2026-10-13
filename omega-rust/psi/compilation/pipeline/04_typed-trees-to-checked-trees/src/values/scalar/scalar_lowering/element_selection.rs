@@ -1,4 +1,7 @@
-//! element selection slice of scalar_lowering.
+//! Resolve storage observations before classifying their scalar or sequence
+//! endpoint. Authored indexes retain occurrences even when their values are
+//! literals: a runtime view still owes a live bound, and representation views
+//! need the selected element rather than an already folded scalar field.
 
 use super::entry_lowering::*;
 use crate::values::scalar::expression_facts::{is_integer, scalar_expression_type};
@@ -11,72 +14,15 @@ use numerics::arithmetic::ArithmeticDomain;
 use numerics::literals::{IntegerLanding, LandedIntegerType};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
-use typed_trees::types::{PrimitiveType, TypeReferenceNode};
+use typed_trees::types::PrimitiveType;
 
-/// One builtin element selection `collection[index]` over current structural
-/// storage: the root and projection the collection names, the selected
-/// element's type and the lowered
-/// selector. A whole view local reads the view its establishment published,
-/// the same element selection a whole view parameter takes.
-struct ElementSelection {
-    root: checked_trees::CheckedStorageRoot,
-    path: Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
-    element_type: typed_trees::types::TypeReferenceHandle,
-    index: checked_trees::CheckedScalarSelector,
-}
-
-/// Both expression templates and computation graphs retain this declaration
-/// geometry; the caller supplies a scalar selector in its own value namespace.
-fn selected_element_with_selector(
-    program: &dyn ::validation::CheckingInput,
-    operators: &CheckedOperatorFacts,
-    expression: ExpressionHandle,
-    authored_parameters: &[StateParameter],
-    selector: &mut impl FnMut(ExpressionHandle, ExpressionHandle) -> Option<CheckedScalarExpression>,
-) -> Option<ElementSelection> {
-    let indexed = program.expression_table.indexed_node(expression)?;
-    let (root, path, collection_type) = structural_fields::structural_storage_place(
-        program,
-        authored_parameters,
-        indexed.collection,
-    )?;
-    if !structural_fields::indexed_read_is_builtin(
-        program,
-        operators,
-        authored_parameters,
-        expression,
-        collection_type,
-        indexed.index,
-    ) {
-        return None;
-    }
-    let collection_carrier = program
-        .type_reference_table
-        .peeled_type_reference(collection_type);
-    match program
-        .type_reference_table
-        .type_reference(collection_carrier)
-    {
-        TypeReferenceNode::FixedArray { .. } | TypeReferenceNode::Slice { .. } => {}
-        _ => return None,
-    }
-    // Geometry uses the storage carrier; the observed value keeps the exact
-    // effective element policy retained by the shared projection owner.
-    let element_type = validation::collection_element_type_reference(program, collection_type)?;
-    let index = selector(expression, indexed.index)?;
-    let index_type = scalar_expression_type(&index)?;
-    if !is_integer(index_type) || index_type == PrimitiveType::Addr {
-        return None;
-    }
-    Some(ElementSelection {
-        root,
-        path,
-        element_type,
-        index: checked_trees::CheckedScalarSelector {
-            expression: index,
-            occurrence: expression,
-        },
-    })
+/// A storage observation retains ordered selections before its endpoint is
+/// classified as a scalar or a sequence. Selectors carry both their evaluated
+/// value and the source occurrence that owns the bound.
+pub(crate) struct ScalarStorageProjection {
+    pub root: checked_trees::CheckedStorageRoot,
+    pub path: Vec<checked_trees::CheckedScalarReadProjection>,
+    pub selected_type: typed_trees::types::TypeReferenceHandle,
 }
 
 /// Prepare one scalar indexed observation independently of the arrangement of
@@ -123,8 +69,64 @@ pub(crate) fn indexed_scalar_read_with_selectors(
     operators: &CheckedOperatorFacts,
     expression: ExpressionHandle,
     authored_parameters: &[StateParameter],
-    mut selector: impl FnMut(ExpressionHandle, ExpressionHandle) -> Option<CheckedScalarExpression>,
+    selector: impl FnMut(ExpressionHandle, ExpressionHandle) -> Option<CheckedScalarExpression>,
 ) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
+    let projection = storage_projection(
+        program,
+        operators,
+        expression,
+        authored_parameters,
+        selector,
+    )?;
+    let first_index = projection.path.iter().position(|segment| {
+        matches!(
+            segment,
+            checked_trees::CheckedScalarReadProjection::RuntimeIndex(_)
+        )
+    })?;
+    let mut segments = projection.path.into_iter();
+    let path = segments
+        .by_ref()
+        .take(first_index)
+        .map(|segment| match segment {
+            checked_trees::CheckedScalarReadProjection::Static(segment) => Some(segment),
+            _ => None,
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let checked_trees::CheckedScalarReadProjection::RuntimeIndex(index) = segments.next()? else {
+        return None;
+    };
+    let readable_type =
+        validation::field_domains::readable_type_reference(program, projection.selected_type)?;
+    let primitive_type = program.primitive_type_reference(readable_type)?;
+    if (!is_integer(primitive_type)
+        && !matches!(
+            primitive_type,
+            PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64
+        ))
+        || primitive_type == PrimitiveType::Addr
+    {
+        return None;
+    }
+    Some((
+        CheckedScalarExpression::StructuralParameterIndexedRead {
+            root: projection.root,
+            path,
+            index: Box::new(index),
+            element_path: segments.collect(),
+            primitive_type,
+        },
+        program.arithmetic_domain_for_type_reference(projection.selected_type),
+    ))
+}
+
+pub(crate) fn storage_projection(
+    program: &dyn ::validation::CheckingInput,
+    operators: &CheckedOperatorFacts,
+    expression: ExpressionHandle,
+    authored_parameters: &[StateParameter],
+    mut selector: impl FnMut(ExpressionHandle, ExpressionHandle) -> Option<CheckedScalarExpression>,
+) -> Option<ScalarStorageProjection> {
     enum Projection {
         Field(ExpressionHandle),
         Index {
@@ -134,18 +136,21 @@ pub(crate) fn indexed_scalar_read_with_selectors(
     }
     let mut projections = Vec::new();
     let mut cursor = expression;
-    let first_selection = loop {
+    let (root, path, mut element_type) = loop {
+        if let Some(storage) =
+            structural_fields::structural_storage_place(program, authored_parameters, cursor)
+            && !storage.1.iter().any(|segment| {
+                matches!(
+                    segment,
+                    CheckedStructuralPredicatePathSegment::FixedIndex(_)
+                        | CheckedStructuralPredicatePathSegment::RuntimeIndex(_)
+                )
+            })
+        {
+            break storage;
+        }
         match program.expression_table.expression(cursor) {
             ExpressionNode::Indexed(indexed) => {
-                if structural_fields::structural_storage_place(
-                    program,
-                    authored_parameters,
-                    indexed.collection,
-                )
-                .is_some()
-                {
-                    break cursor;
-                }
                 if matches!(
                     program.expression_table.expression(indexed.index),
                     ExpressionNode::Range(_)
@@ -168,15 +173,10 @@ pub(crate) fn indexed_scalar_read_with_selectors(
             _ => return None,
         }
     };
-    let selection = selected_element_with_selector(
-        program,
-        operators,
-        first_selection,
-        authored_parameters,
-        &mut selector,
-    )?;
-    let mut element_type = selection.element_type;
-    let mut element_path = Vec::with_capacity(projections.len());
+    let mut element_path = path
+        .into_iter()
+        .map(checked_trees::CheckedScalarReadProjection::Static)
+        .collect::<Vec<_>>();
     for projection in projections.into_iter().rev() {
         match projection {
             Projection::Field(occurrence) => {
@@ -209,66 +209,34 @@ pub(crate) fn indexed_scalar_read_with_selectors(
                 ) {
                     return None;
                 }
-                if let Some(literal) = program
-                    .expression_table
-                    .constant_integer_value(operand)
-                    .and_then(|literal| u64::try_from(literal).ok())
-                {
-                    element_type = structural_fields::fixed_index_element_type(
-                        program,
-                        element_type,
-                        literal,
-                    )?;
-                    element_path.push(checked_trees::CheckedScalarReadProjection::Static(
-                        CheckedStructuralPredicatePathSegment::FixedIndex(literal),
-                    ));
-                } else {
-                    let value = selector(occurrence, operand)?;
-                    let carrier = scalar_expression_type(&value)?;
-                    if !is_integer(carrier) || carrier == PrimitiveType::Addr {
-                        return None;
-                    }
-                    element_type =
-                        structural_fields::runtime_index_element_type(program, element_type)?;
-                    element_path.push(checked_trees::CheckedScalarReadProjection::RuntimeIndex(
-                        checked_trees::CheckedScalarSelector {
-                            expression: value,
-                            occurrence,
-                        },
-                    ));
+                let value = selector(occurrence, operand)?;
+                let carrier = scalar_expression_type(&value)?;
+                if !is_integer(carrier) || carrier == PrimitiveType::Addr {
+                    return None;
                 }
+                // Executable reads include byte views. The static-place
+                // geometry helper deliberately excludes those descriptors;
+                // source operator admission above authenticates this selection.
+                element_type =
+                    validation::collection_element_type_reference(program, element_type)?;
+                element_path.push(checked_trees::CheckedScalarReadProjection::RuntimeIndex(
+                    checked_trees::CheckedScalarSelector {
+                        expression: value,
+                        occurrence,
+                    },
+                ));
             }
         }
     }
-    // Selection retains the descriptor's declared type and full projection.
-    // Observation reads its readable endpoint, not the pointer-sized carrier.
-    // Stage 05 makes every declared reference crossing explicit on this same
-    // path; its custody and bounds remain obligations of the concrete read.
-    let readable_type = validation::field_domains::readable_type_reference(program, element_type)?;
-    let primitive_type = program.primitive_type_reference(readable_type)?;
-    if !is_integer(primitive_type)
-        && !matches!(
-            primitive_type,
-            PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64
-        )
-        || primitive_type == PrimitiveType::Addr
-    {
-        return None;
-    }
-    Some((
-        CheckedScalarExpression::StructuralParameterIndexedRead {
-            root: selection.root,
-            path: selection.path,
-            index: Box::new(selection.index),
-            element_path,
-            primitive_type,
-        },
-        program.arithmetic_domain_for_type_reference(element_type),
-    ))
+    Some(ScalarStorageProjection {
+        root,
+        path: element_path,
+        selected_type: element_type,
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
-fn pure_selector(
+pub(super) fn pure_selector(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     operand: ExpressionHandle,

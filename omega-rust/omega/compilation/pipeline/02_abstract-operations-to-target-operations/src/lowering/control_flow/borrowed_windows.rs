@@ -223,29 +223,13 @@ pub(super) fn store_field(
         function,
         &super::scalar_sources::ScalarSources::from(&*live),
     )?;
-    let multiplicity = if let Some(home) = live.structural_homes.get(&value.place) {
-        if home.structural_type() != field_type || home.layout.shape() != shape {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
-        }
-        home.multiplicity()
-    } else {
-        // An owned argument may still be in ABI fragments. Retain its place,
-        // not a fabricated operation-result home; selection already captures
-        // the incoming fragments or indirect pointer for this parameter.
-        let declaration = function
-            .structural_parameter(value.place)
-            .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-        let parameter = prepared
-            .parameter(value.place)
-            .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-        if declaration.access != StructuralAccess::Owned
-            || declaration.structural_type != field_type
-            || parameter.shape != shape
-        {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
-        }
-        declaration.multiplicity
-    };
+    let (value_type, multiplicity) =
+        super::aggregate_results::value_input(function, types, live, value)?;
+    if value_type != field_type
+        || super::aggregate_results::value_home_layout(value_type, types)?.shape() != shape
+    {
+        return Err(LoweringError::unsupported_control_flow(function.machine));
+    }
     // The displaced value's ordinary disposition must have vacated every
     // descriptor slot. Installing a replacement cannot silently retire a loan
     // still held in that region or release a disjoint sibling.

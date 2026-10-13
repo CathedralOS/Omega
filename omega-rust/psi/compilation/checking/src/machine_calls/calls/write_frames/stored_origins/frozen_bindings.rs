@@ -23,21 +23,36 @@ pub(in crate::machine_calls::calls::write_frames) fn statement_exposes_frozen_bi
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) -> bool {
-    use crate::machine_calls::calls::write_frames::statement_value_expression_roots;
+    use typed_trees::statement::StatementRootRole;
 
     if let Some(call) = statement.as_call() {
         return call_exposes_frozen_binding(
             program, machine, state, call, stored, aliases, symbols, inference,
         );
     }
-    // Capturing a descriptor in a local does not invoke the authority it
-    // carries. The declaration transfer retains its backing for later uses.
+    // Producing a value (including a returned descriptor) does not invoke the
+    // authority it carries. Declaration and result transfers retain its
+    // backing for later consumers; those consumers own their write effects.
     // Nested calls still contribute their own frames below; an unknown call
     // cannot hide behind this empty consumer effect.
-    let consumer_writes: Option<&[String]> = statement.as_local_data().map(|_| &[][..]);
-    statement_value_expression_roots(program, statement)
+    program
+        .statement_table
+        .expression_roots(statement)
         .into_iter()
-        .any(|expression| {
+        .any(|(role, expression)| {
+            // A named transition passes authority into another activation;
+            // a returned value or observed guard does not. Keep each root's
+            // consumer instead of flattening the whole transition to one
+            // unknown effect ceiling. Assignment targets retain that ceiling;
+            // their separate store transfer owns the destination replacement.
+            let consumer_writes: Option<&[String]> = match role {
+                StatementRootRole::LocalInitializer
+                | StatementRootRole::AssignmentValue
+                | StatementRootRole::Expression
+                | StatementRootRole::TransitionGuard
+                | StatementRootRole::TransitionValue => Some(&[]),
+                _ => None,
+            };
             expression_exposes(
                 program,
                 machine,

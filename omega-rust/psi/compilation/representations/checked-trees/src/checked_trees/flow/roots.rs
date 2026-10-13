@@ -63,6 +63,7 @@ impl FlowBorrowLifetimeFacts {
 pub struct FlowOwnershipFacts {
     pub segments: Arena<facts::PlaceSegment>,
     pub permissions: Arena<FlowPermissionEventFact>,
+    pub borrow_claims: Arena<super::FlowBorrowClaimFact>,
     /// Candidate normal deaths, separate from the unconditional replay ledger.
     pub selected_cleanup_permissions: Arena<FlowPermissionEventFact>,
     pub loan_completions: Arena<super::FlowLoanCompletionFact>,
@@ -87,6 +88,7 @@ impl FlowOwnershipFacts {
         Self {
             segments,
             permissions,
+            borrow_claims: Arena::default(),
             selected_cleanup_permissions: Arena::default(),
             loan_completions: Arena::default(),
             claim_outcome_entries,

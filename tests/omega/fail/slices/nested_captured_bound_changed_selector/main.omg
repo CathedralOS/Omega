@@ -1,0 +1,11 @@
+data Cell [copy] { value: u32; }
+data Window<'input> { values: &'input mut [Cell]; }
+machine replace(windows: &mut [Window], outer: u64, other: u64, inner: u64)
+requires outer < windows.len && other < windows.len && inner < windows[outer].values.len {
+    let mut selected: u64 = outer;
+    let captured: u64 = selected;
+    selected = other;
+    // Copying the old selector does not bound the newly selected descriptor.
+    windows[selected].values[inner] = Cell { value: 42 };
+}
+machine main() {}

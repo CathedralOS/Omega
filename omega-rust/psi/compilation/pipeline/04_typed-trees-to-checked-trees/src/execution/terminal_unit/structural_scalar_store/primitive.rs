@@ -24,8 +24,8 @@
 //! changes, so stored reads cannot observe a partial replacement.
 use super::super::{
     CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole,
-    CheckedUnitEffectOperationPlan, Multiplicity,
-    PrimitiveType, StatementNode, SymbolHandle, TypeConstraintNode, TypeReferenceNode,
+    CheckedUnitEffectOperationPlan, Multiplicity, PrimitiveType, StatementNode, SymbolHandle,
+    TypeConstraintNode, TypeReferenceNode,
 };
 
 /// Find primitive storage established by an initializer or its declaration's
@@ -451,7 +451,7 @@ fn scalar_expression_needs_no_bindings(
         CheckedScalarExpression::Boolean(expression) => {
             boolean_expression_needs_no_bindings(expression)
         }
-        CheckedScalarExpression::StructuralParameterByteLength { .. }
+        CheckedScalarExpression::StructuralSequenceLength { .. }
         | CheckedScalarExpression::StorageRead { .. }
         | CheckedScalarExpression::ErasedParameter { .. }
         | CheckedScalarExpression::StructuralParameterField { .. }

@@ -1,0 +1,37 @@
+data Cell [copy] { value: u32; tag: u64; }
+
+machine replace<'input, T [copy]>(values: &'input mut [T], position: u64, replacement: T)
+    -> &'input mut [T]
+requires position < values.len {
+    values[position] = replacement;
+    &mut values[..]
+}
+
+machine observe(values: &[Cell]) -> bool {
+    transition values.len == 2 {
+        true -> inspect(values)
+        false -> false
+    }
+    state inspect(values: &[Cell]) -> bool requires values.len == 2 {
+        values[0].value == 7 && values[0].tag == 17
+            && values[1].value == 42 && values[1].tag == 9223372036854775808
+    }
+}
+
+machine main() crashes Trap {
+    let mut values: [Cell; 4] = [
+        Cell { value: 90, tag: 91 }, Cell { value: 7, tag: 17 },
+        Cell { value: 9, tag: 19 }, Cell { value: 80, tag: 81 }
+    ];
+    let selected: &mut [Cell] = replace(&mut values[1..3], 1,
+        Cell { value: 42, tag: 9223372036854775808 });
+    let correct: bool = observe(selected);
+    transition correct && values[0].value == 90 && values[0].tag == 91
+        && values[3].value == 80 && values[3].tag == 81
+        && values[2].value == 42 && values[2].tag == 9223372036854775808 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

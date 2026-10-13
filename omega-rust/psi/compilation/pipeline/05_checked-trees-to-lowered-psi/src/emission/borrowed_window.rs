@@ -390,7 +390,7 @@ impl BorrowedWindowLedger {
         runtime_elements::observe_element_extent(
             source,
             place.root_type,
-            &place.steps,
+            &path,
             structural_types,
             next_value,
             operations,
@@ -598,7 +598,7 @@ impl BorrowedWindowLedger {
         runtime_elements::observe_element_extent(
             source,
             place.root_type,
-            &place.steps,
+            &path,
             structural_types,
             next_value,
             operations,
@@ -792,37 +792,15 @@ fn resolve_window_place(
             projected_qualifications,
         });
     }
-    let (steps, leaf) = lower_window_path(identities, root_type, &plan.path, structural_types)
-        .map_err(|_| {
-            let reason = if plan
-                .path
-                .iter()
-                .any(|segment| !matches!(segment, CheckedUnitStructuralPathSegment::Field(_)))
-            {
-                "index or referent routes do not resolve through the declared records, \
-                 fixed arrays and element views"
-            } else {
-                "the route does not resolve through the declared records, fixed arrays and \
-                 element views"
-            };
-            unpinned(&spelling, reason)
-        })?;
-    // Owning a reference/view descriptor never owns its backing storage.
-    let restoration_required = restoration_required
-        || steps.iter().any(|step| {
-            matches!(
-                step,
-                ProjectionStep::Static(StructuralPathSegment::Referent)
-            )
-        })
-        || terminal_psi::find_structural_type(structural_types, root_type).is_some_and(
-            |declaration| {
-                matches!(
-                    declaration.shape,
-                    terminal_psi::StructuralTypeShape::ElementView { .. }
-                )
+    let (steps, leaf, borrowed_backing) =
+        lower_window_path(identities, root_type, &plan.path, structural_types).map_err(
+            |error| match error {
+                LoweringError::Unsupported(reason) => unpinned(&spelling, reason),
+                other => other,
             },
-        );
+        )?;
+    // Owning a reference/view descriptor never owns its backing storage.
+    let restoration_required = restoration_required || borrowed_backing;
     let (field, hole_type) = match leaf {
         WindowLeaf::Field(field) => {
             let Some(hole_type) = field.field_type.as_structural() else {

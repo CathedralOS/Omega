@@ -389,9 +389,13 @@ fn byte_carrier_pair_equality(
         });
     };
     let length = |root, path: &Vec<_>| {
-        Box::new(CheckedScalarExpression::StructuralParameterByteLength {
+        Box::new(CheckedScalarExpression::StructuralSequenceLength {
             root,
-            path: path.clone(),
+            path: path
+                .iter()
+                .cloned()
+                .map(checked_trees::CheckedScalarReadProjection::Static)
+                .collect(),
         })
     };
     let read = |root, path: &Vec<_>, index| {

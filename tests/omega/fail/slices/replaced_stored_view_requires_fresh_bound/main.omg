@@ -1,0 +1,13 @@
+// The old descriptor's extent cannot justify a write after replacement.
+// The replacement may be empty even when the incoming descriptor was long.
+data Cell [copy] { value: u64; }
+data Window<'input> { cells: &'input mut [Cell]; }
+machine replace<'input>(
+    window: &mut Window<'input>, replacement: &'input mut [Cell], position: u64
+)
+requires position < window.cells.len
+{
+    window.cells = replacement;
+    window.cells[position] = Cell { value: 42 };
+}
+machine main() {}

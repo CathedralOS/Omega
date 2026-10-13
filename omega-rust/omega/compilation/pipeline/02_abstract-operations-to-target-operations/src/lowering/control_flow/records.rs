@@ -189,10 +189,9 @@ pub(super) fn establish(
                         terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
                     )
                 });
-                // A `&[T]`/`&[u8]` member relocates its loan's descriptor into
-                // the record: the field owns the descriptor copy while the
-                // referent stays borrowed. Only shared loans reach here —
-                // upstream admission declines affine view members.
+                // A view member stores its descriptor while its referent stays
+                // borrowed. The source declaration below determines whether
+                // that descriptor is copied or transferred once.
                 let descriptor_member = match field_type {
                     StructuralFieldType::Structural(child) => {
                         types.get(child).is_some_and(|child| {
@@ -256,47 +255,11 @@ pub(super) fn establish(
                 {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
-                let multiplicity = if descriptor_member && argument.path.is_empty() {
-                    // Relocating a descriptor never moves the referent: the
-                    // source is the live view place (established or copied)
-                    // or the block's view parameter — both spell the member's
-                    // own type. Shared loans stay shared, so nothing consumes.
-                    let view_type = live.structural_observation_type(function, argument.place);
-                    if view_type != Some(nested) {
-                        return Err(LoweringError::unsupported_control_flow(function.machine));
-                    }
-                    StructuralMultiplicity::Unrestricted
-                } else {
-                    let (root, access, multiplicity) =
-                        if let Some(home) = live.structural_homes.get(&argument.place) {
-                            (home.structural_type(), home.access(), home.multiplicity())
-                        } else {
-                            let parameter =
-                                function.arrival_parameter(argument.place).ok_or_else(|| {
-                                    LoweringError::unsupported_control_flow(function.machine)
-                                })?;
-                            (
-                                parameter.structural_type,
-                                parameter.access,
-                                parameter.multiplicity,
-                            )
-                        };
-                    // One typed static projection judgment includes selected
-                    // payload namespaces without admitting borrowed crossings
-                    // or runtime selectors. Case custody remains on the operand.
-                    if terminal_semantics::canonical_static_projection(
-                        types.values().copied(),
-                        root,
-                        &argument.path,
-                    )
-                    .map(|(_, declaration)| declaration.id)
-                        != Some(nested)
-                        || access != StructuralAccess::Owned
-                    {
-                        return Err(LoweringError::unsupported_control_flow(function.machine));
-                    }
-                    multiplicity
-                };
+                let (selected, multiplicity) =
+                    super::aggregate_results::value_input(function, types, live, argument)?;
+                if selected != nested {
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
+                }
                 // Claims travel with the exact home origin, not its byte
                 // layout. Every noncopyable operand transfers once, whether
                 // its obligation is affine or linear; construction must not

@@ -86,6 +86,9 @@ impl PrimitiveReadSource {
 pub(crate) enum LoweredElementPathSegment {
     /// A statically spelled path step.
     Static(terminal_psi::StructuralPathSegment),
+    /// Observe the descriptor at the already captured prefix. Keeping this
+    /// in the path avoids copying and reevaluating nested selector expressions.
+    ViewExtent { source: PlaceId, bytes: bool },
     /// A runtime selector emitted with its own `index < extent` obligation.
     RuntimeIndex {
         selector: LoweredDirectExpression,
@@ -422,17 +425,53 @@ pub(crate) fn emit_prepared_path(
     next_value_identity: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Vec<terminal_psi::StructuralPathSegment> {
-    // Evaluate every operand before assigning operation-relative obligations.
-    // A later selector may itself emit reads or arithmetic operations.
     enum EvaluatedProjection {
         Static(terminal_psi::StructuralPathSegment),
         RuntimeIndex { index: ValueId, bound_decided: bool },
     }
-    let evaluated = path
-        .iter()
-        .map(|segment| match segment {
+    let complete = |evaluated: &[EvaluatedProjection], operations: &mut OperationBuffer| {
+        let mut ordinal = first_ordinal;
+        evaluated
+            .iter()
+            .map(|segment| match segment {
+                EvaluatedProjection::RuntimeIndex {
+                    index,
+                    bound_decided,
+                } => {
+                    let obligation = selector_obligation(operations.next_identity, ordinal);
+                    ordinal += 1;
+                    if *bound_decided {
+                        operations.source_checked_obligations.push(obligation);
+                    }
+                    terminal_psi::StructuralPathSegment::RuntimeIndex {
+                        index: *index,
+                        obligation,
+                    }
+                }
+                EvaluatedProjection::Static(segment) => segment.clone(),
+            })
+            .collect::<Vec<_>>()
+    };
+    // Capture each selector once. Each intervening extent observes the exact
+    // completed prefix, with bounds owned by that observation. Later endpoints
+    // or selectors cannot redirect it by rereading a mutable source coordinate.
+    let mut evaluated = Vec::with_capacity(path.len());
+    for segment in path {
+        match segment {
             LoweredElementPathSegment::Static(segment) => {
-                EvaluatedProjection::Static(segment.clone())
+                evaluated.push(EvaluatedProjection::Static(segment.clone()));
+            }
+            LoweredElementPathSegment::ViewExtent { source, bytes } => {
+                let source = terminal_psi::StructuralArgument {
+                    place: *source,
+                    path: complete(&evaluated, operations),
+                    access: terminal_psi::StructuralAccess::SharedBorrow,
+                };
+                if *bytes {
+                    emit_byte_length(source, next_value_identity, operations);
+                } else {
+                    emit_element_length(source, next_value_identity, operations);
+                }
             }
             LoweredElementPathSegment::RuntimeIndex {
                 selector,
@@ -444,31 +483,14 @@ pub(crate) fn emit_prepared_path(
                 if let Some(extent) = extent {
                     emit_direct_expression(extent, parameters, next_value_identity, operations);
                 }
-                EvaluatedProjection::RuntimeIndex {
+                evaluated.push(EvaluatedProjection::RuntimeIndex {
                     index,
                     bound_decided: *bound_decided,
-                }
+                });
             }
-        })
-        .collect::<Vec<_>>();
-    let mut ordinal = first_ordinal;
-    evaluated
-        .into_iter()
-        .map(|segment| match segment {
-            EvaluatedProjection::RuntimeIndex {
-                index,
-                bound_decided,
-            } => {
-                let obligation = selector_obligation(operations.next_identity, ordinal);
-                ordinal += 1;
-                if bound_decided {
-                    operations.source_checked_obligations.push(obligation);
-                }
-                terminal_psi::StructuralPathSegment::RuntimeIndex { index, obligation }
-            }
-            EvaluatedProjection::Static(segment) => segment,
-        })
-        .collect()
+        }
+    }
+    complete(&evaluated, operations)
 }
 
 pub(crate) fn path_with_current_bounds(

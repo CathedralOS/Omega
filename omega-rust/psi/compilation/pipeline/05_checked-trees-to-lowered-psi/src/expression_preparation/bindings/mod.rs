@@ -1443,6 +1443,14 @@ impl ScalarBindings {
 
     fn scalar(&self, expression: &mut CheckedScalarExpression) -> Result<(), LoweringError> {
         match expression {
+            CheckedScalarExpression::StructuralSequenceLength { path, .. } => {
+                for step in path {
+                    if let checked_trees::CheckedScalarReadProjection::RuntimeIndex(selector) = step
+                    {
+                        self.scalar(&mut selector.expression)?;
+                    }
+                }
+            }
             CheckedScalarExpression::StructuralParameterIndexedRead {
                 index,
                 element_path,
@@ -1502,7 +1510,6 @@ impl ScalarBindings {
             | CheckedScalarExpression::IntegerExactCast { operand, .. } => self.scalar(operand)?,
             CheckedScalarExpression::Boolean(expression) => self.boolean(expression)?,
             CheckedScalarExpression::IntegerLiteral { .. }
-            | CheckedScalarExpression::StructuralParameterByteLength { .. }
             | CheckedScalarExpression::IeeeFloatLiteral { .. }
             | CheckedScalarExpression::ImplementationSelection { .. }
             | CheckedScalarExpression::ErasedParameter { .. }

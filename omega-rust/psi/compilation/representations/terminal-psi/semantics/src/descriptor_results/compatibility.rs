@@ -113,7 +113,8 @@ impl DescriptorAnalysis<'_> {
                                     return Err(failure());
                                 }
                             }
-                            DescriptorSourceOrigin::IncomingSlot(_) => {
+                            DescriptorSourceOrigin::IncomingSlot(_)
+                            | DescriptorSourceOrigin::IncomingContents(_) => {
                                 let requirement = DescriptorCompatibilityRequirement {
                                     position,
                                     loan,

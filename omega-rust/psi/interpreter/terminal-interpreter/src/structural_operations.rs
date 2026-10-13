@@ -958,31 +958,27 @@ impl TerminalExecution<'_> {
             memberships.push((*place, repaired));
         }
         let mut storage = ConstructorStorage::default();
-        let placed = match child {
-            ConstructorValue::Placed(child) => Some(child.clone()),
-            child @ ConstructorValue::ScalarArray(_) => {
-                storage.stage(self, value, &child, &hole, false)?;
-                None
-            }
+        // Replacement and construction install the same completed value.
+        // Staging only aggregate cells misses a standalone descriptor kept in
+        // the frame's view map; use the common typed value-storage transaction.
+        // Capture every source before retiring either home, without loading or
+        // disposing borrowed referents. Custody still decides copy versus move.
+        storage.stage(self, value, &child, &hole, !copies_storage)?;
+        let source = match child {
+            ConstructorValue::Placed(child) => Some(StructuralRuntimePlace::from(&child)),
+            ConstructorValue::ScalarArray(_) => None,
         };
-        if let Some(child) = placed {
-            // The checked disposition has already established shared-descriptor
-            // closure. Transplant stages the incoming cells, retires only the
-            // destination's resident keys, and installs the replacement without
-            // following or reading displaced referents. External copies retain
-            // their own descriptor keys and the same backing storage.
-            self.transplant_subtree(
-                &StructuralRuntimePlace::from(&child),
-                &hole,
-                !copies_storage,
-            );
-        } else {
-            storage.publish(self);
+        self.prune_subtree(&hole);
+        if !copies_storage && let Some(source) = source {
+            self.prune_subtree(&source);
         }
+        storage.publish(self);
         self.structural_values.extend(memberships);
         if !copies_storage {
             self.structural_values.remove(&value.place);
             self.scalar_array_values.remove(&value.place);
+            self.element_view_values.remove(&value.place);
+            self.byte_sequence_values.remove(&value.place);
         }
         self.live_affine_frontier = frontier;
         self.live_claims = claims;
@@ -1077,49 +1073,21 @@ impl TerminalExecution<'_> {
         field: Option<semantic_vocabulary::StructuralFieldId>,
         required_access: StructuralAccess,
     ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
-        let storage = self.structural_values.get(&root).ok_or_else(malformed)?;
-        // A view never owns its elements. Its selected element (already
-        // bounded by the view's live length) is a hole in the original
-        // collection, reached through the view's own mutable loan.
-        if let Some(view) = self.element_view_values.get(&root) {
-            if !view.matches_descriptor_home(storage)
-                || !matches!(path.first(), Some(StructuralPathSegment::FixedIndex(_)))
-            {
-                return Err(malformed());
-            }
-            let (collection, selected) = view.structural_projection(path, true)?;
-            let projection = terminal_semantics::structural_window_projection(
-                self.program.structural_types().values(),
-                collection.structural_type,
-                &selected,
-                field,
-            )
-            .ok_or_else(malformed)?;
-            let hole = crate::custody::project_structural_value(
-                &self.program.structural_types(),
-                &collection,
-                &projection.path,
-            )?;
-            return Ok(hole);
-        }
         // Resolve a reference crossing against its live runtime referent first;
         // the shared window geometry receives storage, never carrier ownership.
         let prefix_length = path
             .iter()
             .rposition(|segment| matches!(segment, StructuralPathSegment::Referent))
             .map_or(0, |position| position + 1);
-        let base = if prefix_length == 0 {
-            storage.clone()
-        } else {
-            self.resolve_reference_call_arguments(&[StructuralArgument {
-                place: root,
-                path: path[..prefix_length].to_vec(),
-                access: required_access,
-            }])?
-            .pop()
-            .ok_or_else(malformed)?
-        };
         if prefix_length != 0 && !terminal_semantics::structural_window_selects_child(path, field) {
+            let base = self
+                .resolve_reference_call_arguments(&[StructuralArgument {
+                    place: root,
+                    path: path[..prefix_length].to_vec(),
+                    access: required_access,
+                }])?
+                .pop()
+                .ok_or_else(malformed)?;
             let machine = self
                 .program
                 .machines()
@@ -1175,16 +1143,22 @@ impl TerminalExecution<'_> {
                 return Err(malformed());
             }
         }
+        // The ordinary live projection owner crosses every reference and
+        // element-view descriptor, including fields and nested views. Window
+        // extraction must reach that same original backing, not interpret a
+        // descriptor's carrier bytes as inline elements. Whole-referent origin
+        // authentication above and restoration custody below remain separate.
+        let selected = self.resolve_live_projection(root, path, required_access)?;
         let projection = terminal_semantics::structural_window_projection(
             self.program.structural_types().values(),
-            base.structural_type,
-            &path[prefix_length..],
+            selected.structural_type,
+            &[],
             field,
         )
         .ok_or_else(malformed)?;
         let hole = crate::custody::project_structural_value(
             &self.program.structural_types(),
-            &base,
+            &selected,
             &projection.path,
         )?;
         Ok(hole)

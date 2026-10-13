@@ -3,6 +3,14 @@ use symbols::SymbolHandle;
 
 mod computation_custody;
 
+/// The claim minted for one exact loan activation. Equal backing paths can
+/// occur more than once in a statement; they cannot recover this association.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowBorrowClaimFact {
+    pub loan: arena::Handle<crate::BorrowLoanFact>,
+    pub claim_identity: language_semantics::PermissionClaimIdentity,
+}
+
 /// Caller-owned storage returned by one normal exclusive invocation. Claims
 /// are the Restore events at this call beneath this exact region; the region
 /// is retained separately because an empty or inactive case owns no payload.

@@ -838,7 +838,7 @@ pub(crate) fn map_scalar(
         Scalar::IntegerLiteral { .. }
         | Scalar::IeeeFloatLiteral { .. }
         | Scalar::ImplementationSelection { .. } => {}
-        Scalar::StructuralParameterByteLength { .. }
+        Scalar::StructuralSequenceLength { .. }
         | Scalar::ErasedParameter { .. }
         | Scalar::StructuralParameterIndexedRead { .. } => return None,
     }

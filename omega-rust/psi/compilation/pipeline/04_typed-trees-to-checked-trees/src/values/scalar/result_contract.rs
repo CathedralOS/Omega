@@ -431,17 +431,27 @@ impl ContractPredicates<'_, '_> {
                 // builtin u64 exact type.
                 if let Some(term) = super::structural_fields::structural_sequence_length(
                     program,
+                    self.operators,
                     self.parameters,
                     expression,
+                    |_, operand| {
+                        self.numeric_term(operand, depth + 1)
+                            .map(|(value, _)| value)
+                    },
                 ) {
                     // Only parameter-rooted descriptors belong to the closed
                     // contract namespace. Their checked field path is retained
                     // for the shared structural signature term owner.
-                    if let CheckedScalarExpression::StructuralParameterByteLength { root, .. } =
-                        &term
+                    if let CheckedScalarExpression::StructuralSequenceLength { root, .. } = &term
                         && !matches!(root, checked_trees::CheckedStorageRoot::Parameter { .. })
                     {
                         return None;
+                    }
+                    if let CheckedScalarExpression::StructuralSequenceLength { path, .. } = &term {
+                        // Closed descriptor terms currently carry static geometry.
+                        // Keep dynamic body observations out of that vocabulary
+                        // until it can retain their selector terms and totality.
+                        checked_trees::CheckedScalarReadProjection::static_path(path)?;
                     }
                     let reference = program.type_reference_table.named_references().find_map(
                         |(reference, symbol, _)| {

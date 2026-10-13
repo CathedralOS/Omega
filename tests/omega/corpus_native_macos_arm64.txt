@@ -1886,6 +1886,7 @@ pass/slices/projected_slice_length checked 10052ms @5041ef1af684+wt
 pass/slices/qualified_subslice_composition_exit built 2037ms exit:70 @a5ac65bf511d+wt
 pass/slices/recursive_subslice_element_accumulator_exit built 806ms exit:70 @de74b73e1452+wt
 pass/slices/requires_field_count_alias_index_compile checked 186ms
+pass/slices/runtime_anonymous_slice_argument_return_exit built 5853ms exit:0 @f329f97f57f7+wt
 pass/slices/runtime_boolean_alias_guard_transport_exit built 1730ms exit:0 @0facec44bc8b+wt
 pass/slices/runtime_borrowed_noncopy_array_argument_exit built 3708ms exit:0 @6d312ec7d5ba
 pass/slices/runtime_bounded_fixed_array_subslice_arg_exit built 9468ms exit:3 @f7e9667e2f4a
@@ -1895,13 +1896,18 @@ pass/slices/runtime_call_endpoint_field_transition_exit built 1853ms exit:70 @63
 pass/slices/runtime_call_endpoint_order_exit built 2021ms exit:70 @637668355701+wt
 pass/slices/runtime_call_endpoint_view_exit built 1766ms exit:70 @637668355701+wt
 pass/slices/runtime_direct_view_requires_index_exit built 2709ms exit:70 @9beb2be72f2d+wt
+pass/slices/runtime_element_replacement_returns_view_exit built 5736ms exit:0 @f329f97f57f7+wt
 pass/slices/runtime_element_view_requires_index_exit built 1837ms exit:70 @0991904fed3b+wt
+pass/slices/runtime_element_write_preserves_view_extent_exit built 5705ms exit:0 @f329f97f57f7+wt
 pass/slices/runtime_explicit_mutable_range_local_forwarding_exit built 6525ms exit:0 @0421c3e6f7c9+wt
+pass/slices/runtime_fixed_length_selector_trap built 5706ms exit:signal signal:5 @f329f97f57f7+wt
 pass/slices/runtime_forwarded_range_extent_snapshot_exit built 3964ms exit:0 @2a23b3a1e99d
 pass/slices/runtime_forwarded_view_runtime_index_exit built 1631ms exit:70 @0facec44bc8b+wt
 pass/slices/runtime_guarded_view_copy_cycle_exit built 2035ms exit:70 @6ba9c43af356+wt
+pass/slices/runtime_helper_stored_view_return_exit built 5685ms exit:0 @f329f97f57f7+wt
 pass/slices/runtime_inclusive_call_endpoint_order_exit built 1788ms exit:70 @dd31f301c60c+wt
 pass/slices/runtime_inclusive_call_endpoint_view_exit built 1859ms exit:70 @dd31f301c60c+wt
+pass/slices/runtime_indexed_descriptor_replacement_call_exit built 5687ms exit:0 @f329f97f57f7+wt
 pass/slices/runtime_indexed_record_field_range_exit built 5161ms exit:0 @9beb2be72f2d+wt
 pass/slices/runtime_inline_mutable_byte_window_call_write_exit built 1688ms exit:0 @1bad63ca3002+wt
 pass/slices/runtime_inline_mutable_view_call_write_exit built 1688ms exit:0 @1bad63ca3002+wt
@@ -1912,11 +1918,17 @@ pass/slices/runtime_mutable_byte_view_loop_write_exit built 987ms exit:70 @59aa9
 pass/slices/runtime_mutable_slice_element_write_exit built 1421ms exit:21 @fb2178def922
 pass/slices/runtime_mutable_slice_result_whole_forward_exit built 5068ms exit:0 @9dd545defbc0
 pass/slices/runtime_namespace_range_contract_exit built 3740ms exit:0 @be968c2c6bfb
+pass/slices/runtime_nested_stored_view_element_replacement_exit built 5704ms exit:0 @f329f97f57f7+wt
+pass/slices/runtime_nested_stored_view_return_exit built 5706ms exit:0 @f329f97f57f7+wt
 pass/slices/runtime_nested_subslice_fixed_index_exit built 1602ms exit:215 @fb2178def922
+pass/slices/runtime_nested_view_candidate_backings_exit built 5720ms exit:0 @f329f97f57f7+wt
+pass/slices/runtime_nested_view_descriptor_reseat_exit built 5673ms exit:0 @f329f97f57f7+wt
+pass/slices/runtime_ordered_nested_length_observation_exit built 5709ms exit:0 @f329f97f57f7+wt
 pass/slices/runtime_policy_element_view_tail_recursion_exit built 865ms exit:70 @de74b73e1452+wt
 pass/slices/runtime_qualified_record_copy_local_exit built 1360ms exit:70 @8093eb34a6ed+wt
 pass/slices/runtime_returned_range_extent_contract_exit built 3951ms exit:0 @2a23b3a1e99d
 pass/slices/runtime_saturating_array_element_guard_exit built 1780ms exit:70 @fb2178def922
+pass/slices/runtime_sequential_same_backing_views_exit built 5677ms exit:0 @f329f97f57f7+wt
 pass/slices/runtime_shared_subslice_return_exit built 2391ms exit:70 @693920652f41
 pass/slices/runtime_shared_whole_view_return_exit built 2374ms exit:70 @693920652f41
 pass/slices/runtime_slice_element_runtime_index_read_exit built 1557ms exit:1 @fb2178def922
@@ -1928,6 +1940,9 @@ pass/slices/runtime_slice_index_transition_exit built 1189ms exit:111 @8a91f26a0
 pass/slices/runtime_slice_indexed_read_exit built 689ms exit:70
 pass/slices/runtime_slice_iteration_exit built 1189ms exit:91 @8a91f26a0b28+wt
 pass/slices/runtime_slice_record_field_offset_exit built 1151ms exit:61 @8a91f26a0b28+wt
+pass/slices/runtime_state_selected_nested_view_exit built 5725ms exit:0 @f329f97f57f7+wt
+pass/slices/runtime_stored_element_view_replacement_exit built 5677ms exit:0 @f329f97f57f7+wt
+pass/slices/runtime_stored_view_dynamic_selection_exit built 5674ms exit:0 @f329f97f57f7+wt
 pass/slices/runtime_subslice_and_element_read_call_operands_exit built 2159ms exit:42 @ed38350cbc69+wt
 pass/slices/runtime_subslice_dynamic_index_exit built 1182ms exit:207 @8a91f26a0b28+wt
 pass/slices/runtime_subslice_len_exit built 1323ms exit:70 @48008365d839

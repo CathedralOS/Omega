@@ -70,12 +70,12 @@ impl LoweredStructuralScalarStore {
 
     /// Each replacement requests its own declaration-derived range proof against
     /// the completed RHS. Neither an earlier read nor the root's initial validity
-    /// can stand in for proving the value about to be stored. `indexes` are the
-    /// carrier's evaluated runtime elements, in path order.
+    /// can stand in for proving the value about to be stored. The completed path
+    /// retains the carrier's captured selectors and their bound obligations.
     pub(crate) fn into_operation(
         self,
         destination: PlaceId,
-        indexes: Vec<crate::emission::runtime_elements::EvaluatedSelector>,
+        path: Vec<StructuralPathSegment>,
         value: ValueId,
         calls: &mut CallEmissionContext<'_>,
         operations: &mut OperationBuffer,
@@ -94,9 +94,7 @@ impl LoweredStructuralScalarStore {
         }
         Ok(OperationKind::StructuralScalarFieldStore {
             destination,
-            path: crate::emission::runtime_elements::complete_path(
-                self.steps, indexes, calls, operations,
-            )?,
+            path,
             field: self.field,
             value,
             range_obligation,
@@ -508,8 +506,11 @@ pub(crate) fn lower_window_path<'a>(
     root_type: StructuralTypeId,
     path: &[CheckedUnitStructuralPathSegment],
     structural_types: &'a [StructuralTypeDeclaration],
-) -> Result<(Vec<ProjectionStep>, WindowLeaf<'a>), LoweringError> {
+) -> Result<(Vec<ProjectionStep>, WindowLeaf<'a>, bool), LoweringError> {
     let (mut field_owner, mut steps) = structural_field_root(root_type, structural_types)?;
+    // Owning a descriptor does not own its pointee. Remember crossings while
+    // resolving the path, including element views nested in owned records.
+    let mut borrowed_backing = !steps.is_empty();
     let mut cursor = path;
     while let Some((segment, rest)) = cursor.split_first() {
         cursor = rest;
@@ -530,7 +531,11 @@ pub(crate) fn lower_window_path<'a>(
                     if leaf.is_none() || leafs.next().is_some() {
                         return unsupported("structural window leaf is absent or ambiguous");
                     }
-                    return Ok((steps, WindowLeaf::Field(leaf.expect("leaf checked above"))));
+                    return Ok((
+                        steps,
+                        WindowLeaf::Field(leaf.expect("leaf checked above")),
+                        borrowed_backing,
+                    ));
                 }
                 let mut carriers = fields.iter().filter(|field| {
                     field.identity == identities.intern(&identity.spelling())
@@ -554,13 +559,8 @@ pub(crate) fn lower_window_path<'a>(
             }
             CheckedUnitStructuralPathSegment::FixedIndex(_)
             | CheckedUnitStructuralPathSegment::RuntimeIndex(_) => {
-                // Only the window root's own length bounds a view element; a
-                // view below another carrier is a descriptor, not storage.
-                if matches!(field_owner.shape, StructuralTypeShape::ElementView { .. })
-                    && rest.len() + 1 != path.len()
-                {
-                    return unsupported("structural window view is not the window root");
-                }
+                borrowed_backing |=
+                    matches!(field_owner.shape, StructuralTypeShape::ElementView { .. });
                 let (step, element) = element_selection(field_owner, segment)?;
                 if !(matches!(step, ProjectionStep::AssignmentIndex { .. })
                     && steps.contains(&step))
@@ -576,10 +576,12 @@ pub(crate) fn lower_window_path<'a>(
                         WindowLeaf::Subtree {
                             structural_type: element,
                         },
+                        borrowed_backing,
                     ));
                 }
             }
             CheckedUnitStructuralPathSegment::Referent => {
+                borrowed_backing = true;
                 let StructuralTypeShape::Reference { referent, .. } = field_owner.shape else {
                     return unsupported("structural window referent crossing names no reference");
                 };
@@ -597,5 +599,6 @@ pub(crate) fn lower_window_path<'a>(
         WindowLeaf::Subtree {
             structural_type: field_owner.id,
         },
+        borrowed_backing,
     ))
 }

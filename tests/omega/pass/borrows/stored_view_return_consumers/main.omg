@@ -1,0 +1,31 @@
+data Cell [copy] { value: u32; }
+data Window<'input> { values: &'input mut [Cell]; }
+
+machine direct<'carrier, 'input>(window: &'carrier mut Window<'input>, replacement: &'input mut [Cell])
+    -> &'input mut [Cell]
+{
+    window.values = replacement;
+    &mut window.values[..]
+}
+
+machine captured<'carrier, 'input>(window: &'carrier mut Window<'input>, replacement: &'input mut [Cell])
+    -> &'input mut [Cell]
+{
+    window.values = replacement;
+    let selected: &'input mut [Cell] = &mut window.values[..];
+    selected
+}
+
+machine selected_exit<'carrier, 'input>(window: &'carrier mut Window<'input>, replacement: &'input mut [Cell])
+    -> &'input mut [Cell]
+{
+    window.values = replacement;
+    transition { _ -> (&mut window.values[..]) }
+}
+
+machine assigned_borrow<'carrier, 'input>(window: &'carrier mut Window<'input>, replacement: &'input mut [Cell])
+    -> &'input mut [Cell]
+{
+    window.values = &mut replacement[..];
+    &mut window.values[..]
+}

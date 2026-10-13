@@ -5,10 +5,22 @@
 //! from the pre-call snapshot; treating the carrier as backing either loses the
 //! caller loan or invents a loan on the temporary result. Missing active contents
 //! remain unknown. Exact case constructors alone mark inactive slots empty.
+//!
+//! Runtime-selected nested descriptors use typed contents queries, never
+//! wildcard carrier addresses. A query reads the pre-operation snapshot and
+//! substitutes incoming contents at the caller. Unknown backing writes retire
+//! later queries through a monotone state effect; already captured values are
+//! unchanged. Indexed moves and stores resolve the same typed queries against
+//! the pre-operation snapshot. Exhaustive singleton destinations replace their
+//! payload; larger finite sets retain both old and incoming origins per slot.
+//! This overapproximation supplies provenance, never custody or vacant-storage
+//! access. Until an indirect replacement has a complete stored-effect
+//! summary, refusing its later contents is required, not entry-value recovery.
 use super::*;
 use crate::descriptor_lifetimes::{DescriptorPathSegment, descriptor_path};
 
 mod analysis;
+mod contents_queries;
 mod replay;
 pub use analysis::DescriptorAnalysis;
 use replay::Replay;
@@ -24,6 +36,10 @@ pub enum DescriptorStoredOrigin {
     IncomingSlot {
         position: usize,
         path: Vec<DescriptorPathSegment>,
+    },
+    IncomingContents {
+        position: usize,
+        steps: Vec<DescriptorContentsStep>,
     },
     Literal {
         machine: MachineId,
@@ -90,6 +106,24 @@ fn result_origin(
             Some(DescriptorResultOrigin::Parameter {
                 position,
                 projection,
+            })
+        }
+        DescriptorStoredOrigin::IncomingContents { position, steps } => {
+            let parameter = machine.places.iter().find_map(|row| match row.definition {
+                DescriptorDefinition::Parameter {
+                    position: actual,
+                    structural_type,
+                    ..
+                } if actual == position => Some((row.place, structural_type)),
+                _ => None,
+            })?;
+            let query = DescriptorContentsQuery {
+                root: parameter.0,
+                steps,
+            };
+            Some(DescriptorResultOrigin::Parameter {
+                position,
+                projection: query.conservative_projection(types, parameter.1)?,
             })
         }
     }
@@ -244,6 +278,147 @@ impl DescriptorSlotKind {
     ) -> Option<DescriptorSlotInventory> {
         slot_inventory(self, types, root, structural_type)
     }
+
+    /// Whether an opaque call can reach tracked slots through view backing.
+    /// The finite carrier inventory deliberately stops at views: lending their
+    /// elements does not lend the outer descriptor. Unknown effects on those
+    /// elements must therefore invalidate contents separately from carrier slots.
+    pub fn may_write_indirect_contents(
+        self,
+        types: &[StructuralTypeDeclaration],
+        root_type: StructuralTypeId,
+        argument: &StructuralArgument,
+    ) -> bool {
+        if argument.access == StructuralAccess::SharedBorrow {
+            return false;
+        }
+        let Some(selected) =
+            crate::runtime_structural_path_tip(types.iter(), root_type, &argument.path)
+        else {
+            return true;
+        };
+        // The actual may already point into view backing. Starting only from
+        // its endpoint would mistake a nested record's descriptors for local
+        // carrier slots, which the outer view's finite inventory cannot name.
+        let behind_view = argument.path.iter().enumerate().any(|(position, segment)| {
+            matches!(
+                segment,
+                StructuralPathSegment::RuntimeIndex { .. } | StructuralPathSegment::FixedIndex(_)
+            ) && crate::runtime_structural_path_tip(
+                types.iter(),
+                root_type,
+                &argument.path[..position],
+            )
+            .is_none_or(|prefix| matches!(prefix.shape, StructuralTypeShape::ElementView { .. }))
+        });
+        indirect_contents_contain_slot(self, types, selected.id, behind_view, &mut BTreeSet::new())
+    }
+
+    /// Known descriptor slots whose storage this write may replace. A runtime
+    /// index selects every possible inline element, retaining its field/case
+    /// suffix; it does not overwrite an ancestor descriptor used to reach that
+    /// element. The old whole-root invalidation lost returned view provenance
+    /// after ordinary element stores. Both graph adapters use this selection.
+    ///
+    /// This does not enumerate descriptors inside arbitrary runtime views or
+    /// grant origins to their contents. Unknown type paths reject; an admitted
+    /// representation view conservatively forgets slots beneath its prefix.
+    pub fn overwritten_slots(
+        self,
+        types: &[StructuralTypeDeclaration],
+        root: PlaceId,
+        structural_type: StructuralTypeId,
+        path: &[StructuralPathSegment],
+        field: Option<semantic_vocabulary::StructuralFieldId>,
+    ) -> Option<Vec<DescriptorLocation>> {
+        let mut destination = path.to_vec();
+        if let Some(field) = field {
+            let declaration =
+                crate::projected_field_declaration(types.iter(), structural_type, path, field)?;
+            destination.push(StructuralPathSegment::Field(declaration.identity));
+        } else {
+            crate::runtime_structural_path_tip(types.iter(), structural_type, path)?;
+        }
+        let mut overwritten = Vec::new();
+        for slot in self.slots(types, root, structural_type)? {
+            let resident = descriptor_path(types, structural_type, &slot.path)?;
+            let mut overlaps = true;
+            for (position, selected) in destination.iter().enumerate() {
+                if matches!(selected, StructuralPathSegment::RepresentationView { .. }) {
+                    // Reinterpreted names cannot establish disjointness from
+                    // the original storage's remaining declared slot paths.
+                    break;
+                }
+                if !resident.get(position).is_some_and(|stored| {
+                    stored == selected
+                        || matches!(
+                            (selected, stored),
+                            (
+                                StructuralPathSegment::RuntimeIndex { .. },
+                                StructuralPathSegment::FixedIndex(_)
+                            )
+                        )
+                }) {
+                    overlaps = false;
+                    break;
+                }
+            }
+            if overlaps {
+                overwritten.push(slot);
+            }
+        }
+        Some(overwritten)
+    }
+}
+
+fn indirect_contents_contain_slot(
+    kind: DescriptorSlotKind,
+    types: &[StructuralTypeDeclaration],
+    structural_type: StructuralTypeId,
+    behind_view: bool,
+    active: &mut BTreeSet<StructuralTypeId>,
+) -> bool {
+    if behind_view && kind.is_slot(types, structural_type) {
+        return true;
+    }
+    if !active.insert(structural_type) {
+        return true;
+    }
+    let Some(declaration) = find_structural_type(types, structural_type) else {
+        return true;
+    };
+    let mut fields_contain = |fields: &[terminal_psi::StructuralFieldDeclaration]| {
+        fields.iter().any(|field| match field.field_type {
+            terminal_psi::StructuralFieldType::Structural(child) => {
+                indirect_contents_contain_slot(kind, types, child, behind_view, active)
+            }
+            _ => {
+                behind_view
+                    && kind == DescriptorSlotKind::SharedViews
+                    && field
+                        .field_type
+                        .byte_sequence_carrier()
+                        .is_some_and(|carrier| carrier.is_shared_readable_view())
+            }
+        })
+    };
+    let contains = match &declaration.shape {
+        StructuralTypeShape::ElementView { element } => {
+            indirect_contents_contain_slot(kind, types, *element, true, active)
+        }
+        StructuralTypeShape::FixedArray { element, .. }
+        | StructuralTypeShape::Reference {
+            referent: element, ..
+        } => indirect_contents_contain_slot(kind, types, *element, behind_view, active),
+        StructuralTypeShape::Record { fields, .. } => fields_contain(fields),
+        StructuralTypeShape::Mixed { fields, cases } => {
+            fields_contain(fields) || cases.iter().any(|case| fields_contain(&case.fields))
+        }
+        StructuralTypeShape::Sum { cases } => cases.iter().any(|case| fields_contain(&case.fields)),
+        _ => false,
+    };
+    active.remove(&structural_type);
+    contains
 }
 
 /// Pointer slots whose storage a parameter can replace outside its owned

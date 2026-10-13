@@ -396,25 +396,19 @@ fn owned_field_source(
     Ok(structural_type)
 }
 
-fn owned_projected_field_source(
+pub(super) fn owned_projected_field_source(
     function: &PsiOptimizationFunction,
     argument: &terminal_psi::StructuralArgument,
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<semantic_vocabulary::StructuralTypeId, LegalizationError> {
-    // A shared descriptor is an owned value whose backing remains borrowed.
+    // A view descriptor is a value whose backing remains borrowed.
     // Rejoin its exact declaration; this does not turn a borrowed aggregate
     // into an owned element or grant mutable access to descriptor backing.
     if argument.path.is_empty()
         && argument.access == terminal_psi::StructuralAccess::Owned
         && let Some(parameter) = function.arrival_parameter(argument.place)
-        && parameter.access == terminal_psi::StructuralAccess::SharedBorrow
-        && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
         && parameter.qualifications.is_empty()
-        && parameter.projected_qualifications.is_empty()
-        && terminal_semantics::descriptor_results::is_shared_descriptor(
-            types.iter(),
-            parameter.structural_type,
-        )
+        && terminal_semantics::view_descriptor_parameter(parameter, types.iter())
     {
         return Ok(parameter.structural_type);
     }

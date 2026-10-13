@@ -161,7 +161,8 @@ pub(in crate::lowering) fn catalog(
                                 }));
                             }
                             DescriptorStoredOrigin::Empty => {}
-                            DescriptorStoredOrigin::Literal { .. } => return None,
+                            DescriptorStoredOrigin::IncomingContents { .. }
+                            | DescriptorStoredOrigin::Literal { .. } => return None,
                         }
                     }
                     sources.sort();

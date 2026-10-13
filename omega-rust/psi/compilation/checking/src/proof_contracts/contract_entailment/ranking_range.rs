@@ -247,9 +247,12 @@ pub fn ranking_slice_length_observation(
     Some((
         parameter.symbol,
         position,
-        checked_trees::CheckedScalarExpression::StructuralParameterByteLength {
+        checked_trees::CheckedScalarExpression::StructuralSequenceLength {
             root: checked_trees::CheckedStorageRoot::Parameter { index: position },
-            path,
+            path: path
+                .into_iter()
+                .map(checked_trees::CheckedScalarReadProjection::Static)
+                .collect(),
         },
     ))
 }

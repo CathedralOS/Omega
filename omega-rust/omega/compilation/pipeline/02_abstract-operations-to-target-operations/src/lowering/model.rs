@@ -105,6 +105,11 @@ pub enum LoweringError {
         site: optimization_core::CompilerCheckSite,
     },
     UnsupportedOperationInUnitFunction(MachineId),
+    InvalidStructuralValueInput {
+        machine: MachineId,
+        place: PlaceId,
+        reason: &'static str,
+    },
     InvalidReferenceResult {
         machine: MachineId,
         reason: &'static str,

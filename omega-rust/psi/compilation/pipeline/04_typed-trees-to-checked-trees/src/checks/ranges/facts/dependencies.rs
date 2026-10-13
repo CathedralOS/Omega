@@ -1,14 +1,15 @@
 //! Exact typed reads behind the range checker's legacy expression labels.
 //!
 //! Incoming guards measure predecessor storage. Record those reads in their
-//! evaluation scope, then transport exact parameter roots to the receiving
-//! state. Field/index paths survive that join; spelling alone cannot keep a
+//! evaluation scope, then transport exact parameter roots and selector operands
+//! to the receiving state. Field/index paths survive that join; spelling alone cannot keep a
 //! stale predecessor parameter current or authorize an unrelated binding.
 
 use validation::CanonicalPlace;
 
 mod captures;
 mod reads;
+mod state_transport;
 
 use reads::collect_reads;
 
@@ -35,6 +36,9 @@ pub(super) struct ExpressionDependencies {
     state: SymbolHandle,
     /// None is an incomplete read set, not a storage-free computation.
     reads: Option<Vec<CanonicalPlace>>,
+    /// Metadata observes descriptor replacement, not writes to its elements.
+    /// Selector reads remain ordinary value dependencies.
+    descriptor: Option<CanonicalPlace>,
 }
 
 /// A captured scalar reads its own storage, independently of its initializer.
@@ -61,7 +65,12 @@ pub(super) struct CapturedLength {
 
 /// One row's typed meaning for label-collision judgment: machine, state and
 /// read set, `None` when the read set is incomplete.
-type RowMeaning<'table> = (SymbolHandle, SymbolHandle, Option<&'table [CanonicalPlace]>);
+type RowMeaning<'table> = (
+    SymbolHandle,
+    SymbolHandle,
+    Option<&'table [CanonicalPlace]>,
+    Option<&'table CanonicalPlace>,
+);
 
 /// Every row of one display label, both tables.
 #[derive(Default)]
@@ -265,6 +274,11 @@ impl<'field> RangeFacts<'field> {
         self.expression_dependencies
             .iter()
             .filter(|row| row.machine == machine.symbol && row.state == state.symbol)
+            // A descriptor observation is not the value stored at the
+            // descriptor's place. Re-keying `view.len` as `view` would attach
+            // scalar bounds and value-write dependencies to a collection.
+            // Extents travel through the collection-length fact channels.
+            .filter(|row| row.descriptor.is_none())
             .filter_map(|row| {
                 let [place] = row.reads.as_deref()? else {
                     return None;
@@ -343,6 +357,7 @@ impl<'field> RangeFacts<'field> {
             machine,
             state,
             reads: Some(vec![place.clone()]),
+            descriptor: None,
         });
     }
 
@@ -700,21 +715,33 @@ impl<'field> RangeFacts<'field> {
                 bound_lookup,
             )
         };
+        let descriptor_read = validation::collection_length_receiver(
+            program,
+            machine,
+            Some(scope.evaluation),
+            expression,
+        )
+        .and_then(|receiver| {
+            validation::canonical_place_from_expression_in_state(
+                program,
+                scope.evaluation.symbol,
+                self.statement_index,
+                receiver,
+            )
+        })
+        .and_then(|descriptor| {
+            reads
+                .iter()
+                .position(|read| crate::flow::canonical_places_agree(program, read, &descriptor))
+        });
         if complete && scope.evaluation.symbol != state.symbol {
-            for read in &mut reads {
-                if read.root == facts::PlaceRoot::Symbol(machine.symbol) {
-                    continue;
-                }
-                let Some((_, destination)) = scope
-                    .parameter_roots
-                    .iter()
-                    .find(|(source, _)| read.root == facts::PlaceRoot::Symbol(*source))
-                else {
-                    complete = false;
-                    break;
-                };
-                read.root = facts::PlaceRoot::Symbol(*destination);
-            }
+            complete = state_transport::transport_reads(
+                program,
+                machine,
+                scope,
+                self.statement_index,
+                &mut reads,
+            );
         }
         self.recorded_expressions
             .insert((expression, machine.symbol, state.symbol));
@@ -723,6 +750,9 @@ impl<'field> RangeFacts<'field> {
             label: program.expression_table.display_name(expression),
             machine: machine.symbol,
             state: state.symbol,
+            descriptor: descriptor_read
+                .filter(|_| complete)
+                .map(|position| reads[position].clone()),
             reads: complete.then_some(reads),
         });
         let children = match program.expression_table.expression(expression) {
@@ -770,17 +800,34 @@ impl<'field> RangeFacts<'field> {
             let mut meanings = rows
                 .expressions
                 .iter()
-                .map(|row| (row.machine, row.state, row.reads.as_deref()))
+                .map(|row| {
+                    (
+                        row.machine,
+                        row.state,
+                        row.reads.as_deref(),
+                        row.descriptor.as_ref(),
+                    )
+                })
                 .chain(rows.bindings.iter().map(|row| {
                     (
                         row.machine,
                         row.state,
                         Some(std::slice::from_ref(&row.place)),
+                        None,
                     )
                 }));
             let first = meanings.next().expect("a label group holds one row");
             let agree = |left: RowMeaning<'_>, right: RowMeaning<'_>| {
-                left.0 == right.0 && left.1 == right.1 && same_reads(program, left.2, right.2)
+                left.0 == right.0
+                    && left.1 == right.1
+                    && same_reads(program, left.2, right.2)
+                    && match (left.3, right.3) {
+                        (None, None) => true,
+                        (Some(left), Some(right)) => {
+                            crate::flow::canonical_places_agree(program, left, right)
+                        }
+                        _ => false,
+                    }
             };
             let meanings_agree = agree(first, first) && meanings.all(|other| agree(first, other));
             if !meanings_agree && !rows.expressions.is_empty() {
@@ -825,9 +872,15 @@ impl<'field> RangeFacts<'field> {
                     && row.state == state.symbol
                     && program.expression_table.expression_is_valid(row.expression)
                     && reads.iter().all(|read| {
-                        writes
-                            .iter()
-                            .all(|write| !places_overlap(program, read, write))
+                        writes.iter().all(|write| {
+                            if row.descriptor.as_ref().is_some_and(|descriptor| {
+                                crate::flow::canonical_places_agree(program, descriptor, read)
+                            }) {
+                                !super::invalidation::write_covers_place(program, write, read)
+                            } else {
+                                !places_overlap(program, read, write)
+                            }
+                        })
                     })
             }) {
                 continue;

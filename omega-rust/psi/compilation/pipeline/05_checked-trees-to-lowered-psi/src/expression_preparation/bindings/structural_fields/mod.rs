@@ -753,85 +753,65 @@ pub(crate) fn plan_case_payload_leaf(
     })
 }
 
-pub(crate) fn resolve_sequence_projection(
+/// Select the sequence at the completed observation path. The same declared
+/// walk used for scalar reads supplies stored-reference crossings and per-prefix
+/// view extents; a field-only resolver would lose nested descriptors.
+/// A valid non-descriptor endpoint returns None: indexed byte reads also use
+/// this query to distinguish inline arrays from live descriptors. Invalid paths
+/// and unreadable crossings remain errors, not a different lowering route.
+pub(crate) fn prepare_sequence_observation(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-    source: PlaceId,
     structural_type: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
 ) -> Result<
     Option<(
-        PlaceId,
-        Vec<crate::emission::runtime_elements::ProjectionStep>,
-        StructuralFieldId,
+        Vec<super::structural_paths::PreparedStructuralPathSegment>,
+        Option<StructuralFieldId>,
         super::view_locals::ViewCarrier,
     )>,
     LoweringError,
 > {
-    let Some((checked_trees::CheckedStructuralPredicatePathSegment::Field(identity), carrier)) =
-        path.split_last()
-    else {
-        return unsupported("sequence field length requires an exact field endpoint");
+    let mut projection =
+        observation_paths::explicit_path(identities, structural_type, path, declarations)?;
+    let (field, carrier) = if let Some(field) = projection.scalar_field {
+        if !matches!(
+            &field.field_type,
+            StructuralFieldType::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    | terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+            ) | StructuralFieldType::PredicateByteSequence {
+                carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    | terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+                ..
+            }
+        ) {
+            return Ok(None);
+        }
+        if !matches!(
+            projection.segments.pop(),
+            Some(CheckedUnitStructuralPathSegment::Field(_))
+        ) {
+            return unsupported("byte length observation lost its field endpoint");
+        }
+        (Some(field.id), super::view_locals::ViewCarrier::Bytes)
+    } else {
+        let declaration = projection.declaration.ok_or(LoweringError::Unsupported(
+            "length observation lost its sequence declaration",
+        ))?;
+        let Some(carrier) = super::view_locals::ViewCarrier::of(declaration.id, declarations)
+        else {
+            return Ok(None);
+        };
+        (None, carrier)
     };
-    let carrier = carrier
-        .iter()
-        .map(|segment| match segment {
-            checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
-                CheckedUnitStructuralPathSegment::Field(identity.clone())
-            }
-            checked_trees::CheckedStructuralPredicatePathSegment::Case(identity) => {
-                CheckedUnitStructuralPathSegment::Case(identity.clone())
-            }
-            checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(index) => {
-                CheckedUnitStructuralPathSegment::FixedIndex(*index)
-            }
-            checked_trees::CheckedStructuralPredicatePathSegment::RuntimeIndex(index) => {
-                CheckedUnitStructuralPathSegment::RuntimeIndex(index.clone())
-            }
-        })
-        .collect::<Vec<_>>();
-    let (path, field) = crate::emission::structural_scalar_store::lower_structural_field_steps(
+    let steps = super::structural_paths::prepare_argument_path(
         identities,
+        &projection.segments,
         structural_type,
-        &carrier,
-        identity,
         declarations,
     )?;
-    // Counts belong to the exact stored descriptor family. Byte and element
-    // metadata may share layout, but a byte operation cannot observe an element
-    // descriptor or donate its extent to a byte-content read.
-    let carrier = match field.field_type {
-        StructuralFieldType::ByteSequence(
-            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-            | terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-        )
-        | StructuralFieldType::PredicateByteSequence {
-            carrier:
-                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                | terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-            ..
-        } => super::view_locals::ViewCarrier::Bytes,
-        StructuralFieldType::Structural(view) => {
-            let Some(StructuralTypeShape::ElementView { element }) = declarations
-                .iter()
-                .find(|declaration| declaration.id == view)
-                .map(|declaration| &declaration.shape)
-            else {
-                return Ok(None);
-            };
-            super::view_locals::ViewCarrier::Elements {
-                element: declarations
-                    .iter()
-                    .find(|declaration| declaration.id == *element)
-                    .and_then(|declaration| match declaration.shape {
-                        StructuralTypeShape::PrimitiveScalar(scalar) => Some(scalar),
-                        _ => None,
-                    }),
-            }
-        }
-        _ => return Ok(None),
-    };
-    Ok(Some((source, path, field.id, carrier)))
+    Ok(Some((steps, field, carrier)))
 }
 
 /// Resolve a readable sequence through the same declared reference crossings

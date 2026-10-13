@@ -1,0 +1,18 @@
+machine read(values: &[u32], selected: u64) -> u32
+requires selected < values.len { values[selected] }
+
+machine exercise(selected: u64) -> bool requires selected < 2 {
+    let mut values: [u32; 2] = [3, 7];
+    let view: &mut [u32] = &mut values[..];
+    view[selected] = 41;
+    read(view, selected) == 41
+}
+
+machine main() crashes Trap {
+    transition exercise(0) && exercise(1) {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

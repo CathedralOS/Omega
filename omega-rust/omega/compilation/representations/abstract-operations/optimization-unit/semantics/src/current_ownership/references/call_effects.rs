@@ -109,7 +109,10 @@ impl ReferenceCallEffects {
                                             }
                                             Some(SlotSource::BorrowedStorage(source))
                                         }
-                                        DescriptorStoredOrigin::Empty | DescriptorStoredOrigin::Literal { .. } => None,
+                                        // A possible contents set cannot mint an exact
+                                        // reference permission at an executable address.
+                                        DescriptorStoredOrigin::IncomingContents { .. }
+                                        | DescriptorStoredOrigin::Empty | DescriptorStoredOrigin::Literal { .. } => None,
                                     }
                                 })
                                 .collect::<Option<Vec<_>>>()?;

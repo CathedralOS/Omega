@@ -1,0 +1,17 @@
+machine replace(values: &mut [u32], expected: u32, replacement: u32) -> bool
+requires values.len == 1 {
+    let matched: bool = values[0] == expected;
+    values[0] = replacement;
+    matched
+}
+
+machine main() crashes Trap {
+    let mut values: [u32; 1] = [7];
+    let matched: bool = replace(&mut values[..], 7, 8) && replace(&mut values[..], 8, 9);
+    transition matched && values[0] == 9 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

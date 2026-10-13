@@ -510,14 +510,19 @@ impl ScalarContractTerms<'_> {
                 &mut |identities, selector| self.scalar(identities, selector),
             );
         }
-        if let CheckedScalarExpression::StructuralParameterByteLength { root, path } = expression {
+        if let CheckedScalarExpression::StructuralSequenceLength { root, path } = expression {
+            let path = checked_trees::CheckedScalarReadProjection::static_path(path).ok_or(
+                LoweringError::Unsupported(
+                    "closed sequence extent cannot discard runtime selectors",
+                ),
+            )?;
             let position = root.parameter().ok_or(LoweringError::Unsupported(
                 "closed sequence extent requires a structural formal",
             ))?;
             return crate::proofs::crash_routes::lower_sequence_extent_term(
                 identities,
                 position,
-                path,
+                &path,
                 &self.authored_structural_parameters(),
                 self.views.structural_types,
             );

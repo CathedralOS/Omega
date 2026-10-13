@@ -8,7 +8,7 @@ use crate::checks::ranges::facts::dependencies::reads;
 use crate::checks::ranges::facts::dependencies::same_reads;
 
 impl<'field> RangeFacts<'field> {
-    pub(in crate::checks::ranges) fn alias_integer_place_value(
+    pub(in crate::checks::ranges) fn alias_integer_value(
         &mut self,
         program: &dyn ::validation::CheckingInput,
         machine: &Machine,
@@ -17,10 +17,8 @@ impl<'field> RangeFacts<'field> {
         symbol: SymbolHandle,
         name: &str,
     ) {
-        if !matches!(
-            program.expression_table.expression(expression),
-            ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
-        ) || !is_integer_value(program, machine, state, expression)
+        if !has_scalar_snapshot_meaning(program, machine, state, expression, 0)
+            || !is_integer_value(program, machine, state, expression)
         {
             return;
         }
@@ -77,63 +75,140 @@ impl<'field> RangeFacts<'field> {
         // below asks for an identity per expression node per original, so it
         // borrows the worker-owned lookup rather than rebuild per original.
         let bound_lookup = self.bound_lookup();
+        let mut matched_sources = Vec::new();
         for original in originals {
             if !transferable.contains(&original.label) {
                 continue;
             }
-            let Some(indexed) = program.expression_table.indexed_node(original.expression) else {
-                continue;
-            };
-            if !program
-                .expression_table
-                .expressions_structurally_equal(indexed.index, captured)
-            {
-                continue;
-            }
-            let mut selector_reads = Vec::new();
-            if !collect_reads(
+            // A length premise records the metadata observation's reads, but
+            // its extent facts belong to the receiver. Retain that premise's
+            // preservation judgment while matching the receiver's typed path.
+            let source = validation::collection_length_receiver(
                 program,
                 machine,
-                state,
-                self.statement_index,
-                indexed.index,
-                self.checked_calls,
-                self.checked_operators,
-                &mut selector_reads,
-                0,
-                self.bound_lookup(),
-            ) || !same_reads(program, Some(&captured_reads), Some(&selector_reads))
-            {
+                Some(state),
+                original.expression,
+            )
+            .unwrap_or(original.expression);
+            if matched_sources.contains(&source) {
                 continue;
             }
-            for (expression, node) in program.expression_table.iter_expressions() {
-                let ExpressionNode::Indexed(candidate) = node else {
+            matched_sources.push(source);
+            if !validation::place_has_builtin_coordinates(program, machine, Some(state), source) {
+                continue;
+            }
+            let Some(source_place) = validation::canonical_place_from_expression_in_state(
+                program,
+                state.symbol,
+                self.statement_index,
+                source,
+            ) else {
+                continue;
+            };
+            if !source_place.segments.iter().any(|segment| {
+                matches!(segment, facts::PlaceSegment::Index { expression }
+                    if program.expression_table.expressions_structurally_equal(*expression, captured))
+            }) {
+                continue;
+            }
+            let source_label = program.expression_table.display_name(source);
+            for (expression, _) in program.expression_table.iter_expressions() {
+                let Some(mut candidate) = validation::canonical_place_from_expression_in_state(
+                    program,
+                    state.symbol,
+                    self.statement_index.saturating_add(1),
+                    expression,
+                ) else {
                     continue;
                 };
-                let Some(selector) = program.expression_table.name_path_node(candidate.index)
-                else {
+                if candidate.root != source_place.root
+                    || candidate.segments.len() != source_place.segments.len()
+                {
                     continue;
-                };
-                let selector_symbol =
-                    validation::first_valid_name_path_symbol(selector, &program.expression_table);
-                let same_snapshot = selector.symbol.is_valid()
-                    && selector.head_symbol == selector.symbol
-                    && selector_symbol == Some(selector.symbol)
-                    && integer_value_identity(program, bound_lookup, state, candidate.index)
-                        .is_some_and(|value| {
-                            value == symbol
-                                || integer_value_identity(program, bound_lookup, state, captured)
-                                    == Some(value)
-                        });
-                if (selector_symbol != Some(symbol) && !same_snapshot)
-                    || program
+                }
+                let mut rebound = false;
+                let mut same_snapshot = false;
+                for (source_segment, candidate_segment) in
+                    source_place.segments.iter().zip(&mut candidate.segments)
+                {
+                    let (
+                        facts::PlaceSegment::Index {
+                            expression: source_index,
+                        },
+                        facts::PlaceSegment::Index {
+                            expression: candidate_index,
+                        },
+                    ) = (source_segment, &*candidate_segment)
+                    else {
+                        continue;
+                    };
+                    if !program
                         .expression_table
-                        .name_path_members(selector.members)
-                        .len()
-                        != 1
-                    || !program
-                        .expression_table
-                        .expressions_structurally_equal(indexed.collection, candidate.collection)
+                        .expressions_structurally_equal(*source_index, captured)
+                    {
+                        continue;
+                    }
+                    let Some(selector) = program.expression_table.name_path_node(*candidate_index)
+                    else {
+                        continue;
+                    };
+                    let selector_symbol = validation::first_valid_name_path_symbol(
+                        selector,
+                        &program.expression_table,
+                    );
+                    let shared_snapshot = selector.symbol.is_valid()
+                        && selector.head_symbol == selector.symbol
+                        && selector_symbol == Some(selector.symbol)
+                        && integer_value_identity(program, bound_lookup, state, *candidate_index)
+                            .is_some_and(|value| {
+                                value == symbol
+                                    || integer_value_identity(
+                                        program,
+                                        bound_lookup,
+                                        state,
+                                        captured,
+                                    ) == Some(value)
+                            });
+                    if (selector_symbol != Some(symbol) && !shared_snapshot)
+                        || program
+                            .expression_table
+                            .name_path_members(selector.members)
+                            .len()
+                            != 1
+                    {
+                        continue;
+                    }
+                    let mut selector_reads = Vec::new();
+                    if !collect_reads(
+                        program,
+                        machine,
+                        state,
+                        self.statement_index,
+                        *source_index,
+                        self.checked_calls,
+                        self.checked_operators,
+                        &mut selector_reads,
+                        0,
+                        bound_lookup,
+                    ) || !same_reads(program, Some(&captured_reads), Some(&selector_reads))
+                    {
+                        continue;
+                    }
+                    *candidate_segment = source_segment.clone();
+                    rebound = true;
+                    same_snapshot |= shared_snapshot;
+                }
+                // Compare the entire typed path after replacing only the
+                // selector captured now. Enclosing members and other indices
+                // must still agree; a sibling descriptor never inherits bounds.
+                if !rebound
+                    || !crate::flow::canonical_places_agree(program, &source_place, &candidate)
+                    || !validation::place_has_builtin_coordinates(
+                        program,
+                        machine,
+                        Some(state),
+                        expression,
+                    )
                 {
                     continue;
                 }
@@ -145,7 +220,7 @@ impl<'field> RangeFacts<'field> {
                 // then require every resulting dependency to exist now. This
                 // does not evaluate a future initializer or admit a new read.
                 let prefix = self.statement_index.saturating_add(1);
-                if !collect_reads(
+                let complete = collect_reads(
                     program,
                     machine,
                     state,
@@ -163,14 +238,18 @@ impl<'field> RangeFacts<'field> {
                     &mut reads,
                     0,
                     bound_lookup,
-                ) || !reads
-                    .iter()
-                    .all(|read| reads::root_is_current(program, machine, state, prefix, read.root))
+                );
+                if !complete
+                    || !reads.iter().all(|read| {
+                        reads::root_is_current(program, machine, state, prefix, read.root)
+                    })
                 {
                     continue;
                 }
                 let label = program.expression_table.display_name(expression);
-                self.alias_index(&original.label, &label);
+                self.alias_index(&source_label, &label);
+                self.prove_window_parent(label.clone(), source_label.clone(), None);
+                self.alias_collection(&source_label, &label);
                 if !self.expression_dependencies.iter().any(|row| {
                     row.expression == expression
                         && row.machine == machine.symbol
@@ -181,6 +260,14 @@ impl<'field> RangeFacts<'field> {
                         label,
                         machine: machine.symbol,
                         state: state.symbol,
+                        descriptor: original.descriptor.as_ref().and_then(|_| {
+                            validation::canonical_place_from_expression_in_state(
+                                program,
+                                state.symbol,
+                                prefix,
+                                expression,
+                            )
+                        }),
                         reads: Some(reads),
                     });
                 }
@@ -234,6 +321,48 @@ pub(super) fn integer_value_identity(
     None
 }
 
+/// A copied selector can preserve a pure computation just as it preserves a
+/// direct parameter read. Calls and atomic observations need occurrence-specific
+/// result evidence; matching their operands does not establish the same value.
+/// This does not replay an initializer: the caller captures at this statement
+/// and retains the collected reads for subsequent write invalidation.
+fn has_scalar_snapshot_meaning(
+    program: &dyn ::validation::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    depth: usize,
+) -> bool {
+    if depth >= EXPRESSION_WALK_DEPTH_BOUND
+        || !program.expression_table.expression_is_valid(expression)
+    {
+        return false;
+    }
+    let child =
+        |expression| has_scalar_snapshot_meaning(program, machine, state, expression, depth + 1);
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(_) | ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => true,
+        ExpressionNode::Member(member) => child(member.receiver),
+        ExpressionNode::Indexed(indexed) => {
+            validation::place_has_builtin_coordinates(program, machine, Some(state), expression)
+                && child(indexed.collection)
+                && child(indexed.index)
+        }
+        ExpressionNode::Binary(binary) => {
+            validation::has_builtin_binary_expression_meaning(
+                program,
+                machine,
+                Some(state),
+                expression,
+            ) && child(binary.left)
+                && child(binary.right)
+        }
+        ExpressionNode::Unary(unary) => child(unary.operand),
+        ExpressionNode::Cast(cast) => child(cast.value),
+        _ => false,
+    }
+}
+
 pub(super) fn is_integer_value(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
@@ -241,9 +370,9 @@ pub(super) fn is_integer_value(
     expression: ExpressionHandle,
 ) -> bool {
     use typed_trees::types::TypeReferenceNode;
-    let Some(mut reference) = crate::checks::ranges::types::expression_type_reference(
-        program, machine, state, expression,
-    ) else {
+    let Some(mut reference) =
+        validation::expression_result_type_reference(program, machine, state, expression)
+    else {
         return false;
     };
     for _ in 0..EXPRESSION_WALK_DEPTH_BOUND {

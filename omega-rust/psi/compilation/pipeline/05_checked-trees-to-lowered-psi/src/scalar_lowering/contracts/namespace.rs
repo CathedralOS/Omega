@@ -74,12 +74,17 @@ fn scalar(expression: &CheckedScalarExpression) -> Result<(), LoweringError> {
         // The term owner rejoins the complete descriptor path against the
         // supplied structural signature. A local storage root cannot borrow
         // an equally numbered contract parameter.
-        CheckedScalarExpression::StructuralParameterByteLength { root, .. } => root
-            .parameter()
-            .map(|_| ())
-            .ok_or(LoweringError::Unsupported(
+        CheckedScalarExpression::StructuralSequenceLength { root, path } => {
+            root.parameter().ok_or(LoweringError::Unsupported(
                 "closed sequence extent requires a structural formal",
-            )),
+            ))?;
+            for step in path {
+                if let checked_trees::CheckedScalarReadProjection::RuntimeIndex(selector) = step {
+                    scalar(&selector.expression)?;
+                }
+            }
+            Ok(())
+        }
         // A member leaf roots at a declared structural parameter; the
         // structural signature lowering names its retained place and field
         // path. An empty path observes the whole primitive referent; the term

@@ -99,26 +99,16 @@ pub(super) fn validate(
             {
                 return Err(LegalizationError::custody());
             }
-            // The source's semantic place selects its real storage origin.
-            // Incoming owned parameters need no invented producer/home; the
-            // function-signature rejoin separately checks their ABI placement.
-            if let Some(parameter) = optimized.structural_parameter(value.place) {
-                if parameter.access != StructuralAccess::Owned
-                    || parameter.structural_type != extent.field_type
-                {
-                    return Err(LegalizationError::custody());
-                }
-            } else {
-                let home = scalar_graph_input::aggregate_results::result_home(
-                    optimized,
-                    value.place,
-                    plan,
-                )?;
-                if home.structural_type() != extent.field_type
-                    || home.layout.shape() != extent.shape
-                {
-                    return Err(LegalizationError::custody());
-                }
+            // Construction and replacement receive the same value contract.
+            // A view arrival contributes descriptor storage, not ownership of
+            // its backing. The exact type fixes the stored field's layout.
+            if super::aggregate_results::owned_projected_field_source(
+                optimized,
+                value,
+                &plan.structural_types,
+            )? != extent.field_type
+            {
+                return Err(LegalizationError::custody());
             }
         }
         _ => return Err(LegalizationError::custody()),

@@ -112,7 +112,20 @@ pub(crate) fn returned_body_source_mismatch(
             program,
             facts.borrow.owner_segments.span(returned.owner_path)?,
         )?;
-        let source_path = structural_owner_path(program, source_path)?;
+        // A borrowed formal's lifetime frontier names its whole external
+        // region. Captured descriptors beneath it refine that region; their
+        // owner paths are not extra declaration-level lifetime sources. Owned
+        // carriers instead declare each stored leaf separately, so those paths
+        // must match exactly. Keep the captured identity untouched for custody
+        // and alias checking, as completed_field_sources keeps its projection.
+        let source_path = if is_reference_type(
+            program,
+            program.state_parameters(state)[parameter_index].type_reference,
+        ) {
+            Vec::new()
+        } else {
+            structural_owner_path(program, source_path)?
+        };
         if !fields.iter().any(|field| {
             field.parameter_index == parameter_index
                 && field.kind == returned.kind

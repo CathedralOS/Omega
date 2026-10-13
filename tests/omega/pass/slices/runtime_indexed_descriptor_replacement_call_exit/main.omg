@@ -1,0 +1,34 @@
+data Cell [copy] { value: u32; tag: u64; }
+data Window<'input> { values: &'input mut [Cell]; }
+
+machine select<'input>(windows: &'input mut [Window<'input>]) -> &'input mut [Cell]
+requires windows.len == 2 {
+    &mut windows[1].values[..]
+}
+machine observe(values: &[Cell]) -> bool {
+    transition values.len == 2 {
+        true -> inspect(values)
+        false -> false
+    }
+    state inspect(values: &[Cell]) -> bool requires values.len == 2 {
+        values[0].value == 42 && values[0].tag == 9223372036854775808
+            && values[1].value == 19 && values[1].tag == 29
+    }
+}
+machine main() crashes Trap {
+    let mut original: [Cell; 1] = [Cell { value: 7, tag: 17 }];
+    let mut replacement: [Cell; 2] = [Cell { value: 42, tag: 9223372036854775808 }, Cell { value: 19, tag: 29 }];
+    let mut other: [Cell; 1] = [Cell { value: 11, tag: 31 }];
+    let mut windows: [Window; 2] = [Window { values: &mut other[..] }, Window { values: &mut original[..] }];
+    let view: &mut [Window] = &mut windows[..];
+    view[1].values = &mut replacement[..];
+    let returned: &mut [Cell] = select(view);
+    let valid: bool = observe(returned);
+    transition valid && original[0].value == 7 && original[0].tag == 17
+        && other[0].value == 11 && other[0].tag == 31 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

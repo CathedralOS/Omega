@@ -171,12 +171,17 @@ fn validate_integer_namespace(expression: &CheckedScalarExpression) -> Result<()
         CheckedScalarExpression::Boolean(expression) => validate_namespace(expression),
         // The shared descriptor term owner checks the complete path against
         // the invocation signature, including readable access and carrier.
-        CheckedScalarExpression::StructuralParameterByteLength { root, .. } => root
-            .parameter()
-            .map(|_| ())
-            .ok_or(LoweringError::Unsupported(
+        CheckedScalarExpression::StructuralSequenceLength { root, path } => {
+            root.parameter().ok_or(LoweringError::Unsupported(
                 "runtime sequence extent requires a structural formal",
-            )),
+            ))?;
+            for step in path {
+                if let checked_trees::CheckedScalarReadProjection::RuntimeIndex(selector) = step {
+                    validate_integer_namespace(&selector.expression)?;
+                }
+            }
+            Ok(())
+        }
         _ => unsupported(
             "runtime requirements admit only fixed integer parameters, members, and literals",
         ),
@@ -232,14 +237,17 @@ impl RuntimeRequirementTerms<'_> {
                 self.parameters,
                 self.structural_types,
             ),
-            CheckedScalarExpression::StructuralParameterByteLength { root, path } => {
+            CheckedScalarExpression::StructuralSequenceLength { root, path } => {
+                let path = checked_trees::CheckedScalarReadProjection::static_path(path).ok_or(
+                    LoweringError::Unsupported("runtime contract extent cannot discard selectors"),
+                )?;
                 let position = root.parameter().ok_or(LoweringError::Unsupported(
                     "runtime sequence extent requires a structural formal",
                 ))?;
                 lower_sequence_extent_term(
                     identities,
                     position,
-                    path,
+                    &path,
                     self.parameters,
                     self.structural_types,
                 )

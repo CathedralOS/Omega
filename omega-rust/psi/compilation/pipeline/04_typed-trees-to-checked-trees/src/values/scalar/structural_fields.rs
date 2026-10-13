@@ -45,16 +45,24 @@ fn declared_data_field(
 
 pub(crate) fn structural_sequence_length(
     program: &dyn ::validation::CheckingInput,
+    operators: &CheckedOperatorFacts,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
+    selector: impl FnMut(ExpressionHandle, ExpressionHandle) -> Option<CheckedScalarExpression>,
 ) -> Option<CheckedScalarExpression> {
     let receiver = program
         .expression_table
         .authored_length_receiver(expression)?;
-    let (root, path, selected_type) = structural_storage_place(program, parameters, receiver)?;
-    // A raw fixed-array projection has a type-owned extent. Do
-    // not strip a constrained carrier: its live length can differ from its
-    // backing capacity. Dynamic byte views retain their runtime read below.
+    let projection = super::scalar_lowering::storage_projection(
+        program, operators, receiver, parameters, selector,
+    )?;
+    let selected_type = projection.selected_type;
+    validation::field_domains::readable_type_reference(program, selected_type)?;
+    // A raw fixed array has a type-owned extent, unlike a constrained byte
+    // owner whose stored live count can differ from capacity. A call-free
+    // selector can still trap. Refusing that fold here routes it through Apply,
+    // whose evaluated selector parameters retain the original operations even
+    // when its final count template is constant.
     let extent_type = program
         .type_reference_table
         .dereferenced_type_reference(selected_type);
@@ -63,88 +71,37 @@ pub(crate) fn structural_sequence_length(
         ..
     } = program.type_reference_table.type_reference(extent_type)
     {
-        let length = u64::try_from(*length).ok()?;
-        return facts::u64_integer_literal(length, PrimitiveType::U64);
-    }
-    if path.is_empty() {
-        // A whole bounded owner observes the live length stored beside its
-        // bytes, whether the parameter owns that value or lends readable
-        // access to it. Its capacity is never the answer; a write-only loan
-        // still grants no observation of the stored extent.
-        if matches!(
-            crate::execution::terminal_unit::types::byte_sequence_carrier(
-                program,
-                selected_type,
-                &[]
-            ),
-            Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
-        ) && validation::reference_shell(program, selected_type).is_none_or(|shell| {
-            matches!(
-                shell.access,
-                language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable
-            )
+        if projection.path.iter().any(|step| match step {
+            checked_trees::CheckedScalarReadProjection::Static(_) => false,
+            checked_trees::CheckedScalarReadProjection::RuntimeIndex(selector) => {
+                selector.expression.contains_trapping_operation()
+            }
         }) {
-            return Some(CheckedScalarExpression::StructuralParameterByteLength { root, path });
-        }
-        // A domain constraint (`&[u8] in Path`) wraps the reference or its
-        // referent without changing where the extent lives: peel those shells
-        // on both sides before identifying the view.
-        let mut parameter_kind = selected_type;
-        while let TypeReferenceNode::Constrained { base_type, .. } =
-            program.type_reference_table.type_reference(parameter_kind)
-        {
-            parameter_kind = *base_type;
-        }
-        let TypeReferenceNode::Reference {
-            referee,
-            access: language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable,
-            ..
-        } = program.type_reference_table.type_reference(parameter_kind)
-        else {
             return None;
-        };
-        // Any element family keeps a runtime extent on its view descriptor:
-        // byte views count bytes, element views count elements, record
-        // elements included.
-        let mut referee_kind = *referee;
-        while let TypeReferenceNode::Constrained { base_type, .. } =
-            program.type_reference_table.type_reference(referee_kind)
-        {
-            referee_kind = *base_type;
         }
-        let TypeReferenceNode::Slice { .. } =
-            program.type_reference_table.type_reference(referee_kind)
-        else {
-            return None;
-        };
-    } else if !matches!(
-        path.last(),
-        Some(CheckedStructuralPredicatePathSegment::Field(_))
-    ) || path
-        .iter()
-        .any(|segment| matches!(segment, CheckedStructuralPredicatePathSegment::Case(_)))
-        // The shared carrier classifier distinguishes a bounded byte field's
-        // live length from a raw fixed array's static capacity. A borrowed
-        // `&[u8]` leaf keeps a runtime length on its view descriptor, so its
-        // `.len` reads the same live extent; a borrowed element view field
-        // carries its element count on the same descriptor slot whatever the
-        // view's access (`&[T]`, `&mut [T]`, `&write [T]`).
-        || (!matches!(
-            crate::execution::terminal_unit::types::byte_sequence_carrier(program, selected_type, &[]),
-            Some(
-                checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
-                    | checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }
-            )
-        ) && crate::execution::terminal_unit::types::borrowed_slice_view_element(
-            program,
-            selected_type,
-            &[],
+        return facts::u64_integer_literal(u64::try_from(*length).ok()?, PrimitiveType::U64);
+    }
+    let byte_carrier =
+        crate::execution::terminal_unit::types::byte_sequence_carrier(program, selected_type, &[]);
+    let element_view = crate::execution::terminal_unit::types::borrowed_slice_view_element(
+        program,
+        selected_type,
+        &[],
+    );
+    if !matches!(
+        byte_carrier,
+        Some(
+            checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
+                | checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }
         )
-        .is_none())
+    ) && element_view.is_none()
     {
         return None;
     }
-    Some(CheckedScalarExpression::StructuralParameterByteLength { root, path })
+    Some(CheckedScalarExpression::StructuralSequenceLength {
+        root: projection.root,
+        path: projection.path,
+    })
 }
 
 /// The `let` symbol and declared type of an immutable borrowed view local

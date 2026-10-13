@@ -18,9 +18,7 @@ use crate::emission::operation_emission::integer::{
 use crate::emission::scalar_types::{
     integer_landing_scalar_type, integer_value, terminal_scalar_type,
 };
-use crate::expression_preparation::bindings::structural_fields::{
-    CasePayloadRead, sequence_home, sequence_length,
-};
+use crate::expression_preparation::bindings::structural_fields::{CasePayloadRead, sequence_home};
 use crate::expression_preparation::bindings::view_locals::{ViewCarrier, ViewLocalBinding};
 use crate::expression_preparation::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
@@ -77,34 +75,34 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
     proven_indexes: &[checked_trees::expression::ExpressionHandle],
 ) -> Result<LoweredDirectExpression, LoweringError> {
     match expression {
-        CheckedScalarExpression::StructuralParameterByteLength { root, path } => {
-            let count_type = terminal_scalar_type(PrimitiveType::U64)?;
-            if !path.is_empty() {
-                return sequence_field_observation(
+        CheckedScalarExpression::StructuralSequenceLength { root, path } => sequence_observation(
+            identities,
+            structural_fields,
+            structural_locals,
+            view_locals,
+            scalar_bindings,
+            *root,
+            path,
+            proven_indexes,
+            |identities, selector| {
+                lower_checked_scalar_expression_with_parameters(
                     identities,
+                    selector,
+                    structural_parameters,
                     structural_fields,
-                    structural_locals,
+                    structural_cases,
+                    primitive_storage,
+                    element_views,
                     view_locals,
+                    structural_locals,
                     scalar_bindings,
-                    *root,
-                    path,
-                )?
-                .ok_or(LoweringError::Unsupported(
-                    "field length requires a live byte or element descriptor",
-                ));
-            }
-            let (home, structural_type) = observation_home(
-                structural_fields,
-                structural_locals,
-                view_locals,
-                scalar_bindings,
-                *root,
-            )?;
-            let (home, carrier) =
-                sequence_home(home, structural_type, structural_fields.declarations())?;
-            Ok(sequence_length(&home, carrier, count_type))
-        }
-
+                    proven_indexes,
+                )
+            },
+        )?
+        .ok_or(LoweringError::Unsupported(
+            "length observation requires a live sequence descriptor",
+        )),
         CheckedScalarExpression::StorageRead {
             symbol,
             primitive_type,
@@ -944,14 +942,20 @@ fn byte_field_observation(
     LoweringError,
 > {
     Ok(
-        match sequence_field_observation(
+        match sequence_observation(
             identities,
             fields,
             structural_locals,
             view_locals,
             bindings,
             root,
-            path,
+            &path
+                .iter()
+                .cloned()
+                .map(checked_trees::CheckedScalarReadProjection::Static)
+                .collect::<Vec<_>>(),
+            &[],
+            |_, _| unsupported("static byte field geometry contains an evaluated selector"),
         )? {
             Some(LoweredDirectExpression::ByteSequenceFieldLength {
                 source,
@@ -964,140 +968,139 @@ fn byte_field_observation(
     )
 }
 
-fn sequence_field_observation(
+fn sequence_observation(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     fields: &crate::expression_preparation::bindings::StructuralFieldBindings,
     structural_locals: &[crate::expression_preparation::bindings::StructuralLocalBinding],
     view_locals: &[ViewLocalBinding],
     bindings: Option<&crate::expression_preparation::bindings::ScalarBindings>,
     root: checked_trees::CheckedStorageRoot,
-    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    path: &[checked_trees::CheckedScalarReadProjection],
+    proven_indexes: &[checked_trees::expression::ExpressionHandle],
+    mut lower_selector: impl FnMut(
+        &mut terminal_psi::TerminalIdentityTableBuilder,
+        &CheckedScalarExpression,
+    ) -> Result<LoweredDirectExpression, LoweringError>,
 ) -> Result<Option<LoweredDirectExpression>, LoweringError> {
-    use crate::emission::runtime_elements::ProjectionStep;
-    let path_endpoint = path.last();
+    use crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment as Prepared;
+    use checked_trees::{CheckedRuntimeIndex, CheckedScalarReadProjection as Projection};
     let (home, structural_type) =
         observation_home(fields, structural_locals, view_locals, bindings, root)?;
-    let source = home.place;
-    let Some((source, steps, field, carrier)) =
-        crate::expression_preparation::bindings::structural_fields::resolve_sequence_projection(
+    if !matches!(
+        home.access,
+        terminal_psi::StructuralAccess::Owned
+            | terminal_psi::StructuralAccess::SharedBorrow
+            | terminal_psi::StructuralAccess::MutableBorrow
+    ) {
+        return unsupported("length observation requires readable storage");
+    }
+    let mut selectors = Vec::new();
+    let geometry = path
+        .iter()
+        .map(|step| match step {
+            Projection::Static(segment) => segment.clone(),
+            Projection::RuntimeIndex(selector) => {
+                let depth = selectors.len() as u32;
+                selectors.push(selector);
+                checked_trees::CheckedStructuralPredicatePathSegment::RuntimeIndex(
+                    CheckedRuntimeIndex::AssignmentIndex { depth },
+                )
+            }
+        })
+        .collect::<Vec<_>>();
+    let Some((steps, field, carrier)) =
+        crate::expression_preparation::bindings::structural_fields::prepare_sequence_observation(
             identities,
-            source,
             structural_type,
             fields.declarations(),
-            path,
+            &geometry,
         )?
     else {
         return Ok(None);
     };
-    let view_prefix = terminal_psi::find_structural_type(fields.declarations(), structural_type)
-        .and_then(|row| match row.shape {
-            terminal_psi::StructuralTypeShape::ElementView { .. } => Some(0),
-            terminal_psi::StructuralTypeShape::Reference { referent, .. }
-                if fields.declarations().iter().any(|row| {
-                    row.id == referent
-                        && matches!(
-                            row.shape,
-                            terminal_psi::StructuralTypeShape::ElementView { .. }
-                        )
-                }) =>
-            {
-                Some(1)
-            }
-            _ => None,
-        });
-    let prefix_length = home.path.len();
-    if prefix_length != 0 && view_prefix.is_some() {
-        return unsupported("captured length requires a sequence descriptor");
-    }
-    let access = home.access;
-    let path = home
+    let source = home.place;
+    let mut path = home
         .path
         .into_iter()
-        .map(|segment| Ok(LoweredElementPathSegment::Static(segment)))
-        .chain(steps.into_iter().enumerate().map(|(ordinal, step)| {
-            let selector = match step {
-                ProjectionStep::Static(segment) => {
-                    return Ok(LoweredElementPathSegment::Static(segment));
-                }
-                ProjectionStep::RuntimeIndexLiteral { index } => {
-                    LoweredDirectExpression::IntegerLiteral {
-                        value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(index)),
+        .map(LoweredElementPathSegment::Static)
+        .collect::<Vec<_>>();
+    for step in steps {
+        // Static evidence producers may retain a literal view index as
+        // geometry. It is still an executable selection below a live extent,
+        // just as in ordinary prepared argument paths; inline array indexes
+        // remain static.
+        let dynamic_extent = matches!(
+            path.last(),
+            Some(LoweredElementPathSegment::ViewExtent { .. })
+        );
+        path.push(match step {
+            Prepared::Static(terminal_psi::StructuralPathSegment::FixedIndex(position))
+                if dynamic_extent =>
+            {
+                LoweredElementPathSegment::RuntimeIndex {
+                    selector: LoweredDirectExpression::IntegerLiteral {
+                        value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(position)),
                         scalar_type: terminal_scalar_type(PrimitiveType::U64)?,
-                    }
+                    },
+                    extent: None,
+                    bound_decided: false,
                 }
-                step => {
-                    let selector = match step {
-                        ProjectionStep::RuntimeIndexStorage { symbol } => {
-                            checked_trees::CheckedRuntimeIndex::StorageRead { symbol }
-                        }
-                        ProjectionStep::RuntimeIndexParameter { position } => {
-                            checked_trees::CheckedRuntimeIndex::Parameter { position }
-                        }
-                        ProjectionStep::RuntimeIndexLocal { position } => {
-                            checked_trees::CheckedRuntimeIndex::Local { position }
-                        }
-                        ProjectionStep::RuntimeIndexField(field) => {
-                            checked_trees::CheckedRuntimeIndex::StructuralField(field)
-                        }
-                        _ => {
-                            return unsupported(
-                                "field observation cannot borrow an assignment selector",
-                            );
-                        }
-                    };
-                    exact_u64_index(element_path_runtime_selector(
-                        identities, fields, bindings, &selector,
-                    )?)?
+            }
+            Prepared::Static(segment) => LoweredElementPathSegment::Static(segment),
+            Prepared::ViewExtent { bytes } => {
+                LoweredElementPathSegment::ViewExtent { source, bytes }
+            }
+            Prepared::RuntimeIndex(CheckedRuntimeIndex::AssignmentIndex { depth }) => {
+                let selector = selectors
+                    .get(depth as usize)
+                    .ok_or(LoweringError::Unsupported(
+                        "length observation lost its evaluated selector",
+                    ))?;
+                LoweredElementPathSegment::RuntimeIndex {
+                    selector: exact_u64_index(lower_selector(identities, &selector.expression)?)?,
+                    extent: None,
+                    bound_decided: selector_bound_is_decided(selector, proven_indexes),
                 }
-            };
-            let extent = (view_prefix == Some(ordinal)).then(|| {
-                LoweredDirectExpression::ElementViewLength {
-                    source,
-                    path: Vec::new(),
-                    access: terminal_psi::StructuralAccess::SharedBorrow,
-                    scalar_type: selector.scalar_type(),
-                }
-            });
-            Ok(LoweredElementPathSegment::RuntimeIndex {
-                selector,
-                extent,
+            }
+            Prepared::RuntimeIndex(index) => LoweredElementPathSegment::RuntimeIndex {
+                selector: exact_u64_index(element_path_runtime_selector(
+                    identities, fields, bindings, &index,
+                )?)?,
+                extent: None,
                 bound_decided: false,
-            })
-        }))
-        .collect::<Result<Vec<_>, LoweringError>>()?;
+            },
+            _ => return unsupported("length observation requires a completed selector"),
+        });
+    }
     if path
         .iter()
-        .filter(|segment| matches!(segment, LoweredElementPathSegment::RuntimeIndex { .. }))
+        .filter(|step| matches!(step, LoweredElementPathSegment::RuntimeIndex { .. }))
         .count()
         > crate::emission::operation_emission::expressions::TERMINAL_NESTED_SELECTOR_LIMIT
     {
-        return unsupported("field observation exceeds the runtime selector namespace");
+        return unsupported("length observation exceeds its runtime selector namespace");
     }
     let scalar_type = terminal_scalar_type(PrimitiveType::U64)?;
-    Ok(Some(match carrier {
-        ViewCarrier::Bytes => LoweredDirectExpression::ByteSequenceFieldLength {
+    Ok(Some(match (carrier, field) {
+        (ViewCarrier::Bytes, Some(field)) => LoweredDirectExpression::ByteSequenceFieldLength {
             source,
             path,
             field,
             scalar_type,
         },
-        ViewCarrier::Elements { .. } => {
-            let mut path = path;
-            let Some(checked_trees::CheckedStructuralPredicatePathSegment::Field(identity)) =
-                path_endpoint
-            else {
-                return unsupported("sequence observation lost its exact field endpoint");
-            };
-            path.push(LoweredElementPathSegment::Static(
-                terminal_psi::StructuralPathSegment::Field(identities.intern(&identity.spelling())),
-            ));
-            LoweredDirectExpression::ElementViewLength {
-                source,
-                path,
-                access,
-                scalar_type,
-            }
-        }
+        (ViewCarrier::Bytes, None) => LoweredDirectExpression::ByteSequenceLength {
+            source,
+            path,
+            access: terminal_psi::StructuralAccess::SharedBorrow,
+            scalar_type,
+        },
+        (ViewCarrier::Elements { .. }, None) => LoweredDirectExpression::ElementViewLength {
+            source,
+            path,
+            access: terminal_psi::StructuralAccess::SharedBorrow,
+            scalar_type,
+        },
+        _ => return unsupported("length observation has an inconsistent sequence endpoint"),
     }))
 }
 

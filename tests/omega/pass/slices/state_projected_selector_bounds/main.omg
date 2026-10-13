@@ -1,0 +1,57 @@
+data Window<'input> { values: &'input mut [u8]; }
+data Cursor [copy] { outer: u64; inner: u64; }
+
+machine direct(windows: &mut [Window], outer: u64, inner: u64)
+requires outer < windows.len {
+    transition inner < windows[outer].values.len {
+        true -> store(windows, outer, inner)
+        false -> done()
+    }
+    state store(windows: &mut [Window], outer: u64, inner: u64)
+    requires outer < windows.len && inner < windows[outer].values.len {
+        windows[outer].values[inner] = 17;
+    }
+    state done() {}
+}
+
+machine selected_field(windows: &mut [Window], cursor: Cursor)
+requires cursor.outer < windows.len {
+    transition cursor.inner < windows[cursor.outer].values.len {
+        true -> store(windows, cursor)
+        false -> done()
+    }
+    state store(windows: &mut [Window], cursor: Cursor)
+    requires cursor.outer < windows.len && cursor.inner < windows[cursor.outer].values.len {
+        windows[cursor.outer].values[cursor.inner] = 19;
+    }
+    state done() {}
+}
+
+machine computed_selector(windows: &mut [Window], outer: u64, inner: u64)
+requires outer < 100 && outer + 1 < windows.len {
+    transition inner < windows[outer + 1].values.len {
+        true -> store(windows, outer, inner)
+        false -> done()
+    }
+    state store(windows: &mut [Window], outer: u64, inner: u64)
+    requires outer < 100 && outer + 1 < windows.len
+        && inner < windows[outer + 1].values.len {
+        windows[outer + 1].values[inner] = 23;
+    }
+    state done() {}
+}
+
+machine unary_selector(windows: &mut [Window], outer: u64, inner: u64)
+requires ~~outer < windows.len {
+    transition inner < windows[~~outer].values.len {
+        true -> store(windows, outer, inner)
+        false -> done()
+    }
+    state store(windows: &mut [Window], outer: u64, inner: u64)
+    requires ~~outer < windows.len && inner < windows[~~outer].values.len {
+        windows[~~outer].values[inner] = 29;
+    }
+    state done() {}
+}
+
+machine main() {}

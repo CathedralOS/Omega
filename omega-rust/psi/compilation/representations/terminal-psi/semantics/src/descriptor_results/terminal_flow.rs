@@ -30,6 +30,9 @@ pub(super) fn adapt(
         flow: BTreeMap::new(),
         originations: BTreeMap::new(),
         projections: BTreeMap::new(),
+        contents_queries: BTreeMap::new(),
+        contents_transfers: BTreeMap::new(),
+        unresolved_contents_writes: BTreeSet::new(),
         storage_derivations: BTreeSet::new(),
         calls: BTreeMap::new(),
         normal_exits: Vec::new(),
@@ -95,7 +98,14 @@ pub(super) fn adapt(
             match &operation.kind {
                 OperationKind::ByteSequenceLength { source }
                 | OperationKind::ElementViewLength { source } => {
-                    step.inputs = vec![location(source.place, &source.path, None)?];
+                    let query = descriptor_contents_query(
+                        &module.structural_types,
+                        source.place,
+                        *graph.place_types.get(&source.place)?,
+                        &source.path,
+                        None,
+                    )?;
+                    step.inputs = vec![query.observation()];
                 }
                 OperationKind::EstablishZeroedStructural {} => {
                     let result = result?;
@@ -187,10 +197,20 @@ pub(super) fn adapt(
                 | OperationKind::ElementViewSubslice {
                     source, start, end, ..
                 } => {
-                    let source = location(source.place, &source.path, None)?;
+                    let query = descriptor_contents_query(
+                        &module.structural_types,
+                        source.place,
+                        *graph.place_types.get(&source.place)?,
+                        &source.path,
+                        None,
+                    )?;
+                    let source = query.observation();
                     step.inputs = vec![source.clone()];
                     let destination = DescriptorLocation::whole(result?.place);
                     step.derivations.push((source.clone(), destination.clone()));
+                    graph
+                        .contents_queries
+                        .insert((position, source.clone(), destination.clone()), query);
                     graph.projections.insert(
                         (position, source, destination),
                         Projection::window(*start, *end, position),
@@ -252,8 +272,30 @@ pub(super) fn adapt(
                     field,
                     ..
                 } => {
+                    let result = result?;
+                    graph.contents_transfers.insert(
+                        position,
+                        descriptor_contents_transfers(
+                            &module.structural_types,
+                            slot_kind,
+                            DescriptorContentsOperand {
+                                root: *source,
+                                root_type: *graph.place_types.get(source)?,
+                                path,
+                                field: *field,
+                            },
+                            DescriptorContentsOperand {
+                                root: result.place,
+                                root_type: result.structural_type,
+                                path: &[],
+                                field: None,
+                            },
+                            result.structural_type,
+                            true,
+                        )?,
+                    );
                     if let Some(source) = location(*source, path, *field) {
-                        let destination = DescriptorLocation::whole(result?.place);
+                        let destination = DescriptorLocation::whole(result.place);
                         step.inputs = vec![source.clone()];
                         step.definitions.push(source.clone());
                         step.derivations.push((source, destination));
@@ -268,6 +310,33 @@ pub(super) fn adapt(
                     value,
                     ..
                 } => {
+                    let value_type = crate::runtime_structural_path_tip(
+                        module.structural_types.iter(),
+                        *graph.place_types.get(&value.place)?,
+                        &value.path,
+                    )?
+                    .id;
+                    graph.contents_transfers.insert(
+                        position,
+                        descriptor_contents_transfers(
+                            &module.structural_types,
+                            slot_kind,
+                            DescriptorContentsOperand {
+                                root: value.place,
+                                root_type: *graph.place_types.get(&value.place)?,
+                                path: &value.path,
+                                field: None,
+                            },
+                            DescriptorContentsOperand {
+                                root: *destination,
+                                root_type: *graph.place_types.get(destination)?,
+                                path,
+                                field: *field,
+                            },
+                            value_type,
+                            false,
+                        )?,
+                    );
                     if let (Some(destination), Some(source)) = (
                         location(*destination, path, *field),
                         location(value.place, &value.path, None),
@@ -294,10 +363,12 @@ pub(super) fn adapt(
                             ));
                         }
                     } else {
-                        step.definitions.extend(slot_kind.slots(
+                        step.definitions.extend(slot_kind.overwritten_slots(
                             &module.structural_types,
                             *destination,
                             *graph.place_types.get(destination)?,
+                            path,
+                            *field,
                         )?);
                         step.may_escape = true;
                     }
@@ -314,10 +385,13 @@ pub(super) fn adapt(
                         step.derivations
                             .push((DescriptorLocation::whole(*source), destination));
                     } else {
-                        step.definitions.extend(slot_kind.slots(
+                        graph.unresolved_contents_writes.insert(position);
+                        step.definitions.extend(slot_kind.overwritten_slots(
                             &module.structural_types,
                             *destination,
                             *graph.place_types.get(destination)?,
+                            path,
+                            *field,
                         )?);
                         step.may_escape = true;
                     }
@@ -453,6 +527,20 @@ pub(super) fn adapt(
                     }
                     if !exact_arguments {
                         step.may_escape = true;
+                        if structural_arguments.iter().any(|actual| {
+                            graph
+                                .place_types
+                                .get(&actual.place)
+                                .is_none_or(|root_type| {
+                                    slot_kind.may_write_indirect_contents(
+                                        &module.structural_types,
+                                        *root_type,
+                                        actual,
+                                    )
+                                })
+                        }) {
+                            graph.unresolved_contents_writes.insert(position);
+                        }
                         for actual in structural_arguments
                             .iter()
                             .filter(|actual| actual.access != StructuralAccess::SharedBorrow)
@@ -480,6 +568,20 @@ pub(super) fn adapt(
                 } => {
                     if !boundary_call_preserves_descriptor_storage(module, machine, operation) {
                         step.may_escape = true;
+                        if structural_arguments.iter().any(|actual| {
+                            graph
+                                .place_types
+                                .get(&actual.place)
+                                .is_none_or(|root_type| {
+                                    slot_kind.may_write_indirect_contents(
+                                        &module.structural_types,
+                                        *root_type,
+                                        actual,
+                                    )
+                                })
+                        }) {
+                            graph.unresolved_contents_writes.insert(position);
+                        }
                         for actual in structural_arguments
                             .iter()
                             .filter(|actual| actual.access != StructuralAccess::SharedBorrow)

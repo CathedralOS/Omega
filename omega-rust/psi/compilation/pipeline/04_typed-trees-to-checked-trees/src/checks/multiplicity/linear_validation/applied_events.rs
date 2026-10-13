@@ -191,7 +191,7 @@ pub(crate) fn append_borrow_permission_events(
         })
         .collect::<Vec<_>>();
 
-    let mut loan_claim_identities = Vec::new();
+    facts.flow.ownership.borrow_claims = arena::Arena::default();
     for (machine_symbol, state_symbol, activations, weakenings) in states {
         for activation in facts
             .flow
@@ -205,7 +205,14 @@ pub(crate) fn append_borrow_permission_events(
                 state_symbol,
                 permission_source_from_invalidation(activation.source),
             );
-            loan_claim_identities.push((activation.loan, claim_identity));
+            facts
+                .flow
+                .ownership
+                .borrow_claims
+                .append(checked_trees::flow::FlowBorrowClaimFact {
+                    loan: activation.loan,
+                    claim_identity,
+                });
             append_borrow_permission_event(
                 program,
                 facts,
@@ -231,10 +238,15 @@ pub(crate) fn append_borrow_permission_events(
             } else {
                 permission_source_from_invalidation(weakening.source)
             };
-            let claim_identity = loan_claim_identities
+            let claim_identity = facts
+                .flow
+                .ownership
+                .borrow_claims
                 .iter()
-                .rev()
-                .find_map(|(loan, identity)| (*loan == weakening.loan).then_some(*identity))
+                .filter_map(|(_, claim)| {
+                    (claim.loan == weakening.loan).then_some(claim.claim_identity)
+                })
+                .last()
                 .unwrap_or(PermissionClaimIdentity::Unknown);
             append_borrow_permission_event(
                 program,

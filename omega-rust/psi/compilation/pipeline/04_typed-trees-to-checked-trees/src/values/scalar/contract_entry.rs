@@ -210,10 +210,18 @@ impl EntryOperands<'_> {
             // The checked geometry owner retains the descriptor path in the
             // authored parameter namespace; the contract term owner later
             // resolves the same path against its exact structural signature.
-            CheckedScalarExpression::StructuralParameterByteLength { root, .. }
-                if matches!(root, checked_trees::CheckedStorageRoot::Parameter { .. }) => {}
+            CheckedScalarExpression::StructuralSequenceLength { root, path }
+                if matches!(root, checked_trees::CheckedStorageRoot::Parameter { .. }) =>
+            {
+                for step in path {
+                    if let checked_trees::CheckedScalarReadProjection::RuntimeIndex(selector) = step
+                    {
+                        self.scalar(&mut selector.expression)?;
+                    }
+                }
+            }
             CheckedScalarExpression::Local { .. }
-            | CheckedScalarExpression::StructuralParameterByteLength { .. }
+            | CheckedScalarExpression::StructuralSequenceLength { .. }
             | CheckedScalarExpression::RepresentationView { .. }
             | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => return None,
             CheckedScalarExpression::IntegerBinary { left, right, .. } => {

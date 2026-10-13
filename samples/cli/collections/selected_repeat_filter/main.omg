@@ -1,0 +1,96 @@
+// Expected exit: 0.
+// Repeated filtering keeps a mutable view into the original record storage.
+data Reading [copy] { address: u64; previous: i32; current: i32; }
+
+trait Retain<T> { machine test(value: &T) -> bool; }
+
+Increased satisfies Retain<Reading> {
+    machine test(value: &Reading) -> bool { value.current > value.previous }
+}
+
+Positive satisfies Retain<Reading> {
+    machine test(value: &Reading) -> bool { value.current > 0 }
+}
+
+Unchanged satisfies Retain<Reading> {
+    machine test(value: &Reading) -> bool { value.current == value.previous }
+}
+
+machine compact<'input, T [copy]>(selected: dyn Retain<T>, values: &'input mut [T])
+    -> &'input mut [T]
+{
+    transition { _ -> scan(selected, values, 0, 0) }
+
+    state scan(selected: dyn Retain<T>, values: &'input mut [T], cursor: u64, retained: u64)
+        -> &'input mut [T]
+    requires retained <= cursor && cursor <= values.len {
+        transition cursor < values.len {
+            true -> visit(selected, values, cursor, retained)
+            false -> (&mut values[..retained])
+        }
+    }
+
+    state visit(selected: dyn Retain<T>, values: &'input mut [T], cursor: u64, retained: u64)
+        -> &'input mut [T]
+    requires retained <= cursor && cursor < values.len {
+        transition Retain::test(selected, &values[cursor]) {
+            true -> keep(selected, values, cursor, retained)
+            false -> scan(selected, values, cursor + 1, retained)
+        }
+    }
+
+    state keep(selected: dyn Retain<T>, values: &'input mut [T], cursor: u64, retained: u64)
+        -> &'input mut [T]
+    requires retained <= cursor && cursor < values.len {
+        values[retained] = values[cursor];
+        transition { _ -> scan(selected, values, cursor + 1, retained + 1) }
+    }
+}
+
+machine main() crashes Trap {
+    let mut readings: [Reading; 6] = [
+        Reading { address: 999, previous: 99, current: 98 },
+        Reading { address: 10, previous: -5, current: -2 },
+        Reading { address: 20, previous: 7, current: 3 },
+        Reading { address: 30, previous: 1, current: 4 },
+        Reading { address: 40, previous: 8, current: 9 },
+        Reading { address: 888, previous: 88, current: 87 }
+    ];
+    let mut selection: dyn Retain<Reading> = Increased as dyn Retain<Reading>;
+    let first: &mut [Reading] = compact(selection, &mut readings[1..5]);
+    let first_count: u64 = first.len;
+    selection = Positive as dyn Retain<Reading>;
+    let second: &mut [Reading] = compact(selection, first);
+    let correct: bool = verify(second);
+    let all: &mut [Reading] = compact(selection, second);
+    let all_correct: bool = verify(all);
+    selection = Unchanged as dyn Retain<Reading>;
+    let none: &mut [Reading] = compact(selection, all);
+    let none_count: u64 = none.len;
+    let empty: &mut [Reading] = compact(selection, none);
+    let empty_correct: bool = is_empty(empty);
+    transition correct && all_correct && first_count == 3
+        && none_count == 0 && empty_correct
+        && readings[0].address == 999 && readings[5].address == 888
+        && readings[1].address == 30 && readings[2].address == 40 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}
+
+machine is_empty(values: &[Reading]) -> bool { values.len == 0 }
+
+machine verify(selected: &[Reading]) -> bool {
+    transition selected.len == 2 {
+        true -> inspect(selected)
+        false -> false
+    }
+    state inspect(selected: &[Reading]) -> bool
+    requires selected.len == 2 {
+        selected[0].address == 30 && selected[1].address == 40
+            && selected[0].previous == 1 && selected[0].current == 4
+            && selected[1].previous == 8 && selected[1].current == 9
+    }
+}

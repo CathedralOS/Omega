@@ -402,8 +402,11 @@ pub(crate) fn build_checked_value_computation_plans(
                     // value-shaped assignment writes through the reference.
                     // Share the source mutation owner's classification: the
                     // declared reference shell alone cannot choose the store.
+                    // A projected descriptor slot has the same value semantics
+                    // as a local binding. Restricting this query to locals
+                    // strips a field's reference shell and loses its producer.
                     let replaces_reference = call_frames.as_ref().is_some_and(|frames| {
-                        frames.assignment_replaces_local_reference_binding(machine, statement)
+                        frames.assignment_replaces_reference_binding(machine, statement)
                             == Some(true)
                     });
                     let written = validation::expression_type_reference_in_state(

@@ -136,11 +136,14 @@ fn integer(
     let (primitive, bounds) = match expression {
         // A view local's extent has no parameter snapshot; its `u64`
         // carrier bounds every length it can store.
-        Expression::StructuralParameterByteLength { root, path } => (
+        Expression::StructuralSequenceLength { root, path } => (
             PrimitiveType::U64,
-            match root.parameter() {
-                Some(position) => source.byte_length(position, path)?,
-                None => carrier_integer_range(PrimitiveType::U64)?,
+            match (
+                root.parameter(),
+                checked_trees::CheckedScalarReadProjection::static_path(path),
+            ) {
+                (Some(position), Some(path)) => source.byte_length(position, &path)?,
+                _ => carrier_integer_range(PrimitiveType::U64)?,
             },
         ),
         Expression::Parameter {

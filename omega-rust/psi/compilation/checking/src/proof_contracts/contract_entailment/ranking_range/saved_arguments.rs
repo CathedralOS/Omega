@@ -60,7 +60,12 @@ pub(super) fn install(
         };
         if !local.initial_value.is_valid()
             || lengths::binding_is_exclusively_exposed(program, state, local.symbol)
-            || lengths::binding_is_written(program, state, local.symbol)
+            || lengths::binding_is_written(
+                program,
+                state,
+                local.symbol,
+                lengths::BindingObservation::WholeValue,
+            )
             || !stable_references(program, state, local.initial_value)
         {
             continue;
@@ -178,7 +183,12 @@ fn saved_local<'a>(
     let (_, local) = program.state_local_declaration(state, symbol)?;
     (local.initial_value.is_valid()
         && !lengths::binding_is_exclusively_exposed(program, state, symbol)
-        && !lengths::binding_is_written(program, state, symbol))
+        && !lengths::binding_is_written(
+            program,
+            state,
+            symbol,
+            lengths::BindingObservation::WholeValue,
+        ))
     .then_some(local)
 }
 
@@ -245,7 +255,12 @@ fn stable_references(
         if let Some(parameter) = program.state_parameter_by_symbol(state, symbol) {
             !exclusive_referent(program, parameter.type_reference)
                 && !lengths::binding_is_exclusively_exposed(program, state, symbol)
-                && !lengths::binding_is_written(program, state, symbol)
+                && !lengths::binding_is_written(
+                    program,
+                    state,
+                    symbol,
+                    lengths::BindingObservation::WholeValue,
+                )
         } else {
             saved_local(program, state, symbol)
                 .is_some_and(|local| !exclusive_referent(program, local.type_reference))

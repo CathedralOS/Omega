@@ -1,0 +1,12 @@
+// Multiplication makes the mathematical index zero, but the preceding
+// Trapping addition must execute before the fixed result length is returned.
+machine observe(values: &[[u32; 3]; 1], value: u64 in Trapping) -> u64 crashes Trap {
+    values[(value + 1) * 0].len
+}
+machine main() crashes Trap {
+    let values: [[u32; 3]; 1] = [[11, 13, 17]];
+    let length: u64 = observe(&values, 18446744073709551615);
+    transition length == 3 { true -> done() false -> wrong() }
+    state done() {}
+    state wrong() { crash Trap; }
+}

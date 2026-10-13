@@ -366,7 +366,7 @@ fn structural_actual_root(
 
 /// A scalar annotation crossing the call boundary may only carry terms a
 /// crash lane can still lower once substituted. Byte observations —
-/// `StructuralParameterIndexedRead` and `StructuralParameterByteLength` —
+/// `StructuralParameterIndexedRead` and `StructuralSequenceLength` —
 /// resolve structural storage views neither crash-route lane carries, and the
 /// contract namespace already accepts them: inserting one would keep the
 /// guarded route but turn its conservative widening into a downstream
@@ -382,7 +382,7 @@ fn scalar_evidence_is_crash_lane_lowerable(
     use checked_trees::CheckedScalarExpression;
     match expression {
         // The crash lane replays no representation re-view.
-        CheckedScalarExpression::StructuralParameterByteLength { .. }
+        CheckedScalarExpression::StructuralSequenceLength { .. }
         | CheckedScalarExpression::StructuralParameterIndexedRead { .. }
         | CheckedScalarExpression::RepresentationView { .. } => false,
         CheckedScalarExpression::IntegerBinary { left, right, .. } => {
@@ -700,7 +700,7 @@ fn substitute_checked_scalar_expression(
         CheckedScalarExpression::ErasedParameter { .. } => return None,
         CheckedScalarExpression::Local { .. }
         | CheckedScalarExpression::StorageRead { .. }
-        | CheckedScalarExpression::StructuralParameterByteLength { .. }
+        | CheckedScalarExpression::StructuralSequenceLength { .. }
         | CheckedScalarExpression::RepresentationView { .. }
         | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => return None,
         // A standalone integer field leaf is the same frozen structural leaf

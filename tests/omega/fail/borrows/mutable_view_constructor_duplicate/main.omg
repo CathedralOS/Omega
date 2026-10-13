@@ -1,0 +1,8 @@
+// Transferring a descriptor into one field cannot duplicate its exclusive loan.
+data Cell [copy] { value: u32; }
+data Window<'input> { values: &'input mut [Cell]; }
+data Pair<'input> { first: Window<'input>; second: Window<'input>; }
+
+machine duplicate<'input>(values: &'input mut [Cell]) -> Pair<'input> {
+    Pair { first: Window { values: values }, second: Window { values: values } }
+}

@@ -644,9 +644,9 @@ pub(super) fn account(
         // An exact rebind ends the anonymous producer's residence. The
         // receiving home keeps the same loan until its later weakening;
         // that weakening cannot also dispose the transferred producer.
-        let installed_view_claim = release_owned_view
+        let installed_view_claims = release_owned_view
             .then(|| {
-                installed_view_claim(
+                installed_view_claims(
                     facts,
                     machine.symbol,
                     state.symbol,
@@ -655,7 +655,8 @@ pub(super) fn account(
                     &operations[producer_index + 1..],
                 )
             })
-            .flatten();
+            .flatten()
+            .unwrap_or_default();
         let (has_captured_view_loans, view_releases) = if release_owned_view {
             view_loan_releases(
                 facts,
@@ -663,7 +664,7 @@ pub(super) fn account(
                 state.symbol,
                 result,
                 operation,
-                installed_view_claim,
+                &installed_view_claims,
             )
             .map_err(|reason| {
                 trace.phase(reason);
@@ -761,13 +762,15 @@ pub(super) fn account(
 /// Only the loans captured by this exact holder can dispose its result.
 /// A temporary descriptor with no source loan still needs its own physical
 /// cleanup; another holder's Consume cannot stand in for that disposition.
+/// Captured loan handles rejoin their original claims: equal backing paths can
+/// belong to different holders even within one statement.
 fn view_loan_releases(
     facts: &CheckFacts,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
     result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
     producer: &CheckedUnitEffectOperationPlan,
-    installed_claim: Option<language_semantics::PermissionClaimIdentity>,
+    installed_claims: &[language_semantics::PermissionClaimIdentity],
 ) -> Result<(bool, usize), &'static str> {
     // The producer names its holder even for an anonymous return operand,
     // which need not appear in the state's named-result inventory.
@@ -814,7 +817,7 @@ fn view_loan_releases(
         .iter()
         .filter(|(_, event)| {
             event.kind == PermissionEventKind::Consume
-                && Some(event.claim_identity) != installed_claim
+                && !installed_claims.contains(&event.claim_identity)
                 && event.machine_symbol == machine
                 && event.state_symbol == state
                 && matches!(event.claim_identity,
@@ -823,15 +826,70 @@ fn view_loan_releases(
                             source: PermissionEventSource::Statement { statement_index }, ..
                         } if machine_symbol == machine && state_symbol == state
                             && statement_index == result.statement_index as usize)
-                && captured_loans.iter().any(|loan| {
-                    loan.root == event.root
-                        && facts.borrow.loan_owner_path(loan).is_empty()
-                        && facts.borrow.loan_segments(loan)
-                            == facts.flow.ownership.segments.span_or_empty(event.segments)
+                && facts.flow.ownership.borrow_claims.iter().any(|(_, claim)| {
+                    claim.claim_identity == event.claim_identity
+                        && facts.borrow.loans_contain(loans, claim.loan)
+                        && facts
+                            .borrow
+                            .loan_owner_path(facts.borrow.loans.get(claim.loan))
+                            .is_empty()
                 })
         })
         .count();
     Ok((!captured_loans.is_empty(), releases))
+}
+
+/// A statement can form several unrelated descriptors. A permission release
+/// belongs to this result only when its exact formation expression rejoins the
+/// checked loan and that loan's establishment claim. Statement coincidence
+/// alone used to charge an anonymous argument for the returned child's release.
+fn view_formation_claims(
+    facts: &CheckFacts,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    producer: &CheckedUnitEffectOperationPlan,
+    result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
+) -> Option<Vec<language_semantics::PermissionClaimIdentity>> {
+    let CheckedUnitEffectOperationPlan::EstablishLocal(
+        checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
+    ) = producer
+    else {
+        return None;
+    };
+    let formation = facts.values.structural_values.nodes.get(*value).expression;
+    if !formation.is_valid() {
+        return None;
+    }
+    let mut states = facts
+        .borrow
+        .states
+        .iter()
+        .map(|(_, row)| row)
+        .filter(|row| row.machine_symbol == machine && row.state_symbol == state);
+    let borrowing = states.next()?;
+    if states.next().is_some() {
+        return None;
+    }
+    let loans = facts
+        .borrow
+        .loan_group(borrowing.loans)?
+        .filter(|(_, loan)| {
+            loan.statement_index == result.statement_index as usize
+                && loan.formation_expression == formation
+                && loan.kind == checked_trees::BorrowAccessKind::Mutable
+        })
+        .map(|(handle, _)| handle)
+        .collect::<Vec<_>>();
+    Some(
+        facts
+            .flow
+            .ownership
+            .borrow_claims
+            .iter()
+            .filter(|(_, claim)| loans.contains(&claim.loan))
+            .map(|(_, claim)| claim.claim_identity)
+            .collect(),
+    )
 }
 
 /// The state-local result a closed-sum dispatch consumes: an owned subject
@@ -854,132 +912,99 @@ pub(super) fn consumed_case_subject(
     }
 }
 
-/// Rejoin one carrier installation to its checked formation claim. Permission
-/// rows retain claim identity rather than the loan handle, so the formation's
-/// exact source and backing must identify one Establish row. Ambiguity, a
-/// duplicate installation or duplicate weakening supplies no handoff.
-fn installed_view_claim(
+/// Installation transfers the completed descriptor, regardless of whether its
+/// receiving place is a binding, field or indexed slot. The source checker has
+/// already joined formation to exact loan claims; rejoining by backing or by
+/// an empty owner path confuses the producer's death with the resident loan's
+/// later release. Require one whole-value installation and one later release
+/// per exact claim. Destination access and replacement cleanup remain the
+/// store's obligations, not permission granted by this accounting join.
+fn installed_view_claims(
     facts: &CheckFacts,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
     producer: &CheckedUnitEffectOperationPlan,
     result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
     following: &[CheckedUnitEffectOperationPlan],
-) -> Option<language_semantics::PermissionClaimIdentity> {
-    let CheckedUnitEffectOperationPlan::EstablishLocal(
-        checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
-    ) = producer
-    else {
-        return None;
-    };
-    let formation = facts.values.structural_values.nodes.get(*value).expression;
+) -> Option<Vec<language_semantics::PermissionClaimIdentity>> {
     let mut installations = following.iter().filter_map(|operation| {
         let CheckedUnitEffectOperationPlan::Store(store) = operation else {
             return None;
         };
-        let checked_trees::CheckedStoreLeaf::OwnedRebind { type_identity } =
+        let (checked_trees::CheckedStoreLeaf::OwnedRebind { type_identity }
+        | checked_trees::CheckedStoreLeaf::StructuralStore { type_identity, .. }) =
             &store.destination.leaf
         else {
             return None;
         };
-        let checked_trees::CheckedStoreRoot::Local { symbol } = store.destination.root else {
-            return None;
-        };
         let supplied = store.installed_value()?;
-        (store.destination.path.is_empty()
-            && *type_identity == result.type_identity
+        (*type_identity == result.type_identity
             && supplied.type_identity == result.type_identity
             && supplied.source_structural_result_binding_ordinal() == Some(result.binding_ordinal)
             && supplied.access == CheckedStructuralAccess::Owned
             && supplied.path.is_empty())
-        .then_some((symbol, store.statement_index))
+        .then_some(store.statement_index)
     });
-    let (owner, installation_statement) = installations.next()?;
-    if installations.next().is_some()
-        || installation_statement != result.statement_index
-        || !formation.is_valid()
-    {
+    if installations.next()? != result.statement_index || installations.next().is_some() {
         return None;
     }
-    let mut states = facts
-        .borrow
-        .states
-        .iter()
-        .map(|(_, row)| row)
-        .filter(|row| row.machine_symbol == machine && row.state_symbol == state);
-    let borrowing = states.next()?;
-    if states.next().is_some() {
-        return None;
-    }
-    let mut loans = facts
-        .borrow
-        .loans
-        .span_or_empty(borrowing.loans)
-        .iter()
-        .filter(|loan| {
-            loan.owner_symbol == owner
-                && loan.statement_index == result.statement_index as usize
-                && loan.formation_expression == formation
-                && facts.borrow.loan_owner_path(loan).is_empty()
-                && loan.kind == checked_trees::BorrowAccessKind::Mutable
-        });
-    let loan = loans.next()?;
-    if loans.next().is_some() {
+    let claims = view_formation_claims(facts, machine, state, producer, result)?;
+    if claims.is_empty() {
         return None;
     }
     let source = PermissionEventSource::Statement {
         statement_index: result.statement_index as usize,
     };
-    let matches_loan = |event: &checked_trees::FlowPermissionEventFact| {
-        event.machine_symbol == machine
-            && event.state_symbol == state
-            && event.access == language_semantics::PermissionAccess::Exclusive
-            && event.multiplicity == Multiplicity::Affine
-            && event.root == loan.root
-            && facts.flow.ownership.segments.span_or_empty(event.segments)
-                == facts.borrow.loan_segments(loan)
-    };
-    let mut establishments = facts
-        .flow
-        .ownership
-        .permissions
-        .iter()
-        .map(|(_, event)| event)
-        .filter(|event| {
-            event.kind == PermissionEventKind::Establish
-                && event.source == source
-                && event.evaluation == checked_trees::FlowPermissionEvaluation::Statement
-                && matches_loan(event)
-                && matches!(event.claim_identity,
-                language_semantics::PermissionClaimIdentity::Established {
-                    machine_symbol, state_symbol, source: established_at, ..
-                } if machine_symbol == machine && state_symbol == state && established_at == source)
-        });
-    let establishment = establishments.next()?;
-    if establishments.next().is_some() {
-        return None;
+    for claim in &claims {
+        let matching = |event: &checked_trees::FlowPermissionEventFact| {
+            event.claim_identity == *claim
+                && event.machine_symbol == machine
+                && event.state_symbol == state
+                && event.access == language_semantics::PermissionAccess::Exclusive
+                && event.multiplicity == Multiplicity::Affine
+        };
+        let mut establishments =
+            facts
+                .flow
+                .ownership
+                .permissions
+                .iter()
+                .filter_map(|(_, event)| {
+                    (matching(event) && event.kind == PermissionEventKind::Establish)
+                        .then_some(event)
+                });
+        let establishment = establishments.next()?;
+        if establishments.next().is_some()
+            || establishment.source != source
+            || establishment.evaluation != checked_trees::FlowPermissionEvaluation::Statement
+        {
+            return None;
+        }
+        let mut releases = facts
+            .flow
+            .ownership
+            .permissions
+            .iter()
+            .filter_map(|(_, event)| {
+                (matching(event) && event.kind == PermissionEventKind::Consume).then_some(event)
+            });
+        let release = releases.next()?;
+        let after_installation = match release.source {
+            PermissionEventSource::StateExit => true,
+            PermissionEventSource::Statement { statement_index }
+            | PermissionEventSource::Call {
+                statement_index, ..
+            } => statement_index >= result.statement_index as usize,
+            PermissionEventSource::StateEntry => false,
+        };
+        if releases.next().is_some()
+            || !after_installation
+            || release.evaluation != checked_trees::FlowPermissionEvaluation::Statement
+        {
+            return None;
+        }
     }
-    let mut releases = facts
-        .flow
-        .ownership
-        .permissions
-        .iter()
-        .map(|(_, event)| event)
-        .filter(|event| {
-            event.kind == PermissionEventKind::Consume
-                && event.claim_identity == establishment.claim_identity
-        });
-    let release = releases.next()?;
-    let after_installation = match release.source {
-        PermissionEventSource::StateExit => true,
-        PermissionEventSource::Statement { statement_index }
-        | PermissionEventSource::Call {
-            statement_index, ..
-        } => statement_index >= result.statement_index as usize,
-        PermissionEventSource::StateEntry => false,
-    };
-    (releases.next().is_none() && matches_loan(release) && after_installation)
-        .then_some(establishment.claim_identity)
+    Some(claims)
 }
 
 /// Borrow whole local operands once per supplied construction sequence. The

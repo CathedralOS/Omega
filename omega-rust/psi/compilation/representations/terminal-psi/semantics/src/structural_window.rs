@@ -7,9 +7,10 @@
 //! and is ambiguous when different records reuse a field ID.
 //!
 //! An element view's extent is its runtime length, not a type literal, so a
-//! view element is selected only by a leading `RuntimeIndex` on a view root,
-//! bounded by that root's length; a literal `FixedIndex` never crosses into a
-//! view, and a view nested below the root selects nothing.
+//! view element is selected by a `RuntimeIndex` bounded by that exact
+//! descriptor's length at its full prefix. A literal `FixedIndex` never
+//! crosses into a view. Nested descriptors retain their captured projection;
+//! the enclosing record is neither their backing nor their extent.
 //!
 //! This is geometry, not permission: consumers still authenticate the root,
 //! runtime bounds, live loan, value custody and exact restoration debt.
@@ -90,7 +91,7 @@ pub fn structural_window_projection<'types>(
         matches.next().is_none().then_some(selected)
     };
     let mut selected = declaration(root)?;
-    for (position, segment) in path.iter().enumerate() {
+    for segment in path {
         let child = match (segment, &selected.shape) {
             (StructuralPathSegment::Referent, StructuralTypeShape::Reference { referent, .. }) => {
                 *referent
@@ -115,12 +116,12 @@ pub fn structural_window_projection<'types>(
                 StructuralPathSegment::RuntimeIndex { .. },
                 StructuralTypeShape::FixedArray { element, .. },
             ) => *element,
-            // Only the root's dominating length bounds a view element. A view
-            // below another carrier is a descriptor, not inline element storage.
+            // Bounds and authority belong to this projected descriptor, not
+            // to its containing carrier; this query resolves only its type.
             (
                 StructuralPathSegment::RuntimeIndex { .. },
                 StructuralTypeShape::ElementView { element },
-            ) if position == 0 => *element,
+            ) => *element,
             _ => return None,
         };
         selected = declaration(child)?;

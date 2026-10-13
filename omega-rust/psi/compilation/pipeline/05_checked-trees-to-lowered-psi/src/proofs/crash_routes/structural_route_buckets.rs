@@ -594,7 +594,7 @@ fn uses_structural_storage(expression: &CheckedScalarExpression) -> bool {
         match expression {
             CheckedScalarExpression::StructuralParameterField { .. }
             | CheckedScalarExpression::StructuralParameterIndexedRead { .. }
-            | CheckedScalarExpression::StructuralParameterByteLength { .. }
+            | CheckedScalarExpression::StructuralSequenceLength { .. }
             | CheckedScalarExpression::Boolean(_) => return true,
             CheckedScalarExpression::IntegerBinary { left, right, .. } => {
                 pending.extend([left.as_ref(), right.as_ref()]);

@@ -175,6 +175,14 @@ impl CrashPlan {
     pub fn uses_structural_proof_gated_arithmetic(&self) -> bool {
         fn scalar_uses_proof_gated_arithmetic(expression: &crate::CheckedScalarExpression) -> bool {
             match expression {
+                crate::CheckedScalarExpression::StructuralSequenceLength { path, .. } => {
+                    path.iter().any(|step| match step {
+                        crate::CheckedScalarReadProjection::Static(_) => false,
+                        crate::CheckedScalarReadProjection::RuntimeIndex(selector) => {
+                            scalar_uses_proof_gated_arithmetic(&selector.expression)
+                        }
+                    })
+                }
                 crate::CheckedScalarExpression::StructuralParameterIndexedRead {
                     index,
                     element_path,

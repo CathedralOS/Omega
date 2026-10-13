@@ -1,0 +1,17 @@
+data Window<'input> { values: &'input mut [u8]; }
+
+machine replace(windows: &mut [Window], outer: u64, other: u64, inner: u64)
+requires outer < windows.len && other < windows.len {
+    transition inner < windows[outer].values.len {
+        true -> store(windows, other, inner)
+        false -> done()
+    }
+    // The incoming guard measured the old selector, not this new binding.
+    state store(windows: &mut [Window], outer: u64, inner: u64)
+    requires outer < windows.len {
+        windows[outer].values[inner] = 17;
+    }
+    state done() {}
+}
+
+machine main() {}

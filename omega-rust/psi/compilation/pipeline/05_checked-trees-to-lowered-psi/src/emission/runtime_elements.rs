@@ -283,63 +283,61 @@ pub(crate) fn complete_path(
     Ok(path)
 }
 
-/// Observe a destination view's live extent directly before the operation
-/// whose runtime elements it bounds. A view's elements have no declared
-/// length, so every runtime element selected from it owes `index < length`
-/// against this observation, whether the operation stores a scalar field,
-/// replaces a stored view, or opens or repairs a restoration window. Static
-/// paths and fixed-array roots observe nothing. A reference root keeps its
-/// own authority; following its referent here only finds the extent.
+/// Observe each selected view's own live extent before accessing its elements.
+/// Completed paths retain the already captured selectors and their bounds;
+/// observing prefixes outside-in preserves that evidence for nested views.
+/// A containing record's identity cannot donate a sibling descriptor's length.
+/// Fixed-array selections need no observation because their extent is declared.
 pub(crate) fn observe_element_extent(
     destination: semantic_vocabulary::PlaceId,
-    mut structural_type: semantic_vocabulary::StructuralTypeId,
-    steps: &[ProjectionStep],
+    structural_type: semantic_vocabulary::StructuralTypeId,
+    path: &[StructuralPathSegment],
     declarations: &[terminal_psi::StructuralTypeDeclaration],
     next_value: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<(), LoweringError> {
-    if let Some(terminal_psi::StructuralTypeShape::Reference { referent, .. }) =
-        terminal_psi::find_structural_type(declarations, structural_type)
-            .map(|declaration| &declaration.shape)
-    {
-        structural_type = *referent;
-    }
-    let is_view = terminal_psi::find_structural_type(declarations, structural_type).is_some_and(
-        |declaration| {
-            matches!(
-                declaration.shape,
-                terminal_psi::StructuralTypeShape::ElementView { .. }
-            )
-        },
-    );
-    if !is_view
-        || !steps
-            .iter()
-            .any(|step| !matches!(step, ProjectionStep::Static(_)))
-    {
-        return Ok(());
-    }
-    let length = crate::terminal_identities::value_id(crate::terminal_identities::allocate_dense(
-        next_value,
-    )?);
-    let observation = operations.allocate();
-    operations.push(terminal_psi::Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id: observation,
-        result: crate::emission::operation_emission::buffer::scalar_result_declaration(
-            length,
-            crate::emission::scalar_types::terminal_scalar_type(
-                checked_trees::types::PrimitiveType::U64,
-            )?,
-        ),
-        kind: terminal_psi::OperationKind::ElementViewLength {
-            source: terminal_psi::StructuralArgument::whole(
-                destination,
-                terminal_psi::StructuralAccess::SharedBorrow,
+    for (position, segment) in path.iter().enumerate() {
+        if !matches!(segment, StructuralPathSegment::RuntimeIndex { .. }) {
+            continue;
+        }
+        let prefix = &path[..position];
+        let owner = terminal_semantics::runtime_structural_path_tip(
+            declarations.iter(),
+            structural_type,
+            prefix,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "runtime element extent has an unresolved structural prefix",
+        ))?;
+        if !matches!(
+            owner.shape,
+            terminal_psi::StructuralTypeShape::ElementView { .. }
+        ) {
+            continue;
+        }
+        let length = crate::terminal_identities::value_id(
+            crate::terminal_identities::allocate_dense(next_value)?,
+        );
+        let observation = operations.allocate();
+        operations.push(terminal_psi::Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: observation,
+            result: crate::emission::operation_emission::buffer::scalar_result_declaration(
+                length,
+                crate::emission::scalar_types::terminal_scalar_type(
+                    checked_trees::types::PrimitiveType::U64,
+                )?,
             ),
-        },
-    });
+            kind: terminal_psi::OperationKind::ElementViewLength {
+                source: terminal_psi::StructuralArgument {
+                    place: destination,
+                    path: prefix.to_vec(),
+                    access: terminal_psi::StructuralAccess::SharedBorrow,
+                },
+            },
+        });
+    }
     Ok(())
 }
 

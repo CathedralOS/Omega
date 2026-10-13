@@ -170,7 +170,8 @@ pub(super) fn prepare(
                                     access,
                                 }));
                             }
-                            DescriptorStoredOrigin::Literal { .. } => return None,
+                            DescriptorStoredOrigin::IncomingContents { .. }
+                            | DescriptorStoredOrigin::Literal { .. } => return None,
                         }
                     }
                     sources.sort();

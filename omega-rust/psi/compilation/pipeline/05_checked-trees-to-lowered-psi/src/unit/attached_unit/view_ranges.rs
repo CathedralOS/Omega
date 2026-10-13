@@ -195,6 +195,7 @@ impl RangeStorage {
                 identities,
                 &self.collection,
                 bindings,
+                source.place,
                 root,
                 declarations,
             )?)
@@ -246,6 +247,7 @@ fn collection_path(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     path: &[CheckedUnitStructuralPathSegment],
     bindings: &ScalarBindings,
+    source: PlaceId,
     root: semantic_vocabulary::StructuralTypeId,
     declarations: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<Vec<LoweredElementPathSegment>, LoweringError> {
@@ -253,18 +255,44 @@ fn collection_path(
         PreparedStructuralPathSegment, prepare_argument_path,
     };
     let mut runtime_indices = 0;
+    let mut dynamic_extent = false;
     prepare_argument_path(identities, path, root, declarations)?
         .into_iter()
         .map(|segment| match segment {
             PreparedStructuralPathSegment::Static(segment) => {
+                if dynamic_extent
+                    && let terminal_psi::StructuralPathSegment::FixedIndex(index) = segment
+                {
+                    dynamic_extent = false;
+                    runtime_indices += 1;
+                    if runtime_indices > TERMINAL_NESTED_SELECTOR_LIMIT {
+                        return unsupported(
+                            "collection view exceeds the runtime selector namespace",
+                        );
+                    }
+                    return Ok(LoweredElementPathSegment::RuntimeIndex {
+                        selector: LoweredDirectExpression::IntegerLiteral {
+                            value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(index)),
+                            scalar_type: crate::emission::scalar_types::terminal_scalar_type(
+                                checked_trees::types::PrimitiveType::U64,
+                            )?,
+                        },
+                        extent: None,
+                        bound_decided: false,
+                    });
+                }
                 Ok(LoweredElementPathSegment::Static(segment))
             }
+            PreparedStructuralPathSegment::ViewExtent { bytes } => {
+                dynamic_extent = true;
+                Ok(LoweredElementPathSegment::ViewExtent { source, bytes })
+            }
             PreparedStructuralPathSegment::ComputedIndex(_)
-            | PreparedStructuralPathSegment::CapturedIndex(_)
-            | PreparedStructuralPathSegment::ViewExtent { .. } => {
+            | PreparedStructuralPathSegment::CapturedIndex(_) => {
                 unsupported("computed view selector requires its owning operand evaluation")
             }
             PreparedStructuralPathSegment::RuntimeIndex(index) => {
+                dynamic_extent = false;
                 runtime_indices += 1;
                 if runtime_indices > TERMINAL_NESTED_SELECTOR_LIMIT {
                     return unsupported("collection view exceeds the runtime selector namespace");

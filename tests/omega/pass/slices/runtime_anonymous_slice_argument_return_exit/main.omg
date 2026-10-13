@@ -1,0 +1,22 @@
+machine trim<'input>(values: &'input mut [u32]) -> &'input mut [u32] {
+    transition { _ -> scan(values, 0) }
+    state scan(values: &'input mut [u32], position: u64) -> &'input mut [u32]
+    requires position <= values.len {
+        transition position < values.len {
+            true -> scan(values, position + 1)
+            false -> (&mut values[..position])
+        }
+    }
+}
+machine main() crashes Trap {
+    let mut values: [u32; 2] = [7, 9];
+    let selected: &mut [u32] = trim(&mut values[..]);
+    let valid: bool = observe(selected);
+    transition valid && values[0] == 7 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}
+machine observe(values: &[u32]) -> bool { values.len == 2 }

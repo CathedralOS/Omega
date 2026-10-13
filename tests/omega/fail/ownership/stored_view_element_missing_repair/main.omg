@@ -1,0 +1,12 @@
+// A record owns its view descriptor, not the borrowed elements. Moving one
+// element elsewhere cannot discharge the original slot's restoration debt.
+data Token { byte: i32; }
+data Window<'input> { tokens: &'input mut [Token]; }
+machine Token::drop(token: &mut Token) { token.byte = 0; }
+machine refill<'input>(window: &mut Window<'input>)
+requires window.tokens.len >= 2
+{
+    let first: Token = window.tokens[0];
+    window.tokens[1] = first;
+}
+machine main() {}

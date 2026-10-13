@@ -156,10 +156,12 @@ fn project_scalar_expression(
         CheckedScalarExpression::StorageRead { .. } => return None,
         // A selector has no public crash-predicate vocabulary.
         CheckedScalarExpression::ImplementationSelection { .. } => return None,
-        CheckedScalarExpression::StructuralParameterByteLength { root, path } => {
+        CheckedScalarExpression::StructuralSequenceLength { root, path } => {
             PackageReviewScalarExpression::StructuralParameterByteLength {
                 parameter_position: root.parameter()?,
-                path: project_structural_path(path)?,
+                path: project_structural_path(
+                    &checked_trees::CheckedScalarReadProjection::static_path(path)?,
+                )?,
             }
         }
         CheckedScalarExpression::StructuralParameterIndexedRead {

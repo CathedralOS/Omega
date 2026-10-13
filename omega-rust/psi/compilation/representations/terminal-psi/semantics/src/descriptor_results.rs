@@ -22,6 +22,11 @@ pub use boundary_calls::{
     boundary_completion_preserves_descriptor_storage,
 };
 mod compatibility;
+mod contents;
+pub use contents::{
+    DescriptorContentsOperand, DescriptorContentsQuery, DescriptorContentsStep,
+    DescriptorContentsTransfer, descriptor_contents_query, descriptor_contents_transfers,
+};
 mod owned_shape;
 mod replay;
 pub use compatibility::{DescriptorCompatibilityFailure, DescriptorCompatibilityRequirement};
@@ -66,6 +71,7 @@ pub enum DescriptorCallOrigin {
 pub enum DescriptorSourceOrigin {
     Backing(DescriptorCallOrigin),
     IncomingSlot(DescriptorLocation),
+    IncomingContents(DescriptorContentsQuery),
 }
 
 /// Shape only: access, multiplicity and origin remain separate judgments.
@@ -246,6 +252,14 @@ pub struct DescriptorMachine {
     pub originations: BTreeMap<DescriptorPosition, Vec<(DescriptorLocation, DescriptorCallOrigin)>>,
     pub projections:
         BTreeMap<(DescriptorPosition, DescriptorLocation, DescriptorLocation), Projection>,
+    pub contents_queries: BTreeMap<
+        (DescriptorPosition, DescriptorLocation, DescriptorLocation),
+        DescriptorContentsQuery,
+    >,
+    pub contents_transfers: BTreeMap<DescriptorPosition, Vec<DescriptorContentsTransfer>>,
+    /// Unresolved writes cannot leave entry contents available for a later
+    /// query. These operations require contents effects before replay is usable.
+    pub unresolved_contents_writes: BTreeSet<DescriptorPosition>,
     /// Reference construction captures the source slot address, not its current
     /// pointer contents. Copies and moves remain ordinary value derivations.
     pub storage_derivations: BTreeSet<(DescriptorPosition, DescriptorLocation, DescriptorLocation)>,

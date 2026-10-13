@@ -12,9 +12,13 @@ impl CheckedBooleanExpression {
     ) -> Option<Self> {
         let mut equality = CheckedBooleanExpression::IntegerComparison {
             kind: CheckedIntegerComparisonKind::Equal,
-            left: Box::new(CheckedScalarExpression::StructuralParameterByteLength {
+            left: Box::new(CheckedScalarExpression::StructuralSequenceLength {
                 root,
-                path: path.clone(),
+                path: path
+                    .iter()
+                    .cloned()
+                    .map(super::CheckedScalarReadProjection::Static)
+                    .collect(),
             }),
             right: Box::new(literal(
                 u64::try_from(bytes.len()).ok()?,

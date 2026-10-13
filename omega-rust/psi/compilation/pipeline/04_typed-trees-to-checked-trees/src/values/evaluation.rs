@@ -54,7 +54,7 @@ fn integer(
 ) -> Option<(IntegerType, IntegerValue)> {
     match expression {
         CheckedScalarExpression::StructuralParameterIndexedRead { .. }
-        | CheckedScalarExpression::StructuralParameterByteLength { .. } => None,
+        | CheckedScalarExpression::StructuralSequenceLength { .. } => None,
         CheckedScalarExpression::StructuralParameterField {
             parameter_position,
             path,

@@ -69,16 +69,35 @@ pub enum CheckedScalarReadProjection {
     RuntimeIndex(CheckedScalarSelector),
 }
 
+impl CheckedScalarReadProjection {
+    /// Closed evidence vocabularies can retain a literal position as static
+    /// geometry, but must refuse other executable selectors. This conversion
+    /// is not an executable path: the original keeps each bounds occurrence.
+    pub fn static_path(path: &[Self]) -> Option<Vec<CheckedStructuralPredicatePathSegment>> {
+        path.iter()
+            .map(|step| match step {
+                Self::Static(step) => Some(step.clone()),
+                Self::RuntimeIndex(CheckedScalarSelector {
+                    expression: CheckedScalarExpression::IntegerLiteral { literal },
+                    ..
+                }) => Some(CheckedStructuralPredicatePathSegment::FixedIndex(
+                    literal.value_u64()?,
+                )),
+                Self::RuntimeIndex(_) => None,
+            })
+            .collect()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedScalarExpression {
-    /// Exact u64 live length of one borrowed view or bounded byte field. A
-    /// parameter root counts authored state positions: an empty path selects
-    /// the whole view parameter, a nonempty path the exact bounded-owned byte
-    /// field, never its capacity. A view-local root is always the whole view
-    /// with an empty path. Element views count elements, byte views bytes.
-    StructuralParameterByteLength {
+    /// Exact u64 live count at one storage projection, never its capacity.
+    /// The root counts authored structural positions; selectors keep their
+    /// consuming scalar namespace and indexing proof occurrence. Element views
+    /// count elements, byte views bytes, including descriptors stored in records.
+    StructuralSequenceLength {
         root: CheckedStorageRoot,
-        path: Vec<CheckedStructuralPredicatePathSegment>,
+        path: Vec<CheckedScalarReadProjection>,
     },
     /// Read the current value of exact local storage at this computation's
     /// program point. Storage never occupies an immutable binding position.
@@ -249,8 +268,13 @@ impl CheckedScalarExpression {
                     })
             }
             Self::Boolean(expression) => expression.contains_trapping_operation(),
-            Self::StructuralParameterByteLength { .. }
-            | Self::StorageRead { .. }
+            Self::StructuralSequenceLength { path, .. } => path.iter().any(|step| match step {
+                CheckedScalarReadProjection::Static(_) => false,
+                CheckedScalarReadProjection::RuntimeIndex(selector) => {
+                    selector.expression.contains_trapping_operation()
+                }
+            }),
+            Self::StorageRead { .. }
             | Self::Parameter { .. }
             | Self::ErasedParameter { .. }
             | Self::Local { .. }
@@ -266,7 +290,7 @@ impl CheckedScalarExpression {
     pub fn primitive_type(&self) -> Option<typed_trees::types::PrimitiveType> {
         use typed_trees::types::PrimitiveType;
         match self {
-            Self::StructuralParameterByteLength { .. } => Some(PrimitiveType::U64),
+            Self::StructuralSequenceLength { .. } => Some(PrimitiveType::U64),
             Self::Parameter { primitive_type, .. }
             | Self::ErasedParameter { primitive_type, .. }
             | Self::StorageRead { primitive_type, .. }

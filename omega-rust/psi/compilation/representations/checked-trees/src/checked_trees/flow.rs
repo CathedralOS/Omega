@@ -102,8 +102,8 @@ pub use control::{
 pub use invalidations::{FlowInvalidationFact, FlowInvalidationSource};
 pub use operand::{FlowCaseAccessFact, FlowOperandChild, FlowOperandFact, FlowOperandReferent};
 pub use ownership::{
-    FlowClaimJoinAlternative, FlowClaimJoinAlternativeSource, FlowClaimJoinExit,
-    FlowClaimJoinExitKind, FlowClaimJoinReceipt, FlowClaimOutcomeEntryFact,
+    FlowBorrowClaimFact, FlowClaimJoinAlternative, FlowClaimJoinAlternativeSource,
+    FlowClaimJoinExit, FlowClaimJoinExitKind, FlowClaimJoinReceipt, FlowClaimOutcomeEntryFact,
     FlowClaimOutcomeMapFact, FlowClaimOutcomeSource, FlowLoanCompletionFact,
     FlowOwnedSelectionClaim, FlowOwnedSelectionReceipt, FlowOwnedSelectionSource,
     FlowOwnedSelectionTransfer, FlowPermissionEvaluation, FlowPermissionEventFact,

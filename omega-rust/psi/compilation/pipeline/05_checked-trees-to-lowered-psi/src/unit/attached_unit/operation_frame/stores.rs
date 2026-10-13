@@ -419,16 +419,16 @@ impl OperationFrame<'_, '_> {
                 self.operations,
                 self.calls,
             )?;
-            self.observe_store_element_extent(
-                destination.destination,
-                destination.structural_type,
-                &destination.steps,
-            )?;
             let path = crate::emission::runtime_elements::complete_path(
                 std::mem::take(&mut destination.steps),
                 indexes,
                 self.calls,
                 self.operations,
+            )?;
+            self.observe_store_element_extent(
+                destination.destination,
+                destination.structural_type,
+                &path,
             )?;
             let source = self.byte_descriptor_operand(identities, store.statement_index, value)?;
             let kind = crate::emission::structural_byte_sequence_store::emit_descriptor_store(
@@ -936,10 +936,16 @@ impl OperationFrame<'_, '_> {
             primitive_type,
             field_identity,
         )?;
-        self.observe_store_element_extent(destination_place, destination_type, &lowered.steps)?;
+        let path = crate::emission::runtime_elements::complete_path(
+            std::mem::take(&mut lowered.steps),
+            indexes,
+            self.calls,
+            self.operations,
+        )?;
+        self.observe_store_element_extent(destination_place, destination_type, &path)?;
         let kind = lowered.into_operation(
             destination_place,
-            indexes,
+            path,
             value.id,
             self.calls,
             self.operations,
@@ -954,12 +960,12 @@ impl OperationFrame<'_, '_> {
         &mut self,
         destination: semantic_vocabulary::PlaceId,
         structural_type: StructuralTypeId,
-        steps: &[crate::emission::runtime_elements::ProjectionStep],
+        path: &[terminal_psi::StructuralPathSegment],
     ) -> Result<(), LoweringError> {
         crate::emission::runtime_elements::observe_element_extent(
             destination,
             structural_type,
-            steps,
+            path,
             self.structural_types.declarations(),
             self.next_value,
             self.operations,

@@ -4,10 +4,18 @@ use super::*;
 pub(super) enum Origin {
     Backing(DescriptorCallOrigin),
     Incoming(DescriptorLocation),
+    IncomingContents(DescriptorContentsQuery),
     Storage(DescriptorLocation),
 }
 pub(super) type Value = Option<BTreeSet<Origin>>;
-pub(super) type State = BTreeMap<DescriptorLocation, Value>;
+pub(super) type Slots = BTreeMap<DescriptorLocation, Value>;
+#[derive(Clone, Default, PartialEq, Eq)]
+pub(super) struct State {
+    pub(super) slots: Slots,
+    // Captured values remain valid; only later reads of untracked backing
+    // contents become unavailable. The flag joins monotonically across edges.
+    pub(super) contents_invalidated: bool,
+}
 pub(super) type States = BTreeMap<DescriptorPosition, State>;
 
 #[derive(Clone)]
@@ -19,6 +27,7 @@ pub(super) struct ResultSlot {
 pub(super) struct Summary {
     pub(super) result: Option<Vec<ResultSlot>>,
     pub(super) effects: Vec<DescriptorStoredEffect>,
+    pub(super) invalidates_contents: bool,
 }
 pub(super) struct Replay<'a> {
     pub(super) types: &'a [StructuralTypeDeclaration],
@@ -98,7 +107,7 @@ impl<'a> Replay<'a> {
         if location.path.is_empty() {
             return Some(location.clone());
         }
-        let Some(Some(origins)) = state.get(&DescriptorLocation::whole(location.root)) else {
+        let Some(Some(origins)) = state.slots.get(&DescriptorLocation::whole(location.root)) else {
             return Some(location.clone());
         };
         if origins.is_empty()
@@ -124,6 +133,7 @@ impl<'a> Replay<'a> {
         location: &DescriptorLocation,
     ) -> Option<Vec<DescriptorLocation>> {
         let origins = state
+            .slots
             .get(&DescriptorLocation::whole(location.root))?
             .as_ref()?;
         if origins.is_empty() {
@@ -171,12 +181,12 @@ impl<'a> Replay<'a> {
         location: &DescriptorLocation,
     ) -> Value {
         let location = self.canonical_storage(machine, state, location)?;
-        if let Some(value) = state.get(&location) {
+        if let Some(value) = state.slots.get(&location) {
             return value.clone();
         }
         // An opaque referent is unavailable, not an owned subtree whose
         // address can be reconstructed from the enclosing storage root.
-        if state.iter().any(|(prefix, value)| {
+        if state.slots.iter().any(|(prefix, value)| {
             value.is_none()
                 && prefix.root == location.root
                 && !prefix.path.is_empty()
@@ -194,6 +204,7 @@ impl<'a> Replay<'a> {
         )?;
         let projection = Projection::new(&path);
         state
+            .slots
             .get(&root)?
             .as_ref()?
             .iter()
@@ -213,16 +224,18 @@ impl<'a> Replay<'a> {
             .collect()
     }
     pub(super) fn initial(&self, machine: &DescriptorMachine) -> Option<State> {
-        let mut state = State::new();
+        let mut state = State::default();
         for row in &machine.places {
-            state.insert(DescriptorLocation::whole(row.place), None);
+            state
+                .slots
+                .insert(DescriptorLocation::whole(row.place), None);
             let inventory = self.slot_kind.inventory(
                 self.types,
                 row.place,
                 *machine.place_types.get(&row.place)?,
             )?;
             for slot in inventory.slots.iter().chain(&inventory.opaque_referents) {
-                state.insert(slot.clone(), None);
+                state.slots.insert(slot.clone(), None);
             }
             if let DescriptorDefinition::Parameter {
                 structural_type,
@@ -247,13 +260,15 @@ impl<'a> Replay<'a> {
                 } else {
                     Origin::Storage(DescriptorLocation::whole(row.place))
                 };
-                state.insert(
+                state.slots.insert(
                     DescriptorLocation::whole(row.place),
                     Some(BTreeSet::from([origin])),
                 );
                 for slot in inventory.slots {
                     if !slot.path.is_empty() {
-                        state.insert(slot.clone(), Some(BTreeSet::from([Origin::Incoming(slot)])));
+                        state
+                            .slots
+                            .insert(slot.clone(), Some(BTreeSet::from([Origin::Incoming(slot)])));
                     }
                 }
             }
@@ -294,7 +309,7 @@ impl<'a> Replay<'a> {
                 ) => Some(literal),
                 // Incoming descriptor extents may be narrowed, but its storage
                 // identity remains the same until substituted in the caller.
-                incoming @ Origin::Incoming(_) => Some(incoming),
+                incoming @ (Origin::Incoming(_) | Origin::IncomingContents(_)) => Some(incoming),
             })
             .collect()
     }
@@ -320,7 +335,7 @@ impl<'a> Replay<'a> {
             .map(canonical)
             .collect::<Option<Vec<_>>>()?;
         let mut after = before.clone();
-        for (location, value) in &mut after {
+        for (location, value) in &mut after.slots {
             if definitions
                 .iter()
                 .any(|definition| definition.contains(location))
@@ -329,9 +344,9 @@ impl<'a> Replay<'a> {
             }
         }
         for definition in &definitions {
-            after.insert(definition.clone(), None);
+            after.slots.insert(definition.clone(), None);
         }
-        let mut assigned = State::new();
+        let mut assigned = Slots::new();
         for (source, destination) in derivations {
             let projection = position.and_then(|position| {
                 machine
@@ -362,10 +377,24 @@ impl<'a> Replay<'a> {
                 );
                 continue;
             }
-            let value = self.project(machine, self.read(machine, before, source), projection);
+            let contents_query = position.and_then(|position| {
+                machine
+                    .contents_queries
+                    .get(&(position, source.clone(), destination.clone()))
+            });
+            let value = match contents_query {
+                Some(query) => self.read_contents(machine, before, query),
+                None => self.read(machine, before, source),
+            };
+            let value = self.project(machine, value, projection);
             let destination = canonical(destination)?;
             merge_value(&mut assigned, destination.clone(), value);
-            for location in before.keys() {
+            // A query loads descriptor contents; it does not transport every
+            // carrier below the conservative observation prefix into its result.
+            if contents_query.is_some() {
+                continue;
+            }
+            for location in before.slots.keys() {
                 if location != source
                     && let Some(target) = location.transported(source, &destination)
                 {
@@ -377,7 +406,7 @@ impl<'a> Replay<'a> {
                 }
             }
         }
-        after.extend(assigned);
+        after.slots.extend(assigned);
         Some(after)
     }
     pub(super) fn states(&mut self, identity: MachineId, depth: usize) -> Option<States> {
@@ -411,6 +440,10 @@ impl<'a> Replay<'a> {
                 &step.derivations,
                 Some(position),
             )?;
+            after.contents_invalidated |= machine.unresolved_contents_writes.contains(&position);
+            if let Some(transfers) = machine.contents_transfers.get(&position) {
+                self.transfer_contents(machine, &before, &mut after, transfers);
+            }
             if let Some(origins) = machine.originations.get(&position) {
                 for (location, origin) in origins {
                     let origin = if matches!(origin, DescriptorCallOrigin::Argument { source, projection } if *source == location.root && location.path.is_empty() && projection == &Projection::new(&[]))
@@ -423,14 +456,17 @@ impl<'a> Replay<'a> {
                     } else {
                         Origin::Backing(origin.clone())
                     };
-                    after.insert(location.clone(), Some(BTreeSet::from([origin])));
+                    after
+                        .slots
+                        .insert(location.clone(), Some(BTreeSet::from([origin])));
                 }
             }
             if let Some(call) = machine.calls.get(&position)
                 && call.arguments.iter().all(Option::is_some)
             {
                 let summary = self.summary(call.callee, depth + 1)?;
-                let mut replacements = State::new();
+                after.contents_invalidated |= summary.invalidates_contents;
+                let mut replacements = Slots::new();
                 for effect in &summary.effects {
                     let destination = self.canonical_storage(
                         machine,
@@ -468,10 +504,10 @@ impl<'a> Replay<'a> {
                     }
                 }
                 for (destination, value) in replacements {
-                    after.retain(|location, _| {
+                    after.slots.retain(|location, _| {
                         location == &destination || !destination.contains(location)
                     });
-                    after.insert(destination, value);
+                    after.slots.insert(destination, value);
                 }
             }
             for edge in &step.successors {
@@ -542,6 +578,12 @@ impl<'a> Replay<'a> {
             DescriptorStoredOrigin::IncomingSlot { position, path } => {
                 self.read(machine, state, &self.actual_slot(call, *position, path)?)
             }
+            DescriptorStoredOrigin::IncomingContents { position, steps } => {
+                let actual = call.arguments.get(*position)?.as_ref()?;
+                let mut query = DescriptorContentsQuery::from_location(actual);
+                query.steps.extend_from_slice(steps);
+                self.read_contents(machine, state, &query)
+            }
         }
     }
     pub(super) fn exported(
@@ -560,6 +602,14 @@ impl<'a> Replay<'a> {
                 Some(DescriptorStoredOrigin::IncomingSlot {
                     position,
                     path: location.path.clone(),
+                })
+            }
+            Origin::IncomingContents(query) => {
+                let (position, _, root_type) = self.parameter(machine, query.root)?;
+                query.validate(self.types, root_type)?;
+                Some(DescriptorStoredOrigin::IncomingContents {
+                    position,
+                    steps: query.steps.clone(),
                 })
             }
             Origin::Backing(DescriptorCallOrigin::Literal { machine, place }) => {
@@ -691,7 +741,16 @@ impl<'a> Replay<'a> {
                 });
             }
         }
-        let summary = Summary { result, effects };
+        let invalidates_contents = machine.normal_exits.iter().any(|position| {
+            states
+                .get(position)
+                .is_some_and(|state| state.contents_invalidated)
+        });
+        let summary = Summary {
+            result,
+            effects,
+            invalidates_contents,
+        };
         self.summaries.insert(identity, Some(summary.clone()));
         Some(summary)
     }
@@ -708,6 +767,9 @@ impl<'a> Replay<'a> {
                     self.storage_projection(machine, &location)?,
                 )),
                 Origin::Incoming(location) => Some(DescriptorSourceOrigin::IncomingSlot(location)),
+                Origin::IncomingContents(query) => {
+                    Some(DescriptorSourceOrigin::IncomingContents(query))
+                }
             })
             .collect()
     }
@@ -729,6 +791,13 @@ impl<'a> Replay<'a> {
                 projection.indirect = true;
                 Some(DescriptorCallOrigin::Argument { source, projection })
             }
+            DescriptorSourceOrigin::IncomingContents(query) => {
+                let root_type = *machine.place_types.get(&query.root)?;
+                Some(DescriptorCallOrigin::Argument {
+                    source: query.root,
+                    projection: query.conservative_projection(self.types, root_type)?,
+                })
+            }
         }
     }
     pub(super) fn resolved(
@@ -743,7 +812,7 @@ impl<'a> Replay<'a> {
     }
 }
 
-fn merge_value(state: &mut State, location: DescriptorLocation, value: Value) {
+pub(super) fn merge_value(state: &mut Slots, location: DescriptorLocation, value: Value) {
     match state.get_mut(&location) {
         None => {
             state.insert(location, value);
@@ -756,20 +825,22 @@ fn merge_value(state: &mut State, location: DescriptorLocation, value: Value) {
 }
 fn merge_state(existing: &mut State, incoming: &State) -> bool {
     let before = existing.clone();
+    existing.contents_invalidated |= incoming.contents_invalidated;
     for location in before
+        .slots
         .keys()
-        .chain(incoming.keys())
+        .chain(incoming.slots.keys())
         .cloned()
         .collect::<BTreeSet<_>>()
     {
         let value = match (
-            before.get(&location).and_then(Option::as_ref),
-            incoming.get(&location).and_then(Option::as_ref),
+            before.slots.get(&location).and_then(Option::as_ref),
+            incoming.slots.get(&location).and_then(Option::as_ref),
         ) {
             (Some(left), Some(right)) => Some(left.union(right).cloned().collect()),
             _ => None,
         };
-        existing.insert(location, value);
+        existing.slots.insert(location, value);
     }
     *existing != before
 }

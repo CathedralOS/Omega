@@ -174,6 +174,14 @@ impl<'a> DescriptorAnalysis<'a> {
                     path: location.path.clone(),
                 }
             }
+            DescriptorSourceOrigin::IncomingContents(query) => {
+                let (position, _, root_type) = self.replay.parameter(callee, query.root)?;
+                query.validate(self.replay.types, root_type)?;
+                DescriptorStoredOrigin::IncomingContents {
+                    position,
+                    steps: query.steps.clone(),
+                }
+            }
             DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {
                 source,
                 projection,
@@ -246,6 +254,7 @@ impl<'a> DescriptorAnalysis<'a> {
         // Reference forwarding supplies Storage origins; unresolved descriptor
         // payload aliases cannot invent an independently addressed root here.
         let storage = before
+            .slots
             .get(&DescriptorLocation::whole(actual.root))?
             .as_ref()?;
         if storage.is_empty()
@@ -257,7 +266,7 @@ impl<'a> DescriptorAnalysis<'a> {
         }
         let mut actual = self.replay.canonical_storage(machine, before, &actual)?;
         if actual.path.is_empty() {
-            let values = before.get(&actual)?.as_ref()?;
+            let values = before.slots.get(&actual)?.as_ref()?;
             let mut values = values.iter();
             if let Origin::Storage(location) = values.next()? {
                 if values.next().is_some() {
@@ -308,7 +317,8 @@ impl<'a> DescriptorAnalysis<'a> {
         self.replay.resolved(machine, origins)
     }
     pub fn stored_effects(&mut self, identity: MachineId) -> Option<Vec<DescriptorStoredEffect>> {
-        Some(self.replay.summary(identity, 0)?.effects)
+        let summary = self.replay.summary(identity, 0)?;
+        (!summary.invalidates_contents).then_some(summary.effects)
     }
     pub fn call_stored_effects(
         &mut self,
@@ -346,6 +356,9 @@ impl<'a> DescriptorAnalysis<'a> {
             return None;
         }
         let summary = self.replay.summaries.get(&call.callee)?.as_ref()?;
+        if summary.invalidates_contents {
+            return None;
+        }
         summary.effects.iter().map(|effect| {
             let destination = self.replay.canonical_storage(machine, before, &self.replay.actual_slot(call, effect.parameter, &effect.path)?)?;
             let preserves_incoming = effect.origins.iter().any(|origin| matches!(origin, DescriptorStoredOrigin::IncomingSlot { position, path } if *position == effect.parameter && *path == effect.path));
@@ -378,6 +391,7 @@ impl<'a> DescriptorAnalysis<'a> {
                 .map(canonical)
                 .collect::<Option<_>>()?;
             let aliases = before
+                .slots
                 .keys()
                 .filter_map(|location| {
                     let canonical_location = canonical(location)?;
@@ -399,7 +413,7 @@ impl<'a> DescriptorAnalysis<'a> {
                 .collect::<Option<Vec<_>>>()?;
             for input in &step.inputs {
                 if input.path.is_empty()
-                    && let Some(Some(origins)) = before.get(input)
+                    && let Some(Some(origins)) = before.slots.get(input)
                 {
                     observations.extend(origins.iter().filter_map(|origin| match origin {
                         Origin::Storage(location) => Some(location.clone()),
@@ -428,6 +442,7 @@ impl<'a> DescriptorAnalysis<'a> {
                 continue;
             };
             let summary = self.replay.summaries.get(&call.callee)?.as_ref()?;
+            step.may_escape |= summary.invalidates_contents;
             let mut outputs = summary
                 .effects
                 .iter()
@@ -453,7 +468,7 @@ impl<'a> DescriptorAnalysis<'a> {
                 if !step.definitions.contains(&destination) {
                     step.definitions.push(destination.clone());
                 }
-                for location in before.keys() {
+                for location in before.slots.keys() {
                     if let Some(canonical) =
                         self.replay.canonical_storage(machine, before, location)
                         && destination.contains(&canonical)
@@ -469,6 +484,14 @@ impl<'a> DescriptorAnalysis<'a> {
                         }
                         DescriptorStoredOrigin::IncomingSlot { position, path } => {
                             self.replay.actual_slot(call, *position, path)?
+                        }
+                        DescriptorStoredOrigin::IncomingContents { position, steps } => {
+                            let actual = call.arguments.get(*position)?.as_ref()?;
+                            let mut query = DescriptorContentsQuery::from_location(actual);
+                            query.steps.extend_from_slice(steps);
+                            step.inputs.push(query.observation());
+                            step.may_escape = true;
+                            continue;
                         }
                         DescriptorStoredOrigin::Parameter {
                             position,

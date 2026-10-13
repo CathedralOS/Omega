@@ -1,0 +1,17 @@
+data Window<'input> { values: &'input mut [u8]; other: &'input mut [u8]; }
+
+machine replace(windows: &mut [Window], outer: u64, inner: u64)
+requires outer < windows.len {
+    transition inner < windows[outer].values.len {
+        true -> store(windows, outer, inner)
+        false -> done()
+    }
+    state store(windows: &mut [Window], outer: u64, inner: u64)
+    requires outer < windows.len && inner < windows[outer].values.len {
+        // State transport preserves the field, not merely the containing root.
+        windows[outer].other[inner] = 17;
+    }
+    state done() {}
+}
+
+machine main() {}

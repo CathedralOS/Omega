@@ -480,9 +480,24 @@ pub(crate) fn lower_scalar_expression(
             exact_integer_casts,
         );
     }
-    if let Some(length) =
-        structural_fields::structural_sequence_length(program, authored_parameters, expression)
-    {
+    if let Some(length) = structural_fields::structural_sequence_length(
+        program,
+        operators,
+        authored_parameters,
+        expression,
+        |_, operand| {
+            super::element_selection::pure_selector(
+                program,
+                operators,
+                operand,
+                parameters,
+                authored_parameters,
+                parameter_types,
+                locals,
+                exact_integer_casts,
+            )
+        },
+    ) {
         return Some((length, ArithmeticDomain::Exact));
     }
     if let Some(length) = exact_inline_literal_subslice_length(program, expression) {

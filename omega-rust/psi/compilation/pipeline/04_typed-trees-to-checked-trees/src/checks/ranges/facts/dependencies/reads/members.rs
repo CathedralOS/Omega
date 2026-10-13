@@ -54,6 +54,25 @@ pub(super) fn collect_member_reads<'a, 'b>(
     depth: usize,
     bound_lookup: &validation::ImmutableBoundLookup<'b>,
 ) -> bool {
+    // Builtin length observes the receiver's descriptor, not a declared
+    // field named `len`. Capture that storage and its selectors so bounds
+    // can follow a selector snapshot and still retire on descriptor writes.
+    if let Some(receiver) =
+        validation::collection_length_receiver(program, machine, Some(state), expression)
+    {
+        return collect_place_read(
+            program,
+            machine,
+            state,
+            statement_index,
+            receiver,
+            calls,
+            operators,
+            reads,
+            depth + 1,
+            bound_lookup,
+        );
+    }
     let receiver_is_borrow = matches!(
         program.expression_table.expression(member.receiver),
         ExpressionNode::Borrow(_)
