@@ -139,7 +139,8 @@ fn alias_source_label(
     }
 }
 
-/// Seeds window-shrinking facts when a local is bound to a subslice `base[a..b]`.
+/// Seeds window-shrinking facts when a local is bound to a subslice `base[a..b]`
+/// or to its explicit borrow `&mut base[a..b]` / `&base[a..b]`.
 ///
 /// Records that the local window is carved from `base` (`prove_window_parent`)
 /// so subslice-overlap reasoning treats the two as sharing a base, and pins the
@@ -147,14 +148,18 @@ fn alias_source_label(
 /// length fact even when the base length is unknown. The length is also bound as
 /// a local length by the caller's `expression_indexable_length` path; seeding it
 /// here additionally exposes it under the window's display label for proofs that
-/// resolve by label rather than by symbol.
+/// resolve by label rather than by symbol. The borrow spelling changes the
+/// window's access, never its geometry, so both spellings seed the same facts.
 pub(in crate::checks::ranges) fn seed_subslice_window_facts(
     program: &dyn ::validation::CheckingInput,
     facts: &mut RangeFacts<'_>,
     value: ExpressionHandle,
     name: Option<&str>,
 ) {
-    let Some(indexed) = program.expression_table.indexed_node(value) else {
+    let Some(window) = validation::subslice_expression(program, value) else {
+        return;
+    };
+    let Some(indexed) = program.expression_table.indexed_node(window) else {
         return;
     };
     let Some(range) = program.expression_table.range_node(indexed.index) else {

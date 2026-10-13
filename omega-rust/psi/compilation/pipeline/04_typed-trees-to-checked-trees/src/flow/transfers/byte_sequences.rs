@@ -22,17 +22,19 @@ pub(super) fn append_derived_predicates(
     point: ProgramPoint,
     references: &mut HandleSpan<facts::FactRef>,
 ) {
-    let byte_operation = match program.expression_table.expression(expression) {
-        ExpressionNode::Binary(binary) => {
-            binary.operator == typed_trees::expression::BinaryOperator::Add
-        }
-        ExpressionNode::Indexed(indexed) => matches!(
-            program.expression_table.expression(indexed.index),
-            ExpressionNode::Range(_)
-        ),
-        _ => false,
-    };
-    if !byte_operation || !crate::values::operator_is_builtin(contexts.operators, expression) {
+    // A window `base[a..b]` and its explicit borrows `&base[a..b]` /
+    // `&mut base[a..b]` form one descriptor over the same bytes: the borrow
+    // spelling sets the view's access, not its contents, and under
+    // `bare-range-reference-access` it is the only mutable spelling.
+    let window = validation::subslice_expression(program, expression);
+    let operation = window.unwrap_or(expression);
+    let byte_operation = window.is_some()
+        || matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::Binary(binary)
+                if binary.operator == typed_trees::expression::BinaryOperator::Add
+        );
+    if !byte_operation || !crate::values::operator_is_builtin(contexts.operators, operation) {
         return;
     }
     let active_facts: Vec<_> = crate::flow::active_context_facts(contexts, semantic, active);
@@ -106,12 +108,13 @@ fn value_proves_predicate(
                 point,
             );
     }
-    if let Some(indexed) = program.expression_table.indexed_node(expression)
-        && matches!(
-            program.expression_table.expression(indexed.index),
-            ExpressionNode::Range(_)
-        )
-        && crate::values::operator_is_builtin(operators, expression)
+    // A window `base[a..b]` and its explicit borrows `&base[a..b]` /
+    // `&mut base[a..b]` form the same descriptor over the same bytes; the
+    // borrow spelling sets the view's access, not its contents. Under
+    // `bare-range-reference-access` the borrow is the only mutable spelling.
+    if let Some(window) = validation::subslice_expression(program, expression)
+        && let Some(indexed) = program.expression_table.indexed_node(window)
+        && crate::values::operator_is_builtin(operators, window)
     {
         // Preserve the class at descriptor formation. Replaying an initializer
         // later would observe a source binding that may have been replaced.

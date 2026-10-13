@@ -395,9 +395,14 @@ pub(super) fn produced_length(
 /// An immutable local's initializer describes this occurrence only while no
 /// exclusive borrow roots at its binding: `expose(&mut view)` hands the
 /// descriptor to a callee that can install a different slice, so the saved
-/// initializer no longer names the referent the call sees. The scan is
-/// deliberately state-wide -- the caller's obligation order is not the
-/// statement order -- and covers every carrier that can hold an expression.
+/// initializer no longer names the referent the call sees. A borrow that
+/// selects into the binding (`&mut view[a..b]`, `&mut view[i]`) lends backing
+/// contents through a descriptor of its own and cannot replace the binding's
+/// descriptor, so it leaves the saved length valid; under
+/// `bare-range-reference-access` that spelling is the only mutable window.
+/// The scan is deliberately state-wide -- the caller's obligation order is
+/// not the statement order -- and covers every carrier that can hold an
+/// expression.
 pub(super) fn binding_is_exclusively_exposed(
     program: &dyn crate::CheckingInput,
     state: &State,
@@ -414,9 +419,31 @@ pub(super) fn binding_is_exclusively_exposed(
             ExpressionNode::Borrow(borrow) => {
                 borrow.access.is_exclusive()
                     && borrow_root_symbol(program, borrow.target) == Some(symbol)
+                    && !borrow_selects_contents(program, borrow.target)
             }
             _ => false,
         })
+}
+
+/// Whether a borrow target selects elements of its root binding rather than
+/// the binding (or one of its fields) itself. An indexed step anywhere on the
+/// path lends contents under a new descriptor; the root's own descriptor stays
+/// where the declaration left it.
+fn borrow_selects_contents(
+    program: &dyn crate::CheckingInput,
+    mut expression: ExpressionHandle,
+) -> bool {
+    let mut visited = 0;
+    while program.expression_table.expression_is_valid(expression) && visited < 128 {
+        visited += 1;
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Borrow(borrow) => expression = borrow.target,
+            ExpressionNode::Member(member) => expression = member.receiver,
+            ExpressionNode::Indexed(_) => return true,
+            _ => return false,
+        }
+    }
+    false
 }
 
 /// An entry observation names the value the call edge still sees only while
