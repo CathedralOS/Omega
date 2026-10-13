@@ -1,5 +1,8 @@
 // Per-target bodies of the same machine name: every target-scoped family is
 // checked by Psi even though only the bound profile supplies the call.
+// `Helper::delta` exists only for windows_x86_64 and linux_x86_64, so the
+// build binds exactly those entries: a bound profile without a body for a
+// called machine is refused, which is the scoping rule this probe relies on.
 data Helper { seed: i32; }
 windows_x86_64 machine Helper::pick(helper: &Helper) -> i32 { 63 }
 macos_arm64 machine Helper::pick(helper: &Helper) -> i32 { 63 }
