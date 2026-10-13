@@ -136,6 +136,46 @@ impl TypedTrees {
             .find(|schema| schema.name.as_str() == name)
     }
 
+    /// Whether `symbol` denotes the toolchain's `core::fixed_vec::FixedVec`,
+    /// either the generic declaration or a concrete instance of it.
+    ///
+    /// Recognize the declaration, not a spelling: the same carrier may be
+    /// written `FixedVec<T, N>`, reached through a qualified path, or resolved
+    /// through a generated family head, and a reference's name then reads
+    /// `omega::language::FixedVec<i32, 4>` while the instance's data is named
+    /// `FixedVec<i32, 4>`. A concrete instance records the generic it came from
+    /// in `generic_instance`; follow that to the declaration and require the
+    /// toolchain's own `fixed_vec.omg`. An authored data type that merely
+    /// shares the name is a different declaration and stays an ordinary
+    /// nested message candidate.
+    pub fn is_core_fixed_vec(&self, symbol: symbols::SymbolHandle) -> bool {
+        if !symbol.is_valid() {
+            return false;
+        }
+        let generic = self
+            .data_definition_by_symbol(symbol)
+            .and_then(|data| data.generic_instance)
+            .and_then(
+                |instance| match self.type_reference_table.type_reference(instance) {
+                    types::TypeReferenceNode::Generic { base_symbol, .. } => Some(*base_symbol),
+                    _ => None,
+                },
+            )
+            .unwrap_or(symbol);
+        let declaration = self.symbols.authored_origin(generic);
+        declaration.is_valid()
+            && self.symbols.name(declaration) == "FixedVec"
+            && self
+                .symbols
+                .symbol_source_span(declaration)
+                .and_then(|span| self.symbols.source_file(span))
+                .is_some_and(|source| {
+                    source.origin == source::SourceOrigin::Toolchain
+                        && source.path.strip_prefix(&source.package_root).ok()
+                            == Some(std::path::Path::new("fixed_vec.omg"))
+                })
+    }
+
     /// The `Named` name underneath reference and constraint shells, if the
     /// type reference bottoms out in one.
     fn named_type_reference_name(
@@ -252,10 +292,10 @@ impl TypedTrees {
                 types::TypeReferenceNode::Reference { referee, .. } => handle = *referee,
                 types::TypeReferenceNode::Constrained { base_type, .. } => handle = *base_type,
                 types::TypeReferenceNode::Generic {
-                    base_name,
+                    base_symbol,
                     arguments,
                     ..
-                } if base_name.as_str() == "FixedVec" => {
+                } if self.is_core_fixed_vec(*base_symbol) => {
                     let arguments = self.type_reference_table.type_reference_handles(*arguments);
                     let [element, count] = arguments else {
                         return None;
@@ -272,11 +312,17 @@ impl TypedTrees {
             }
         }
 
-        let name = self.named_type_reference_name(handle)?;
-        if !name.starts_with("FixedVec<") {
+        // A specialized instance is a generated data definition whose
+        // derivation leads back to the toolchain declaration.
+        let types::TypeReferenceNode::Named { symbol, .. } =
+            self.type_reference_table.type_reference(handle)
+        else {
+            return None;
+        };
+        if !self.is_core_fixed_vec(*symbol) {
             return None;
         }
-        let data = self.data_definition_by_name_str(name)?;
+        let data = self.data_definition_by_symbol(*symbol)?;
         let mut items = None;
         let mut has_u64_length = false;
         for member in self.data_members(data) {

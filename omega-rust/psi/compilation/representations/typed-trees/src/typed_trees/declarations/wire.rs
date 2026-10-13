@@ -243,12 +243,12 @@ pub fn repeated_element_type(
         WireRepeatedCarrier::FixedArray => fixed_array_element_type(program, handle),
         WireRepeatedCarrier::FixedVec => {
             let handle = program.type_reference_table.peeled_type_reference(handle);
-            let (symbol, name) = match program.type_reference_table.type_reference(handle) {
+            let symbol = match program.type_reference_table.type_reference(handle) {
                 crate::types::TypeReferenceNode::Generic {
-                    base_name,
+                    base_symbol,
                     arguments,
                     ..
-                } if base_name.as_str() == "FixedVec" => {
+                } if program.is_core_fixed_vec(*base_symbol) => {
                     let [element, _] = program
                         .type_reference_table
                         .type_reference_handles(*arguments)
@@ -257,13 +257,13 @@ pub fn repeated_element_type(
                     };
                     return Some(*element);
                 }
-                crate::types::TypeReferenceNode::Named { symbol, name } => (*symbol, name),
+                crate::types::TypeReferenceNode::Named { symbol, .. } => *symbol,
                 _ => return None,
             };
-            let data = program
-                .data_definitions()
-                .iter()
-                .find(|data| (symbol.is_valid() && data.symbol == symbol) || data.name == *name)?;
+            if !program.is_core_fixed_vec(symbol) {
+                return None;
+            }
+            let data = program.data_definition_by_symbol(symbol)?;
             let items = program
                 .data_members(data)
                 .iter()

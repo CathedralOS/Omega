@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 11.11, "load1_start": 12.1, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 22.61, "load1_start": 8.6, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 835ms expected @a9ae30e1c334+wt
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -3754,6 +3754,9 @@ fail/wire/proof_only_wire_field_rejected rejected 2725ms expected @a9ae30e1c334+
 	wire data `Msg` field `n` mentions proof-only `Nat`, which has no wire encoding
 fail/wire/returned_preserving_remainder_input_write rejected 1795ms expected @992d27dd3135+wt
 	statement 5 mutates `main.buffer[1]` while local borrow `decoded` is still active (borrowed at statement 3; its last use is at statement 6 and it is released at state exit)
+fail/wire/same_named_data_is_not_the_core_fixed_vec rejected 228ms expected @2e35ca81c22d
+	data `RoomPacket` field `samples`: `FixedVec<i32, 4>` is not encodable by the compact_binary v0 encoder yet; wire stage 2 supports i32, i64, u32, u64, bool, runtime-sized text (`&[u8] in Utf8`), and a sibling wire schema (one nesting level)
+	data `RoomPacket` field `samples`: `FixedVec<i32, 4>` is not decodable by the compact_binary v0 decoder yet; wire stage 2b supports i32, i64, u32, u64, bool, borrowed runtime-sized text, and a sibling wire schema (one nesting level)
 fail/wire/unnumbered_field_in_numbered_data rejected 1ms expected @a9ae30e1c334+wt
 	tests/omega/fail/wire/unnumbered_field_in_numbered_data/main.omg:8:1: stable identities are all-or-nothing for record fields: number every member with `#N` or number none of them
 fail/wire/wire_codec_schema_identity_buffer_bound rejected 861ms expected @a9ae30e1c334+wt
@@ -6427,6 +6430,7 @@ pass/types/runtime_exact_address_subtraction_exit checked 11542ms check-target:m
 pass/types/runtime_i16_signed_arith_exit checked 11789ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/versioning/migration_generic_trait checked 7651ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/versioning/runtime_version_migration_exit checked 12425ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/wire/fixed_vec_member_through_qualified_path checked 1358ms @2e35ca81c22d
 pass/wire/numbered_case_identities checked 1594ms @a9ae30e1c334+wt
 pass/wire/runtime_wire_decode_byte_slice_exit checked 13399ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/wire/runtime_wire_decode_ranged_field_exit checked 11754ms check-target:macos_arm64 @a9ae30e1c334+wt
