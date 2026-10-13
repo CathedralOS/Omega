@@ -90,6 +90,19 @@ impl<'program> Evaluator<'program> {
 
     // ---- transitions --------------------------------------------------------
 
+    /// Where an authored crash edge fired: the executing machine and state
+    /// by name and the transition's source span, for the crash's message.
+    fn crash_site(&self, frame: &Frame, span: source::SourceSpan) -> String {
+        format!(
+            "machine `{}` state `{}` (source {:?} bytes {}..{})",
+            self.program.symbols.name(frame.machine_symbol),
+            self.program.symbols.name(frame.state_symbol),
+            span.source_id,
+            span.span.start,
+            span.span.end
+        )
+    }
+
     pub(in crate::interpreter::evaluator) fn eval_transition(
         &mut self,
         transition: &TableTransition,
@@ -132,7 +145,12 @@ impl<'program> Evaluator<'program> {
         if holds {
             match transition.exit {
                 TransitionExit::Ordinary => {}
-                TransitionExit::Crash(cause) => return Err(Halt::Crash(cause)),
+                TransitionExit::Crash(cause) => {
+                    return Err(Halt::Crash(
+                        cause,
+                        self.crash_site(frame, transition.source_span),
+                    ));
+                }
             }
         }
 

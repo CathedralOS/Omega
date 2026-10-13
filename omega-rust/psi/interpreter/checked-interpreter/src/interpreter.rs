@@ -274,7 +274,7 @@ pub fn materialize_zero_initialized_build_time_value(
                     message
                 }
                 Halt::Exit(code) => format!("zero storage initialization exited with code {code}"),
-                Halt::Crash(cause) => format!("explicit crash {cause:?}"),
+                Halt::Crash(cause, site) => format!("explicit crash {cause:?} at {site}"),
             })?;
     crate::build_time::observe_build_time_value(&value, &|reference| {
         evaluator.read_reference(reference)
@@ -282,7 +282,7 @@ pub fn materialize_zero_initialized_build_time_value(
     .map_err(|reason| match reason {
         Halt::Unsupported(message) | Halt::Trap(message) | Halt::Resource(message) => message,
         Halt::Exit(code) => format!("zero storage observation exited with code {code}"),
-        Halt::Crash(cause) => format!("explicit crash {cause:?}"),
+        Halt::Crash(cause, site) => format!("explicit crash {cause:?} at {site}"),
     })
 }
 
@@ -365,7 +365,7 @@ fn value_return_halt_error(halt: Halt) -> String {
             "the machine attempted to exit the process (code {code}) instead of returning a value"
         ),
         Halt::Unsupported(message) | Halt::Trap(message) | Halt::Resource(message) => message,
-        Halt::Crash(cause) => format!("explicit crash {cause:?}"),
+        Halt::Crash(cause, site) => format!("explicit crash {cause:?} at {site}"),
     }
 }
 
@@ -485,7 +485,7 @@ fn evaluate_observed_arguments(
                     Err(Halt::Exit(code)) => Err(format!(
                         "the machine attempted to exit the process (code {code}) instead of returning"
                     )),
-                    Err(Halt::Crash(cause)) => Err(format!("explicit crash {cause:?}")),
+                    Err(Halt::Crash(cause, site)) => Err(format!("explicit crash {cause:?} at {site}")),
                     Err(Halt::Unsupported(message))
                     | Err(Halt::Trap(message))
                     | Err(Halt::Resource(message)) => Err(message),
@@ -657,10 +657,10 @@ fn evaluate_granted_arguments(
                             observations,
                         ))
                     }
-                    Err(Halt::Crash(cause)) => {
+                    Err(Halt::Crash(cause, site)) => {
                         Err(BuildMachineEvaluationFailure::with_evidence(
                             BuildMachineEvaluationFailureKind::Trap,
-                            format!("explicit crash {cause:?}"),
+                            format!("explicit crash {cause:?} at {site}"),
                             usage,
                             observations,
                         ))
@@ -818,8 +818,8 @@ fn interpret_on_current_thread(
         Err(Halt::Exit(code)) => {
             InterpretOutcome::exited(code, evaluator.stdout, evaluator.stderr, usage)
         }
-        Err(Halt::Crash(cause)) => {
-            InterpretOutcome::crashed(cause, evaluator.stdout, evaluator.stderr, usage)
+        Err(Halt::Crash(cause, site)) => {
+            InterpretOutcome::crashed(cause, site, evaluator.stdout, evaluator.stderr, usage)
         }
         Err(Halt::Unsupported(message))
         | Err(Halt::Trap(message))

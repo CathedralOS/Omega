@@ -823,10 +823,17 @@ fn interpret_checked_fixture(
         },
     );
     let mut observation = match (outcome.crash_cause, outcome.error.as_deref()) {
-        (Some(typed_trees::signature::CrashCause::Trap), _) => terminal_execution::Observation {
-            facts: vec!["interpreter:trapped".to_owned()],
-            diagnostics: Vec::new(),
-        },
+        // The crash's site names where a trap fired, so a trapping harness or
+        // fixture record says which machine and state crashed.
+        (Some(typed_trees::signature::CrashCause::Trap), error) => {
+            terminal_execution::Observation {
+                facts: vec!["interpreter:trapped".to_owned()],
+                diagnostics: error
+                    .map(|site| format!("Checked interpreter: {site}"))
+                    .into_iter()
+                    .collect(),
+            }
+        }
         (None, None) => terminal_execution::Observation {
             facts: vec![format!("interpreter-exit:{}", outcome.exit_code)],
             diagnostics: Vec::new(),

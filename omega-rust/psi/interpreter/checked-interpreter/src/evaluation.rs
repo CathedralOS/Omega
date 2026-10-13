@@ -864,11 +864,17 @@ impl InterpretOutcome {
 
     pub(crate) fn crashed(
         cause: typed_trees::signature::CrashCause,
+        site: String,
         stdout: Vec<u8>,
         stderr: Vec<u8>,
         usage: EvaluationUsage,
     ) -> Self {
-        let mut outcome = Self::error(format!("explicit crash {cause:?}"), stdout, stderr, usage);
+        let mut outcome = Self::error(
+            format!("explicit crash {cause:?} at {site}"),
+            stdout,
+            stderr,
+            usage,
+        );
         outcome.crash_cause = Some(cause);
         outcome
     }

@@ -2,12 +2,14 @@
 //! evaluator method halts through (`unsupported`, `trap`, and a filesystem
 //! sponsor's refusal).
 
-/// Non-local control flow. An authored crash retains its checked cause;
-/// generic evaluator traps and unsupported operations are not source crashes.
-/// All abnormal outcomes still reject value-returning build-time evaluation.
+/// Non-local control flow. An authored crash retains its checked cause and
+/// names its site (the machine, state and transition span of the crash edge),
+/// so a trapping harness or fixture says where it crashed; generic evaluator
+/// traps and unsupported operations are not source crashes. All abnormal
+/// outcomes still reject value-returning build-time evaluation.
 pub(crate) enum Halt {
     Exit(i32),
-    Crash(typed_trees::signature::CrashCause),
+    Crash(typed_trees::signature::CrashCause, String),
     Unsupported(String),
     Trap(String),
     Resource(String),
