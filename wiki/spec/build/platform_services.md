@@ -8,6 +8,9 @@ provider covers its complete schema.
 
 ## Three layers
 
+Named decision: `portable-service-per-family-binding-carrier`, settled
+2026-10-13.
+
 1. **Portable service.** The only API applications use (for example
    `Filesystem`). It is shaped for the ideal target, Cathedral, and is
    identical on every target.
@@ -23,6 +26,36 @@ provider covers its complete schema.
    (`source/library/std/targets/<target>/`) implement the portable service over
    the raw service for that target. All translation between the portable shape
    and the OS shape happens here.
+
+## Provider-closure transport
+
+An application carries only `Binding<PortableService>`. The selected target
+implementation's checked provider closure retains every exact raw-family
+requirement call and selected raw provider it needs. Installing the portable
+binding pins that complete transitive closure to the portable provider era;
+changing a raw provider, its contract, or its target family changes the closure
+and requires fresh admission. Artifact/cache identity, cycle detection,
+replacement checks, review, and authority evidence all include those transitive
+dependencies.
+
+The closure dependency is not a second `Binding<RawFamily>` field in portable
+data, a target-varying portable type argument, or an implicitly manufactured
+binding value. It is static provider-plan structure beneath the one portable
+binding. Entered portable calls may invoke only the raw rows retained in that
+checked closure, under their declared reach and physical-authority evidence.
+No provider name, target default, or family spelling grants additional calls.
+
+Code that genuinely needs an independently published or replaceable raw-family
+service uses an explicitly carried `Binding<RawFamily>` and the ordinary
+binding-call rules. That is a different API from the portable facade. Provider
+closure transport cannot be used to hand a raw binding to application source,
+hide an ambient service, or weaken binding establishment and custody.
+
+Consequently the portable declaration and all application-visible data remain
+identical on every target. Only provider planning chooses the applicable raw
+family. Unsupported or missing target closure rejects rather than adding a
+sentinel provider, demanding every family's binding, or changing the portable
+carrier.
 
 Raw requirements explicitly declare the capability identities their operations
 reach. Filesystem reads, writes, metadata queries/mutations, directory enumeration

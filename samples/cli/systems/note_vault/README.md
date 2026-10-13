@@ -1,11 +1,11 @@
 # note_vault
 
-Waiting on [OWNER_QUESTIONS.md Q1](../../../../OWNER_QUESTIONS.md#q1---what-carries-a-portable-services-per-family-raw-binding)
-(`portable-service-per-family-binding-carrier`): the portable `Filesystem`
-has no way to carry a per-target raw binding after `FilesystemHost` splits
-into its POSIX and Windows families.
+Implementation pending under **FILESYSTEM-PLATFORM-SERVICES**. The settled
+[provider-closure transport](../../../../wiki/spec/build/platform_services.md#provider-closure-transport)
+keeps one portable `Filesystem` binding while its selected target provider
+retains the exact POSIX or Windows raw-family closure.
 
 Current failure: package review rejects the entry with "selected ProgramEntry
 Binding field `Main::fs::host` requires a selected Fused provider for boundary
-`FilesystemHost`". Once Q2 is answered, the remaining work is the ordinary
-FILESYSTEM-PLATFORM-SERVICES implementation in `TASKS.md`.
+`FilesystemHost`". The remaining work is the ordinary
+**FILESYSTEM-PLATFORM-SERVICES** implementation in `TASKS.md`.

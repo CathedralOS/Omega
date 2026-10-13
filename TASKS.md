@@ -1025,10 +1025,9 @@ defines the complete product bar.
     **FILESYSTEM-PLATFORM-SERVICES**. Acceptance: the seven-step workflow,
     exit 7.
   - `systems/note_vault`: needs the portable `FilesystemHost` binding under
-    **FILESYSTEM-PLATFORM-SERVICES** and
-    `portable-service-per-family-binding-carrier` in
-    [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md). Acceptance: unchanged workflow,
-    exit 14.
+    **FILESYSTEM-PLATFORM-SERVICES**. Its one portable binding retains the
+    selected target provider's exact raw-family closure. Acceptance: unchanged
+    workflow, exit 14.
 
   Host coverage still owed:
   - std `Clock` on Linux (`rendering/{bouncing_ball_2d,mandelbrot_zoom,bouncing_particles}`):
@@ -1713,9 +1712,7 @@ defines the complete product bar.
 
   The 16 recursive filesystem parameter suffixes remain unmigrated. Their
   `pass/filesystem/dir_walk_wrappers_exit` customer's portable binding
-  dependency is **FILESYSTEM-PLATFORM-SERVICES** and
-  `portable-service-per-family-binding-carrier` in
-  [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md). Continue the other customer groups
+  dependency is **FILESYSTEM-PLATFORM-SERVICES**. Continue the other customer groups
   without manufacturing an implicit re-export or provider-name fallback.
 
   Collection frontier: qualify remaining view and capture compositions through
@@ -2823,9 +2820,8 @@ crash and native exit behavior.
     binds same-target calls.
   - Exercise filesystem `read_dir_count`, `read_dir_nth`, `remove_dir_all`,
     `open_with` and `lock` from a consumer package once its portable binding
-    is supplied by **FILESYSTEM-PLATFORM-SERVICES** under
-    `portable-service-per-family-binding-carrier` in
-    [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md).
+    is supplied by **FILESYSTEM-PLATFORM-SERVICES** through the selected
+    target provider's retained raw-family closure.
   - The common lowering route retains runtime bodies and opaque contracts,
     including unreachable members and uncatalogued tags, in Terminal family
     rows; inspection exposes tags and exact callable ids. Semantic conformance
@@ -5725,12 +5721,22 @@ wait for Cathedral's instruction coverage. The interpreter is
     through 4096-byte buffers. Remove unnecessary byte copying; preserve
     the native layout, alignment and minimum-storage requirements of
     structure-valued calls. Keep NUL-terminated path construction separate.
-  The portable wrapper's carrier depends on
-  `portable-service-per-family-binding-carrier` in `OWNER_QUESTIONS.md`;
-  independent family/provider work can proceed. Evidence for that question:
-  `samples/cli/audio/wav_output` is Q2's option 1 in miniature — an
-  application holds one `Binding<WavOutput>`, and target-scoped named
-  implementations satisfy it, each reaching its own raw family.
+  The portable carrier follows
+  [provider-closure transport](wiki/spec/build/platform_services.md#provider-closure-transport):
+  applications hold one `Binding<FilesystemHost>` with an identical portable
+  data shape on every target. Each selected target implementation retains its
+  exact POSIX or Windows requirement/provider rows as static transitive
+  provider-plan dependencies. Do not add raw-family binding fields, weaken
+  establishment based on reach, introduce target-scoped data aliases, or
+  manufacture hidden `Binding<RawFamily>` values. An independently replaceable
+  raw service remains an explicit binding in the API that requests it.
+
+  `samples/cli/audio/wav_output` is the existing miniature: an application
+  holds one `Binding<WavOutput>`, and target-scoped named implementations
+  satisfy it while reaching their applicable raw family. Bring its retained
+  closure and call spelling through the same settled provider machinery; its
+  current direct raw calls are migration evidence, not a separate ambient
+  binding route.
   Migrate `samples/cli/audio/wav_output`'s explicit raw-family reach ceiling
   to the core filesystem identities together with the raw requirements.
   Its `invokes` declarations track direct boundary calls, not implicit
@@ -5763,6 +5769,12 @@ wait for Cathedral's instruction coverage. The interpreter is
   `provider-planning/src/provider_settlement/canonical_filesystem_host.rs`
   with the authored Linux replacement; remove the mixed trait and its
   remaining consumers in the same coherent migration.
+
+  Retain every nested raw requirement/provider identity in artifact/cache
+  identity, cycle detection, review, authority evidence, replacement admission
+  and live-era custody. Missing, ambiguous, cyclic, wrong-target, stale or
+  unadmitted closure members reject. Replacing any nested raw provider rechecks
+  the complete portable provider closure before publication.
 
   Absorbs **UNIT-PLAN-OMISSION-MKALL-WALK-PARAMETER-CUSTODY**:
   `Filesystem::mkall_walk` reentry planning is repaired; its remaining

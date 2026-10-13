@@ -232,8 +232,12 @@ An independently installed binding names the stable slot, not one permanent era.
 A protocol may publish checked explicit duplication or stronger linear lifecycle
 obligations on the carrier; the requirement trait itself acquires no multiplicity.
 A provider holds no state, so installation retains no provider value; bindings
-route calls into the installed era. An exact-once obligation is a distinct linear
-session, registration, completion or shutdown carrier that the service returns. Do not add `LinearBinding<R>` without a concrete
+route calls into the installed era. That era also pins the selected provider's
+complete static dependency closure, including exact nested boundary requirements
+and providers. Those dependencies are provider-plan structure, not provider
+state or additional source-visible `Binding` values. An exact-once obligation is
+a distinct linear session, registration, completion or shutdown carrier that
+the service returns. Do not add `LinearBinding<R>` without a concrete
 protocol whose binding occurrence, rather than its provider or returned resource,
 must be consumed exactly once.
 
@@ -464,7 +468,9 @@ registry claim must not become repeatable because a later step failed.
 
 Runnable binding joins the complete Terminal object/image, canonical installation,
 real linear `InstalledCode` claim, and opaque acceptance. It compares the selected
-provider closure even when no progress rows exist. The live era retains the
+provider closure even when no progress rows exist. The closure includes every
+static transitive provider dependency; replacement of any member rechecks the
+whole closure, and cycles reject before publication. The live era retains the
 registry and runnable custody; successful retirement alone releases them.
 Binding or retirement failure preserves exact custody.
 

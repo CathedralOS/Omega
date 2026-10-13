@@ -99,6 +99,15 @@ Missing, private, ambiguous, foreign, and duplicate candidates reject. A selecte
 operation's identity remains independent of its reach row; equal service sets
 cannot correlate providers. Selection never permits mutation of derived plans.
 
+A selected provider's exact boundary calls create static transitive provider
+dependencies. Provider planning closes those rows under target selection and
+retains their requirement, implementation, target, reach, authority, trust,
+replacement, and lifecycle identities. The closure, not the portable source
+data shape, carries a target implementation's raw-family dependencies. Missing,
+ambiguous, cyclic, cross-target, or unadmitted dependencies reject. Selection
+does not manufacture `Binding<R>` values for them; source that needs an
+independently published binding must carry one explicitly.
+
 After selection, [behavior exclusions](behavior_exclusions.md) may require stronger
 absence properties of the complete selected product than its ordinary callable
 contracts promise. A no-op body can contribute evidence for that independent
