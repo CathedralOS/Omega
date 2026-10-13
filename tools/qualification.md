@@ -172,6 +172,32 @@ as fresh candidate executions. `run-pending` assesses, runs only needed checks,
 then assesses again. An explicit `run --check ID` always runs and measures
 unnecessary repeated work when the previous evidence was still valid.
 
+Whole-file hashes can also change when an independently reviewed branch is
+outside the captured check's exercised behavior. Record that review explicitly:
+
+```text
+python3 tools/qualification.py source-reuse-context --state build/qualification.json --base FULL_BASE_SHA --check CHECK_ID > build/source-scope-review.json
+python3 tools/qualification.py attest-source-reuse --state build/qualification.json --revision LAST_REVISION --base FULL_BASE_SHA --check CHECK_ID --review build/source-scope-review.json
+```
+
+The context starts with `accepted: false`. An independent reviewer must inspect
+the complete old/new blob delta and check closure, supply their identity and
+rationale, and accept that exact binding before registration. Registration
+captures an immutable receipt binding the original accepted run and receipt,
+check/configuration definitions, candidate/base, every incoming blob change,
+and the review's content digest. Preserve both the receipt and review artifact.
+The tool records an externally supplied review; its reviewer field does not
+authenticate independence. Obtaining the actual independent decision remains
+the workflow owner's responsibility.
+Assessment can then cover only the specifically reviewed `source_changed`
+reasons. It still refuses changed artifacts, environments, definitions,
+observations or damaged receipts. Final-candidate checks cannot receive these
+attestations. The capture command still requires its producer's complete source
+closure to match the current candidate; an attestation never permits a new
+capture with an older producer. This records reviewed reuse, not a semantic
+equivalence proof or new candidate execution. Final independent review and the
+normal exact-SHA landing build remain mandatory.
+
 If exercised compiler inputs changed, rebuild the exact integrated producer in
 its isolated directory. Update producer/artifact/check definitions explicitly:
 

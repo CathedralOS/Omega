@@ -436,15 +436,123 @@ def reasons(repository, record, check, run, candidate):
     return result
 
 
-def plan(repository, record, candidate):
+def source_changes(repository, observed, candidate):
+    """Complete blob delta, including paths outside a check's input closure."""
+    result = subprocess.run(["git", "-C", str(repository), "diff", "--no-renames", "--raw", "--no-abbrev", "-z", observed, candidate],
+                            capture_output=True, text=True, timeout=30)
+    require(result.returncode == 0, result.stderr.strip() or "Git blob delta failed")
+    fields = result.stdout.split("\0")
+    require(fields[-1] == "" and (len(fields) - 1) % 2 == 0, "invalid Git blob delta")
+    changes = {}
+    for index in range(0, len(fields) - 1, 2):
+        header, name = fields[index].split(), fields[index + 1]
+        require(len(header) == 5 and header[0].startswith(":") and name not in changes,
+                "invalid or duplicate Git blob delta entry")
+        before, after = header[2:4]
+        require(all(re.fullmatch(r"[0-9a-f]{40}", value) for value in (before, after)), "incomplete Git blob identity")
+        changes[name] = dict(before=None if before == "0" * 40 else before,
+                             after=None if after == "0" * 40 else after)
+    return changes
+
+
+def reuse_binding(repository, record, check, run, candidate, base):
+    return dict(check=check["id"], run=run["id"], receipt=run["receipt"],
+                observed_revision=run["revision"], candidate=candidate, base=base,
+                definition=digest(check), config_digest=record["config_digest"],
+                changes=source_changes(repository, run["revision"], candidate))
+
+
+def attest_source_reuse(repository, path, expected, name, base, review_path):
+    """Record independent semantic scope review; never manufacture a new run.
+
+    Whole-file identities conservatively invalidate unexercised branches too.
+    The reviewer must bind the complete old/new blob delta to the exact accepted
+    observation. This only covers source-change reasons in planning. Capture's
+    producer/source equality and every non-source invalidation remain intact.
+    """
+    candidate = clean_head(repository)
+    revision(repository, base)
+    require(git(repository, "merge-base", base, candidate) == base, "reuse base is not an ancestor")
+    review_path = Path(review_path).resolve()
+    before = artifact_stamps([review_path])
+    review = read_json(review_path)
+    review_digest = file_digest(review_path)
+    require(before == artifact_stamps([review_path]), "reuse review changed during capture")
+    def change(record):
+        require(record["repository"] == str(Path(repository).resolve()), "qualification worktree mismatch")
+        require(not record["running"], "cannot attest while qualification command runs")
+        selected = [row for row in record["config"]["checks"] if row["id"] == name]
+        require(len(selected) == 1, "unknown source reuse check")
+        check = selected[0]
+        require(not check["final"], "final-candidate checks cannot receive source reuse attestations")
+        runs = [row for row in record["runs"] if row["check"] == name]
+        require(runs, "source reuse needs a prior observation")
+        run = runs[-1]
+        invalidations = reasons(repository, record, check, run, candidate)
+        require(invalidations and all(value.startswith("source_changed:") for value in invalidations),
+                "source reuse requires an accepted observation with only source changes")
+        binding = reuse_binding(repository, record, check, run, candidate, base)
+        require(review.get("binding") == binding and review.get("accepted") is True
+                and isinstance(review.get("reviewer"), str) and review["reviewer"].strip()
+                and isinstance(review.get("rationale"), str) and review["rationale"].strip(),
+                "independent reuse review must bind the exact observation, candidate and complete blob delta")
+        require(clean_head(repository) == candidate, "candidate changed during reuse capture")
+        require(before == artifact_stamps([review_path]), "reuse review changed during registration")
+        value = dict(schema="qualification-source-reuse-1", binding=binding,
+                     covered_reasons=invalidations,
+                     review=dict(path=str(review_path), sha256=review_digest))
+        destination = Path(path).with_suffix(".records") / (uuid.uuid4().hex + ".reuse.json")
+        require(not destination.exists(), "reuse receipt already exists")
+        atomic_json(destination, value)
+        record.setdefault("source_reuse", []).append(dict(path=str(destination), sha256=file_digest(destination)))
+    return update(path, expected, change)
+
+
+def reviewed_source_reuse(repository, record, check, run, candidate, base):
+    if check["final"]:
+        return None
+    for receipt in reversed(record.get("source_reuse", [])):
+        try:
+            if file_digest(receipt["path"]) != receipt["sha256"]:
+                continue
+            value = read_json(receipt["path"])
+            if value.get("schema") != "qualification-source-reuse-1":
+                continue
+            binding = value["binding"]
+            if not isinstance(binding, dict):
+                continue
+            if (binding.get("check"), binding.get("run"), binding.get("candidate"), binding.get("base")) != (
+                    check["id"], run["id"], candidate, base):
+                continue
+            if value["binding"] != reuse_binding(repository, record, check, run, candidate, base):
+                continue
+            review = value["review"]
+            if file_digest(review["path"]) != review["sha256"]:
+                continue
+            # Registration validated this review; retain that binding on every
+            # assessment and again at exact-candidate verification/publication.
+            return dict(receipt=receipt, covered_reasons=value["covered_reasons"], review=review)
+        except (OSError, ValueError, KeyError, RecoveryError):
+            continue
+    return None
+
+
+def plan(repository, record, candidate, base=None):
     rows = []
     for check in record["config"]["checks"]:
         run = next((row for row in reversed(record["runs"]) if row["check"] == check["id"]), None)
         invalidations = reasons(repository, record, check, run, candidate)
+        attestation = reviewed_source_reuse(repository, record, check, run, candidate, base) if run else None
+        if attestation:
+            invalidations = [value for value in invalidations
+                             if not (value.startswith("source_changed:")
+                                     and value in attestation["covered_reasons"])]
         rows.append(dict(check=check["id"], action="rerun" if invalidations else "reuse",
-                         reasons=invalidations or ["reviewed_inputs_unchanged"],
+                         reasons=invalidations or ["reviewed_source_scope_unchanged" if attestation else "reviewed_inputs_unchanged"],
                          evidence=run["id"] if run else None,
                          observed_revision=run["revision"] if run else None))
+        if attestation:
+            rows[-1]["source_reuse"] = attestation
     return rows
 
 
@@ -535,7 +643,7 @@ def assess(repository, path, expected, base):
             result = subprocess.run(["git", "-C", str(repository), "merge-base", "--is-ancestor", before, after])
             require(result.returncode == 0, "integration base is not a compatible ancestor")
         canonical_context = contract_mapping(repository, record["config"], base, candidate)
-        rows = plan(repository, record, candidate)
+        rows = plan(repository, record, candidate, base)
         record["assessments"].append(dict(candidate=candidate, base=base, checks=rows,
             canonical_context=canonical_context,
             incoming_paths=git(repository, "diff", "--name-only", record["base"], base).splitlines(),
@@ -558,7 +666,7 @@ def _validate(repository, path, candidate, base):
     require(assessment["candidate"] == candidate and assessment["base"] == base,
             "qualification assessment covers a stale candidate/base")
     require(clean_head(repository) == candidate, "qualification candidate is not clean HEAD")
-    rows = plan(repository, record, candidate)
+    rows = plan(repository, record, candidate, base)
     require(all(row["action"] == "reuse" for row in rows),
             "qualification requires affected/final checks: " + json.dumps(rows))
     return dict(path=str(Path(path).resolve()), sha256=file_digest(path),
@@ -567,7 +675,7 @@ def _validate(repository, path, candidate, base):
 
 def main(arguments=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("context", "handoff", "start", "amend", "run", "assess", "run-pending", "status"))
+    parser.add_argument("command", choices=("context", "handoff", "start", "amend", "run", "assess", "run-pending", "status", "attest-source-reuse", "source-reuse-context"))
     parser.add_argument("--repository", default=".")
     parser.add_argument("--state")
     parser.add_argument("--revision", type=int)
@@ -577,6 +685,7 @@ def main(arguments=None):
     parser.add_argument("--reason")
     parser.add_argument("--role", choices=("implementation", "review", "continuation"))
     parser.add_argument("--previous", help="prior handoff JSON for focused continuation fingerprint comparison")
+    parser.add_argument("--review", help="independent source-reuse review JSON with the exact observation/blob binding")
     options = parser.parse_args(arguments)
     try:
         repository = Path(options.repository).resolve()
@@ -607,6 +716,15 @@ def main(arguments=None):
             result = start(repository, path, options.base, read_json(options.config))
         elif options.command == "status":
             result = load(path)
+        elif options.command == "source-reuse-context":
+            require(options.base and options.check, "reuse context needs --base and --check")
+            record = load(path)
+            checks = [row for row in record["config"]["checks"] if row["id"] == options.check]
+            runs = [row for row in record["runs"] if row["check"] == options.check]
+            require(len(checks) == 1 and runs, "reuse context needs a known observed check")
+            result = dict(binding=reuse_binding(repository, record, checks[0], runs[-1], clean_head(repository),
+                                                revision(repository, options.base)),
+                          accepted=False, reviewer=None, rationale=None)
         else:
             require(options.revision is not None, "mutation requires --revision from the last record")
             if options.command == "amend":
@@ -619,6 +737,11 @@ def main(arguments=None):
                 result, accepted = run_check(repository, path, options.revision, options.check)
                 print(json.dumps(result, indent=2))
                 return 0 if accepted else 1
+            if options.command == "attest-source-reuse":
+                require(options.base and options.check and options.review, "source reuse needs --base, --check and --review")
+                result = attest_source_reuse(repository, path, options.revision, options.check, options.base, options.review)
+                print(json.dumps(result, indent=2))
+                return 0
             require(options.base, "assess needs the integrated --base")
             result = assess(repository, path, options.revision, options.base)
             if options.command == "run-pending":

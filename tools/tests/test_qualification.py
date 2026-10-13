@@ -79,6 +79,130 @@ class QualificationTests(unittest.TestCase):
         record = self.assess(self.git("rev-parse", "HEAD"))
         self.assertIn("source_changed:src", record["assessments"][-1]["checks"][0]["reasons"])
 
+    def source_reuse_review(self, base):
+        record = qualification.load(self.state)
+        check = record["config"]["checks"][0]
+        review = dict(binding=qualification.reuse_binding(self.repository, record, check, record["runs"][-1],
+                                                        self.git("rev-parse", "HEAD"), base),
+                      accepted=True, reviewer="independent fixture reviewer",
+                      rationale="The changed source branch is outside the captured command's exercised behavior.")
+        path = self.root / "scope-review.json"
+        path.write_text(json.dumps(review))
+        return path
+
+    def attest_source_reuse(self, base):
+        review = self.source_reuse_review(base)
+        record = qualification.load(self.state)
+        return qualification.attest_source_reuse(self.repository, self.state, record["revision"], "values", base, review)
+
+    def test_reviewed_unexercised_source_change_retains_original_observation(self):
+        self.run_check()
+        incoming = self.commit("src/program", "changed unexercised branch")
+        self.attest_source_reuse(incoming)
+        record = self.assess(incoming)
+        row = record["assessments"][-1]["checks"][0]
+        self.assertEqual(row["action"], "reuse")
+        self.assertEqual(row["reasons"], ["reviewed_source_scope_unchanged"])
+        self.assertEqual(row["observed_revision"], self.base)
+        self.assertEqual(len(record["runs"]), 1)
+        qualification.validate(self.repository, self.state, incoming, incoming)
+
+    def test_source_reuse_binds_candidate_base_and_complete_blob_changes(self):
+        self.run_check()
+        self.commit("src/program", "changed branch")
+        incoming = self.commit("README.md", "outside closure, still part of review delta")
+        review = self.source_reuse_review(incoming)
+        value = json.loads(review.read_text())
+        del value["binding"]["changes"]["README.md"]
+        review.write_text(json.dumps(value))
+        record = qualification.load(self.state)
+        with self.assertRaisesRegex(qualification.RecoveryError, "complete blob delta"):
+            qualification.attest_source_reuse(self.repository, self.state, record["revision"], "values", incoming, review)
+        self.attest_source_reuse(incoming)
+        wrong_base = self.assess(self.base)["assessments"][-1]["checks"][0]
+        self.assertIn("source_changed:src", wrong_base["reasons"])
+        later = self.commit("src/uncovered", "another source change")
+        changed = self.assess(later)["assessments"][-1]["checks"][0]
+        self.assertIn("source_changed:src", changed["reasons"])
+
+    def test_source_reuse_preserves_artifact_environment_and_receipt_invalidations(self):
+        self.run_check()
+        incoming = self.commit("src/program", "unexercised branch")
+        self.attest_source_reuse(incoming)
+        self.library.write_bytes(b"replaced producer")
+        row = self.assess(incoming)["assessments"][-1]["checks"][0]
+        self.assertIn("compiler_or_artifact_changed", row["reasons"])
+        self.library.write_bytes(b"pinned compiler dependency")
+        with mock.patch.dict(os.environ, {"CARGO_PROFILE_DEV_OPT_LEVEL": "changed"}):
+            row = self.assess(incoming)["assessments"][-1]["checks"][0]
+        self.assertIn("environment_changed", row["reasons"])
+        run = qualification.load(self.state)["runs"][-1]
+        Path(run["receipt"]["path"]).write_text("{}")
+        row = self.assess(incoming)["assessments"][-1]["checks"][0]
+        self.assertIn("observation_record_mismatch", row["reasons"])
+
+    def test_changed_reuse_review_or_attestation_cannot_cover_source_changes(self):
+        self.run_check()
+        incoming = self.commit("src/program", "unexercised branch")
+        record = self.attest_source_reuse(incoming)
+        receipt = Path(record["source_reuse"][-1]["path"])
+        captured = receipt.read_text()
+        receipt.write_text("{}")
+        row = self.assess(incoming)["assessments"][-1]["checks"][0]
+        self.assertIn("source_changed:src", row["reasons"])
+        receipt.write_text(captured)
+        (self.root / "scope-review.json").write_text("{}")
+        row = self.assess(incoming)["assessments"][-1]["checks"][0]
+        self.assertIn("source_changed:src", row["reasons"])
+
+    def test_source_reuse_cannot_cover_final_candidate_checks(self):
+        config = copy.deepcopy(self.config)
+        config["checks"][0]["final"] = True
+        qualification.amend(self.state, 0, config, "final review required")
+        self.run_check()
+        incoming = self.commit("src/program", "unexercised branch")
+        with self.assertRaisesRegex(qualification.RecoveryError, "final-candidate"):
+            self.attest_source_reuse(incoming)
+        row = self.assess(incoming)["assessments"][-1]["checks"][0]
+        self.assertIn("final_candidate_required", row["reasons"])
+
+    def test_source_reuse_cannot_survive_changed_check_definition(self):
+        self.run_check()
+        incoming = self.commit("src/program", "unexercised branch")
+        record = self.attest_source_reuse(incoming)
+        config = copy.deepcopy(self.config)
+        config["checks"][0]["timeout_seconds"] = 11
+        qualification.amend(self.state, record["revision"], config, "check definition changed")
+        row = self.assess(incoming)["assessments"][-1]["checks"][0]
+        self.assertIn("check_definition_changed", row["reasons"])
+        self.assertIn("source_changed:src", row["reasons"])
+        self.assertNotIn("source_reuse", row)
+
+    def test_landing_revalidates_source_reuse_receipt(self):
+        self.run_check()
+        incoming = self.commit("src/program", "unexercised branch")
+        record = self.attest_source_reuse(incoming)
+        self.assess(incoming)
+        with mock.patch("sys.stdout"):
+            self.assertEqual(landing.verify(self.repository, incoming), 0)
+        self.assertIsNone(landing.receipt_failure(self.repository, incoming, set(), base=incoming,
+                                                qualification_path=self.state))
+        Path(record["source_reuse"][-1]["path"]).write_text("{}")
+        refusal = landing.receipt_failure(self.repository, incoming, set(), base=incoming,
+                                          qualification_path=self.state)
+        self.assertIn("qualification no longer valid", refusal)
+
+    def test_reuse_attestation_does_not_relax_new_capture_producer_source_equality(self):
+        config = copy.deepcopy(self.config)
+        config["checks"][0]["producer"] = dict(revision=self.base, inputs=["src"])
+        qualification.amend(self.state, 0, config, "pin producer inputs")
+        self.run_check()
+        incoming = self.commit("src/program", "unexercised branch")
+        self.attest_source_reuse(incoming)
+        self.assess(incoming)
+        with self.assertRaisesRegex(qualification.RecoveryError, "producer source/dependencies"):
+            self.run_check()
+
     def test_run_pending_executes_only_affected_and_final_checks(self):
         self.run_check()
         incoming = self.commit("README.md", "unrelated")
