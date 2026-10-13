@@ -1122,6 +1122,7 @@ pass/entry/service_borrowed_slice_call built 334ms
 pass/errors/crash_route_boundary checked 9262ms @5041ef1af684+wt
 pass/errors/crash_unrecoverable_stmt checked 9612ms @5041ef1af684+wt
 pass/errors/member_crash_route checked 9464ms @5041ef1af684+wt
+pass/errors/reconstructed_case_payload_exit built 4680ms exit:70 @8b4b5df96897+wt
 pass/errors/returned_case_payload_from_parameter_exit built 5698ms exit:70 @5798b57ae772+wt
 pass/errors/runtime_result_match_exit built 820ms exit:70 @33ff1bce07c2454b95a446eb1410d3a70267f325
 pass/errors/trap_unrecoverable_statement checked 168ms

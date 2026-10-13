@@ -1,0 +1,17 @@
+// The source-only check does not run constructor custody completion. Full
+// checked publication must reject overlapping transfers from the same payload.
+data Token { value: i32; }
+data Choice { case Present(value: Token); case Empty; }
+data Pair { first: Token; second: Token; }
+
+machine duplicate(choice: Choice) -> Pair {
+    transition choice {
+        Choice::Present { value } -> Pair { first: value, second: value }
+        Choice::Empty -> Pair { first: Token { value: 0 }, second: Token { value: 1 } }
+    }
+}
+
+data Main { }
+machine Main::main(main: &mut Main) {
+    let pair: Pair = duplicate(Choice::Present { value: Token { value: 7 } });
+}

@@ -422,15 +422,7 @@ fn owned_projected_field_source(
     if argument.path.is_empty() {
         return Ok(root);
     }
-    if argument.access != terminal_psi::StructuralAccess::Owned
-        || !argument.path.iter().all(|segment| {
-            matches!(
-                segment,
-                terminal_psi::StructuralPathSegment::Field(_)
-                    | terminal_psi::StructuralPathSegment::FixedIndex(_)
-            )
-        })
-    {
+    if argument.access != terminal_psi::StructuralAccess::Owned {
         return Err(LegalizationError::custody());
     }
     let (_, selected) =

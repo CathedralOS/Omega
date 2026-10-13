@@ -375,7 +375,9 @@ memberships below the corresponding field path; the receiving field declaration
 does not establish them. Reference
 children transfer their existing permission without copying their referents;
 the complete returned-leaf source map uses canonical path order, independently
-of constructor and cleanup order. An owned child may name an authenticated finite field or fixed-index path.
+of constructor and cleanup order. An owned child may name an authenticated finite field or fixed-index path,
+including fields beneath an established `Case` payload namespace. The namespace
+retains the selected-case obligation; path geometry alone does not establish it.
 Its transfer consumes the current subtree custody and preserves the remaining
 siblings; the whole source name alone grants no partial-transfer authority. Ordinary borrowed projections retain their access rules.
 
@@ -410,7 +412,8 @@ indexed theory, and establishment routes are not silently reduced to raw storage
 `FixedArray` result. Its ordered structural operands have exactly the declared
 element type and extent. Each operand is evaluated before construction; authored
 calls and effects occur once, in increasing element order. An owned operand may
-name a whole value or an authenticated finite field/fixed-index subtree. The
+name a whole value or an authenticated finite field/fixed-index subtree,
+including an established case payload. The
 current custody judgment rejects overlapping affine transfers and preserves the
 remaining siblings. An unrestricted array cannot absorb an affine element.
 

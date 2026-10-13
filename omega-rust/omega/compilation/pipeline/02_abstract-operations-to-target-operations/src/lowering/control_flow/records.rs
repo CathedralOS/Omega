@@ -256,15 +256,6 @@ pub(super) fn establish(
                 {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
-                if !argument.path.iter().all(|segment| {
-                    matches!(
-                        segment,
-                        terminal_psi::StructuralPathSegment::Field(_)
-                            | terminal_psi::StructuralPathSegment::FixedIndex(_)
-                    )
-                }) {
-                    return Err(LoweringError::unsupported_control_flow(function.machine));
-                }
                 let multiplicity = if descriptor_member && argument.path.is_empty() {
                     // Relocating a descriptor never moves the referent: the
                     // source is the live view place (established or copied)
@@ -275,23 +266,36 @@ pub(super) fn establish(
                         return Err(LoweringError::unsupported_control_flow(function.machine));
                     }
                     StructuralMultiplicity::Unrestricted
-                } else if let Some(home) = live.structural_homes.get(&argument.place) {
-                    if types.subtree(home.structural_type(), &argument.path) != Some(nested)
-                        || home.access() != StructuralAccess::Owned
-                    {
-                        return Err(LoweringError::unsupported_control_flow(function.machine));
-                    }
-                    home.multiplicity()
                 } else {
-                    let parameter = function
-                        .arrival_parameter(argument.place)
-                        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-                    if types.subtree(parameter.structural_type, &argument.path) != Some(nested)
-                        || parameter.access != StructuralAccess::Owned
+                    let (root, access, multiplicity) =
+                        if let Some(home) = live.structural_homes.get(&argument.place) {
+                            (home.structural_type(), home.access(), home.multiplicity())
+                        } else {
+                            let parameter =
+                                function.arrival_parameter(argument.place).ok_or_else(|| {
+                                    LoweringError::unsupported_control_flow(function.machine)
+                                })?;
+                            (
+                                parameter.structural_type,
+                                parameter.access,
+                                parameter.multiplicity,
+                            )
+                        };
+                    // One typed static projection judgment includes selected
+                    // payload namespaces without admitting borrowed crossings
+                    // or runtime selectors. Case custody remains on the operand.
+                    if terminal_semantics::canonical_static_projection(
+                        types.values().copied(),
+                        root,
+                        &argument.path,
+                    )
+                    .map(|(_, declaration)| declaration.id)
+                        != Some(nested)
+                        || access != StructuralAccess::Owned
                     {
                         return Err(LoweringError::unsupported_control_flow(function.machine));
                     }
-                    parameter.multiplicity
+                    multiplicity
                 };
                 // Claims travel with the exact home origin, not its byte
                 // layout. Every noncopyable operand transfers once, whether

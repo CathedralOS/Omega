@@ -482,8 +482,12 @@ pub(super) fn validate_establish_byte_sequence_concatenation(
 }
 
 /// Projection is already part of the canonical StructuralArgument vocabulary.
-/// Constructor transfers select finite owned structural children; runtime
-/// selectors, reference crossings and case inspections carry other authority.
+/// Constructor transfers select finite owned structural children, including
+/// fields in a selected case namespace. A Case segment preserves that namespace;
+/// it does not itself prove the case active or grant custody. Typed-path checking
+/// below authenticates the geometry; consuming custody authenticates the active
+/// case and partial transfer. Runtime selectors and reference crossings require
+/// other authority and are not finite owned constructor paths.
 /// Whole operands retain their existing independent carrier/predicate checks.
 fn validate_constructor_projection(
     module: &TerminalModule,
@@ -497,19 +501,17 @@ fn validate_constructor_projection(
     let Some(expected) = field_type.as_structural() else {
         return malformed("projected constructor operand requires a structural field");
     };
-    if !argument.path.iter().all(|segment| {
-        matches!(
-            segment,
-            terminal_psi::StructuralPathSegment::Field(_)
-                | terminal_psi::StructuralPathSegment::FixedIndex(_)
-        )
-    }) {
-        return malformed("projected constructor operand requires a finite owned path");
-    }
     let Some(root) = super::structural_place_type(machine, argument.place) else {
         return malformed("projected constructor operand has no declared root");
     };
-    if super::validate_structural_path(module, root, &argument.path)? != expected {
+    let Some((_, selected)) = terminal_semantics::canonical_static_projection(
+        module.structural_types.iter(),
+        root,
+        &argument.path,
+    ) else {
+        return malformed("projected constructor operand requires a finite owned path");
+    };
+    if selected.id != expected {
         return malformed("projected constructor operand differs from its field carrier");
     }
     Ok(())

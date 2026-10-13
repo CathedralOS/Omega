@@ -352,16 +352,7 @@ pub(super) fn projected_operand(
     source: &LegalizedScalarFunction,
     argument: &terminal_psi::StructuralArgument,
 ) -> Option<(semantic_vocabulary::StructuralTypeId, u32)> {
-    if argument.access != terminal_psi::StructuralAccess::Owned
-        || argument.path.is_empty()
-        || !argument.path.iter().all(|segment| {
-            matches!(
-                segment,
-                terminal_psi::StructuralPathSegment::Field(_)
-                    | terminal_psi::StructuralPathSegment::FixedIndex(_)
-            )
-        })
-    {
+    if argument.access != terminal_psi::StructuralAccess::Owned || argument.path.is_empty() {
         return None;
     }
     let signature = source.structural.as_ref()?;
@@ -390,11 +381,17 @@ pub(super) fn projected_operand(
         let (_, result) = super::aggregate_result_input::home(source, argument.place)?;
         result.structural_type
     };
-    crate::structural_inputs::structural_reference_input::project(
+    let (_, selected) = terminal_semantics::canonical_static_projection(
+        signature.structural_types.iter(),
+        root,
+        &argument.path,
+    )?;
+    let (physical_type, offset) = crate::structural_inputs::structural_reference_input::project(
         root,
         &argument.path,
         &signature.structural_types,
-    )
+    )?;
+    (physical_type == selected.id).then_some((physical_type, offset))
 }
 
 pub(super) fn operand_offset(
