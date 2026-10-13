@@ -243,17 +243,6 @@ pub(crate) fn declaration_exposure(
     }
 }
 
-fn machine_interface_exposure(
-    machine: &symbol_resolved_trees::machine::Machine,
-) -> language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure {
-    let is_exported_boundary = matches!(
-        machine.supply_mode,
-        language_semantics::MachineSupplyMode::Boundary
-            | language_semantics::MachineSupplyMode::AdmissionClaim
-    );
-    declaration_exposure(machine.is_public || is_exported_boundary)
-}
-
 pub(crate) struct Lowerer<'source> {
     pub(crate) typed_trees: TypedTrees,
     pub(crate) source_trees: &'source SymbolResolvedTrees,
@@ -310,7 +299,7 @@ impl Lowerer<'_> {
         machine: &symbol_resolved_trees::machine::Machine,
     ) -> Result<(), Diagnostic> {
         let typed_machine = self
-            .with_type_reference_exposure(machine_interface_exposure(machine), |lowerer| {
+            .with_type_reference_exposure(Some(machine.interface_exposure), |lowerer| {
                 lower_machine(lowerer, machine)
             })?;
         if let Some(view) = lower_token_binding_view(self, machine, &typed_machine)? {

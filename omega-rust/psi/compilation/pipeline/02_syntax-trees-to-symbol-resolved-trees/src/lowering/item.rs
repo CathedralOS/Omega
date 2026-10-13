@@ -357,19 +357,8 @@ fn item_expression_exposure(
         syntax::item::Item::Proposition(definition) if definition.is_public => {
             Exposure::PublicInterface
         }
-        // A boundary machine is an exported callable surface even when it is
-        // not separately spelled `pub`. Its signature and contracts are
-        // package interface; lower_machine_into overrides executable state
-        // bodies back to private implementation exposure.
-        syntax::item::Item::Machine(machine)
-            if machine.is_public
-                || (machine.boundary
-                    && !machine.is_top_level_boundary_requirement
-                    && !crate::lowering::operator::is_token_bearing_boundary_signature(
-                        machine,
-                    )) =>
-        {
-            Exposure::PublicInterface
+        syntax::item::Item::Machine(machine) => {
+            crate::lowering::machine::machine_interface_exposure(machine)
         }
         syntax::item::Item::Operator(operator) if operator.is_public => Exposure::PublicInterface,
         syntax::item::Item::Trait(definition) if definition.is_public => Exposure::PublicInterface,

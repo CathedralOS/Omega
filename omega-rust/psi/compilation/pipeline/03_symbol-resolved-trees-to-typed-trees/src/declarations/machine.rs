@@ -183,6 +183,7 @@ fn lower_machine_contents(
         // Copied, never re-derived from the leaf name.
         spelling: machine.spelling,
         is_public: machine.is_public,
+        interface_exposure: machine.interface_exposure,
         // Copied, never re-derived.
         supply_mode: machine.supply_mode,
         purpose: typed::machine::MachinePurpose::Runtime,
@@ -392,14 +393,8 @@ fn lower_machine_contents(
                 state,
             ),
         );
-        let publishes_entry_signature = machine.is_public
-            || matches!(
-                machine.supply_mode,
-                language_semantics::MachineSupplyMode::Boundary
-                    | language_semantics::MachineSupplyMode::AdmissionClaim
-            );
-        let exposure = lowerer.type_reference_exposure.map(|_| if publishes_entry_signature && state_index == 0 {
-            language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
+        let exposure = lowerer.type_reference_exposure.map(|_| if state_index == 0 {
+            machine.interface_exposure
         } else {
             language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
         });
@@ -600,7 +595,7 @@ pub(crate) fn settle_satisfied_declarations_from(
 ) -> Result<(), Diagnostic> {
     let mut updates = Vec::new();
     for machine in program.machines().iter().skip(machine_frontier) {
-        let exposure = machine_interface_exposure(machine);
+        let exposure = machine.interface_exposure;
         for (ordinal, conformance) in program
             .machine_trait_conformances(machine)
             .iter()
@@ -654,19 +649,4 @@ pub(crate) fn settle_satisfied_declarations_from(
         }
     }
     Ok(())
-}
-
-fn machine_interface_exposure(
-    machine: &typed::machine::Machine,
-) -> language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure {
-    let exported_boundary = matches!(
-        machine.supply_mode,
-        language_semantics::MachineSupplyMode::Boundary
-            | language_semantics::MachineSupplyMode::AdmissionClaim
-    );
-    if machine.is_public || exported_boundary {
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
-    } else {
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
-    }
 }

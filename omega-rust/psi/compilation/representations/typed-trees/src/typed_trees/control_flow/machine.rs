@@ -56,6 +56,10 @@ pub struct Machine {
     pub spelling: Option<OperatorSpelling>,
     /// Retained source-level package visibility, independent of supply mode.
     pub is_public: bool,
+    /// Exact structural exposure retained from resolution. External supply does
+    /// not erase a boundary interface or promote a private ordinary external.
+    pub interface_exposure:
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
     /// Copied from symbol-resolved trees; semantic consumers must not
     /// reconstruct supply from source spelling or body presence.
     pub supply_mode: language_semantics::MachineSupplyMode,
@@ -196,6 +200,7 @@ impl Default for Machine {
             generic_data_template: SymbolHandle::invalid(),
             spelling: None,
             is_public: false,
+            interface_exposure: Default::default(),
             supply_mode: language_semantics::MachineSupplyMode::CheckedBody,
             purpose: MachinePurpose::Runtime,
             target: None,

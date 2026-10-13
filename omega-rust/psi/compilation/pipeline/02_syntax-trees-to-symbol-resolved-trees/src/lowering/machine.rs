@@ -40,6 +40,24 @@ pub(crate) struct PendingMachineBody {
     states: Vec<(Handle<State>, syntax::item::StateHandle)>,
 }
 
+/// Structural exposure is decided before supply classification erases whether
+/// an external leaf used the boundary introducer. Keep it separate from `pub`:
+/// exported contracts do not make a private declaration source-nameable.
+pub(crate) fn machine_interface_exposure(
+    machine: &syntax::item::Machine,
+) -> language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure {
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
+    if machine.is_public
+        || (machine.boundary
+            && !machine.is_top_level_boundary_requirement
+            && !crate::lowering::operator::is_token_bearing_boundary_signature(machine))
+    {
+        AuthoredDeclarationSelectionExposure::PublicInterface
+    } else {
+        AuthoredDeclarationSelectionExposure::PrivateImplementation
+    }
+}
+
 pub(crate) fn lower_machine_into(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
@@ -71,9 +89,11 @@ pub(crate) fn lower_machine_into(
         .filter_map(|contract| contract.binding.as_ref())
         .map(|binding| binding.as_str().to_owned())
         .collect();
+    let interface_exposure = machine_interface_exposure(machine);
     let states = lowerer.with_authored_expression_exposure(
         language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
-        |lowerer| lower_machine_states(lowerer, syntax_trees, machine.states, machine.is_public),
+        |lowerer| lower_machine_states(lowerer, syntax_trees, machine.states,
+            interface_exposure == language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface),
     )?;
     let body_status = if lowerer.defer_machine_bodies && !machine.bodyless {
         lowerer.pending_machine_bodies.push(PendingMachineBody {
@@ -244,6 +264,7 @@ pub(crate) fn lower_machine_into(
         attached_data_application: None,
         spelling: machine.spelling,
         is_public: machine.is_public,
+        interface_exposure,
         supply_mode,
         body_is_present: !machine.bodyless,
         target: sibling_target,

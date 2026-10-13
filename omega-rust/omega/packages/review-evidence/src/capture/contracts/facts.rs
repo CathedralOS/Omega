@@ -37,23 +37,13 @@ impl ContractProjectionContext<'_> {
     }
 }
 
-/// Reconstruct frontend exposure, not audit inclusion. Private carrier-owned
-/// requirements are audited trust surfaces without publishing their names.
+/// Consume frontend exposure, not audit inclusion or supply classification.
+/// Private carrier-owned requirements remain audited trust surfaces, while an
+/// external boundary keeps its exported contract despite ExternalRealization.
 pub(crate) fn callable_contract_exposure(
     machine: &typed_trees::machine::Machine,
 ) -> language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure {
-    use language_semantics::MachineSupplyMode;
-    use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
-    if machine.is_public
-        || matches!(
-            machine.supply_mode,
-            MachineSupplyMode::Boundary | MachineSupplyMode::AdmissionClaim
-        )
-    {
-        AuthoredDeclarationSelectionExposure::PublicInterface
-    } else {
-        AuthoredDeclarationSelectionExposure::PrivateImplementation
-    }
+    machine.interface_exposure
 }
 
 pub(crate) fn project_callable_contracts(

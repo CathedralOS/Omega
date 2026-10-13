@@ -3,8 +3,9 @@ use symbols::SymbolHandle;
 
 /// Whether an authored declaration selection contributes only to an
 /// implementation or is exposed through a package's published surface.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum AuthoredDeclarationSelectionExposure {
+    #[default]
     PrivateImplementation,
     PublicInterface,
 }

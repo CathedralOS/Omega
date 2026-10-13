@@ -725,17 +725,7 @@ fn conformance_bound_candidates(program: &SymbolResolvedTrees) -> Vec<Unattached
     for machine in program.machines.iter() {
         collect_conformance_bound_candidates(
             &machine.conformance_bounds,
-            if machine.is_public
-                || matches!(
-                    machine.supply_mode,
-                    language_semantics::MachineSupplyMode::Boundary
-                        | language_semantics::MachineSupplyMode::AdmissionClaim
-                )
-            {
-                Exposure::PublicInterface
-            } else {
-                Exposure::PrivateImplementation
-            },
+            machine.interface_exposure,
             &mut candidates,
         );
     }

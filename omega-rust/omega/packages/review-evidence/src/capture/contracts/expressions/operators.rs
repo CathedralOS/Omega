@@ -21,13 +21,19 @@ pub(crate) fn exact_checked_contract_operator_meaning(
         compilation.checking_input,
         expression,
         Some(context.selection_exposure),
-    )?;
-    if selection.exposure() != context.selection_exposure {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` contract operator has the wrong retained selection exposure",
-            context.subject_kind, context.subject_name
-        ))]);
-    }
+    )
+    .map_err(|diagnostics| {
+        diagnostics
+            .into_iter()
+            .map(|mut diagnostic| {
+                diagnostic.message = format!(
+                    "reviewed {} `{}` contract: {}",
+                    context.subject_kind, context.subject_name, diagnostic.message
+                );
+                diagnostic
+            })
+            .collect::<Vec<_>>()
+    })?;
     match selection.target() {
         AuthoredDeclarationSelectionTarget::Intrinsic(
             AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
@@ -135,10 +141,13 @@ pub(in crate::capture) fn exact_checked_expression_selection(
             "package review operator selection differs from immutable compiler custody",
         )]);
     }
-    if expected_exposure.is_some_and(|exposure| selection.exposure() != exposure) {
-        return Err(vec![Diagnostic::error(
-            "package review operator has the wrong retained structural exposure",
-        )]);
+    if let Some(expected_exposure) = expected_exposure
+        && selection.exposure() != expected_exposure
+    {
+        return Err(vec![Diagnostic::error(format!(
+            "package review {kind:?} has retained structural exposure {:?}; expected {expected_exposure:?}",
+            selection.exposure()
+        ))]);
     }
     Ok(**selection)
 }

@@ -2854,6 +2854,10 @@ fail/modules/duplicate_data_keeps_guard_facts rejected 574ms expected @a9ae30e1c
 	duplicate data `Zed`
 fail/modules/duplicate_imported_machine_overload_rejected rejected 826ms expected @a9ae30e1c334+wt
 	duplicate named machine overload `seed` with parameter signature `` and result dispatch set `<empty>`; predicate-only result refinements do not distinguish overloads
+fail/modules/external_boundary_private_signature rejected 3065ms expected @5aabaabbdd54+wt
+	public interface selects private trait `Observe`
+	public interface selects private data `Payload`
+	public interface selects private trait `Observe::observe`
 fail/modules/generic_scoped_constant_private_owner rejected 46ms expected @a9ae30e1c334+wt
 	module type-scoped constants require an exact accessible data carrier selected in their declaring source
 fail/modules/generic_scoped_constant_wrong_constructor rejected 36ms expected @a9ae30e1c334+wt
@@ -3429,6 +3433,8 @@ fail/providers/consuming_requirement_without_provider rejected 23449ms expected 
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(Receipt::ack),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(Receipt\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 fail/providers/consuming_trait_requirement_without_provider rejected 5002ms expected @b8976916d516+wt
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(Acknowledgement::ack),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(Receipt\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+fail/providers/external_boundary_requires_preserved rejected 3059ms expected @5aabaabbdd54+wt
+	machine `Main::main` state `main` value call to `absolute` violates required fact `value > -2147483648`: the instantiated fact is structurally false (`-2147483648 > -2147483648`)
 fail/providers/finite_requirement_boolean_outside_roster rejected 3413ms expected @a9ae30e1c334+wt
 	static application of requirement `Service::echo` violates its declared where facts: the complete tuple is structurally false
 fail/providers/finite_requirement_const_outside_roster rejected 3391ms expected @a9ae30e1c334+wt
@@ -6278,6 +6284,7 @@ pass/modules/aggregate_machine_indices checked 1624ms @a9ae30e1c334+wt
 pass/modules/boolean_equality_indices checked 1644ms @a9ae30e1c334+wt
 pass/modules/boolean_logic_indices checked 1918ms @a9ae30e1c334+wt
 pass/modules/boolean_machine_indices checked 1662ms @a9ae30e1c334+wt
+pass/modules/boundary_private_implementation checked 5157ms @5aabaabbdd54+wt
 pass/modules/closed_sum_constructors checked 1838ms @a9ae30e1c334+wt
 pass/modules/closed_template_methods checked 1650ms @a9ae30e1c334+wt
 pass/modules/comparison_machine_indices checked 1702ms @a9ae30e1c334+wt
@@ -6691,6 +6698,7 @@ pass/providers/component_owner_provider_override_compile checked 11504ms check-t
 pass/providers/const_generic_entry_record_field_exit checked 2988ms check-target:macos_arm64 @b016b7e0a226
 pass/providers/consuming_trait_requirement_external_sink_exit checked 5872ms check-target:macos_arm64 @b8976916d516+wt
 pass/providers/direct_boundary_array_snapshot_exit checked 12346ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/providers/external_boundary_contract_exit checked 17455ms check-target:macos_arm64 @5aabaabbdd54+wt
 pass/providers/external_boundary_requirement_via_exit checked 11623ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/external_leaf_dllimport_compile checked 11105ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/finite_requirement_boolean_const_exit checked 5400ms check-target:macos_arm64 @c03720bf6cb3

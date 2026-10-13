@@ -42,6 +42,11 @@ pub struct Machine {
     /// Retained source-level package visibility. Public checked bodies publish
     /// strict effect and operational ceilings without changing supply mode.
     pub is_public: bool,
+    /// Structural package exposure, independent of name visibility and supply.
+    /// An external boundary retains its exported contract even when its supply
+    /// is ExternalRealization rather than Boundary. Authored once in resolution.
+    pub interface_exposure:
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
     /// Populated once at syntax-to-resolved lowering and copied downstream;
     /// semantic consumers must not reconstruct supply from source spelling or
     /// body presence.
