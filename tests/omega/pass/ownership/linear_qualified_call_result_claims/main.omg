@@ -39,6 +39,18 @@ machine is_zero(counter: &Counter in Counter::Ready) -> bool {
     counter.code == 0
 }
 
+// A field read through a qualified borrow observes the membership's bytes
+// without consuming or establishing it, whatever the loan's permission and
+// whether the carrier is an entry formal or a later state arrival.
+machine is_zero_exclusive(counter: &mut Counter in Counter::Ready) -> bool {
+    counter.code == 0
+}
+
+machine is_zero_arrival(counter: &Counter in Counter::Ready) -> bool {
+    transition { _ -> arrived(counter) }
+    state arrived(current: &Counter in Counter::Ready) -> bool { current.code == 0 }
+}
+
 machine pass(receipt: Receipt in Receipt::Issued) -> Receipt in Receipt::Issued { receipt }
 machine issue(code: i32) -> Receipt in Receipt::Issued {
     let issued: Receipt in Receipt::Issued = Receipt {
@@ -181,6 +193,9 @@ machine main() reaches Acknowledgement crashes Trap {
     verify(vacuous_zero.code == 0);
     let counter: Counter in Counter::Ready = Counter { code: 0 };
     verify(zeroed.code == 0 && is_zero(&counter));
+    let mut exclusive: Counter in Counter::Ready = Counter { code: 0 };
+    verify(is_zero_exclusive(&mut exclusive));
+    verify(is_zero_arrival(&counter));
     let omitted: Counter in Counter::ReadyAlias = Counter {};
     verify(is_zero(&omitted));
     let holder: Holder<Counter in Counter::Ready> = Holder { value: counter };

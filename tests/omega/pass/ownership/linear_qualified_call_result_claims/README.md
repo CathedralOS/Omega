@@ -27,6 +27,10 @@ through a normalized alias, and a nested qualified child. A local annotation
 cannot substitute for the checked initializer judgment or an established child.
 A qualified unrestricted parameter also becomes a generic record child through
 an ordinary copy arrival; that ingress retains the source's memberships.
+Scalar field reads through a qualified shared borrow, a qualified exclusive
+borrow and a qualified state arrival are observations: the native image audit
+rejoins the borrowed declaration with its membership roster intact rather than
+refusing the read as an unaccounted operation.
 
 The final Slot receives a child with an additional predicate-only membership.
 Repair through the weaker Slot parameter owes its declared Issued membership,

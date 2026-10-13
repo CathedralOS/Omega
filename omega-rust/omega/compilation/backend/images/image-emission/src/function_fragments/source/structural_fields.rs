@@ -1379,14 +1379,14 @@ fn parameter_access(
     {
         return false;
     }
-    // Observing an owned composite preserves its qualified fields and claims;
-    // it neither consumes nor establishes them. The exact declaration joins in
-    // read_access bind that evidence after mandatory semantic/graph replay.
-    // Borrowed descriptors and whole-owner replacement keep their own contract.
+    // A field or length observation neither consumes nor establishes a
+    // membership: a qualified owner, borrow or descriptor keeps its whole and
+    // projected rosters unchanged, and the exact declaration join in
+    // read_access binds that evidence after mandatory semantic/graph replay.
+    // Only whole-owner replacement, which rewrites the bytes a predicate was
+    // proved over, keeps the qualification fence below.
     if purpose != AccessPurpose::ByteOwnerReplacement {
-        return owned_composite
-            || (parameter.qualifications.is_empty()
-                && parameter.projected_qualifications.is_empty());
+        return true;
     }
     if !parameter.projected_qualifications.is_empty() {
         return false;
