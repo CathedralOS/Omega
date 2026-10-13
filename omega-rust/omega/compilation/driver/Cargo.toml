@@ -83,3 +83,8 @@ harness = false
 [[test]]
 name = "terminal_decode_once"
 path = "tests/terminal_decode_once.rs"
+
+# Checked source helpers retain placed-view backing across ordinary invocations.
+[[test]]
+name = "placed_view_calls"
+path = "tests/placed_view_calls.rs"

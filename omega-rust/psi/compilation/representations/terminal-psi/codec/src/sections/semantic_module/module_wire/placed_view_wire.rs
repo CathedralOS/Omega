@@ -11,6 +11,8 @@ pub(super) fn encode_placed_view_input(
 ) -> Result<(), CodecError> {
     writer.id(input.machine);
     writer.u32(input.position);
+    writer.u32(input.runtime_position);
+    writer.u32(input.carrier_identity.0);
     writer.u32(input.source_machine_identity.0);
     writer.u32(input.source_state_identity.0);
     writer.u32(input.source_parameter_identity.0);
@@ -37,6 +39,8 @@ pub(super) fn decode_placed_view_input(
     Ok(TerminalPlacedViewInput {
         machine: reader.id("MachineId")?,
         position: reader.u32()?,
+        runtime_position: reader.u32()?,
+        carrier_identity: TerminalIdentityIndex(reader.u32()?),
         source_machine_identity: TerminalIdentityIndex(reader.u32()?),
         source_state_identity: TerminalIdentityIndex(reader.u32()?),
         source_parameter_identity: TerminalIdentityIndex(reader.u32()?),

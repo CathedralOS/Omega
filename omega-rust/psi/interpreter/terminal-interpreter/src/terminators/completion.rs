@@ -79,6 +79,7 @@ impl TerminalExecution<'_> {
 
     fn restore_return_caller(&mut self, caller: SuspendedCall) -> SuspendedCallResult {
         self.retire_plain_locals();
+        self.placed_view_occurrences = caller.placed_view_occurrences;
         self.values = caller.values;
         self.structural_values = caller.structural_values;
         self.aggregate_argument_backings = caller.aggregate_argument_backings;

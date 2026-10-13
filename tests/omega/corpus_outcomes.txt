@@ -616,6 +616,10 @@ fail/borrows/owned_mutable_float_live_shared_loan rejected 1601ms expected @6bb9
 	statement 1 mutates `fraction` while local borrow `observed` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 fail/borrows/parent_use_before_disjoint_sibling_ends rejected 1677ms expected @a9ae30e1c334+wt
 	state `observe` receives `values` while local borrow `second` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
+fail/borrows/placed_helper_exclusive_alias_rejected rejected 7577ms expected @ce05f6f0788b
+	argument `view` for state `entry` is declared `&mut` (`&mut Placed<RegPlacement,Registers>`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/borrows/placed_shared_write_rejected rejected 4159ms expected @ce05f6f0788b
+	mutable argument `view` for state `write` is not writable in this state; the source cannot lend the requested exclusive access
 fail/borrows/plain_read_during_live_exclusive_loan rejected 1820ms expected @a9ae30e1c334+wt
 	statement 3 reads `view[3]` while local borrow `middle` is still active (borrowed at statement 2; its last use is at statement 4)
 	statement 2 reads `items[2]` while local borrow `middle` is still active (borrowed at statement 1; its last use is at statement 3)
@@ -5490,6 +5494,7 @@ pass/layouts/mixed_alignment_layout_queries_compile checked 1655ms @a9ae30e1c334
 pass/layouts/nested_record_layout_queries_compile checked 1659ms @a9ae30e1c334+wt
 pass/layouts/nested_sum_member_layout_compile checked 1655ms @a9ae30e1c334+wt
 pass/layouts/odd_array_then_byte_layout_compile checked 1799ms @a9ae30e1c334+wt
+pass/layouts/placed_view_call_custody checked 52441ms terminal-inspections:match @ce05f6f0788b
 pass/layouts/placed_view_source_access_compile checked 13118ms @a9ae30e1c334+wt
 pass/layouts/portable_data_layout_queries checked 11681ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/layouts/private_callback_slot_demand_compile checked 12688ms @a9ae30e1c334+wt

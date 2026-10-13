@@ -185,6 +185,9 @@ impl crate::execution::TerminalExecution<'_> {
             roots.insert(value.opaque_identity);
         }
         for frame in &self.call_stack {
+            for occurrence in frame.placed_view_occurrences.values() {
+                roots.insert(occurrence.referent.opaque_identity);
+            }
             for value in frame.structural_values.values().chain(
                 frame
                     .aggregate_argument_backings

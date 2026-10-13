@@ -818,6 +818,9 @@ impl<'program> ShapeCollector<'program> {
         binders: &[(SymbolHandle, String)],
         substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
     ) -> Option<typed_trees::type_identity::TypeIdentityId> {
+        if let Some(accessor) = self.add_placed_accessor_attachment(&data, binders) {
+            return (accessor == identity).then_some(identity);
+        }
         if self.types.contains_key(&identity) {
             return Some(identity);
         }

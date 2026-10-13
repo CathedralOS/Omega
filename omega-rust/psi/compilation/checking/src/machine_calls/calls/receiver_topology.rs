@@ -169,6 +169,22 @@ pub fn resolve_state_call_target(
     receiver: Option<&[Identifier]>,
     target_state: &Identifier,
 ) -> SymbolHandle {
+    if let Some(receiver) = receiver {
+        let members = receiver
+            .iter()
+            .map(|member| member.as_str().to_owned())
+            .collect::<Vec<_>>();
+        if let Some(target) = placed_accessor_target(
+            program,
+            machine,
+            state,
+            &members,
+            target_symbol,
+            target_state.as_str(),
+        ) {
+            return target;
+        }
+    }
     // An evidence namespace has no storage receiver. Preserve its exact
     // public callable signature in the shared call topology; specialization
     // separately replaces the child with its selected realization state.
@@ -448,4 +464,31 @@ fn resolve_state_symbol_in_machine(
         .state_in_machine(machine, state_symbol)
         .map(|state| state.symbol)
         .unwrap_or_else(SymbolHandle::invalid)
+}
+
+/// The placement plan selects the same exact generated accessor for checking,
+/// flow, loans and execution. An already-resolved target may not be substituted.
+pub(crate) fn placed_accessor_target(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    members: &[String],
+    target_symbol: SymbolHandle,
+    operation: &str,
+) -> Option<SymbolHandle> {
+    let reference = crate::value_custody::places::declared_member_path_type(
+        program,
+        machine,
+        Some(state),
+        members,
+    )?;
+    let (_, field) = program.placed_view_field_plan_for_type_reference(reference)?;
+    field
+        .accessor_targets
+        .iter()
+        .find(|accessor| {
+            accessor.operation == operation
+                && (!target_symbol.is_valid() || target_symbol == accessor.state_symbol)
+        })
+        .map(|accessor| accessor.state_symbol)
 }

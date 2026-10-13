@@ -131,9 +131,9 @@ pub struct TerminalExecution<'artifact> {
     /// root-addressed, so projected moves must be represented here rather than
     /// by unsoundly deleting their containing root.
     pub(crate) live_affine_frontier: BTreeSet<StructuralAffineDiscard>,
-    /// Live placed-view occurrences: each direct-entry roster row's lent
-    /// referent, bound for the entry invocation's duration. Retirement at
-    /// completion releases the loans without reminting custody.
+    /// Current frame's placed-view presentations, retaining the entry's original
+    /// backing. Suspended frames preserve their presentations across a helper;
+    /// completion returns the same loans without reminting custody.
     pub(crate) placed_view_occurrences: BTreeMap<TerminalPlacedViewInput, PlacedViewOccurrence>,
     pub(crate) live_claims: BTreeMap<ClaimId, LiveClaim>,
     pub(crate) current_machine: MachineId,
@@ -155,6 +155,7 @@ pub struct TerminalExecution<'artifact> {
 }
 
 pub(crate) struct SuspendedCall {
+    pub(crate) placed_view_occurrences: BTreeMap<TerminalPlacedViewInput, PlacedViewOccurrence>,
     pub(crate) loan_completions: Vec<terminal_psi::LoanCompletion>,
     pub(crate) values: BTreeMap<ValueId, TerminalScalarValue>,
     pub(crate) structural_values: BTreeMap<PlaceId, TerminalStructuralValue>,
@@ -335,21 +336,32 @@ impl<'artifact> TerminalExecution<'artifact> {
         // referent custody must be established beside the ordinary inputs: one
         // exact establishment per entry row lends the qualified backing for
         // the invocation's duration. A row left unsupplied, a supply that
-        // answers no declared row both fail closed. Capability preflight has
-        // separately refused demanded subordinate placed-view inputs; another
-        // retained target's roster does not describe this invocation's backing.
+        // answers no declared row both fail closed. Ordinary calls reborrow
+        // the same established backing; another retained target's roster does
+        // not describe this invocation's host input.
         let placed_view_occurrences = establish_placed_view_inputs(
             &program.catalogs,
             current_machine,
             placed_view_establishments,
             structural_arguments,
         )?;
+        // Descriptor homes and their separately established backing are both
+        // live identities. Local allocations must not collide with either.
+        let identity_roots = structural_arguments
+            .iter()
+            .chain(
+                placed_view_establishments
+                    .iter()
+                    .map(|establishment| &establishment.referent),
+            )
+            .cloned()
+            .collect::<Vec<_>>();
         let local_structural_identities = LocalStructuralIdentities::new(
             program
                 .machines()
                 .values()
                 .flat_map(|machine| machine.structural_places.iter()),
-            structural_arguments,
+            &identity_roots,
         );
         let machine = program
             .machines()

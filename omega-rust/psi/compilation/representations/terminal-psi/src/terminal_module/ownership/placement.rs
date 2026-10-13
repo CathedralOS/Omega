@@ -6,6 +6,13 @@ use semantic_vocabulary::MachineId;
 pub struct TerminalPlacedViewInput {
     pub machine: MachineId,
     pub position: u32,
+    /// Dense structural ingress coordinate for this exact source state.
+    /// Authored positions include scalars and erased formals and cannot index
+    /// the execution lane. The machine's checked initial-state identity selects
+    /// which roster rows actually arrive at an ordinary invocation.
+    pub runtime_position: u32,
+    /// Exact structural carrier identity, independently of the placement seal.
+    pub carrier_identity: TerminalIdentityIndex,
     pub source_machine_identity: TerminalIdentityIndex,
     pub source_state_identity: TerminalIdentityIndex,
     pub source_parameter_identity: TerminalIdentityIndex,

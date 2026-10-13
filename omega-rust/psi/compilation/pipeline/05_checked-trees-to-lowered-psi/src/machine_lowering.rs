@@ -270,6 +270,7 @@ fn lower_terminal_selection(
         retain_selected_placed_view_inputs(
             identities,
             checked,
+            exact_toolchain_sources,
             *source_machine,
             *terminal_machine,
             &mut lowered.semantic_module,

@@ -60,6 +60,18 @@ pub(super) fn declared_scalar_type(
 /// carrier relationships, signatures, and operation/result shape; it does not
 /// prove qualifications, reach closure, or claim dataflow.
 pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecError> {
+    let mut placed_coordinates = BTreeSet::new();
+    for row in &module.placed_view_inputs {
+        if !placed_coordinates.insert((
+            row.machine,
+            row.source_state_identity,
+            row.runtime_position,
+        )) {
+            return malformed("placed-view inputs repeat one structural formal");
+        }
+        terminal_semantics::placed_view_input_parameter(module, row)
+            .map_err(CodecError::PlacedViewInput)?;
+    }
     validate_target_families(module)?;
     validate_boundary_application_operations(module)?;
     validate_callback_registrars(module)?;

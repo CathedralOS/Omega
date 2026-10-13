@@ -70,15 +70,6 @@ pub(crate) fn check(
         if !visited.insert(machine_id) {
             continue;
         }
-        if machine_id != entry
-            && program
-                .catalogs
-                .placed_view_inputs
-                .iter()
-                .any(|row| row.machine == machine_id)
-        {
-            return Err(TerminalInterpretError::PlacedViewInputsRequireCustody);
-        }
         let machine = program.verified_machine(machine_id)?;
         let mut blocks = vec![machine.entry];
         let mut visited_blocks = BTreeSet::new();

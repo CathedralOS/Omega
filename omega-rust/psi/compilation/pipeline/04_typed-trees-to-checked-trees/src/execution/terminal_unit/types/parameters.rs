@@ -169,8 +169,9 @@ pub(crate) fn erased_proof_parameter_plans(
 
 /// Whether an authored parameter owns a slot in the caller's structural
 /// argument namespace once the unit plan is sealed. Erased bindings and
-/// `const` formals carry no runtime slot, direct `Placed` view parameters
-/// stay custody-only, and scalar primitives live in the scalar namespace. A
+/// `const` formals carry no runtime slot, and scalar primitives live in the
+/// scalar namespace. Borrowed placed descriptors retain a structural slot;
+/// the separate placement roster still requires established backing. A
 /// structural parameter retains its authored position independently of the
 /// machine's qualification.
 pub(crate) fn structural_parameter_candidate(
@@ -178,13 +179,6 @@ pub(crate) fn structural_parameter_candidate(
     parameter: &StateParameter,
 ) -> bool {
     if parameter.is_const || strips_erased_parameter(parameter) == Some(true) {
-        return false;
-    }
-    if matches!(
-        program.type_reference_table.type_reference(parameter.type_reference),
-        TypeReferenceNode::Reference { referee, .. }
-            if program.placed_view_plan_for_type_reference(*referee).is_some()
-    ) {
         return false;
     }
     program

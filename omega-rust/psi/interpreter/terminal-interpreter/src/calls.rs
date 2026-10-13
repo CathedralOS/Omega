@@ -40,6 +40,7 @@ impl TerminalExecution<'_> {
     /// `SuspendedCall` carrying `result` as its continuation.
     pub(crate) fn suspend_with(&mut self, result: SuspendedCallResult) {
         self.call_stack.push(SuspendedCall {
+            placed_view_occurrences: std::mem::take(&mut self.placed_view_occurrences),
             loan_completions: Vec::new(),
             values: std::mem::take(&mut self.values),
             structural_values: std::mem::take(&mut self.structural_values),

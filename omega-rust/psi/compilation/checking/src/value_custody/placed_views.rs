@@ -298,15 +298,16 @@ pub(crate) fn statement_call_target(
     state: &State,
     call: &typed_trees::statement::TableCall,
 ) -> Option<symbols::SymbolHandle> {
-    let (_, field) = placed_view_field_for_statement_call(program, machine, state, call)?;
-    field
-        .accessor_targets
-        .iter()
-        .find(|target| target.operation == call.target.as_str())
-        .filter(|target| {
-            !call.target_symbol.is_valid() || call.target_symbol == target.state_symbol
-        })
-        .map(|target| target.state_symbol)
+    let members =
+        crate::machine_calls::calls::signature_queries::call_receiver_member_names(program, call);
+    crate::machine_calls::calls::placed_accessor_target(
+        program,
+        machine,
+        state,
+        &members,
+        call.target_symbol,
+        call.target.as_str(),
+    )
 }
 
 fn validate_binding_private_use(

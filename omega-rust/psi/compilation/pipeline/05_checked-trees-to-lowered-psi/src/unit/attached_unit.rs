@@ -101,10 +101,7 @@ use bodies::{UnitBody, UnitPlans};
 pub(crate) use boundaries::{lower_boundary_result, retain_unit_boundary};
 pub(crate) use parameters::{lower_declared_service_reach, lower_fixed_boundary_service_reach};
 
-use call_closure::{
-    checked_scalar_call_closure_with_structural_roots,
-    unique_unit_boundary,
-};
+use call_closure::{checked_scalar_call_closure_with_structural_roots, unique_unit_boundary};
 pub(crate) use call_closure::{
     checked_unit_boundary_identity, checked_unit_call_closure_including,
 };
@@ -366,11 +363,18 @@ pub(crate) fn lower_unit_closure(
             machine_ids
                 .iter()
                 .any(|(symbol, _)| *symbol == input.machine)
+                && checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .callable_entry_for_machine(input.machine)
+                    .is_some_and(|entry| entry.state == input.state)
         })
         .map(|input| {
             lower_placed_view_input(
                 identities,
                 checked,
+                exact_toolchain_sources,
                 input,
                 lookup_machine_id(&machine_ids, input.machine)?,
             )

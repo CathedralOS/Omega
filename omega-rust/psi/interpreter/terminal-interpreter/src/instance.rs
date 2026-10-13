@@ -65,7 +65,12 @@ impl TerminalProcessExitAdmission {
             .execution
             .as_ref()
             .ok_or(TerminalBindingRejection::InstanceClosed)?;
-        if !execution.placed_view_occurrences.is_empty() {
+        if !execution.placed_view_occurrences.is_empty()
+            || execution
+                .call_stack
+                .iter()
+                .any(|frame| !frame.placed_view_occurrences.is_empty())
+        {
             return Err(TerminalBindingRejection::DomainDeathCrossingAdmissionMissing { boundary });
         }
         let demand = execution

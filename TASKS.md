@@ -4127,12 +4127,12 @@ and `mapped` need matching-host measurements, including the full-i32 status.
     and `entry_receiver.rs` rejects them without a receiver bridge. Extend the
     entry bridge to lend each referent through invocation and retirement.
   - `omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering/placed_view_inputs.rs`
-    supplies only a direct-entry pointer ABI for a parameterless one-block Unit
-    function without access events; join the selected placement and accessor
-    operations into normal native lowering.
-  - Native admission and interpretation both reject non-entry roster rows; add
-    call-bound custody from the caller. A pointer or roster alone stays
-    insufficient.
+    has no executable placed-view transfer lowering; join retained placement
+    and accessor operations into normal native input and lowering.
+  - Native admission still rejects subordinate placed input rows. Terminal
+    ordinary calls now reborrow the caller's exact established occurrence,
+    including its original backing and qualifications; native input/lowering
+    must carry the same custody. A pointer or roster alone stays insufficient.
 
   Acceptance: the fixture (renamed `_exit` with `expected_native_exit.txt`)
   establishes, accesses and retires a view in the interpreter and natively

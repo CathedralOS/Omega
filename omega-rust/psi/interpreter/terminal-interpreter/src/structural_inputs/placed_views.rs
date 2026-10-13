@@ -9,7 +9,9 @@
 //! invocation's duration. A roster or a pointer alone is not this authority:
 //! an establishment that does not exactly rejoin a declared row is rejected
 //! rather than answered, and an entry row left without one still fails
-//! custody.
+//! custody. Ordinary helpers reborrow that live occurrence through their exact
+//! retained formal; suspended callers keep the original backing pinned until
+//! return. No helper creates a second host establishment or remints authority.
 
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::values::{StructuralRuntimePlace, TerminalStructuralValue};
@@ -19,13 +21,13 @@ use terminal_psi::{StructuralAccess, TerminalModule, TerminalPlacedViewInput};
 
 pub use terminal_installation::TerminalPlacedViewEstablishment;
 
-/// A live placed-view occurrence: the referent a direct-entry roster row
-/// names, bound for the entry invocation's duration under the row's sealed
-/// custody. The occurrence records the qualified backing the provider lent;
-/// retirement at entry completion releases the loan without reminting
-/// custody.
+/// A live placed-view presentation under a retained formal's placement seal.
+/// Entry lends the original qualified backing; helper frames reborrow that same
+/// occurrence and return it to the suspended caller without reminting custody.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PlacedViewOccurrence {
+    /// Original view carrier presented by the current frame.
+    pub(crate) view: StructuralRuntimePlace,
     /// Runtime place of the lent referent backing.
     pub(crate) referent: StructuralRuntimePlace,
     /// The referent's declared structural type identity.
@@ -43,14 +45,19 @@ fn overlaps(left: &StructuralRuntimePlace, right: &StructuralRuntimePlace) -> bo
         && (left.path.starts_with(&right.path) || right.path.starts_with(&left.path))
 }
 
-/// Bind each direct-entry placed-view input to one supplied establishment.
-///
-/// Only rows on the installed executable entry are this invocation's inputs.
-/// Capability preflight rejects demanded subordinate call-bound inputs whose
-/// custody interpretation cannot yet route; unrelated retained target bodies
-/// impose no entry input demand. Every entry row must rejoin one establishment; a
-/// supply naming no declared entry row, or overlapping another exclusive
-/// referent or a structural argument, rejects before the entry machine runs.
+/// Resolve the retained formal coordinate against the machine's exact initial
+/// state. Ordinary block transport carries later states under the same loan.
+fn input_parameter<'module>(
+    module: &'module TerminalModule,
+    row: &TerminalPlacedViewInput,
+) -> Result<&'module terminal_psi::StructuralParameterDeclaration, TerminalInterpretError> {
+    terminal_semantics::placed_view_input_parameter(module, row)
+        .map_err(TerminalInterpretError::PlacedViewInput)
+}
+
+/// Bind only the installed entry's actual ingress, before effects. The view
+/// parameter is the presentation of this same loan, not a second borrowing of
+/// its backing; every other ordinary argument participates in alias checking.
 pub(crate) fn establish_placed_view_inputs(
     module: &TerminalModule,
     entry: MachineId,
@@ -61,7 +68,8 @@ pub(crate) fn establish_placed_view_inputs(
         .placed_view_inputs
         .iter()
         .filter(|row| row.machine == entry)
-        .collect::<Vec<_>>();
+        .map(|row| input_parameter(module, row).map(|_| row))
+        .collect::<Result<Vec<_>, _>>()?;
     // Every supply must answer one declared entry row exactly; custody the
     // artifact never demanded cannot be bound at its input boundary.
     let mut seen = std::collections::BTreeSet::new();
@@ -119,11 +127,47 @@ pub(crate) fn establish_placed_view_inputs(
                 );
             }
         }
-        if exclusive(row.access)
-            && structural_arguments
-                .iter()
-                .map(StructuralRuntimePlace::from)
-                .any(|argument| overlaps(&referent, &argument))
+        let parameter = input_parameter(module, row)?;
+        let view = structural_arguments
+            .get(row.runtime_position as usize)
+            .filter(|view| view.structural_type == parameter.structural_type)
+            .ok_or_else(malformed)?;
+        // One descriptor occurrence cannot designate competing original backings.
+        // Shared presentations may repeat only the same complete association.
+        if occurrences.iter().any(|(previous_row, previous)| {
+            previous.view == StructuralRuntimePlace::from(view)
+                && (previous.referent != referent
+                    || previous.structural_type != establishment.referent.structural_type
+                    || previous.qualifications != establishment.referent.qualifications
+                    || previous_row.view_identity != row.view_identity
+                    || previous_row.policy_identity != row.policy_identity
+                    || previous_row.policy_plan_machine_identity
+                        != row.policy_plan_machine_identity
+                    || previous_row.schema_identity != row.schema_identity
+                    || previous_row.placement_commitment != row.placement_commitment
+                    || previous_row.placement_report_fingerprint
+                        != row.placement_report_fingerprint)
+        }) {
+            return Err(
+                TerminalInterpretError::PlacedViewInputEstablishmentAliasing(view.opaque_identity),
+            );
+        }
+        if structural_arguments
+            .iter()
+            .zip(
+                &module
+                    .machine(entry)
+                    .ok_or_else(malformed)?
+                    .structural_parameters,
+            )
+            .enumerate()
+            .filter(|(position, _)| *position != row.runtime_position as usize)
+            .any(|(_, (argument, formal))| {
+                (exclusive(row.access)
+                    || exclusive(formal.access)
+                    || formal.access == StructuralAccess::Owned)
+                    && overlaps(&referent, &StructuralRuntimePlace::from(argument))
+            })
         {
             return Err(
                 TerminalInterpretError::PlacedViewInputEstablishmentAliasing(
@@ -135,6 +179,7 @@ pub(crate) fn establish_placed_view_inputs(
             .insert(
                 row.clone(),
                 PlacedViewOccurrence {
+                    view: StructuralRuntimePlace::from(view),
                     referent,
                     structural_type: establishment.referent.structural_type,
                     qualifications: establishment.referent.qualifications.clone(),
@@ -146,4 +191,101 @@ pub(crate) fn establish_placed_view_inputs(
         }
     }
     Ok(occurrences)
+}
+
+impl crate::execution::TerminalExecution<'_> {
+    /// An ordinary call reborrows an existing established occurrence. Formal
+    /// type equality alone cannot supply its backing: the resolved operand must
+    /// name the caller's live view and the complete placement seal must agree.
+    pub(crate) fn bind_call_placed_views(
+        &self,
+        callee: MachineId,
+        arguments: &[terminal_psi::StructuralArgument],
+        values: &BTreeMap<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
+    ) -> Result<BTreeMap<TerminalPlacedViewInput, PlacedViewOccurrence>, TerminalInterpretError>
+    {
+        let module = &self.program.catalogs;
+        let mut bound: BTreeMap<TerminalPlacedViewInput, PlacedViewOccurrence> = BTreeMap::new();
+        for row in module
+            .placed_view_inputs
+            .iter()
+            .filter(|row| row.machine == callee)
+        {
+            let parameter = input_parameter(module, row)?;
+            let argument = arguments
+                .get(row.runtime_position as usize)
+                .ok_or_else(malformed)?;
+            let (resolved, _) =
+                self.present_structural_argument(argument, parameter.structural_type)?;
+            let presented = values.get(&parameter.place).ok_or_else(malformed)?;
+            let source = self
+                .placed_view_occurrences
+                .iter()
+                .find(|(source, occurrence)| {
+                    occurrence.view == StructuralRuntimePlace::from(&resolved)
+                        && source.view_identity == row.view_identity
+                        && source.policy_identity == row.policy_identity
+                        && source.policy_plan_machine_identity == row.policy_plan_machine_identity
+                        && source.schema_identity == row.schema_identity
+                        && source.placement_commitment == row.placement_commitment
+                        && source.placement_report_fingerprint == row.placement_report_fingerprint
+                        && match (source.access, row.access) {
+                            (
+                                StructuralAccess::MutableBorrow,
+                                StructuralAccess::SharedBorrow
+                                | StructuralAccess::MutableBorrow
+                                | StructuralAccess::WriteOnlyBorrow,
+                            ) => true,
+                            (left, right) => left == right,
+                        }
+                })
+                .ok_or(TerminalInterpretError::PlacedViewInputsRequireCustody)?;
+            if argument.access != row.access
+                || presented.structural_type != parameter.structural_type
+            {
+                return Err(malformed());
+            }
+            let occurrence = PlacedViewOccurrence {
+                view: StructuralRuntimePlace::from(presented),
+                ..source.1.clone()
+            };
+            for (other_row, other) in &bound {
+                if (exclusive(row.access) || exclusive(other_row.access))
+                    && overlaps(&occurrence.referent, &other.referent)
+                {
+                    return Err(
+                        TerminalInterpretError::PlacedViewInputEstablishmentAliasing(
+                            occurrence.referent.opaque_identity,
+                        ),
+                    );
+                }
+            }
+            if values.iter().any(|(place, value)| {
+                *place != parameter.place
+                    && module.machine(callee).is_some_and(|machine| {
+                        machine
+                            .structural_parameters
+                            .iter()
+                            .find(|formal| formal.place == *place)
+                            .is_some_and(|formal| {
+                                (exclusive(row.access)
+                                    || exclusive(formal.access)
+                                    || formal.access == StructuralAccess::Owned)
+                                    && overlaps(
+                                        &occurrence.referent,
+                                        &StructuralRuntimePlace::from(value),
+                                    )
+                            })
+                    })
+            }) {
+                return Err(
+                    TerminalInterpretError::PlacedViewInputEstablishmentAliasing(
+                        occurrence.referent.opaque_identity,
+                    ),
+                );
+            }
+            bound.insert(row.clone(), occurrence);
+        }
+        Ok(bound)
+    }
 }

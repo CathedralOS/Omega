@@ -116,3 +116,63 @@ fn resolve_referent_place(
     }
     Some(structural_type)
 }
+
+/// Representation consistency of a placed input's retained runtime formal.
+/// This rejoin supplies no backing or access authority. The host establishes
+/// backing at entry; ordinary calls must reborrow a live matching occurrence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlacedViewInputError {
+    MachineMissing,
+    DeclarationMissing,
+    MachineIdentityMismatch,
+    StateIdentityMismatch,
+    CarrierIdentityMissing,
+    ParameterMissing,
+    CarrierMismatch,
+    AccessMismatch,
+}
+
+pub fn placed_view_input_parameter<'module>(
+    module: &'module TerminalModule,
+    row: &terminal_psi::TerminalPlacedViewInput,
+) -> Result<&'module terminal_psi::StructuralParameterDeclaration, PlacedViewInputError> {
+    let machine = module
+        .machine(row.machine)
+        .ok_or(PlacedViewInputError::MachineMissing)?;
+    let declaration = machine
+        .declaration
+        .as_ref()
+        .ok_or(PlacedViewInputError::DeclarationMissing)?;
+    if declaration.machine.identity() != row.source_machine_identity {
+        return Err(PlacedViewInputError::MachineIdentityMismatch);
+    }
+    if !module
+        .structural_types
+        .iter()
+        .any(|carrier| carrier.identity == row.carrier_identity)
+    {
+        return Err(PlacedViewInputError::CarrierIdentityMissing);
+    }
+    // Only the exact checked callable entry has an input boundary. A later
+    // source state uses ordinary block transport and owns no extra host loan.
+    // Arbitrary unequal identities must not hide an establishment demand.
+    if declaration.state.identity() != row.source_state_identity {
+        return Err(PlacedViewInputError::StateIdentityMismatch);
+    }
+    let parameter = machine
+        .structural_parameters
+        .get(row.runtime_position as usize)
+        .ok_or(PlacedViewInputError::ParameterMissing)?;
+    let carrier = module
+        .structural_types
+        .iter()
+        .find(|carrier| carrier.id == parameter.structural_type)
+        .ok_or(PlacedViewInputError::CarrierIdentityMissing)?;
+    if carrier.identity != row.carrier_identity {
+        return Err(PlacedViewInputError::CarrierMismatch);
+    }
+    if parameter.access != row.access || row.access == terminal_psi::StructuralAccess::Owned {
+        return Err(PlacedViewInputError::AccessMismatch);
+    }
+    Ok(parameter)
+}

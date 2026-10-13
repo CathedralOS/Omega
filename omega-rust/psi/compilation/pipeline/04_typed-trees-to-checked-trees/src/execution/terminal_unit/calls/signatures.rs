@@ -96,18 +96,6 @@ fn structural_signature_for_partial_affine(
         if parameter.is_const {
             return None;
         }
-        if matches!(
-            program
-                .type_reference_table
-                .type_reference(parameter.type_reference),
-            TypeReferenceNode::Reference { referee, .. }
-                if program.placed_view_plan_for_type_reference(*referee).is_some()
-        ) {
-            // A direct concrete Placed<P, T> reference is retained by the
-            // separate semantic-custody row and intentionally has no runtime
-            // structural parameter or ABI carrier.
-            continue;
-        }
         // Primitive values remain in the scalar namespace. A reference to a
         // primitive may become a structural place only for the bounded
         // write-only store/call closure or the exact bounded shared-observer leaf.

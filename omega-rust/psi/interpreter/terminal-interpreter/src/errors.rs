@@ -32,10 +32,9 @@ pub enum TerminalInterpretError {
     /// path-aware structural model, so execution fails closed.
     AffineProjectionNotRepresentable,
     /// A direct-entry placed-view input was not established by any supplied
-    /// `TerminalPlacedViewEstablishment`, or the roster carries a row on a
-    /// non-entry machine — an input bound by its call, which this boundary
-    /// cannot yet route. Execution fails closed rather than starting the
-    /// entry machine with a declared input unbound.
+    /// `TerminalPlacedViewEstablishment`, or an ordinary actual names no live
+    /// compatible placed occurrence. Neither type nor pointer identity alone
+    /// grants custody for a declared input.
     PlacedViewInputsRequireCustody,
     /// Two supplied establishments name the same roster row.
     PlacedViewInputEstablishmentDuplicate {
@@ -53,6 +52,7 @@ pub enum TerminalInterpretError {
     PlacedViewInputEstablishmentAliasing(u64),
     /// Runtime backing does not rejoin the verified artifact's declarations.
     PlacedViewReferent(terminal_semantics::PlacedViewReferentError),
+    PlacedViewInput(terminal_semantics::PlacedViewInputError),
     ArgumentCount {
         expected: usize,
         actual: usize,

@@ -23,6 +23,7 @@ pub enum CodecError {
     StringTooLong(&'static str),
     InvalidUtf8(&'static str),
     MalformedStructuralFoundation(&'static str),
+    PlacedViewInput(terminal_semantics::PlacedViewInputError),
     MalformedMathematicalCertificate(&'static str),
     MalformedProposition(PropositionError),
     ObligationLedgerMismatch,

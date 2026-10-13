@@ -260,6 +260,11 @@ impl TerminalExecution<'_> {
     ) -> Result<(), TerminalInterpretError> {
         let values = bind_arguments(&callee.parameters, scalar_arguments)?;
         prepared_arguments.validate_carrier_partition(&callee.structural_parameters)?;
+        let placed_view_occurrences = self.bind_call_placed_views(
+            callee_id,
+            structural_arguments,
+            &prepared_arguments.values,
+        )?;
         let mut structural_values = prepared_arguments.values;
         let mut identity_cursor = prepared_arguments.local_identity_cursor;
         if let SuspendedCallResult::Structural {
@@ -338,6 +343,7 @@ impl TerminalExecution<'_> {
             &mut caller_structural_values,
         )?;
         self.call_stack.push(SuspendedCall {
+            placed_view_occurrences: std::mem::take(&mut self.placed_view_occurrences),
             loan_completions,
             values: std::mem::take(&mut self.values),
             structural_values: caller_structural_values,
@@ -353,6 +359,7 @@ impl TerminalExecution<'_> {
             next_operation: self.next_operation,
             result,
         });
+        self.placed_view_occurrences = placed_view_occurrences;
         self.values = values;
         self.structural_values = structural_values;
         self.aggregate_argument_backings = prepared_arguments.aggregate_backings;

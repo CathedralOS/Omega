@@ -95,7 +95,10 @@ pub use collection_backing::{
     collection_backing, collection_view_descriptor,
 };
 pub use partial_affine::partial_affine_residuals;
-pub use placed_view_referent::{PlacedViewReferentError, validate_placed_view_referent};
+pub use placed_view_referent::{
+    PlacedViewInputError, PlacedViewReferentError, placed_view_input_parameter,
+    validate_placed_view_referent,
+};
 pub use primitive_place::{
     Position, StructuralStorageSelection, borrowed_primitive_projection_declaration,
     byte_carrier_field_declaration, canonical_primitive_path, canonical_primitive_read_path,
