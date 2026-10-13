@@ -2619,8 +2619,10 @@ crash and native exit behavior.
   [state contracts](wiki/spec/language/state_contracts.md#terminal-calls-in-transition-arms):
   a terminal call is an ordinary invocation whose normal result completes the
   caller; an internal state target remains a jump.
-  - Where: host trap-exit validation for
-    `calls/runtime_guarded_reference_return_crash` remains unavailable on this host.
+  - Where: `calls/runtime_guarded_reference_return_crash` has matching native
+    and captured Terminal trap outcomes on Linux x86-64. Matching-host native
+    qualification for the strengthened fixture remains on Linux ARM64,
+    macOS ARM64 and Windows x86-64.
   - State: Unit, scalar, record, qualified-scalar, case-payload, boundary
     requirement, shared and mutable-reference returns through finite internal
     state cycles, and effectful-guard/operand-order forms execute in both engines.
@@ -2634,17 +2636,21 @@ crash and native exit behavior.
     calls, including scalar and Unit completions. Ordinary consuming
     core `drop` uses the exact owner-authorized normal scalar-record cleanup plan.
   - Remaining:
-    - validate the native trap oracle for
-      `calls/runtime_guarded_reference_return_crash` on a host that can reap trap
-      exits. The current macOS host leaves both that program and system-clang
-      `int main(void) { __builtin_trap(); }` in uninterruptible exit. Checking
-      admits the fixture; the interpreter leg declines, so no cross-engine trap
-      agreement has been established.
+    - validate matching-host native trap and normal-return oracles for
+      `calls/runtime_guarded_reference_return_crash` and its before-crash
+      sibling on Linux ARM64, macOS ARM64 and Windows x86-64. The preserved
+      macOS obstruction leaves both a native trap and system-clang
+      `int main(void) { __builtin_trap(); }` in uninterruptible exit; its native
+      qualification needs a host that can reap trap exits. Each declared
+      target now has a portable Terminal trap/normal-return oracle, which does
+      not replace matching-host native execution. The false-guard caller ends
+      normally if the call returns; only the callee's authored crash may
+      satisfy its trap oracle.
   - Not this item: `filesystem/dir_walk_wrappers_exit` and
     `samples/cli/systems/note_vault` depend on `Filesystem::create_dir_all`.
 
-  Acceptance: establish the crash fixture's native trap oracle on a host that can
-  reap trap exits. Keep `pass/calls/runtime_linear_guarded_owner_disposition_exit`
+  Acceptance: establish the strengthened crash/normal-return pair's native
+  oracles on the remaining matching hosts that can reap trap exits. Keep `pass/calls/runtime_linear_guarded_owner_disposition_exit`
   and `pass/calls/runtime_linear_guarded_unit_owner_disposition_exit` at 0 in both
   engines, exercising both selected alternatives. Keep
   `pass/calls/runtime_linear_terminal_owner_disposition_exit`

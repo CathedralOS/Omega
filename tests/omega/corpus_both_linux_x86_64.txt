@@ -247,3 +247,7 @@ pass/float/runtime_generic_constructor_literal_landing_exit built 28661ms exit:0
 pass/arithmetic/runtime_bounded_unsigned_sum_chain_exit built 21795ms exit:48 interpreter-exit:48 interpreter:agrees @1b12798e27f4
 pass/arithmetic/runtime_bounded_unsigned_sum_field_and_call_exit built 18148ms exit:48 interpreter-exit:48 interpreter:agrees @1b12798e27f4
 pass/arithmetic/runtime_observed_call_bound_exit built 15895ms exit:42 interpreter-exit:42 interpreter:agrees @1b12798e27f4
+pass/calls/runtime_guarded_reference_return_before_crash_exit built 12117ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @0e06d190735e
+pass/calls/runtime_guarded_reference_return_crash built 11964ms exit:signal signal:4 stdout:match stderr:match interpreter:trapped interpreter-stdout:match interpreter-stderr:match terminal-target.linux_x86_64:trap terminal-target.linux_arm64:trap terminal-target.macos_arm64:trap terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match @0e06d190735e
+# e01calls: scoped exact1b127 producer rows; other published rows preserved.
+# historical-context (9462 measurement, not current): {"cpus": 5, "jobs": "1", "load1_end": 2.14, "load1_start": 2.09, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}

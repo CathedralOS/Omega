@@ -4288,8 +4288,8 @@ pass/calls/runtime_float_result_across_call_exit checked 154498ms check-target:m
 pass/calls/runtime_guard_call_vs_call_exit checked 11155ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_guarded_boundary_tail_call_exit checked 11007ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_guarded_effectful_transition_argument_exit checked 11101ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/calls/runtime_guarded_reference_return_before_crash_exit checked 10415ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/calls/runtime_guarded_reference_return_crash checked 10174ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/runtime_guarded_reference_return_before_crash_exit checked 30464ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @0e06d190735e
+pass/calls/runtime_guarded_reference_return_crash checked 38264ms check-target:macos_arm64 terminal-target.linux_x86_64:trap terminal-target.linux_arm64:trap terminal-target.macos_arm64:trap terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match @0e06d190735e
 pass/calls/runtime_guarded_terminal_array_operands_exit checked 10472ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_guarded_terminal_guard_order_exit checked 10359ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_guarded_terminal_mutable_reference_result_exit checked 10571ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6541,3 +6541,5 @@ fail/arithmetic/zero_increment_unproved_index rejected 2249ms expected @1b12798e
 	cannot prove index `position` is within length 3 in select::entry
 pass/arithmetic/runtime_bounded_unsigned_sum_chain_exit checked 13816ms check-target:macos_arm64 @1b12798e27f4
 pass/arithmetic/runtime_bounded_unsigned_sum_field_and_call_exit checked 14708ms check-target:macos_arm64 @1b12798e27f4
+# e01calls: scoped exact1b127 producer rows; other published rows preserved.
+# historical-context (9462 measurement, not current): {"cpus": 5, "jobs": "1", "load1_end": 0.89, "load1_start": 0.87, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
