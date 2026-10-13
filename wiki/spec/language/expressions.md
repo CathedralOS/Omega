@@ -105,6 +105,11 @@ cannot substitute for that identity.
 
 ## Operator declarations
 
+Numeric helper names such as `min`, `max`, `abs`, `clamp` and `sqrt` select
+[ordinary standard-library machines](numeric_values.md#library-numeric-helpers),
+not compiler-known call forms. Their call syntax follows ordinary resolution
+and argument evaluation; none is implicitly available by spelling alone.
+
 Equality between type expressions in generic constraints and static branches
 uses [static type equality](generics.md#static-type-equality), not runtime value
 comparison or user operator discovery. Type/value role resolution happens before

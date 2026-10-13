@@ -189,53 +189,7 @@ lineage as text.
    bytes) and drop "recomputed identity" from phase 3, keeping duplicate and
    identity-mismatch checks on those fields.
 
-### Q3 - Are `min`, `max`, `abs`, `clamp` and `sqrt` language functions?
-
-Named decision: `executable-numeric-builtins`.
-
-**Customer:** the Omega-written product compiler resolving the bundled
-library (**OMEGA-PRODUCT-COMPILER-SOURCE** in `TASKS.md`):
-`core/numeric_conversion.omg` calls `clamp` 31 times, and its saturating
-narrowings depend on the result's bound (`let capped: u8 = clamp(value, 0,
-127); capped as i8` is a representable conversion only because `capped <=
-127`). The corpus and samples call `max` 11 times, `sqrt` 6 times, `clamp`
-7 times and `min` twice. The product resolver binds none of them, and the
-product checker cannot prove what follows a call without their meaning.
-
-**Existing rules:** [expressions](wiki/spec/language/expressions.md) names
-the compiler-known core queries (`address_of`, `size_of`, `align_of`,
-`code_layout`) and no numeric function.
-[Numeric values](wiki/spec/language/numeric_values.md) defines operators,
-policies (`Saturating` clamps an operation's result) and target-selected
-instruction lowerings, not callable functions.
-[Contracts](wiki/spec/proofs/contracts.md) defines only the proof-only
-`embed`. The language guide uses none of these names. The only definition is
-the Rust reference compiler: `omega-rust/psi/foundation/symbols/src/builtin`
-lists `min`, `max`, `abs`, `clamp` and `sqrt` beside the assembly
-intrinsics, and stage 02's `lowering/intrinsic_calls.rs` rewrites
-`abs(x)` to `max(x, 0 - x)` and `clamp(v, lo, hi)` to
-`min(max(v, lo), hi)`, so `min` and `max` are the primitives.
-
-**Decision needed:**
-
-1. **Recommended: specify `min` and `max` as compiler-known core functions**
-   in expressions.md, beside the core queries: two operands of one numeric
-   carrier (anonymous literals land on it), the result in that carrier, equal
-   to one operand and ordered against both, which is what a checker proves
-   with. Define `abs` and `clamp` as their documented expansions, and `sqrt`
-   as a float operation lowered like the other target-selected instructions.
-   Both compilers then implement the same written meaning.
-2. **Make them ordinary core library machines** (per carrier, or generic
-   over an ordered numeric bound) whose `ensures` facts state the same
-   bounds, rewrite the library's and samples' calls to name them, and retire
-   the compiler builtins. No new language surface remains, but every carrier
-   needs a machine or the generics need an ordering bound, and `sqrt` still
-   needs a target instruction.
-3. **Keep them unspecified** in the Rust compiler only. The product
-   compiler then cannot compile the bundled library without inventing their
-   meaning, so this blocks the product compiler's library closure.
-
-### Q4 - Which service does a migrated boundary operation reach?
+### Q3 - Which service does a migrated boundary operation reach?
 
 Named decision: `boundary-trait-requirement-service-row`.
 
@@ -315,7 +269,7 @@ The storage and view traits moved here (`ArrayAccess`, `SliceAccess`,
 have no callers, so their service identity is unobserved today; the answer
 decides whether their rows declare `reaches;`.
 
-### Q5 - How does source call a requirement through a `Binding<R>`?
+### Q4 - How does source call a requirement through a `Binding<R>`?
 
 Named decision: `binding-receiver-call-form`.
 
@@ -364,7 +318,7 @@ The Rust reference compiler accepts the dot form by unwrapping a
    compiler; two candidates reject. No receiver is written, but selection
    depends on the context's shape rather than the call.
 
-### Q6 - What does `==` between data values mean in a proof fact?
+### Q5 - What does `==` between data values mean in a proof fact?
 
 Named decision: `proof-fact-data-equality`.
 
@@ -416,7 +370,7 @@ synthesis, which recursive Nat cannot join").
    core `Identity(a, b)` proposition or another token), and `==` keeps one
    meaning everywhere. The eight files' theorems are respelled.
 
-### Q7 - Does an x86 FMA image keep its own replayed feature custody?
+### Q6 - Does an x86 FMA image keep its own replayed feature custody?
 
 Named decision: `x86-fma-image-custody`.
 
@@ -452,7 +406,7 @@ native image must record which optional ISA features its code needs.
 3. **Extend the replay as the board states,** as an off-path verifier the
    corpus runner calls for x86 FMA images.
 
-### Q8 - How does a Build select its core-only discovery entry?
+### Q7 - How does a Build select its core-only discovery entry?
 
 Named decision: `build-discovery-entry-phase`.
 

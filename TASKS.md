@@ -141,6 +141,27 @@ helper that passes does not close an item.
 
 ## Immediate product closure
 
+- **REMOVE-NUMERIC-HELPER-BUILTINS.** (new-scope) **Urgent owner-directed removal.**
+  Move `min`, `max`, `abs`, `clamp` and `sqrt` to ordinary `std` math machines
+  under [library numeric helpers](wiki/spec/language/numeric_values.md#library-numeric-helpers).
+  Delete their builtin symbol registration, intrinsic-call rewrites and
+  name-specific typing/proof/evaluation paths; no legacy aliases, implicit
+  imports or privileged qualified-name replacement. Start with
+  `omega-rust/psi/foundation/symbols/src/builtin` and stage 02's
+  `lowering/intrinsic_calls.rs`. Migrate library, samples and corpus callers
+  together. `core/numeric_conversion.omg` currently uses builtin `clamp`;
+  keep core conversions self-contained with ordinary checked arithmetic/control
+  flow rather than creating a `core -> std` dependency. State and prove helper
+  contracts for supported carriers, including signed-minimum absolute value,
+  inverted clamp bounds, float NaNs/signed zeros and square-root domain/rounding.
+  Retain existing specified float meanings; do not bless the old rewrites as
+  contracts. Acceptance: imported helpers execute with matching native/Terminal
+  results, narrowing follows ordinary `ensures`, and calls without any visible
+  declaration reject. An unrelated same-named machine retains its own behavior.
+  Both compilers use ordinary selected calls; remove the superseded source
+  builtin route completely, preserving only independently justified lower-level
+  numeric operations and optional semantics-preserving instruction selection.
+
 - **CHECKED-PACKAGE-REUSE.** (new-scope) A dependent's check re-judges its
   dependencies' bodies: on Windows (opt-level 1, `90dcfa2bcbe`) a 10-line std
   program checks in 15.6 s, std's package step 5.8 s plus 7.1 s of Stage 05
@@ -2078,7 +2099,7 @@ then independent claimed restoration slices -> final closure.
   **BUILD-EVALUATES-ONCE**, pre-effect admission and all-target authored rows;
   do not retain a feature/fixture-specific Build evaluator.
   Discovery/default-source phase selection is **OWNER-BLOCKED** on
-  [build-discovery-entry-phase](OWNER_QUESTIONS.md#q8---how-does-a-build-select-its-core-only-discovery-entry):
+  [build-discovery-entry-phase](OWNER_QUESTIONS.md#q7---how-does-a-build-select-its-core-only-discovery-entry):
   the same free Build entry mixes discovery with work needing the resolved
   graph, with no defined entry/phase boundary. This blocks that subfrontier
   only; Terminal/mutable-slot/accounting and immutable resolver joins remain
@@ -5470,7 +5491,7 @@ wait for Cathedral's instruction coverage. The interpreter is
   - Default builds and anonymous owners
     ([spec](wiki/spec/build/declarations.md#default-builds-and-anonymous-owner-identity)):
     The interpreted discovery/default-source prerequisite references
-    [build-discovery-entry-phase](OWNER_QUESTIONS.md#q8---how-does-a-build-select-its-core-only-discovery-entry);
+    [build-discovery-entry-phase](OWNER_QUESTIONS.md#q7---how-does-a-build-select-its-core-only-discovery-entry);
     other owner/identity/resolution joins remain engineering.
     `omega-rust/omega/packages/compilation-inputs/src/source_imports/frontier.rs`
     leaves loose roots without package identity. Derive the versioned anonymous
@@ -6729,9 +6750,9 @@ construction stays on `TASKS_BOOTSTRAP.md`.
     nonempty writes through an unknown origin must remain refused rather
     than acquire independent storage facts. Track payload paths on held-loan
     rows so projected carriers retain only their own backing loans; the
-    current root-based transfer conservatively retains sibling loans. The open
-    `executable-numeric-builtins` question governs `clamp` and the related numeric
-    functions and the bounds subsequent narrowing conversions require.
+    current root-based transfer conservatively retains sibling loans.
+    **REMOVE-NUMERIC-HELPER-BUILTINS** owns the std migration; derive helper
+    bounds through ordinary machine contracts, not special numeric-call rules.
     Implement [destination-first stores](wiki/spec/language/expressions.md#evaluation-schedule)
     in checking and ownership: capture collections, selectors and bounds once
     before RHS effects, then use that same place for displaced-value cleanup,

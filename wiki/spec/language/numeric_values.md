@@ -9,6 +9,30 @@ facts. Explicit nominal qualification follows
 [domains](domains.md#declaration-and-membership); internal interval analysis
 does not introduce another authored type form.
 
+## Library numeric helpers
+
+`min`, `max`, `abs`, `clamp` and `sqrt` are ordinary standard-library machines,
+not language functions or compiler-known source builtins. They belong in
+`std`'s math surface, resolve through ordinary imports and declaration identity,
+and publish their types, preconditions and guarantees as ordinary contracts.
+This settles `executable-numeric-builtins` against the builtin route. A missing
+library declaration is a name-resolution failure, not permission to recognize
+its spelling in the compiler.
+
+Checking learns result bounds and mathematical meaning from those contracts
+and checked bodies, not name-specific proof rules or source-call expansions.
+The standard library must make signed-minimum `abs`, inverted clamp bounds,
+floating NaNs and signed zeros, and square-root domain and rounding behavior
+explicit in its contracts. Existing implementations are not definitions of
+unspecified behavior; in particular `abs(x)` is not universally `max(x, 0 - x)`.
+
+Ordinary numeric operators and their admitted target realizations remain
+available to implement library code. An optional optimization may realize a
+checked operation with a suitable instruction, but does not make any of these
+five names intrinsic or replace the ordinary call path. No reserved-name,
+qualified-name or implicit-import compatibility route preserves the rejected
+builtins. Library placement does not authorize a dependency from `core` to `std`.
+
 ## Literal landing and destinations
 
 A suffixed integer or float literal retains its chosen carrier or format through

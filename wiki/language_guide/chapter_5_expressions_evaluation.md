@@ -319,6 +319,17 @@ not introduce annotation-free `let` declarations.
 
 ## Numeric Semantics
 
+Numeric helpers such as `min`, `max`, `abs`, `clamp` and `sqrt` belong to the
+standard library's math machines. Import their declarations and call them like
+other machines; these names are not compiler builtins. A caller uses their
+`requires` and `ensures`, including bounds needed by a subsequent narrowing
+conversion. The declared contract also determines exceptional numeric cases;
+do not assume a signed `abs` can represent every magnitude or that all floating
+minimum operations treat NaNs the same way. See
+[library numeric helpers](../spec/language/numeric_values.md#library-numeric-helpers).
+The existing compiler builtin paths still need removal; this describes the
+accepted library ownership, not a claim that the migration is complete.
+
 Machine integer arithmetic is Exact by default: each operation must be proved
 free of invalid operands and unrepresentable results. A safe final result
 does not excuse an overflowing intermediate. There is no implicit widening;
