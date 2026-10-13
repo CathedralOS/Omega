@@ -63,6 +63,14 @@ view root, field path and selectors independently of the storage-read inventory;
 a literal selector does not make the root or field identity redundant. Slice
 bounds remain separate proof obligations derived from the live descriptor.
 
+A captured interior suffix is a loan footprint, not a declared element place.
+Value production first rejoins that footprint to the checked byte-region
+formation and its backing collection, then queries the backing's declaration.
+Querying a literal suffix before this join loses its descriptor; a runtime
+suffix's conservative whole-backing loan happens to conceal the same mistake.
+Both retain the captured offset and derived extent through the common producer,
+without replacing the exact borrow-access or tiling judgment.
+
 Every recast-path diagnostic attaches the authored source span of the
 offending `as` expression (the stray cast itself for the positional sweep, the
 let's initializer for the unspelled reference pun), so fenced positions and

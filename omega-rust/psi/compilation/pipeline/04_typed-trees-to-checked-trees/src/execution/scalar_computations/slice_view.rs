@@ -73,27 +73,6 @@ impl Builder<'_, '_> {
         let state = self.program.state_by_symbol(self.state)?;
         let (mut place, access) = self.view_formation(expression, expected, view.access)?;
 
-        let declared = validation::canonical_place_type_reference(
-            self.program,
-            self.state,
-            self.statement_index,
-            &place,
-        )?;
-        if validation::slice_view_shell(self.program, declared, &[]).is_some() {
-            // Transport the current descriptor through the ordinary reference
-            // join. Collection establishment would replace its captured extent
-            // with backing geometry. Stored-leaf selection also retains every
-            // crossing through a local reference before selecting this view.
-            let (mut source, _) = self.borrowed_leaf_argument(expression, declared)?;
-            source.access = access;
-            return Some(CheckedStructuralValueKind::Reference {
-                source,
-                storage: checked_trees::CheckedReferenceStorage::Declared,
-                backing_type: declared,
-                source_value: checked_trees::CheckedStructuralValueHandle::invalid(),
-            });
-        }
-
         let machine = self.program.machine_by_symbol(self.machine)?;
         let authored_recast = validation::slice_recast_source(self.program, expression);
         let recast = validation::slice_recast_byte_region(self.program, machine, state, expression);
@@ -139,6 +118,31 @@ impl Builder<'_, '_> {
                 return None;
             }
             place = collection;
+        }
+        // A captured region is a loan footprint, not a declared value: its
+        // suffix segment has no element type. Rejoin the checked formation to
+        // its backing before asking whether storage already holds a view.
+        // Otherwise a literal suffix declines while an equivalent runtime
+        // suffix, whose conservative loan names the whole backing, succeeds.
+        let declared = validation::canonical_place_type_reference(
+            self.program,
+            self.state,
+            self.statement_index,
+            &place,
+        )?;
+        if validation::slice_view_shell(self.program, declared, &[]).is_some() {
+            // Transport the current descriptor through the ordinary reference
+            // join. Collection establishment would replace its captured extent
+            // with backing geometry. Stored-leaf selection also retains every
+            // crossing through a local reference before selecting this view.
+            let (mut source, _) = self.borrowed_leaf_argument(expression, declared)?;
+            source.access = access;
+            return Some(CheckedStructuralValueKind::Reference {
+                source,
+                storage: checked_trees::CheckedReferenceStorage::Declared,
+                backing_type: declared,
+                source_value: checked_trees::CheckedStructuralValueHandle::invalid(),
+            });
         }
         if !canonical_place_is_borrowable(&place) {
             return None;
