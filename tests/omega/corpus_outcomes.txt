@@ -6929,3 +6929,4 @@ fail/generics/const_extent_guard_wrong_arm rejected 1061ms expected @d80baff24c7
 pass/generics/runtime_const_extent_guard_floors_exit checked 11328ms check-target:macos_arm64 @d80baff24c7e+wt
 pass/contracts/call_write_keeps_disjoint_guard_assert_exit checked 2820ms check-target:linux_x86_64 @fce0c29a3681+wt
 pass/contracts/guard_conjunct_survives_disjoint_state_write_assert_exit checked 2927ms check-target:linux_x86_64 @fce0c29a3681+wt
+pass/calls/runtime_indexed_module_guard_operands_exit checked 3006ms check-target:linux_x86_64 @2aa144e14ed+wt

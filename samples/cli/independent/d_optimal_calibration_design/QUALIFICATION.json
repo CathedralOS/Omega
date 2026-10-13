@@ -1,17 +1,17 @@
 {
-  "sample_revision": "fce0c29a3681fd4241790a92c8b6fc4606adba06",
-  "integrated_main": "185ea6bba8a842cd8a4a4d576935f63693a08bea",
-  "producer_revision": "fce0c29a3681fd4241790a92c8b6fc4606adba06",
-  "compiler_sha256": "4d9ca16884b92067c467f921cf1c4c62fba96995626c527a2e3b997431c71b17",
+  "sample_revision": "2aa144e14ed7dc2d627eed4d3c43e9b66bb94e10",
+  "integrated_main": "e9d32814a23f1e10d12ce9543b2c9e36f7fd223a",
+  "producer_revision": "2aa144e14ed7dc2d627eed4d3c43e9b66bb94e10",
+  "compiler_sha256": "af13999613f2305860b22db87fb23672756ca46bedb466ea2c5803b7f7f89668",
   "target": "linux_x86_64",
-  "incoming_input_review": "Fresh integrated185 producer qualifies incoming guard-write preservation, live-byte length classification and provider custody alongside prior reference-transfer/scalar-snapshot changes. Exact frozen46 native/raw-Terminal numerical cases,34 controls and ten native/Terminal value witnesses passed. Existing source/package/runtime/filesystem authority remains intact.",
+  "incoming_input_review": "Fresh integratede9 producer with shared structural Module operand repair executes unchanged46-case oracle,41sourcecontrols and12value-asserting native/Terminal programs. Incoming returned-row access/frontier and five rowloan refusals qualified. Prior actualfce/90 observations remain immutable.",
   "oracle_cases": 46,
   "actual_native_and_captured_terminal_cases": 46,
   "exact_selection_information_determinant": true,
   "exact_rational_covariance_prediction_variance": true,
   "absolute_relative_tolerance": 1e-08,
   "native_executable_sha256": "d348f5dd997807ee5ca945e387355431d8c9d042225c0fc27a72183d48624edf",
-  "direct_native_seconds": 0.03360282401990844,
+  "direct_native_seconds": 0.03724460000375984,
   "source_invalid_control": {
     "exit": 1,
     "diagnostic": "cannot prove index `12` is within length 12",
@@ -399,10 +399,10 @@
   },
   "current_validator_sha256": "adb91b3d5614b0c948f1839776cfb4abe7bf56f2cd3b069fc405ad6155b2788e",
   "validator_evidence_applicability": "Current Omega source, frozen inputs/oracles, validator and exact-closure-linked SDK sponsor were executed. All46 actual native and Terminal values matched exactly; unsupported/fuel-exhausted/incomplete execution fails.",
-  "terminal_sponsor_seconds": 15.297632182999223,
+  "terminal_sponsor_seconds": 15.790436704999593,
   "terminal_artifact_sha256": "a235e03de59ea7d7beb4452d3948dadee4e2af05be30536790b3e172e03bdc24",
   "sponsor_build_receipt": {
-    "compiler_binary_sha256": "4d9ca16884b92067c467f921cf1c4c62fba96995626c527a2e3b997431c71b17",
+    "compiler_binary_sha256": "af13999613f2305860b22db87fb23672756ca46bedb466ea2c5803b7f7f89668",
     "cli_unit_metadata": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/omega/105a6a9cf98f2f92/fingerprint/bin-omega.json",
     "command": [
       "rustc",
@@ -752,7 +752,7 @@
       "terminal_interpreter=/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/terminal-interpreter/897fa239ca221d5a/out/libterminal_interpreter-897fa239ca221d5a.rlib"
     ],
     "source_sha256": "493873c66e7f5413a374a33d5d40635b7b74329a4b4200f30b575524cb72ab1c",
-    "harness_sha256": "83757b3fdd6bd39d1b0b4b60bc94a6b77ff52249b598bf079beaa418ce8ba580",
+    "harness_sha256": "b31edd55e1f363d2a8018868b89b27ee6a29db25cfee0bd96cf32025ffd9b95c",
     "libraries": [
       {
         "name": "abstract_operations",
@@ -836,13 +836,13 @@
         "name": "build_declarations",
         "fingerprint": 11370070674768598133,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/build-declarations/5f61e21ed58b6e83/out/libbuild_declarations-5f61e21ed58b6e83.rlib",
-        "sha256": "5986f1ad470ad1a1d027f41796f639972db879d763a423d2af4df8d18325b0c8"
+        "sha256": "58c4818298c74134fa7aa54f51f39bfb6acfe260414f8b8b8376ee193e68e6d5"
       },
       {
         "name": "build_evaluation",
         "fingerprint": 6851690637035576483,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/build-evaluation/90af27e2c2d73853/out/libbuild_evaluation-90af27e2c2d73853.rlib",
-        "sha256": "0e7c98b002ea375126e9c4ce34e561a9a873ea0681efa2654822fb81b08bcadd"
+        "sha256": "d53c9080067af5afea20cf1e7e03aa4805ea131ebfc854392a675656b87cc4d5"
       },
       {
         "name": "build_output",
@@ -854,7 +854,7 @@
         "name": "build_time_evaluation",
         "fingerprint": 14753553107832622687,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/build-time-evaluation/2cd977430a9fe6cd/out/libbuild_time_evaluation-2cd977430a9fe6cd.rlib",
-        "sha256": "456289f45bcd48e2c49df38c5f9c4d338c6246e4f1e3bfe6c7b72c4bb2364dbf"
+        "sha256": "0606fcb7620b0e7329ec82b47dc50a4d603e5ee8ba80e488327aca66ba8e8955"
       },
       {
         "name": "build_time_values",
@@ -896,19 +896,19 @@
         "name": "checked_interpreter",
         "fingerprint": 14025511449903489750,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/checked-interpreter/8de99db6d2a52b4e/out/libchecked_interpreter-8de99db6d2a52b4e.rlib",
-        "sha256": "7061cd3eeb70310426d8810a269e33b5da61c47f0e339a55470b02d8c4289d30"
+        "sha256": "821e426c0862ac11158a0c870efdc38688196eed989d5b9d13bd813787d39665"
       },
       {
         "name": "checked_trees",
         "fingerprint": 4664751277266648307,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/checked-trees/ded419a234a7d573/out/libchecked_trees-ded419a234a7d573.rlib",
-        "sha256": "af3c753a6915bd4f34cc736b9ea8cdfdc810520cb41a3f4ed8a626d9883166cb"
+        "sha256": "179d324408e920ff80fce7d4061836f39d7f2d67fcb252b46426a397dcb3a457"
       },
       {
         "name": "checked_trees_to_lowered_psi",
         "fingerprint": 13691876632900328914,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/checked-trees-to-lowered-psi/9e2b42d22a3d4588/out/libchecked_trees_to_lowered_psi-9e2b42d22a3d4588.rlib",
-        "sha256": "d435e28a4d863573a102dede67482fbddd94f4ee84e01dd1d44b678f4693e813"
+        "sha256": "632510b0501da88e20c472c0d057b995b8155cc6e4b4ddbfed8539d63c3bebd4"
       },
       {
         "name": "command_group",
@@ -920,13 +920,13 @@
         "name": "compilation_products",
         "fingerprint": 10709027157967004442,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/compilation-products/76e4d5d6bd1b0956/out/libcompilation_products-76e4d5d6bd1b0956.rlib",
-        "sha256": "58170c6fcad91232224730a338d4b105384b9a782aa60731bff46e5325b015bc"
+        "sha256": "fdfd423f7ca1474edcc2ff5c0417d555478fedf59fd1dc78ad700bc289a9a95e"
       },
       {
         "name": "compiler",
-        "fingerprint": 13313939972689371607,
+        "fingerprint": 106749325283786502,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/compiler/12899f01c2f9226a/out/libcompiler-12899f01c2f9226a.rlib",
-        "sha256": "61e3dd2a94a09c992508b1203a65b88149773d35d49b7fb0087fe4e2701a10de"
+        "sha256": "7bc839d9c04b2c194a243b1a389372211c99c226cfc47d1958c7aa843bc16fdc"
       },
       {
         "name": "component_description",
@@ -1172,19 +1172,19 @@
         "name": "lowered_psi",
         "fingerprint": 5282675680967267562,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/lowered-psi/32be694e713eae96/out/liblowered_psi-32be694e713eae96.rlib",
-        "sha256": "5f68eaf908a5b9ca7c32a6dff548b5ed3cf086100ad4ceb992ec6fd5a904885e"
+        "sha256": "ce898557d5f832a6ee8dfe500e2f23fe934d3c987a9a98ef58d53507b763e429"
       },
       {
         "name": "lowered_psi_to_lowered_psi",
         "fingerprint": 2115186756610366275,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/lowered-psi-to-lowered-psi/037521c3b2ea76cf/out/liblowered_psi_to_lowered_psi-037521c3b2ea76cf.rlib",
-        "sha256": "98ed6769b43cdd3742e037799d176f78505d0f0126109390290b0e67091c4af1"
+        "sha256": "a72a91bd74a4a66ec8cefd44fc1fd4a7076140a944ec4c724519a08c6a8f0718"
       },
       {
         "name": "lowered_psi_to_terminal_psi",
         "fingerprint": 4626475048401718851,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/lowered-psi-to-terminal-psi/99ffd7c00974374f/out/liblowered_psi_to_terminal_psi-99ffd7c00974374f.rlib",
-        "sha256": "ca7ffcd4c8ebb7871db9cd9aa83c400563b874799e4cede52062ebf26ccd7c0a"
+        "sha256": "0cdf9c510dbb5f2953f38d65a9a214aa875265750180f32753f3e4ff51ee78e5"
       },
       {
         "name": "machine_code",
@@ -1274,19 +1274,19 @@
         "name": "package_compilation",
         "fingerprint": 18199102769461384718,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/package-compilation/19a97f3673f37b8b/out/libpackage_compilation-19a97f3673f37b8b.rlib",
-        "sha256": "36849ad6b650a83e13c11645c84f2d82c32377190f88ded0acd4708fb718ba0d"
+        "sha256": "f8abe0973f334c38af3ecd3f5124cb8fa6093d744d81230716a3c0c869bb2b37"
       },
       {
         "name": "package_evidence",
         "fingerprint": 246707786325760934,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/package-evidence/bf8918c8c3d24e5e/out/libpackage_evidence-bf8918c8c3d24e5e.rlib",
-        "sha256": "41687cc6e8ab294c989c6797590c39d3e7b76cdb679eec0c8dbd5d45762006b5"
+        "sha256": "c5b87dd84d319b0863cc88dfb4948843a03aef47df1cc1457c8eb8285e848522"
       },
       {
         "name": "package_manager",
-        "fingerprint": 13595883050469793011,
+        "fingerprint": 7641842185353162721,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/package-manager/de671d29f2fd0463/out/libpackage_manager-de671d29f2fd0463.rlib",
-        "sha256": "c52685ce85c7ff7d4a4917568516d854ea836107e48e683c4757c8930e4c003d"
+        "sha256": "74b2c3a83739b45ce5694fb7bbbf4b6ced7e220f14462d6f4762daac996304ca"
       },
       {
         "name": "package_source",
@@ -1334,7 +1334,7 @@
         "name": "proof",
         "fingerprint": 17597402540181456168,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/proof/41184cecc95757e9/out/libproof-41184cecc95757e9.rlib",
-        "sha256": "4a3365fbff30614816a40e36f115677dca9fac9b45f1d4144f2544fbe05b4c4e"
+        "sha256": "4f3e324f15f4d642a8f5e6bca3e41a4edcdb3cdfd96702ad2f11dce3e11b47e3"
       },
       {
         "name": "proof_admission",
@@ -1346,13 +1346,13 @@
         "name": "provider_planning",
         "fingerprint": 7662418975588330965,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/provider-planning/0b10530113f0956d/out/libprovider_planning-0b10530113f0956d.rlib",
-        "sha256": "52b73355091b8bfdc8cc4922dfa48bc60d10c12824c916c7eb14df2624a6cb3f"
+        "sha256": "1efaf87674736b7f064e28b7f75722756cd08ed09ae95e34238f9368a9057045"
       },
       {
         "name": "psi_compiler",
         "fingerprint": 10251200517564272643,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/psi-compiler/91a0799eb233c52f/out/libpsi_compiler-91a0799eb233c52f.rlib",
-        "sha256": "81379a6572594aa353021d427bba08f7056e7bcb8fad1511f33f2fbabfba5741"
+        "sha256": "4b30d019239b997c7eaf3fb4c0be913accb7fed03a8c9669920611e62fb7fa4c"
       },
       {
         "name": "quote",
@@ -1400,7 +1400,7 @@
         "name": "representation_planning",
         "fingerprint": 6582663321828127236,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/representation-planning/5e93d02c29934617/out/librepresentation_planning-5e93d02c29934617.rlib",
-        "sha256": "ae10be558d01e545bfa443695cd1f71951026ecca628cb5569de4dfed76a0d38"
+        "sha256": "ab3d00e2983bb6f7a7d7c5f015bdb8f1c1a523e1cfb2a6a0ea52973e5357202d"
       },
       {
         "name": "representation_selections",
@@ -1448,7 +1448,7 @@
         "name": "selected_dispatch",
         "fingerprint": 12064194840167150443,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/selected-dispatch/097ec8bdba78b0be/out/libselected_dispatch-097ec8bdba78b0be.rlib",
-        "sha256": "c920a2e50208f55bba9a93750fc1bd56e4ee6100c5bceef9b7087a043673a314"
+        "sha256": "b1dbdd1c5ac7ed0b8277a7d064a800dcbf3b4ca61e098fc8f933ef8d08befad6"
       },
       {
         "name": "selected_form_encoding_to_resolved_layout",
@@ -1544,7 +1544,7 @@
         "name": "symbol_resolved_trees_to_typed_trees",
         "fingerprint": 15635608332213323437,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/symbol-resolved-trees-to-typed-trees/bb9e7a2f6a31e0c7/out/libsymbol_resolved_trees_to_typed_trees-bb9e7a2f6a31e0c7.rlib",
-        "sha256": "e3369c869c17df9221815445781c4abeaa804925c9f56cbd56a590e1aca00c29"
+        "sha256": "8704bba57d1000e199f413e90663cd3863f1866d7cdf6e6d10d0fe836b350051"
       },
       {
         "name": "symbols",
@@ -1622,7 +1622,7 @@
         "name": "terminal_production",
         "fingerprint": 13371120626839141802,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/terminal-production/9c811a6e8fe48406/out/libterminal_production-9c811a6e8fe48406.rlib",
-        "sha256": "d4deaed00acfa76df930e19d2146a9baded9ac30f502081e9440919d2bd0beb3"
+        "sha256": "485d3b51893645177e012140ba0275105b15b4399add486280d553cf9f5feb30"
       },
       {
         "name": "terminal_psi",
@@ -1658,7 +1658,7 @@
         "name": "trust_model",
         "fingerprint": 15601071611099400182,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/trust-model/d13b6680cfbc23f1/out/libtrust_model-d13b6680cfbc23f1.rlib",
-        "sha256": "7a8f4d44a08d6c47814500701fe7a673dea5307340695c04f120e6b1eda6f708"
+        "sha256": "fe166be8a7197c839af7e1bb355bec5ead244fc32bbc7f1a95ae4e691aecb748"
       },
       {
         "name": "typed_trees",
@@ -1670,13 +1670,13 @@
         "name": "typed_trees_to_checked_trees",
         "fingerprint": 16930916479429699161,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/typed-trees-to-checked-trees/de7b26208913d49b/out/libtyped_trees_to_checked_trees-de7b26208913d49b.rlib",
-        "sha256": "1fbe3b0dbcf15b6715f1af39d44b944e6abb09a809d4e8aad5f7c35e0552f7c5"
+        "sha256": "1a78fc1c74f034ab3383ac738c8aef2a78d7999515399635326dad1f940367b0"
       },
       {
         "name": "typed_trees_to_typed_trees",
         "fingerprint": 1055701193774365054,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/typed-trees-to-typed-trees/54238c7c46d4c12a/out/libtyped_trees_to_typed_trees-54238c7c46d4c12a.rlib",
-        "sha256": "927474aa41d5ef676f8b25e9a62fc869cbefec6b9a77b08fc380d09acb23cf2e"
+        "sha256": "99668cc4d9a5a90fd89d6f8d116ab2b3cca563e484f60b837963c89d7867aaf6"
       },
       {
         "name": "typenum",
@@ -1694,7 +1694,7 @@
         "name": "validation",
         "fingerprint": 5126678841637927692,
         "path": "/workspace/cloud-setup/cache/mbx/targets/v1/cae2c4a1501a03ecde08fcbc6de1abe35b9b4b6c04fb56a45962068bb27e9e08/release/build/validation/22984734ef655a2b/out/libvalidation-22984734ef655a2b.rlib",
-        "sha256": "e86176cf81b3cac03cac0838853083cd05e2164ebde20647a30bd566a4104808"
+        "sha256": "0a0475d15a7140fa4c397740815aa05e51bffd1406a6a6039012382f4f7e056a"
       },
       {
         "name": "x86_encoding",
@@ -1711,7 +1711,7 @@
     ]
   },
   "compiler_repair": {
-    "qualified_revision": "fce0c29a3681fd4241790a92c8b6fc4606adba06",
+    "qualified_revision": "2aa144e14ed7dc2d627eed4d3c43e9b66bb94e10",
     "source_sha256": {
       "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/structural_inputs/structural_reference_input.rs": "3026f4824ed255a1b1a87e18a213c9a38ba8db9821894fe1eac2c580964aa183",
       "omega-rust/psi/compilation/checking/src/lib.rs": "c5a48560a6001694cbd90e507358bbc27ce90117053ef18ec270655cd9d041c2",
@@ -1722,7 +1722,8 @@
       "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/ranges/incoming_guards.rs": "985adb690615ba2bf083c1e6fe514be28a9b0bf46d771934caa0720650e93b18",
       "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/ranges/indexes/validation.rs": "ca91049a0136cf3f7082f7bfa37b4e2ef3a3df205ba4df96b25e9713a21855e3",
       "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/ranges/proofs.rs": "b475689514f79f04db74e4d85da00d7a542e4c7d34b3b56aca2d15fb56b16475",
-      "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/ranges/types.rs": "add1995434dface27c066b325cdc36562e852e1bd2cdc829683f8ea198a76ea4"
+      "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/ranges/types.rs": "add1995434dface27c066b325cdc36562e852e1bd2cdc829683f8ea198a76ea4",
+      "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/scalar_lowering/effects.rs": "5416bf2d21ad681569308f33eaf8c1c4d0acd4389f8eef4e1ab326f7fa5bac0e"
     },
     "generic_source_sha256": "d48381dd9f840a10b94089ac2b47b2dccd1ef4862bbe6430bd72f00192a7aa6d",
     "clippy_exit": 0,
@@ -1776,7 +1777,7 @@
         ],
         "exit": 1,
         "expected_satisfied": true,
-        "seconds": 0.590845005997835,
+        "seconds": 0.6424725830001989,
         "stderr_sha256": "fb89cbc9acd09959a7138120a814d00347bf7218db08dde2fa3e814376fdd7f4"
       },
       {
@@ -1793,7 +1794,7 @@
         ],
         "exit": 1,
         "expected_satisfied": true,
-        "seconds": 0.5902722259997972,
+        "seconds": 0.5955628820011043,
         "stderr_sha256": "05f5f99ac9bf2fd974a5ed9c410a32eaa0691f047c35feba3fb47afd9df0daae"
       },
       {
@@ -1810,7 +1811,7 @@
         ],
         "exit": 1,
         "expected_satisfied": true,
-        "seconds": 0.6102636270006769,
+        "seconds": 0.6022901779979293,
         "stderr_sha256": "05f5f99ac9bf2fd974a5ed9c410a32eaa0691f047c35feba3fb47afd9df0daae"
       },
       {
@@ -1827,7 +1828,7 @@
         ],
         "exit": 1,
         "expected_satisfied": true,
-        "seconds": 0.2225294070012751,
+        "seconds": 0.22378456599835772,
         "stderr_sha256": "ee6f9eb5de4486b56f89c2c2ce2dc55652f5abe4b586ca8eaa8636871fc51537"
       },
       {
@@ -1844,7 +1845,7 @@
         ],
         "exit": 1,
         "expected_satisfied": true,
-        "seconds": 0.5786059240017494,
+        "seconds": 0.6293674650005414,
         "stderr_sha256": "05f5f99ac9bf2fd974a5ed9c410a32eaa0691f047c35feba3fb47afd9df0daae"
       },
       {
@@ -1861,7 +1862,7 @@
         ],
         "exit": 1,
         "expected_satisfied": true,
-        "seconds": 0.6202479869971285,
+        "seconds": 0.5961816449998878,
         "stderr_sha256": "05f5f99ac9bf2fd974a5ed9c410a32eaa0691f047c35feba3fb47afd9df0daae"
       },
       {
@@ -1878,7 +1879,7 @@
         ],
         "exit": 1,
         "expected_satisfied": true,
-        "seconds": 0.5873396299975866,
+        "seconds": 0.5932232800005295,
         "stderr_sha256": "05f5f99ac9bf2fd974a5ed9c410a32eaa0691f047c35feba3fb47afd9df0daae"
       },
       {
@@ -1895,7 +1896,7 @@
         ],
         "exit": 1,
         "expected_satisfied": true,
-        "seconds": 0.5927051420003409,
+        "seconds": 0.5822945699983393,
         "stderr_sha256": "05f5f99ac9bf2fd974a5ed9c410a32eaa0691f047c35feba3fb47afd9df0daae"
       },
       {
@@ -1912,7 +1913,7 @@
         ],
         "exit": 1,
         "expected_satisfied": true,
-        "seconds": 0.21463527599917143,
+        "seconds": 0.23291176199927577,
         "stderr_sha256": "0f049231221a96c01dd16cb61330e1ea096efbaf08aa044cce1fa6f414eb8be0"
       },
       {
@@ -1929,7 +1930,7 @@
         ],
         "exit": 1,
         "expected_satisfied": true,
-        "seconds": 0.5998478180008533,
+        "seconds": 0.600772246998531,
         "stderr_sha256": "fb89cbc9acd09959a7138120a814d00347bf7218db08dde2fa3e814376fdd7f4"
       },
       {
@@ -1946,7 +1947,7 @@
         ],
         "exit": 1,
         "expected_satisfied": true,
-        "seconds": 0.6149626789992908,
+        "seconds": 0.586623855997459,
         "stderr_sha256": "0f7777903f81bb7c621ba8c902495549fbbb45bf70918d01dd8283eb54715113"
       },
       {
@@ -1963,7 +1964,7 @@
         ],
         "exit": 1,
         "expected_satisfied": true,
-        "seconds": 0.5855889289996412,
+        "seconds": 0.6290711549991101,
         "stderr_sha256": "c2131796e53160e14d777fc30d7e84638cfd3745cc3d9005d9e4a757ef8b981c"
       },
       {
@@ -1980,7 +1981,7 @@
         ],
         "exit": 1,
         "expected_satisfied": true,
-        "seconds": 0.613672346000385,
+        "seconds": 0.5818445650002104,
         "stderr_sha256": "fb89cbc9acd09959a7138120a814d00347bf7218db08dde2fa3e814376fdd7f4"
       },
       {
@@ -1997,7 +1998,7 @@
         ],
         "exit": 1,
         "expected_satisfied": true,
-        "seconds": 0.621378547999484,
+        "seconds": 0.5788441710028565,
         "stderr_sha256": "fb89cbc9acd09959a7138120a814d00347bf7218db08dde2fa3e814376fdd7f4"
       },
       {
@@ -2014,7 +2015,7 @@
         ],
         "exit": 1,
         "expected_satisfied": true,
-        "seconds": 0.5955319860004238,
+        "seconds": 0.6304419689986389,
         "stderr_sha256": "eb34ae7b193287db7357f3ba151b0b3a6a252334b2c44e496180f25ecc0eff7b"
       },
       {
@@ -2031,7 +2032,7 @@
         ],
         "exit": 1,
         "expected_satisfied": true,
-        "seconds": 0.6163293709978461,
+        "seconds": 0.6455937040009303,
         "stderr_sha256": "fb89cbc9acd09959a7138120a814d00347bf7218db08dde2fa3e814376fdd7f4"
       },
       {
@@ -2048,7 +2049,7 @@
         ],
         "exit": 1,
         "expected_satisfied": true,
-        "seconds": 0.6814994849992217,
+        "seconds": 0.64011159799702,
         "stderr_sha256": "fb89cbc9acd09959a7138120a814d00347bf7218db08dde2fa3e814376fdd7f4"
       },
       {
@@ -2063,7 +2064,7 @@
         ],
         "exit": 0,
         "expected_satisfied": true,
-        "seconds": 3.1638543480003136,
+        "seconds": 2.926196832999267,
         "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
       {
@@ -2080,7 +2081,7 @@
         ],
         "exit": 1,
         "expected_satisfied": true,
-        "seconds": 0.5891759559999628,
+        "seconds": 0.5810143430026073,
         "stderr_sha256": "aaeab512ce99219412d404fc11c66928df96ade90680001da8834cd6eb84f0af"
       },
       {
@@ -2097,7 +2098,7 @@
         ],
         "exit": 1,
         "expected_satisfied": true,
-        "seconds": 0.6406315310014179,
+        "seconds": 0.6032358700031182,
         "stderr_sha256": "ebdf660df73debd336eca87f170b40516d2e500cebd0e0b325c127d6861698b1"
       },
       {
@@ -2114,7 +2115,7 @@
         ],
         "exit": 1,
         "expected_satisfied": true,
-        "seconds": 0.6486997649990371,
+        "seconds": 0.5860467439997592,
         "stderr_sha256": "33e15ba88f82a157de0010094e874a99c37c022bc869fadfebe9d93c746bc24d"
       },
       {
@@ -2131,7 +2132,7 @@
         ],
         "exit": 1,
         "expected_satisfied": true,
-        "seconds": 0.6245180430014443,
+        "seconds": 0.5800306119999732,
         "stderr_sha256": "33e15ba88f82a157de0010094e874a99c37c022bc869fadfebe9d93c746bc24d"
       },
       {
@@ -2146,7 +2147,7 @@
         ],
         "exit": 0,
         "expected_satisfied": true,
-        "seconds": 5.066476124000474,
+        "seconds": 5.105322363000596,
         "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
       {
@@ -2163,7 +2164,7 @@
         ],
         "exit": 1,
         "expected_satisfied": true,
-        "seconds": 0.6606773259991314,
+        "seconds": 0.6166633549983089,
         "stderr_sha256": "e85367e793182e911e36046dfd8bf7c8e0250cfe9caf9b6c220fbf379f9fe6d9"
       },
       {
@@ -2180,7 +2181,7 @@
         ],
         "exit": 1,
         "expected_satisfied": true,
-        "seconds": 0.5778888140011986,
+        "seconds": 0.6065390710027714,
         "stderr_sha256": "08e1144ce5dcb0f7ed684add8fba73b2008a9403f9ac0a9cc468ab9e1c2e93cf"
       },
       {
@@ -2197,7 +2198,7 @@
         ],
         "exit": 1,
         "expected_satisfied": true,
-        "seconds": 0.5870782829988457,
+        "seconds": 0.632445273000485,
         "stderr_sha256": "d8d059e6a6b707c6d9f8dd9b8981771e4945bc4217571ff67d026eebf2321984"
       },
       {
@@ -2214,7 +2215,7 @@
         ],
         "exit": 1,
         "expected_satisfied": true,
-        "seconds": 0.22479105499951402,
+        "seconds": 0.2253082089991949,
         "stderr_sha256": "9456925687ac8e97e95d848d89fe5965f5591ba6322e1ee6f00532ee74d7d368"
       },
       {
@@ -2231,7 +2232,7 @@
         ],
         "exit": 1,
         "expected_satisfied": true,
-        "seconds": 0.6100239129991678,
+        "seconds": 0.5985559050022857,
         "stderr_sha256": "59331de00e3557dc756367b9a06ed58c6a9ed4367bb852e62019f678c1c75468"
       },
       {
@@ -2248,7 +2249,7 @@
         ],
         "exit": 1,
         "expected_satisfied": true,
-        "seconds": 0.5927900919996318,
+        "seconds": 0.6336215200026345,
         "stderr_sha256": "4aff5632879e5082a9eba4485c1a0f896b7cfca16c0913957a9aa8fccb6ffff0"
       },
       {
@@ -2265,7 +2266,7 @@
         ],
         "exit": 1,
         "expected_satisfied": true,
-        "seconds": 0.2142115440001362,
+        "seconds": 0.22878889500134392,
         "stderr_sha256": "a33b4cb747600c6d68eda04b9656c18e4c34a465419fe33c10caf1b2dfa35ca4"
       },
       {
@@ -2282,7 +2283,7 @@
         ],
         "exit": 1,
         "expected_satisfied": true,
-        "seconds": 0.6432866960021784,
+        "seconds": 0.6338417829974787,
         "stderr_sha256": "3ec14de468a62edee289f826fb8584e10c14cc99d3fede6748af1050a19e5cea"
       },
       {
@@ -2299,7 +2300,7 @@
         ],
         "exit": 1,
         "expected_satisfied": true,
-        "seconds": 0.5998978920033551,
+        "seconds": 0.6092329130005965,
         "stderr_sha256": "282b52ade726d1201ec8453fd7c426cb0d63daa0f02246710c0aa43baa9f7a6b"
       },
       {
@@ -2314,7 +2315,7 @@
         ],
         "exit": 0,
         "expected_satisfied": true,
-        "seconds": 2.8202990860008867,
+        "seconds": 2.8787265110004228,
         "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
       {
@@ -2329,7 +2330,124 @@
         ],
         "exit": 0,
         "expected_satisfied": true,
-        "seconds": 2.927076287000091,
+        "seconds": 3.0610165879988926,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "source": "tests/omega/fail/borrows/fixed_array_return_depth_bound/main.omg",
+        "source_sha256": "c9e408677ce97ec849a4cb5c364cb606506860c5127217f3513534c2ea3a2815",
+        "expected": [
+          "cannot prove index `depth` is within length 33"
+        ],
+        "expected_sha256": "1f1ecb69bf5b49094c9651d10e1e023802560807fc011b422b33dee879f64af7",
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/borrows/fixed_array_return_depth_bound/main.omg"
+        ],
+        "exit": 1,
+        "expected_satisfied": true,
+        "seconds": 0.6246626219981408,
+        "stderr_sha256": "2356110b658a91fbc6782d0a4c7cbf1bda4f4e97a44374143b2a8dd28049f4e5"
+      },
+      {
+        "source": "tests/omega/fail/borrows/fixed_array_return_live_parent_write/main.omg",
+        "source_sha256": "c0bca68a75c5b3cf35e5f09ea3a047fa2fa717b0d9d9716eb2cd06725d745605",
+        "expected": [
+          "mutates `matrix[2][0]` while local borrow `row` is still active"
+        ],
+        "expected_sha256": "984b4cb1358629df5ed8848aae6f72ed407f26d802069332fd905e7ef2bf5d80",
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/borrows/fixed_array_return_live_parent_write/main.omg"
+        ],
+        "exit": 1,
+        "expected_satisfied": true,
+        "seconds": 0.6023197600006824,
+        "stderr_sha256": "0de90bcd26aeeebec3349bb8096aed4d06af20c0a2f9e2b8495fbef1ae05a793"
+      },
+      {
+        "source": "tests/omega/fail/borrows/fixed_array_return_local/main.omg",
+        "source_sha256": "b81b2a7d0a390157c9398375922a4c8c3f556f866bd4122b67cd0f18e1e5c959",
+        "expected": [
+          "returns a view borrowing the local `row`, which does not outlive the call"
+        ],
+        "expected_sha256": "ab2c3a51eefb887aff57be4dcef078a92e6cf6d2ce82212768835d71b8e8d60f",
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/borrows/fixed_array_return_local/main.omg"
+        ],
+        "exit": 1,
+        "expected_satisfied": true,
+        "seconds": 0.5896162409990211,
+        "stderr_sha256": "4b2c294db3d2097d59c4433ed50b155cda790583dcb9142f811180fbfdcd3fab"
+      },
+      {
+        "source": "tests/omega/fail/borrows/fixed_array_return_overlapping/main.omg",
+        "source_sha256": "4c7912e99b65829638b4ce77c009874f5c7349eabe288df1f668766b768cd971",
+        "expected": [
+          "state `select` receives `matrix` while local borrow `first` is still active"
+        ],
+        "expected_sha256": "b2e0eb8319688aa78932eee6982c96a1670c085c37c5fd6477740bd0a53494db",
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/borrows/fixed_array_return_overlapping/main.omg"
+        ],
+        "exit": 1,
+        "expected_satisfied": true,
+        "seconds": 0.5968840470013674,
+        "stderr_sha256": "b190fbe2905d479245e29afdeeaf1857f59d6567e50025fc0c6fe2ccdf1c0e9f"
+      },
+      {
+        "source": "tests/omega/fail/borrows/fixed_array_return_shared_escalation/main.omg",
+        "source_sha256": "efc1f46fb40ed8a045f900932761261045d22050120f7f896b4fdc2a723472f2",
+        "expected": [
+          "machine `invalid` returns a view whose access cannot be supplied by matching input `matrix`",
+          "machine `explicit` returns a view whose access cannot be supplied by matching input `matrix`",
+          "machine `generic` returns a view whose access cannot be supplied by matching input `matrix`"
+        ],
+        "expected_sha256": "094db55469d9b7af7481246e76e1313069bab7665dc7aaa526700c29649b11f2",
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/borrows/fixed_array_return_shared_escalation/main.omg"
+        ],
+        "exit": 1,
+        "expected_satisfied": true,
+        "seconds": 0.6424484989984194,
+        "stderr_sha256": "18a17d647b10cfefb8b93a2217318aceb551c080a3a8e61929579e4228761ce2"
+      },
+      {
+        "source": "tests/omega/pass/borrows/fixed_array_reference_results_exit/main.omg",
+        "source_sha256": "6ca9e1e693f08cde5a227f5ded3f65f1d59f7762553a276e05dbe38574c39dfa",
+        "expected": [],
+        "expected_sha256": null,
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/pass/borrows/fixed_array_reference_results_exit/main.omg"
+        ],
+        "exit": 0,
+        "expected_satisfied": true,
+        "seconds": 3.0845042479995755,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "source": "tests/omega/pass/calls/runtime_indexed_module_guard_operands_exit/main.omg",
+        "source_sha256": "83bb724de5c9c76cb8ec65f51e2ba843050e63ce036fd5a7ab1cdd2faaacb719",
+        "expected": [],
+        "expected_sha256": null,
+        "command": [
+          "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+          "--check",
+          "/workspace/Omega/.codex/worktrees/w212/tests/omega/pass/calls/runtime_indexed_module_guard_operands_exit/main.omg"
+        ],
+        "exit": 0,
+        "expected_satisfied": true,
+        "seconds": 3.0058100819987885,
         "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       }
     ],
@@ -2344,10 +2462,27 @@
       ],
       "exit": 0,
       "terminal_exit": 0,
-      "kept_directory": "/tmp/omega-probe-194427-0",
+      "kept_directory": "/tmp/omega-probe-202731-0",
       "native_sha256": "a8bbc6d040d2fa6034662d6cea5bbc6e30a6d4cce1cfe32cc89381330e5b4fcb",
       "source_sha256": "d48381dd9f840a10b94089ac2b47b2dccd1ef4862bbe6430bd72f00192a7aa6d",
       "actual_native_rerun_exit": 0
+    },
+    "once_only_structural_operands": {
+      "mechanism": "Boundary prepares locally; Module shared helper prepares once; indexed operations/obligations preserve exact occurrence",
+      "canonical_handoff": "build/w212-qualification/operand-implementation-packet.json",
+      "captured_before_implementation": true,
+      "operation_receipt": {
+        "fixed_producer": "2aa144e14ed",
+        "original_producer": "fce0c29a3681fd4241790a92c8b6fc4606adba06",
+        "source_sha256": "83bb724de5c9c76cb8ec65f51e2ba843050e63ce036fd5a7ab1cdd2faaacb719",
+        "exact_public_terminal_text_equal": true,
+        "terminal_sha256": "262d31adf42840018273686a5362cf78202e101d0e33909ae11820fa3991d594",
+        "operation_count": 9,
+        "unit_module_calls": 2,
+        "indexed_scalar_observations": 2,
+        "preparation": "Exact original/fixed operation and obligation identities match; independent source route review confirms effects.rs Module preparation once. Unfixed e9 duplicate established by source review, not claimed as a measured execution.",
+        "v2_refusal": "Unsupported nested structural operand scheduling preserved separately; no pass claimed."
+      }
     }
   },
   "historical_qualification": {
@@ -2355,45 +2490,54 @@
       "earlier": {
         "earlier": {
           "earlier": {
-            "producer_revision": "f46f5d8795754436eb2195f55b19587741467f1c",
-            "integrated_main": "8d452adcc494defbcff5738da67b453bae1210b2",
-            "compiler_sha256": "fc47ccf148ca88b00693ecbba0cd1acb000f6f0cf26b645e606227aa3a54ad85",
-            "terminal_sponsor_seconds": 31.30498934299976
+            "earlier": {
+              "producer_revision": "f46f5d8795754436eb2195f55b19587741467f1c",
+              "integrated_main": "8d452adcc494defbcff5738da67b453bae1210b2",
+              "compiler_sha256": "fc47ccf148ca88b00693ecbba0cd1acb000f6f0cf26b645e606227aa3a54ad85",
+              "terminal_sponsor_seconds": 31.30498934299976
+            },
+            "7ddd": {
+              "producer_revision": "7ddd45dc789b6f9d28ed6a1a3f0b6b8c72aa3702",
+              "compiler_sha256": "608d8f31594864c1f4dd5ce994fa488f1c58e38849189ae1d8bb8bef409ed56d",
+              "integrated_main": "9f28e49398a1dd6334d4aa881d39b888524ef6ee",
+              "terminal_sponsor_seconds": 25.034146026999224
+            },
+            "dd3a_generic": {
+              "sample_revision": "dd3a11a343b4654d2e8bf453ca3caae9b64facd6",
+              "producer_revision": "f38e8c811727ca3d70bb3feb98ec3b37af4c5d56",
+              "terminal_sponsor_seconds": 16.246504591999837,
+              "actual_cases": 46
+            }
           },
-          "7ddd": {
-            "producer_revision": "7ddd45dc789b6f9d28ed6a1a3f0b6b8c72aa3702",
-            "compiler_sha256": "608d8f31594864c1f4dd5ce994fa488f1c58e38849189ae1d8bb8bef409ed56d",
-            "integrated_main": "9f28e49398a1dd6334d4aa881d39b888524ef6ee",
-            "terminal_sponsor_seconds": 25.034146026999224
-          },
-          "dd3a_generic": {
-            "sample_revision": "dd3a11a343b4654d2e8bf453ca3caae9b64facd6",
-            "producer_revision": "f38e8c811727ca3d70bb3feb98ec3b37af4c5d56",
-            "terminal_sponsor_seconds": 16.246504591999837,
+          "previous_integrated": {
+            "producer_revision": "a6833385ac22ca2dcc1c17a38a5407f455fd708e",
+            "compiler_sha256": "75ec2f47287a824c06fe3422c4c96016e97373066c4ffd7c23359528c0e501e5",
+            "integrated_main": "1877bf177f2e7d1099689a82008acff01a523a75",
+            "terminal_sponsor_seconds": 15.77249431999735,
             "actual_cases": 46
           }
         },
         "previous_integrated": {
-          "producer_revision": "a6833385ac22ca2dcc1c17a38a5407f455fd708e",
-          "compiler_sha256": "75ec2f47287a824c06fe3422c4c96016e97373066c4ffd7c23359528c0e501e5",
-          "integrated_main": "1877bf177f2e7d1099689a82008acff01a523a75",
-          "terminal_sponsor_seconds": 15.77249431999735,
+          "producer_revision": "dedac8779133670ff2cdcd3c9e9f008d1431ee21",
+          "compiler_sha256": "dc9ed031a0679f38c73126ac3744e41a93edf8bdb75c6ca3c0e37d0e950c9504",
+          "integrated_main": "335ac2a6ac1bb207fe780a1d17488bc83d1f1c3a",
+          "terminal_sponsor_seconds": 16.39798845799669,
           "actual_cases": 46
         }
       },
       "previous_integrated": {
-        "producer_revision": "dedac8779133670ff2cdcd3c9e9f008d1431ee21",
-        "compiler_sha256": "dc9ed031a0679f38c73126ac3744e41a93edf8bdb75c6ca3c0e37d0e950c9504",
-        "integrated_main": "335ac2a6ac1bb207fe780a1d17488bc83d1f1c3a",
-        "terminal_sponsor_seconds": 16.39798845799669,
+        "producer_revision": "90d9309f5511aa583af2f6ea54eb28186f240da3",
+        "compiler_sha256": "76bfa7d03ab6e37db26377cc1752cdb297c29b24c48c8cf7e486bfd48fa9cafa",
+        "integrated_main": "0af7c11c3c7634237d5be7a2e3e1e8daa2a0bf89",
+        "terminal_sponsor_seconds": 16.0839358719968,
         "actual_cases": 46
       }
     },
     "previous_integrated": {
-      "producer_revision": "90d9309f5511aa583af2f6ea54eb28186f240da3",
-      "compiler_sha256": "76bfa7d03ab6e37db26377cc1752cdb297c29b24c48c8cf7e486bfd48fa9cafa",
-      "integrated_main": "0af7c11c3c7634237d5be7a2e3e1e8daa2a0bf89",
-      "terminal_sponsor_seconds": 16.0839358719968,
+      "producer_revision": "fce0c29a3681fd4241790a92c8b6fc4606adba06",
+      "compiler_sha256": "4d9ca16884b92067c467f921cf1c4c62fba96995626c527a2e3b997431c71b17",
+      "integrated_main": "185ea6bba8a842cd8a4a4d576935f63693a08bea",
+      "terminal_sponsor_seconds": 15.297632182999223,
       "actual_cases": 46
     }
   },
@@ -2412,7 +2556,7 @@
       ],
       "exit": 1,
       "expected_satisfied": true,
-      "seconds": 0.5891759559999628,
+      "seconds": 0.5810143430026073,
       "stderr_sha256": "aaeab512ce99219412d404fc11c66928df96ade90680001da8834cd6eb84f0af"
     },
     {
@@ -2429,7 +2573,7 @@
       ],
       "exit": 1,
       "expected_satisfied": true,
-      "seconds": 0.6406315310014179,
+      "seconds": 0.6032358700031182,
       "stderr_sha256": "ebdf660df73debd336eca87f170b40516d2e500cebd0e0b325c127d6861698b1"
     },
     {
@@ -2446,7 +2590,7 @@
       ],
       "exit": 1,
       "expected_satisfied": true,
-      "seconds": 0.6486997649990371,
+      "seconds": 0.5860467439997592,
       "stderr_sha256": "33e15ba88f82a157de0010094e874a99c37c022bc869fadfebe9d93c746bc24d"
     },
     {
@@ -2463,7 +2607,7 @@
       ],
       "exit": 1,
       "expected_satisfied": true,
-      "seconds": 0.6245180430014443,
+      "seconds": 0.5800306119999732,
       "stderr_sha256": "33e15ba88f82a157de0010094e874a99c37c022bc869fadfebe9d93c746bc24d"
     },
     {
@@ -2478,7 +2622,7 @@
       ],
       "exit": 0,
       "expected_satisfied": true,
-      "seconds": 5.066476124000474,
+      "seconds": 5.105322363000596,
       "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
@@ -2495,7 +2639,7 @@
       ],
       "exit": 1,
       "expected_satisfied": true,
-      "seconds": 0.6606773259991314,
+      "seconds": 0.6166633549983089,
       "stderr_sha256": "e85367e793182e911e36046dfd8bf7c8e0250cfe9caf9b6c220fbf379f9fe6d9"
     },
     {
@@ -2512,7 +2656,7 @@
       ],
       "exit": 1,
       "expected_satisfied": true,
-      "seconds": 0.5778888140011986,
+      "seconds": 0.6065390710027714,
       "stderr_sha256": "08e1144ce5dcb0f7ed684add8fba73b2008a9403f9ac0a9cc468ab9e1c2e93cf"
     },
     {
@@ -2529,7 +2673,7 @@
       ],
       "exit": 1,
       "expected_satisfied": true,
-      "seconds": 0.5870782829988457,
+      "seconds": 0.632445273000485,
       "stderr_sha256": "d8d059e6a6b707c6d9f8dd9b8981771e4945bc4217571ff67d026eebf2321984"
     },
     {
@@ -2546,7 +2690,7 @@
       ],
       "exit": 1,
       "expected_satisfied": true,
-      "seconds": 0.22479105499951402,
+      "seconds": 0.2253082089991949,
       "stderr_sha256": "9456925687ac8e97e95d848d89fe5965f5591ba6322e1ee6f00532ee74d7d368"
     },
     {
@@ -2563,7 +2707,7 @@
       ],
       "exit": 1,
       "expected_satisfied": true,
-      "seconds": 0.6100239129991678,
+      "seconds": 0.5985559050022857,
       "stderr_sha256": "59331de00e3557dc756367b9a06ed58c6a9ed4367bb852e62019f678c1c75468"
     },
     {
@@ -2580,7 +2724,7 @@
       ],
       "exit": 1,
       "expected_satisfied": true,
-      "seconds": 0.5927900919996318,
+      "seconds": 0.6336215200026345,
       "stderr_sha256": "4aff5632879e5082a9eba4485c1a0f896b7cfca16c0913957a9aa8fccb6ffff0"
     },
     {
@@ -2597,7 +2741,7 @@
       ],
       "exit": 1,
       "expected_satisfied": true,
-      "seconds": 0.2142115440001362,
+      "seconds": 0.22878889500134392,
       "stderr_sha256": "a33b4cb747600c6d68eda04b9656c18e4c34a465419fe33c10caf1b2dfa35ca4"
     },
     {
@@ -2614,7 +2758,7 @@
       ],
       "exit": 1,
       "expected_satisfied": true,
-      "seconds": 0.6432866960021784,
+      "seconds": 0.6338417829974787,
       "stderr_sha256": "3ec14de468a62edee289f826fb8584e10c14cc99d3fede6748af1050a19e5cea"
     },
     {
@@ -2631,7 +2775,7 @@
       ],
       "exit": 1,
       "expected_satisfied": true,
-      "seconds": 0.5998978920033551,
+      "seconds": 0.6092329130005965,
       "stderr_sha256": "282b52ade726d1201ec8453fd7c426cb0d63daa0f02246710c0aa43baa9f7a6b"
     },
     {
@@ -2646,7 +2790,7 @@
       ],
       "exit": 0,
       "expected_satisfied": true,
-      "seconds": 2.8202990860008867,
+      "seconds": 2.8787265110004228,
       "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
@@ -2661,13 +2805,130 @@
       ],
       "exit": 0,
       "expected_satisfied": true,
-      "seconds": 2.927076287000091,
+      "seconds": 3.0610165879988926,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "tests/omega/fail/borrows/fixed_array_return_depth_bound/main.omg",
+      "source_sha256": "c9e408677ce97ec849a4cb5c364cb606506860c5127217f3513534c2ea3a2815",
+      "expected": [
+        "cannot prove index `depth` is within length 33"
+      ],
+      "expected_sha256": "1f1ecb69bf5b49094c9651d10e1e023802560807fc011b422b33dee879f64af7",
+      "command": [
+        "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+        "--check",
+        "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/borrows/fixed_array_return_depth_bound/main.omg"
+      ],
+      "exit": 1,
+      "expected_satisfied": true,
+      "seconds": 0.6246626219981408,
+      "stderr_sha256": "2356110b658a91fbc6782d0a4c7cbf1bda4f4e97a44374143b2a8dd28049f4e5"
+    },
+    {
+      "source": "tests/omega/fail/borrows/fixed_array_return_live_parent_write/main.omg",
+      "source_sha256": "c0bca68a75c5b3cf35e5f09ea3a047fa2fa717b0d9d9716eb2cd06725d745605",
+      "expected": [
+        "mutates `matrix[2][0]` while local borrow `row` is still active"
+      ],
+      "expected_sha256": "984b4cb1358629df5ed8848aae6f72ed407f26d802069332fd905e7ef2bf5d80",
+      "command": [
+        "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+        "--check",
+        "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/borrows/fixed_array_return_live_parent_write/main.omg"
+      ],
+      "exit": 1,
+      "expected_satisfied": true,
+      "seconds": 0.6023197600006824,
+      "stderr_sha256": "0de90bcd26aeeebec3349bb8096aed4d06af20c0a2f9e2b8495fbef1ae05a793"
+    },
+    {
+      "source": "tests/omega/fail/borrows/fixed_array_return_local/main.omg",
+      "source_sha256": "b81b2a7d0a390157c9398375922a4c8c3f556f866bd4122b67cd0f18e1e5c959",
+      "expected": [
+        "returns a view borrowing the local `row`, which does not outlive the call"
+      ],
+      "expected_sha256": "ab2c3a51eefb887aff57be4dcef078a92e6cf6d2ce82212768835d71b8e8d60f",
+      "command": [
+        "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+        "--check",
+        "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/borrows/fixed_array_return_local/main.omg"
+      ],
+      "exit": 1,
+      "expected_satisfied": true,
+      "seconds": 0.5896162409990211,
+      "stderr_sha256": "4b2c294db3d2097d59c4433ed50b155cda790583dcb9142f811180fbfdcd3fab"
+    },
+    {
+      "source": "tests/omega/fail/borrows/fixed_array_return_overlapping/main.omg",
+      "source_sha256": "4c7912e99b65829638b4ce77c009874f5c7349eabe288df1f668766b768cd971",
+      "expected": [
+        "state `select` receives `matrix` while local borrow `first` is still active"
+      ],
+      "expected_sha256": "b2e0eb8319688aa78932eee6982c96a1670c085c37c5fd6477740bd0a53494db",
+      "command": [
+        "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+        "--check",
+        "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/borrows/fixed_array_return_overlapping/main.omg"
+      ],
+      "exit": 1,
+      "expected_satisfied": true,
+      "seconds": 0.5968840470013674,
+      "stderr_sha256": "b190fbe2905d479245e29afdeeaf1857f59d6567e50025fc0c6fe2ccdf1c0e9f"
+    },
+    {
+      "source": "tests/omega/fail/borrows/fixed_array_return_shared_escalation/main.omg",
+      "source_sha256": "efc1f46fb40ed8a045f900932761261045d22050120f7f896b4fdc2a723472f2",
+      "expected": [
+        "machine `invalid` returns a view whose access cannot be supplied by matching input `matrix`",
+        "machine `explicit` returns a view whose access cannot be supplied by matching input `matrix`",
+        "machine `generic` returns a view whose access cannot be supplied by matching input `matrix`"
+      ],
+      "expected_sha256": "094db55469d9b7af7481246e76e1313069bab7665dc7aaa526700c29649b11f2",
+      "command": [
+        "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+        "--check",
+        "/workspace/Omega/.codex/worktrees/w212/tests/omega/fail/borrows/fixed_array_return_shared_escalation/main.omg"
+      ],
+      "exit": 1,
+      "expected_satisfied": true,
+      "seconds": 0.6424484989984194,
+      "stderr_sha256": "18a17d647b10cfefb8b93a2217318aceb551c080a3a8e61929579e4228761ce2"
+    },
+    {
+      "source": "tests/omega/pass/borrows/fixed_array_reference_results_exit/main.omg",
+      "source_sha256": "6ca9e1e693f08cde5a227f5ded3f65f1d59f7762553a276e05dbe38574c39dfa",
+      "expected": [],
+      "expected_sha256": null,
+      "command": [
+        "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+        "--check",
+        "/workspace/Omega/.codex/worktrees/w212/tests/omega/pass/borrows/fixed_array_reference_results_exit/main.omg"
+      ],
+      "exit": 0,
+      "expected_satisfied": true,
+      "seconds": 3.0845042479995755,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "tests/omega/pass/calls/runtime_indexed_module_guard_operands_exit/main.omg",
+      "source_sha256": "83bb724de5c9c76cb8ec65f51e2ba843050e63ce036fd5a7ab1cdd2faaacb719",
+      "expected": [],
+      "expected_sha256": null,
+      "command": [
+        "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+        "--check",
+        "/workspace/Omega/.codex/worktrees/w212/tests/omega/pass/calls/runtime_indexed_module_guard_operands_exit/main.omg"
+      ],
+      "exit": 0,
+      "expected_satisfied": true,
+      "seconds": 3.0058100819987885,
       "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     }
   ],
-  "regression_comparison_applicability": "Fresh integrated producer executes eight package-free runtime regressions in addition to generic/contract-length witnesses: six returning/reference/context operations and two incoming guard-retention programs. Actual source-value assertions and raw native/Terminal observations match authored unit-entry exit0 with mandatory internal value assertions. Historical corpus rows remain historical.",
-  "publication_integrated_main": "7908c48eec30f956124355beb518de6999eed7dc",
-  "publication_evidence_applicability": "Independent incoming185 to7908 review establishes unchanged exercised operations: concrete scalar/plainbyte Console signatures, no target-dependent layout recipes/queries, no family-specialized trait maps, scalar-length guarantees and one .len==4 collection atom. Actual fce/185 runtime observations retain their identities; fresh custody and exact integrated final review validate reuse, normal exact-SHA landing check remains mandatory.",
+  "regression_comparison_applicability": "Ten runtime witnesses plus generic/length programs freshly execute all authored value assertions; no exit-parity-only claim. Original and fixed public choose Terminal schedules exactly match nine operations and obligation identities. Unfixede9 duplication established by source, not an invented measured run.",
+  "publication_integrated_main": "7fc1d7b7e39d2059f184746059eb177689fa7f3b",
+  "publication_evidence_applicability": "Independent e9-through7fc exact-diff review preserves exercised Wrapping arithmetic, literal closed-arrival operands, direct const/index extents and fixed division inputs. New fixed-array expression forms leave our Literal and bare ConstParameter arrays unchanged; no new extent evaluation jobs or operator/package authority are introduced for these inputs. All11 repair hashes and unchanged consumer/oracle identities retain actual2aa/e9 observations; fresh integrated custody/final review and exact root verification remain mandatory.",
   "fresh_regression_observations": [
     {
       "name": "call_write_keeps_disjoint_guard_assert_exit",
@@ -2680,11 +2941,10 @@
       ],
       "exit": 0,
       "terminal_exit": 0,
-      "kept_directory": "/tmp/omega-probe-194858-0",
+      "kept_directory": "/tmp/omega-probe-202939-0",
       "native_sha256": "0e5f9cce306c182669abd78bc4773bad42b7c56bc6a1dbbd041e87dd92141273",
       "source_sha256": "c1b1a74a95978a215e77f8f47cbac001a4fc154edfa8d9698aa4b81e4305e925",
-      "actual_native_rerun_exit": 0,
-      "seconds": 3.9294531689993164
+      "actual_native_rerun_exit": 0
     },
     {
       "name": "callee_returned_shared_reborrow_chain_exit",
@@ -2697,9 +2957,25 @@
       ],
       "exit": 0,
       "terminal_exit": 0,
-      "kept_directory": "/tmp/omega-probe-194505-0",
+      "kept_directory": "/tmp/omega-probe-202809-0",
       "native_sha256": "a7ead4626f841cbe377b11dcc4ba33c6675cf5478f0f088061bcc9720449c5f6",
       "source_sha256": "688d005a93c15ed0a942dcb1779df40ba210383f4ebf016f09f4004b7371a24c",
+      "actual_native_rerun_exit": 0
+    },
+    {
+      "name": "fixed_array_reference_results_exit",
+      "command": [
+        "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+        "run",
+        "--both",
+        "--keep",
+        "/workspace/Omega/.codex/worktrees/w212/tests/omega/pass/borrows/fixed_array_reference_results_exit/main.omg"
+      ],
+      "exit": 0,
+      "terminal_exit": 0,
+      "kept_directory": "/tmp/omega-probe-202991-0",
+      "native_sha256": "5666efb665a868396bcb50a3d7b48c8dda4d9abc7bbb97055fdfc03a61161341",
+      "source_sha256": "6ca9e1e693f08cde5a227f5ded3f65f1d59f7762553a276e05dbe38574c39dfa",
       "actual_native_rerun_exit": 0
     },
     {
@@ -2713,11 +2989,10 @@
       ],
       "exit": 0,
       "terminal_exit": 0,
-      "kept_directory": "/tmp/omega-probe-194968-0",
+      "kept_directory": "/tmp/omega-probe-202965-0",
       "native_sha256": "c3535a31639df75ab0833540669e53fc4e7657d382c175bad0b578addde7da93",
       "source_sha256": "e723806ead2a476e05130d3963cd2fa9517f23d61e688dba1f14a0b07ae148e3",
-      "actual_native_rerun_exit": 0,
-      "seconds": 3.2181124799972167
+      "actual_native_rerun_exit": 0
     },
     {
       "name": "returned_view_state_and_record_composition_exit",
@@ -2730,9 +3005,25 @@
       ],
       "exit": 0,
       "terminal_exit": 0,
-      "kept_directory": "/tmp/omega-probe-194583-0",
+      "kept_directory": "/tmp/omega-probe-202887-0",
       "native_sha256": "a1c81b1b9e43796be5a3bf3401d421a7b3ef2f9479f976f4a5de0a3f81d6ff88",
       "source_sha256": "12bc9b166f18e3b0fe8e2f9089670c5ab2177b87baf01930e35a8106b3241510",
+      "actual_native_rerun_exit": 0
+    },
+    {
+      "name": "runtime_indexed_module_guard_operands_exit",
+      "command": [
+        "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+        "run",
+        "--both",
+        "--keep",
+        "/workspace/Omega/.codex/worktrees/w212/tests/omega/pass/calls/runtime_indexed_module_guard_operands_exit/main.omg"
+      ],
+      "exit": 0,
+      "terminal_exit": 0,
+      "kept_directory": "/tmp/omega-probe-203017-0",
+      "native_sha256": "5539cb64522d6526606d4f79c50708ccfa96ed2a7e44867a4753cd47fc2c5f90",
+      "source_sha256": "83bb724de5c9c76cb8ec65f51e2ba843050e63ce036fd5a7ab1cdd2faaacb719",
       "actual_native_rerun_exit": 0
     },
     {
@@ -2746,7 +3037,7 @@
       ],
       "exit": 0,
       "terminal_exit": 0,
-      "kept_directory": "/tmp/omega-probe-194479-0",
+      "kept_directory": "/tmp/omega-probe-202783-0",
       "native_sha256": "11a47bf526f7dc9693e5a68ff342e7829943bc428750556c2364d9bbba33616d",
       "source_sha256": "f0a1d79de35e7f0de525c736e341aca188dd069f2ba6c35035f125f2cf57c695",
       "actual_native_rerun_exit": 0
@@ -2762,7 +3053,7 @@
       ],
       "exit": 0,
       "terminal_exit": 0,
-      "kept_directory": "/tmp/omega-probe-194531-0",
+      "kept_directory": "/tmp/omega-probe-202835-0",
       "native_sha256": "0016e77d7ac4d7cf9d1bdc9efebc7fe8872815fe57404683b2ab5a5992314b34",
       "source_sha256": "53b375b44e7ec715309f808cbf66a7c170629b5f8710bb299d86864c24e81d48",
       "actual_native_rerun_exit": 0
@@ -2778,7 +3069,7 @@
       ],
       "exit": 0,
       "terminal_exit": 0,
-      "kept_directory": "/tmp/omega-probe-194557-0",
+      "kept_directory": "/tmp/omega-probe-202861-0",
       "native_sha256": "2db79eb6b5b6644c894214a79a52b69452e53759127976493937e03f6bf4553d",
       "source_sha256": "c662db75c35553678d6c5959c86e84fdc5c048a306053910fcd7fa7c4134681a",
       "actual_native_rerun_exit": 0
@@ -2794,7 +3085,7 @@
       ],
       "exit": 0,
       "terminal_exit": 0,
-      "kept_directory": "/tmp/omega-probe-194609-0",
+      "kept_directory": "/tmp/omega-probe-202913-0",
       "native_sha256": "a4bc30f78e794c988c4a04987fc72761ab87d9965745cd938de5622f40bdcc4e",
       "source_sha256": "fba71545ffd9d3a8fbaddce06c55e6c5da5fc54b500be44b10d0db4b12960e3a",
       "actual_native_rerun_exit": 0
@@ -2811,7 +3102,7 @@
     ],
     "exit": 0,
     "terminal_exit": 0,
-    "kept_directory": "/tmp/omega-probe-194453-0",
+    "kept_directory": "/tmp/omega-probe-202757-0",
     "native_sha256": "86b90c1e33a487cc5c7e7a704401464f8c5509eb65dbe7d8278fbb695da361c2",
     "source_sha256": "db9abc29534f661bb08b951d717d5840a396139f525b0a42ebf966b40a91b858",
     "actual_native_rerun_exit": 0
@@ -2967,6 +3258,23 @@
   ],
   "prior_integrated_regression_observations": [
     {
+      "name": "call_write_keeps_disjoint_guard_assert_exit",
+      "command": [
+        "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+        "run",
+        "--both",
+        "--keep",
+        "/workspace/Omega/.codex/worktrees/w212/tests/omega/pass/contracts/call_write_keeps_disjoint_guard_assert_exit/main.omg"
+      ],
+      "exit": 0,
+      "terminal_exit": 0,
+      "kept_directory": "/tmp/omega-probe-194858-0",
+      "native_sha256": "0e5f9cce306c182669abd78bc4773bad42b7c56bc6a1dbbd041e87dd92141273",
+      "source_sha256": "c1b1a74a95978a215e77f8f47cbac001a4fc154edfa8d9698aa4b81e4305e925",
+      "actual_native_rerun_exit": 0,
+      "seconds": 3.9294531689993164
+    },
+    {
       "name": "callee_returned_shared_reborrow_chain_exit",
       "command": [
         "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
@@ -2977,10 +3285,27 @@
       ],
       "exit": 0,
       "terminal_exit": 0,
-      "kept_directory": "/tmp/omega-probe-184551-0",
+      "kept_directory": "/tmp/omega-probe-194505-0",
       "native_sha256": "a7ead4626f841cbe377b11dcc4ba33c6675cf5478f0f088061bcc9720449c5f6",
       "source_sha256": "688d005a93c15ed0a942dcb1779df40ba210383f4ebf016f09f4004b7371a24c",
       "actual_native_rerun_exit": 0
+    },
+    {
+      "name": "guard_conjunct_survives_disjoint_state_write_assert_exit",
+      "command": [
+        "/workspace/Omega/.codex/worktrees/w212/target/release/omega",
+        "run",
+        "--both",
+        "--keep",
+        "/workspace/Omega/.codex/worktrees/w212/tests/omega/pass/contracts/guard_conjunct_survives_disjoint_state_write_assert_exit/main.omg"
+      ],
+      "exit": 0,
+      "terminal_exit": 0,
+      "kept_directory": "/tmp/omega-probe-194968-0",
+      "native_sha256": "c3535a31639df75ab0833540669e53fc4e7657d382c175bad0b578addde7da93",
+      "source_sha256": "e723806ead2a476e05130d3963cd2fa9517f23d61e688dba1f14a0b07ae148e3",
+      "actual_native_rerun_exit": 0,
+      "seconds": 3.2181124799972167
     },
     {
       "name": "returned_view_state_and_record_composition_exit",
@@ -2993,7 +3318,7 @@
       ],
       "exit": 0,
       "terminal_exit": 0,
-      "kept_directory": "/tmp/omega-probe-184630-0",
+      "kept_directory": "/tmp/omega-probe-194583-0",
       "native_sha256": "a1c81b1b9e43796be5a3bf3401d421a7b3ef2f9479f976f4a5de0a3f81d6ff88",
       "source_sha256": "12bc9b166f18e3b0fe8e2f9089670c5ab2177b87baf01930e35a8106b3241510",
       "actual_native_rerun_exit": 0
@@ -3009,7 +3334,7 @@
       ],
       "exit": 0,
       "terminal_exit": 0,
-      "kept_directory": "/tmp/omega-probe-184525-0",
+      "kept_directory": "/tmp/omega-probe-194479-0",
       "native_sha256": "11a47bf526f7dc9693e5a68ff342e7829943bc428750556c2364d9bbba33616d",
       "source_sha256": "f0a1d79de35e7f0de525c736e341aca188dd069f2ba6c35035f125f2cf57c695",
       "actual_native_rerun_exit": 0
@@ -3025,7 +3350,7 @@
       ],
       "exit": 0,
       "terminal_exit": 0,
-      "kept_directory": "/tmp/omega-probe-184578-0",
+      "kept_directory": "/tmp/omega-probe-194531-0",
       "native_sha256": "0016e77d7ac4d7cf9d1bdc9efebc7fe8872815fe57404683b2ab5a5992314b34",
       "source_sha256": "53b375b44e7ec715309f808cbf66a7c170629b5f8710bb299d86864c24e81d48",
       "actual_native_rerun_exit": 0
@@ -3041,7 +3366,7 @@
       ],
       "exit": 0,
       "terminal_exit": 0,
-      "kept_directory": "/tmp/omega-probe-184604-0",
+      "kept_directory": "/tmp/omega-probe-194557-0",
       "native_sha256": "2db79eb6b5b6644c894214a79a52b69452e53759127976493937e03f6bf4553d",
       "source_sha256": "c662db75c35553678d6c5959c86e84fdc5c048a306053910fcd7fa7c4134681a",
       "actual_native_rerun_exit": 0
@@ -3057,28 +3382,29 @@
       ],
       "exit": 0,
       "terminal_exit": 0,
-      "kept_directory": "/tmp/omega-probe-184656-0",
+      "kept_directory": "/tmp/omega-probe-194609-0",
       "native_sha256": "a4bc30f78e794c988c4a04987fc72761ab87d9965745cd938de5622f40bdcc4e",
       "source_sha256": "fba71545ffd9d3a8fbaddce06c55e6c5da5fc54b500be44b10d0db4b12960e3a",
       "actual_native_rerun_exit": 0
     }
   ],
-  "historical_std_regression_applicability": "Earlier qualified_record_view_call_exit, runtime_const_container_methods_exit and primitive_array_snapshot_indexed_row_exit observations establish their recorded producers only. Incoming335 common call roster/recursive frames/placed-view lowering affect their routes; these are not claimed current-producer executions. Current authorized sample,34 controls and ten package-free value-asserting executions cover affected common operations without accepting or transplanting another package inventory.",
+  "historical_std_regression_applicability": "Earlier qualified_record_view_call_exit, runtime_const_container_methods_exit and primitive_array_snapshot_indexed_row_exit observations establish their recorded producers only. Incoming335 common call roster/recursive frames/placed-view lowering affect their routes; these are not claimed current-producer executions. Current authorized sample,41 controls and twelve package-free value-asserting executions cover affected common operations without accepting or transplanting another package inventory.",
   "normal_sample_native_gate": {
-    "producer_revision": "fce0c29a3681fd4241790a92c8b6fc4606adba06",
-    "compiler_sha256": "4d9ca16884b92067c467f921cf1c4c62fba96995626c527a2e3b997431c71b17",
+    "producer_revision": "2aa144e14ed7dc2d627eed4d3c43e9b66bb94e10",
+    "compiler_sha256": "af13999613f2305860b22db87fb23672756ca46bedb466ea2c5803b7f7f89668",
     "exit": 0,
     "authored_samples_passed": 1,
     "intended_invalid_controls_matched": 1,
-    "receipt": "guard-sample-native.json"
+    "receipt": "operand-sample-native.json"
   },
   "pinned_qualification": {
     "state": "build/w212-qualification/state.json",
     "config": "build/w212-qualification/config.json",
-    "purpose": "fresh custody revalidation of separately captured integrated producer46/34/10 observations; immutable historical90 remains separately checked",
+    "purpose": "fresh custody revalidation of actual repaired46/41/12, separately preservedfce46/34/10 and historical90 observations",
     "context_capture_timing": "current continuation/review; original implementation predates qualification tool",
     "complete_historical_source_bundle": "refs/qualification/w212-producer90",
-    "independent_final_review_required": true
+    "independent_final_review_required": true,
+    "new_semantic_repair_context": "Sixth actual argument-order/retained-occurrence passage packet captured before implementation on e9; original five repair mappings retain historical capture timing."
   },
   "historical_full_cli_seconds": 308.4188847750006,
   "full_cli_default_receipt": "guard-default.stdout/guard-default.stderr; actual native and rawTerminal values verified, no new time claim",

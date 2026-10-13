@@ -229,3 +229,43 @@ All ten repair source hashes and execution/oracle inputs remain unchanged.
 Actual fce/185 runtime observations remain bound to their producer; integrated
 custody and exact candidate review are fresh checks rather than new compiler
 execution claims. The normal root exact-SHA landing build remains mandatory.
+
+A subsequent reserved main e9 introduced duplicate structural-argument
+preparation in scalar branch Module effects. The caller emitted indexed operands
+before dispatch and the shared Module preparer emitted them again. The repair
+moves local preparation into the Boundary arm; Module uses its existing helper
+once, preserving requirement, crash, claim, result and loan-completion owners.
+The sixth canonical argument-order/retained-occurrence passage packet was
+captured before this repair. Fresh producer2aa on e9 passed the unchanged46-case
+integer/Fraction oracle,41 source controls and12 actual native/Terminal programs,
+plus scoped Clippy and the normal sample/invalid gate. Five incoming returned-row
+refusals and the nine-value row witness qualify complete loan/access frontiers.
+
+The focused scalar choose machine performs Unit Module writes through runtime
+indexed rows in its two returning branches. Actual assertions observe17/29.
+Original and fixed public Terminal inspection texts match exactly: nine
+operations, two Unit calls, two indexed scalar observations and identical path
+obligation identities. The unfixed e9 duplication was established by independent
+source review; no unfixed runtime measurement is claimed. Earlier scalar-only
+and unsupported nested-view probes remain separate observations; neither
+unsupported capture is a pass. A compiler-identity refusal after original-producer
+inspection was honored with a normal zero-decision update, and only the missing
+control plus paired runtime programs were executed afterward. All40 preceding
+successful source checks retain their actual repaired-producer identities.
+
+Immutable historical90 and fce datasets remain preserved separately. New repaired
+producer/source/library/control/image custody and exact final review validate the
+current outcome; no earlier observation is relabelled as its execution.
+
+Publication integration through main3b72 preserves these inputs: Wrapping
+arithmetic is outside new Exact relative quotient/add paths; closed arrivals
+carry literal Integer operands, direct const/index extent facts need no quotient,
+and the exact division witness uses fixed concrete inputs. Independent incoming
+review supports retaining actual2aa/e9 executions. All11 repair hashes remain
+unchanged; integrated custody and final review are fresh observations.
+
+Integration through main7fc also preserves the exercised array forms: integer
+lengths remain Literal and bare Count/Width remain ConstParameter. New extent
+expression evaluation and operator identities are outside these inputs.
+Independent source review supports reuse; actual runtime remains2aa/e9,
+with fresh custody, exact candidate review and normal root verification.
