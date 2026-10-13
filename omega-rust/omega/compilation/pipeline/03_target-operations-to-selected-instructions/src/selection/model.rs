@@ -88,6 +88,10 @@ pub enum SelectedInstructionError {
         machine: Option<semantic_vocabulary::MachineId>,
         operation: Option<semantic_vocabulary::OperationId>,
         site: optimization_core::CompilerCheckSite,
+        /// The refusing check's own reason when it has one, such as a
+        /// descriptor-input guard that could not rejoin the typed call. A
+        /// bare custody identity costs a rebuild per instrumented exit.
+        reason: Option<&'static str>,
     },
     TargetRegisterArchitectureMismatch,
     /// No selection admits this source shape. `machine` and `operation`
@@ -192,10 +196,12 @@ impl SelectedInstructionError {
                 machine: None,
                 operation: None,
                 site,
+                reason,
             } => Self::SourceCustodyMismatch {
                 machine: Some(machine),
                 operation,
                 site,
+                reason,
             },
             other => other,
         }
@@ -219,6 +225,20 @@ impl SelectedInstructionError {
             machine: None,
             operation: None,
             site: optimization_core::CompilerCheckSite::caller(),
+            reason: None,
+        }
+    }
+
+    /// A custody disagreement whose check states why it refused. Use this
+    /// wherever the refusing check already names its reason instead of
+    /// discarding it with `map_err(|_| custody())`.
+    #[track_caller]
+    pub fn custody_because(reason: &'static str) -> Self {
+        Self::SourceCustodyMismatch {
+            machine: None,
+            operation: None,
+            site: optimization_core::CompilerCheckSite::caller(),
+            reason: Some(reason),
         }
     }
 }

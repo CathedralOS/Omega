@@ -84,12 +84,25 @@ pub fn descriptor_input_guard_for_call(
     {
         return Ok(None);
     }
-    let selected = terminal_semantics::runtime_structural_path_tip(
+    // The argument's endpoint is a declared tip or, for an inline byte element
+    // of a byte sequence (`&mut bytes[index]`), the canonical `u8` carrier the
+    // producer rejoined for signature transport. Both are exact structural
+    // types; a byte element merely has no declaration of its own.
+    let declared_tip = terminal_semantics::runtime_structural_path_tip(
         structural_types.iter(),
         argument.root_structural_type,
         &argument.path,
     )
-    .ok_or("descriptor input argument has no exact structural type")?;
+    .map(|declaration| declaration.id);
+    let selected = declared_tip
+        .or_else(|| {
+            terminal_semantics::primitive_projection_declaration(
+                structural_types.iter(),
+                argument.root_structural_type,
+                &argument.path,
+            )
+        })
+        .ok_or("descriptor input argument has no exact structural type")?;
     let scalars = scalar_arguments
         .iter()
         .map(|argument| argument.source.scalar_type())
@@ -102,7 +115,7 @@ pub fn descriptor_input_guard_for_call(
     derive(
         binding,
         structural_types,
-        selected.id,
+        selected,
         argument.access,
         &scalars,
         result,

@@ -37,19 +37,20 @@ descriptor before decoding. Missing, truncated, and oversized files fail with
 exit 1. Interactive rendering, navigation, and normal close require a desktop
 session that permits observation and input.
 
-## Current failure (macOS ARM64, 2026-10-13)
+## Native gate (macOS ARM64, 2026-10-13)
 
-Package review and the whole-package check succeed: the local `Gui`,
-`Input`, `Clock` and file-service slots select their named maps, whose rows
-bind the library's `macos_arm64` machine families. Native realization then
-stops in Omega's physical pipeline with
-`SourceCustodyMismatch { machine: 79, operation: 3714 }` from
-`omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/selection/construction/scalar_graph/normalized_foreign/descriptor_input.rs:25`,
-where `descriptor_input_guard_for_call` refuses with
-`descriptor input argument has no exact structural type` for an AAPCS64
-normalized foreign call placed as `(i32, u64, u64, ...)` -- the POSIX `read`
-shape the file service installs. The guard's reason is discarded by
-`map_err(|_| custody())` at that line, so the CLI reports only the custody
-identity; reproduce the reason by logging it there. Realization of this
-foreign-descriptor input is the remaining gap; it is not a provider-selection
-or checking defect.
+`python3 tools/sample_native_gate.py --filter image_viewer` reviews the
+package, builds `build/image_viewer.app` natively and reports the sample as
+`no-oracle`: the header documents neither `Expected exit` nor
+`Expected output contains`, because the viewer waits for input. The gate
+therefore scores the build, not a run. Launched from this directory, the
+built executable prints `loaded BMP: 64x64 (12342 bytes)` once `img0.bmp`
+has been read to EOF and decoded, and stays alive in its window until Escape
+or close.
+
+The file service's `read` reaches libSystem's `_read` through the provider's
+`&mut buffer[0]` on its `&mut [u8]` parameter: an inline byte element with no
+declaration of its own. Omega's descriptor-input guard now rejoins that
+endpoint to the canonical `u8` carrier the lowering published (previously it
+refused with `SourceCustodyMismatch`); the admitted shape is pinned by
+`tests/omega/pass/filesystem/runtime_posix_read_runtime_range_view_exit`.

@@ -2624,6 +2624,8 @@ fail/host/console_byte_payload_above_byte rejected 735ms expected @afccbf17d92b+
 	data `ByteRead` case `Byte` literal violates the case constraint: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/host/console_byte_payload_negative rejected 674ms expected @afccbf17d92b+wt
 	data `ByteRead` case `Byte` literal violates the case constraint: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/host/descriptor_read_guarded_prefix_without_admitted_abi rejected 3747ms expected @2375f5327b1a+wt
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(SourceCustodyMismatch { machine: Some(MachineId(1)), operation: Some(OperationId(9)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it, reason: Some("descriptor input guard requires its exact admitted native ABI") }))
 fail/inline_asm/asm_cli_requires_machine_authority rejected 141ms expected @a9ae30e1c334+wt
 	machine `Main::main` uses asm instruction `cli`, which requires a FREESTANDING boundary root (the contract requires machine-owner authority, and this build's privileged-service admission does not supply it). Set `b.freestanding = true` in build.omg, or remove the asm block
 fail/inline_asm/asm_deriver_only_exit rejected 1ms expected @a9ae30e1c334+wt
@@ -5604,6 +5606,7 @@ pass/filesystem/native_wrapper_write_all_result rejected 79860ms check-target:ma
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/runtime_local_host_result_dispatch_exit checked 22832ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/filesystem/runtime_posix_borrowed_view_io_exit checked 16757ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/filesystem/runtime_posix_read_runtime_range_view_exit checked 6080ms check-target:macos_arm64 @2375f5327b1a+wt
 pass/filesystem/windows_canonicalize_exit rejected 173ms check-target:windows_x86_64 @a9ae30e1c334+wt
 	machine `FailedOpen::main` declares unknown boundary service `FilesystemHost`
 pass/filesystem/windows_native_create_write_close_exit checked 8934ms check-target:windows_x86_64 @9dd545defbc0

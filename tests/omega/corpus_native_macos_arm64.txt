@@ -1080,6 +1080,7 @@ pass/filesystem/native_wrapper_write_all_result rejected 17438ms @e01f73c689de+w
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/runtime_local_host_result_dispatch_exit built 3686ms exit:70 @e01f73c689de+wt
 pass/filesystem/runtime_posix_borrowed_view_io_exit built 3171ms exit:0 stdout:match @d1ebe54629b8
+pass/filesystem/runtime_posix_read_runtime_range_view_exit built 7147ms exit:0 stdout:match @2375f5327b1a+wt
 pass/filesystem/windows_canonicalize_exit rejected 17869ms @e01f73c689de+wt
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/windows_native_create_write_close_exit built 8919ms @9dd545defbc0

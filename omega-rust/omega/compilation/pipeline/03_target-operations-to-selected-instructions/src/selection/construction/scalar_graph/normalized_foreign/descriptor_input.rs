@@ -22,7 +22,7 @@ pub(super) fn emit(
         &call.structural_arguments,
         &call.result,
     )
-    .map_err(|_| SelectedInstructionError::custody())?;
+    .map_err(|reason| SelectedInstructionError::custody_because(reason))?;
     let Some(guard) = guard else {
         return Ok(());
     };
