@@ -93,6 +93,15 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected: Option<PrimitiveType>,
     ) -> Option<IntegerOperand> {
+        if let Some((computation, primitive_type)) = self.retained_constant(expression) {
+            return Some(IntegerOperand {
+                value: parameter(0, primitive_type),
+                value_source: ExpressionHandle::invalid(),
+                domain: ArithmeticDomain::Exact,
+                computation,
+            });
+        }
+
         if let Some(field) = self.structural_scalar_field(expression) {
             if !is_integer(field.primitive_type) {
                 return None;

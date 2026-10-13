@@ -28,7 +28,7 @@ use diagnostics::Diagnostic;
 use language_core::data_layout_queries::DataLayoutQueryKind;
 use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
 
-/// Fold every retained `size_of`/`align_of` query in the typed program to
+/// Fold every selected declaration's retained `size_of`/`align_of` query in the typed program to
 /// its `u64` literal under `target`. Also stamps the canonical `u64` encoding
 /// on a `const` whose materialized initializer root was the query node, so
 /// the folded declaration joins ordinary constant identity.
@@ -39,17 +39,25 @@ use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedInt
 /// application without an installed plan is left in place for the post-
 /// evaluation pass to fold — the plan installer's own ordering, not a guess
 /// at which operands will become measurable. With `false` every query
-/// resolves or reports the layout authority's diagnostic.
+/// resolves or reports the layout authority's diagnostic. `selection` owns
+/// evaluation work, so canonical Product descriptions remain untouched while
+/// Build is evaluated on the same arenas.
 pub fn fold_data_layout_queries(
     program: &mut TypedTrees,
-    target: target::NativeTarget,
+    target: target::TargetProfile,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
     defer_uninstalled_plans: bool,
+    selection: &checked_trees::typed_trees::references::DeclarationSelection,
 ) -> Result<(), Vec<Diagnostic>> {
     // The proof-only classification is computed over the typed program;
     // a `size_of<Nat>` over recursive data must name the
     // classification instead of reporting the layout builder's zero default.
     let proof_only = checked_trees::typed_trees::proof_only::classify(program);
+    let owned_expressions =
+        checked_trees::typed_trees::references::collect_selected_program_references(
+            program, selection,
+        )
+        .expressions;
     let queries: Vec<(
         checked_trees::typed_trees::expression::ExpressionHandle,
         checked_trees::typed_trees::expression::DataLayoutQueryRequest,
@@ -57,6 +65,7 @@ pub fn fold_data_layout_queries(
     )> = program
         .expression_table
         .iter_expressions()
+        .filter(|(handle, _)| owned_expressions.contains(handle))
         .filter_map(|(handle, node)| match node {
             ExpressionNode::Call(call) => call.layout_query.as_ref().map(|query| {
                 (
@@ -68,6 +77,35 @@ pub fn fold_data_layout_queries(
             _ => None,
         })
         .collect();
+    // The physical backend consumes invariant geometry. A family needs one
+    // private layout view closed under this exact profile; source alternatives
+    // remain intact for Terminal production. All queries borrow that same view.
+    let layout_program = program
+        .plan_laid_layouts
+        .iter()
+        .any(|plan| {
+            matches!(
+                plan.realizations,
+                checked_trees::typed_trees::PlanLaidRealizations::TargetFamily(_)
+            )
+        })
+        .then(|| {
+            let mut closed = program.clone();
+            for (plan, authored) in closed
+                .plan_laid_layouts
+                .iter_mut()
+                .zip(&program.plan_laid_layouts)
+            {
+                if let Some(geometry) =
+                    authored.geometry_for_target(program, Some(target.target_name()))
+                {
+                    plan.realizations = checked_trees::typed_trees::PlanLaidRealizations::Invariant(
+                        geometry.clone(),
+                    );
+                }
+            }
+            closed
+        });
     for (handle, query, reference) in queries {
         let operand = query.operand.type_reference;
         if defer_uninstalled_plans && plan_laid_operand_pending_installation(program, operand) {
@@ -85,8 +123,8 @@ pub fn fold_data_layout_queries(
         reject_unresolved_layout_operands(program, operand)
             .map_err(|reason| vec![Diagnostic::error(reason).with_source_span(reference)])?;
         let layout = layout::layout_type_reference(
-            program,
-            target,
+            layout_program.as_ref().unwrap_or(program),
+            target.native_target(),
             opaque_representation_selections,
             operand,
         )

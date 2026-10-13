@@ -185,7 +185,7 @@ fn select_checked_providers(
     // symbolic and untouched.
     let closed_program = constant_recipe_closure::close_constant_recipes(
         source,
-        selected_native_target,
+        selected_target_profile.unwrap_or_else(target::TargetProfile::host),
         &build_config.opaque_representation_selections,
         &selected_provider_plan_facts,
     )?;

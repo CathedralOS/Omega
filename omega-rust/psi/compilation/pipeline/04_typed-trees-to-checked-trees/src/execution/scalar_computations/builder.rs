@@ -340,6 +340,41 @@ impl Builder<'_, '_> {
         semantic_casts::same_carrier_operand(self.program, self.state, expression)
     }
 
+    pub(super) fn retained_constant(
+        &mut self,
+        expression: ExpressionHandle,
+    ) -> Option<(CheckedScalarComputationHandle, PrimitiveType)> {
+        let (root, primitive) = match self.program.expression_table.expression(expression) {
+            ExpressionNode::Call(call) if call.layout_query.is_some() => {
+                (expression, PrimitiveType::U64)
+            }
+            ExpressionNode::Name(path) => {
+                let declaration = self.program.const_declaration_by_symbol(path.symbol)?;
+                if declaration.evaluated_value.is_some()
+                    || !declaration.materialized_initializer.is_valid()
+                {
+                    return None;
+                }
+                (
+                    declaration.materialized_initializer,
+                    self.program
+                        .primitive_type_reference(declaration.declared_type)?,
+                )
+            }
+            _ => return None,
+        };
+        if !is_integer(primitive) {
+            return None;
+        }
+        Some((
+            self.insert(
+                primitive,
+                CheckedScalarComputationKind::RetainedConstant { expression: root },
+            ),
+            primitive,
+        ))
+    }
+
     pub(super) fn expression(
         &mut self,
         expression: ExpressionHandle,
@@ -384,6 +419,10 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected_type: PrimitiveType,
     ) -> Option<CheckedScalarComputationHandle> {
+        if let Some((constant, primitive)) = self.retained_constant(expression) {
+            return (primitive == expected_type).then_some(constant);
+        }
+
         if let ExpressionNode::Name(name) = self.program.expression_table.expression(expression)
             && name.symbol == name.head_symbol
             && self

@@ -324,6 +324,27 @@ pub struct PreCheckEvaluation {
     provider_bodies: Vec<SelectedBuildTimeProviderBody>,
 }
 
+/// Typed evaluation has installed its plans; target-dependent query folding
+/// may now complete the initializer values before their retained calls settle.
+#[must_use = "finish the evaluated initializer declarations after query closure"]
+pub struct EvaluatedPreCheck {
+    domain: EvaluationDomain,
+    selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+}
+
+impl EvaluatedPreCheck {
+    pub fn finish(
+        self,
+        typed: &mut typed_trees::TypedTrees,
+    ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+        const_initializers::validate_retained_invocations(
+            typed,
+            self.selection_authority,
+            &self.domain,
+        )
+    }
+}
+
 impl PreCheckEvaluation {
     /// Compare pending work from the same source-preparation owner. An authority
     /// object is opaque: only a shared object can establish the same selection
@@ -447,8 +468,10 @@ impl PreCheckEvaluation {
             typed,
             self.selection_authority.clone(),
             &self.domain,
-        )? || data_layout_queries::pending_layout_queries_need_operator_selection(typed)
-        {
+        )? || data_layout_queries::pending_layout_queries_need_operator_selection(
+            typed,
+            self.domain.work(),
+        ) {
             range_endpoints::defer_pending_endpoint_calls_in(typed, &self.domain)?;
             const_applications::defer_pending_const_applications(typed, &self.domain)?;
             // A const-generic application of a recipe call becomes a symbolic
@@ -502,7 +525,7 @@ impl PreCheckEvaluation {
         mut self,
         typed: &mut typed_trees::TypedTrees,
         selected: SelectedBuildTimeOperators<'_>,
-    ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    ) -> Result<EvaluatedPreCheck, Vec<diagnostics::Diagnostic>> {
         const_lengths::evaluate_selected_array_lengths(
             typed,
             self.selection_authority.clone(),
@@ -511,7 +534,7 @@ impl PreCheckEvaluation {
         )?;
         self.selected_operators = selected.operators.to_vec();
         self.provider_bodies = selected.provider_bodies.to_vec();
-        self.evaluate(typed)
+        self.evaluate_work(typed)
     }
 
     /// Consume the exact continuation produced before name resolution.
@@ -520,9 +543,16 @@ impl PreCheckEvaluation {
     /// but the language-level evaluation order and selection authority remain
     /// owned by this continuation.
     pub fn evaluate(
-        mut self,
+        self,
         typed: &mut typed_trees::TypedTrees,
     ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+        self.evaluate_work(typed)?.finish(typed)
+    }
+
+    fn evaluate_work(
+        mut self,
+        typed: &mut typed_trees::TypedTrees,
+    ) -> Result<EvaluatedPreCheck, Vec<diagnostics::Diagnostic>> {
         const_lengths::evaluate_const_array_lengths_in(
             typed,
             self.selection_authority.clone(),
@@ -555,11 +585,6 @@ impl PreCheckEvaluation {
             },
             &mut self.domain,
         )?;
-        const_initializers::validate_retained_invocations(
-            typed,
-            self.selection_authority.clone(),
-            &self.domain,
-        )?;
         plan_laid::compute_plan_laid_layouts_in(
             typed,
             &self.plan_laid_records,
@@ -574,16 +599,19 @@ impl PreCheckEvaluation {
         )?;
         wire_plans::compute_wire_plans_in(
             typed,
-            self.selection_authority,
+            self.selection_authority.clone(),
             self.wire_schema_frontier,
             &self.domain,
         )?;
         // Every position this evaluation folded leaves the recipe roster;
         // only still-symbolic positions remain for a later target closure.
         typed.retain_symbolic_constant_recipes();
-        // Placed-field accessor targets become available with their evaluated
-        // plans. Publish the elaborated program with those calls already bound,
-        // including for Build execution before the final checked-tree pass.
-        validation::resolve_selected_dynamic_call_targets(typed, self.domain.work())
+        // Installed view plans bind their accessor targets before any later
+        // continuation consumes them; initializer settlement waits for queries.
+        validation::resolve_selected_dynamic_call_targets(typed, self.domain.work())?;
+        Ok(EvaluatedPreCheck {
+            domain: self.domain,
+            selection_authority: self.selection_authority,
+        })
     }
 }

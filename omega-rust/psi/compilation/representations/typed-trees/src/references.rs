@@ -330,7 +330,7 @@ pub fn collect_program_declarations(program: &TypedTrees) -> Vec<SymbolHandle> {
 
 /// Exact declaration roots of an operation on shared canonical arenas. Excluded
 /// roots remain available for semantic lookup but do not independently own work.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeclarationSelection {
     excluded: bool,
     symbols: Vec<SymbolHandle>,

@@ -261,6 +261,12 @@ pub enum CheckedScalarComputationKind {
         operand: CheckedScalarComputationHandle,
         result_type: typed_trees::types::TypeReferenceHandle,
     },
+    /// A checked scalar constant whose value belongs to target closure. The
+    /// carrier is already known; lowering consumes the closed literal at this
+    /// exact canonical expression handle, never a callee or a source spelling.
+    RetainedConstant {
+        expression: typed_trees::expression::ExpressionHandle,
+    },
     /// Pure source expression in the enclosing state's scalar namespace.
     Value(CheckedScalarExpression),
     /// Authored conversion at one cast occurrence that cannot travel the pure

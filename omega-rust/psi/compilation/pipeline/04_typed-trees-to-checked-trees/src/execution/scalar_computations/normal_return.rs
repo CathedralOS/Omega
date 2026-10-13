@@ -30,7 +30,8 @@ pub(super) fn boolean_result(
         CheckedScalarComputationKind::Value(CheckedScalarExpression::Boolean(value)) => {
             boolean_expression_result(value)
         }
-        CheckedScalarComputationKind::Value(_) => None,
+        CheckedScalarComputationKind::RetainedConstant { .. }
+        | CheckedScalarComputationKind::Value(_) => None,
         CheckedScalarComputationKind::Call { .. } => None,
         CheckedScalarComputationKind::Dispatch { .. } => None,
         CheckedScalarComputationKind::Select {

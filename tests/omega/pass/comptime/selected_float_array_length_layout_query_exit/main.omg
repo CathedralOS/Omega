@@ -1,0 +1,26 @@
+use omega::language::core::float_operations;
+use omega::language::core::binding;
+use omega_language_std::console;
+
+// Provider-dependent array lengths and independent layout queries close
+// together under the selected target. Expected native exit: 70.
+machine slot_count() -> u64 {
+    let half: f32 in Saturating = 0.5f32;
+    let whole: f32 = Float::add(half, half) as f32;
+    transition whole == 1.0f32 { true -> 8 _ -> 0 }
+}
+
+data Main {
+    console: Binding<Console>;
+    slots: [u8; slot_count()];
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.slots[7] = 63;
+    transition main.slots[7] == 63 && size_of<u64>() == 8 && align_of<u64>() == 8 {
+        true -> good(main)
+        false -> bad(main)
+    }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
+}

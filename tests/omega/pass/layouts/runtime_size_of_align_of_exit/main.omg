@@ -1,8 +1,8 @@
 // RUNTIME DATA-LAYOUT QUERIES (wiki/spec/layouts/, DATA-LAYOUT-QUERIES):
 // `size_of<T>()` and `align_of<T>()` are authored as ordinary calls, not
 // keywords. Their portable query must consume the selected validated layout
-// without changing source checking per target. That path is unimplemented;
-// the old pre-check native fold is removed. Exits 70 only when every answer matches
+// without changing source checking per target. Queries close only after
+// checking, under the selected target. Exits 70 when every answer matches
 // the layout the program also depends on:
 //   Row        -- native record, u64 + u32 pads to size 16, align 8
 //   Pair       -- two u8s: size 2, align 1 (no padding)

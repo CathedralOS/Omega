@@ -738,6 +738,31 @@ impl<'a> Expansion<'a> {
                 site,
                 active,
             )?,
+            CheckedScalarComputationKind::RetainedConstant { expression } => {
+                let typed_trees::expression::ExpressionNode::Integer(literal) =
+                    self.checked.typed.expression_table.expression(expression)
+                else {
+                    return unsupported("retained scalar constant did not close to its literal");
+                };
+                let expression = site.bindings.expression(
+                    identities,
+                    &self.checked.facts.proven_scalar_indexes,
+                    &checked_trees::CheckedScalarExpression::IntegerLiteral {
+                        literal: literal.clone(),
+                    },
+                )?;
+                if expression.value_type(input_types)? != result_type {
+                    return unsupported(
+                        "retained scalar constant carrier disagrees with its checked result",
+                    );
+                }
+                self.binding(
+                    input_types,
+                    input_types.len(),
+                    target,
+                    LoweredScalarBinding::Expression(expression),
+                )
+            }
             CheckedScalarComputationKind::Value(expression) => {
                 let expression = site.bindings.expression(
                     identities,

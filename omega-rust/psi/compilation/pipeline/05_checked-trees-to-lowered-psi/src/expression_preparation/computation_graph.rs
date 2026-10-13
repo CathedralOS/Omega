@@ -272,7 +272,8 @@ fn collect_reachable_nodes(
             | CheckedScalarComputationKind::ByteSequencePredicate { subject, .. } => {
                 extend_range(subject, &mut pending);
             }
-            CheckedScalarComputationKind::Value(_) => {}
+            CheckedScalarComputationKind::RetainedConstant { .. }
+            | CheckedScalarComputationKind::Value(_) => {}
             CheckedScalarComputationKind::StructuralField { receiver_value, .. } => {
                 if receiver_value.is_valid() {
                     if !structural_roots.contains(receiver_value) {

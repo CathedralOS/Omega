@@ -896,7 +896,8 @@ pub(super) fn collect(
                 )?;
             }
         }
-        CheckedScalarComputationKind::Value(_)
+        CheckedScalarComputationKind::RetainedConstant { .. }
+        | CheckedScalarComputationKind::Value(_)
         | CheckedScalarComputationKind::StructuralField { .. } => {}
         CheckedScalarComputationKind::ByteSequencePredicate {
             predicate,

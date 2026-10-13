@@ -23,7 +23,10 @@ pub struct SelectedConstantEvaluation {
     /// explicit target custody a retained `size_of`/`align_of` query names its
     /// subject from. Never the host's facts: a `--target` build folds every
     /// query against this target's layout closure.
-    native_target: target::NativeTarget,
+    target_profile: target::TargetProfile,
+    /// Only these declaration roots own folds; canonical arenas also retain
+    /// Product descriptions during Build admission.
+    selection: typed_trees::references::DeclarationSelection,
     /// The opaque representation selections the layout authority consults for
     /// the same fold; Build admission has none and supplies an empty set.
     opaque_representation_selections: Vec<representation_planning::OpaqueRepresentationSelection>,
@@ -48,18 +51,20 @@ impl SelectedConstantEvaluation {
     ) -> Result<(), Vec<Diagnostic>> {
         provider_planning::data_layout_queries::fold_data_layout_queries(
             typed,
-            self.native_target,
+            self.target_profile,
             &self.opaque_representation_selections,
             true,
+            &self.selection,
         )?;
+        let mut evaluated = Vec::with_capacity(pending.len());
         for continuation in pending {
-            continuation.evaluate_selected_operators(
+            evaluated.push(continuation.evaluate_selected_operators(
                 typed,
                 SelectedBuildTimeOperators {
                     operators: &self.operators,
                     provider_bodies: &self.provider_bodies,
                 },
-            )?;
+            )?);
         }
         // The deferred evaluation installed the validated plan-laid layouts;
         // queries over `Policy<Schema>` operands fold now, and any operand the
@@ -67,17 +72,21 @@ impl SelectedConstantEvaluation {
         // missing-layout diagnostic.
         provider_planning::data_layout_queries::fold_data_layout_queries(
             typed,
-            self.native_target,
+            self.target_profile,
             &self.opaque_representation_selections,
             false,
+            &self.selection,
         )?;
+        for continuation in evaluated {
+            continuation.finish(typed)?;
+        }
         Ok(())
     }
 
     /// The provider rows this target's pending constant folds are evaluated
     /// under — the part of the selection every realized target must agree on,
     /// since each fold lands its value in the one checked program.
-    /// `native_target` and the opaque representation selections are legitimate
+    /// `target_profile` and the opaque representation selections are legitimate
     /// per-target layout custody and are not part of the agreement.
     pub fn pending_fold_providers(
         &self,
@@ -91,12 +100,12 @@ impl SelectedConstantEvaluation {
     /// Join provider authority once for every retained source use. Psi prepares
     /// semantic operands and independently admits both intrinsic and checked-body
     /// execution. Its coordinator supplies the operator selections; realization
-    /// does not enter a source stage to reconstruct them. `native_target` and
+    /// does not enter a source stage to reconstruct them. `target_profile` and
     /// `opaque_representation_selections` are the exact selection the deferred
     /// data-layout queries are answered under.
     pub fn prepare(
         context: provider_planning::ProviderPlanningContext<'_>,
-        native_target: target::NativeTarget,
+        target_profile: target::TargetProfile,
         opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
         facts: &checked_trees::CheckedOperatorFacts,
         plans: &SelectedProviderPlanFacts,
@@ -106,7 +115,8 @@ impl SelectedConstantEvaluation {
         let mut selected = Self {
             operators: Vec::new(),
             provider_bodies: Vec::new(),
-            native_target,
+            target_profile,
+            selection: typed_trees::references::DeclarationSelection::from_program(typed),
             opaque_representation_selections: opaque_representation_selections.to_vec(),
         };
         for (expression, origin, requirement, policy) in uses {

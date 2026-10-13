@@ -145,7 +145,8 @@ pub(crate) fn retain_shapes(
                     )?,
                 )?;
             }
-            CheckedScalarComputationKind::Value(_) => {}
+            CheckedScalarComputationKind::RetainedConstant { .. }
+            | CheckedScalarComputationKind::Value(_) => {}
             CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
                 pending.push(*subject);
                 for arm in plans.dispatch_arms.span(*arms)? {

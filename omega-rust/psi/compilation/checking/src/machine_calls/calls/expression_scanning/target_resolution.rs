@@ -133,6 +133,12 @@ pub(super) fn report_unresolved_value_call(
     call: &TableCallExpression,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    // A retained `size_of`/`align_of` query is a compiler-owned `u64` value
+    // whose answer is the selected target's layout; each target's closure
+    // folds it, so the shared judgment treats it as an opaque value.
+    if call.layout_query.is_some() {
+        return;
+    }
     let target = call.target.as_str();
     // Named operators are callable requirements too. Use the same exact-symbol
     // or unique path+arity resolution as checked-flow analysis; a leaf spelling

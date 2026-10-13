@@ -7,7 +7,7 @@
 //! roster position, the recorded obligations are discharged, and a closed
 //! copy of the checked program carries the closure for Terminal production
 //! and installation. The shared program is never rewritten; a program with no
-//! recipe keeps its shared storage.
+//! recipe or layout query keeps its shared storage.
 
 use checked_trees::{CheckedTrees, ConstantRecipeObligation};
 use compilation_products::CheckedProductSource;
@@ -17,17 +17,27 @@ use typed_trees::constant_recipes::ConstantRecipeDependencyReceipt;
 
 pub(super) fn close_constant_recipes(
     source: &CheckedProductSource,
-    selected_native_target: target::NativeTarget,
+    selected_target_profile: target::TargetProfile,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
     selected_provider_plan_facts: &effects::SelectedProviderPlanFacts,
 ) -> Result<Arc<CheckedTrees>, Vec<Diagnostic>> {
     let shared = &source.program;
-    // No deferred continuation means every rostered position already folded
-    // (an admitted Build evaluates its own); the shared program is closed.
-    if shared.typed.constant_recipes.is_empty() || source.constant_recipe_continuations.is_empty() {
+    let typed = &shared.typed;
+    let layout_queries: Vec<_> = typed_trees::references::collect_program_references(typed)
+        .expressions
+        .into_iter()
+        .filter(|expression| {
+            matches!(
+                typed.expression_table.expression(*expression),
+                typed_trees::expression::ExpressionNode::Call(call) if call.layout_query.is_some()
+            )
+        })
+        .collect();
+    // Runtime layout queries also retain a continuation even when no array,
+    // range endpoint, or const application contributes a recipe roster entry.
+    if typed.constant_recipes.is_empty() && layout_queries.is_empty() {
         return Ok(Arc::clone(shared));
     }
-    let typed = &shared.typed;
     // The continuation folds on the authored source it was deferred from,
     // where a boundary token use is still the occurrence the selected rows
     // name; executable preparation has already normalized it in the checked
@@ -39,7 +49,7 @@ pub(super) fn close_constant_recipes(
     };
     let evaluation = selected_dispatch::SelectedConstantEvaluation::prepare(
         provider_planning::ProviderPlanningContext::new(authored, source::DependencyScope::Product),
-        selected_native_target,
+        selected_target_profile,
         opaque_representation_selections,
         &validation::derive_pre_flow_operator_selections(authored),
         selected_provider_plan_facts,
@@ -72,7 +82,37 @@ pub(super) fn close_constant_recipes(
     let mut evaluated = authored.clone();
     evaluation.evaluate_pending(&mut evaluated, source.constant_recipe_continuations.clone())?;
     let closure = typed.read_constant_recipe_closure(&evaluated, receipts)?;
-    let closed_typed = (**typed).clone().with_constant_recipe_closure(closure);
+    let mut closed_typed = (**typed).clone().with_constant_recipe_closure(closure);
+    if !layout_queries.is_empty() {
+        // Evaluation already produced these answers under the selected target.
+        // Rejoin by canonical expression identity instead of asking the layout
+        // authority to rebuild the same output on the checked copy.
+        for expression in &layout_queries {
+            let value = evaluated.expression_table.expression(*expression);
+            if !matches!(value, typed_trees::expression::ExpressionNode::Integer(_)) {
+                return Err(vec![Diagnostic::error(
+                    "retained layout query did not close at its canonical expression identity",
+                )]);
+            }
+            *closed_typed.expression_table.expression_mut(*expression) = value.clone();
+        }
+        closed_typed
+            .tables
+            .const_declarations
+            .for_each_mut(|_, declaration| {
+                if layout_queries.contains(&declaration.materialized_initializer) {
+                    declaration.evaluated_value = evaluated
+                        .const_declaration_by_symbol(declaration.symbol)
+                        .and_then(|closed| closed.evaluated_value.clone());
+                }
+            });
+    }
+    // The continuation owns validated plan installation. Preserve that
+    // result beside the closed constants before the checked program consumes
+    // a layout query or a plan-laid field.
+    closed_typed.plan_laid_layouts = evaluated.plan_laid_layouts;
+    closed_typed.plan_laid_target_layouts = evaluated.plan_laid_target_layouts;
+    closed_typed.plan_laid_schema_fields = evaluated.plan_laid_schema_fields;
     ConstantRecipeObligation::discharge_all(
         &shared.facts.constant_recipe_obligations,
         &closed_typed,
@@ -84,12 +124,8 @@ pub(super) fn close_constant_recipes(
 }
 
 /// Whether two selections consume one checked program: the same shared
-/// storage, or two closed copies whose closures (values and realization
-/// receipts) and judgments agree.
+/// storage, or two closed copies whose folded programs (closure values,
+/// realization receipts, layout answers) and judgments agree.
 pub(crate) fn same_checked_program(left: &Arc<CheckedTrees>, right: &Arc<CheckedTrees>) -> bool {
-    Arc::ptr_eq(left, right)
-        || (!left.typed.constant_recipe_closure.is_empty()
-            && left.typed.constant_recipe_closure == right.typed.constant_recipe_closure
-            && left.typed == right.typed
-            && left.facts == right.facts)
+    Arc::ptr_eq(left, right) || (left.typed == right.typed && left.facts == right.facts)
 }

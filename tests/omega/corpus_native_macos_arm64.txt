@@ -654,6 +654,7 @@ pass/comptime/runtime_const_array_length_dependency_order_exit built 20476ms exi
 pass/comptime/runtime_const_array_length_transitive_exit built 635ms exit:70
 pass/comptime/runtime_const_measured_recursion_exit built 838ms exit:70 @090ae6660c7+wt
 pass/comptime/selected_float_array_length_exit built 19703ms exit:70 @4ffd613e37f1
+pass/comptime/selected_float_array_length_layout_query_exit built 14634ms exit:70 @b016b7e0a226
 pass/concurrency/suspend_after_last_use_compile checked 203ms
 pass/concurrency/suspend_explicit_parameter_after_last_use checked 985ms @9beb2be72f2d+wt
 pass/constants/runtime_scoped_const_exit built 579ms exit:70
@@ -1238,6 +1239,7 @@ pass/inline_asm/asm_runtime_port_msr_final_validation incomplete 1809ms @47d3b5b
 	`Main::main` has no executable body: this compiler does not lower a call of it yet (call operation: call site)
 pass/inline_asm/asm_where_exact_clobbers_compile checked 225ms
 pass/layouts/access_plan_inaccessible_seed checked 263ms
+pass/layouts/authored_layout_query_names_exit built 5946ms exit:0 @b016b7e0a226
 pass/layouts/byte_view_borrow_with_encoded_sibling checked 702ms @693920652f41
 pass/layouts/integer_at_owned_local_borrow_call_exit built 1459ms exit:0 @313322813ba5+wt
 pass/layouts/placed_view_source_access_compile checked 547ms
@@ -1261,6 +1263,7 @@ pass/layouts/runtime_returned_encoded_reference_exit built 1712ms exit:0 @83cbaa
 pass/layouts/runtime_size_of_align_of_exit built 1151ms exit:70
 pass/layouts/runtime_sparse_fragmented_bits_exit built 1540ms exit:70 @acdf102c21ea+wt
 pass/layouts/runtime_stored_returned_encoded_reference_exit built 1639ms exit:0 @4cbb568dee2d+wt
+pass/layouts/runtime_target_layout_queries_exit built 5655ms exit:0 @b016b7e0a226
 pass/locals/mutable_local_call_initializer_exit built 1445ms exit:70 @48008365d839
 pass/locals/mutable_local_call_multistate_reassignment_exit built 1005ms exit:70 @48008365d839
 pass/locals/mutable_local_call_reassignment_exit built 959ms exit:70 @48008365d839

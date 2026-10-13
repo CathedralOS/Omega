@@ -97,9 +97,7 @@ pub(crate) fn prepare_checked_build(
         let operator_selections = validation::derive_pre_flow_operator_selections(typed);
         selected_dispatch::SelectedConstantEvaluation::prepare(
             context,
-            execution_profile
-                .map(target::TargetProfile::native_target)
-                .unwrap_or_else(target::NativeTarget::host),
+            execution_profile.unwrap_or_else(target::TargetProfile::host),
             &[],
             &operator_selections,
             &selected_provider_plan_facts,

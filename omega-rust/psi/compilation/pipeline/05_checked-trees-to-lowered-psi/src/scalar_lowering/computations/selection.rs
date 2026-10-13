@@ -201,6 +201,7 @@ impl Expansion<'_> {
                 }
                 CheckedScalarComputationKind::ByteSequenceLiteralComparison { .. }
                 | CheckedScalarComputationKind::ByteSequencePredicate { .. }
+                | CheckedScalarComputationKind::RetainedConstant { .. }
                 | CheckedScalarComputationKind::Value(_)
                 | CheckedScalarComputationKind::StructuralField { .. }
                 | CheckedScalarComputationKind::CaseMembership { .. }

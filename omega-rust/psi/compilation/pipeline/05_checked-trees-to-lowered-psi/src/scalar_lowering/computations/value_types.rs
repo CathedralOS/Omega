@@ -55,6 +55,9 @@ fn value_type(
             callee: checked_trees::CheckedScalarCallee::Body { state, .. },
             ..
         } => qualifications.scalar_state_types(checked, *state)?.1,
+        CheckedScalarComputationKind::RetainedConstant { .. } => {
+            terminal_scalar_type(node.primitive_type)?.into()
+        }
         CheckedScalarComputationKind::Value(expression) => bindings
             .expression(identities, &checked.facts.proven_scalar_indexes, expression)?
             .value_type(source_types)?,

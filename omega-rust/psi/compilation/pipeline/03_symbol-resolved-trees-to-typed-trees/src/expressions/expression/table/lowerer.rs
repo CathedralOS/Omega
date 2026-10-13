@@ -72,9 +72,9 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
     fn retain_builtin_type_reference(
         &mut self,
         atom: symbols::BuiltinTypeAtom,
-    ) -> Result<(), Diagnostic> {
+    ) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
         let Some(program) = self.program else {
-            return Ok(());
+            return Ok(typed::types::TypeReferenceHandle::invalid());
         };
         let symbol = program
             .symbols
@@ -85,20 +85,18 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             .ok_or_else(|| {
                 Diagnostic::error("typed expression lost its compiler-installed builtin type")
             })?;
-        if self
+        Ok(self
             .target_trees
             .type_reference_table
             .find_named_type_reference(symbol)
-            .is_none()
-        {
-            self.target_trees
-                .type_reference_table
-                .insert(typed::types::TypeReferenceNode::Named {
-                    symbol,
-                    name: typed::name::Identifier::generated_static(atom.symbol_name()),
-                });
-        }
-        Ok(())
+            .unwrap_or_else(|| {
+                self.target_trees.type_reference_table.insert(
+                    typed::types::TypeReferenceNode::Named {
+                        symbol,
+                        name: typed::name::Identifier::generated_static(atom.symbol_name()),
+                    },
+                )
+            }))
     }
 
     pub(super) fn in_fact_position(mut self) -> Self {
@@ -150,6 +148,15 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             .authored_selection_occurrences(expression)
             .collect::<Vec<_>>();
         let lowered = self.lower_node(expression)?;
+        if matches!(self.target().expression(lowered), typed::expression::ExpressionNode::Call(call) if call.layout_query.is_some())
+        {
+            // A portable query has an ordinary u64 carrier before its selected
+            // target supplies the value. Every operator and call consumer reads
+            // this retained result through the same expression-type owner.
+            let result = self.retain_builtin_type_reference(symbols::BuiltinTypeAtom::U64)?;
+            self.target()
+                .set_constructed_value_type_reference(lowered, result);
+        }
         self.target().set_source_span(lowered, source_span);
         self.target()
             .attach_authored_selection_occurrences(lowered, authored_selection_occurrences);
