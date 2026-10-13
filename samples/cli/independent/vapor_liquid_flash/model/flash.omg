@@ -5,6 +5,12 @@ use omega::language::core::float_operations;
 // 4 bubble_boundary, 5 dew_boundary. Only positive-abundance K values
 // constrain identifiability. Endpoints carry only the present phase.
 pub data Solution { status: u32; beta: f64; liquid: [f64; 8]; vapor: [f64; 8]; closure: [f64; 8]; reconstructed: [f64; 8]; }
+// The trial is invocation-local mutable scalar storage. Updating it must not
+// change the caller's lower bracket; every subsequent read sees its new bits.
+machine midpoint(mut lower: f64, upper: f64) -> f64 {
+    lower = (lower + upper) / 2.0;
+    lower
+}
 pub machine residual(feed: &io::input::Feed, beta: f64) -> f64 {
     transition { _ -> scan(feed, beta, 0, 0.0) }
     state scan(feed: &io::input::Feed, beta: f64, position: u32, total: f64) -> f64 {
@@ -72,11 +78,11 @@ pub machine solve(feed: &io::input::Feed, solution: &mut Solution) {
     state split(feed: &io::input::Feed, solution: &mut Solution, low: f64, high: f64, iteration: u32) {
         transition iteration < 60 {
             true -> bisect(feed, solution, low, high, iteration)
-            false -> resolved(feed, solution, (low + high) / 2.0)
+            false -> resolved(feed, solution, midpoint(low, high))
         }
     }
     state bisect(feed: &io::input::Feed, solution: &mut Solution, low: f64, high: f64, iteration: u32) {
-        let middle: f64 = (low + high) / 2.0;
+        let middle: f64 = midpoint(low, high);
         transition residual(feed, middle) > 0.0 {
             true -> split(feed, solution, middle, high, iteration + 1)
             false -> split(feed, solution, low, middle, iteration + 1)

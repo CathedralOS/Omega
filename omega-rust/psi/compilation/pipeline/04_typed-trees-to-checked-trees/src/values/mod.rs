@@ -39,6 +39,10 @@ pub(crate) use scalar::subslice_endpoints;
 
 /// Owned mutable parameters use current-state scalar storage, never reference
 /// rebinding or the immutable incoming-parameter expression namespace.
+/// IEEE carriers have the same invocation-local storage obligation as integers:
+/// their selected operations read the current bits, including signed zero and
+/// NaN, rather than the entry snapshot. Receiving refinements remain the
+/// declaration-owned storage planner's separate admission check.
 pub(crate) fn mutable_scalar_parameter_type(
     program: &dyn ::validation::CheckingInput,
     parameter: &typed_trees::signature::StateParameter,
@@ -48,7 +52,11 @@ pub(crate) fn mutable_scalar_parameter_type(
         return None;
     }
     let primitive = program.primitive_type_reference(parameter.type_reference)?;
-    (matches!(primitive, PrimitiveType::Bool) || primitive.is_fixed_integer()).then_some(primitive)
+    (matches!(
+        primitive,
+        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64
+    ) || primitive.is_fixed_integer())
+    .then_some(primitive)
 }
 
 pub(crate) use scalar::{

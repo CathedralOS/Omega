@@ -50,3 +50,16 @@ and present-phase composition and 1e-10 for each component's closure, including
 closure recomputed from displayed compositions. It also checks normalization,
 K relations, phase status, ordering, and absence markers. `reference.py --freeze`
 is an explicit maintenance action; validation never rewrites expected results.
+
+The bisection midpoint uses an owned mutable `f64` parameter. Its update and
+return exercise invocation-local scalar storage; the caller keeps its bracket
+endpoint. Compiler fixture `runtime_owned_mutable_float_parameter_exit` also
+checks `f32`, named-state arrival, caller isolation, and signed zero, alongside
+immutable-mutation and live-loan refusal controls.
+
+For a faster finite suite, build the supported runner with
+`mbx build -p omega --example qualify_inputs`, then pass its absolute executable
+path as `--qualifier` to the same validator. The runner compiles the normally
+accepted project once and uses a fresh native process and isolated Terminal
+invocation for each input. The validator still checks both complete streams,
+actual process-exit statuses, source-invalid refusal, and every frozen value.

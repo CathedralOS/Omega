@@ -7,6 +7,7 @@ sys.dont_write_bytecode = True
 from reference import solve
 from closure_reference import coefficients
 parser=argparse.ArgumentParser(); parser.add_argument('--omega',required=True)
+parser.add_argument('--qualifier',help='optional supported qualify_inputs executable; compile once and isolate every native/Terminal invocation')
 options=parser.parse_args(); project=Path(__file__).resolve().parent
 raw=(project/'data/oracle.json').read_bytes()
 assert hashlib.sha256(raw).hexdigest()==(project/'data/oracle.sha256').read_text().split()[0]
@@ -16,8 +17,8 @@ closure_oracle=json.loads(closure_raw)['cases']
 assert coefficients()['cases']==closure_oracle
 cases=json.loads(raw)['cases']; out=project/'build/validation'; out.mkdir(parents=True,exist_ok=True)
 records=[]
-def invoke(name,arguments,data=b''):
-    command=[options.omega,*arguments]; start=time.monotonic()
+def invoke(name,arguments,data=b'',executable=None):
+    command=[executable or options.omega,*arguments]; start=time.monotonic()
     run=subprocess.run(command,input=data,capture_output=True,timeout=240)
     (out/(name+'.stdout')).write_bytes(run.stdout); (out/(name+'.stderr')).write_bytes(run.stderr)
     records.append(dict(name=name,command=command,exit=run.returncode,seconds=time.monotonic()-start,stdout_sha256=hashlib.sha256(run.stdout).hexdigest()))
@@ -74,20 +75,45 @@ def verify(stream, expected):
 
 check=invoke('check',['--check',str(project/'main.omg')]); assert check.returncode==0,check.stderr.decode()
 invalid=invoke('source_invalid',['--check',str(project/'controls/component_bound/main.omg')])
-assert invalid.returncode==1 and b'cannot prove index' in invalid.stderr,invalid.stderr.decode()
+bound_diagnostic=(project/'controls/component_bound/expected.txt').read_bytes().strip()
+assert invalid.returncode==1 and bound_diagnostic in invalid.stderr,invalid.stderr.decode()
+qualified=None
+if options.qualifier:
+    qualified=out/'qualified'; inputs=[]
+    for case in cases:
+        data=case['input'].encode()
+        assert (project/'data'/(case['name']+'.txt')).read_bytes()==data
+        expected=case['expected']
+        if expected['exit'] in (0,3):
+            tokens=case['input'].split(); assert solve(tokens[1::2],tokens[2::2])==expected
+        directory=qualified/case['name']; directory.mkdir(parents=True,exist_ok=True)
+        path=directory/'input.txt'; path.write_bytes(data); inputs.append(str(path))
+    batch=invoke('qualify',[str(project/'main.omg'),str(qualified),*inputs],executable=options.qualifier)
+    assert batch.returncode==0,batch.stderr.decode()
 for case in cases:
     current_name=case['name']; current_input=case['input']; expected=case['expected']
     assert (project/'data'/(case['name']+'.txt')).read_bytes()==current_input.encode()
     if expected['exit'] in (0,3):
         tokens=current_input.split(); independent=solve(tokens[1::2],tokens[2::2]); assert independent==expected
-    run=invoke(case['name'],['run','--both','--keep',str(project/'main.omg')],current_input.encode())
-    diagnostics=run.stderr.decode(); assert run.returncode==expected['exit'],diagnostics
-    assert f"interp exit: {expected['exit']}" in diagnostics.splitlines(),diagnostics
-    assert 'DECLINED' not in diagnostics and 'DIVERGENCE' not in diagnostics,diagnostics
-    match=re.search(r'^build dir kept: (.+)$',diagnostics,re.M); assert match,diagnostics
-    retained=Path(match[1]); terminal=(retained/'terminal.stdout').read_bytes()
+    if qualified is None:
+        run=invoke(case['name'],['run','--both','--keep',str(project/'main.omg')],current_input.encode())
+        diagnostics=run.stderr.decode(); assert run.returncode==expected['exit'],diagnostics
+        assert f"interp exit: {expected['exit']}" in diagnostics.splitlines(),diagnostics
+        assert 'DECLINED' not in diagnostics and 'DIVERGENCE' not in diagnostics,diagnostics
+        match=re.search(r'^build dir kept: (.+)$',diagnostics,re.M); assert match,diagnostics
+        retained=Path(match[1]); native=run.stdout; terminal=(retained/'terminal.stdout').read_bytes()
+        assert not (retained/'terminal.stderr').read_bytes()
+    else:
+        retained=qualified/case['name']; native=(retained/'native.stdout').read_bytes()
+        terminal=(retained/'terminal.stdout').read_bytes()
+        assert int((retained/'native.status').read_text())==expected['exit']
+        status=(retained/'terminal.status').read_text()
+        assert status.startswith('ExternalCompletion(') and 'kind: ProcessExit,' in status,status
+        assert re.search(r'\breturn_code: (-?\d+),',status).group(1)==str(expected['exit']),status
+        assert not (retained/'native.stderr').read_bytes()
+        assert not (retained/'terminal.stderr').read_bytes()
+        (out/(case['name']+'.stdout')).write_bytes(native)
     (out/(case['name']+'.terminal.stdout')).write_bytes(terminal)
-    assert not (retained/'terminal.stderr').read_bytes()
-    verify(run.stdout,expected); verify(terminal,expected)
+    verify(native,expected); verify(terminal,expected)
     print(case['name'],'native and captured Terminal numerical values verified',flush=True)
 print(len(cases),'runtime cases, source-invalid component bound verified')

@@ -612,6 +612,8 @@ fail/borrows/opaque_sibling_stored_view_local_escape rejected 1550ms expected @a
 	machine `replace` stores a borrowed value without a complete normal-exit backing relation
 fail/borrows/owned_input_reference_escape rejected 1771ms expected @a9ae30e1c334+wt
 	machine `escape` returns a view borrowing the owned input `owned`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/borrows/owned_mutable_float_live_shared_loan rejected 1601ms expected @6bb9c1b51558
+	statement 1 mutates `fraction` while local borrow `observed` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 fail/borrows/parent_use_before_disjoint_sibling_ends rejected 1677ms expected @a9ae30e1c334+wt
 	state `observe` receives `values` while local borrow `second` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
 fail/borrows/plain_read_during_live_exclusive_loan rejected 1820ms expected @a9ae30e1c334+wt
@@ -2558,6 +2560,8 @@ fail/modules/use_unresolved_path rejected 0ms expected @a9ae30e1c334+wt
 	failed to resolve tests/omega/fail/modules/use_unresolved_path/nonexistent/missing.omg: No such file or directory (os error 2)
 fail/multiplicity/computed_subject_separate_affine_call rejected 1200ms expected @a9ae30e1c334+wt
 	cannot use `choice` in machine `choose` state `entry` (statement 0) after `choice` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `choice` first
+fail/mutation/immutable_float_parameter_assignment rejected 433ms expected @6bb9c1b51558
+	machine `replace` state `entry` assignment cannot write `fraction` because it is not mutable in this state (if `fraction` is undeclared -- a typo -- no such field or local exists)
 fail/operators/constructed_operand_wrong_nominal_type rejected 833ms expected @a9ae30e1c334+wt
 	machine `invalid` state `entry` applies `Add` to a `Input` value, but no such operator is declared for these operand types; declare a matching token-bearing machine or select its declared trait meaning
 fail/operators/declared_index_named_call_requires_explicit_borrow rejected 107ms expected @dca1c7cd7e6f+wt
@@ -5296,6 +5300,7 @@ pass/float/runtime_named_format_conversion_exit checked 22605ms check-target:mac
 pass/float/runtime_named_policy_conversion_composition_exit checked 20755ms check-target:macos_arm64 @9c4d1c444502
 pass/float/runtime_named_policy_result_exit checked 17969ms check-target:macos_arm64 @9c4d1c444502
 pass/float/runtime_nested_float_min_max_exit checked 11602ms check-target:macos_arm64 @589aedee8ebc+wt
+pass/float/runtime_owned_mutable_float_parameter_exit checked 22458ms check-target:macos_arm64 @6bb9c1b51558
 pass/float/runtime_qualified_carrier_conversion_exit checked 15571ms check-target:macos_arm64 @9c4d1c444502
 pass/float/runtime_refined_conversion_target_exit checked 14972ms check-target:macos_arm64 @9c4d1c444502
 pass/float/runtime_result_predicate_custody_exit checked 13984ms check-target:macos_arm64 @9c4d1c444502
