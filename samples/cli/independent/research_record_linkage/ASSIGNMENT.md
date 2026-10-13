@@ -1,22 +1,21 @@
 E23 / NEW064 research record linkage
 
-Own the recovered complete application, its private model and original frozen
-39-input oracle, normal package admission, necessary general compiler repairs,
-source/native/captured Terminal/refusal gates, final independent review and
-normal main landing. No scientific expectations or tolerances may change.
+The recovered complete application retains its original private model and frozen
+39-input independent oracle. Original author literals and retained corrections
+come from transcript 01a1285e-d1d0-717c-a3bf-2d6098a6b032. Seven initial Omega
+source hashes match the original candidate; the iterative decimal formatter
+retains its recorded hash. Reference, frozen 29-case ledger and greedy trap hashes
+remain unchanged. No scientific expectation or tolerance was modified.
 
-The original transcript01a1285e-d1d0-717c-a3bf-2d6098a6b032 restores the author
-literals and recorded corrections. Seven original Omega source hashes match
-766b6d27; the later iterative decimal formatter matches its retained hash.
-The reference,29-case frozen result ledger and separate greedy trap retain their
-original hashes. Historical approval and locks are evidence only; local policy
-is generated and reviewed normally at this new worktree origin.
+General arithmetic proof search now tries already established independent
+result bounds before constructing ordered identities and skips strictly positive
+gap searches without live ordered relations. Nested child overflow and zero
+increment operand eligibility remain proof obligations.
 
-Current frontier: full original-source review generation exceeded110seconds on
-producer38b196. General bounded arithmetic proof search repair is prepared;
-qualification awaits the coordinated candidate build. Original scalar-sum and
-overflow witnesses plus field/call/state variants cover the operation.
-
-Acceptance requires all39native and all39actual Terminal stdout/stderr/exits,
-complete source checking, the authored unproved-index refusal and affected
-arithmetic controls. A successful checkpoint is not outcome completion.
+Exact producer 1b12798e27f4385322a7567cda2c83ef75345e83 passes all 39 native and
+all 39 actual public Terminal outputs, stderr and authored exits. Source checking,
+three actual arithmetic route controls, genuine overflow/index refusals and the
+scoped 17 source plus 3 native/Terminal corpus behaviors pass. Quiet thirteen-term
+source checking takes 2.388 seconds within the predeclared five-second limit.
+Normal same-origin admission and independent source/oracle/runtime review are
+recorded in VALIDATION.md. Historical approvals and locks remain evidence only.

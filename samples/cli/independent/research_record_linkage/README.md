@@ -84,15 +84,12 @@ bypass cache custody. After successful package preparation:
 OMEGA --check --target linux_x86_64 samples/cli/independent/research_record_linkage/main.omg
 OMEGA --target linux_x86_64 --report-file /tmp/new064-compile.txt samples/cli/independent/research_record_linkage/main.omg
 python3 samples/cli/independent/research_record_linkage/validate.py --executable ABSOLUTE_PUBLISHED_EXECUTABLE
-python3 samples/cli/independent/research_record_linkage/validate.py --terminal --omega ABSOLUTE_OMEGA
 ```
 
-The validator compares all native stdout bytes, empty native stderr and authored
-exit for every valid/invalid fixture. Terminal `run --both` must report an actual
-agreement for ten named variants and all malformed cases; a decline fails that
-route. The current CLI compares termination, so the field fingerprint supplies a
-computed semantic observation for Terminal. Exact Terminal stdout is not exposed
-by this CLI and is not claimed as independently verified.
+The validator compares all native stdout bytes, empty stderr and authored exits
+for every valid and invalid fixture. The public runtime observer below captures
+all 39 Terminal stdout/stderr streams and semantic exits independently. CLI
+termination agreement alone does not establish full output coverage.
 
 ## Separate intended-invalid source
 
@@ -124,10 +121,10 @@ See `VALIDATION.md` for the exact executor, compiler identity, observed routes,
 artifact hashes and any unresolved acceptance boundary. Generated artifacts and
 package decisions remain in ignored local build state.
 
-The original source and all39fixtures have been recovered from the original
-author commands and retained corrections. Current source/native/captured
-Terminal qualification is pending the general bounded arithmetic proof repair.
-See VALIDATION.md for current evidence and historical producer boundaries.
+The original source and all 39 fixtures are recovered from the author commands
+and retained corrections. Current source, native and captured Terminal
+qualification passes on the exact producer identified in VALIDATION.md; the
+scientific oracle and thresholds remain unchanged.
 
 Direct Terminal output is captured by validation/terminal_capture.rs through
 the public admitted product runtime and checked by validation/check_capture.py.

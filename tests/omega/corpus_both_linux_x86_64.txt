@@ -242,3 +242,8 @@ pass/float/literal_indexed_float_field_read_exit built 23096ms exit:70 interpret
 pass/float/returned_record_computed_fields_exit built 17982ms exit:70 interpreter-exit:70 interpreter:agrees @1b12798e27f4
 pass/float/runtime_exact_format_narrowing_exit built 25156ms exit:0 interpreter-exit:0 interpreter:agrees @1b12798e27f4
 pass/float/runtime_generic_constructor_literal_landing_exit built 28661ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @1b12798e27f4
+# NEW064: scoped actual rows; previous published bytes preserved.
+# context: {"cpus": 5, "jobs": null, "load1_end": 5.52, "load1_start": 3.84, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+pass/arithmetic/runtime_bounded_unsigned_sum_chain_exit built 21795ms exit:48 interpreter-exit:48 interpreter:agrees @1b12798e27f4
+pass/arithmetic/runtime_bounded_unsigned_sum_field_and_call_exit built 18148ms exit:48 interpreter-exit:48 interpreter:agrees @1b12798e27f4
+pass/arithmetic/runtime_observed_call_bound_exit built 15895ms exit:42 interpreter-exit:42 interpreter:agrees @1b12798e27f4
