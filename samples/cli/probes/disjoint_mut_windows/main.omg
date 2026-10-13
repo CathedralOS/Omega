@@ -8,8 +8,8 @@ machine Main::main(main: &mut Main) {
     main.entries[0] = 10;
     main.entries[2] = 30;
     let items: &mut [i32] = &mut main.entries[..];
-    let a: &mut [i32] = items[0..2];
-    let b: &mut [i32] = items[2..4];
+    let a: &mut [i32] = &mut items[0..2];
+    let b: &mut [i32] = &mut items[2..4];
     a[0] = 11;
     b[0] = 31;
     transition main.entries[0] == 11 && main.entries[2] == 31 {

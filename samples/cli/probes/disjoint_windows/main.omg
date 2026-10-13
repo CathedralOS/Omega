@@ -2,8 +2,8 @@
 // `items[2..4]` begins, so two live `&mut` subslices of the same
 // base borrow at once.
 //
-//   * `let a: &mut [i32] = items[0..2]` + `let b: &mut [i32] =
-//     items[2..4]` coexist; writes through both windows.
+//   * `let a: &mut [i32] = &mut items[0..2]` + `let b: &mut [i32] =
+//     &mut items[2..4]` coexist; writes through both windows.
 //   * `hits` records the reached arm.
 //
 // Compile-checked only: no standard-library dependency, no ProcessExit
@@ -18,8 +18,8 @@ machine Main::main(main: &mut Main) {
     main.hits = 0;
     main.entries = [10, 20, 30, 40];
     let items: &mut [i32] = &mut main.entries[..];
-    let a: &mut [i32] = items[0..2];
-    let b: &mut [i32] = items[2..4];
+    let a: &mut [i32] = &mut items[0..2];
+    let b: &mut [i32] = &mut items[2..4];
     a[0] = 11;
     b[1] = 41;
     transition a.len == 2 && b.len == 2 && main.entries[0] == 11
