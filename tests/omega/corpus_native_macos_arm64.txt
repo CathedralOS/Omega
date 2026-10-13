@@ -343,6 +343,7 @@ pass/build/runtime_static_service_exclusion_exit built 2512ms exit:0 @5c302dd6d3
 pass/build/same_leaf_runner_entry_left_exit built 2715ms exit:11 @26b974b5cae7+wt
 pass/build/same_leaf_runner_entry_right_exit built 2443ms exit:37 @26b974b5cae7+wt
 pass/build/selected_const_array_length_exit built 12069ms exit:0 @467bec194212
+pass/build/sibling_module_service_exclusion_exit built 7245ms exit:0 @eca66ed24a79+wt
 pass/build/sibling_module_slot_family_rows_exit built 6957ms exit:70 @cbb413ac54c3
 pass/build/static_assumed_binding_spelling_exit built 3706ms exit:0 @9beb2be72f2d+wt
 pass/build/uefi_entry_schema_same_leaf built 1457ms @55a23102ccd1+wt

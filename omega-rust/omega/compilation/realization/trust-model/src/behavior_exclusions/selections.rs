@@ -61,7 +61,9 @@ pub fn harvest_behavior_exclusions(
             }
             checked_interpreter::ExecutedBehaviorExclusionKind::Service => {
                 match authored_service_exclusion(typed, row.site, source_span) {
-                    Ok(identity) => AuthoredBehaviorExclusionKind::Service { identity },
+                    Ok((identity, name)) => {
+                        AuthoredBehaviorExclusionKind::Service { identity, name }
+                    }
                     Err(diagnostic) => {
                         diagnostics.push(diagnostic.with_source_span(source_span));
                         continue;
@@ -98,7 +100,9 @@ pub fn harvest_behavior_exclusions(
     }
 }
 
-/// Retain the service identity selected by `Build::exclude_service<Trait>`.
+/// Retain the service identity selected by `Build::exclude_service<Trait>`:
+/// the hermetic declaration identity Terminal service catalogs publish, plus
+/// the declared name as its diagnostic label.
 /// Resolve it in the executed Build's product-declaration environment, not its
 /// own executable declarations: dependencies need not be executable Build code.
 /// native realization must not reopen typed source to interpret this selection.
@@ -109,7 +113,7 @@ fn authored_service_exclusion(
     typed: &TypedTrees,
     site: checked_interpreter::ExecutedBehaviorExclusionSite,
     occurrence: source::SourceSpan,
-) -> Result<String, Diagnostic> {
+) -> Result<(String, String), Diagnostic> {
     let checked_interpreter::ExecutedBehaviorExclusionSite::Expression(expression) = site else {
         return Err(Diagnostic::error(
             "service exclusion must retain its checked static Build call",
@@ -119,7 +123,10 @@ fn authored_service_exclusion(
         .and_then(|symbol| {
             typed.product_declarations().trait_definition_by_symbol(symbol)
                 .filter(|definition| definition.is_boundary)
-                .map(|definition| definition.name.as_str().to_owned())
+                .and_then(|definition| {
+                    let identity = typed.normalized_hermetic_symbol_identity(definition.symbol).ok()?;
+                    Some((identity, definition.name.as_str().to_owned()))
+                })
         })
         .ok_or_else(|| Diagnostic::error(
             "service exclusion does not resolve to an exact visible product boundary trait declaration",

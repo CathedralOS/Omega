@@ -140,10 +140,11 @@ fn service_schemas_carry_no_text_requirement_identities() {
 
 /// Boundary declarations where identity text is legitimate: constructor
 /// parameters interning on arrival and the authored-exclusion `Service`
-/// payload, which names a callable schema identity as authored text.
+/// payload, which carries the selected declaration's hermetic identity as
+/// text until a Terminal module's catalog resolves it.
 const ALLOWED: &[(&str, &str)] = &[(
     "behavior_exclusions/authored.rs",
-    "Service { identity: String },",
+    "Service { identity: String, name: String },",
 )];
 
 /// Every `file:line: name` in this crate's non-test sources, outside line

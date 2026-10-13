@@ -14,6 +14,7 @@ pass/borrows/runtime_scalar_call_stored_carrier_exit built 4326ms exit:0 interpr
 pass/borrows/runtime_selected_stored_carrier_child_exit built 4210ms exit:0 interpreter-exit:0 interpreter:agrees @dd6871ed0476
 pass/borrows/runtime_selected_stored_carrier_exit built 4207ms exit:0 interpreter-exit:0 interpreter:agrees @dd6871ed0476
 pass/borrows/runtime_selected_stored_carrier_retired_parent_exit built 4229ms exit:0 interpreter-exit:0 interpreter:agrees @dd6871ed0476
+pass/build/sibling_module_service_exclusion_exit built 6935ms exit:0 interpreter-exit:0 interpreter:agrees @eca66ed24a79+wt
 pass/calls/runtime_terminal_call_state_machine_call_operand_exit built 4841ms exit:70 interpreter-exit:70 interpreter:agrees @e9d32814a23f+wt
 pass/cases/runtime_refuted_generic_case_dispatch_exit built 7462ms exit:70 interpreter-exit:70 interpreter:agrees @c083b963e5ba
 pass/contracts/runtime_literal_view_extent_calls_exit built 5611ms exit:0 interpreter-exit:0 interpreter:agrees @81a0434130f9bfb47b3bec8ac9b47181a4ae96d2+wt

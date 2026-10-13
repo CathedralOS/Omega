@@ -27,9 +27,12 @@ pub enum AuthoredBehaviorExclusionKind {
         case_symbol: SymbolHandle,
     },
     /// `Build::exclude_service<Trait>(builder)`: the selected boundary trait's
-    /// canonical service identity, retained while Build owns its typed inputs.
-    /// Only the module-local ServiceId remains to be resolved after Terminal.
-    Service { identity: String },
+    /// hermetic package/module declaration identity, retained while Build owns
+    /// its typed inputs. It is the same identity Terminal service catalogs
+    /// publish, so only the module-local ServiceId remains to be resolved
+    /// after Terminal. `name` is the declaration's diagnostic label, never a
+    /// join key: distinct modules may each declare `Sink`.
+    Service { identity: String, name: String },
 }
 
 /// One authored exclusion selection retained from the root build machine's
@@ -47,6 +50,19 @@ pub struct AuthoredBehaviorExclusion {
 }
 
 impl AuthoredBehaviorExclusion {
+    /// The selection as its author spelled it, for diagnostics that would
+    /// otherwise print a service's hermetic identity. Crash and physical
+    /// rows have no separate authored label.
+    pub fn authored_label(&self) -> Option<String> {
+        match &self.kind {
+            AuthoredBehaviorExclusionKind::Service { name, .. } => {
+                Some(format!("service `{name}`"))
+            }
+            AuthoredBehaviorExclusionKind::CrashCause { .. }
+            | AuthoredBehaviorExclusionKind::PhysicalAuthorityClass { .. } => None,
+        }
+    }
+
     /// The canonical exclusion this authored row selects in `module`.
     /// A service identity `module` never declares resolves to `None`: no boundary in
     /// that composition can invoke it, so it imposes no requirement there.
@@ -58,7 +74,7 @@ impl AuthoredBehaviorExclusion {
             AuthoredBehaviorExclusionKind::PhysicalAuthorityClass { class, .. } => {
                 Some(BehaviorExclusion::PhysicalAuthorityClass(*class))
             }
-            AuthoredBehaviorExclusionKind::Service { identity } => module
+            AuthoredBehaviorExclusionKind::Service { identity, .. } => module
                 .services
                 .iter()
                 .find(|service| module.identities.text(service.identity) == Some(identity.as_str()))

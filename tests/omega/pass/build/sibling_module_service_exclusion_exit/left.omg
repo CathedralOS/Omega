@@ -1,0 +1,12 @@
+module left;
+
+pub boundary trait Sink {
+    machine emit(text: &[u8]);
+}
+
+pub data QuietSink { }
+
+machine QuietSink::emit(text: &[u8])
+satisfies Sink::emit
+{
+}

@@ -1,0 +1,19 @@
+// Excluding left::Sink leaves the same-spelled right::Sink admitted: the
+// exclusion selects one module's declaration, never every `Sink`.
+use left;
+use right;
+use right::Sink;
+use omega::language::core::binding;
+
+data Main { sink: Binding<Sink>; }
+machine Main::main(main: &mut Main)
+reaches Sink
+{
+    relay(&mut main.sink);
+}
+
+machine relay(sink: &mut Binding<Sink>)
+reaches Sink
+{
+    sink.emit("relayed");
+}

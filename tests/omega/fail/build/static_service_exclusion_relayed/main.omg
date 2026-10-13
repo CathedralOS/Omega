@@ -1,0 +1,19 @@
+// The excluded module-owned left::Sink is invoked through a helper machine,
+// so the selected composition reaches it below the entry.
+use left;
+use right;
+use left::Sink;
+use omega::language::core::binding;
+
+data Main { sink: Binding<Sink>; }
+machine Main::main(main: &mut Main)
+reaches Sink
+{
+    relay(&mut main.sink);
+}
+
+machine relay(sink: &mut Binding<Sink>)
+reaches Sink
+{
+    sink.emit("relayed");
+}

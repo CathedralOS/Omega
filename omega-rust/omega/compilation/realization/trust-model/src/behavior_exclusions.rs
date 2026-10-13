@@ -65,18 +65,21 @@ fn behavior_exclusion_diagnostics(
         authored.len()
     )));
     for prohibited in &report.prohibited {
+        // The rejection points at the authored `exclude_*` selection that
+        // named the requirement, not an internal Terminal coordinate, and
+        // names it as authored rather than by its hermetic identity.
+        let row = authored
+            .iter()
+            .find(|row| row.resolve(module) == Some(prohibited.exclusion));
+        let excluded = row
+            .and_then(AuthoredBehaviorExclusion::authored_label)
+            .unwrap_or_else(|| prohibited.exclusion.describe(module));
         let mut diagnostic = Diagnostic::error(format!(
-            "behavior exclusion violated: {} is reachable in {} at {}",
-            prohibited.exclusion.describe(module),
+            "behavior exclusion violated: {excluded} is reachable in {} at {}",
             provenance.label(prohibited.machine),
             prohibited.site.describe(module),
         ));
-        // The rejection points at the authored `exclude_*` selection that
-        // named the requirement, not an internal Terminal coordinate.
-        if let Some(row) = authored
-            .iter()
-            .find(|row| row.resolve(module) == Some(prohibited.exclusion))
-        {
+        if let Some(row) = row {
             diagnostic = diagnostic.with_source_span(row.source_span);
         }
         diagnostics.push(diagnostic);
@@ -86,8 +89,7 @@ fn behavior_exclusion_diagnostics(
         if let Some(span) = provenance.source_span(prohibited.machine) {
             diagnostics.push(
                 Diagnostic::error(format!(
-                    "the selected composition retains {} through {} declared here",
-                    prohibited.exclusion.describe(module),
+                    "the selected composition retains {excluded} through {} declared here",
                     provenance.label(prohibited.machine),
                 ))
                 .with_source_span(span),

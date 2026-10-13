@@ -1061,13 +1061,17 @@ fail/build/staging_path_escape_refused rejected 6541ms expected published:none @
 fail/build/static_machine_parameter_contract_mismatch rejected 1111ms expected @a9ae30e1c334+wt
 	machine argument `wrong_width` for `apply` does not refine `F`: parameter 0 expects `u16`, got `u32`
 	machine argument `wrong_width` for `apply` does not refine `F`: expected return `u16`, got `u32`
-fail/build/static_service_exclusion_invoked rejected 22326ms expected @a9ae30e1c334+wt
+fail/build/static_service_exclusion_invoked rejected 9293ms expected @eca66ed24a79+wt
 	1 authored behavior exclusion(s) could not be satisfied
-	behavior exclusion violated: service `Sink` is reachable in machine `Main::main` (Terminal machine 1) at call to boundary `named-callable(path(main::Sink::emit),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(slice\\(named\\(name\\(u8\\)\\)\\)\\)\\)),result-dispatch())` (block 1, operation 2)
+	behavior exclusion violated: service `Sink` is reachable in machine `Main::main` (Terminal machine 1) at call to boundary `named-callable(path(main::Sink::emit),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(slice\\(named\\(name\\(u8\\)\\)\\)\\)\\)),result-dispatch())` (block 1, operation 3)
 	the selected composition retains service `Sink` through machine `Main::main` (Terminal machine 1) declared here
 fail/build/static_service_exclusion_missing_activation rejected 1035ms expected @a9ae30e1c334+wt
 	machine `build` state `entry`: value call `Build.exclude_service(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
 	machine `build` state `entry` has a terminal expression but no return type
+fail/build/static_service_exclusion_relayed rejected 8226ms expected @eca66ed24a79+wt
+	1 authored behavior exclusion(s) could not be satisfied
+	behavior exclusion violated: service `Sink` is reachable in Terminal machine 4, reached through machine `Main::main` (Terminal machine 1) at call to boundary `named-callable(path(left::Sink::emit),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(slice\\(named\\(name\\(u8\\)\\)\\)\\)\\)),result-dispatch())` (block 4, operation 4)
+	the selected composition retains service `Sink` through Terminal machine 4, reached through machine `Main::main` (Terminal machine 1) declared here
 fail/build/structural_equation_conflicting_argument rejected 37ms expected @a9ae30e1c334+wt
 	generic machine `capacity` where equation binds `Capacity` to 8 but its explicit argument is 7
 fail/build/uefi_entry_schema_accepted_wrong_convention rejected 5004ms expected @c46a502724a1+wt
@@ -4786,6 +4790,7 @@ pass/build/runtime_static_service_exclusion_exit checked 10448ms check-target:ma
 pass/build/same_leaf_runner_entry_left_exit checked 11139ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/same_leaf_runner_entry_right_exit checked 11237ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/selected_const_array_length_exit checked 19740ms check-target:macos_arm64 @9c4d1c444502
+pass/build/sibling_module_service_exclusion_exit checked 8068ms check-target:macos_arm64 @eca66ed24a79+wt
 pass/build/sibling_module_slot_family_rows_exit checked 7239ms check-target:macos_arm64 @cbb413ac54c3
 pass/build/static_assumed_binding_spelling_exit checked 10190ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/uefi_entry_schema_same_leaf checked 7689ms check-target:uefi_x86_64 @c46a502724a1+wt
