@@ -1,0 +1,129 @@
+use psi::resolution::resolution;
+use psi::resolve::names;
+use psi::resolve::resolver;
+use psi::source::source;
+use psi::syntax::syntax;
+
+// Declared measures (wiki/spec/language/termination.md#ranking): a computed
+// measure `measure Owner::Name(subject: T) -> R { body }` has one parameter,
+// a result type and a one-expression body; a lexicographic measure `measure
+// Owner::Name lexicographic { fields }` names a data declaration `Owner` and
+// fields of it, each recorded by member handle for the checker's ranking.
+pub machine Resolver::check_measures(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
+crashes Trap
+{
+    transition { _ -> next(resolver, sources, syntax, 0) }
+
+    state next(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+        transition index < syntax.machine_count && resolver.output.accepted {
+            true -> item(resolver, sources, syntax, index)
+            _ -> done()
+        }
+    }
+
+    state item(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+        let declared: MachineItem = SyntaxTrees::machine_item(syntax, index);
+        transition declared.container == MachineContainer::Measure {
+            true -> measure(resolver, sources, syntax, index, declared)
+            _ -> next(resolver, sources, syntax, index + 1)
+        }
+    }
+
+    state measure(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, declared: MachineItem) {
+        transition declared.component_count > 0 {
+            true -> owner(resolver, sources, syntax, index, declared)
+            _ -> computed(resolver, sources, syntax, index, declared)
+        }
+    }
+
+    state computed(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, declared: MachineItem) {
+        let formed: bool = declared.parameter_count == 1 && declared.has_return_type && declared.has_body
+            && declared.statement_count == 1;
+        transition formed {
+            true -> next(resolver, sources, syntax, index + 1)
+            _ -> reject(resolver, ResolveDiagnosticCode::MeasureForm, declared.source_span)
+        }
+    }
+
+    state owner(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, declared: MachineItem) {
+        let binding: ValueBinding = Resolver::data_name(sources, syntax, declared.owner.source_span);
+        transition binding {
+            ValueBinding::Data { item } -> component(resolver, sources, syntax, index, declared, item, 0)
+            _ -> reject(resolver, ResolveDiagnosticCode::MeasureForm, declared.owner.source_span)
+        }
+    }
+
+    state component(
+        resolver: &mut Resolver,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        index: u64 in Trapping,
+        declared: MachineItem,
+        item: u64 in Trapping,
+        offset: u64 in Trapping
+    ) {
+        transition offset < declared.component_count && resolver.output.accepted {
+            true -> candidate(resolver, sources, syntax, index, declared, item, offset, 0)
+            _ -> next(resolver, sources, syntax, index + 1)
+        }
+    }
+
+    state candidate(
+        resolver: &mut Resolver,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        index: u64 in Trapping,
+        declared: MachineItem,
+        item: u64 in Trapping,
+        offset: u64 in Trapping,
+        field_offset: u64 in Trapping
+    ) {
+        let data: DataItem = SyntaxTrees::data_item(syntax, item);
+        let name: IdentifierSpan = SyntaxTrees::member(syntax, declared.first_component + offset);
+        transition field_offset < data.field_count {
+            true -> compare(resolver, sources, syntax, index, declared, item, offset, field_offset, data, name)
+            _ -> reject(resolver, ResolveDiagnosticCode::UnknownMeasureComponent, name.source_span)
+        }
+    }
+
+    state compare(
+        resolver: &mut Resolver,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        index: u64 in Trapping,
+        declared: MachineItem,
+        item: u64 in Trapping,
+        offset: u64 in Trapping,
+        field_offset: u64 in Trapping,
+        data: DataItem,
+        name: IdentifierSpan
+    ) {
+        let handle: u64 in Trapping = data.first_field + field_offset;
+        let candidate_field: DataField = SyntaxTrees::field(syntax, handle);
+        let same: bool = SourceSet::spans_equal(sources, candidate_field.name.source_span, name.source_span);
+        transition same {
+            true -> bound(resolver, sources, syntax, index, declared, item, offset, handle)
+            _ -> candidate(resolver, sources, syntax, index, declared, item, offset, field_offset + 1)
+        }
+    }
+
+    state bound(
+        resolver: &mut Resolver,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        index: u64 in Trapping,
+        declared: MachineItem,
+        item: u64 in Trapping,
+        offset: u64 in Trapping,
+        handle: u64 in Trapping
+    ) {
+        NameResolution::set_component_field(&mut resolver.output, declared.first_component + offset, handle + 1);
+        transition { _ -> component(resolver, sources, syntax, index, declared, item, offset + 1) }
+    }
+
+    state reject(resolver: &mut Resolver, code: ResolveDiagnosticCode, source_span: SourceSpan) {
+        NameResolution::reject(&mut resolver.output, code, source_span);
+    }
+
+    state done() {}
+}

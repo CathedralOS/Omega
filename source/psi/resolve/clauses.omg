@@ -261,8 +261,32 @@ crashes Trap
         let written: Expression = SyntaxTrees::expression(syntax, clause.expression);
         transition spelling.known {
             true -> known(resolver, sources, syntax, scope, handle, spelling.view, written)
+            _ -> declared(resolver, sources, syntax, handle, written)
+        }
+    }
+
+    // Outside the vocabulary, a two-member path names a declared measure
+    // (wiki/spec/language/termination.md#ranking).
+    state declared(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, handle: u64 in Trapping, written: Expression) {
+        transition written.kind == ExpressionKind::Path && written.count == 2 {
+            true -> measure(resolver, sources, syntax, handle, written)
             _ -> unsupported(resolver, written.source_span)
         }
+    }
+
+    state measure(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, handle: u64 in Trapping, written: Expression) {
+        let owner: IdentifierSpan = SyntaxTrees::member(syntax, written.first);
+        let name: IdentifierSpan = SyntaxTrees::member(syntax, written.first + 1);
+        let found: u64 in Trapping = Resolver::measure_named(sources, syntax, owner.source_span, name.source_span);
+        transition found > 0 {
+            true -> measured(resolver, handle, found - 1)
+            _ -> unsupported(resolver, written.source_span)
+        }
+    }
+
+    state measured(resolver: &mut Resolver, handle: u64 in Trapping, measure: u64 in Trapping) {
+        NameResolution::set_ranking_view(&mut resolver.output, handle, RankingView::Measure);
+        NameResolution::set_ranking_measure(&mut resolver.output, handle, measure);
     }
 
     state known(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, handle: u64 in Trapping, view: RankingView, written: Expression) {

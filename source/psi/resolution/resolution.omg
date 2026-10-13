@@ -243,6 +243,12 @@ pub data ResolveDiagnosticCode [copy] {
     // (wiki/spec/language/lifetimes.md).
     case UndeclaredLifetime;
     case LifetimeArgumentCount;
+    // A computed measure without exactly one parameter, a result type and
+    // a one-expression body, or a lexicographic measure whose owner is no
+    // data declaration (wiki/spec/language/termination.md#ranking).
+    case MeasureForm;
+    // A lexicographic component naming no field of the measure's owner.
+    case UnknownMeasureComponent;
 }
 
 pub data ResolveDiagnostic [copy] {
@@ -282,6 +288,12 @@ where
     binder_contracts: [BinderContract; 256];
     // Each `terminates by` clause's ranking view, by clause handle.
     ranking_views: [RankingView; 2048];
+    // For a clause whose view is a declared measure, that measure's machine
+    // handle.
+    ranking_measures: [u64; 2048];
+    // For each component of a lexicographic measure, by member handle, the
+    // field handle of its owner it names, plus one; zero for none.
+    component_fields: [u64; 32000];
     // For each state parameter of a ranked machine, by parameter handle, the
     // offset among its machine's entry parameters of the one of the same
     // spelling, plus one; zero for none.
@@ -566,6 +578,9 @@ pub data RankingView [copy] {
     case BoundedDistance;
     case SliceLength;
     case IncreasingTo;
+    // A declared measure, the machine `ranking_measures` records for the
+    // clause (wiki/spec/language/termination.md#ranking).
+    case Measure;
 }
 
 pub machine NameResolution::ranking_view(resolution: &NameResolution, clause: u64 in Trapping) -> RankingView {
@@ -606,6 +621,78 @@ crashes Trap
 
 // The offset of the entry parameter state parameter `parameter` carries,
 // plus one; zero for none or a parameter beyond the table.
+pub machine NameResolution::ranking_measure(resolution: &NameResolution, clause: u64 in Trapping) -> u64 in Trapping {
+    transition clause < 2048 {
+        true -> read(resolution, clause)
+        _ -> none()
+    }
+
+    state read(resolution: &NameResolution, clause: u64 in Trapping) -> u64 in Trapping
+    requires clause < 2048
+    {
+        resolution.ranking_measures[clause] as u64 in Trapping
+    }
+
+    state none() -> u64 in Trapping {
+        0
+    }
+}
+
+pub machine NameResolution::set_ranking_measure(resolution: &mut NameResolution, clause: u64 in Trapping, measure: u64 in Trapping)
+crashes Trap
+{
+    transition clause < 2048 {
+        true -> write(resolution, clause, measure)
+        _ -> invalid()
+    }
+
+    state write(resolution: &mut NameResolution, clause: u64 in Trapping, measure: u64 in Trapping)
+    requires clause < 2048
+    {
+        resolution.ranking_measures[clause] = measure as u64;
+    }
+
+    state invalid() {
+        crash Trap;
+    }
+}
+
+pub machine NameResolution::component_field(resolution: &NameResolution, member: u64 in Trapping) -> u64 in Trapping {
+    transition member < 32000 {
+        true -> read(resolution, member)
+        _ -> none()
+    }
+
+    state read(resolution: &NameResolution, member: u64 in Trapping) -> u64 in Trapping
+    requires member < 32000
+    {
+        resolution.component_fields[member] as u64 in Trapping
+    }
+
+    state none() -> u64 in Trapping {
+        0
+    }
+}
+
+pub machine NameResolution::set_component_field(resolution: &mut NameResolution, member: u64 in Trapping, bound: u64 in Trapping)
+crashes Trap
+{
+    transition member < 32000 {
+        true -> write(resolution, member, bound)
+        _ -> invalid()
+    }
+
+    state write(resolution: &mut NameResolution, member: u64 in Trapping, bound: u64 in Trapping)
+    requires member < 32000
+    {
+        resolution.component_fields[member] = bound as u64;
+    }
+
+    state invalid() {
+        crash Trap;
+    }
+}
+
 pub machine NameResolution::rank_carrier(resolution: &NameResolution, parameter: u64 in Trapping) -> u64 in Trapping {
     transition parameter < 32768 {
         true -> read(resolution, parameter)

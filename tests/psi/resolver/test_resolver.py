@@ -45,6 +45,8 @@ DUPLICATE_CONTRACT = 32
 UNSUPPORTED_RANKING_VIEW = 33
 UNDECLARED_LIFETIME = 34
 LIFETIME_ARGUMENT_COUNT = 35
+MEASURE_FORM = 36
+UNKNOWN_MEASURE_COMPONENT = 37
 
 # Value bindings: (tag, handle, case handle).
 NOT_A_NAME = (0, 0, 0)
@@ -1370,6 +1372,47 @@ def main() -> None:
         b"machine f(n: u64) terminates by n -> Nat::Sideways; {}",
         UNSUPPORTED_RANKING_VIEW,
         b"Nat::Sideways",
+    )
+    # A declared measure (wiki/spec/language/termination.md#ranking) is the
+    # view its path names: a computed one takes one subject parameter and a
+    # body, a lexicographic one names fields of its owner. A measure is never
+    # a callee.
+    measures = (
+        b"data Card { power: u64; }\ndata Progress { outer: u64; inner: u64; }\n"
+        b"measure Card::PowerOrder(card: Card) -> u64 { card.power }\n"
+        b"measure Progress::Steps lexicographic { outer, inner }\n"
+        b"machine f(card: Card, progress: Progress)\n"
+        b"terminates by card -> Card::PowerOrder;\n"
+        b"terminates by progress -> Progress::Steps;\n{}"
+    )
+    accepted(
+        program,
+        "measure-views-bind-their-declarations",
+        measures,
+        (builtin("u64"), builtin("u64"), builtin("u64"), data(0), builtin("u64"), data(0), data(1)),
+    )
+    rejected(
+        program,
+        "a-measure-is-not-a-callee",
+        b"data Card { power: u64; }\nmeasure Card::PowerOrder(card: Card) -> u64 { card.power }\n"
+        b"machine f(card: Card) -> u64 { Card::PowerOrder(card) }",
+        UNKNOWN_NAME,
+        b"Card::PowerOrder",
+        occurrence=2,
+    )
+    rejected(
+        program,
+        "a-computed-measure-takes-one-subject",
+        b"measure Card::PowerOrder(card: u64, other: u64) -> u64 { card }",
+        MEASURE_FORM,
+        b"measure Card::PowerOrder(card: u64, other: u64) -> u64 { card }",
+    )
+    rejected(
+        program,
+        "a-lexicographic-measure-names-its-owner-fields",
+        b"data Progress { outer: u64; }\nmeasure Progress::Steps lexicographic { outer, depth }",
+        UNKNOWN_MEASURE_COMPONENT,
+        b"depth",
     )
 
     # A membership in `Type::Case` binds the case whose implied domain it

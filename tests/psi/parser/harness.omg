@@ -172,6 +172,8 @@ machine ParserHarness::write_parse_observation(
             ParseDiagnosticCode::GenericParameterCapacityExceeded -> parse_diagnostic(parser_harness, output, 37)
             ParseDiagnosticCode::GenericLifetimeOrdering -> parse_diagnostic(parser_harness, output, 38)
             ParseDiagnosticCode::ExpectedLifetimeName -> parse_diagnostic(parser_harness, output, 194)
+            ParseDiagnosticCode::ExpectedMeasureComponent -> parse_diagnostic(parser_harness, output, 195)
+            ParseDiagnosticCode::MeasureNotPublic -> parse_diagnostic(parser_harness, output, 196)
             ParseDiagnosticCode::ExpectedMachineName -> parse_diagnostic(parser_harness, output, 40)
             ParseDiagnosticCode::ExpectedMachineParameterOrEnd -> parse_diagnostic(parser_harness, output, 41)
             ParseDiagnosticCode::ExpectedMachineParameter -> parse_diagnostic(parser_harness, output, 42)
@@ -1042,6 +1044,7 @@ crashes Trap
             MachineContainer::Trait -> machine_container(parser_harness, output, index, item, 1)
             MachineContainer::Conformance -> machine_container(parser_harness, output, index, item, 2)
             MachineContainer::Refinement -> machine_container(parser_harness, output, index, item, 3)
+            MachineContainer::Measure -> machine_container(parser_harness, output, index, item, 4)
         }
     }
 
@@ -1071,6 +1074,8 @@ crashes Trap
         ParserHarness::write_u64(parser_harness, item.first_contract);
         ParserHarness::write_u64(parser_harness, item.contract_count);
         ParserHarness::write_flag(parser_harness, item.every_requirement);
+        ParserHarness::write_u64(parser_harness, item.first_component);
+        ParserHarness::write_u64(parser_harness, item.component_count);
         transition { _ -> machine_row(parser_harness, output, index + 1) }
     }
 

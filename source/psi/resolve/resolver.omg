@@ -7,6 +7,7 @@ use psi::resolve::forms;
 use psi::resolve::identities;
 use psi::resolve::facts;
 use psi::resolve::imports;
+use psi::resolve::measures;
 use psi::resolve::names;
 use psi::resolve::operators;
 use psi::source::source;
@@ -84,6 +85,14 @@ crashes Trap
 
     state members(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
         Resolver::check_members(resolver, sources, syntax);
+        transition resolver.output.accepted {
+            true -> measures(resolver, sources, syntax)
+            _ -> done()
+        }
+    }
+
+    state measures(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+        Resolver::check_measures(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> declaration_generics(resolver, sources, syntax)
             _ -> done()

@@ -1391,6 +1391,40 @@ def main() -> None:
         b"}"
     )
     accepted(program, "self-call-climbs-its-bounded-distance", walk.replace(b"NEXT", b"walk(items, i + 1)"))
+    # A declared measure ranks its subject by its body, or lexicographically
+    # by the subject's named fields (wiki/spec/language/termination.md#ranking).
+    measured = (
+        b"data Card { power: u64; }\n"
+        b"measure Card::PowerOrder(card: Card) -> u64 { card.power }\n"
+        b"machine weaken(card: Card) -> u64\nterminates by card -> Card::PowerOrder;\n{\n"
+        b"    transition card.power > 0 {\n        true -> NEXT\n        _ -> card.power\n    }\n}"
+    )
+    accepted(program, "self-call-descends-a-declared-measure", measured.replace(b"NEXT", b"weaken(Card { power: card.power - 1 })"))
+    rejected(
+        program,
+        "a-declared-measure-must-descend",
+        measured.replace(b"NEXT", b"weaken(card)"),
+        "RankUnproven",
+        b"weaken(card)",
+    )
+    ordered = (
+        b"data Progress { outer: u64; inner: u64; }\n"
+        b"measure Progress::Steps lexicographic { outer, inner }\n"
+        b"machine scan(progress: Progress) -> u64\nterminates by progress -> Progress::Steps;\n{\n"
+        b"    transition progress.inner > 0 {\n        true -> NEXT\n        _ -> progress.outer\n    }\n}"
+    )
+    accepted(
+        program,
+        "self-call-descends-a-lexicographic-measure",
+        ordered.replace(b"NEXT", b"scan(Progress { outer: progress.outer, inner: progress.inner - 1 })"),
+    )
+    rejected(
+        program,
+        "a-lexicographic-measure-must-descend",
+        ordered.replace(b"NEXT", b"scan(progress)"),
+        "RankUnproven",
+        b"scan(progress)",
+    )
     rejected(
         program,
         "self-call-must-climb",

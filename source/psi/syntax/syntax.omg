@@ -412,6 +412,13 @@ pub data MachineContainer [copy] {
     case Trait;
     case Conformance;
     case Refinement;
+    // `measure Owner::Name(subject: T) -> R { body }` or `measure
+    // Owner::Name lexicographic { fields }`: a package-private ranking view
+    // declared like a root machine but never called
+    // (wiki/spec/language/termination.md#ranking). A lexicographic measure
+    // has no parameters or body; its `component_count` field names of its
+    // owner follow `first_component` in `SyntaxTrees::members`.
+    case Measure;
 }
 
 // The fixed operator token an ordinary machine declaration may bind
@@ -478,6 +485,8 @@ pub data MachineItem [copy] {
     first_contract: u64 in Trapping;
     contract_count: u64 in Trapping;
     every_requirement: bool;
+    first_component: u64 in Trapping;
+    component_count: u64 in Trapping;
     source_span: SourceSpan;
 }
 
@@ -709,6 +718,10 @@ pub data ParseDiagnosticCode [copy] {
     case GenericParameterCapacityExceeded;
     case GenericLifetimeOrdering;
     case ExpectedLifetimeName;
+    // `lexicographic { fields }` without a field name, or unclosed.
+    case ExpectedMeasureComponent;
+    // `pub measure`: declared measures are package-private.
+    case MeasureNotPublic;
     case ExpectedMachineName;
     case ExpectedMachineParameterOrEnd;
     case ExpectedMachineParameter;

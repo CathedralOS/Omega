@@ -158,12 +158,12 @@ pub data DependencyRow [copy] {
 pub data SourceSet
 where
     unit_count <= 128,
-    byte_count <= 2097152,
+    byte_count <= 4194304,
     path_byte_count <= 16384,
     package_count <= 64,
     dependency_count <= 256,
 {
-    bytes: [u8; 2097152] in Trapping;
+    bytes: [u8; 4194304] in Trapping;
     byte_count: u64;
     path_bytes: [u8; 16384] in Trapping;
     path_byte_count: u64;
@@ -198,7 +198,7 @@ crashes Trap
 {
     transition sources.unit_count < 128
         && package < sources.package_count
-        && unit.length <= 2097152 - sources.byte_count
+        && unit.length <= 4194304 - sources.byte_count
         && module_path.length <= 16384 - sources.path_byte_count {
         true -> path(sources, unit, package, module_path)
         _ -> full()
@@ -219,7 +219,7 @@ crashes Trap
     state unit_byte(sources: &mut SourceSet, unit: &SourceUnit, package: u64 in Trapping, path: SourceRange, index: u64 in Trapping) -> bool {
         let at: u64 in Trapping = (sources.byte_count as u64 in Trapping) + index;
         let byte: u8 = SourceUnit::byte_or_nul(unit, index);
-        transition at < 2097152 {
+        transition at < 4194304 {
             true -> store_unit_byte(sources, unit, package, path, index, at, byte)
             _ -> invalid()
         }
@@ -244,7 +244,7 @@ crashes Trap
         let unit_start: u64 in Trapping = sources.byte_count as u64 in Trapping;
         let unit_length: u64 in Trapping = unit.length as u64 in Trapping;
         let unit_end: u64 in Trapping = unit_start + unit_length;
-        transition unit_count < 128 && unit_end <= 2097152 {
+        transition unit_count < 128 && unit_end <= 4194304 {
             true -> store_ranges(sources, unit_count, unit_start, unit_length, unit_end, package, path)
             _ -> invalid()
         }
@@ -259,7 +259,7 @@ crashes Trap
         package: u64 in Trapping,
         path: SourceRange
     ) -> bool
-    requires unit_count < 128, unit_end <= 2097152
+    requires unit_count < 128, unit_end <= 4194304
     {
         sources.units[unit_count] = SourceRange { start: unit_start, length: unit_length };
         sources.paths[unit_count] = path;
@@ -442,7 +442,7 @@ crashes Trap
     }
 
     state located(sources: &SourceSet, at: u64 in Trapping) {
-        transition at < 2097152 {
+        transition at < 4194304 {
             true -> read(sources, at)
             _ -> absent()
         }

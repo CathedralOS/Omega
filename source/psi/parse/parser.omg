@@ -123,6 +123,8 @@ where
     machine_token_start: u64 in Trapping;
     machine_token_end: u64 in Trapping;
     machine_first_contract: u64 in Trapping;
+    machine_first_component: u64 in Trapping;
+    machine_component_count: u64 in Trapping;
     // A `where machine` or `where proposition` contract under way.
     contract_start: u64 in Trapping;
     contract_name_start: u64 in Trapping;
@@ -380,7 +382,26 @@ crashes Trap
         let proposition: bool = Parser::at_word(parser, input, "proposition");
         transition proposition {
             true -> dispatch_proposition(parser, input, is_public)
+            _ -> measure_word(parser, input, is_public)
+        }
+    }
+
+    // `measure Owner::Name ...` declares a ranking view, parsed as a root
+    // machine in the `Measure` container; `pub measure` rejects, as declared
+    // measures are package-private (wiki/spec/language/termination.md).
+    state measure_word(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+        let ranking: bool = Parser::at_word(parser, input, "measure");
+        transition ranking {
+            true -> dispatch_measure(parser, input, is_public)
             _ -> operator_word(parser, input, is_public)
+        }
+    }
+
+    state dispatch_measure(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+        let head: MachineHead = Parser::measure_head(parser.item_start);
+        transition is_public {
+            true -> reject_here(parser, input, ParseDiagnosticCode::MeasureNotPublic)
+            _ -> dispatch_machine(parser, input, head)
         }
     }
 
@@ -798,6 +819,18 @@ machine Parser::root_machine_head(start: u64 in Trapping, is_public: bool) -> Ma
         target_end: 0,
         is_boundary: false,
         container: MachineContainer::Root
+    }
+}
+
+machine Parser::measure_head(start: u64 in Trapping) -> MachineHead {
+    MachineHead {
+        start: start,
+        is_public: false,
+        has_target: false,
+        target_start: 0,
+        target_end: 0,
+        is_boundary: false,
+        container: MachineContainer::Measure
     }
 }
 

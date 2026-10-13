@@ -5,6 +5,7 @@ use psi::checking::fact_values;
 use psi::checking::flow;
 use psi::checking::obligations;
 use psi::checking::places;
+use psi::checking::references;
 use psi::checks::checks;
 use psi::integers::integers;
 use psi::resolution::resolution;
@@ -975,7 +976,31 @@ crashes Trap
     transition view {
         RankingView::BoundedDistance -> paired(checker, syntax, resolution, typing, item, written, first)
         RankingView::IncreasingTo -> limited(checker, syntax, resolution, typing, item, written, first)
+        RankingView::Measure -> measured(checker, syntax, resolution, typing, termination, first)
         _ -> single(first)
+    }
+
+    // A declared measure ranks the subject by its body with the subject
+    // standing for the measure's parameter, or lexicographically by the
+    // subject's named fields (wiki/spec/language/termination.md#ranking).
+    state measured(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, termination: TerminationClause, first: Value) -> Rank {
+        let measure: MachineItem = SyntaxTrees::machine_item(syntax, NameResolution::ranking_measure(resolution, termination.handle));
+        transition measure.component_count > 0 {
+            true -> ordered(checker, syntax, resolution, typing, measure, first)
+            _ -> computed(checker, syntax, resolution, typing, measure, first)
+        }
+    }
+
+    state computed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, measure: MachineItem, first: Value) -> Rank {
+        let value: Value = Checker::measured_value(checker, syntax, resolution, typing, measure, first);
+        let second: Value = Value::unknown();
+        Rank { first: value, second: second }
+    }
+
+    state ordered(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, measure: MachineItem, first: Value) -> Rank {
+        let leading: Value = Checker::component_value(checker, syntax, resolution, typing, measure, first, 0);
+        let trailing: Value = Checker::component_value(checker, syntax, resolution, typing, measure, first, 1);
+        Rank { first: leading, second: trailing }
     }
 
     state paired(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, written: Clause, first: Value) -> Rank {
@@ -1049,10 +1074,104 @@ crashes Trap
     }
 }
 
+// The value of a declared measure's body with `subject` standing for its
+// one parameter, evaluated in its own frame as a witness is; unknown when
+// the body is not one expression or too deep to evaluate.
+machine Checker::measured_value(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, measure: MachineItem, subject: Value) -> Value
+crashes Trap
+{
+    let body: Statement = SyntaxTrees::statement(syntax, measure.first_statement);
+    let tree: Expression = SyntaxTrees::expression(syntax, body.value);
+    let low: u64 in Trapping = tree.first_row;
+    let size: u64 in Trapping = body.value - low + 1;
+    let base: u64 in Trapping = Checker::next_base(checker);
+    let shaped: bool = measure.statement_count == 1 && body.has_value;
+    transition shaped && base + size <= 4096 && checker.frame_count < 8 {
+        true -> framed(checker, syntax, resolution, typing, measure, subject, body.value, low, size, base)
+        _ -> unknown()
+    }
+
+    state framed(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        typing: &Typing,
+        measure: MachineItem,
+        subject: Value,
+        root: u64 in Trapping,
+        low: u64 in Trapping,
+        size: u64 in Trapping,
+        base: u64 in Trapping
+    ) -> Value {
+        let substituting: bool = checker.substituting;
+        let first: u64 in Trapping = checker.argument_first;
+        let count: u64 in Trapping = checker.argument_count;
+        let saved: Value = checker.arguments[0];
+        Checker::push_frame(checker);
+        checker.tree_base = base;
+        checker.tree_low = low;
+        checker.tree_size = size;
+        checker.context_first = checker.context_count;
+        checker.substituting = true;
+        checker.argument_first = measure.first_parameter;
+        checker.argument_count = 1;
+        Checker::set_argument(checker, 0, subject);
+        Checker::evaluate_fact_run(checker, syntax, resolution, typing, root, low);
+        let value: Value = Checker::value_at(checker, root);
+        Checker::set_argument(checker, 0, saved);
+        checker.substituting = substituting;
+        checker.argument_first = first;
+        checker.argument_count = count;
+        Checker::pop_frame(checker);
+        value
+    }
+
+    state unknown() -> Value {
+        let value: Value = Value::unknown();
+        value
+    }
+}
+
+// A lexicographic measure's `offset`-th component of `subject`: the value
+// at the subject's field the component names (resolution's
+// `component_fields`); unknown for a subject without a place.
+machine Checker::component_value(
+    checker: &mut Checker,
+    syntax: &SyntaxTrees,
+    resolution: &NameResolution,
+    typing: &Typing,
+    measure: MachineItem,
+    subject: Value,
+    offset: u64 in Trapping
+) -> Value
+crashes Trap
+{
+    let bound: u64 in Trapping = NameResolution::component_field(resolution, measure.first_component + offset);
+    transition offset < measure.component_count && bound > 0 && subject.place > 0 {
+        true -> projected(checker, syntax, typing, subject, bound - 1)
+        _ -> unknown()
+    }
+
+    state projected(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, subject: Value, field: u64 in Trapping) -> Value {
+        let declared: DataField = SyntaxTrees::field(syntax, field);
+        let type_handle: u64 in Trapping = Typing::reference_type(typing, declared.type_reference);
+        let place: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Field, field, subject.place, type_handle);
+        let value: Value = Checker::reference_value(checker, typing, place);
+        value
+    }
+
+    state unknown() -> Value {
+        let value: Value = Value::unknown();
+        value
+    }
+}
+
 // Whether `after` ranks strictly below `before`. Naturals descend; a
 // bounded distance from `first` up to `second` shrinks when the bound does
 // not grow and the lower subject climbs, or the bound falls and the lower
-// subject does not, from a positive distance.
+// subject does not, from a positive distance; a declared measure's rank
+// falls in its leading component, or holds there while its trailing one
+// falls (a computed measure has one).
 machine Checker::rank_descends(checker: &Checker, before: Rank, after: Rank, view: RankingView) -> bool
 crashes Trap
 {
@@ -1060,7 +1179,15 @@ crashes Trap
         RankingView::Descending -> descending(checker, before, after)
         RankingView::BoundedDistance -> distance(checker, before, after)
         RankingView::IncreasingTo -> distance(checker, before, after)
+        RankingView::Measure -> ordered(checker, before, after)
         _ -> no()
+    }
+
+    state ordered(checker: &Checker, before: Rank, after: Rank) -> bool {
+        let leading_fell: bool = Checker::proves_less(checker, after.first, before.first);
+        let leading_kept: bool = Checker::proves_at_most(checker, after.first, before.first);
+        let trailing_fell: bool = Checker::proves_less(checker, after.second, before.second);
+        leading_fell || (leading_kept && trailing_fell)
     }
 
     state descending(checker: &Checker, before: Rank, after: Rank) -> bool {

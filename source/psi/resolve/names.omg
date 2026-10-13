@@ -1023,7 +1023,7 @@ crashes Trap
 
     state container(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan) -> ValueBinding {
         let owner: MachineOwner = NameResolution::machine_owner(resolution, scope.machine);
-        transition owner.container == MachineContainer::Root {
+        transition owner.container == MachineContainer::Root || owner.container == MachineContainer::Measure {
             true -> free_machine(resolution, sources, syntax, name)
             _ -> fellow(resolution, sources, syntax, owner, name)
         }

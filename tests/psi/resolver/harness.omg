@@ -489,6 +489,8 @@ crashes Trap
             ResolveDiagnosticCode::UnsupportedRankingView -> diagnostic_tag(resolver_harness, output, 33)
             ResolveDiagnosticCode::UndeclaredLifetime -> diagnostic_tag(resolver_harness, output, 34)
             ResolveDiagnosticCode::LifetimeArgumentCount -> diagnostic_tag(resolver_harness, output, 35)
+            ResolveDiagnosticCode::MeasureForm -> diagnostic_tag(resolver_harness, output, 36)
+            ResolveDiagnosticCode::UnknownMeasureComponent -> diagnostic_tag(resolver_harness, output, 37)
         }
     }
 

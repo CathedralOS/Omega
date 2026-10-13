@@ -32,7 +32,7 @@ crashes Trap
     state root_owner(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping) {
         let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
         Resolver::set_machine_owner(resolver, index, MachineOwner {
-            container: MachineContainer::Root,
+            container: item.container,
             item: 0,
             has_owner: item.has_owner,
             owner: item.owner
@@ -155,6 +155,7 @@ crashes Trap
 {
     transition owner.container {
         MachineContainer::Root -> none()
+        MachineContainer::Measure -> none()
         MachineContainer::Trait -> trait_scope(syntax, owner.item)
         MachineContainer::Conformance -> conformance_scope(syntax, owner.item)
         MachineContainer::Refinement -> trait_scope(syntax, owner.item)

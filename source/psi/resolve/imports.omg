@@ -824,7 +824,43 @@ crashes Trap
     let path: MachineOwner = NameResolution::machine_owner(resolution, handle);
     let named: bool = SourceSet::spans_equal(sources, item.name.source_span, name);
     let owner_named: bool = SourceSet::spans_equal(sources, path.owner.source_span, owner);
-    named && path.has_owner == owned && (!owned || owner_named)
+    let callable: bool = item.container != MachineContainer::Measure;
+    callable && named && path.has_owner == owned && (!owned || owner_named)
+}
+
+// The declared measure `Owner::name` (wiki/spec/language/termination.md),
+// as its machine handle plus one; zero for none. A measure is a view, not a
+// callee, so `machine_spells` never matches one.
+pub machine Resolver::measure_named(sources: &SourceSet, syntax: &SyntaxTrees, owner: SourceSpan, name: SourceSpan) -> u64 in Trapping
+crashes Trap
+{
+    transition { _ -> next(sources, syntax, owner, name, 0) }
+
+    state next(sources: &SourceSet, syntax: &SyntaxTrees, owner: SourceSpan, name: SourceSpan, index: u64 in Trapping) -> u64 in Trapping {
+        transition index < syntax.machine_count {
+            true -> candidate(sources, syntax, owner, name, index)
+            _ -> absent()
+        }
+    }
+
+    state candidate(sources: &SourceSet, syntax: &SyntaxTrees, owner: SourceSpan, name: SourceSpan, index: u64 in Trapping) -> u64 in Trapping {
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
+        let named: bool = item.container == MachineContainer::Measure && item.has_owner
+            && SourceSet::spans_equal(sources, item.name.source_span, name)
+            && SourceSet::spans_equal(sources, item.owner.source_span, owner);
+        transition named {
+            true -> found(index)
+            _ -> next(sources, syntax, owner, name, index + 1)
+        }
+    }
+
+    state found(index: u64 in Trapping) -> u64 in Trapping {
+        index + 1
+    }
+
+    state absent() -> u64 in Trapping {
+        0
+    }
 }
 
 // Visibility, tested only for a declaration whose spelling matched.
@@ -887,6 +923,7 @@ crashes Trap
     let owner: MachineOwner = NameResolution::machine_owner(resolution, handle);
     transition owner.container {
         MachineContainer::Root -> answer(item.is_public)
+        MachineContainer::Measure -> answer(false)
         MachineContainer::Trait -> trait_container(syntax, owner.item)
         MachineContainer::Refinement -> trait_container(syntax, owner.item)
         MachineContainer::Conformance -> conformance_container(syntax, owner.item)

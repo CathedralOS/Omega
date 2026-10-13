@@ -2,6 +2,7 @@ use psi::resolution::resolution;
 use psi::source::source;
 use psi::syntax::syntax;
 use psi::types::types;
+use psi::typing::admission;
 use psi::typing::expressions;
 use psi::typing::generics;
 use psi::typing::typer;
@@ -380,8 +381,57 @@ crashes Trap
         let view: RankingView = NameResolution::ranking_view(resolution, handle);
         transition view {
             RankingView::IncreasingTo -> limit(typer, sources, syntax, resolution, clause)
+            RankingView::Measure -> measured(typer, sources, syntax, resolution, handle, clause)
             _ -> done()
         }
+    }
+
+    // A declared measure ranks one subject: of its parameter's type, or of
+    // the data a lexicographic measure's owner names
+    // (wiki/spec/language/termination.md#ranking).
+    state measured(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, handle: u64 in Trapping, clause: Clause) {
+        let measure: MachineItem = SyntaxTrees::machine_item(syntax, NameResolution::ranking_measure(resolution, handle));
+        let root: u64 in Trapping = SyntaxTrees::argument(syntax, clause.first_argument);
+        transition clause.argument_count == 1 {
+            true -> subject_kind(typer, sources, syntax, measure, root)
+            _ -> mismatched(typer, syntax, clause.expression)
+        }
+    }
+
+    state subject_kind(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, measure: MachineItem, root: u64 in Trapping) {
+        transition measure.component_count > 0 {
+            true -> owned_subject(typer, sources, syntax, measure, root)
+            _ -> admitted_subject(typer, syntax, measure, root)
+        }
+    }
+
+    state admitted_subject(typer: &mut Typer, syntax: &SyntaxTrees, measure: MachineItem, root: u64 in Trapping) {
+        let parameter: Parameter = SyntaxTrees::parameter(syntax, measure.first_parameter);
+        let wanted: u64 in Trapping = Typing::reference_type(&typer.output, parameter.type_reference);
+        let admitted: bool = Typer::admit(typer, syntax, wanted, root, false);
+    }
+
+    state owned_subject(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, measure: MachineItem, root: u64 in Trapping) {
+        let subject: u64 in Trapping = Typing::expression_type(&typer.output, root);
+        let row: TypeRow = TypeTable::row(&typer.output.types, subject);
+        transition row.kind == TypeKind::Data {
+            true -> owned_data(typer, sources, syntax, measure, root, row.item)
+            _ -> mismatched(typer, syntax, root)
+        }
+    }
+
+    state owned_data(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, measure: MachineItem, root: u64 in Trapping, item: u64 in Trapping) {
+        let data: DataItem = SyntaxTrees::data_item(syntax, item);
+        let same: bool = SourceSet::spans_equal(sources, data.name.source_span, measure.owner.source_span);
+        transition same {
+            true -> done()
+            _ -> mismatched(typer, syntax, root)
+        }
+    }
+
+    state mismatched(typer: &mut Typer, syntax: &SyntaxTrees, handle: u64 in Trapping) {
+        let written: Expression = SyntaxTrees::expression(syntax, handle);
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::MismatchedTypes, written.source_span);
     }
 
     state limit(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, clause: Clause) {

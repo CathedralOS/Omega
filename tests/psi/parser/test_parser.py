@@ -270,6 +270,8 @@ def decode(payload: bytes) -> Observation:
             reader.u64(),
             reader.u64(),
             reader.byte(),
+            reader.u64(),
+            reader.u64(),
         )
         for _ in range(reader.u64())
     )
@@ -607,9 +609,11 @@ NO_TOKEN = (0, 1, 0, 0, 0, 0, 0)
 def machine_rows(rows: tuple[tuple, ...]) -> tuple[tuple, ...]:
     """Machine rows spelled before target-scoped, boundary and member
     machines are untargeted, not boundary, and stand at the root; rows
-    spelled before operator tokens and contracts carry neither."""
+    spelled before operator tokens and contracts carry neither, and rows
+    spelled before lexicographic measures have no components."""
     rows = tuple(row if len(row) >= 32 else row + (0, 1, 0, 0, 0, 0) for row in rows)
-    return tuple(row if len(row) == 39 else row + NO_TOKEN for row in rows)
+    rows = tuple(row if len(row) >= 39 else row + NO_TOKEN for row in rows)
+    return tuple(row if len(row) == 41 else row + (0, 0) for row in rows)
 
 
 # The clause kinds whose rows hold a fact expression: requires, ensures and
@@ -881,7 +885,9 @@ def root_declaration_cases(program: str) -> None:
         expressions: tuple[int, int] = (0, 0),
         clauses: tuple[int, int] = (0, 0),
         generics: tuple[int, int] = (0, 0),
+        components: tuple[int, int] = (0, 0),
     ) -> tuple[int, ...]:
+        tail = NO_TOKEN + components if components != (0, 0) else ()
         return (
             1 if owner else 0, *(span(source, owner) if owner else NONE),
             *span(source, name),
@@ -894,7 +900,7 @@ def root_declaration_cases(program: str) -> None:
             1 if body else 0, *expressions,
             1 if public else 0, *extent,
             1 if target else 0, *(span(source, target) if target else NONE),
-            1 if boundary else 0, container,
+            1 if boundary else 0, container, *tail,
         )
 
     # Boundary data declares an opaque representation: no members, no facts.
@@ -1080,6 +1086,28 @@ def root_declaration_cases(program: str) -> None:
     source = b"machine f(n: u64) -> u64 terminates { n }"
     actual = declaration_accepted(program, "terminates-before-body", source)
     assert len(actual.clauses) == 1, actual.clauses
+
+    # A declared measure (wiki/spec/language/termination.md#ranking) is a
+    # root machine in the `Measure` container: `measure Owner::Name(subject)
+    # -> R { body }`, or the bodyless `lexicographic { fields }` form whose
+    # fields are a member run. `pub measure` rejects.
+    source = b"measure Card::PowerOrder(card: u64) -> u64 { card }"
+    declaration_accepted(
+        program, "computed-measure", source,
+        roots=((3, 0, *whole(source)),),
+        type_references=(named(source, b"u64"), named(source, b"u64", 2)),
+        machines=(machine(source, b"PowerOrder", whole(source), parameters=(0, 1), return_type=1, owner=b"Card",
+                          statements=(0, 1), expressions=(0, 1), container=4),),
+    )
+    source = b"measure Progress::Steps lexicographic { outer, inner }"
+    declaration_accepted(
+        program, "lexicographic-measure", source,
+        roots=((3, 0, *whole(source)),),
+        members=((1, 40, 45), (1, 47, 52)),
+        machines=(machine(source, b"Steps", whole(source), owner=b"Progress", body=False, container=4, components=(0, 2)),),
+    )
+    rejected(program, "measures-are-package-private", b"pub measure Card::PowerOrder(card: u64) -> u64 { card }", 196, (4, 11))
+    rejected(program, "lexicographic-measure-names-a-field", b"measure Card::Order lexicographic { }", 195, (36, 37))
 
     # A trait member without a body is a requirement; one with a body is
     # its default.

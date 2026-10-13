@@ -62,6 +62,8 @@ crashes Trap
         parser.machine_operator = OperatorToken::None;
         parser.machine_token_start = 0;
         parser.machine_token_end = 0;
+        parser.machine_first_component = 0;
+        parser.machine_component_count = 0;
         Parser::parse_operator_token(parser, input);
         let tokened: bool = parser.machine_operator != OperatorToken::None;
         let member: bool = parser.machine_container == MachineContainer::Conformance;
@@ -126,10 +128,93 @@ crashes Trap
 
     state generic_list(parser: &mut Parser, input: &TokenStream) {
         let generic: bool = Parser::at_punctuation(parser, input, PunctuationKind::Less);
+        let ordered: bool = parser.machine_container == MachineContainer::Measure
+            && Parser::at_word(parser, input, "lexicographic");
         transition generic {
             true -> generics(parser, input)
+            _ -> lexicographic_word(parser, input, ordered)
+        }
+    }
+
+    state lexicographic_word(parser: &mut Parser, input: &TokenStream, ordered: bool) {
+        transition ordered {
+            true -> components_open(parser, input)
             _ -> signature(parser, input)
         }
+    }
+
+    // `lexicographic { field, field }`: a bodyless measure ranking by the
+    // tuple of its owner's named fields, kept as a member run.
+    state components_open(parser: &mut Parser, input: &TokenStream) {
+        Parser::take_current(parser, input);
+        parser.machine_first_component = parser.output.member_count as u64 in Trapping;
+        Parser::expect_punctuation(parser, input, PunctuationKind::LeftBrace, ParseDiagnosticCode::ExpectedMeasureComponent);
+        transition parser.output.accepted {
+            true -> component(parser, input)
+            _ -> done()
+        }
+    }
+
+    state component(parser: &mut Parser, input: &TokenStream) {
+        Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedMeasureComponent);
+        transition parser.output.accepted && parser.output.member_count < 32000 {
+            true -> component_retained(parser, input)
+            _ -> component_full(parser, input)
+        }
+    }
+
+    state component_full(parser: &mut Parser, input: &TokenStream) {
+        transition parser.output.accepted {
+            true -> rejected(parser, input, ParseDiagnosticCode::PathMemberCapacityExceeded)
+            _ -> done()
+        }
+    }
+
+    state component_retained(parser: &mut Parser, input: &TokenStream) {
+        parser.output.members[parser.output.member_count] = Parser::identifier_span(parser, parser.name_start, parser.name_end);
+        parser.output.member_count = parser.output.member_count + 1;
+        parser.machine_component_count = parser.machine_component_count + 1;
+        let more: bool = Parser::at_punctuation(parser, input, PunctuationKind::Comma);
+        transition more {
+            true -> component_separator(parser, input)
+            _ -> components_close(parser, input)
+        }
+    }
+
+    state component_separator(parser: &mut Parser, input: &TokenStream) {
+        Parser::take_current(parser, input);
+        transition { _ -> component(parser, input) }
+    }
+
+    // A lexicographic measure owns empty parameter, clause, statement, state
+    // and contract ranges at the tables' ends.
+    state components_close(parser: &mut Parser, input: &TokenStream) {
+        Parser::expect_punctuation(parser, input, PunctuationKind::RightBrace, ParseDiagnosticCode::ExpectedMeasureComponent);
+        parser.machine_first_parameter = parser.output.parameter_count as u64 in Trapping;
+        parser.machine_parameter_count = 0;
+        parser.machine_has_return_type = false;
+        parser.machine_return_type = 0;
+        parser.machine_first_clause = parser.output.clause_count as u64 in Trapping;
+        parser.machine_clause_count = 0;
+        parser.machine_first_statement = parser.output.statement_count as u64 in Trapping;
+        parser.machine_statement_count = 0;
+        parser.machine_first_state = parser.output.state_count as u64 in Trapping;
+        parser.machine_first_contract = parser.output.contract_count as u64 in Trapping;
+        transition parser.output.accepted && parser.output.machine_count < 2048 {
+            true -> retain(parser, input, false)
+            _ -> components_rejected(parser, input)
+        }
+    }
+
+    state components_rejected(parser: &mut Parser, input: &TokenStream) {
+        transition parser.output.accepted {
+            true -> machine_full(parser, input)
+            _ -> done()
+        }
+    }
+
+    state rejected(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
+        Parser::reject_current(parser, input, code);
     }
 
     state generics(parser: &mut Parser, input: &TokenStream) {
@@ -319,6 +404,8 @@ crashes Trap
             first_contract: parser.machine_first_contract,
             contract_count: (parser.output.contract_count as u64 in Trapping) - parser.machine_first_contract,
             every_requirement: false,
+            first_component: parser.machine_first_component,
+            component_count: parser.machine_component_count,
             source_span: Parser::source_span(parser, parser.machine_start, parser.token_end)
         };
         parser.output.machine_count = parser.output.machine_count + 1;
@@ -695,6 +782,7 @@ crashes Trap
 machine Parser::machine_at_root(container: MachineContainer) -> bool {
     transition container {
         MachineContainer::Root -> root()
+        MachineContainer::Measure -> root()
         _ -> member()
     }
 
