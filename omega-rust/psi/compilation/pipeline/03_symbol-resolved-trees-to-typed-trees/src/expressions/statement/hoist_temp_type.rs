@@ -20,6 +20,12 @@
 //! loses that environment, so an otherwise ordinary captured indexed subject
 //! incorrectly keeps Unit. Projection retains declaration and selector handles;
 //! it does not evaluate the subject or manufacture bounds or active-case proof.
+//!
+//! Hoisted calls retain the resolved declaration's result and instantiate its
+//! type telescope from explicit operands or authored argument types. Machine
+//! symbols and structural type operands share the same substitution walk;
+//! selected operand origins survive. This determines a temporary's type only:
+//! ordinary call admission still checks the full signature, bounds and custody.
 
 use crate::lowerer::Lowerer;
 use crate::type_reference::lower_type_reference_into_table;
@@ -132,12 +138,12 @@ pub(super) fn infer_hoist_temp_type(
             };
             let target_name = call.target.as_str().to_string();
             let mut machine_substitutions = Vec::new();
-            let declared_state = crate::expressions::call_results::declared_call_state(
+            let declared_return = crate::expressions::call_results::declared_call_return(
                 lowerer.source_trees,
                 target_symbol,
             );
-            let declared_return = declared_state
-                    .and_then(|candidate| candidate.storage.return_type.clone())
+            let declared_return = declared_return
+                    .cloned()
                     .or_else(|| {
                         static_conformance_requirement_return(lowerer, state, call)
                     })
@@ -221,11 +227,29 @@ pub(super) fn infer_hoist_temp_type(
                 )));
             };
             let declared_return = lower_type_reference_into_table(lowerer, &declared_return)?;
-            substitute_machine_parameters_in_type(
+            let machine_substitutions = machine_substitutions
+                .into_iter()
+                .map(|(parameter, symbol, name)| {
+                    let reference = lowerer
+                        .typed_trees
+                        .type_reference_table
+                        .insert(typed::types::TypeReferenceNode::Named { symbol, name });
+                    (parameter, reference)
+                })
+                .collect::<Vec<_>>();
+            substitute_call_type_arguments(
                 &mut lowerer.typed_trees.type_reference_table,
                 declared_return,
                 &machine_substitutions,
-            );
+            )?;
+            instantiate_declared_call_result(
+                lowerer,
+                attached_data,
+                state,
+                call,
+                target_symbol,
+                declared_return,
+            )?;
             return Ok(Some(declared_return));
         }
         _ => None,
@@ -538,54 +562,182 @@ fn static_conformance_requirement_return(
     requirement.storage.return_type.clone()
 }
 
-fn substitute_machine_parameters_in_type(
-    table: &mut typed::types::TypeReferenceTable,
-    handle: typed::types::TypeReferenceHandle,
-    substitutions: &[(
-        symbols::SymbolHandle,
-        symbols::SymbolHandle,
-        typed::name::Identifier,
-    )],
+/// Instantiate a synthetic call result from the same declaration telescope as
+/// ordinary calls. Explicit structural operands retain their supplying origins;
+/// omitted type arguments are inferred from the authored argument types. This
+/// query supplies a type, never call admission, property bounds or loan evidence.
+fn instantiate_declared_call_result(
+    lowerer: &mut Lowerer,
+    attached_data: Option<&resolved::name::DiagnosticName>,
+    state: &resolved::state::State,
+    call: &resolved::expression::TableCallExpression,
+    target: symbols::SymbolHandle,
+    result: typed::types::TypeReferenceHandle,
+) -> Result<(), Diagnostic> {
+    use crate::expressions::call_results::{
+        declared_call_parameters, declared_call_type_parameters,
+    };
+    let parameters = declared_call_type_parameters(lowerer.source_trees, target).to_vec();
+    if parameters.is_empty() {
+        return Ok(());
+    }
+    let type_parameters: Vec<_> = parameters
+        .iter()
+        .filter(|parameter| matches!(parameter.kind, resolved::data::TypeParameterKind::Type))
+        .map(|parameter| parameter.symbol)
+        .collect();
+    let mut substitutions = Vec::new();
+    for (parameter, argument) in parameters.iter().zip(call.machine_arguments.iter()) {
+        if !matches!(parameter.kind, resolved::data::TypeParameterKind::Type) {
+            continue;
+        }
+        let selected = crate::expressions::expression::lower_static_machine_argument(
+            Some(lowerer.source_trees),
+            &mut lowerer.typed_trees,
+            lowerer.type_reference_exposure,
+            argument,
+        )?;
+        let concrete = lowerer
+            .typed_trees
+            .static_operand_type_reference(&selected)
+            .map_err(Diagnostic::error)?;
+        substitutions.push((parameter.symbol, concrete));
+    }
+    let formal_parameters = declared_call_parameters(lowerer.source_trees, target).to_vec();
+    let arguments = lowerer
+        .source_trees
+        .tables
+        .bodies
+        .expressions
+        .expression_handles(call.arguments)
+        .to_vec();
+    for (formal, argument) in formal_parameters.iter().zip(arguments) {
+        let Some(concrete) = infer_hoist_temp_type(lowerer, attached_data, state, argument)? else {
+            continue;
+        };
+        let formal = lower_type_reference_into_table(lowerer, &formal.type_reference)?;
+        infer_declared_type_arguments(
+            &lowerer.typed_trees.type_reference_table,
+            formal,
+            concrete,
+            &type_parameters,
+            &mut substitutions,
+        );
+    }
+    substitute_call_type_arguments(
+        &mut lowerer.typed_trees.type_reference_table,
+        result,
+        &substitutions,
+    )
+}
+
+fn infer_declared_type_arguments(
+    table: &typed::types::TypeReferenceTable,
+    formal: typed::types::TypeReferenceHandle,
+    concrete: typed::types::TypeReferenceHandle,
+    parameters: &[symbols::SymbolHandle],
+    substitutions: &mut Vec<(symbols::SymbolHandle, typed::types::TypeReferenceHandle)>,
 ) {
-    if !handle.is_valid() || substitutions.is_empty() {
-        return;
-    }
-    let node = table.type_reference(handle).clone();
-    match node {
-        typed::types::TypeReferenceNode::Named { symbol, .. } => {
-            if let Some((_, replacement, name)) = substitutions
+    use typed::types::TypeReferenceNode as Node;
+    match (table.type_reference(formal), table.type_reference(concrete)) {
+        (Node::Named { symbol, .. }, _) if parameters.contains(symbol) => {
+            if !substitutions
                 .iter()
-                .find(|(parameter, _, _)| *parameter == symbol)
+                .any(|(parameter, _)| parameter == symbol)
             {
-                table.substitute_node(
-                    handle,
-                    typed::types::TypeReferenceNode::Named {
-                        symbol: *replacement,
-                        name: name.clone(),
-                    },
-                );
+                substitutions.push((*symbol, concrete));
             }
         }
-        typed::types::TypeReferenceNode::Reference { referee, .. } => {
-            substitute_machine_parameters_in_type(table, referee, substitutions);
+        (Node::Constrained { base_type, .. }, _) => {
+            infer_declared_type_arguments(table, *base_type, concrete, parameters, substitutions)
         }
-        typed::types::TypeReferenceNode::Constrained { base_type, .. } => {
-            substitute_machine_parameters_in_type(table, base_type, substitutions);
+        (_, Node::Constrained { base_type, .. }) => {
+            infer_declared_type_arguments(table, formal, *base_type, parameters, substitutions)
         }
-        typed::types::TypeReferenceNode::FixedArray { element_type, .. }
-        | typed::types::TypeReferenceNode::Slice { element_type } => {
-            substitute_machine_parameters_in_type(table, element_type, substitutions);
-        }
-        typed::types::TypeReferenceNode::Generic { arguments, .. }
-        | typed::types::TypeReferenceNode::DynamicTrait { arguments, .. } => {
-            let arguments = table.type_reference_handles(arguments).to_vec();
-            for argument in arguments {
-                substitute_machine_parameters_in_type(table, argument, substitutions);
+        (
+            Node::Reference {
+                referee: formal, ..
+            },
+            Node::Reference {
+                referee: concrete, ..
+            },
+        )
+        | (
+            Node::Slice {
+                element_type: formal,
+            },
+            Node::Slice {
+                element_type: concrete,
+            },
+        )
+        | (
+            Node::FixedArray {
+                element_type: formal,
+                ..
+            },
+            Node::FixedArray {
+                element_type: concrete,
+                ..
+            },
+        ) => infer_declared_type_arguments(table, *formal, *concrete, parameters, substitutions),
+        (
+            Node::Generic {
+                base_symbol: formal_symbol,
+                arguments: formal,
+                ..
+            },
+            Node::Generic {
+                base_symbol: concrete_symbol,
+                arguments: concrete,
+                ..
+            },
+        ) if formal_symbol == concrete_symbol => {
+            for (formal, concrete) in table
+                .type_reference_handles(*formal)
+                .iter()
+                .zip(table.type_reference_handles(*concrete))
+            {
+                infer_declared_type_arguments(table, *formal, *concrete, parameters, substitutions);
             }
         }
-        typed::types::TypeReferenceNode::ConstExpression(_)
-        | typed::types::TypeReferenceNode::Unit => {}
+        _ => {}
     }
+}
+
+fn substitute_call_type_arguments(
+    table: &mut typed::types::TypeReferenceTable,
+    reference: typed::types::TypeReferenceHandle,
+    substitutions: &[(symbols::SymbolHandle, typed::types::TypeReferenceHandle)],
+) -> Result<(), Diagnostic> {
+    use typed::types::TypeReferenceNode as Node;
+    match table.type_reference(reference).clone() {
+        Node::Named { symbol, .. } => {
+            if let Some((_, concrete)) = substitutions
+                .iter()
+                .find(|(parameter, _)| *parameter == symbol)
+            {
+                table
+                    .substitute_from(reference, *concrete)
+                    .map_err(Diagnostic::error)?;
+            }
+        }
+        Node::Reference { referee, .. } => {
+            substitute_call_type_arguments(table, referee, substitutions)?
+        }
+        Node::Constrained { base_type, .. } => {
+            substitute_call_type_arguments(table, base_type, substitutions)?
+        }
+        Node::FixedArray { element_type, .. } | Node::Slice { element_type } => {
+            substitute_call_type_arguments(table, element_type, substitutions)?
+        }
+        Node::Generic { arguments, .. } | Node::DynamicTrait { arguments, .. } => {
+            for argument in table.type_reference_handles(arguments).to_vec() {
+                substitute_call_type_arguments(table, argument, substitutions)?;
+            }
+        }
+        Node::ConstExpression(_) | Node::Unit => {}
+    }
+    Ok(())
 }
 
 /// Resolves the resolved `TypeReference` of an indexed read's COLLECTION.

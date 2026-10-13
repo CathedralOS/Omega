@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 22.61, "load1_start": 8.6, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 5, "jobs": "2", "load1_end": 0.99, "load1_start": 0.47, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 835ms expected @a9ae30e1c334+wt
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -1009,6 +1009,9 @@ fail/calls/float_bound_requires_argument_rejected rejected 2839ms expected @a9ae
 	machine `Main::main` state `main` value call to `Main::pick` violates required fact `d > 5.0`: the instantiated fact is structurally false
 fail/calls/free_machine_named_transition_rejected rejected 895ms expected @a9ae30e1c334+wt
 	unsupported transition target `scan`
+fail/calls/generic_operator_guard_argument_mismatch rejected 1817ms expected @cd5a3c1ae981+wt
+	named operator `identity` static argument for parameter `T` does not equal the type inferred from its operands
+	store in machine `inspect` state `entry` local `__hoist_14` implicitly converts `f64` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
 fail/calls/immutable_arg_for_mut_param_rejected rejected 2711ms expected @a9ae30e1c334+wt
 	argument `c` for state `handle` is declared `&mut` (`&mut Counter`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 	store in machine `Main::main` state `exit_process` argument `return_code` implicitly converts `i32 in Wrapping` to `i32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
@@ -4183,6 +4186,7 @@ pass/calls/cyclic_projected_borrow_call_exit checked 14024ms check-target:macos_
 pass/calls/cyclic_scalar_query_reborrow_exit checked 14055ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/declared_range_delivery_proven checked 1955ms @a9ae30e1c334+wt
 pass/calls/field_path_byte_subslice_exit checked 11714ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/generic_operator_guard_result checked 3794ms @cd5a3c1ae981+wt
 pass/calls/generic_reference_forwarding_exit checked 12092ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/guard_call_scalar_argument_exit checked 11453ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/guarded_arm_tail_call_to_state_machine_exit checked 11089ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -4328,6 +4332,7 @@ pass/calls/runtime_nested_receiver_guard_exit checked 11324ms check-target:macos
 pass/calls/runtime_nested_value_call_guard_exit checked 14471ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_numeric_operand_order_exit checked 7294ms check-target:macos_arm64 @16ed47526a08
 pass/calls/runtime_numeric_operand_single_evaluation_exit checked 5196ms check-target:macos_arm64 @16ed47526a08
+pass/calls/runtime_operator_guard_result_exit checked 26326ms check-target:macos_arm64 @cd5a3c1ae981+wt
 pass/calls/runtime_option_value_call_exit checked 11505ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_owned_case_temporaries_exhaustive_dispatch_exit checked 11125ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_owned_mutable_state_parameter_exit checked 11110ms check-target:macos_arm64 @a9ae30e1c334+wt

@@ -21,6 +21,73 @@ pub(crate) fn declared_call_state(
         .map(|(_, state)| state)
 }
 
+/// A hoisted call observes the declaration's result type regardless of whether
+/// its implementation is a state machine or an independently provided operator.
+/// Symbol identity selects the declaration; spelling cannot supply a signature.
+pub(crate) fn declared_call_return(
+    program: &resolved::SymbolResolvedTrees,
+    target: SymbolHandle,
+) -> Option<&resolved::types::TypeReference> {
+    if !target.is_valid() {
+        return None;
+    }
+    match program.symbols.get(target).kind {
+        SymbolKind::State => declared_call_state(program, target)?.return_type.as_ref(),
+        SymbolKind::Operator => program
+            .operators
+            .iter()
+            .find(|operator| operator.symbol == target)?
+            .return_type
+            .as_ref(),
+        _ => None,
+    }
+}
+
+/// The declaration owning the result also owns its invocation telescope.
+/// A same-named caller binder cannot instantiate a callee's parameter.
+pub(crate) fn declared_call_type_parameters(
+    program: &resolved::SymbolResolvedTrees,
+    target: SymbolHandle,
+) -> &[resolved::data::TypeParameter] {
+    if !target.is_valid() {
+        return &[];
+    }
+    match program.symbols.get(target).kind {
+        SymbolKind::State => program
+            .machine(program.symbols.get(target).parent)
+            .map(|machine| program.machine_type_parameters(machine))
+            .unwrap_or_default(),
+        SymbolKind::Operator => program
+            .operators
+            .iter()
+            .find(|operator| operator.symbol == target)
+            .map(|operator| program.data_type_parameters(operator.type_parameters))
+            .unwrap_or_default(),
+        _ => &[],
+    }
+}
+
+pub(crate) fn declared_call_parameters(
+    program: &resolved::SymbolResolvedTrees,
+    target: SymbolHandle,
+) -> &[resolved::signature::StateParameter] {
+    if !target.is_valid() {
+        return &[];
+    }
+    match program.symbols.get(target).kind {
+        SymbolKind::State => declared_call_state(program, target)
+            .map(|state| program.state_parameters(state.parameters))
+            .unwrap_or_default(),
+        SymbolKind::Operator => program
+            .operators
+            .iter()
+            .find(|operator| operator.symbol == target)
+            .map(|operator| program.state_parameters(operator.parameters))
+            .unwrap_or_default(),
+        _ => &[],
+    }
+}
+
 pub(crate) fn peel<'program>(
     program: &'program resolved::SymbolResolvedTrees,
     mut reference: &'program resolved::types::TypeReference,
