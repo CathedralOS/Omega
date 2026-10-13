@@ -726,13 +726,16 @@ fn adapt(
                                 .is_some_and(|slots| !slots.is_empty())
                         });
                         if let Some(result) = descriptor_result {
+                            // Claim bindings record which linear custody the
+                            // result transports; backing provenance follows the
+                            // same descriptor slots whether or not a claim rides
+                            // along, so they constrain nothing here.
                             let expected = callee.result.structural()?;
                             if result.structural_type != expected.structural_type
                                 || result.multiplicity != expected.multiplicity
                                 || result.qualifications != expected.qualifications
                                 || result.projected_qualifications
                                     != expected.projected_qualifications
-                                || !result.claims.is_empty()
                             {
                                 return None;
                             }
