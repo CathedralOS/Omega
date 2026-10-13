@@ -1,0 +1,27 @@
+{
+  "identity": "component closure is zero for every admissible split; phase presence remains undetermined",
+  "cases": {
+    "unity": {
+      "constant_coefficients": [
+        "0",
+        "0"
+      ],
+      "beta_coefficients": [
+        "0",
+        "0"
+      ]
+    },
+    "zero_unity": {
+      "constant_coefficients": [
+        "0",
+        "0",
+        "0"
+      ],
+      "beta_coefficients": [
+        "0",
+        "0",
+        "0"
+      ]
+    }
+  }
+}
