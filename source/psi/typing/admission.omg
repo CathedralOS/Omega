@@ -119,22 +119,35 @@ crashes Trap
     state carried(typer: &Typer, syntax: &SyntaxTrees, wanted: TypeRow, given: TypeRow, actual: u64 in Trapping, expression: u64 in Trapping) -> Admission {
         let same: bool = TypeTable::same_carrier(&typer.output.types, wanted, given);
         transition same {
-            true -> requalified(typer, syntax, wanted, given)
+            true -> requalified(typer, syntax, wanted, given, expression)
             _ -> lending(typer, syntax, wanted, given, actual, expression)
         }
     }
 
-    state requalified(typer: &Typer, syntax: &SyntaxTrees, wanted: TypeRow, given: TypeRow) -> Admission {
+    state requalified(typer: &Typer, syntax: &SyntaxTrees, wanted: TypeRow, given: TypeRow, expression: u64 in Trapping) -> Admission {
         let wanted_qualified: TypeRow = TypeTable::qualified_row(&typer.output.types, wanted);
         let given_qualified: TypeRow = TypeTable::qualified_row(&typer.output.types, given);
+        let written: Expression = SyntaxTrees::expression(syntax, expression);
         transition wanted_qualified.domain == DomainBinding::Declared {
             true -> qualified()
-            _ -> forgotten(syntax, wanted_qualified, given_qualified)
+            _ -> forgotten(syntax, wanted_qualified, given_qualified, written.kind == ExpressionKind::Integer)
         }
     }
 
-    state forgotten(syntax: &SyntaxTrees, wanted: TypeRow, given: TypeRow) -> Admission {
-        transition wanted.domain == DomainBinding::Unqualified && given.domain == DomainBinding::Declared {
+    // A suffixed literal chose its carrier, not an arithmetic policy: at a
+    // policy-qualified destination of that carrier it lands there
+    // (wiki/spec/language/numeric_values.md). Any other typed value keeps
+    // its policy and does not convert implicitly.
+    state forgotten(syntax: &SyntaxTrees, wanted: TypeRow, given: TypeRow, suffixed: bool) -> Admission {
+        let predicate: bool = wanted.domain == DomainBinding::Unqualified && given.domain == DomainBinding::Declared;
+        transition suffixed && given.domain == DomainBinding::Unqualified && wanted.domain != DomainBinding::Declared {
+            true -> landed()
+            _ -> declared_only(syntax, given, predicate)
+        }
+    }
+
+    state declared_only(syntax: &SyntaxTrees, given: TypeRow, predicate: bool) -> Admission {
+        transition predicate {
             true -> predicate_only(syntax, given)
             _ -> rejected()
         }

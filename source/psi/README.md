@@ -291,7 +291,7 @@ anonymous `+`, `-`, `*` and `/` fold over exact rationals (`7 / 2 * 2` is 7;
 division by zero rejects, and the tree lands once at a destination it fits,
 its value integral there: a declared local, a parameter, a field, a typed
 operand, a cast or a result. A
-suffix types its literal at that carrier. Arithmetic and bitwise operators take
+suffix types its literal at that carrier, under a destination's policy. Arithmetic and bitwise operators take
 one fixed-integer or float type, policy included, so differing policies never
 mix; integer comparisons relate exact values of any carriers; `==` also
 compares Booleans, addresses and sums whose every case is payload-free. A call

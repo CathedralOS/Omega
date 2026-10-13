@@ -601,9 +601,11 @@ crashes Trap
     }
 }
 
-// The type a store into `place` must meet: an indexed element's own carrier,
-// a loaned name's referent, or the place's type.
-pub machine Typer::place_type(typer: &Typer, syntax: &SyntaxTrees, place: u64 in Trapping) -> u64 in Trapping
+// The type a store into `place` must meet: an indexed element as it reads,
+// under its collection's policy (a typed value keeps its own policy, so it
+// must already carry it; a literal lands there), a loaned name's referent,
+// or the place's type.
+pub machine Typer::place_type(typer: &mut Typer, syntax: &SyntaxTrees, place: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     let expression: Expression = SyntaxTrees::expression(syntax, place);
@@ -625,11 +627,12 @@ crashes Trap
         }
     }
 
-    state indexed(typer: &Typer, expression: Expression) -> u64 in Trapping {
+    state indexed(typer: &mut Typer, expression: Expression) -> u64 in Trapping {
         let collection: u64 in Trapping = Typing::expression_type(&typer.output, expression.left);
         let base: u64 in Trapping = Typer::referent(typer, collection);
         let row: TypeRow = TypeTable::row(&typer.output.types, base);
-        row.inner
+        let read: u64 in Trapping = Typer::element_read(typer, row, expression.source_span);
+        read
     }
 
     state result(handle: u64 in Trapping) -> u64 in Trapping {

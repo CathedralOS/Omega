@@ -229,7 +229,8 @@ crashes Trap
         row.length = length;
         row.domain = domain;
         row.domain_item = NameResolution::domain_item(resolution, index);
-        transition domain == DomainBinding::Unqualified || domain == DomainBinding::Trapping || domain == DomainBinding::Declared {
+        let admitted: bool = Typer::collection_qualifier(domain);
+        transition admitted {
             true -> intern(typer, sources, syntax, resolution, index, reference, row)
             _ -> domain_rejected(typer, reference)
         }
@@ -248,7 +249,8 @@ crashes Trap
         row.inner = Typing::reference_type(&typer.output, reference.inner);
         row.domain = domain;
         row.domain_item = NameResolution::domain_item(resolution, index);
-        transition domain == DomainBinding::Unqualified || domain == DomainBinding::Trapping || domain == DomainBinding::Declared {
+        let admitted: bool = Typer::collection_qualifier(domain);
+        transition admitted {
             true -> intern(typer, sources, syntax, resolution, index, reference, row)
             _ -> domain_rejected(typer, reference)
         }
@@ -397,6 +399,28 @@ crashes Trap
     state declared(syntax: &SyntaxTrees, parameter: u64 in Trapping) -> bool {
         let generic: GenericParameter = SyntaxTrees::generic_parameter(syntax, parameter);
         generic.kind == GenericParameterKind::Const
+    }
+
+    state no() -> bool {
+        false
+    }
+}
+
+// The qualifiers an array or slice type takes: none, an arithmetic policy
+// its integer or Boolean elements read under
+// (wiki/spec/language/numeric_values.md), or a declared domain.
+pub machine Typer::collection_qualifier(domain: DomainBinding) -> bool {
+    transition domain {
+        DomainBinding::Unqualified -> yes()
+        DomainBinding::Wrapping -> yes()
+        DomainBinding::Saturating -> yes()
+        DomainBinding::Trapping -> yes()
+        DomainBinding::Declared -> yes()
+        _ -> no()
+    }
+
+    state yes() -> bool {
+        true
     }
 
     state no() -> bool {

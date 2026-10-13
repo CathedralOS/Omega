@@ -310,6 +310,25 @@ def main() -> None:
         b"machine f() { let a: u8 = 7u8; let b: bool = 300u16 > 299; }",
         ((b"7u8", "u8"), (b"300u16", "u16"), (b"299", "u16"), (b"300u16 > 299", "bool")),
     )
+    # A suffix chooses the carrier, not the policy: the literal lands at a
+    # policy-qualified destination of that carrier, where a typed value of
+    # another policy does not.
+    accepted(
+        program,
+        "suffixed-literals-land-under-a-destination-policy",
+        b"machine g(w: u32 in Wrapping) -> u32 in Wrapping { w + 1u32 }\n"
+        b"machine f() -> u32 in Wrapping {\n    let mut w: u32 in Wrapping = 0u32 as u32 in Wrapping;\n"
+        b"    w = 5u32;\n    g(5u32)\n}",
+        ((b"w + 1u32", "u32 in Wrapping"), (b"1u32", "u32 in Wrapping"), (b"5u32!2", "u32 in Wrapping")),
+        adaptations=((b"1u32", "landed"), (b"5u32!2", "landed")),
+    )
+    rejected(
+        program,
+        "a-suffixed-literal-keeps-its-carrier-under-a-policy",
+        b"machine f() { let mut w: u32 in Wrapping = 0u32 as u32 in Wrapping; w = 5u8; }",
+        "MismatchedTypes",
+        b"5u8",
+    )
     accepted(
         program,
         "fields-through-references",
@@ -340,15 +359,36 @@ def main() -> None:
             (b"2", "u64"),
         ),
     )
+    # An element of a policy-qualified collection reads and stores under
+    # that policy: a typed value keeps its own policy and must already carry
+    # the collection's, while a literal lands there
+    # (wiki/spec/language/numeric_values.md).
     accepted(
         program,
         "policy-qualified-collections-read-and-store",
         b"data B { counts: [u64; 4] in Trapping; }\n"
-        b"machine f(b: &mut B, value: u64 in Trapping) -> u64 in Trapping {\n"
-        b"    b.counts[0] = value as u64;\n"
+        b"machine f(b: &mut B, value: u64 in Trapping, plain: u64) -> u64 in Trapping {\n"
+        b"    b.counts[0] = value;\n    b.counts[2] = plain as u64 in Trapping;\n    b.counts[3] = 7;\n"
         b"    b.counts[1] + 1\n"
         b"}",
-        ((b"b.counts[0]", "u64 in Trapping"), (b"b.counts[1] + 1", "u64 in Trapping"), (b"value as u64", "u64")),
+        ((b"b.counts[0]", "u64 in Trapping"), (b"b.counts[1] + 1", "u64 in Trapping"), (b"plain as u64 in Trapping", "u64 in Trapping")),
+    )
+    rejected(
+        program,
+        "a-typed-value-keeps-its-policy-at-an-element-store",
+        b"data B { counts: [u64; 4] in Trapping; }\n"
+        b"machine f(b: &mut B, plain: u64) { b.counts[0] = plain; }",
+        "MismatchedTypes",
+        b"plain!2",
+    )
+    accepted(
+        program,
+        "wrapping-and-saturating-collections",
+        b"data Holder { values: [u32; 1] in Wrapping; }\n"
+        b"machine f(h: &Holder, v: &[u8] in Saturating) -> u32 in Wrapping\n"
+        b"requires v.len > 0\n"
+        b"{\n    let s: u8 in Saturating = v[0] + 10u8;\n    h.values[0] + 1u32\n}",
+        ((b"h.values", "[u32; 1] in Wrapping"), (b"h.values[0]", "u32 in Wrapping"), (b"v[0]", "u8 in Saturating")),
     )
     accepted(
         program,
