@@ -783,7 +783,8 @@ fn collect_expected_expression_calls(
 
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            for statement in program.statement_table.statements(state.statement_nodes) {
+            let statements = program.statement_table.statements(state.statement_nodes);
+            for (index, statement) in statements.iter().enumerate() {
                 match statement {
                     StatementNode::Assignment(assignment) => {
                         if let Some(declared) =
@@ -845,6 +846,11 @@ fn collect_expected_expression_calls(
                                 );
                             }
                         }
+                    }
+                    StatementNode::Expression(value)
+                        if index + 1 == statements.len() && state.return_type.is_valid() =>
+                    {
+                        push_expected_call(program, *value, state.return_type, &mut expected);
                     }
                     StatementNode::RootBinding(_)
                     | StatementNode::AssemblyFact(_)

@@ -3,8 +3,8 @@
 The complete application reads finite bounded stdin for 1..4 horizontal layers
 and 0..16 offsets, validates strictly increasing velocities and positive finite
 thicknesses, reports critical offsets and all admissible head/direct branch
-times, and chooses deterministic first arrivals. No compiler or library patch
-was needed: missing Console/float-operations imports and illegal simultaneous
+times, and chooses deterministic first arrivals. The initial application landing
+needed no compiler or library patch: missing Console/float-operations imports and illegal simultaneous
 mutable/read-only arguments were corrected in the authored sample.
 
 ## Source, executor and independent oracle
@@ -114,3 +114,6 @@ The local `.gitattributes` preserves raw `.stdin` bytes, including CRLF;
 whitespace exceptions apply only to the two intentionally whitespace-sensitive
 input fixtures. All 31 staged input blobs were independently hashed against the
 frozen oracle before committing. Omega source remains under canonical LF.
+
+The subsequent physical-domain generalization exposed general result-context
+and static scalar-field observation failures; see [COMPILER_EVIDENCE.md](COMPILER_EVIDENCE.md).

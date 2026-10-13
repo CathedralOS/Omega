@@ -91,7 +91,10 @@ machine Main::main(main: &mut Main) reaches Console {
   }
  }
  state direct(main: &mut Main, index: i32 in Wrapping, distance: f64) {
-  main.best_time = distance / main.model.velocities[0]; main.best_branch = 0;
+  let offset: f64 in SurfaceOffset = distance as f64 in SurfaceOffset;
+  let speed: f64 in Velocity = main.model.velocities[0] as f64 in Velocity;
+  let duration: f64 in TravelTime = direct_time(offset, speed);
+  main.best_time = duration as f64; main.best_branch = 0;
   let time: f64 = main.best_time;
   emit(main, "R ", index, 0, distance, time);
   transition { _ -> head(main, index, distance, 1) }

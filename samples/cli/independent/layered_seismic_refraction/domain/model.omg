@@ -1,4 +1,22 @@
 use omega::language::core::float_operations;
+domain f64::SurfaceOffset;
+domain f64::Velocity;
+domain f64::TravelTime;
+
+// Result context distinguishes a distance observation from its travel time.
+// Arithmetic explicitly erases physical domains before establishing the result.
+machine flight(offset: f64 in SurfaceOffset, velocity: f64 in Velocity) -> f64 {
+ offset as f64
+}
+machine flight(offset: f64 in SurfaceOffset, velocity: f64 in Velocity) -> f64 in TravelTime {
+ let distance: f64 = offset as f64;
+ let speed: f64 = velocity as f64;
+ let duration: f64 = distance / speed;
+ duration as f64 in TravelTime
+}
+machine direct_time(offset: f64 in SurfaceOffset, velocity: f64 in Velocity) -> f64 in TravelTime {
+ flight(offset, velocity)
+}
 data Model {
  velocities: [f64; 4]; numerators: [f64; 4]; scales: [f64; 4]; thicknesses: [f64; 3]; critical: [f64; 4]; intercept: [f64; 4];
  layers: i32 in Wrapping; offsets: i32 in Wrapping;

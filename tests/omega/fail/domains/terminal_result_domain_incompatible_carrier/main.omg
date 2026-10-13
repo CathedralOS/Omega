@@ -1,0 +1,4 @@
+use omega::language::core::float_operations;
+domain i32::Time;
+machine raw() -> f64 { 1.0 }
+machine missing() -> i32 in Time { raw() }

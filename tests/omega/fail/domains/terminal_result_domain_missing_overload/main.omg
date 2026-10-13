@@ -1,0 +1,5 @@
+use omega::language::core::float_operations;
+domain f64::Time; domain f64::Distance;
+machine value() -> f64 { 1.0 }
+machine value() -> f64 in Distance { 1.0 as f64 in Distance }
+machine missing() -> f64 in Time { value() }

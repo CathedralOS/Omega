@@ -176,8 +176,9 @@ pub(crate) fn hoist_scalar_value_call_comparison(
 /// binding-substitution depth cap (neither ever lowered -- probed 2026-07-11,
 /// so this rewrite cannot regress a served shape). The let-bound spelling is
 /// the fully served path, so make it automatic: hoist the call into a
-/// `let __hoist_N` temp (typed from the callee's DECLARED return by
-/// `infer_hoist_temp_type`'s Call branch) and deliver the local. Callers gate
+/// `let __hoist_N` temp carrying the receiving state's declared result context
+/// when present, otherwise inferred from the callee's declared return, and
+/// deliver the local. Callers gate
 /// transition targets to ALWAYS-guard arms: a hoisted statement runs whenever
 /// control reaches it, and hoisting out of a guarded arm would run an
 /// effectful callee even when the arm is not taken (trailing returns are
@@ -207,7 +208,14 @@ pub(crate) fn hoist_terminal_value_machine_call(
             return expression;
         }
     }
-    // The inferred temp takes the callee's declared return.
+    // A terminal capture must retain the caller's result context so result
+    // overloads can select their exact domain before ordinary admission.
+    if let Some(declared) = lowerer.current_state_return_type.clone()
+        && !matches!(declared, TypeReference::Unit)
+    {
+        return mint_hoist_temp(lowerer, hoisted, declared, None, false, |_, _| expression);
+    }
+    // With no declared result context, infer the callee's declared return.
     hoist_into_temp(lowerer, expression, hoisted)
 }
 

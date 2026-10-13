@@ -1,0 +1,4 @@
+domain i32::Issued(value) requires value > 0 established by Issuer::issue;
+trait Issuer { machine issue() -> i32 ensures result in Issued; }
+machine raw() -> i32 { 1 }
+machine missing() -> i32 in Issued { raw() }

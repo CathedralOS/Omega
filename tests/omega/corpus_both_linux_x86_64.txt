@@ -12,6 +12,7 @@
 # context: {"cpus": 5, "jobs": "2", "load1_end": 0.8, "load1_start": 0.4, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 # context: {"cpus": 5, "jobs": "2", "load1_end": 0.8, "load1_start": 0.4, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 # context: {"cpus": 5, "jobs": "1", "load1_end": 1.0, "load1_start": 1.01, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# W2-17 scoped observations: wire qualification; prior rows preserved.
 pass/arithmetic/runtime_bounded_dividend_remainder_exit built 9272ms exit:0 interpreter-exit:0 interpreter:agrees @cb7a5a5136b3
 pass/arithmetic/runtime_explicit_call_result_policy_exit built 7513ms exit:0 interpreter-exit:0 interpreter:agrees @30eb6513ae80+wt
 pass/arithmetic/runtime_fixed_integer_across_console_exit built 58766ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @cacb7c7a55e2
@@ -53,6 +54,8 @@ pass/control_flow/runtime_bounded_scalar_storage_exit built 13748ms exit:0 inter
 pass/control_flow/runtime_later_state_shared_array_loan built 1003ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @058b197aec1a+wt
 pass/control_flow/runtime_namespace_local_state_loan built 983ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @058b197aec1a+wt
 pass/control_flow/runtime_projected_case_payload_snapshots_exit built 18897ms exit:0 interpreter-exit:0 interpreter:agrees @1b12798e27f4
+pass/domains/runtime_qualified_ieee_field_read_exit built 14743ms exit:0 interpreter-exit:0 interpreter:agrees @8d3a0acb500a+wt
+pass/domains/runtime_terminal_result_context_exit built 21088ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @8d3a0acb500a+wt
 pass/drops/runtime_parent_hook_preserves_linear_descendants_exit built 6296ms exit:0 interpreter-exit:0 interpreter:agrees @d537c1f08618
 pass/drops/runtime_scalar_exit_nominal_cleanup_exit built 5398ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d537c1f08618
 pass/float/build_runtime_semantics_twins_x86_baseline built 259139ms @d537c1f08618

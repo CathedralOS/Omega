@@ -1,0 +1,8 @@
+use omega::language::core::float_operations;
+domain f64::Time;
+domain i32::Positive(value) requires value > 0;
+data Observation { time: f64 in Time; count: i32 in Positive; }
+machine main() {
+ let mut observation: Observation = Observation { time: 2.5 as f64 in Time, count: 1 as i32 in Positive };
+ observation.count = 0;
+}

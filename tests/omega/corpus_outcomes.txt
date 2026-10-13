@@ -8,6 +8,7 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 10, "jobs": "3", "load1_end": 11.93, "load1_start": 7.22, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# W2-17 scoped observations: wire qualification; prior rows preserved.
 fail/arithmetic/address_literal_requires_supported_representation rejected 835ms expected @a9ae30e1c334+wt
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -1709,6 +1710,8 @@ fail/domains/offset_borrow_return_unestablished_field rejected 411ms expected @1
 	cannot prove index `0` is within unknown slice length of `bag.rows[2].labels[1].text` in pick::entry
 fail/domains/qualified_mutable_invalid_field rejected 106ms expected @dca1c7cd7e6f+wt
 	reading `packet.<whole value>` crosses an open default-domain invariant window before data `Packet` is established: the zeroed representation is not yet a `Packet` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
+fail/domains/qualified_scalar_field_invalid_store rejected 642ms expected @8d3a0acb500a+wt
+	cannot prove assignment value `0` satisfies bounded target `observation.count` in `main.entry`; expected 1..=2147483647
 fail/domains/qualified_scalar_record_call_unestablished rejected 1496ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call make_gauge from invalid: 5 in i32::NotFive
 fail/domains/record_child_membership_requires_issuance rejected 1651ms expected @a9ae30e1c334+wt
@@ -1735,6 +1738,16 @@ fail/domains/scalar_alias_zero_requires_all_predicates rejected 5313ms expected 
 	entry machine `Main::main` requests a provisioned `Main` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
 fail/domains/semantic_cast_fact_false rejected 2613ms expected @a9ae30e1c334+wt
 	`as ... in Km` cannot mint: a `Km` domain fact is FALSE at this value -- the predicate obligation is owed (decision 19's "predicate obligation not discharged" class)
+fail/domains/terminal_result_domain_incompatible_carrier rejected 523ms expected @8d3a0acb500a+wt
+	machine `missing` state `entry` local `__hoist_34` delivers a `f64` value to a `i32` local; a landed float retains its format, so changing format requires an explicit conversion
+	store in machine `missing` state `entry` local `__hoist_34` implicitly converts `f64` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
+fail/domains/terminal_result_domain_missing_overload rejected 247ms expected @8d3a0acb500a+wt
+	named machine call `value` has no overload for result dispatch set `declared:f64::Time` and parameter signature ``
+fail/domains/terminal_result_domain_unestablished rejected 775ms expected @8d3a0acb500a+wt
+	cannot prove scalar result domain for return from missing at statement 1: i32::Issued
+	cannot prove initializer of `__hoist_14` in missing is in domain `i32::Issued`; an annotation cannot establish routed qualification
+fail/domains/terminal_result_predicate_unproved rejected 635ms expected @8d3a0acb500a+wt
+	cannot prove initializer of `__hoist_14` in missing is in domain `i32::Positive`; an annotation cannot establish routed qualification
 fail/domains/unit_membership_postcondition_unestablished rejected 1497ms expected @a9ae30e1c334+wt
 	cannot prove ensures contract for exit from Main::spoil at statement 1: main.raw in [u8; N]::Utf8
 fail/domains/view_field_store_literal_outside_domain rejected 1611ms expected @a9ae30e1c334+wt
@@ -5030,10 +5043,12 @@ pass/domains/runtime_computed_qualification_exit checked 11223ms check-target:ma
 pass/domains/runtime_constructor_ensured_membership_exit checked 11216ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/runtime_nested_record_membership_transport_exit checked 11182ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/runtime_qualified_borrowed_gated_input_exit checked 11348ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/domains/runtime_qualified_ieee_field_read_exit checked 11525ms check-target:macos_arm64 @8d3a0acb500a+wt
 pass/domains/runtime_qualified_view_field_parameter_store_exit checked 4811ms check-target:macos_arm64 @9dd545defbc0
 pass/domains/runtime_result_domain_machine_overload_exit checked 12750ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/runtime_scalar_alias_zero_and_qualification_exit checked 12996ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/runtime_selected_nested_field_domain_exit checked 2724ms check-target:macos_arm64 @1e469c9b15bb
+pass/domains/runtime_terminal_result_context_exit checked 14710ms check-target:macos_arm64 @8d3a0acb500a+wt
 pass/domains/semantic_cast_guard_chain_mint checked 2041ms @a9ae30e1c334+wt
 pass/domains/slice_domain_validator checked 4647ms check-target:macos_arm64 @e3e4be8878bd
 pass/domains/threaded_subject_keeps_established_domains checked 15236ms check-target:macos_arm64 @a9ae30e1c334+wt

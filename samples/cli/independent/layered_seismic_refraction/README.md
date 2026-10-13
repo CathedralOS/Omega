@@ -114,3 +114,10 @@ checking. The repository sample gates discover both this explicit-entry program
 and the nested intended-invalid interface project. `input.txt`,
 `expected_stdout.txt` and `expected_native_exit.txt` also give the normal native
 sample sweep a finite input and an exact checked output.
+
+Direct arrivals distinguish `SurfaceOffset`, `Velocity` and `TravelTime` domains.
+The declared result context selects the time-producing overload; arithmetic
+explicitly erases the input domains and qualifies the calculated duration.
+The frozen numerical fixtures also detect accidental selection of the raw
+distance overload. General compiler regression evidence is in
+[validation/COMPILER_EVIDENCE.md](validation/COMPILER_EVIDENCE.md).

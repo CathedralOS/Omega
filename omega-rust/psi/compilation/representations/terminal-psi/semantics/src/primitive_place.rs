@@ -16,7 +16,7 @@
 //!
 //! # Scalar field observations without a canonical storage identity
 //!
-//! A read may end at a scalar field below a runtime-selected element or a
+//! A read may end at a restricted static field, a runtime-selected element or a
 //! stored-reference crossing. Its complete projection retains the selectors
 //! and pointer boundaries, so it cannot mint an owned field alias. The verifier
 //! separately authenticates bounds and live custody, then transports the exact
@@ -35,7 +35,7 @@ use semantic_vocabulary::{
 };
 use terminal_psi::{
     ByteSequenceCarrier, StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
-    StructuralTypeDeclaration, StructuralTypeShape, is_static_structural_path,
+    StructuralTypeDeclaration, StructuralTypeShape,
 };
 
 /// Reconstruct the primitive leaf from declaration identities and fixed bounds.
@@ -239,8 +239,8 @@ pub fn borrowed_primitive_projection_declaration<'a>(
 
 /// Resolve the scalar a primitive *read* observes: every leaf
 /// `primitive_projection_type` admits, plus a declared scalar field reached
-/// through a runtime selection or stored reference. Declaration invariants
-/// remain on that field and are independently transported to the observed SSA
+/// through a static path, runtime selection or stored reference. Declaration
+/// invariants remain on that field and are independently transported to the observed SSA
 /// value. Selected cases retain their declared payload namespace on the same
 /// read path: observation does not copy or transfer the containing owner.
 /// Stores resolve through `primitive_projection_type` alone. This query grants
@@ -259,9 +259,9 @@ pub fn primitive_read_projection_type<'a>(
         })
 }
 
-/// The exact scalar field observed by a noncanonical primitive read. The
-/// complete carrier contains a runtime selector or reference crossing; its
-/// final field identity is relevant and unique in its declared record. Bounds,
+/// The exact scalar field observed by a primitive read. Its final field
+/// identity is relevant and unique in its declared record. Static paths,
+/// runtime selectors and reference crossings preserve that declaration. Bounds,
 /// access and live permission remain independent operation obligations.
 ///
 /// Restricted scalar declarations retain their complete predicate, including
@@ -273,14 +273,12 @@ pub fn primitive_read_field<'a>(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<&'a StructuralFieldDeclaration> {
-    let (StructuralPathSegment::Field(_), carrier) = path.split_last()? else {
+    let (StructuralPathSegment::Field(_), _) = path.split_last()? else {
         return None;
     };
-    // Static selectors can still cross a stored pointer. Such a read has no
-    // canonical owned leaf, just as a runtime-selected observation does.
-    if is_static_structural_path(carrier) && !carrier.contains(&StructuralPathSegment::Referent) {
-        return None;
-    }
+    // A restricted field is readable even when it is not writable primitive
+    // storage. Keep its predicate at the declared field and on the observed
+    // snapshot; this query does not create a canonical owned storage leaf.
     // A final Case selects a field namespace on the carrier; it does not
     // establish a standalone record. Preserve that namespace through the same
     // declaration query used by explicit field observations.

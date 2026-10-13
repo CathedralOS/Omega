@@ -79,10 +79,15 @@ fn main() -> Result<(), Box<dyn Error>> {
     let artifact = report
         .retained_native_artifact()
         .ok_or("the accepted native report did not retain its exact Terminal artifact")?;
-    fs::write(
-        output.join("application.terminal"),
-        artifact.psi_artifact().to_bytes(),
-    )?;
+    let bytes = artifact.psi_artifact().to_bytes();
+    fs::write(output.join("application.terminal"), &bytes)?;
+    // Cross the real transport boundary: execution consumes the decoded bytes,
+    // with the native report's unchanged exact runtime provisions.
+    let decoded = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes)?;
+    if decoded.to_bytes() != bytes {
+        return Err("canonical Terminal transport changed during decoding".into());
+    }
+    println!("validated canonical Terminal transport round trip");
     let mut fixtures: Vec<_> = fs::read_dir(root.join("data"))?
         .filter_map(Result::ok)
         .map(|entry| entry.path())
@@ -106,7 +111,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         let observation = execute(TerminalRuntimeRequest {
             provider_proposal: None,
-            artifact: artifact.psi_artifact(),
+            artifact: &decoded,
             target: Some("linux_x86_64"),
             provisions: report.runtime_provisions(),
             fuel_allowance: 10_000_000,
