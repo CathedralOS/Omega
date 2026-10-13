@@ -916,7 +916,7 @@ pass/domains/user_authored_predicate_machine checked 185ms
 pass/domains/utf8_equals_literal_exit built 1931ms exit:70 @55e0349c204c+wt
 pass/domains/utf8_equals_literal_mismatch_exit built 792ms exit:71 @54a65e21a512+wt
 pass/domains/utf8_field_read_carries_domain_exit built 926ms exit:70 @1c0bb7bc95d0
-pass/domains/utf8_field_write_from_param built 3827ms @4ffed225fc45+wt
+pass/domains/utf8_field_write_from_param built 5023ms exit:0 @51cd9b31baf0
 pass/domains/vacuous_domain_qualification checked 203ms
 pass/domains/view_field_literal_store_reads_exit built 1100ms exit:70 @1c0bb7bc95d0
 pass/drops/cleanup_machine_drop_shape checked 749ms @9beb2be72f2d+wt
@@ -1509,6 +1509,7 @@ pass/providers/const_generic_entry_record_field_exit built 4357ms exit:70 @b016b
 pass/providers/direct_boundary_array_snapshot_exit built 2031ms exit:70 @36ad3370c97a
 pass/providers/external_boundary_requirement_via_exit built 2953ms exit:21 @fb2178def922
 pass/providers/external_leaf_dllimport_compile built 2074ms @fb2178def922
+pass/providers/finite_requirement_direct_provider_exit built 4957ms exit:0 @51cd9b31baf0
 pass/providers/foreign_address_result_release_exit built 15597ms @589aedee8ebc+wt
 pass/providers/foreign_indirect_record_distinct_exit built 18020ms @589aedee8ebc+wt
 pass/providers/foreign_indirect_record_relay_exit built 15257ms @589aedee8ebc+wt
@@ -1832,6 +1833,7 @@ pass/termination/unsigned_identity_measure_rank_range checked 217ms
 pass/termination/wrapping_subject_guarded_descent checked 1636ms @3e63a17a5fea+wt
 pass/text/borrowed_bounded_byte_indexed_write_exit built 2723ms exit:70 @9beb2be72f2d+wt
 pass/text/byte_content_store_continuation_exit built 1222ms exit:70 @381ab55e53d2+wt
+pass/text/byte_view_element_read_without_byte_declaration_exit built 4986ms exit:0 @51cd9b31baf0
 pass/text/copy_record_view_field_state_transfer_exit built 1444ms exit:70 @ef2ef25a3ab8+wt
 pass/text/declared_record_view_field_fill_exit built 2288ms exit:70 @9beb2be72f2d+wt
 pass/text/incoming_bounded_byte_dynamic_call_exit built 17934ms exit:0 @589aedee8ebc+wt

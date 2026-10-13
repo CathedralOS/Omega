@@ -1527,8 +1527,22 @@ pub(crate) fn projected_scalar_codec(
         let field = terminal_semantics::runtime_structural_field(declarations.iter(), root, path)?;
         return scalar_field_codec(root, prefix, field.id, declarations);
     }
-    let (selected, _, _) = runtime_projection(root, path, declarations)?;
-    runtime_abi::ScalarStorageCodec::from_scalar(scalar_storage_type(selected, declarations)?)
+    // A primitive leaf is described by its scalar storage alone. A byte
+    // element in particular has no endpoint declaration, and the catalog need
+    // not contain one for the program to read it.
+    let (storage, _, _) = runtime_storage_projection(root, path, declarations)?;
+    let scalar = match &*storage {
+        StructuralFieldType::Scalar(scalar) => *scalar,
+        StructuralFieldType::Structural(selected) => scalar_storage_type(*selected, declarations)?,
+        field => scalar_storage_type(
+            field
+                .canonical_leaf_type()?
+                .leaf_declaration(declarations.iter())?
+                .id,
+            declarations,
+        )?,
+    };
+    runtime_abi::ScalarStorageCodec::from_scalar(scalar)
 }
 
 /// Primitive path observations retain the same recipe as named scalar-field

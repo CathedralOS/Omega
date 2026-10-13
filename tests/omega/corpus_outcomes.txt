@@ -5429,7 +5429,7 @@ pass/domains/user_authored_predicate_machine checked 1852ms @a9ae30e1c334+wt
 pass/domains/utf8_equals_literal_exit checked 13670ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/utf8_equals_literal_mismatch_exit checked 12608ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/utf8_field_read_carries_domain_exit checked 12813ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/domains/utf8_field_write_from_param checked 45516ms check-target:macos_arm64 @99a0bb84e93a+wt
+pass/domains/utf8_field_write_from_param checked 4757ms check-target:macos_arm64 @51cd9b31baf0
 pass/domains/vacuous_domain_qualification checked 1751ms @a9ae30e1c334+wt
 pass/domains/view_field_literal_store_reads_exit checked 12827ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/cleanup_machine_drop_shape checked 2087ms @a9ae30e1c334+wt
@@ -6845,6 +6845,7 @@ pass/termination/unsigned_identity_measure_rank_range checked 1684ms @a9ae30e1c3
 pass/termination/wrapping_subject_guarded_descent checked 1623ms @3e63a17a5fea+wt
 pass/text/borrowed_bounded_byte_indexed_write_exit checked 11779ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/byte_content_store_continuation_exit checked 11423ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/text/byte_view_element_read_without_byte_declaration_exit checked 4759ms check-target:macos_arm64 @51cd9b31baf0
 pass/text/copy_record_view_field_state_transfer_exit checked 12002ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/declared_record_view_field_fill_exit checked 11458ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/incoming_bounded_byte_dynamic_call_exit checked 7156ms check-target:macos_arm64 @589aedee8ebc+wt
