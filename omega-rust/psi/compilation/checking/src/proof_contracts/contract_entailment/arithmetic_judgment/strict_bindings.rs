@@ -150,18 +150,17 @@ impl<'program> Engine<'program> {
             } => {
                 if !matches!(
                     operator,
-                    BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
+                    BinaryOperator::Add
+                        | BinaryOperator::Subtract
+                        | BinaryOperator::Multiply
+                        | BinaryOperator::Divide
+                        | BinaryOperator::Modulo
                 ) {
                     return None;
                 }
                 let left = self.normalize_scoped_value(left)?;
                 let right = self.normalize_scoped_value(right)?;
-                match operator {
-                    BinaryOperator::Add => left.add(&right),
-                    BinaryOperator::Subtract => left.sub(&right),
-                    BinaryOperator::Multiply => left.checked_mul(&right)?,
-                    _ => return None,
-                }
+                self.integer_binary_value(*operator, left, right)?
             }
             ScopedArithmeticValue::Term(term) => {
                 self.with_scoped_expression(term, |engine| engine.normalize(term.expression))?
@@ -407,9 +406,7 @@ impl<'program> Engine<'program> {
         ) {
             return None;
         }
-        let value =
-            self.integer_binary_value(binary.operator, dividend.clone(), divisor.clone())?;
-        self.install_integer_operation_bounds(binary.operator, &dividend, &divisor, &value);
+        let value = self.integer_binary_value(binary.operator, dividend, divisor)?;
         self.bind_strict_occurrence(expression, value).then_some(())
     }
 

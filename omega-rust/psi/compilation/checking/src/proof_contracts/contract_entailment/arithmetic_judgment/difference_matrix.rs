@@ -84,6 +84,19 @@ impl<'program> Engine<'program> {
             }
             total = total.add(&product.scale(coefficient));
         }
+        // Independent atom intervals forget correlations such as upper >
+        // lower. Preserve a difference's established range when it becomes
+        // an operand of another operation (notably a quotient).
+        if let Some((positive, negative, constant)) = polynomial.as_atom_difference() {
+            if let Some(low) = self.matrix_bound(&positive, &negative) {
+                let low = low.add(&constant);
+                total.low = Some(total.low.map_or(low.clone(), |old| old.max(low)));
+            }
+            if let Some(high) = self.matrix_bound(&negative, &positive) {
+                let high = constant.sub(&high);
+                total.high = Some(total.high.map_or(high.clone(), |old| old.min(high)));
+            }
+        }
         total
     }
 

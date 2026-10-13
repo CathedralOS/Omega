@@ -119,8 +119,10 @@ pub(super) fn analyze(
         }
         // A relational representability proof adds a carrier bound; it must
         // not discard tighter bounds already proved for the result.
-        if let Some(range) = primitive.and_then(primitive_range)
-            && operation.relationally_fits_carrier(primitive)
+        if let Some(primitive) = primitive
+            && let Some(range) = primitive_range(primitive)
+            && (operation.result_fits(primitive, range, interval, false)
+                || operation.relationally_fits_carrier(Some(primitive)))
         {
             interval = interval.intersect(range);
             exact_result_proven = true;
@@ -753,8 +755,24 @@ impl Operation<'_, '_> {
         let (left, right) = (self.binary.left, self.binary.right);
         match self.operator() {
             BinaryOperator::Add => {
-                environment.proves_joint_add_upper_bound(program, left, right)
-                    || environment.proves_joint_add_lower_bound(program, left, right)
+                let Some((minimum, maximum)) = primitive.and_then(PrimitiveType::integer_bounds)
+                else {
+                    return false;
+                };
+                // The children have already discharged their own formation.
+                // Query the same live relations for a composite result instead
+                // of requiring both operands to be named storage places.
+                walk.state.is_some_and(|state| {
+                    super::super::live_integer_constraints::proves_range(
+                        program,
+                        walk.machine,
+                        state,
+                        environment,
+                        self.expression,
+                        Some(&numerics::bignum::BigInt::from_i128(minimum)),
+                        Some(&numerics::bignum::BigInt::from_i128(maximum)),
+                    )
+                })
             }
             BinaryOperator::Subtract => {
                 environment.proves_joint_subtract_bound(program, left, right)

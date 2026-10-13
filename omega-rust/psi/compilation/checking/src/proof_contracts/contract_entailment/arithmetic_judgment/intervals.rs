@@ -123,50 +123,41 @@ impl<'program> Engine<'program> {
     }
 
     pub(super) fn bounded_quotient_interval(dividend: &Interval, divisor: &Interval) -> Interval {
-        let (Some(dividend_low), Some(dividend_high)) = (&dividend.low, &dividend.high) else {
-            return Interval::unbounded();
+        // Negating both operands preserves the quotient and makes a strictly
+        // negative denominator positive. A zero-inclusive divisor establishes
+        // no bound and never obtains definedness from the desired result.
+        let (dividend, divisor) = if divisor.high.as_ref().is_some_and(BigInt::is_negative) {
+            let negative_one = BigInt::from_i64(-1);
+            (dividend.scale(&negative_one), divisor.scale(&negative_one))
+        } else {
+            (dividend.clone(), divisor.clone())
         };
-        // On a rectangle whose denominator has one strict sign, real
-        // division reaches its extrema at corners. Truncation toward zero
-        // is monotone, so the same corners bound the integer quotient.
-        // A zero-inclusive interval supplies no quotient bounds, even if an
-        // enclosing polynomial cancels the opaque term.
         if !divisor
             .low
             .as_ref()
             .is_some_and(|low| low > &BigInt::zero())
-            && !divisor
-                .high
-                .as_ref()
-                .is_some_and(|high| high < &BigInt::zero())
         {
             return Interval::unbounded();
         }
-        // When the denominator extends to infinity on its admitted side,
-        // the quotient tends to zero. Include that limit, not an invented
-        // finite cap or the source carrier's analysis-window approximation.
-        let corner = |numerator: &BigInt, denominator: &Option<BigInt>| match denominator {
-            Some(denominator) => numerator.div_rem(denominator).map(|(quotient, _)| quotient),
-            None => Some(BigInt::zero()),
+        // For a positive denominator, each numerator endpoint independently
+        // bounds the quotient. Choose its extremal denominator by sign; an
+        // infinite denominator contributes the limit zero. An absent numerator
+        // endpoint stays unbounded without erasing the other endpoint.
+        let quotient_bound = |numerator: &Option<BigInt>, lower: bool| {
+            let numerator = numerator.as_ref()?;
+            let denominator = if lower == numerator.is_negative() {
+                &divisor.low
+            } else {
+                &divisor.high
+            };
+            match denominator {
+                Some(denominator) => numerator.div_rem(denominator).map(|(quotient, _)| quotient),
+                None => Some(BigInt::zero()),
+            }
         };
-        let [
-            Some(low_low),
-            Some(low_high),
-            Some(high_low),
-            Some(high_high),
-        ] = [
-            corner(dividend_low, &divisor.low),
-            corner(dividend_low, &divisor.high),
-            corner(dividend_high, &divisor.low),
-            corner(dividend_high, &divisor.high),
-        ]
-        else {
-            return Interval::unbounded();
-        };
-        let quotients = [low_low, low_high, high_low, high_high];
         Interval {
-            low: quotients.iter().min().cloned(),
-            high: quotients.iter().max().cloned(),
+            low: quotient_bound(&dividend.low, true),
+            high: quotient_bound(&dividend.high, false),
         }
     }
 

@@ -6854,3 +6854,13 @@ fail/borrows/fixed_array_return_shared_escalation rejected 1352ms expected @b7c1
 fail/borrows/returned_operand_parent_cannot_bypass_child rejected 1040ms expected @b7c17b88b59d
 	statement 3 mutates `whole.second.value` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 pass/borrows/fixed_array_reference_results_exit checked 9558ms check-target:macos_arm64 @b7c17b88b59d
+fail/arithmetic/relative_midpoint_replaced_endpoint rejected 234ms expected @4c1d863a7eae+wt
+	exact arithmetic in machine `midpoint` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/arithmetic/relative_midpoint_unsafe_intermediate rejected 234ms expected @4c1d863a7eae+wt
+	exact arithmetic in machine `midpoint` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/arithmetic/relative_midpoint_zero_divisor rejected 234ms expected @4c1d863a7eae+wt
+	partial exact division in machine `midpoint` state `entry` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+	exact arithmetic in machine `midpoint` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/ranges/relative_midpoint_at_slice_end rejected 526ms expected @4c1d863a7eae+wt
+	cannot prove index `position` is within unknown slice length of `values` in read::entry
+pass/arithmetic/relative_midpoint_values_exit checked 5624ms check-target:macos_arm64 @4c1d863a7eae+wt

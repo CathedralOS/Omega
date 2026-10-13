@@ -832,6 +832,8 @@ fn admitted(
                 BinaryOperator::Add
                     | BinaryOperator::Subtract
                     | BinaryOperator::Multiply
+                    | BinaryOperator::Divide
+                    | BinaryOperator::Modulo
                     | BinaryOperator::Equal
                     | BinaryOperator::NotEqual
                     | BinaryOperator::Less

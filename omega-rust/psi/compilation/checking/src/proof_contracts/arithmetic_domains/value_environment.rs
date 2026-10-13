@@ -68,8 +68,6 @@ pub(crate) struct ValueEnvironment {
     pub(super) known_u64_values: BTreeMap<String, u64>,
     pub(super) float_intervals: BTreeMap<String, FloatInterval>,
     pub(super) non_nan: BTreeSet<String>,
-    pub(super) joint_add_upper_bounds: BTreeSet<(String, String)>,
-    pub(super) joint_add_lower_bounds: BTreeSet<(String, String)>,
     pub(super) joint_subtract_bounds: BTreeSet<(String, String)>,
     pub(super) signed_joint_subtract_lower_bounds: BTreeSet<(String, String)>,
     pub(super) signed_joint_subtract_upper_bounds: BTreeSet<(String, String)>,
@@ -167,7 +165,7 @@ impl ValueEnvironment {
         }
         maps!(intervals, known_u64_values, float_intervals);
         sets!(non_nan, signed_joint_multiply_negation_bounds);
-        pairs!(true; joint_add_upper_bounds, joint_add_lower_bounds,
+        pairs!(true;
             joint_multiply_bounds, signed_joint_multiply_lower_bounds,
             signed_joint_multiply_upper_bounds);
         pairs!(false; joint_subtract_bounds, signed_joint_subtract_lower_bounds,
@@ -193,8 +191,6 @@ impl ValueEnvironment {
     }
 
     fn clear_joint_relations(&mut self) {
-        self.joint_add_upper_bounds.clear();
-        self.joint_add_lower_bounds.clear();
         self.joint_subtract_bounds.clear();
         self.signed_joint_subtract_lower_bounds.clear();
         self.signed_joint_subtract_upper_bounds.clear();
@@ -315,8 +311,6 @@ impl ValueEnvironment {
         self.known_u64_values.retain(|path, _| !overlaps(path));
         self.float_intervals.retain(|path, _| !overlaps(path));
         self.non_nan.retain(|path| !overlaps(path));
-        self.joint_add_upper_bounds.retain(keep_pair);
-        self.joint_add_lower_bounds.retain(keep_pair);
         self.joint_subtract_bounds.retain(keep_pair);
         self.signed_joint_subtract_lower_bounds.retain(keep_pair);
         self.signed_joint_subtract_upper_bounds.retain(keep_pair);
@@ -388,16 +382,6 @@ impl ValueEnvironment {
         self.non_nan.insert(path);
     }
 
-    pub(super) fn mark_joint_add_upper_bound(&mut self, left: String, right: String) {
-        self.joint_add_upper_bounds
-            .insert(canonical_path_pair(left, right));
-    }
-
-    pub(super) fn mark_joint_add_lower_bound(&mut self, left: String, right: String) {
-        self.joint_add_lower_bounds
-            .insert(canonical_path_pair(left, right));
-    }
-
     pub(super) fn mark_joint_subtract_bound(&mut self, left: String, right: String) {
         self.joint_subtract_bounds.insert((left, right));
     }
@@ -429,32 +413,6 @@ impl ValueEnvironment {
 
     pub(super) fn mark_signed_joint_multiply_negation_bound(&mut self, value: String) {
         self.signed_joint_multiply_negation_bounds.insert(value);
-    }
-
-    pub(super) fn proves_joint_add_upper_bound(
-        &self,
-        program: &dyn crate::CheckingInput,
-        left: ExpressionHandle,
-        right: ExpressionHandle,
-    ) -> bool {
-        let Some((left, right)) = place_path_pair(program, left, right) else {
-            return false;
-        };
-        self.joint_add_upper_bounds
-            .contains(&canonical_path_pair(left, right))
-    }
-
-    pub(super) fn proves_joint_add_lower_bound(
-        &self,
-        program: &dyn crate::CheckingInput,
-        left: ExpressionHandle,
-        right: ExpressionHandle,
-    ) -> bool {
-        let Some((left, right)) = place_path_pair(program, left, right) else {
-            return false;
-        };
-        self.joint_add_lower_bounds
-            .contains(&canonical_path_pair(left, right))
     }
 
     pub(super) fn proves_joint_subtract_bound(
@@ -613,16 +571,6 @@ impl ValueEnvironment {
         joined
             .non_nan
             .extend(self.non_nan.intersection(&other.non_nan).cloned());
-        joined.joint_add_upper_bounds.extend(
-            self.joint_add_upper_bounds
-                .intersection(&other.joint_add_upper_bounds)
-                .cloned(),
-        );
-        joined.joint_add_lower_bounds.extend(
-            self.joint_add_lower_bounds
-                .intersection(&other.joint_add_lower_bounds)
-                .cloned(),
-        );
         joined.joint_subtract_bounds.extend(
             self.joint_subtract_bounds
                 .intersection(&other.joint_subtract_bounds)

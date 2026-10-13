@@ -50,10 +50,9 @@ impl CopiedIntegerValue {
         local: &typed_trees::statement::TableLocalData,
         environment: &ValueEnvironment,
     ) {
-        if environment.ordered_values.is_empty()
-            || !program
-                .primitive_type_reference(local.type_reference)
-                .is_some_and(|primitive| primitive.is_fixed_integer())
+        if !program
+            .primitive_type_reference(local.type_reference)
+            .is_some_and(|primitive| primitive.is_fixed_integer())
         {
             return;
         }
@@ -72,9 +71,26 @@ impl CopiedIntegerValue {
             retain_places(&relation.left, &observed, &mut bindings);
             retain_places(&relation.right, &observed, &mut bindings);
         }
-        bindings.push((observed, destination));
+        bindings.push((observed.clone(), destination.clone()));
         self.ordered_relations =
             ordered_values::rebind_relations(&environment.ordered_values, &bindings);
+        // A successfully evaluated scalar initializer and its new binding
+        // denote the same value. Retain that relationship while the observed
+        // inputs remain current, so hoisting arithmetic does not discard its
+        // correlations. Ordinary write invalidation retires either side; a
+        // shadowing destination must not revive its old storage observation.
+        if observed.survives(&[local.name.as_str().to_owned()]) {
+            for (left, right) in [
+                (destination.clone(), observed.clone()),
+                (observed, destination),
+            ] {
+                self.ordered_relations.push(ordered_values::Relation {
+                    left,
+                    right,
+                    constraint: ordered_values::RelationConstraint::MinimumDifference(0),
+                });
+            }
+        }
     }
 
     fn capture_at(

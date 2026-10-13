@@ -1,0 +1,2 @@
+partial exact division
+the divisor must be proven nonzero

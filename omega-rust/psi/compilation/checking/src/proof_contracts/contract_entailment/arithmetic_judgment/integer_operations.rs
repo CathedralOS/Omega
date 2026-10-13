@@ -70,14 +70,18 @@ impl Engine<'_> {
         left: Polynomial,
         right: Polynomial,
     ) -> Option<Polynomial> {
-        match operator {
+        let value = match operator {
             BinaryOperator::Add => Some(left.add(&right)),
             BinaryOperator::Subtract => Some(left.sub(&right)),
             BinaryOperator::Multiply => left.checked_mul(&right),
-            BinaryOperator::Divide => self.integer_quotient(left, right),
-            BinaryOperator::Modulo => self.integer_remainder(left, right, true),
+            BinaryOperator::Divide => self.integer_quotient(left.clone(), right.clone()),
+            BinaryOperator::Modulo => self.integer_remainder(left.clone(), right.clone(), true),
             _ => None,
+        }?;
+        if matches!(operator, BinaryOperator::Divide | BinaryOperator::Modulo) {
+            self.install_integer_operation_bounds(operator, &left, &right, &value);
         }
+        Some(value)
     }
 
     pub(in crate::proof_contracts::contract_entailment) fn integer_value_lands(
@@ -164,7 +168,7 @@ impl Engine<'_> {
     /// for positive n and d >= 2, trunc(n / d) is strictly below n even when
     /// their independent ranges overlap. A positive right shift has the same
     /// strict consequence for positive values, but keeps floor semantics for
-    /// negative values. Division by one and shifting by zero prove no descent.
+    /// negative values. Division by one proves only non-increase, not descent.
     pub(in crate::proof_contracts::contract_entailment) fn install_integer_operation_bounds(
         &mut self,
         operator: BinaryOperator,
@@ -176,27 +180,31 @@ impl Engine<'_> {
         let divisor = self.substituted(right);
         let consequence = match operator {
             BinaryOperator::Divide
-                if self.prove_at_least(&dividend, &BigInt::from_i64(1))
-                    && self.prove_at_least(&divisor, &BigInt::from_i64(2)) =>
+                if self.prove_at_least(&dividend, &BigInt::zero())
+                    && self.prove_at_least(&divisor, &BigInt::from_i64(1)) =>
             {
-                Some(dividend.sub(&self.substituted(value)))
+                let strict = self.prove_at_least(&dividend, &BigInt::from_i64(1))
+                    && self.prove_at_least(&divisor, &BigInt::from_i64(2));
+                Some((
+                    dividend.sub(&self.substituted(value)),
+                    BigInt::from_i64(i64::from(strict)),
+                ))
             }
             BinaryOperator::ShiftRight
                 if self.prove_at_least(&dividend, &BigInt::from_i64(1))
                     && self.prove_at_least(&divisor, &BigInt::from_i64(1)) =>
             {
-                Some(dividend.sub(&self.substituted(value)))
+                Some((dividend.sub(&self.substituted(value)), BigInt::from_i64(1)))
             }
             BinaryOperator::Modulo
                 if self.prove_at_least(&dividend, &BigInt::zero())
                     && self.prove_at_least(&divisor, &BigInt::from_i64(1)) =>
             {
-                Some(divisor.sub(&self.substituted(value)))
+                Some((divisor.sub(&self.substituted(value)), BigInt::from_i64(1)))
             }
             _ => None,
         };
-        if let Some(consequence) = consequence {
-            let bound = (consequence, BigInt::from_i64(1));
+        if let Some(bound) = consequence {
             if !self.bounds.contains(&bound) {
                 self.bounds.push(bound);
                 self.seed_matrix();

@@ -139,6 +139,12 @@ pub(super) fn proves_range(
     minimum: Option<&BigInt>,
     maximum: Option<&BigInt>,
 ) -> bool {
+    // No relational premise can improve the caller's ordinary interval
+    // result. This also keeps operand meaning's empty-environment carrier
+    // query independent of this live-fact judgment.
+    if environment.ordered_values.is_empty() {
+        return false;
+    }
     let Some(operand) = super::ordered_values::operand(program, machine, state, expression, None)
     else {
         return false;
@@ -175,7 +181,23 @@ fn contradicts(
     mut observations: Observations,
     mut comparisons: Vec<ScopedArithmeticComparison>,
 ) -> bool {
-    for relation in &environment.ordered_values {
+    for (position, relation) in environment.ordered_values.iter().enumerate() {
+        // The live owner stores equality as two opposite non-strict orders
+        // so its edge projection and invalidation have one relation form.
+        // Present that equality once to the polynomial substitution owner;
+        // independent inequalities would hide a captured composite value.
+        let equality = (relation.constraint == RelationConstraint::MinimumDifference(0))
+            .then(|| {
+                environment.ordered_values.iter().position(|opposite| {
+                    opposite.constraint == RelationConstraint::MinimumDifference(0)
+                        && opposite.left == relation.right
+                        && opposite.right == relation.left
+                })
+            })
+            .flatten();
+        if equality.is_some_and(|opposite| opposite < position) {
+            continue;
+        }
         let (Some(left), Some(right)) = (
             observations.value(&relation.left),
             observations.value(&relation.right),
@@ -184,6 +206,9 @@ fn contradicts(
         };
         let (operator, right) = match relation.constraint {
             RelationConstraint::Unequal => (BinaryOperator::NotEqual, right),
+            RelationConstraint::MinimumDifference(0) if equality.is_some() => {
+                (BinaryOperator::Equal, right)
+            }
             RelationConstraint::MinimumDifference(floor) => (
                 BinaryOperator::GreaterOrEqual,
                 ScopedArithmeticValue::IntegerOperation {
@@ -204,6 +229,38 @@ fn contradicts(
     // all-predecessor joins; unrelated same-spelled source expressions are not
     // invented to turn an interval into a symbol binding.
     for (position, operand) in observations.atoms.iter().enumerate() {
+        // An observed integer always fits its own carrier, including u64's
+        // unsigned half outside the interval adapter's i64 window. Resolve
+        // storage through declaration handles, not its diagnostic path. Exact
+        // arithmetic was expanded above and cannot assume its result fits.
+        let primitive = match operand {
+            Operand::Place { root, fields, .. } => {
+                crate::value_custody::places::declaration_type_reference(
+                    program,
+                    fields.last().copied().unwrap_or(*root),
+                )
+                .and_then(|reference| program.primitive_type_reference(reference))
+            }
+            Operand::CollectionLength(_) => Some(typed_trees::types::PrimitiveType::U64),
+            Operand::Indexed { primitive, .. } => *primitive,
+            Operand::Binary { primitive, .. } => Some(*primitive),
+            _ => None,
+        };
+        if let Some((minimum, maximum)) = primitive
+            .filter(|primitive| primitive.is_fixed_integer())
+            .and_then(|primitive| primitive.integer_bounds())
+        {
+            for (operator, bound) in [
+                (BinaryOperator::GreaterOrEqual, minimum),
+                (BinaryOperator::LessOrEqual, maximum),
+            ] {
+                comparisons.push(ScopedArithmeticComparison {
+                    operator,
+                    left: atom(position),
+                    right: ScopedArithmeticValue::Integer(BigInt::from_i128(bound)),
+                });
+            }
+        }
         let Operand::Place { path, .. } = operand else {
             continue;
         };
@@ -244,7 +301,11 @@ impl Observations {
                 ..
             } if matches!(
                 operator,
-                BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
+                BinaryOperator::Add
+                    | BinaryOperator::Subtract
+                    | BinaryOperator::Multiply
+                    | BinaryOperator::Divide
+                    | BinaryOperator::Modulo
             ) =>
             {
                 let [left, right] = operands.as_slice() else {

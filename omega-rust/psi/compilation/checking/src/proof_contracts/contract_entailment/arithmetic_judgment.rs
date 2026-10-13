@@ -357,6 +357,15 @@ impl<'program> Engine<'program> {
         }
         for position in 0..self.opaque_terms.len() {
             let (atom, term) = self.opaque_terms[position].clone();
+            let operation = match &term {
+                OpaqueTerm::Quotient { dividend, divisor } => {
+                    Some((BinaryOperator::Divide, dividend.clone(), divisor.clone()))
+                }
+                OpaqueTerm::Remainder {
+                    operand, modulus, ..
+                } => Some((BinaryOperator::Modulo, operand.clone(), modulus.clone())),
+                _ => None,
+            };
             let interval = match term {
                 OpaqueTerm::Quotient { dividend, divisor } => {
                     self.quotient_interval(&dividend, &divisor)
@@ -383,7 +392,15 @@ impl<'program> Engine<'program> {
                     signed,
                 } => self.bitwise_and_interval(&left, &right, bits, signed),
             };
-            self.arithmetic_intervals.insert(atom, interval);
+            self.arithmetic_intervals.insert(atom.clone(), interval);
+            if let Some((operator, left, right)) = operation {
+                self.install_integer_operation_bounds(
+                    operator,
+                    &left,
+                    &right,
+                    &Polynomial::atom(atom),
+                );
+            }
         }
         self.seed_matrix();
         self.close_matrix();
@@ -761,6 +778,10 @@ impl<'program> Engine<'program> {
         if !self.install_hypotheses(comparisons) {
             return false;
         }
+        // Scoped observations retain admitted integer operations. Once their
+        // live premises are installed, recover operand/result correlations as
+        // well as intervals before asking whether the goal's complement fits.
+        self.refresh_opaque_intervals();
         if self.requires_unsatisfiable
             || equalities
                 .iter()
@@ -1122,6 +1143,23 @@ impl<'program> Engine<'program> {
                 BinaryOperator::Divide | BinaryOperator::Modulo => {
                     let dividend = self.normalize(binary.left)?;
                     let divisor = self.normalize(binary.right)?;
+                    // Scoped runtime values retain the selected builtin Exact
+                    // integer denotation, including non-integral quotients
+                    // truncated toward zero. Source formation remains a
+                    // separate obligation; this is not rational division or
+                    // authority for a proof-only operation.
+                    if self.strict_symbol_bindings.is_some()
+                        && !self.proof_integer_formation
+                        && self
+                            .source_result_type(expression)
+                            .is_some_and(|reference| {
+                                self.program
+                                    .primitive_type_reference(reference)
+                                    .is_some_and(|primitive| primitive.is_fixed_integer())
+                            })
+                    {
+                        return self.integer_binary_value(binary.operator, dividend, divisor);
+                    }
                     let builtin_proof_integer = proof_integer_expression(self.program, expression)
                         && self
                             .program

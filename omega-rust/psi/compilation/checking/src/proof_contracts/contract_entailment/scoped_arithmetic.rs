@@ -50,7 +50,7 @@ pub enum ScopedArithmeticValue {
     /// a checked closed domain index. This does not establish executable
     /// carrier landing or the constant's source custody.
     Integer(numerics::bignum::BigInt),
-    /// Mathematical addition, subtraction or multiplication of already
+    /// Mathematical integer arithmetic over already
     /// admitted integer values. The caller establishes exact builtin meaning;
     /// this node cannot reinterpret wrapping or trapping source arithmetic.
     IntegerOperation {
@@ -273,6 +273,9 @@ pub(super) fn install_hypotheses(
     if !engine.install_hypotheses(comparisons) {
         return false;
     }
+    // Captured values are normalized before their occurrence's hypotheses.
+    // Revisit their dependent operation bounds now that those facts are live.
+    engine.refresh_opaque_intervals();
     true
 }
 

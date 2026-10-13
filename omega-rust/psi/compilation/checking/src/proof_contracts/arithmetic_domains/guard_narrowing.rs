@@ -133,24 +133,6 @@ pub(crate) fn requires_value_environment(
         let Some(comparison) = program.expression_table.binary_node(expression) else {
             return;
         };
-        if let Some((left, right)) = joint_add_upper_guard(
-            program,
-            machine,
-            Some(entry_state),
-            &environment,
-            comparison,
-        ) {
-            environment.mark_joint_add_upper_bound(left, right);
-        }
-        if let Some((left, right)) = joint_add_lower_guard(
-            program,
-            machine,
-            Some(entry_state),
-            &environment,
-            comparison,
-        ) {
-            environment.mark_joint_add_lower_bound(left, right);
-        }
         if let Some((left, right)) =
             joint_subtract_guard(program, machine, Some(entry_state), comparison)
         {
@@ -635,16 +617,6 @@ pub(super) fn narrow_environment_by_comparison(
     // do not yield the complementary bound because NaN makes both ordered
     // directions false.
     if positive {
-        if let Some((left, right)) =
-            joint_add_upper_guard(program, machine, state, environment, &comparison)
-        {
-            environment.mark_joint_add_upper_bound(left, right);
-        }
-        if let Some((left, right)) =
-            joint_add_lower_guard(program, machine, state, environment, &comparison)
-        {
-            environment.mark_joint_add_lower_bound(left, right);
-        }
         if let Some((left, right)) = joint_subtract_guard(program, machine, state, &comparison) {
             environment.mark_joint_subtract_bound(left, right);
         }
@@ -857,39 +829,6 @@ fn exact_bound_binary<'program>(
     Some((binary, left_primitive))
 }
 
-/// `bound` unwrapped to a built-in exact-domain subtract whose right
-/// operand shares `left`'s declared primitive; yields the subtraction node,
-/// the shared primitive, and the right operand's place path.
-fn exact_place_subtract<'program>(
-    program: &'program dyn crate::CheckingInput,
-    machine: &Machine,
-    state: Option<&State>,
-    left: ExpressionHandle,
-    bound: ExpressionHandle,
-) -> Option<(
-    &'program typed_trees::expression::TableBinaryExpression,
-    PrimitiveType,
-    String,
-)> {
-    let (subtract, left_primitive) = exact_bound_binary(
-        program,
-        machine,
-        state,
-        left,
-        bound,
-        BinaryOperator::Subtract,
-    )?;
-    let right_path = place_path(program, subtract.right)?;
-    Some((subtract, left_primitive, right_path))
-}
-
-/// Recognize the exact guard `left <= MAX - right` (including its `>=`
-/// spelling) without pretending either operand has an independent tighter
-/// interval. The subtraction is total for unsigned carriers and for signed
-/// carriers when the current path already proves `right >= 0`; the comparison
-/// is then exactly the upper no-overflow condition for `left + right`.
-/// An Exact unsigned ceiling below MAX also suffices when prior facts prove
-/// that its subtraction of `right` is total.
 /// `<=` and `>=` orderings reduced to one directed operand pair: the tuple
 /// reads (directed-left, directed-right) as if the comparison were always `<=`.
 fn directed_comparison_operands(
@@ -900,92 +839,6 @@ fn directed_comparison_operands(
         BinaryOperator::GreaterOrEqual => Some((comparison.right, comparison.left)),
         _ => None,
     }
-}
-
-fn joint_add_upper_guard(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: Option<&State>,
-    environment: &ValueEnvironment,
-    comparison: &typed_trees::expression::TableBinaryExpression,
-) -> Option<(String, String)> {
-    let (left, bound) = directed_comparison_operands(comparison)?;
-    let (subtract, left_primitive, right_path) =
-        exact_place_subtract(program, machine, state, left, bound)?;
-    let maximum_matches = match left_primitive {
-        PrimitiveType::U8 => literal_i64(program, subtract.left) == Some(u8::MAX as i64),
-        PrimitiveType::U16 => literal_i64(program, subtract.left) == Some(u16::MAX as i64),
-        PrimitiveType::U32 => literal_i64(program, subtract.left) == Some(u32::MAX as i64),
-        PrimitiveType::U64 => {
-            known_u64_value(program, environment, subtract.left) == Some(u64::MAX)
-        }
-        PrimitiveType::I8 if environment.get(&right_path)?.low? >= 0 => {
-            literal_i64(program, subtract.left) == Some(i8::MAX as i64)
-        }
-        PrimitiveType::I16 if environment.get(&right_path)?.low? >= 0 => {
-            literal_i64(program, subtract.left) == Some(i16::MAX as i64)
-        }
-        PrimitiveType::I32 if environment.get(&right_path)?.low? >= 0 => {
-            literal_i64(program, subtract.left) == Some(i32::MAX as i64)
-        }
-        PrimitiveType::I64 if environment.get(&right_path)?.low? >= 0 => {
-            literal_i64(program, subtract.left) == Some(i64::MAX)
-        }
-        _ => false,
-    };
-    // A smaller unsigned ceiling suffices too: left <= ceiling - right
-    // proves left + right <= ceiling <= MAX. Admit the subtraction only
-    // when earlier live facts already establish its nonnegative result.
-    let bounded_unsigned_difference =
-        matches!(
-            left_primitive,
-            typed_trees::unsigned_integer_primitive_pattern!()
-        ) && declared_place_type_raw(program, machine, state, subtract.left).is_some_and(
-            |bound_type| {
-                program.primitive_type_reference(bound_type) == Some(left_primitive)
-                    && program.arithmetic_domain_for_type_reference(bound_type)
-                        == ArithmeticDomain::Exact
-            },
-        ) && ordered_values::subtract_floor(
-            program,
-            machine,
-            state,
-            environment,
-            subtract.left,
-            subtract.right,
-        )
-        .is_some_and(|floor| floor >= 0);
-    if !maximum_matches && !bounded_unsigned_difference {
-        return None;
-    }
-    Some((place_path(program, left)?, right_path))
-}
-
-/// Recognize the signed guard `MIN - right <= left` (including its `>=`
-/// spelling) once the current path proves `right <= 0`. The sign fact makes
-/// the bound subtraction total, and the comparison is exactly the lower
-/// no-underflow condition for `left + right`.
-fn joint_add_lower_guard(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: Option<&State>,
-    environment: &ValueEnvironment,
-    comparison: &typed_trees::expression::TableBinaryExpression,
-) -> Option<(String, String)> {
-    let (bound, left) = directed_comparison_operands(comparison)?;
-    let (subtract, left_primitive, right_path) =
-        exact_place_subtract(program, machine, state, left, bound)?;
-    let minimum = match left_primitive {
-        PrimitiveType::I8 if environment.get(&right_path)?.high? <= 0 => i8::MIN as i64,
-        PrimitiveType::I16 if environment.get(&right_path)?.high? <= 0 => i16::MIN as i64,
-        PrimitiveType::I32 if environment.get(&right_path)?.high? <= 0 => i32::MIN as i64,
-        PrimitiveType::I64 if environment.get(&right_path)?.high? <= 0 => i64::MIN,
-        _ => return None,
-    };
-    if literal_i64(program, subtract.left) != Some(minimum) {
-        return None;
-    }
-    Some((place_path(program, left)?, right_path))
 }
 
 /// Recognize the unsigned guard `right <= left` (including its `>=` spelling).
