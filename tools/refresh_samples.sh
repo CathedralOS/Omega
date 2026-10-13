@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Rebuild the Rust development CLI, then run every applicable sample's native
+# Build the optimized development CLI, then run every applicable sample's native
 # oracle through the repository-owned sample gate. Sample coverage does not
 # belong to the shipped `omega` command surface.
 set -euo pipefail
@@ -30,8 +30,6 @@ if [ "$major" -lt 1 ] || { [ "$major" -eq 1 ] && [ "$minor" -lt 7 ]; }; then
 fi
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
-(cd "$root" && mbx build -p omega)
-exe="$root/target/debug/omega"
-[ -x "$exe" ] || exe="$root/target/debug/omega.exe"
 cd "$root"
-exec python3 tools/sample_native_gate.py --cli "$exe"
+# The gate builds the opt-level 1 CLI it measures into build/gate-cli/.
+exec python3 tools/sample_native_gate.py

@@ -1,6 +1,8 @@
 """The sample gate edits decisions, never the package review's byte framing."""
 
+import contextlib
 import importlib.util
+import io
 from pathlib import Path
 import subprocess
 import sys
@@ -77,8 +79,8 @@ class FixtureOracleTests(unittest.TestCase):
         returns the supplied program result and records its stdin."""
         calls = []
 
-        def fake_run(command, timeout, stdin=subprocess.DEVNULL):
-            calls.append((command, stdin))
+        def fake_run(command, timeout, stdin=subprocess.DEVNULL, cwd=None):
+            calls.append((command, stdin, cwd))
             if "run" in command:
                 return subprocess.CompletedProcess(command, exit_code, stdout, stderr)
             return subprocess.CompletedProcess(command, 0, "", "")
@@ -89,7 +91,8 @@ class FixtureOracleTests(unittest.TestCase):
         with patch.object(gate, "run", side_effect=fake_run), \
                 patch.object(gate, "project_at", return_value=project):
             result = gate.measure("omega", directory, "macos_arm64", 10)
-        runs = [stdin for command, stdin in calls if "run" in command]
+        runs = [stdin for command, stdin, cwd in calls if "run" in command]
+        self.run_directories = [cwd for command, stdin, cwd in calls if "run" in command]
         return result, runs
 
     def test_input_fixture_feeds_input_and_scores_files(self):
@@ -127,6 +130,14 @@ class FixtureOracleTests(unittest.TestCase):
             result, _ = self.measure(directory, "", "warning\nnative exit 0\n")
             self.assertEqual(result["state"], "oracle-failed")
             self.assertIn("stderr differs", result["detail"])
+
+    def test_programs_run_from_a_scratch_directory_in_build(self):
+        with tempfile.TemporaryDirectory() as directory:
+            self.project(directory)
+            result, _ = self.measure(directory, "", "native exit 0\n")
+            self.assertEqual(result["state"], "pass")
+            self.assertEqual(self.run_directories, [str(Path(directory, "build", "gate-run"))])
+            self.assertTrue(Path(directory, "build", "gate-run").is_dir())
 
     def test_header_oracle_keeps_empty_stdin(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -296,6 +307,83 @@ class NestedGroupTests(unittest.TestCase):
         self.assertEqual(len(gate.nested_groups(["samples/a", "samples/b", "samples/c"])), 3)
 
 
+class StalePackageStateTests(unittest.TestCase):
+    """Only failures about this checkout's package state get one clean retry."""
+
+    def test_stale_state_is_cleared_and_measured_again(self):
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, "build", "package-manager").mkdir(parents=True)
+            Path(directory, "omega.lock").write_text("stale")
+            Path(directory, "main.omg").write_text("machine main() {}\n")
+            stale = {"sample": directory, "state": "no-native-build",
+                     "detail": "target root slot ... needs an accepted program-entry binding"}
+            passing = {"sample": directory, "state": "pass", "detail": ""}
+            with patch.object(gate, "measure", side_effect=[stale, passing]) as measure:
+                result = gate.timed_measure("omega", directory, "macos_arm64", 10)
+            self.assertEqual(measure.call_count, 2)
+            self.assertEqual(result["state"], "pass")
+            self.assertIn("program-entry binding", result["retried"])
+            self.assertFalse(Path(directory, "build").exists())
+            self.assertFalse(Path(directory, "omega.lock").exists())
+            self.assertTrue(Path(directory, "main.omg").exists(), "sources are never removed")
+
+    def test_a_compiler_refusal_is_not_retried(self):
+        refusal = {"sample": "s", "state": "no-native-build",
+                   "detail": "`Main::main` has no executable body"}
+        with patch.object(gate, "measure", return_value=refusal) as measure:
+            result = gate.timed_measure("omega", "s", "macos_arm64", 10)
+        self.assertEqual(measure.call_count, 1)
+        self.assertNotIn("retried", result)
+
+
+class GateCliTests(unittest.TestCase):
+    """By default the gate measures a fresh opt-level 1 build; an explicit
+    CLI older than the checkout's compiler is flagged."""
+
+    def test_default_build_is_optimized_and_isolated(self):
+        built = subprocess.CompletedProcess([], 0, "", "")
+        with patch.object(gate.shutil, "which", return_value=None), \
+                patch.object(gate.subprocess, "run", return_value=built) as runner, \
+                contextlib.redirect_stderr(io.StringIO()):
+            cli = gate.build_gate_cli()
+        command = runner.call_args.args[0]
+        environment = runner.call_args.kwargs["env"]
+        self.assertEqual(command[:2], ["cargo", "build"])
+        self.assertEqual(environment["CARGO_PROFILE_DEV_OPT_LEVEL"], "1")
+        self.assertEqual(environment["CARGO_TARGET_DIR"], str(gate.GATE_CLI_DIR))
+        self.assertTrue(cli.startswith(str(gate.GATE_CLI_DIR)))
+
+    def test_failed_build_returns_nothing(self):
+        failed = subprocess.CompletedProcess([], 101, "", "error[E0425]")
+        with patch.object(gate.subprocess, "run", return_value=failed), \
+                contextlib.redirect_stderr(io.StringIO()):
+            self.assertIsNone(gate.build_gate_cli())
+
+    def test_cli_older_than_last_compiler_commit_is_stale(self):
+        with tempfile.NamedTemporaryFile() as cli:
+            built = Path(cli.name).stat().st_mtime
+
+            def git(command, **_):
+                if "log" in command:
+                    return subprocess.CompletedProcess(command, 0, f"abc1234 {int(built) + 60}\n", "")
+                return subprocess.CompletedProcess(command, 0, "", "")
+
+            with patch.object(gate.subprocess, "run", side_effect=git):
+                self.assertIn("abc1234", gate.cli_staleness(cli.name))
+
+    def test_cli_newer_than_compiler_is_current(self):
+        with tempfile.NamedTemporaryFile() as cli:
+            built = Path(cli.name).stat().st_mtime
+
+            def git(command, **_):
+                if "log" in command:
+                    return subprocess.CompletedProcess(command, 0, f"abc1234 {int(built) - 60}\n", "")
+                return subprocess.CompletedProcess(command, 0, "", "")
+
+            with patch.object(gate.subprocess, "run", side_effect=git):
+                self.assertEqual(gate.cli_staleness(cli.name), "")
+
+
 class RunHistoryTests(unittest.TestCase):
     def test_each_run_writes_a_dated_record(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -306,7 +394,8 @@ class RunHistoryTests(unittest.TestCase):
             gate.record_run(arguments, started, results, {"pass": results}, 1, 1)
             written = Path(directory) / "20261012T220000Z-macos_arm64.json"
             record = gate.json.loads(written.read_text())
-            self.assertEqual(record["summary"], {"passed": 1, "scored": 1, "states": {"pass": 1}})
+            self.assertEqual(record["summary"],
+                             {"passed": 1, "scored": 1, "states": {"pass": 1}, "retried": 0})
             self.assertEqual(record["filter"], "games")
             self.assertEqual(record["results"], results)
 

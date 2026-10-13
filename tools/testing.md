@@ -498,10 +498,20 @@ for a historical 148-project tree; current selection comes from discovery, not
 that historical count.
 
 `tools/sample_native_gate.py` runs each sample's `omega update`, then builds
-and runs it. Give it an optimized compiler: package review of a std-using
-sample costs about 160 s once per compiler build and about 8 s after the
-compiled-review cache holds std, against minutes per sample with the debug
-binary. A sample whose `build.omg` binds no `ProgramEntry` is a check-only
+and runs it. Without `--cli` it first builds an opt-level 1 CLI into
+`build/gate-cli/` (with `mbx`, or Cargo when `mbx` is absent) and measures
+that: package review of a std-using sample takes minutes with the
+unoptimized dev binary, and 31 projects took 66 s with the optimized CLI
+against 436 s with the dev build, with identical results. The build is
+incremental and leaves `target/debug/omega` alone. An explicit `--cli` older
+than the checkout's last compiler change draws a warning, and the run record
+marks it stale. Each run is recorded under `build/sample-gate-runs/` with
+per-sample and per-phase times. Programs run from a scratch directory under
+their own ignored `build/`, so files they write stay out of the checkout. A
+failure caused by this checkout's stale package state (an accepted lock or
+review left by an interrupted run or another compiler build) is measured once
+more from a clean review and reported as `retried`; a compiler defect
+reproduces on that retry. A sample whose `build.omg` binds no `ProgramEntry` is a check-only
 probe; the gate checks it and reports it apart from the native score.
 Its failure still makes the gate fail. Intended-invalid projects never enter
 package acceptance or native execution: they must exit 1 from checking and match
@@ -510,9 +520,8 @@ and timeouts fail; no negative coverage disappears into an unscored row. Existin
 no-oracle/freestanding reporting and positive package-review behavior are unchanged.
 
 ```bash
-CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR=../tgt-opt mbx build -p omega
-python3 tools/sample_native_gate.py --cli "$(realpath ../tgt-opt/debug/omega*)" \
-  --target windows_x86_64 --filter cli/ --jobs 8 --timeout 900 < /dev/null
+python3 tools/sample_native_gate.py --filter cli/ --jobs 8 --timeout 900 < /dev/null
+python3 tools/sample_native_gate.py --cli <existing-omega> --filter cli/games
 ```
 
 The corpus gate executes fixtures with `input.txt` as stdin (absent means an

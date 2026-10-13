@@ -59,6 +59,7 @@ import datetime
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -146,7 +147,7 @@ def phase_of(command):
     return {"update": "review", "--check": "check", "run": "run"}.get(word, "build")
 
 
-def run(command, timeout, stdin=subprocess.DEVNULL):
+def run(command, timeout, stdin=subprocess.DEVNULL, cwd=None):
     start = time.monotonic()
     try:
         return subprocess.run(
@@ -155,6 +156,7 @@ def run(command, timeout, stdin=subprocess.DEVNULL):
             text=True,
             timeout=timeout,
             stdin=stdin,
+            cwd=cwd,
         )
     except subprocess.TimeoutExpired:
         return None
@@ -165,12 +167,42 @@ def run(command, timeout, stdin=subprocess.DEVNULL):
             times[phase] = times.get(phase, 0.0) + time.monotonic() - start
 
 
+# Refusals about this checkout's own package state, not the program: an
+# accepted lock or proposal left by an interrupted run, by a CLI built from
+# another revision, or by a concurrent write into the package's sources.
+STALE_PACKAGE_STATE = re.compile(
+    r"needs an accepted program-entry binding"
+    r"|source identity changed"
+    r"|resume-failed: local source")
+# Local package state the gate itself creates; all of it is ignored by Git.
+PACKAGE_STATE = ("build", "omega.lock", "omega.admissions")
+
+
+def clear_package_state(sample):
+    for name in PACKAGE_STATE:
+        path = os.path.join(sample, name)
+        if os.path.isdir(path):
+            shutil.rmtree(path, ignore_errors=True)
+        elif os.path.exists(path):
+            os.remove(path)
+
+
 def timed_measure(cli, sample, target, timeout):
-    """`measure` plus the wall time it took and where that time went."""
+    """`measure` plus the wall time it took and where that time went.
+
+    A failure caused by stale local package state is measured once more from
+    a clean review. A compiler defect reproduces on that clean retry, so the
+    retry cannot hide one; `retried` keeps the first refusal visible.
+    """
     _phases.times = {}
     start = time.monotonic()
     try:
         result = measure(cli, sample, target, timeout)
+        first = result.get("diagnostic") or result.get("detail", "")
+        if result["state"] in ("no-native-build", "error") and STALE_PACKAGE_STATE.search(first):
+            clear_package_state(sample)
+            result = measure(cli, sample, target, timeout)
+            result["retried"] = first
     finally:
         times, _phases.times = _phases.times, None
     result["seconds"] = round(time.monotonic() - start, 2)
@@ -390,7 +422,13 @@ def measure(cli, sample, target, timeout):
         return {"sample": sample, "state": "no-oracle", "detail": "header documents neither"}
     input_stream = open(input_path, "rb") if has_input else subprocess.DEVNULL
     try:
-        completed = run([cli, "run", str(project.entry)], timeout, stdin=input_stream)
+        # Programs write relative paths (WAV files, note_vault's directory)
+        # into their working directory. A per-sample scratch directory under
+        # the ignored build/ keeps that output out of the checkout and away
+        # from other samples running at the same time.
+        scratch = os.path.join(sample, "build", "gate-run")
+        os.makedirs(scratch, exist_ok=True)
+        completed = run([cli, "run", str(project.entry)], timeout, stdin=input_stream, cwd=scratch)
     finally:
         if input_stream is not subprocess.DEVNULL:
             input_stream.close()
@@ -444,7 +482,9 @@ def measure(cli, sample, target, timeout):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--cli", default="./target/debug/omega")
+    parser.add_argument("--cli",
+                        help="compiler to measure; by default the gate builds an "
+                             "opt-level 1 CLI into build/gate-cli/ and uses that")
     parser.add_argument("--target", default=host_target(),
                         help="defaults to this host's target")
     parser.add_argument("--filter", help="comma-separated path fragments")
@@ -455,6 +495,17 @@ def main():
                         help="directory receiving one dated record per run; empty disables")
     arguments = parser.parse_args()
     started = datetime.datetime.now(datetime.timezone.utc)
+    if arguments.cli is None:
+        arguments.cli = build_gate_cli()
+        if arguments.cli is None:
+            return 2
+    else:
+        # Programs run from per-sample scratch directories, so a relative
+        # compiler path would no longer resolve.
+        arguments.cli = os.path.abspath(arguments.cli)
+    staleness = cli_staleness(arguments.cli)
+    if staleness:
+        print(f"sample_native_gate: warning: {staleness}", file=sys.stderr)
 
     wanted = [fragment.strip() for fragment in (arguments.filter or "").split(",") if fragment.strip()]
     samples = discover("samples", wanted)
@@ -514,10 +565,15 @@ def main():
     )
     for row in timing["slowest"][:5]:
         print(f"   {row['seconds']:7.1f}s  {row['sample']}  ({row['state']})")
+    retried = [result for result in results if "retried" in result]
+    if retried:
+        recovered = sum(1 for result in retried if result["state"] in ("pass", "no-oracle"))
+        print(f"sample_native_gate: {len(retried)} samples retried after stale package state; "
+              f"{recovered} recovered")
     if arguments.write_results:
         json.dump(results, open(arguments.write_results, "w"), indent=1)
     if arguments.history_dir:
-        record_run(arguments, started, results, buckets, passed, len(scored), timing)
+        record_run(arguments, started, results, buckets, passed, len(scored), timing, staleness)
     failures = [result for result in results if result["state"] not in
                 ("pass", "checked", "rejected", "no-oracle", "not-host-runnable")]
     return 1 if failures else 0
@@ -539,6 +595,65 @@ def timing_summary(results, wall_seconds):
     }
 
 
+GATE_CLI_DIR = ROOT / "build" / "gate-cli"
+# The compiler's own sources: a CLI older than the last commit touching
+# them was built from a different compiler than this checkout's.
+COMPILER_INPUTS = ("omega-rust", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml")
+
+
+def build_gate_cli():
+    """Build the CLI the gate measures by default and return its path.
+
+    testing.md asks for an optimized compiler: package review of a std-using
+    sample takes minutes with the unoptimized dev build. Measured on 31
+    projects, the opt-level 1 CLI took 66 s where the dev build took 436 s
+    with identical results. A dedicated target directory keeps this build
+    from replacing the developer's own target/debug/omega. The build is
+    incremental, so an unchanged compiler costs seconds.
+    """
+    tool = "mbx" if shutil.which("mbx") else "cargo"
+    environment = dict(os.environ, CARGO_PROFILE_DEV_OPT_LEVEL="1",
+                       CARGO_TARGET_DIR=str(GATE_CLI_DIR))
+    print(f"sample_native_gate: building the opt-level 1 CLI into {GATE_CLI_DIR} with {tool}",
+          file=sys.stderr)
+    completed = subprocess.run([tool, "build", "-p", "omega", "--bin", "omega"],
+                               cwd=ROOT, env=environment, capture_output=True, text=True)
+    if completed.returncode != 0:
+        print(completed.stderr[-4000:], file=sys.stderr)
+        print("sample_native_gate: building the CLI failed; pass --cli to measure another build",
+              file=sys.stderr)
+        return None
+    name = "omega.exe" if os.name == "nt" else "omega"
+    return str(GATE_CLI_DIR / "debug" / name)
+
+
+def cli_staleness(cli):
+    """Why `cli` predates this checkout's compiler, or "" when it does not.
+
+    A stale binary does not exercise the route the checkout describes
+    (SAMPLE-CORPUS), so its numbers are not this revision's. Committed
+    changes compare commit time with the binary's modification time;
+    uncommitted compiler edits compare each edited file's time.
+    """
+    try:
+        built = os.stat(cli).st_mtime
+    except OSError:
+        return f"CLI {cli} does not exist"
+
+    def git(*command):
+        completed = subprocess.run(["git", *command], cwd=ROOT, capture_output=True, text=True)
+        return completed.stdout.strip() if completed.returncode == 0 else ""
+
+    last = git("log", "-1", "--format=%h %ct", "--", *COMPILER_INPUTS).split()
+    if len(last) == 2 and int(last[1]) > built:
+        return f"CLI {cli} is older than compiler commit {last[0]}; results may not describe this checkout"
+    for line in git("status", "--porcelain", "--", *COMPILER_INPUTS).splitlines():
+        path = ROOT / line[3:].strip()
+        if path.is_file() and path.stat().st_mtime > built:
+            return f"CLI {cli} is older than the uncommitted edit to {line[3:].strip()}"
+    return ""
+
+
 def cli_identity(cli):
     """Which compiler binary measured the run. Timings from a debug and an
     optimized build differ by minutes per sample, so a record without this
@@ -556,7 +671,7 @@ def cli_identity(cli):
     }
 
 
-def record_run(arguments, started, results, buckets, passed, scored, timing=None):
+def record_run(arguments, started, results, buckets, passed, scored, timing=None, staleness=""):
     """One dated record per run, so the pass rate and its cost have a history.
 
     The revision and dirty flag say which checkout produced the numbers; a
@@ -573,7 +688,7 @@ def record_run(arguments, started, results, buckets, passed, scored, timing=None
         "revision": git("rev-parse", "HEAD"),
         "dirty": bool(git("status", "--porcelain", "--untracked-files=no")),
         "target": arguments.target,
-        "cli": cli_identity(arguments.cli),
+        "cli": dict(cli_identity(arguments.cli), stale=staleness),
         "jobs": getattr(arguments, "jobs", None),
         "timeout": getattr(arguments, "timeout", None),
         "filter": arguments.filter or "",
@@ -581,6 +696,7 @@ def record_run(arguments, started, results, buckets, passed, scored, timing=None
             "passed": passed,
             "scored": scored,
             "states": {state: len(rows) for state, rows in sorted(buckets.items())},
+            "retried": sum(1 for result in results if "retried" in result),
         },
         "timing": timing or {},
         "results": results,

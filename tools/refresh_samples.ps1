@@ -1,4 +1,4 @@
-# Rebuild the Rust development CLI, then run every applicable sample's native
+# Build the optimized development CLI, then run every applicable sample's native
 # oracle through the repository-owned sample gate. Sample coverage does not
 # belong to the shipped `omega` command surface.
 $mbxCommand = Get-Command mbx -ErrorAction SilentlyContinue
@@ -14,11 +14,7 @@ if ($mbxVersion -lt [version]'1.7.0') {
 }
 
 $root = Split-Path -Parent $PSScriptRoot
-Push-Location $root
-mbx build -p omega
-$ok = $LASTEXITCODE -eq 0
-Pop-Location
-if (-not $ok) { exit 1 }
 Set-Location $root
-python tools/sample_native_gate.py --cli (Join-Path $root "target\debug\omega.exe")
+# The gate builds the opt-level 1 CLI it measures into build\gate-cli\.
+python tools/sample_native_gate.py
 exit $LASTEXITCODE
