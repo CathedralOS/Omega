@@ -916,6 +916,8 @@ fail/build/generated_scalar_constant_range_refused rejected 5522ms expected publ
 	scalar constant `VALUE` is invalid: const value `256` does not fit `u8`
 fail/build/generated_source_base_reference_refused rejected 5456ms expected published:none @a9ae30e1c334+wt
 	machine `Main::main` state `main` uses `ANSWER`, which is not a declared local, parameter, field, or type in this state (check the spelling)
+fail/build/generated_source_undeclared_call_refused rejected 2929ms expected published:none @ca002ac106ad+wt
+	machine `generated_check` state `later`: value call `generated_missing(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
 fail/build/generated_source_unsealed_handoff_refused rejected 8048ms expected published:none @a9ae30e1c334+wt
 	build-time evaluation of `build` failed: filesystem staging sponsor rejected operation: staging entry is not sealed: output/generated.omg; partial non-admission filesystem evidence: 2 call(s), 0 evaluator-halted, 0 grant refusal(s), 1 logical-handle operand(s)
 fail/build/generic_const_zero_context_requires_establishment rejected 5443ms expected @a9ae30e1c334+wt
@@ -4676,6 +4678,7 @@ pass/build/described_runner_entry_right_exit checked 11077ms check-target:macos_
 pass/build/discarded_provider_selection_exit checked 6362ms check-target:macos_arm64 @ac7fc986d407+wt
 pass/build/entry_schema_same_leaf_exit checked 10244ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/explicit_lifetime_entry_context_exit checked 10214ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/build/generated_source_selects_authored checked 14385ms published:files/generated.omg @ca002ac106ad+wt
 pass/build/named_map_target_family_rows_exit checked 7260ms check-target:macos_arm64 @cbb413ac54c3
 pass/build/product_description_paths_exit checked 10456ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/product_entry_named_user_machine_exit checked 10318ms check-target:macos_arm64 @a9ae30e1c334+wt
