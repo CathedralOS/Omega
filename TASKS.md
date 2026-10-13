@@ -1599,8 +1599,7 @@ defines the complete product bar.
     [representation judgment](omega-rust/psi/compilation/checking/recasts.md))
     and returns (**NOMINAL-FIELD-FLOW**, **STATE-LOCAL-VALUE-FRONTIER**). Re-drive
     `pass/core/zii_default_composite_exit`,
-    `pass/collections/runtime_dutch_flag_partition_exit`,
-    `pass/calls/runtime_mutable_call_before_transition_args_exit`, the
+    `pass/collections/runtime_dutch_flag_partition_exit`, the
     `pass/recast/runtime_*_mutable_write_exit` family and the sample field
     migrations; reproduce before attributing failures to proposition checking.
     Keep the [ten-position recast inventory](wiki/drafts/designs/range_suffix_migration.md#audited-recast-selectors-and-aggregate-leaves)
@@ -1626,6 +1625,10 @@ defines the complete product bar.
     reset-to-2 handback refusal. Borrowed field predicates must survive local
     aliasing and checked normal return; disjoint write-only sibling projections
     must not erase predicates that constrain the selected storage.
+    Keep the [six-position call-selector inventory](wiki/drafts/designs/range_suffix_migration.md#audited-call-selectors-and-mutable-arrival-observations):
+    complete/empty/short input must retain exits 70/72/72 after mutable helper
+    return; nested scalar calls and selector-order witnesses retain exit 70.
+    One-past nonliteral row and column stores must still reject.
     Continue with the nonliteral/indexed writes and consumer transports above;
     this does not close the complete field/case migration.
   - Guarded immutable-local, guarded-field, nested-call-result and

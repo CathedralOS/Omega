@@ -134,6 +134,34 @@ facts that mention the selected field, including predicate-call arguments,
 remain fences. The runtime local-loan control temporarily writes 2 then
 restores 0, distinguishing handback from per-store parameter restrictions.
 
+## Audited call selectors and mutable arrival observations
+
+Five call customers retain six historical field bounds as data predicates.
+Paths below are under `tests/omega/pass/calls/`. The unsigned carriers retain
+their natural zero floor; exclusive upper bounds remain exclusive.
+
+| Customer and original snapshot | Historical fields | Canonical data predicates | Count |
+| --- | --- | --- | --- |
+| `runtime_mutable_call_before_transition_args_exit`, `3e1cd000697` | `Loader.cursor: u64 [0..=16383]` | `Loader where cursor <= 16383` | 1 |
+| `runtime_mutable_call_empty_input_exit`, `20d09cf7cc0` | the same cursor declaration | the same predicate | 1 |
+| `runtime_mutable_call_short_input_exit`, `20d09cf7cc0` | the same cursor declaration | the same predicate | 1 |
+| `nested_indexed_scalar_arguments_exit`, `980c103a473` | `Main.position: u64[0..4]` | `Main where position < 4` | 1 |
+| `ordered_field_selector_calls_exit`, `07969428a79` | `Cursor.row: u64[0..2]`, `Cursor.position: u64[0..4]` | `Cursor where row < 2, position < 4` | 2 |
+
+The loaders keep their original arrays, input bytes, policy conversions and
+mutable helper followed by state-argument observations. Complete input still
+exits 70; empty and short input exit 72. Nested free/attached scalar calls
+and the two selector evaluation orders still exit 70. Native and Terminal
+execution agree on macOS ARM64. `fail/calls/selector_field_predicate_upper_bound`
+rejects nonliteral row and column writes whose arrival premises include the
+one-past value; an inclusive premise cannot establish an exclusive field bound.
+
+After ordinary package preparation, the public command is
+`omega run --both tests/omega/pass/calls/<customer>/main.omg`. Supply the
+customer's `input.txt` for each loader; use empty stdin for the other programs.
+The corpus equivalent is `python3 tools/corpus_gate.py --both --filter
+calls/runtime_mutable_call_,calls/nested_indexed_scalar_arguments_exit,calls/ordered_field_selector_calls_exit`.
+
 ## Audited recast selectors and aggregate leaves
 
 Seven runtime customers retain ten historical field positions. Paths below

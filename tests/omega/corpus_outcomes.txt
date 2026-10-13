@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "4", "load1_end": 1.91, "load1_start": 1.91, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "4", "load1_end": 5.67, "load1_start": 5.67, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 835ms expected @a9ae30e1c334+wt
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -1080,6 +1080,9 @@ fail/calls/resultless_return_contract rejected 1349ms expected @a9ae30e1c334+wt
 	machine `WrongReturn::call` state `call` does not satisfy trait `Initializer` machine `call`: conformance borrow contract: callable type does not preserve its region identity
 fail/calls/selected_local_owner_reuse rejected 1632ms expected @a9ae30e1c334+wt
 	affine value `token` was already transferred or consumed; it cannot be moved here
+fail/calls/selector_field_predicate_upper_bound rejected 178ms expected @12d4cf2df172+wt
+	machine `replace_row` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+	machine `replace_position` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/calls/state_arrival_call_result_above_bound rejected 421ms expected @a0a35c7bbb43+wt
 	cannot prove requires contract for call visit from main: index <= 3 (needs fact `index <= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/calls/statement_call_undeclared_callee_rejected rejected 829ms expected @a9ae30e1c334+wt
